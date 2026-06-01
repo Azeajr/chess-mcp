@@ -1,0 +1,10 @@
+services:
+  chess-mcp:
+    build: ./server
+    ports:
+      - "8000:8000"
+    environment:
+      ANALYSIS_DEPTH: "18"
+    restart: unless-stopped
+    # On XU4: uncomment to pin to A15 cores only
+    # cpuset: "0-3"
