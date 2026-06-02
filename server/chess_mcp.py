@@ -24,6 +24,15 @@ def _score_cp(pov_score: chess.engine.PovScore) -> int:
     return s.score()
 
 
+def _score_details(pov_score: chess.engine.PovScore) -> tuple:
+    """Returns (cp_white_pov, score_type, mate_in)."""
+    s = pov_score.white()
+    if s.is_mate():
+        mate = s.mate()
+        return (10000 if mate > 0 else -10000, "mate", mate)
+    return (s.score(), "cp", None)
+
+
 def _classify(cp_loss: int) -> str:
     if cp_loss > 200:
         return "blunder"
@@ -48,7 +57,8 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
 def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
     """
     Analyze every move in a PGN game.
-    Returns per-move eval, best move, cp loss, and classification.
+    Returns per-move eval, best move, cp loss, classification, best line,
+    played-move continuation, eval relative to mover, and top alternatives.
     """
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
@@ -58,8 +68,9 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
     board = game.board()
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        prev_info = engine.analyse(board, chess.engine.Limit(depth=depth))
-        prev_cp = _score_cp(prev_info["score"])
+        prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=3)
+        prev_info = prev_infos[0]
+        prev_cp, prev_score_type, prev_mate_in = _score_details(prev_info["score"])
 
         for node in game.mainline():
             move = node.move
@@ -70,10 +81,25 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
             move_number = board.fullmove_number
             best_move = prev_info["pv"][0] if prev_info.get("pv") else move
             best_san = board.san(best_move)
+            best_pv_str = _pv_san(board, prev_info.get("pv", []))
+
+            alternatives = []
+            for alt_info in prev_infos[1:]:
+                if alt_info.get("pv"):
+                    alt_move = alt_info["pv"][0]
+                    alt_cp, alt_type, alt_mate = _score_details(alt_info["score"])
+                    alternatives.append({
+                        "move": board.san(alt_move),
+                        "move_uci": alt_move.uci(),
+                        "eval": alt_cp,
+                        "score_type": alt_type,
+                        "mate_in": alt_mate,
+                    })
 
             board.push(move)
-            info = engine.analyse(board, chess.engine.Limit(depth=depth))
-            after_cp = _score_cp(info["score"])
+            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=3)
+            info = infos[0]
+            after_cp, after_score_type, after_mate_in = _score_details(info["score"])
 
             cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
             cp_loss = max(0, cp_loss)
@@ -84,16 +110,26 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
                 "move": san,
                 "move_uci": uci,
                 "eval_before": prev_cp,
+                "eval_before_type": prev_score_type,
+                "eval_before_mate_in": prev_mate_in,
                 "eval_after": after_cp,
+                "eval_after_type": after_score_type,
+                "eval_after_mate_in": after_mate_in,
+                "eval_relative": after_cp if color == "white" else -after_cp,
                 "cp_loss": cp_loss,
                 "classification": _classify(cp_loss),
                 "best_move": best_san,
                 "best_move_uci": best_move.uci(),
+                "best_pv": best_pv_str,
                 "pv": _pv_san(board, info.get("pv", [])),
+                "alternatives": alternatives,
             })
 
             prev_cp = after_cp
-            prev_info = info
+            prev_score_type = after_score_type
+            prev_mate_in = after_mate_in
+            prev_info = infos[0]
+            prev_infos = infos
 
     return results
 
@@ -114,10 +150,13 @@ def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH) -> dict:
 
     pv = info.get("pv", [])
     best_move = board.san(pv[0]) if pv else None
+    cp, score_type, mate_in = _score_details(info["score"])
 
     return {
         "fen": fen,
-        "score_cp": _score_cp(info["score"]),
+        "score_cp": cp,
+        "score_type": score_type,
+        "mate_in": mate_in,
         "best_move": best_move,
         "best_move_uci": pv[0].uci() if pv else None,
         "pv": _pv_san(board, pv),
