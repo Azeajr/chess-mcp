@@ -1,15 +1,13 @@
-FROM python:3.11-slim
+FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         stockfish \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
 WORKDIR /app
 
 COPY pyproject.toml .
-RUN uv sync --no-dev
+RUN uv sync --no-dev --no-install-project
 
 COPY chess_mcp.py .
 

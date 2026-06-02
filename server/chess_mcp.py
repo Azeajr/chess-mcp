@@ -9,7 +9,11 @@ import os
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
 
-mcp = FastMCP("chess-analysis")
+mcp = FastMCP(
+    "chess-analysis",
+    host=os.environ.get("FASTMCP_HOST", "127.0.0.1"),
+    port=int(os.environ.get("FASTMCP_PORT", "8000")),
+)
 
 
 def _score_cp(pov_score: chess.engine.PovScore) -> int:
