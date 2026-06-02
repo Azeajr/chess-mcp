@@ -67,6 +67,7 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
             san = board.san(move)
             uci = move.uci()
 
+            move_number = board.fullmove_number
             best_move = prev_info["pv"][0] if prev_info.get("pv") else move
             best_san = board.san(best_move)
 
@@ -78,7 +79,7 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
             cp_loss = max(0, cp_loss)
 
             results.append({
-                "move_number": board.fullmove_number if color == "black" else board.fullmove_number - 1,
+                "move_number": move_number,
                 "color": color,
                 "move": san,
                 "move_uci": uci,
