@@ -11,7 +11,7 @@ RUN uv sync --no-dev --no-install-project
 
 COPY chess_mcp.py .
 
-ENV STOCKFISH_PATH=/usr/bin/stockfish \
+ENV STOCKFISH_PATH=/usr/games/stockfish \
     FASTMCP_HOST=0.0.0.0 \
     FASTMCP_PORT=8000
 
