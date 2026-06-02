@@ -20,15 +20,17 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | Tool | Input | Output |
 |------|-------|--------|
 | `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
-| `analyze_game` | PGN, depth, min_cp_loss, multipv | Per-move: cp_loss, classification, eval_after, best_move, best_pv, alternatives (filtered by min_cp_loss) |
+| `analyze_game` | PGN, depth, min_cp_loss, verbose | Mistake list (cp_loss ≥ min_cp_loss): move, cp_loss, classification, best_move. `verbose=true` adds eval_after + best_pv |
+| `get_position` | PGN, move_number, color, depth | One move's detail: FEN, eval, best_move, best_pv, alternatives — drill-down from summary/analyze |
 | `evaluate_position` | FEN, depth | Centipawn score, best move, top line |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
-| `get_legal_moves` | FEN | All legal moves in UCI + SAN |
+| `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
 
 ### Recommended workflow
 
 1. Call `get_game_summary` — small output, gives counts and worst moves.
-2. Call `analyze_game` — filtered to moves at or above `min_cp_loss` (default 50). Drill into specific moves from the summary.
+2. Call `analyze_game` — filtered to moves at or above `min_cp_loss` (default 50).
+3. Call `get_position(pgn, move_number, color)` to drill into a specific move from the summary or analysis. It returns that position's **FEN**, so you can then run `evaluate_position` / `validate_line` / `get_legal_moves` on the exact position — the agent never has to reconstruct a FEN itself.
 
 ### Move classifications
 
@@ -43,7 +45,9 @@ Scores are from white's perspective. Mate scores map to ±10000 cp.
 
 ### `analyze_game` output fields (per move)
 
-`move_number`, `color`, `move`, `cp_loss`, `classification`, `eval_after`, `best_move`, `best_pv`, `alternatives` (each: `move`, `eval`)
+Lean (default): `move_number`, `color`, `move`, `cp_loss`, `classification`, `best_move`.
+With `verbose=true`, each entry also includes `eval_after` and `best_pv`.
+For `alternatives` and the position FEN, call `get_position` for that move.
 
 ## Requirements
 
@@ -105,7 +109,7 @@ chess-mcp/
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
 ├── MCP_DESIGN.md            # Design principles for this server
 └── server/
-    ├── chess_mcp.py         # All five MCP tools, FastMCP SSE server
+    ├── chess_mcp.py         # All six MCP tools, FastMCP SSE server
     ├── pyproject.toml       # uv project + dependencies
     ├── Dockerfile           # uv+Python3.14 base, apt stockfish
     └── .dockerignore
@@ -118,5 +122,6 @@ chess-mcp/
 
 ## Roadmap
 
+- [ ] **Game handle — reduce PGN re-sends** — every tool call re-sends the full PGN as an input argument (stateless design). A multi-step review (`get_game_summary` → `analyze_game` → `get_position`) re-sends the same game text 3–4×, costing input tokens each time. Consider a `load_game(pgn) → game_id` handle that tools accept in place of `pgn`, trading strict statelessness for fewer input tokens. (Engine re-computation is already avoided via the in-process analysis cache; this addresses only the PGN *text* resend.)
 - [ ] **`time_limit` param** — expose `Limit(time=N)` as alternative to depth; useful for slower hardware or faster iteration.
 - [ ] **Opening resource** — serve ECO opening names as an MCP resource so `get_game_summary` can return opening name even when PGN headers omit it.
