@@ -21,7 +21,8 @@ The MCP server runs in Docker on a dedicated analysis box (XU4 or any host). Cla
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `analyze_game` | PGN, depth | Per-move: eval, best move, cp loss, classification, best line, alternatives |
+| `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
+| `analyze_game` | PGN, depth, min_cp_loss, multipv | Per-move: eval, best move, cp loss, classification, best line, alternatives (filtered by min_cp_loss) |
 | `evaluate_position` | FEN, depth | Centipawn score, best move, top line |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN | All legal moves in UCI + SAN |
@@ -37,9 +38,9 @@ The MCP server runs in Docker on a dedicated analysis box (XU4 or any host). Cla
 
 Scores are from white's perspective. Mate scores map to ±10000 cp.
 
-### `analyze_game` output fields (per move)
+### `analyze_game` output fields (per move, only moves where cp_loss >= min_cp_loss)
 
-`move_number`, `color`, `move`, `move_uci`, `eval_before`, `eval_before_type`, `eval_before_mate_in`, `eval_after`, `eval_after_type`, `eval_after_mate_in`, `eval_relative`, `cp_loss`, `classification`, `best_move`, `best_move_uci`, `best_pv`, `pv`, `alternatives`
+`move_number`, `color`, `move`, `eval_before`, `eval_before_type`, `eval_before_mate_in`, `eval_after`, `eval_after_type`, `eval_after_mate_in`, `eval_relative`, `cp_loss`, `classification`, `best_move`, `best_pv`, `pv`, `alternatives`
 
 ## Requirements
 
@@ -121,11 +122,11 @@ chess-mcp/
 
 ### Fixes
 
-- [ ] **`analyze_game` output size** — 40-move game returns ~41k chars, exceeds Claude Code context window. Add `min_cp_loss: int = 0` filter param; default to `50` (inaccuracies and worse only) in tool description.
+- [x] **`analyze_game` output size** — added `min_cp_loss: int = 50` param; default filters to inaccuracies and worse only.
 
 ### New tools
 
-- [ ] **`get_game_summary`** — single small-output tool: blunder/mistake/inaccuracy counts, accuracy % per side, worst 3 moves by cp loss, opening name from PGN headers. Model calls this first, drills into `analyze_game` only for moves that need explanation.
+- [x] **`get_game_summary`** — blunder/mistake/inaccuracy counts, accuracy % per side, worst 3 moves by cp loss, opening name from PGN headers. Call this first; use `analyze_game` to drill into specific moves.
 
 ### Performance / deployment
 
@@ -134,5 +135,5 @@ chess-mcp/
 
 ### Quality / design
 
-- [ ] **Redundant field cleanup** — `move_uci` / `best_move_uci` rarely used by model; consider dropping from default output to save tokens.
-- [ ] **`multipv` param on `analyze_game`** — expose top-N alternatives count (currently hardcoded to 3) as a parameter.
+- [x] **Redundant field cleanup** — dropped `move_uci` / `best_move_uci` from `analyze_game` output and `move_uci` from alternatives items.
+- [x] **`multipv` param on `analyze_game`** — exposed as parameter (default 3).

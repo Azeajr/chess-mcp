@@ -53,22 +53,24 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
     return " ".join(parts)
 
 
-@mcp.tool()
-def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
-    """
-    Analyze every move in a PGN game.
-    Returns per-move eval, best move, cp loss, classification, best line,
-    played-move continuation, eval relative to mover, and top alternatives.
-    """
+def _move_accuracy(cp_loss: int) -> float:
+    """Per-move accuracy score [0, 1]. 0 cp_loss → 1.0, 400+ cp_loss → 0.0."""
+    return max(0.0, 1.0 - cp_loss / 400.0)
+
+
+def _analyse_all_moves(
+    pgn: str, depth: int, multipv: int
+) -> tuple[list[dict], chess.pgn.Game]:
+    """Run engine analysis on every move. Returns (move_records, game)."""
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
         raise ValueError("Invalid PGN")
 
-    results = []
+    records = []
     board = game.board()
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=3)
+        prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
         prev_info = prev_infos[0]
         prev_cp, prev_score_type, prev_mate_in = _score_details(prev_info["score"])
 
@@ -76,7 +78,6 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
             move = node.move
             color = "white" if board.turn == chess.WHITE else "black"
             san = board.san(move)
-            uci = move.uci()
 
             move_number = board.fullmove_number
             best_move = prev_info["pv"][0] if prev_info.get("pv") else move
@@ -90,25 +91,23 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
                     alt_cp, alt_type, alt_mate = _score_details(alt_info["score"])
                     alternatives.append({
                         "move": board.san(alt_move),
-                        "move_uci": alt_move.uci(),
                         "eval": alt_cp,
                         "score_type": alt_type,
                         "mate_in": alt_mate,
                     })
 
             board.push(move)
-            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=3)
+            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
             info = infos[0]
             after_cp, after_score_type, after_mate_in = _score_details(info["score"])
 
             cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
             cp_loss = max(0, cp_loss)
 
-            results.append({
+            records.append({
                 "move_number": move_number,
                 "color": color,
                 "move": san,
-                "move_uci": uci,
                 "eval_before": prev_cp,
                 "eval_before_type": prev_score_type,
                 "eval_before_mate_in": prev_mate_in,
@@ -119,7 +118,6 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
                 "cp_loss": cp_loss,
                 "classification": _classify(cp_loss),
                 "best_move": best_san,
-                "best_move_uci": best_move.uci(),
                 "best_pv": best_pv_str,
                 "pv": _pv_san(board, info.get("pv", [])),
                 "alternatives": alternatives,
@@ -131,7 +129,82 @@ def analyze_game(pgn: str, depth: int = DEFAULT_DEPTH) -> list[dict]:
             prev_info = infos[0]
             prev_infos = infos
 
-    return results
+    return records, game
+
+
+@mcp.tool()
+def analyze_game(
+    pgn: str,
+    depth: int = DEFAULT_DEPTH,
+    min_cp_loss: int = 50,
+    multipv: int = 3,
+) -> list[dict]:
+    """
+    Analyze moves in a PGN game. Returns moves where cp_loss >= min_cp_loss
+    (default 50, i.e. inaccuracies and worse). Each entry: move_number, color,
+    move, classification, cp_loss, best_move, best_pv, alternatives.
+    Call get_game_summary first for an overview; use this to drill into specific moves.
+    Set min_cp_loss=0 to return all moves.
+    """
+    records, _ = _analyse_all_moves(pgn, depth, multipv)
+    return [r for r in records if r["cp_loss"] >= min_cp_loss]
+
+
+@mcp.tool()
+def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
+    """
+    Summarize a PGN game without returning per-move detail.
+    Returns blunder/mistake/inaccuracy/good counts, accuracy % per side,
+    worst 3 moves by cp_loss, and opening name from PGN headers.
+    Call this first; use analyze_game to drill into specific moves.
+    """
+    records, game = _analyse_all_moves(pgn, depth, multipv=1)
+
+    headers = game.headers
+    opening = headers.get("Opening") or headers.get("ECO") or None
+
+    stats: dict[str, dict] = {
+        "white": {"blunder": 0, "mistake": 0, "inaccuracy": 0, "good": 0, "_acc_sum": 0.0, "_count": 0},
+        "black": {"blunder": 0, "mistake": 0, "inaccuracy": 0, "good": 0, "_acc_sum": 0.0, "_count": 0},
+    }
+
+    for r in records:
+        s = stats[r["color"]]
+        s[r["classification"]] += 1
+        s["_acc_sum"] += _move_accuracy(r["cp_loss"])
+        s["_count"] += 1
+
+    def _side_summary(s: dict) -> dict:
+        count = s["_count"]
+        accuracy = round(s["_acc_sum"] / count * 100, 1) if count else None
+        return {
+            "blunders": s["blunder"],
+            "mistakes": s["mistake"],
+            "inaccuracies": s["inaccuracy"],
+            "good_moves": s["good"],
+            "accuracy_pct": accuracy,
+        }
+
+    worst_3 = sorted(records, key=lambda r: r["cp_loss"], reverse=True)[:3]
+    worst_3_out = [
+        {
+            "move_number": r["move_number"],
+            "color": r["color"],
+            "move": r["move"],
+            "cp_loss": r["cp_loss"],
+            "classification": r["classification"],
+            "best_move": r["best_move"],
+        }
+        for r in worst_3
+    ]
+
+    return {
+        "opening": opening,
+        "total_moves": len(records),
+        "white": _side_summary(stats["white"]),
+        "black": _side_summary(stats["black"]),
+        "worst_moves": worst_3_out,
+    }
 
 
 @mcp.tool()
