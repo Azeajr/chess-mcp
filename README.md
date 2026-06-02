@@ -11,17 +11,17 @@ AI agents reviewing chess games generate moves from pattern-matching, not board 
 ```
 Mini PC (Claude Code)
 └── MCP client ──(LAN SSE/HTTP)──► XU4 (Arch Linux)
-                                    ├── chess-mcp server (FastMCP + python-chess)
-                                    └── stockfish (subprocess)
+                                    ├── chess-mcp container (FastMCP + python-chess)
+                                    └── stockfish (inside container)
 ```
 
-The MCP server runs on the XU4 as a dedicated analysis box. Claude Code on the mini PC connects over LAN via SSE transport. No relay or proxy needed.
+The MCP server runs in Docker on a dedicated analysis box (XU4 or any host). Claude Code connects over LAN via SSE transport. No relay or proxy needed.
 
 ## Tools
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `analyze_game` | PGN string, depth | Per-move: eval, best move, cp loss, classification |
+| `analyze_game` | PGN, depth | Per-move: eval, best move, cp loss, classification, best line, alternatives |
 | `evaluate_position` | FEN, depth | Centipawn score, best move, top line |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN | All legal moves in UCI + SAN |
@@ -37,101 +37,102 @@ The MCP server runs on the XU4 as a dedicated analysis box. Claude Code on the m
 
 Scores are from white's perspective. Mate scores map to ±10000 cp.
 
+### `analyze_game` output fields (per move)
+
+`move_number`, `color`, `move`, `move_uci`, `eval_before`, `eval_before_type`, `eval_before_mate_in`, `eval_after`, `eval_after_type`, `eval_after_mate_in`, `eval_relative`, `cp_loss`, `classification`, `best_move`, `best_move_uci`, `best_pv`, `pv`, `alternatives`
+
 ## Requirements
 
-### XU4 (Arch Linux)
-- `stockfish` (community repo)
-- `uv` (Python package manager)
-- Python 3.11+
+- Docker + Docker Compose
+- Claude Code (on the machine running the MCP client)
 
-### Mini PC
-- Claude Code with MCP support
+No host Python, no host Stockfish. All engine deps are inside the container.
 
-## Installation
+## Deployment
 
-### On XU4
+### Local (same machine as Claude Code)
 
 ```bash
-git clone git@github.com:Azeajr/chess-mcp.git
+git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-bash install.sh
+docker compose up -d
 ```
 
-`install.sh` handles:
-- `pacman -S stockfish`
-- `uv` install if missing
-- `uv sync` to install Python deps
+Claude Code auto-connects via `.mcp.json` (`http://localhost:8000/sse`).
 
-### Run manually
+### Remote (XU4 or dedicated host)
 
 ```bash
-cd server
-uv run chess_mcp.py
+# On the analysis host
+git clone https://github.com/Azeajr/chess-mcp
+cd chess-mcp
+docker compose up -d --build
 ```
 
-Server listens on `0.0.0.0:8000` by default.
-
-### Run as systemd user service (autostart)
-
-```bash
-cp server/chess-mcp.service ~/.config/systemd/user/
-systemctl --user enable --now chess-mcp
-systemctl --user status chess-mcp
-```
-
-## Configuration
-
-### Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FASTMCP_HOST` | `0.0.0.0` | Bind address |
-| `FASTMCP_PORT` | `8000` | Listen port |
-| `STOCKFISH_PATH` | `/usr/bin/stockfish` | Engine binary path |
-| `ANALYSIS_DEPTH` | `18` | Default search depth |
-
-Set in the systemd service file or export before running.
-
-### Claude Code (mini PC)
-
-Add to `~/.claude/claude_mcp_config.json`:
+On the machine running Claude Code, update `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "chess": {
-      "url": "http://<XU4_IP>:8000/sse"
+    "chess-analysis": {
+      "type": "sse",
+      "url": "http://<HOST_IP>:8000/sse"
     }
   }
 }
 ```
 
-Replace `<XU4_IP>` with your XU4's LAN IP (`ip addr` on XU4 to find it).
+### XU4 (big.LITTLE) performance
 
-## Usage
+Uncomment `cpuset: "0-3"` in `compose.yml` to pin Stockfish to the A15 cores only.
 
-Once connected, Claude Code can call tools mid-analysis:
+## Configuration
 
-```
-analyze_game(pgn="1.e4 e5 2.Nf3 Nc6 ...", depth=18)
-evaluate_position(fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
-validate_line(fen="...", moves=["e2e4", "e7e5", "g1f3"])
-get_legal_moves(fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
-```
+Environment variables (set in `compose.yml`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FASTMCP_HOST` | `0.0.0.0` | Bind address |
+| `FASTMCP_PORT` | `8000` | Listen port |
+| `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
+| `ANALYSIS_DEPTH` | `18` | Default search depth |
 
 ## Project layout
 
 ```
 chess-mcp/
-├── install.sh               # XU4 setup script (Arch Linux)
-├── .gitignore
+├── compose.yml              # Docker Compose: port 8000, env, XU4 cpuset option
+├── .mcp.json                # Claude Code project MCP config (SSE at localhost:8000)
+├── MCP_DESIGN.md            # Design principles for this server
 └── server/
-    ├── chess_mcp.py         # FastMCP server — all four tools
+    ├── chess_mcp.py         # All four MCP tools, FastMCP SSE server
     ├── pyproject.toml       # uv project + dependencies
-    └── chess-mcp.service    # systemd user service
+    ├── Dockerfile           # uv+Python3.14 base, apt stockfish
+    ├── .dockerignore
+    └── chess-mcp.service    # systemd user service (pre-Docker, kept for reference)
 ```
 
 ## Dependencies
 
 - [`mcp[cli]`](https://github.com/modelcontextprotocol/python-sdk) — FastMCP server + SSE transport
 - [`chess`](https://github.com/niklasf/python-chess) — board state, PGN/FEN parsing, legal move generation, Stockfish subprocess wrapper
+
+## Roadmap
+
+### Fixes
+
+- [ ] **`analyze_game` output size** — 40-move game returns ~41k chars, exceeds Claude Code context window. Add `min_cp_loss: int = 0` filter param; default to `50` (inaccuracies and worse only) in tool description.
+
+### New tools
+
+- [ ] **`get_game_summary`** — single small-output tool: blunder/mistake/inaccuracy counts, accuracy % per side, worst 3 moves by cp loss, opening name from PGN headers. Model calls this first, drills into `analyze_game` only for moves that need explanation.
+
+### Performance / deployment
+
+- [ ] **XU4 deploy** — ARM build, uncomment `cpuset: "0-3"` in `compose.yml`, update `.mcp.json` URL to `http://XU4_IP:8000/sse`.
+- [ ] **Depth tuning on XU4** — depth 18 on Cortex-A15 estimated 5–10s/move. Evaluate `Limit(time=2.0)` per move as alternative; expose as `time_limit` param or auto-switch on `ANALYSIS_DEPTH=0`.
+
+### Quality / design
+
+- [ ] **Redundant field cleanup** — `move_uci` / `best_move_uci` rarely used by model; consider dropping from default output to save tokens.
+- [ ] **`multipv` param on `analyze_game`** — expose top-N alternatives count (currently hardcoded to 3) as a parameter.
