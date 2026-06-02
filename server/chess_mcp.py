@@ -72,7 +72,7 @@ def _analyse_all_moves(
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
         prev_info = prev_infos[0]
-        prev_cp, prev_score_type, prev_mate_in = _score_details(prev_info["score"])
+        prev_cp = _score_cp(prev_info["score"])
 
         for node in game.mainline():
             move = node.move
@@ -88,18 +88,15 @@ def _analyse_all_moves(
             for alt_info in prev_infos[1:]:
                 if alt_info.get("pv"):
                     alt_move = alt_info["pv"][0]
-                    alt_cp, alt_type, alt_mate = _score_details(alt_info["score"])
                     alternatives.append({
                         "move": board.san(alt_move),
-                        "eval": alt_cp,
-                        "score_type": alt_type,
-                        "mate_in": alt_mate,
+                        "eval": _score_cp(alt_info["score"]),
                     })
 
             board.push(move)
             infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
             info = infos[0]
-            after_cp, after_score_type, after_mate_in = _score_details(info["score"])
+            after_cp = _score_cp(info["score"])
 
             cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
             cp_loss = max(0, cp_loss)
@@ -108,24 +105,15 @@ def _analyse_all_moves(
                 "move_number": move_number,
                 "color": color,
                 "move": san,
-                "eval_before": prev_cp,
-                "eval_before_type": prev_score_type,
-                "eval_before_mate_in": prev_mate_in,
-                "eval_after": after_cp,
-                "eval_after_type": after_score_type,
-                "eval_after_mate_in": after_mate_in,
-                "eval_relative": after_cp if color == "white" else -after_cp,
                 "cp_loss": cp_loss,
                 "classification": _classify(cp_loss),
+                "eval_after": after_cp,
                 "best_move": best_san,
                 "best_pv": best_pv_str,
-                "pv": _pv_san(board, info.get("pv", [])),
                 "alternatives": alternatives,
             })
 
             prev_cp = after_cp
-            prev_score_type = after_score_type
-            prev_mate_in = after_mate_in
             prev_info = infos[0]
             prev_infos = infos
 
@@ -142,7 +130,7 @@ def analyze_game(
     """
     Analyze moves in a PGN game. Returns moves where cp_loss >= min_cp_loss
     (default 50, i.e. inaccuracies and worse). Each entry: move_number, color,
-    move, classification, cp_loss, best_move, best_pv, alternatives.
+    move, cp_loss, classification, eval_after, best_move, best_pv, alternatives.
     Call get_game_summary first for an overview; use this to drill into specific moves.
     Set min_cp_loss=0 to return all moves.
     """

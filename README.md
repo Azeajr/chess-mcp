@@ -40,7 +40,7 @@ Scores are from white's perspective. Mate scores map to ±10000 cp.
 
 ### `analyze_game` output fields (per move, only moves where cp_loss >= min_cp_loss)
 
-`move_number`, `color`, `move`, `eval_before`, `eval_before_type`, `eval_before_mate_in`, `eval_after`, `eval_after_type`, `eval_after_mate_in`, `eval_relative`, `cp_loss`, `classification`, `best_move`, `best_pv`, `pv`, `alternatives`
+`move_number`, `color`, `move`, `cp_loss`, `classification`, `eval_after`, `best_move`, `best_pv`, `alternatives` (each: `move`, `eval`)
 
 ## Requirements
 
