@@ -13,6 +13,10 @@ Every byte returned by a tool is a byte the model must read, compress, and reaso
 Large outputs degrade reasoning quality and hit hard token limits.
 Design output shape first. Implementation second.
 
+Inputs are context too. A stateless tool re-receives its arguments on every call, so a
+large blob re-sent across a multi-call workflow is paid for each time. Keep required
+inputs small; for big values reused across calls, consider a handle (see Stateless).
+
 ---
 
 ## Tool design rules
@@ -32,6 +36,14 @@ Estimate before implementing. For lists: cap length or add filter params.
 Provide a `min_relevance` / `limit` / `filter` param so callers can narrow scope.
 Default to narrow. Let callers widen.
 
+Narrow in three dimensions, not just list length:
+- **Fewer items** — `limit` / `filter` params.
+- **Fewer fields** — return the lean set by default; gate heavy or rarely-needed fields
+  behind a `verbose` flag.
+- **Tighter encoding** — for a big list of simple, uniform items the model reads but does
+  not address individually, a delimited scalar string (`"Nf3 Nc3 e4 ..."`) can be ~6×
+  smaller than an array of objects. Offer the structured form behind a flag when needed.
+
 ### Summary → detail hierarchy
 Design at two levels:
 1. **Summary tool** — always small, always fits. Counts, worst N items, top-level verdict.
@@ -39,9 +51,26 @@ Design at two levels:
 
 Model calls summary first, drills into what matters. One round trip for the common case.
 
-### Stateless
-Each tool call is a pure function of its inputs. No stored state between calls.
-SSE/stdio is transport only — tools themselves have no session state.
+Two rules make this work:
+- The summary must emit the exact identifier the detail tool accepts. If the model has to
+  synthesize it, it guesses wrong.
+- Outputs carry the handles the next tool needs. If drilling means calling another tool,
+  return that tool's input (an ID, a FEN, a path) in the result. Never force the model to
+  reconstruct an identifier it cannot derive reliably — that reintroduces the hallucination
+  the tool exists to prevent.
+
+### Stateless interface, cached implementation
+Each tool call is a pure function of its inputs: same inputs → same outputs, no session
+state visible to the caller. SSE/stdio is transport only.
+
+Stateless describes the *contract*, not the *implementation*. Transparent memoization is
+fine and often necessary: if a summary tool and its detail tool run the same expensive
+computation, cache it (keyed on the inputs) so the workflow computes once. The cache is
+invisible to the caller — the contract stays pure and idempotent.
+
+The one real-state case: a large input re-sent on every call. A short-lived handle
+(`load_x(blob) → id`; other tools accept `id`) trades strict statelessness for fewer input
+tokens. Reach for it only when the blob is big and reused across several calls.
 
 ### Idempotent
 Same inputs → same outputs. No side effects unless the tool explicitly performs an action.
@@ -93,6 +122,11 @@ Not: bare exceptions, 500 traces, or silent empty results.
 
 Model can adapt to a structured error. It cannot adapt to a crash.
 
+Beware lenient parsers: many libraries return an empty or degenerate object for garbage
+input instead of raising. Validate semantic validity (did it contain anything usable?),
+not just whether parsing threw — else bad input silently returns an empty result the model
+reads as "nothing wrong."
+
 ---
 
 ## Resources vs Tools
@@ -127,6 +161,9 @@ Both are just transport — tool design is identical.
 | State between calls | Tool behavior depends on prior calls | Make each call self-contained |
 | Deep nesting | `result.data.analysis.moves[0].engine.lines[0].score` | Flatten to 2 levels max |
 | Duplicate fields | Same fact encoded two ways | Pick one encoding, drop the other |
+| Recompute across calls | Summary and detail run the same expensive work twice | Cache the shared computation (transparent memoization) |
+| Unreachable handle | Model must reconstruct an ID it can't derive | Emit the next tool's input key in the output |
+| Objects for a big uniform list | Token-heavy for simple repeated items | Delimited scalar string; structured form behind a flag |
 
 ---
 
@@ -139,3 +176,7 @@ Both are just transport — tool design is identical.
 - [ ] No state carried between calls
 - [ ] Summary tool exists if detail tool output is large
 - [ ] No fields that can be inferred from other fields
+- [ ] Expensive work shared by summary + detail is cached (computed once per inputs)
+- [ ] Outputs carry the identifiers the next tool in the workflow needs
+- [ ] Heavy/optional fields gated behind a `verbose` flag; big uniform lists use a compact encoding
+- [ ] Large inputs reused across calls considered for a handle vs re-send
