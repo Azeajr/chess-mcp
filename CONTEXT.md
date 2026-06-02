@@ -34,6 +34,7 @@ Intended deployment: XU4 runs the container, Claude Code on mini PC connects via
 - Base image: `ghcr.io/astral-sh/uv:python3.14-trixie-slim` (uv + Python 3.14 + Debian trixie-slim)
 - Stockfish installed via apt (needs distro for shared lib deps)
 - `FASTMCP_HOST`/`FASTMCP_PORT` passed to FastMCP constructor (not `mcp.run()` — ignored there)
+- Stockfish on Debian installs to `/usr/games/stockfish`, not `/usr/bin/stockfish` — set via `STOCKFISH_PATH` in compose.yml
 
 **Why python-chess + FastMCP:**
 - `python-chess` is the best chess library available (any language) — handles PGN, FEN, legal moves, Stockfish subprocess
@@ -44,13 +45,13 @@ Intended deployment: XU4 runs the container, Claude Code on mini PC connects via
 
 ## Current state
 
-All four tools implemented, containerized, tested locally on mini PC, and wired to Claude Code. **Working end-to-end.**
+All four tools implemented, containerized, tested locally on mini PC, and wired to Claude Code. **Fully working end-to-end** — analyzed a real Chess.com game successfully (40-move game, per-move eval + classification returned correctly).
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 
 ## What's not done yet
 
-- [ ] Deploy and test on XU4 (ARM build, uncomment `cpuset: "0-3"` in compose.yml for A15 cores)
+- [ ] Deploy and test on XU4 (ARM build, uncomment `cpuset: "0-3"` in compose.yml for A15 cores; Stockfish path `/usr/games/stockfish` same on Debian ARM)
 - [ ] Tune `ANALYSIS_DEPTH` — depth 18 on XU4 Cortex-A15 may be slow; consider `Limit(time=2.0)` per move
 - [ ] Consider `multipv` option in `analyze_game` to show top N alternatives per move
 - [ ] Add `get_game_summary` tool — aggregate blunder/mistake counts, accuracy %, worst moves
