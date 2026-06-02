@@ -45,7 +45,7 @@ Intended deployment: XU4 runs the container, Claude Code on mini PC connects via
 
 ## Current state
 
-All four tools implemented, containerized, tested locally on mini PC, and wired to Claude Code. **Fully working end-to-end** — analyzed a real Chess.com game successfully (40-move game, per-move eval + classification returned correctly).
+All four tools implemented, containerized, tested locally on mini PC, and wired to Claude Code. **Fully working end-to-end** — analyzed a real Chess.com game successfully (40-move game, per-move eval + classification returned correctly). Bug fixed: `move_number` was read after `board.push()` causing off-by-one; now captured before push.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 
