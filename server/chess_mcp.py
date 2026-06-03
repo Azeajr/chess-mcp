@@ -14,6 +14,7 @@ DEFAULT_MULTIPV = 3
 MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
 MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
 MIN_DEPTH, MAX_DEPTH = 1, 30
+MAX_MULTIPV = 10
 
 
 def _clamp_depth(depth: int) -> int:
@@ -305,36 +306,55 @@ def get_position(
 
 
 @mcp.tool()
-def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH) -> dict:
+def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH, multipv: int = 1) -> dict:
     """
     Evaluate one position by FEN with Stockfish.
 
     Returns: score_cp (white-POV centipawns; ±10000 = mate), score_type
     ("cp"|"mate"), mate_in (signed mate distance, else null), best_move (SAN),
     pv (best line, SAN), depth (search depth reached).
+    multipv>1 (max 10) adds candidates: top-N ranked moves, each
+    {move (SAN), eval (white-POV cp), pv (SAN)} — use to compare options or
+    explore opponent deviations (repertoire work).
     Invalid FEN → {"error","reason"}.
     """
     depth = _clamp_depth(depth)
+    multipv = max(1, min(MAX_MULTIPV, multipv))
     try:
         board = chess.Board(fen)
     except ValueError as e:
         return {"error": "invalid_fen", "reason": str(e)}
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        info = engine.analyse(board, chess.engine.Limit(depth=depth))
+        if multipv > 1:
+            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+        else:
+            infos = [engine.analyse(board, chess.engine.Limit(depth=depth))]
 
-    pv = info.get("pv", [])
+    top = infos[0]
+    pv = top.get("pv", [])
     best_move = board.san(pv[0]) if pv else None
-    cp, score_type, mate_in = _score_details(info["score"])
+    cp, score_type, mate_in = _score_details(top["score"])
 
-    return {
+    result = {
         "score_cp": cp,
         "score_type": score_type,
         "mate_in": mate_in,
         "best_move": best_move,
         "pv": _pv_san(board, pv),
-        "depth": info.get("depth", depth),
+        "depth": top.get("depth", depth),
     }
+    if multipv > 1:
+        result["candidates"] = [
+            {
+                "move": board.san(info["pv"][0]),
+                "eval": _score_cp(info["score"]),
+                "pv": _pv_san(board, info["pv"]),
+            }
+            for info in infos
+            if info.get("pv")
+        ]
+    return result
 
 
 @mcp.tool()

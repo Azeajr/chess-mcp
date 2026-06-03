@@ -45,6 +45,7 @@ harness (`evals/`) added. Fully working.
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized PGN fixture for evals/tests |
+| `.claude/skills/` | Claude Code workflow skills driving the MCP: `chess-game-review`, `fetch-game`, `analyze-position`, `annotate-pgn`, `repertoire-builder` |
 
 ## Tool contract
 
@@ -69,6 +70,7 @@ at `http://<HOST_IP>:8000/sse`. Full deploy steps + native-Arch path live in `RE
 - Each record carries `fen` (position before the move, side-to-move = `color`) and `eval_before`, which is what `get_position` returns for the drill-down→engine bridge.
 - Invalid/empty PGN: `python-chess` returns an empty `Game` (not `None`) for garbage text, so `_analyse_all_moves` also rejects zero-move games (`game.next() is None`) → structured `{error, reason}`.
 - Input caps (networked server, untrusted PGN/FEN): `MAX_PGN_BYTES` (default 100000), `MAX_LINE_MOVES` (default 500), and `depth` clamped to `[1, 30]`. Depth is clamped **before** the cache key, which also normalizes cache entries (fewer distinct keys). Closed error-code set: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`.
+- `evaluate_position(fen, depth, multipv=1)`: `multipv>1` (≤ `MAX_MULTIPV`=10) adds a ranked `candidates` list (top-N moves for *any* FEN), exposing engine multipv off-game — the primitive the `repertoire-builder` / `analyze-position` skills use to explore opponent deviations. `multipv=1` keeps the lean single-best shape (backward compatible).
 
 ## What's not done
 

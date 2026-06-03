@@ -204,14 +204,17 @@ Measured on the sample game at depth 18 (tiktoken o200k_base):
 | analyze_game (verbose) | 477 |
 | get_position | 97 |
 | evaluate_position | 40 |
+| evaluate_position (multipv=3) | 93 |
 | get_legal_moves (SAN string) | 18 |
 | get_legal_moves (`{uci,san}` list) | 39 |
 
 - Summary fits the ~2k budget with room to spare (167).
 - `verbose` costs 1.7× the lean list (477 vs 276) — earns the flag, not the default.
+- `multipv=3` candidates cost 2.3× the single-best eval (93 vs 40) — gated behind the flag, so the
+  default position eval stays lean.
 - Compact SAN string is 2.2× smaller than the `{uci, san}` list (18 vs 39), and that list even
   carries extra data — the encoding win grows with richer objects.
-- All 6 tool descriptions total 599 tok, re-read on every `tools/list` — why descriptions are
+- All 6 tool descriptions total 651 tok, re-read on every `tools/list` — why descriptions are
   kept compressed (they are routing logic, paid every call).
 
 Regenerate after any output-shape change; stale numbers are worse than none.

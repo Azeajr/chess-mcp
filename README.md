@@ -22,7 +22,7 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
 | `analyze_game` | PGN, depth, min_cp_loss, verbose | Mistake list (cp_loss ≥ min_cp_loss): move, cp_loss, classification, best_move. `verbose=true` adds eval_after + best_pv |
 | `get_position` | PGN, move_number, color, depth | One move's detail: FEN, eval, best_move, best_pv, alternatives — drill-down from summary/analyze |
-| `evaluate_position` | FEN, depth | Centipawn score, best move, top line |
+| `evaluate_position` | FEN, depth, multipv | Centipawn score, best move, top line; `multipv>1` adds ranked `candidates` (top-N moves) |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
 
@@ -42,6 +42,19 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | blunder | > 200 |
 
 Scores are from white's perspective. Mate scores map to ±10000 cp.
+
+## Skills (Claude Code)
+
+`.claude/skills/` ships workflow skills that drive these tools — they load automatically in Claude
+Code and keep every move/line engine-grounded:
+
+| Skill | Use |
+|-------|-----|
+| `chess-game-review` | review a game (PGN): verdict, key mistakes, validated lines |
+| `repertoire-builder` | develop / pressure-test an opening repertoire by color |
+| `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
+| `fetch-game` | pull a PGN from Lichess/Chess.com (no manual export) |
+| `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
 ## Requirements
 
@@ -110,6 +123,7 @@ Environment variables (set in `compose.yml`):
 chess-mcp/
 ├── compose.yml              # Docker Compose: port 8000, env
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
+├── .claude/skills/          # Claude Code workflow skills that drive the MCP tools
 ├── install.sh               # native (non-Docker) Arch install
 ├── sample-game.pgn          # anonymized fixture for evals
 ├── MCP_DESIGN.md            # design principles for this server

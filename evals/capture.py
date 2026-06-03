@@ -28,6 +28,7 @@ def main():
         "analyze_game.verbose": cm.analyze_game(PGN, DEPTH, 50, True),
         "get_position":         pos,
         "evaluate_position":    cm.evaluate_position(fen, DEPTH),
+        "evaluate_position.mpv": cm.evaluate_position(fen, DEPTH, 3),
         "get_legal_moves.san":  cm.get_legal_moves(fen, False),
         "get_legal_moves.uci":  cm.get_legal_moves(fen, True),
     }
