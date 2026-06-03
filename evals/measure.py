@@ -25,14 +25,15 @@ def main():
     print("| Output | Tokens |\n|--------|-------:|")
     for k, v in out.items():
         print(f"| {k} | {n(v)} |")
-    desc_total = sum(n(v) for v in d.get("descriptions", {}).values())
+    descriptions = d.get("descriptions", {})
+    desc_total = sum(n(v) for v in descriptions.values())
     print("\n**Claims, measured:**")
     print(f"- get_game_summary: {n(out['get_game_summary'])} tok (budget ~2000)")
     print(f"- analyze_game verbose/lean: {n(out['analyze_game.verbose'])}/{n(out['analyze_game.lean'])} "
           f"= {n(out['analyze_game.verbose'])/max(1,n(out['analyze_game.lean'])):.2f}×")
     print(f"- get_legal_moves uci/san: {n(out['get_legal_moves.uci'])}/{n(out['get_legal_moves.san'])} "
           f"= {n(out['get_legal_moves.uci'])/max(1,n(out['get_legal_moves.san'])):.2f}× (compact-SAN claim)")
-    print(f"- all 6 tool descriptions: {desc_total} tok (loaded every tools/list)")
+    print(f"- all {len(descriptions)} tool descriptions: {desc_total} tok (loaded every tools/list)")
 
 
 if __name__ == "__main__":

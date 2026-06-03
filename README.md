@@ -17,6 +17,8 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 
 ## Tools
 
+### Game analysis
+
 | Tool | Input | Output |
 |------|-------|--------|
 | `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
@@ -26,11 +28,30 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
 
+### Repertoire analysis
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `load_repertoire` | PGN (variation tree), color | Handle (`repertoire_id`) + tree stats — call this first; avoids re-sending the full PGN on every call |
+| `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, open files. `variation_path=null` → aggregate fingerprint over all leaves |
+| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies: structure outliers, weakness mismatches, center-handling splits — each with drill-down path |
+| `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
+
 ### Recommended workflow
+
+**Game review:**
 
 1. Call `get_game_summary` — small output, gives counts and worst moves.
 2. Call `analyze_game` — filtered to moves at or above `min_cp_loss` (default 50).
-3. Call `get_position(pgn, move_number, color)` to drill into a specific move from the summary or analysis. It returns that position's **FEN**, so you can then run `evaluate_position` / `validate_line` / `get_legal_moves` on the exact position — the agent never has to reconstruct a FEN itself.
+3. Call `get_position(pgn, move_number, color)` to drill into a specific move. Returns that position's **FEN** for `evaluate_position` / `validate_line` / `get_legal_moves`.
+
+**Repertoire analysis:**
+
+1. Call `load_repertoire(pgn, color)` — parse once, get back `repertoire_id`.
+2. Call `get_structural_profile(repertoire_id)` (no path) — aggregate structural fingerprint.
+3. Call `analyze_repertoire_congruence(repertoire_id)` — inconsistency list; each item carries a `paths` array for drill-down.
+4. Call `get_structural_profile(repertoire_id, variation_path)` to inspect a specific flagged line.
+5. Call `suggest_complementary_lines(repertoire_id, fen, mode)` to extend or diversify from any position.
 
 ### Move classifications
 
@@ -151,14 +172,19 @@ chess-mcp/
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
 ├── .claude/skills/          # Claude Code workflow skills that drive the MCP tools
 ├── install.sh               # native (non-Docker) Arch install
-├── sample-game.pgn          # anonymized fixture for evals
+├── sample-game.pgn          # anonymized single-game fixture for evals
+├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
 ├── MCP_DESIGN.md            # design principles for this server
+├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
 ├── evals/                   # token-measurement harness
 │   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
 │   ├── measure.py           # tiktoken token count, engine-free
 │   └── snapshots/outputs.json
 └── server/
-    ├── chess_mcp.py         # All six MCP tools, FastMCP SSE server
+    ├── chess_mcp.py         # All ten MCP tools, FastMCP SSE server
+    ├── structure.py         # engine-free pawn-structure analysis (StructuralExtractor)
+    ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence checks
+    ├── test_structure_repertoire.py  # pytest suite (engine-free)
     ├── pyproject.toml       # uv project + dependencies
     ├── Dockerfile           # uv+Python3.14 base, apt stockfish
     └── .dockerignore
@@ -171,6 +197,7 @@ chess-mcp/
 
 ## Roadmap
 
-- [ ] **Game handle — reduce PGN re-sends** — every tool call re-sends the full PGN as an input argument (stateless design). A multi-step review (`get_game_summary` → `analyze_game` → `get_position`) re-sends the same game text 3–4×, costing input tokens each time. Consider a `load_game(pgn) → game_id` handle that tools accept in place of `pgn`, trading strict statelessness for fewer input tokens. (Engine re-computation is already avoided via the in-process analysis cache; this addresses only the PGN *text* resend.)
+- [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [ ] **`time_limit` param** — expose `Limit(time=N)` as alternative to depth; useful for slower hardware or faster iteration.
 - [ ] **Opening resource** — serve ECO opening names as an MCP resource so `get_game_summary` can return opening name even when PGN headers omit it.
+- [ ] **`classify_structure` expansion** — current classifier ships IQP / Carlsbad / Maroczy. Extend to French Advance / Closed Sicilian once PGN fixtures are available to validate matching accuracy.

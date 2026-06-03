@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 from mcp.server.fastmcp import FastMCP
 from functools import lru_cache
+from typing import Literal
 import chess
 import chess.pgn
 import chess.engine
 import io
 import os
 
+import structure
+import repertoire
+
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
 DEFAULT_MULTIPV = 3
 
 MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
+MAX_REPERTOIRE_BYTES = int(os.environ.get("MAX_REPERTOIRE_BYTES", "1000000"))
 MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
 MIN_DEPTH, MAX_DEPTH = 1, 30
 MAX_MULTIPV = 10
@@ -428,6 +433,192 @@ def get_legal_moves(fen: str, uci: bool = False) -> dict:
         moves = " ".join(board.san(m) for m in legal)
 
     return {"turn": turn, "move_count": len(legal), "moves": moves}
+
+
+# ---------------------------------------------------------------------------
+# Repertoire tools — stateful (handle) layer. See REPERTOIRE_DESIGN.md.
+# load_repertoire parses once and caches; the rest accept the repertoire_id handle.
+# All but suggest_complementary_lines are engine-free (static structural analysis).
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def load_repertoire(pgn: str, color: Literal["white", "black"]) -> dict:
+    """
+    Parse a repertoire PGN ONCE, cache it, and return a handle. A repertoire is a tree
+    of variations (not one game) — re-sending the full PGN on every call wastes input
+    tokens, so all other repertoire tools take the returned repertoire_id instead.
+
+    Cheap: tree stats only, no engine. Returns: repertoire_id (pass to the other
+    repertoire tools), color ("white"/"black"), nodes (move-nodes in the tree), leaves
+    (variation ends), max_depth (deepest line, in plies).
+
+    Then: get_structural_profile (themes), analyze_repertoire_congruence (consistency),
+    suggest_complementary_lines (extensions). Handle expires after idle TTL → reload.
+    Bad input → {"error","reason"}.
+    """
+    if len(pgn.encode("utf-8")) > MAX_REPERTOIRE_BYTES:
+        return {"error": "pgn_too_large", "reason": f"repertoire PGN exceeds {MAX_REPERTOIRE_BYTES} bytes"}
+    if color not in ("white", "black"):
+        return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    if game is None or game.next() is None:
+        return {"error": "invalid_pgn", "reason": "PGN contains no moves"}
+    color_bool = chess.WHITE if color == "white" else chess.BLACK
+    return repertoire.store_repertoire(game, color_bool)
+
+
+@mcp.tool()
+def get_structural_profile(
+    repertoire_id: str,
+    variation_path: list[str] | None = None,
+) -> dict:
+    """
+    Static pawn-structure profile of a repertoire. Engine-free. Identifies the themes a
+    repertoire is built on so they can be cross-referenced programmatically.
+
+    variation_path = SAN move list addressing one node (e.g. ["e4","c5","Nf3"]); each
+    SAN must match a move in the tree. Then returns one position: fen, structure_class
+    (IQP/Carlsbad/Maroczy/unknown), confidence, center (locked/tense/open/semi-open),
+    primitives {doubled, isolated, passed, chains}, half_open_files, open_files.
+
+    variation_path = null (default) → AGGREGATE fingerprint over all leaves: structures
+    (each {structure_class, count, avg_confidence}), center_distribution,
+    common_open_files, common_half_open_files.
+
+    Get repertoire_id from load_repertoire; drill the paths reported by
+    analyze_repertoire_congruence. Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+    if variation_path is None:
+        return repertoire.aggregate_profile(rep)
+    node = repertoire.resolve_path(rep.game, variation_path)
+    if node is None:
+        return {"error": "variation_not_found", "reason": "variation_path does not match a line in the repertoire"}
+    return structure.position_profile(node.board(), rep.color)
+
+
+@mcp.tool()
+def analyze_repertoire_congruence(
+    repertoire_id: str,
+    min_severity: Literal["low", "medium", "high"] = "medium",
+    limit: int = 10,
+) -> dict:
+    """
+    Flag logical/thematic incongruencies across a repertoire's lines. Engine-free.
+
+    Checks: structure_outlier (a line veers off the repertoire's dominant structure →
+    extra middlegame plan to learn), weakness_inconsistency (a line accepts doubled/
+    isolated pawns against the repertoire's otherwise-clean grain), center_inconsistency
+    (the repertoire is split between locking and opening the center).
+
+    Returns: total_flagged, leaves_analyzed, by_type (counts), incongruencies (each:
+    type, severity, description, paths = the SAN variation_path(s) — feed a path to
+    get_structural_profile to inspect that exact position). Filtered to min_severity and
+    capped to limit (default 10, max 50). Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+    limit = max(1, min(50, limit))
+    return repertoire.analyze_congruence(rep, min_severity, limit)
+
+
+@mcp.tool()
+def suggest_complementary_lines(
+    repertoire_id: str,
+    fen: str,
+    mode: Literal["low_memorization", "sharp"] = "low_memorization",
+    depth: int = DEFAULT_DEPTH,
+    limit: int = 5,
+) -> dict:
+    """
+    Suggest continuations from an anchor position (fen), ranked to fit the user's
+    structural profile or to break from it. Uses the engine for a soundness floor, then
+    re-ranks by mode.
+
+    fen = position to suggest a move FROM (a repertoire leaf, or a gap). The
+    repertoire_id supplies the structural profile to match/contrast against.
+    mode "low_memorization" → moves whose resulting structure the user ALREADY plays
+    elsewhere (least new theory), ranked by profile_match [0,1]. mode "sharp" → maximally
+    unbalanced/novel structures, ranked by a sharpness heuristic.
+
+    Returns: mode, anchor_fen, suggestions (each: move SAN, resulting_structure, eval
+    (white-POV cp), pv, and profile_match or sharpness). limit default 5, max 10.
+    Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+    if mode not in ("low_memorization", "sharp"):
+        return {"error": "invalid_mode", "reason": "mode must be 'low_memorization' or 'sharp'"}
+    try:
+        board = chess.Board(fen)
+    except ValueError as e:
+        return {"error": "invalid_fen", "reason": str(e)}
+    if board.is_game_over():
+        return {"mode": mode, "anchor_fen": board.fen(), "suggestions": []}
+
+    depth = _clamp_depth(depth)
+    limit = max(1, min(MAX_MULTIPV, limit))
+    pool = min(MAX_MULTIPV, limit + 2)  # extra candidates so the soundness floor has slack
+    mover = board.turn
+
+    with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=pool)
+
+    def _mover_cp(info: dict) -> int:
+        cp = _score_cp(info["score"])  # white-POV
+        return cp if mover == chess.WHITE else -cp
+
+    best_cp = _mover_cp(infos[0]) if infos else 0
+    shares = repertoire.profile_structure_shares(rep)
+    ranked: list[tuple[dict, int]] = []
+
+    for info in infos:
+        pv = info.get("pv")
+        if not pv:
+            continue
+        move = pv[0]
+        mcp = _mover_cp(info)
+        if best_cp - mcp > 100:  # unsound relative to the best move → skip
+            continue
+        after = board.copy()
+        after.push(move)
+        result_struct = structure.classify_structure(after)["structure_class"]
+        entry = {
+            "move": board.san(move),
+            "resulting_structure": result_struct,
+            "eval": _score_cp(info["score"]),
+            "pv": _pv_san(board, pv),
+        }
+        if mode == "low_memorization":
+            # Don't credit unknown→unknown as familiarity: an unclassified resulting
+            # structure carries no signal about plans the user already knows.
+            match = 0.0 if result_struct == "unknown" else shares.get(result_struct, 0.0)
+            entry["profile_match"] = round(match, 2)
+        else:
+            imbalance = sum(
+                len(fn(after, c))
+                for fn in (structure.get_isolated_pawns, structure.get_doubled_pawns, structure.get_passed_pawns)
+                for c in (chess.WHITE, chess.BLACK)
+            )
+            novelty = 0.0 if result_struct in shares else 1.0
+            entry["sharpness"] = round(abs(mcp) / 100.0 + 0.5 * imbalance + novelty, 2)
+        ranked.append((entry, mcp))
+
+    if mode == "low_memorization":
+        ranked.sort(key=lambda t: (-t[0]["profile_match"], -t[1]))
+    else:
+        ranked.sort(key=lambda t: -t[0]["sharpness"])
+
+    return {
+        "mode": mode,
+        "anchor_fen": board.fen(),
+        "suggestions": [entry for entry, _ in ranked[:limit]],
+    }
 
 
 if __name__ == "__main__":
