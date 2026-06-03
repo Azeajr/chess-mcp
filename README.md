@@ -56,51 +56,79 @@ Code and keep every move/line engine-grounded:
 | `fetch-game` | pull a PGN from Lichess/Chess.com (no manual export) |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
-## Requirements
+## Setup
 
-- Docker + Docker Compose
-- Claude Code
+### Prerequisites
 
-No host Python, no host Stockfish. All engine deps are inside the container.
+- **Docker + Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install).
+- **Claude Code** (`claude` CLI) — the MCP client.
+- **Host `python3`** — only for the `fetch-game` skill (Python stdlib, no `pip` installs).
 
-## Deployment
-
-### Local (same machine as Claude Code)
+### 1. Start the server
 
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-docker compose up -d
+docker compose up -d          # builds the image (Stockfish + deps), serves SSE on :8000
 ```
 
-Claude Code auto-connects via `.mcp.json` (`http://localhost:8000/sse`).
+`restart: unless-stopped` keeps it running across reboots. After pulling code changes, rebuild with
+`docker compose up -d --build`.
+
+### 2a. Use inside the repo (simplest)
+
+Run Claude Code from the cloned directory:
+
+```bash
+claude
+```
+
+- Approve the project MCP server when prompted — `.mcp.json` registers `chess-analysis`; it shows
+  `⏸ Pending approval` until you approve it once.
+- The skills in `.claude/skills/` load automatically.
+
+Works only when Claude Code runs **inside the repo directory**.
+
+### 2b. Use from any directory (user scope)
+
+Register the engine and skills globally instead, so they load in every Claude Code session:
+
+```bash
+# engine — all projects:
+claude mcp add -s user -t sse chess-analysis http://localhost:8000/sse
+# skills — all projects:
+mkdir -p ~/.claude/skills && cp -r .claude/skills/* ~/.claude/skills/
+```
 
 ### Remote host
 
+Run the server on another machine and point the client at it (swap `localhost` → host IP):
+
 ```bash
-# On the analysis host
-git clone https://github.com/Azeajr/chess-mcp
-cd chess-mcp
-docker compose up -d --build
+claude mcp add -s user -t sse chess-analysis http://<HOST_IP>:8000/sse
 ```
 
-On the machine running Claude Code, update `.mcp.json`:
+For in-repo use instead, edit the URL in `.mcp.json`:
 
 ```json
-{
-  "mcpServers": {
-    "chess-analysis": {
-      "type": "sse",
-      "url": "http://<HOST_IP>:8000/sse"
-    }
-  }
-}
+{ "mcpServers": { "chess-analysis": { "type": "sse", "url": "http://<HOST_IP>:8000/sse" } } }
 ```
 
 ### Native (non-Docker, Arch)
 
-Docker is the supported path. For a host install without containers — Stockfish via `pacman`,
-deps via `uv` — run `./install.sh` (Arch-only native path), then `uv run chess_mcp.py`.
+Docker is the supported path. For a host install without containers — Stockfish via `pacman`, deps
+via `uv` — run `./install.sh` (Arch-only native path), then follow its printed run command
+(`uv run chess_mcp.py` from `server/`). The server binds `127.0.0.1` by default; set `FASTMCP_HOST`
+to expose it.
+
+### Verify
+
+```bash
+claude mcp get chess-analysis     # health-checks the connection
+```
+
+Or in Claude Code: ask it to run `get_legal_moves` on the starting position. Then paste a PGN and
+invoke `chess-game-review`, or give your repertoire PGN + your color and invoke `repertoire-builder`.
 
 ## Configuration
 
