@@ -53,7 +53,6 @@ Code and keep every move/line engine-grounded:
 | `chess-game-review` | review a game (PGN): verdict, key mistakes, validated lines |
 | `repertoire-builder` | develop / pressure-test an opening repertoire by color |
 | `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
-| `fetch-game` | pull a PGN from Lichess/Chess.com (no manual export) |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
 ## Setup
@@ -62,7 +61,6 @@ Code and keep every move/line engine-grounded:
 
 - **Docker + Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install).
 - **Claude Code** (`claude` CLI) — the MCP client.
-- **Host `python3`** — only for the `fetch-game` skill (Python stdlib, no `pip` installs).
 
 ### 1. Start the server
 

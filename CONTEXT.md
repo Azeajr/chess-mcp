@@ -45,7 +45,7 @@ harness (`evals/`) added. Fully working.
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized PGN fixture for evals/tests |
-| `.claude/skills/` | Claude Code workflow skills driving the MCP: `chess-game-review`, `fetch-game`, `analyze-position`, `annotate-pgn`, `repertoire-builder` |
+| `.claude/skills/` | Claude Code workflow skills driving the MCP: `chess-game-review`, `repertoire-builder`, `analyze-position`, `annotate-pgn` |
 
 ## Tool contract
 
