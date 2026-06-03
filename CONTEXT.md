@@ -51,10 +51,12 @@ re-run for `suggest_complementary_lines` ranking and the `evals/capture.py` snap
 | `server/Dockerfile` | Container: uv+Python3.14 base, apt stockfish, uv sync |
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
+| `.github/workflows/ci.yml` | CI: `test` job (`uv run pytest`, engine-free + branch coverage) and `docker` job (build image **and** boot it, waiting for "Application startup complete") |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
 | `REPERTOIRE_DESIGN.md` | Design spec for the repertoire analysis feature set |
+| `ENGINEERING_PASSES.md` | Reusable refactor/security/testing execution-loop prompts, adapted to this repo |
 | `.claude/skills/` | Claude Code workflow skills: `chess-game-review`, `repertoire-builder`, `analyze-position`, `annotate-pgn` |
 
 ## Tool contract
@@ -71,6 +73,18 @@ Model calls `get_game_summary` first (small output, fast overview), then `analyz
 
 `docker compose up -d` (local; add `--build` after code changes). Remote: point `.mcp.json` URL
 at `http://<HOST_IP>:8000/sse`. Full deploy steps + native-Arch path live in `README.md`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on push to `main` and on PRs. Two jobs:
+- **test** — `cd server && uv run pytest` (engine-free suite, branch coverage via `addopts`). uv
+  installs Python 3.14 + project deps; no Stockfish needed.
+- **docker** — `docker compose build` then `docker compose up -d`, polling logs for "Application
+  startup complete". The boot step catches a runtime `ImportError` (e.g. a module missing from the
+  Dockerfile `COPY`) that a build-only check would miss — the class of bug that broke `main` once.
+
+Engine-backed paths (`suggest_complementary_lines` ranking, `evals/capture.py`) are **not** in CI —
+they need Stockfish and are verified manually in Docker. Status badge is in `README.md`.
 
 ## Known design notes
 
