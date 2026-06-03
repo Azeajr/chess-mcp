@@ -90,10 +90,16 @@ Code and keep every move/line engine-grounded:
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-docker compose pull && docker compose up -d   # prebuilt image from GHCR, serves SSE on :8000
+docker compose up -d --build   # build locally (Stockfish + deps), serves SSE on :8000
 ```
 
-Prefer to build locally instead of pulling: `docker compose up -d --build`. Either way,
+Once a release is published (a `v*` tag pushes the image to GHCR and the package is made public),
+you can skip the build and pull the prebuilt image instead:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 `restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
 `docker compose up -d --build`.
 
