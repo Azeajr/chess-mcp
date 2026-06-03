@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Engine-free test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run pytest (branch coverage via addopts)
+        working-directory: server
+        run: uv run pytest
+
+  docker:
+    name: Image builds and the server boots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker compose build
+      - name: Boot the container and confirm startup
+        # `build` alone only catches Dockerfile errors; booting also catches a
+        # runtime ImportError (e.g. a module missing from the image's COPY).
+        run: |
+          docker compose up -d
+          for _ in $(seq 1 30); do
+            if docker compose logs 2>&1 | grep -q "Application startup complete"; then
+              echo "server started"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::server did not start within 60s"
+          docker compose logs
+          exit 1
+      - name: Tear down
+        if: always()
+        run: docker compose down
