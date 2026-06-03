@@ -4,6 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      FASTMCP_HOST: "0.0.0.0"   # bind all interfaces so the published port is reachable (also the image default; explicit here)
       ANALYSIS_DEPTH: "18"
       STOCKFISH_PATH: /usr/games/stockfish
     restart: unless-stopped

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+# Native (non-Docker) Arch path: Stockfish via pacman + Python deps via uv, to run the server
+# directly with `uv run` (e.g. as a systemd --user unit). Docker users: ignore this, see README.
+
 # Install stockfish and uv
 sudo pacman -S --needed stockfish
 

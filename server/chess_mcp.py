@@ -11,6 +11,21 @@ ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
 DEFAULT_MULTIPV = 3
 
+MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
+MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
+MIN_DEPTH, MAX_DEPTH = 1, 30
+
+
+def _clamp_depth(depth: int) -> int:
+    return max(MIN_DEPTH, min(MAX_DEPTH, depth))
+
+
+def _pgn_too_large(pgn: str) -> dict | None:
+    if len(pgn.encode("utf-8")) > MAX_PGN_BYTES:
+        return {"error": "pgn_too_large", "reason": f"PGN exceeds {MAX_PGN_BYTES} bytes"}
+    return None
+
+
 mcp = FastMCP(
     "chess-analysis",
     host=os.environ.get("FASTMCP_HOST", "127.0.0.1"),
@@ -143,18 +158,19 @@ def analyze_game(
     verbose: bool = False,
 ) -> list[dict] | dict:
     """
-    List the mistakes in a PGN game: moves where cp_loss >= min_cp_loss
-    (default 50, i.e. inaccuracies and worse). Set min_cp_loss=0 for all moves.
+    Mistakes in a PGN game: moves where cp_loss >= min_cp_loss (default 50 =
+    inaccuracies and worse). min_cp_loss=0 → all moves.
 
-    Each entry (lean default): move_number, color, move, cp_loss, classification,
-    best_move. cp_loss is how much worse than best play (white-POV centipawns).
-    Pass verbose=True to also include eval_after (position eval, white-POV) and
-    best_pv (refutation line, SAN).
+    Entry (lean default): move_number, color, move, cp_loss, classification,
+    best_move. cp_loss = centipawns worse than best play, white-POV.
+    verbose=True adds eval_after (position eval, white-POV) + best_pv (refutation, SAN).
 
-    Call get_game_summary first for an overview. To drill into one mistake
-    (FEN, alternatives, full line) call get_position with its move_number+color.
-    On bad input returns {"error","reason"}.
+    Call get_game_summary first for overview. Drill one mistake (FEN, alternatives,
+    full line) via get_position(move_number, color). Bad input → {"error","reason"}.
     """
+    if (err := _pgn_too_large(pgn)):
+        return err
+    depth = _clamp_depth(depth)
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
     except ValueError as e:
@@ -182,16 +198,19 @@ def analyze_game(
 @mcp.tool()
 def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
     """
-    Overview of a PGN game without per-move detail. Call this first.
+    Overview of a PGN game, no per-move detail. Call this first.
 
-    Returns: opening (from PGN headers, else null), total_moves (count of moves
-    at/above inaccuracy), per-side white/black {blunders, mistakes, inaccuracies,
-    good_moves, accuracy_pct}, and worst_moves (top 3 by cp_loss, each with
-    move_number, color, move, cp_loss, classification, best_move).
+    Returns: opening (PGN headers, else null), total_moves (all analyzed moves,
+    both sides), per-side white/black {blunders, mistakes, inaccuracies, good_moves,
+    accuracy_pct}, worst_moves (top 3 by cp_loss, each: move_number, color, move,
+    cp_loss, classification, best_move).
 
-    Drill into any worst_move via get_position(pgn, move_number, color).
-    On bad input returns {"error","reason"}.
+    Drill any worst_move via get_position(pgn, move_number, color).
+    Bad input → {"error","reason"}.
     """
+    if (err := _pgn_too_large(pgn)):
+        return err
+    depth = _clamp_depth(depth)
     try:
         records, game = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
     except ValueError as e:
@@ -252,19 +271,21 @@ def get_position(
     depth: int = DEFAULT_DEPTH,
 ) -> dict:
     """
-    Detail for one move in a game — the drill-down companion to get_game_summary
-    and analyze_game. Identify the move by move_number + color ("white"/"black"),
-    as reported by those tools.
+    Detail for one move — drill-down companion to get_game_summary and analyze_game.
+    Identify move by move_number + color ("white"/"black") from those tools.
 
-    Returns: fen (the position with `color` to move, ready to pass to
-    evaluate_position/validate_line/get_legal_moves), eval_cp (position eval,
-    white-POV centipawns), move_played (SAN actually played), best_move (SAN),
-    best_pv (best line, SAN), alternatives (top engine replies, each {move, eval}).
+    Returns: fen (position with `color` to move; pass to evaluate_position/
+    validate_line/get_legal_moves), eval_cp (position eval, white-POV centipawns),
+    move_played (SAN), best_move (SAN), best_pv (best line, SAN), alternatives
+    (top engine replies, each {move, eval}).
 
-    On bad input or no such move returns {"error","reason"}.
+    Bad input or no such move → {"error","reason"}.
     """
     if color not in ("white", "black"):
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
+    if (err := _pgn_too_large(pgn)):
+        return err
+    depth = _clamp_depth(depth)
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
     except ValueError as e:
@@ -286,13 +307,14 @@ def get_position(
 @mcp.tool()
 def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH) -> dict:
     """
-    Evaluate a single position by FEN with Stockfish.
+    Evaluate one position by FEN with Stockfish.
 
     Returns: score_cp (white-POV centipawns; ±10000 = mate), score_type
     ("cp"|"mate"), mate_in (signed mate distance, else null), best_move (SAN),
     pv (best line, SAN), depth (search depth reached).
-    On invalid FEN returns {"error","reason"}.
+    Invalid FEN → {"error","reason"}.
     """
+    depth = _clamp_depth(depth)
     try:
         board = chess.Board(fen)
     except ValueError as e:
@@ -318,14 +340,16 @@ def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH) -> dict:
 @mcp.tool()
 def validate_line(fen: str, moves: list[str]) -> dict:
     """
-    Check whether a sequence of moves (UCI or SAN) is legal from a position.
-    Use this to ground any line before stating it.
+    Check whether a move sequence (UCI or SAN) is legal from a position.
+    Ground any line before stating it.
 
     Success: {valid: true, moves_validated, final_fen}.
     Failure: {valid: false, error_at_index, error_move, reason, fen_at_error}
-    (fen_at_error = the position where the bad move was attempted).
-    On invalid FEN returns {"error","reason"}.
+    (fen_at_error = position where the bad move was attempted).
+    Invalid FEN → {"error","reason"}.
     """
+    if len(moves) > MAX_LINE_MOVES:
+        return {"error": "too_many_moves", "reason": f"line exceeds {MAX_LINE_MOVES} moves"}
     try:
         board = chess.Board(fen)
     except ValueError as e:
@@ -363,13 +387,12 @@ def validate_line(fen: str, moves: list[str]) -> dict:
 @mcp.tool()
 def get_legal_moves(fen: str, uci: bool = False) -> dict:
     """
-    List every legal move from a position. Use to pick a grounded move instead
-    of guessing one.
+    List every legal move from a position. Pick a grounded move, don't guess.
 
-    Returns: turn ("white"|"black"), move_count, moves. By default moves is a
-    space-separated SAN string ("Nf3 Nc3 e4 ..."). Pass uci=True to instead get
-    a list of {uci, san} (use when you need UCI strings).
-    On invalid FEN returns {"error","reason"}.
+    Returns: turn ("white"|"black"), move_count, moves. Default moves =
+    space-separated SAN string ("Nf3 Nc3 e4 ..."). uci=True → list of {uci, san}
+    (use when you need UCI strings).
+    Invalid FEN → {"error","reason"}.
     """
     try:
         board = chess.Board(fen)

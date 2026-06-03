@@ -28,7 +28,9 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 
 ## Current state
 
-All six tools implemented, containerized, tested end-to-end against real Chess.com games. Fully working.
+All six tools implemented, containerized, verified end-to-end in Docker against `sample-game.pgn`
+(anonymized fixture). Input caps (PGN size / line length / depth clamp) and a token-measurement
+harness (`evals/`) added. Fully working.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 
@@ -41,46 +43,14 @@ All six tools implemented, containerized, tested end-to-end against real Chess.c
 | `server/Dockerfile` | Container: uv+Python3.14 base, apt stockfish, uv sync |
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
+| `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
+| `sample-game.pgn` | Anonymized PGN fixture for evals/tests |
 
-## Tool signatures
+## Tool contract
 
-```python
-get_game_summary(pgn: str, depth: int = 18) -> dict
-# Returns: opening, total_moves,
-#          white/black: {blunders, mistakes, inaccuracies, good_moves, accuracy_pct},
-#          worst_moves: [{move_number, color, move, cp_loss, classification, best_move}]
-# On bad input: {error, reason}
-
-analyze_game(pgn: str, depth: int = 18, min_cp_loss: int = 50, verbose: bool = False) -> list[dict] | dict
-# Returns moves where cp_loss >= min_cp_loss (default: inaccuracies and worse)
-# Lean (default) per move: move_number, color, move, cp_loss, classification, best_move
-# verbose=True adds: eval_after, best_pv
-# alternatives + per-move FEN moved to get_position (not returned here)
-# On bad input: {error, reason}
-
-get_position(pgn: str, move_number: int, color: str, depth: int = 18) -> dict
-# Drill-down detail for one move; identify by move_number + color from summary/analyze
-# Returns: fen (position with `color` to move), eval_cp, move_played,
-#          best_move, best_pv, alternatives[{move, eval}]
-# fen is the bridge to evaluate_position / validate_line / get_legal_moves
-# On bad input / no such move: {error, reason}
-
-evaluate_position(fen: str, depth: int = 18) -> dict
-# Returns: score_cp, score_type, mate_in, best_move, pv, depth
-# (dropped fen echo + best_move_uci vs old version)
-# On invalid FEN: {error, reason}
-
-validate_line(fen: str, moves: list[str]) -> dict
-# moves: UCI or SAN strings
-# Success: {valid: True, moves_validated, final_fen}
-# Failure: {valid: False, error_at_index, error_move, reason, fen_at_error}
-# On invalid FEN: {error, reason}
-
-get_legal_moves(fen: str, uci: bool = False) -> dict
-# Returns: turn, move_count, moves
-# moves = space-separated SAN string (default); uci=True → [{uci, san}]
-# On invalid FEN: {error, reason}
-```
+Canonical contract = the docstrings in `server/chess_mcp.py` (single source — don't re-type
+signatures here, they drift). User-facing tool list + I/O summary is the table in `README.md`.
+Non-obvious invariants the docstrings don't spell out are under "Known design notes" below.
 
 ## Workflow pattern
 
@@ -88,12 +58,8 @@ Model calls `get_game_summary` first (small output, fast overview), then `analyz
 
 ## Deployment
 
-```bash
-docker compose up -d        # local, auto-connects via .mcp.json
-docker compose up -d --build  # after code changes
-```
-
-For remote host, update `.mcp.json` URL to `http://<HOST_IP>:8000/sse`.
+`docker compose up -d` (local; add `--build` after code changes). Remote: point `.mcp.json` URL
+at `http://<HOST_IP>:8000/sse`. Full deploy steps + native-Arch path live in `README.md`.
 
 ## Known design notes
 
@@ -102,11 +68,9 @@ For remote host, update `.mcp.json` URL to `http://<HOST_IP>:8000/sse`.
 - `_analyse_all_moves` is the shared internal helper for `get_game_summary`, `analyze_game`, and `get_position`. It is `@lru_cache(maxsize=32)` keyed on `(pgn, depth, multipv)`; all three tools call it with the canonical `DEFAULT_MULTIPV=3`, so a summary→analyze→get_position sequence runs the engine **once** per `(pgn, depth)` instead of repeating the full pass. Cache is a transparent impl detail — the tool interface stays stateless/idempotent. Records are read-only (callers must not mutate them).
 - Each record carries `fen` (position before the move, side-to-move = `color`) and `eval_before`, which is what `get_position` returns for the drill-down→engine bridge.
 - Invalid/empty PGN: `python-chess` returns an empty `Game` (not `None`) for garbage text, so `_analyse_all_moves` also rejects zero-move games (`game.next() is None`) → structured `{error, reason}`.
+- Input caps (networked server, untrusted PGN/FEN): `MAX_PGN_BYTES` (default 100000), `MAX_LINE_MOVES` (default 500), and `depth` clamped to `[1, 30]`. Depth is clamped **before** the cache key, which also normalizes cache entries (fewer distinct keys). Closed error-code set: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`.
 
 ## What's not done
 
-(See README "Roadmap" for the canonical list.)
-
-- [ ] Game handle to cut PGN re-sends — every tool re-sends the full PGN as input; a multi-step review re-sends the same text 3–4× (input-token cost). Consider `load_game(pgn) → game_id`. Engine recompute is already solved by the analysis cache; this is only the PGN *text* resend. Trade-off: adds session state vs strict statelessness.
-- [ ] `time_limit` param — expose `Limit(time=N)` as alternative to depth
-- [ ] Opening resource — serve ECO table as MCP resource so `get_game_summary` returns opening name even when PGN headers omit it
+Canonical roadmap = README "Roadmap" (game handle for PGN re-sends, `time_limit` param, ECO
+opening resource). Not repeated here — single source.

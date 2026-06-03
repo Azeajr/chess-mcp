@@ -32,7 +32,9 @@ If a field can be inferred from other fields, drop it.
 If a field is only useful for UI rendering, drop it.
 
 ### Output fits in ~2k tokens by default
-Estimate before implementing. For lists: cap length or add filter params.
+Estimate before implementing — then *measure*, don't trust the estimate (this server's
+`get_game_summary` lands at 167 tok against the ~2k budget; see "Measuring output size").
+For lists: cap length or add filter params.
 Provide a `min_relevance` / `limit` / `filter` param so callers can narrow scope.
 Default to narrow. Let callers widen.
 
@@ -41,8 +43,16 @@ Narrow in three dimensions, not just list length:
 - **Fewer fields** — return the lean set by default; gate heavy or rarely-needed fields
   behind a `verbose` flag.
 - **Tighter encoding** — for a big list of simple, uniform items the model reads but does
-  not address individually, a delimited scalar string (`"Nf3 Nc3 e4 ..."`) can be ~6×
-  smaller than an array of objects. Offer the structured form behind a flag when needed.
+  not address individually, a delimited scalar string (`"Nf3 Nc3 e4 ..."`) is several×
+  smaller than an array of objects — measured 2.2× vs a `{uci, san}` list for this server's
+  `get_legal_moves`, and the gap widens as the per-item object grows. Offer the structured
+  form behind a flag when needed. (See "Measuring output size".)
+
+  **Boundary:** compact scalar encoding is safe only when the caller reads the list but never
+  addresses an item individually. The moment an item needs a handle (drill-down, reference by
+  index, follow-up tool call), return the structured `{...}` form — a compact string forces the
+  model to re-parse and re-derive the handle, reintroducing the hallucination the tool exists
+  to prevent.
 
 ### Summary → detail hierarchy
 Design at two levels:
@@ -129,6 +139,12 @@ reads as "nothing wrong."
 
 ---
 
+### Closed error-code set
+
+Keep a server's error codes **closed and enumerated** so the model can branch on the code instead
+of parsing prose. This server's set: `invalid_pgn`, `invalid_fen`, `invalid_color`,
+`move_not_found`, `pgn_too_large`, `too_many_moves`.
+
 ## Resources vs Tools
 
 MCP has two primitives. Use both correctly.
@@ -166,6 +182,39 @@ Both are just transport — tool design is identical.
 | Objects for a big uniform list | Token-heavy for simple repeated items | Delimited scalar string; structured form behind a flag |
 
 ---
+
+## Measuring output size
+
+Never assert a token number you didn't measure. Capture real tool outputs once, commit the
+snapshot, count offline:
+
+- `evals/capture.py` — runs every tool on `sample-game.pgn`, writes `evals/snapshots/outputs.json`
+  (real outputs + the live docstrings). Needs Stockfish, so run it in the Docker image; regenerate
+  when any tool's output shape changes.
+- `evals/measure.py` — engine-free; tiktoken `o200k_base` (OpenAI BPE, approximates Claude's
+  tokenizer — ratios meaningful, absolutes approximate).
+  `uv run --with tiktoken python evals/measure.py`.
+
+Measured on the sample game at depth 18 (tiktoken o200k_base):
+
+| Output | Tokens |
+|--------|-------:|
+| get_game_summary | 167 |
+| analyze_game (lean) | 276 |
+| analyze_game (verbose) | 477 |
+| get_position | 97 |
+| evaluate_position | 40 |
+| get_legal_moves (SAN string) | 18 |
+| get_legal_moves (`{uci,san}` list) | 39 |
+
+- Summary fits the ~2k budget with room to spare (167).
+- `verbose` costs 1.7× the lean list (477 vs 276) — earns the flag, not the default.
+- Compact SAN string is 2.2× smaller than the `{uci, san}` list (18 vs 39), and that list even
+  carries extra data — the encoding win grows with richer objects.
+- All 6 tool descriptions total 599 tok, re-read on every `tools/list` — why descriptions are
+  kept compressed (they are routing logic, paid every call).
+
+Regenerate after any output-shape change; stale numbers are worse than none.
 
 ## Checklist before shipping a tool
 

@@ -43,12 +43,6 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 
 Scores are from white's perspective. Mate scores map to ±10000 cp.
 
-### `analyze_game` output fields (per move)
-
-Lean (default): `move_number`, `color`, `move`, `cp_loss`, `classification`, `best_move`.
-With `verbose=true`, each entry also includes `eval_after` and `best_pv`.
-For `alternatives` and the position FEN, call `get_position` for that move.
-
 ## Requirements
 
 - Docker + Docker Compose
@@ -90,16 +84,25 @@ On the machine running Claude Code, update `.mcp.json`:
 }
 ```
 
+### Native (non-Docker, Arch)
+
+Docker is the supported path. For a host install without containers — Stockfish via `pacman`,
+deps via `uv` — run `./install.sh` (Arch-only native path), then `uv run chess_mcp.py`.
+
 ## Configuration
 
 Environment variables (set in `compose.yml`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FASTMCP_HOST` | `0.0.0.0` | Bind address |
+| `FASTMCP_HOST` | `127.0.0.1` | Bind address. Docker image/compose set `0.0.0.0` so the published port is reachable |
 | `FASTMCP_PORT` | `8000` | Listen port |
 | `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
-| `ANALYSIS_DEPTH` | `18` | Default search depth |
+| `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
+| `MAX_PGN_BYTES` | `100000` | Reject PGN larger than this (per-call CPU/memory bound) |
+| `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
+
+> **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work.
 
 ## Project layout
 
@@ -107,7 +110,13 @@ Environment variables (set in `compose.yml`):
 chess-mcp/
 ├── compose.yml              # Docker Compose: port 8000, env
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
-├── MCP_DESIGN.md            # Design principles for this server
+├── install.sh               # native (non-Docker) Arch install
+├── sample-game.pgn          # anonymized fixture for evals
+├── MCP_DESIGN.md            # design principles for this server
+├── evals/                   # token-measurement harness
+│   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
+│   ├── measure.py           # tiktoken token count, engine-free
+│   └── snapshots/outputs.json
 └── server/
     ├── chess_mcp.py         # All six MCP tools, FastMCP SSE server
     ├── pyproject.toml       # uv project + dependencies
