@@ -52,6 +52,9 @@ re-run for `suggest_complementary_lines` ranking and the `evals/capture.py` snap
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
 | `.github/workflows/ci.yml` | CI: `test` job (`uv run pytest`, engine-free + branch coverage) and `docker` job (build image **and** boot it, waiting for "Application startup complete") |
+| `.github/workflows/release.yml` | On `v*` tags: build + push `ghcr.io/azeajr/chess-mcp:latest` + `:<tag>` to GHCR |
+| `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
+| `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
@@ -71,8 +74,10 @@ Model calls `get_game_summary` first (small output, fast overview), then `analyz
 
 ## Deployment
 
-`docker compose up -d` (local; add `--build` after code changes). Remote: point `.mcp.json` URL
-at `http://<HOST_IP>:8000/sse`. Full deploy steps + native-Arch path live in `README.md`.
+`docker compose pull && docker compose up -d` uses the prebuilt GHCR image; `docker compose up -d --build`
+builds locally instead (both work — `compose.yml` has `image:` + `build:`). Remote: point `.mcp.json`
+URL at `http://<HOST_IP>:8000/sse`. `make` wraps the common commands. Full deploy steps + the native
+(pacman/apt/brew) path live in `README.md`.
 
 ## CI
 
@@ -85,6 +90,10 @@ at `http://<HOST_IP>:8000/sse`. Full deploy steps + native-Arch path live in `RE
 
 Engine-backed paths (`suggest_complementary_lines` ranking, `evals/capture.py`) are **not** in CI —
 they need Stockfish and are verified manually in Docker. Status badge is in `README.md`.
+
+`release.yml` is separate: on a `v*` tag (or manual dispatch) it builds the image and pushes it to
+GHCR (`ghcr.io/azeajr/chess-mcp`), which `compose.yml`'s `image:` then lets users pull. Publishing a
+release = tag and push (`git tag v0.x.0 && git push --tags`); CI's build/boot already gates `main`.
 
 ## Known design notes
 

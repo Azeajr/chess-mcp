@@ -1,6 +1,7 @@
 services:
   chess-mcp:
-    build: ./server
+    image: ghcr.io/azeajr/chess-mcp:latest
+    build: ./server   # local fallback: `docker compose up -d --build`. Prebuilt: `docker compose pull`.
     ports:
       - "8000:8000"
     environment:

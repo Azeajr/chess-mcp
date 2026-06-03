@@ -90,11 +90,15 @@ Code and keep every move/line engine-grounded:
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-docker compose up -d          # builds the image (Stockfish + deps), serves SSE on :8000
+docker compose pull && docker compose up -d   # prebuilt image from GHCR, serves SSE on :8000
 ```
 
-`restart: unless-stopped` keeps it running across reboots. After pulling code changes, rebuild with
+Prefer to build locally instead of pulling: `docker compose up -d --build`. Either way,
+`restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
 `docker compose up -d --build`.
+
+Common commands are wrapped in a `Makefile`: `make pull` / `make up` (build) / `make down` /
+`make logs` / `make test` / `make register`.
 
 ### 2a. Use inside the repo (simplest)
 
@@ -135,12 +139,19 @@ For in-repo use instead, edit the URL in `.mcp.json`:
 { "mcpServers": { "chess-analysis": { "type": "sse", "url": "http://<HOST_IP>:8000/sse" } } }
 ```
 
-### Native (non-Docker, Arch)
+### Native (non-Docker)
 
-Docker is the supported path. For a host install without containers — Stockfish via `pacman`, deps
-via `uv` — run `./install.sh` (Arch-only native path), then follow its printed run command
-(`uv run chess_mcp.py` from `server/`). The server binds `127.0.0.1` by default; set `FASTMCP_HOST`
-to expose it.
+Docker is the supported path. For a host install without containers, `./install.sh` installs
+Stockfish via the detected package manager (**pacman / apt / brew**) and runtime deps via `uv`
+(`uv sync --no-dev`), then prints the run command (it bakes in the right `STOCKFISH_PATH`, which
+differs per distro). Add `--systemd` to also generate and load a `systemd --user` unit (Linux only):
+
+```bash
+./install.sh            # install deps, print the run command
+./install.sh --systemd  # also install the systemd --user unit, then: systemctl --user enable --now chess-mcp
+```
+
+The server binds `127.0.0.1` by default; set `FASTMCP_HOST` to expose it.
 
 ### Verify
 
@@ -161,23 +172,29 @@ Environment variables (set in `compose.yml`):
 | `FASTMCP_PORT` | `8000` | Listen port |
 | `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
 | `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
-| `MAX_PGN_BYTES` | `100000` | Reject PGN larger than this (per-call CPU/memory bound) |
+| `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
+| `MAX_REPERTOIRE_BYTES` | `1000000` | Reject `load_repertoire` PGN larger than this (larger cap for variation trees) |
 | `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
+| `MAX_REPERTOIRES` | `16` | Max cached repertoires (LRU eviction beyond this) |
+| `REPERTOIRE_TTL_S` | `3600` | Idle seconds before a cached repertoire expires |
 
-> **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work.
+> **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_REPERTOIRE_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without limit.
 
 ## Project layout
 
 ```
 chess-mcp/
-├── compose.yml              # Docker Compose: port 8000, env
+├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
+├── Makefile                 # up / pull / down / logs / test / lint / register / install
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
+├── .github/workflows/       # ci.yml (pytest + docker build/boot), release.yml (push image to GHCR)
 ├── .claude/skills/          # Claude Code workflow skills that drive the MCP tools
-├── install.sh               # native (non-Docker) Arch install
+├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
 ├── MCP_DESIGN.md            # design principles for this server
 ├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
+├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ├── evals/                   # token-measurement harness
 │   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
 │   ├── measure.py           # tiktoken token count, engine-free
