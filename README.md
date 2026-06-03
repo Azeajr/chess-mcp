@@ -72,7 +72,7 @@ Code and keep every move/line engine-grounded:
 | Skill | Use |
 |-------|-----|
 | `chess-game-review` | review a game (PGN): verdict, key mistakes, validated lines |
-| `repertoire-builder` | develop / pressure-test an opening repertoire by color |
+| `repertoire-builder` | analyze a repertoire tree by color: structural themes, thematic congruence, soundness, gaps, extensions |
 | `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
