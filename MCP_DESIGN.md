@@ -143,7 +143,8 @@ reads as "nothing wrong."
 
 Keep a server's error codes **closed and enumerated** so the model can branch on the code instead
 of parsing prose. This server's set: `invalid_pgn`, `invalid_fen`, `invalid_color`,
-`move_not_found`, `pgn_too_large`, `too_many_moves`.
+`move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`,
+`variation_not_found`, `invalid_mode`.
 
 ## Resources vs Tools
 
@@ -195,7 +196,8 @@ snapshot, count offline:
   tokenizer — ratios meaningful, absolutes approximate).
   `uv run --with tiktoken python evals/measure.py`.
 
-Measured on the sample game at depth 18 (tiktoken o200k_base):
+Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repertoire tools on
+`sample-repertoire.pgn`):
 
 | Output | Tokens |
 |--------|-------:|
@@ -207,6 +209,12 @@ Measured on the sample game at depth 18 (tiktoken o200k_base):
 | evaluate_position (multipv=3) | 93 |
 | get_legal_moves (SAN string) | 18 |
 | get_legal_moves (`{uci,san}` list) | 39 |
+| load_repertoire | 42 |
+| get_structural_profile (aggregate) | 51 |
+| get_structural_profile (node) | 113 |
+| analyze_repertoire_congruence | 25 |
+| suggest_complementary_lines (low_memorization) | 190 |
+| suggest_complementary_lines (sharp) | 187 |
 
 - Summary fits the ~2k budget with room to spare (167).
 - `verbose` costs 1.7× the lean list (477 vs 276) — earns the flag, not the default.
@@ -214,7 +222,9 @@ Measured on the sample game at depth 18 (tiktoken o200k_base):
   default position eval stays lean.
 - Compact SAN string is 2.2× smaller than the `{uci, san}` list (18 vs 39), and that list even
   carries extra data — the encoding win grows with richer objects.
-- All 6 tool descriptions total 651 tok, re-read on every `tools/list` — why descriptions are
+- Every repertoire output also fits the budget: the stateful design keeps them small (the handle
+  replaces a re-sent PGN; `analyze_repertoire_congruence` is a capped summary→detail list).
+- All 10 tool descriptions total ~1353 tok, re-read on every `tools/list` — why descriptions are
   kept compressed (they are routing logic, paid every call).
 
 Regenerate after any output-shape change; stale numbers are worse than none.

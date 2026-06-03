@@ -3,7 +3,8 @@
 Design for the Holistic Repertoire Analysis feature set: a stateful, thematic
 repertoire analyzer layered on the existing stateless tactical tools.
 
-Status: **approved design, not yet implemented.** Build order at the bottom.
+Status: **implemented and shipped** (all four tools live; 81-test suite, CI green). This doc is the
+design rationale of record; current state lives in `CONTEXT.md` / `README.md`. Build order at the bottom.
 
 This doc is the contract. Implementation follows it; if reality forces a change,
 change this doc in the same commit. Companion: `MCP_DESIGN.md` (server-wide design
@@ -30,10 +31,10 @@ assessment below is preserved so the rationale survives.
 
 ### Gaps the original ask assumed but the repo lacks
 
-1. **Variation-tree walking is net-new and load-bearing.** Every existing tool walks
-   `game.mainline()` only (`server/chess_mcp.py:104`); the `repertoire-builder` skill
-   states "mainline only" (`SKILL.md:59-62`). `python-chess` *parses* variations into
-   `node.variations`, but nothing traverses them. Phases 2–3 all sit on tree-walk code
+1. **Variation-tree walking was net-new and load-bearing.** Before this feature every tool walked
+   `game.mainline()` only (the game tools still do, e.g. `server/chess_mcp.py`) and the
+   `repertoire-builder` skill was mainline-only. `python-chess` *parses* variations into
+   `node.variations`, but nothing traversed them. Phases 2–3 all sit on tree-walk code
    that does not exist. **Build the walker first.**
 2. **No output-size discipline in the new tools.** `MCP_DESIGN.md` mandates ~2k-token
    outputs, `limit`/filter params on lists, and a summary→detail split. A flat
@@ -49,7 +50,7 @@ assessment below is preserved so the rationale survives.
 
 5. **Input-cap collision.** `MAX_PGN_BYTES=100000` (`server/chess_mcp.py:14`) would
    reject the large trees this feature targets → separate `MAX_REPERTOIRE_BYTES`.
-6. **Pydantic vs dict.** All six tools return plain dicts; outputs documented in
+6. **Pydantic vs dict.** All existing tools return plain dicts; outputs documented in
    docstrings. **Decision: plain dict** (see Decision Log). Pydantic's win (schema +
    runtime validation) is outweighed here by error-shape friction (the closed-code
    `{"error","reason"}` pattern does not fit a typed success model without a Union),
