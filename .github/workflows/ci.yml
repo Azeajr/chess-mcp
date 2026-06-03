@@ -10,8 +10,11 @@ jobs:
     name: Engine-free test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          # no uv.lock is committed; key the uv cache on the project deps file
+          cache-dependency-glob: server/pyproject.toml
       - name: Run pytest (branch coverage via addopts)
         working-directory: server
         run: uv run pytest
@@ -20,7 +23,7 @@ jobs:
     name: Image builds and the server boots
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build image
         run: docker compose build
       - name: Boot the container and confirm startup
