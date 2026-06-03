@@ -8,7 +8,8 @@ Repo shape the prompts assume:
 - `server/chess_mcp.py` — the FastMCP tools + the only I/O boundaries (Stockfish subprocess, SSE transport).
 - `server/structure.py` — engine-free pawn-structure analysis (pure functions).
 - `server/repertoire.py` — variation-tree walker, in-memory handle cache (LRU + TTL), congruence logic.
-- `server/test_structure_repertoire.py` — engine-free `pytest` suite.
+- `server/test_structure_repertoire.py` + `server/test_tools.py` — engine-free `pytest` suite (branch
+  coverage on by default via `addopts`; `uv run pytest` from `server/`).
 - `evals/` — token-measurement harness (`capture.py` needs Stockfish → Docker; `measure.py` engine-free).
 - Design constraints live in `MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract, closed
   error-code set) and `REPERTOIRE_DESIGN.md` (cache, structural classifier).
@@ -31,8 +32,8 @@ docker compose build                      # only when engine-backed paths or the
 # Lint / format (no linter is committed; ruff runs ephemerally via uv)
 uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/
 
-# Test (engine-free suite; runs on the host, no Stockfish needed)
-uv run --with chess --with pytest pytest server/test_structure_repertoire.py -q
+# Test (engine-free suite + branch coverage via addopts; needs mcp+chess+pytest from the project, no Stockfish)
+cd server && uv run pytest -q
 
 # Engine-backed verification (Stockfish → Docker only)
 docker compose up -d --build
@@ -62,7 +63,7 @@ Honor the existing contract: stateless interface (the repertoire_id handle is th
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: run the import-sanity command; if you touched the Dockerfile or engine paths, also `docker compose build`.
 2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
-3. Test: `uv run --with chess --with pytest pytest server/test_structure_repertoire.py -q`. If anything fails, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
+3. Test: `cd server && uv run pytest -q`. If anything fails, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
 4. Commit with a concise message explaining WHY the structural change was made (not what). No Co-Authored-By trailer.
 5. Push: `git push origin main`.
 ```
@@ -86,7 +87,7 @@ Do not add authentication or a heavy security framework — that contradicts the
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: import-sanity command; `docker compose build` if the image/Dockerfile changed.
 2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
-3. Test: `uv run --with chess --with pytest pytest server/test_structure_repertoire.py -q`, and add tests for any new cap/guard (oversized input, expired handle, eviction, malformed PGN/FEN). Do not compromise core functionality for security theater. For engine-touching changes, verify in Docker (rebuild + capture.py and/or the SSE smoke client).
+3. Test: `cd server && uv run pytest -q`, and add tests for any new cap/guard (oversized input, expired handle, eviction, malformed PGN/FEN). Do not compromise core functionality for security theater. For engine-touching changes, verify in Docker (rebuild + capture.py and/or the SSE smoke client).
 4. Commit: the message must state the EXACT vulnerability mitigated and the method used. No Co-Authored-By trailer.
 5. Push: `git push origin main`.
 ```
@@ -110,7 +111,7 @@ Match the existing file's style (pytest, parametrize, a `pawns(...)` helper for 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: import-sanity command.
 2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
-3. Test: `uv run --with chess --with pytest pytest server/test_structure_repertoire.py -q`. If new tests fail or break existing ones, debug and fix the TEST — unless you uncovered a real bug in structure.py/repertoire.py/chess_mcp.py, in which case fix the source and note it in the commit.
+3. Test: `cd server && uv run pytest -q`. If new tests fail or break existing ones, debug and fix the TEST — unless you uncovered a real bug in structure.py/repertoire.py/chess_mcp.py, in which case fix the source and note it in the commit.
 4. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
 5. Push: `git push origin main`.
 ```

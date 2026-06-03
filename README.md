@@ -184,7 +184,8 @@ chess-mcp/
     ├── chess_mcp.py         # All ten MCP tools, FastMCP SSE server
     ├── structure.py         # engine-free pawn-structure analysis (StructuralExtractor)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence checks
-    ├── test_structure_repertoire.py  # pytest suite (engine-free)
+    ├── test_structure_repertoire.py  # pytest suite (engine-free): structure + repertoire
+    ├── test_tools.py                  # pytest suite: tool wrappers (validation, errors, caps)
     ├── pyproject.toml       # uv project + dependencies
     ├── Dockerfile           # uv+Python3.14 base, apt stockfish
     └── .dockerignore

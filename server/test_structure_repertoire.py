@@ -1,9 +1,8 @@
 """Engine-free tests for structure.py and repertoire.py.
 
-Run (ephemeral, no Stockfish needed):
-    uv run --with chess --with pytest pytest server/test_structure_repertoire.py
-Or, from the server project (pytest is in the dev dependency-group):
-    uv run pytest
+Run from the server project (pytest + pytest-cov are in the dev dependency-group;
+branch coverage is enabled via addopts in pyproject.toml):
+    cd server && uv run pytest
 """
 
 import io
@@ -244,6 +243,15 @@ def test_get_unknown_id_returns_none():
     assert repertoire.get_repertoire("nonexistent") is None
 
 
+def test_store_sweeps_expired_entries():
+    g1 = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    rid1 = repertoire.store_repertoire(g1, chess.WHITE)["repertoire_id"]
+    repertoire._CACHE[rid1].touched = time.time() - repertoire.REPERTOIRE_TTL_S - 1
+    # storing another repertoire runs _evict_locked, which sweeps the expired entry
+    repertoire.store_repertoire(chess.pgn.read_game(io.StringIO(SAMPLE_PGN)), chess.WHITE)
+    assert rid1 not in repertoire._CACHE
+
+
 def test_ttl_expiry():
     game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
     rid = repertoire.store_repertoire(game, chess.WHITE)["repertoire_id"]
@@ -301,3 +309,163 @@ def test_congruence_limit_respected():
     rep = _make_rep(SAMPLE_PGN)
     result = repertoire.analyze_congruence(rep, min_severity="low", limit=1)
     assert len(result["incongruencies"]) <= 1
+
+
+# ---------------------------------------------------------------------------
+# Congruence — rule FIRING (each line reaches a verified structure / center).
+# ---------------------------------------------------------------------------
+
+LINE_CARLSBAD = "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7"          # Carlsbad, locked center
+LINE_MAROCZY = "c4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6 e4"                # Maroczy
+LINE_IQP = "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 dxc5"                   # White IQP
+LINE_DOUBLED = "d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 Bxc3 bxc3"       # White doubled c-pawns (unknown)
+LINE_OPEN = "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nc3 Bb4 Nxc6 dxc6"  # open center (unknown)
+
+
+def _line_moves(sans: str) -> list[chess.Move]:
+    b = chess.Board()
+    return [b.push_san(s) for s in sans.split()]
+
+
+def build_repertoire(lines: list[str], color: chess.Color = chess.WHITE) -> repertoire._Repertoire:
+    """Assemble a _Repertoire from SAN line strings, merging shared prefixes into a tree."""
+    game = chess.pgn.Game()
+    for sans in lines:
+        node = game
+        for mv in _line_moves(sans):
+            child = next((c for c in node.variations if c.move == mv), None)
+            node = child or node.add_variation(mv)
+    now = time.time()
+    return repertoire._Repertoire(game, color, now, now, 0, 0, 0)
+
+
+def test_congruence_flags_structure_outlier():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("structure_outlier") == 1
+    item = next(i for i in result["incongruencies"] if i["type"] == "structure_outlier")
+    assert item["paths"] and item["severity"] in ("medium", "high")
+
+
+def test_congruence_flags_weakness_inconsistency():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("weakness_inconsistency") == 1
+
+
+def test_congruence_flags_center_inconsistency():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_OPEN])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("center_inconsistency") == 1
+
+
+def test_congruence_no_dominant_structure_flags_no_outlier():
+    # three distinct known structures, none >= 50% → structure_outlier must NOT fire
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_IQP])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("structure_outlier") is None
+
+
+def test_congruence_all_unknown_flags_nothing():
+    # both leaves classify unknown → the structure_outlier block is skipped entirely
+    rep = build_repertoire([LINE_OPEN, LINE_DOUBLED])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("structure_outlier") is None
+
+
+def test_congruence_min_severity_filters():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])  # outlier here is 'medium'
+    low = repertoire.analyze_congruence(rep, "low", 10)
+    high = repertoire.analyze_congruence(rep, "high", 10)
+    assert any(i["type"] == "structure_outlier" for i in low["incongruencies"])
+    assert high["total_flagged"] <= low["total_flagged"]
+    assert all(i["severity"] == "high" for i in high["incongruencies"])
+
+
+def test_profile_structure_shares():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    shares = repertoire.profile_structure_shares(rep)
+    assert abs(sum(shares.values()) - 1.0) < 1e-9
+    assert shares.get("Carlsbad") == 0.5 and shares.get("Maroczy") == 0.5
+
+
+def test_aggregate_profile_content():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    agg = repertoire.aggregate_profile(rep)
+    classes = {s["structure_class"] for s in agg["structures"]}
+    assert {"Carlsbad", "Maroczy"} <= classes
+    assert agg["leaves_analyzed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Black-side primitives & classifier (direction-sensitive logic must hold for Black).
+# ---------------------------------------------------------------------------
+
+def test_passed_pawn_black():
+    b = pawns((chess.E4, False), (chess.A2, True))  # nothing white ahead of Black's e4
+    assert "e4" in structure.get_passed_pawns(b, chess.BLACK)
+
+
+def test_passed_pawn_black_blocked_by_adjacent():
+    b = pawns((chess.E4, False), (chess.D3, True))  # white d3 is ahead+adjacent for Black
+    assert structure.get_passed_pawns(b, chess.BLACK) == []
+
+
+def test_pawn_chain_black():
+    # Black d5 defends e4 (Black's forward diagonal is toward rank 1) → a chain.
+    b = pawns((chess.D5, False), (chess.E4, False))
+    chains = structure.get_pawn_chains(b, chess.BLACK)
+    assert len(chains) == 1 and len(chains[0]) == 2
+
+
+def test_isolated_pawn_black():
+    b = pawns((chess.E5, False), (chess.A7, False), (chess.H7, False))
+    assert "e5" in structure.get_isolated_pawns(b, chess.BLACK)
+
+
+def test_black_iqp_classified():
+    b = pawns((chess.D5, False), (chess.A2, True))  # Black d5 isolani, White has no d-pawn
+    assert structure._iqp_confidence(b, chess.BLACK) == 0.9
+
+
+def test_iqp_rejected_when_opponent_has_d_pawn():
+    b = pawns((chess.D4, True), (chess.D7, False))  # White d4 isolani but Black still has d7
+    assert structure._iqp_confidence(b, chess.WHITE) == 0.0
+
+
+def test_iqp_advanced_rank_scores_lower():
+    b = pawns((chess.D5, True), (chess.A7, False))  # White d5 (advanced, not the classic d4)
+    assert structure._iqp_confidence(b, chess.WHITE) == 0.6
+
+
+def test_carlsbad_rejected_when_owner_keeps_c_pawn():
+    b = pawns((chess.D4, True), (chess.C2, True), (chess.D5, False), (chess.C6, False))
+    assert structure._carlsbad_confidence(b) == 0.0  # White still has a c-pawn → not Carlsbad
+
+
+def test_maroczy_mirrored_black_binds():
+    b = pawns((chess.C5, False), (chess.E5, False), (chess.A2, True))  # Black c5+e5, no d-pawn
+    assert structure._maroczy_confidence(b) == 0.7
+
+
+def test_carlsbad_mirrored_black_half_open_c():
+    # Black d5 + half-open c-file; White d4, keeps c-pawn, no e-pawn → mirrored Carlsbad.
+    b = pawns((chess.D5, False), (chess.D4, True), (chess.C2, True))
+    assert structure._carlsbad_confidence(b) == 0.7
+
+
+def test_center_semi_open():
+    b = pawns((chess.D4, True), (chess.E6, False))  # central pawns, no contact, not locked
+    assert structure.center_state(b) == "semi-open"
+
+
+# ---------------------------------------------------------------------------
+# Walker edge cases.
+# ---------------------------------------------------------------------------
+
+def test_resolve_path_illegal_san_returns_none(sample_game):
+    assert repertoire.resolve_path(sample_game, ["Zz9"]) is None
+
+
+def test_resolve_path_empty_returns_root(sample_game):
+    assert repertoire.resolve_path(sample_game, []) is sample_game

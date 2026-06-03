@@ -31,8 +31,10 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 Ten tools implemented: six original game-analysis tools + four new repertoire-analysis tools
 (`load_repertoire`, `get_structural_profile`, `analyze_repertoire_congruence`,
 `suggest_complementary_lines`). All containerized; game tools verified end-to-end in Docker.
-Repertoire tools verified engine-free via pytest (`uv run pytest`, 38 tests pass; engine path
-needs Docker re-run for `suggest_complementary_lines` and `evals/capture.py` snapshot update).
+Repertoire tools verified engine-free via pytest (`cd server && uv run pytest`, 81 tests pass;
+branch coverage on by default via `addopts` — `structure.py` 98%, `repertoire.py` 100%, `chess_mcp.py`
+37% with the remainder being engine-dependent game tools that need Docker). Engine path needs Docker
+re-run for `suggest_complementary_lines` ranking and the `evals/capture.py` snapshot update.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 
@@ -44,7 +46,8 @@ needs Docker re-run for `suggest_complementary_lines` and `evals/capture.py` sna
 | `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (IQP/Carlsbad/Maroczy), `position_profile` |
 | `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks |
 | `server/test_structure_repertoire.py` | pytest suite (engine-free) for structure.py + repertoire.py |
-| `server/pyproject.toml` | uv project, deps: `mcp[cli]`, `chess`, Python 3.14; `pytest` in `dev` group (excluded from image via `uv sync --no-dev`) |
+| `server/test_tools.py` | pytest suite for the chess_mcp.py tool wrappers (engine-free paths: validation, errors, caps) |
+| `server/pyproject.toml` | uv project, deps: `mcp[cli]`, `chess`, Python 3.14; `pytest`+`pytest-cov` in `dev` group (excluded from image via `uv sync --no-dev`); `addopts` enables branch coverage |
 | `server/Dockerfile` | Container: uv+Python3.14 base, apt stockfish, uv sync |
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
