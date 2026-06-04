@@ -58,6 +58,7 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 | `.github/workflows/release.yml` | On `v*` tags: build + push `ghcr.io/azeajr/chess-mcp:latest` + `:<tag>` to GHCR |
 | `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
 | `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
+| `LICENSE` | MIT, © 2026 Antonio Zea |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |

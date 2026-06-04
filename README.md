@@ -243,3 +243,7 @@ chess-mcp/
 - [ ] **`time_limit` param** — expose `Limit(time=N)` as alternative to depth; useful for slower hardware or faster iteration.
 - [ ] **Opening resource** — serve ECO opening names as an MCP resource so `get_game_summary` can return opening name even when PGN headers omit it.
 - [ ] **`classify_structure` expansion** — current classifier ships IQP / Carlsbad / Maroczy. Extend to French Advance / Closed Sicilian once PGN fixtures are available to validate matching accuracy.
+
+## License
+
+[MIT](LICENSE) © 2026 Antonio Zea.
