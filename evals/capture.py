@@ -38,6 +38,8 @@ def main():
         "evaluate_position.mpv": cm.evaluate_position(fen, DEPTH, 3),
         "get_legal_moves.san": cm.get_legal_moves(fen, False),
         "get_legal_moves.uci": cm.get_legal_moves(fen, True),
+        "validate_fen": cm.validate_fen(fen),
+        "validate_pgn": cm.validate_pgn(PGN),
         "identify_opening": cm.identify_opening(PGN),
         "export_annotated_pgn": cm.export_annotated_pgn(PGN, DEPTH),
     }
@@ -84,6 +86,8 @@ def main():
         cm.evaluate_position,
         cm.validate_line,
         cm.get_legal_moves,
+        cm.validate_fen,
+        cm.validate_pgn,
         cm.compare_moves,
         cm.identify_opening,
         cm.export_annotated_pgn,

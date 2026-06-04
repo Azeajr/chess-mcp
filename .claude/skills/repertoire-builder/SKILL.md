@@ -20,6 +20,20 @@ the whole tree once behind a handle, then judges it on two lenses:
 
 Everything engine-grounded; nothing asserted from memory.
 
+## Grounding contract (applies to every step)
+
+1. **Validate the user's input first.** Pasted a FEN → call `validate_fen`; a PGN → `validate_pgn`.
+   On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the **normalized**
+   `fen` the validator returns as the position from here on.
+2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
+   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
+   `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
+   `validate_line` and continue from the `final_fen` it returns.
+3. **FENs come only from the MCP.** Use the `fen` a tool returned; the one FEN you may type is the
+   standard start position.
+4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never
+   fall back to analyzing from memory.
+
 ## Inputs
 
 - the user's repertoire PGN — the **full branching tree**, variations and all, in one go
@@ -34,6 +48,8 @@ of the PGN — don't re-send the PGN. The handle lives in the server's cache; if
 
 ## Workflow
 
+0. `validate_pgn(pgn)` — confirm the repertoire PGN parses (expect `has_variations:true` for a real
+   tree). On `valid:false`, stop and report; never load unvalidated input.
 1. `load_repertoire(pgn, color)` → `repertoire_id`. Note `leaves` (how many distinct lines) and
    `max_depth`.
 2. `get_structural_profile(repertoire_id)` (no path) → the repertoire's **aggregate fingerprint**:

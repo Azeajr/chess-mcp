@@ -166,6 +166,57 @@ def test_get_legal_moves_bad_fen():
     assert cm.get_legal_moves("nope")["error"] == "invalid_fen"
 
 
+# --- validate_fen (engine-free) ---
+
+
+def test_validate_fen_ok():
+    r = cm.validate_fen(chess.STARTING_FEN)
+    assert r["valid"] is True and r["side_to_move"] == "white"
+    assert r["is_game_over"] is False
+    assert len(r["fen"].split()) == 6  # normalized 6-field FEN echoed back
+
+
+def test_validate_fen_bad_syntax():
+    r = cm.validate_fen("not-a-fen")
+    assert r["valid"] is False and r["error"] == "invalid_fen"
+
+
+def test_validate_fen_illegal_position_rejected():
+    # parses fine, but an empty board has no kings → board.status() != STATUS_VALID
+    r = cm.validate_fen("8/8/8/8/8/8/8/8 w - - 0 1")
+    assert r["valid"] is False and r["error"] == "invalid_fen"
+
+
+def test_validate_fen_detects_game_over():
+    r = cm.validate_fen(FOOLS_MATE_FEN)
+    assert r["valid"] is True and r["is_game_over"] is True
+
+
+# --- validate_pgn (engine-free) ---
+
+
+def test_validate_pgn_ok():
+    r = cm.validate_pgn(REP_PGN)
+    assert r["valid"] is True and r["mainline_plies"] == 10
+    assert r["has_variations"] is False
+    assert r["headers"]["result"] == "*"
+
+
+def test_validate_pgn_detects_variations():
+    r = cm.validate_pgn(EXPORT_PGN)  # has a 1...Nf6 side line
+    assert r["valid"] is True and r["has_variations"] is True
+
+
+def test_validate_pgn_empty():
+    r = cm.validate_pgn("")
+    assert r["valid"] is False and r["error"] == "invalid_pgn"
+
+
+def test_validate_pgn_too_large():
+    r = cm.validate_pgn("1. e4 e5 " * 200000)
+    assert r["valid"] is False and r["error"] == "pgn_too_large"
+
+
 # --- _move_accuracy (pure helper feeding get_game_summary's accuracy_pct) ---
 
 

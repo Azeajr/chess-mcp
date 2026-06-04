@@ -45,6 +45,8 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `compare_moves` | FEN, moves[], depth | Ranks YOUR candidate moves (best→worst): each move, eval, cp_loss vs best, pv; unrecognized inputs returned in `illegal`. Scores the exact moves you pass — even ones the engine wouldn't pick |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
+| `validate_fen` | FEN | Valid bool + **normalized** FEN, side to move, game-over flag; rejects illegal-but-parseable positions. Run on a user-supplied FEN before analysis |
+| `validate_pgn` | PGN | Valid bool + mainline ply count, has-variations flag, headers. Run on a user-supplied PGN before analysis |
 | `identify_opening` | PGN | ECO code + opening name (deepest named position); 3700-opening table |
 | `export_annotated_pgn` | PGN, depth, min_cp_loss | Annotated PGN string: NAG glyphs (?!/?/??) + eval & best-move comments on flagged moves, mainline **and** variations, plus `moves_annotated` count |
 
@@ -144,11 +146,11 @@ docker compose up -d --build   # build locally (Stockfish + deps), serves SSE on
 ```
 
 A prebuilt image is published to GHCR (public) — skip the build and pull it instead (tags:
-`latest`, `v0.1.5`):
+`latest`, `v0.1.6`):
 
 ```bash
 docker compose pull && docker compose up -d
-# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.5
+# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.6
 ```
 
 `restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
@@ -264,7 +266,7 @@ chess-mcp/
 │   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
 │   └── snapshots/outputs.json
 └── server/
-    ├── chess_mcp.py         # All 16 MCP tools, FastMCP SSE server
+    ├── chess_mcp.py         # All 18 MCP tools, FastMCP SSE server
     ├── structure.py         # engine-free pawn-structure analysis (8 structures)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
     ├── openings.py          # ECO opening lookup (EPD → name)

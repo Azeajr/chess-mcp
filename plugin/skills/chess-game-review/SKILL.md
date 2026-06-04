@@ -13,6 +13,20 @@ Procedural wrapper over the `chess-analysis` MCP server. The MCP does the comput
 moves, FEN/PGN); this skill is the *method* — what to call, in what order, and the rules that keep
 every claim grounded.
 
+## Grounding contract (applies to every step)
+
+1. **Validate the user's input first.** Pasted a FEN → call `validate_fen`; a PGN → `validate_pgn`.
+   On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the **normalized**
+   `fen` the validator returns as the position from here on.
+2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
+   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
+   `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
+   `validate_line` and continue from the `final_fen` it returns.
+3. **FENs come only from the MCP.** Use the `fen` a tool returned; the one FEN you may type is the
+   standard start position.
+4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never
+   fall back to analyzing from memory.
+
 ## Before you start
 
 These tools must be connected (MCP server `chess-analysis`, default `http://localhost:8000/sse`):
@@ -23,12 +37,17 @@ These tools must be connected (MCP server `chess-analysis`, default `http://loca
 - `mcp__chess-analysis__evaluate_position`
 - `mcp__chess-analysis__validate_line`
 - `mcp__chess-analysis__get_legal_moves`
+- `mcp__chess-analysis__validate_pgn`
+- `mcp__chess-analysis__validate_fen`
 
 If they're absent, tell the user to start the server (`docker compose up -d` in the chess-mcp repo)
 — do **not** fall back to analyzing the game from memory. The whole point is to not guess.
 
 ## The loop
 
+0. **Validate the PGN.** `validate_pgn(pgn)` first — confirm it parses; if `has_variations` is true
+   it's a tree (repertoire work → use the repertoire-builder skill). On `valid:false`, stop and
+   report; never analyze unvalidated input.
 1. **Overview first.** `get_game_summary(pgn)` → opening, per-side counts, accuracy %, and the
    top-3 `worst_moves`. Lead your reply with this verdict. One call, small output.
 2. **Mistake list.** `analyze_game(pgn, min_cp_loss=50)` → every inaccuracy-or-worse (lean fields).

@@ -433,7 +433,8 @@ def evaluate_position(
     explore opponent deviations (repertoire work).
     time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
     ignored) — for slow hardware or fast iteration; depth is the reproducible default.
-    Invalid FEN → {"error","reason"}.
+    Pass a FEN from an MCP result (validate_fen / get_position / get_structural_profile /
+    validate_line), not one typed from memory. Invalid FEN → {"error","reason"}.
     """
     depth = _clamp_depth(depth)
     multipv = max(1, min(MAX_MULTIPV, multipv))
@@ -531,6 +532,7 @@ def validate_line(fen: str, moves: list[str]) -> dict:
 def get_legal_moves(fen: str, uci: bool = False) -> dict:
     """
     List every legal move from a position. Pick a grounded move, don't guess.
+    Pass a FEN from an MCP result (validate_fen / get_position / ...), not a hand-built one.
 
     Returns: turn ("white"|"black"), move_count, moves. Default moves =
     space-separated SAN string ("Nf3 Nc3 e4 ..."). uci=True → list of {uci, san}
@@ -551,6 +553,46 @@ def get_legal_moves(fen: str, uci: bool = False) -> dict:
         moves = " ".join(board.san(m) for m in legal)
 
     return {"turn": turn, "move_count": len(legal), "moves": moves}
+
+
+def _fen_status_reason(status: chess.Status) -> str:
+    """Human reason for an illegal-but-parseable position (board.status() != STATUS_VALID)."""
+    flags = [
+        s.name.removeprefix("STATUS_").lower()
+        for s in chess.Status
+        if s.value and (status & s)
+    ]
+    return ", ".join(flags) or "illegal position"
+
+
+@mcp.tool()
+def validate_fen(fen: str) -> dict:
+    """
+    Validate a FEN before using it. Call on ANY user-supplied FEN before analysis, then use the
+    returned (normalized) fen downstream — never the raw input. Engine-free.
+
+    Checks syntax AND legality (board.status()): an illegal-but-parseable position (two kings,
+    side-not-to-move in check, ...) is rejected, not silently passed to the engine.
+
+    valid:true → {valid, fen (NORMALIZED — pass this to other tools), side_to_move
+    ("white"/"black"), is_game_over}. valid:false → {valid:false, error:"invalid_fen", reason}.
+    """
+    try:
+        board = chess.Board(fen)
+    except ValueError as e:
+        return {"valid": False, "error": "invalid_fen", "reason": str(e)}
+    if board.status() != chess.STATUS_VALID:
+        return {
+            "valid": False,
+            "error": "invalid_fen",
+            "reason": _fen_status_reason(board.status()),
+        }
+    return {
+        "valid": True,
+        "fen": board.fen(),
+        "side_to_move": "white" if board.turn == chess.WHITE else "black",
+        "is_game_over": board.is_game_over(),
+    }
 
 
 @mcp.tool()
@@ -1031,6 +1073,50 @@ def identify_opening(pgn: str) -> dict:
     if game is None or game.next() is None:
         return {"error": "invalid_pgn", "reason": "PGN contains no moves"}
     return openings.deepest_in_line(game) or {"opening": None}
+
+
+_PGN_HEADER_KEYS = ("Event", "White", "Black", "Result", "Date")
+
+
+@mcp.tool()
+def validate_pgn(pgn: str) -> dict:
+    """
+    Validate a PGN before using it. Call on ANY user-supplied PGN before answering — if it comes
+    back valid:false, stop and report; do not analyze or "fix" it. Engine-free.
+
+    valid:true → {valid, mainline_plies (half-moves in the main line), has_variations (tree has
+    side lines → use load_repertoire for repertoire work, else the game tools), headers (event,
+    white, black, result, date, opening — present values only)}.
+    valid:false → {valid:false, error:"invalid_pgn"|"pgn_too_large", reason}.
+    """
+    if err := _pgn_too_large(pgn):
+        return {"valid": False, **err}
+    try:
+        game = _parse_game(pgn)
+    except ValueError as e:
+        return {"valid": False, "error": "invalid_pgn", "reason": str(e)}
+
+    plies = 0
+    node = game
+    while node.variations:
+        node = node.variations[0]
+        plies += 1
+    has_variations = any(
+        len(n.variations) > 1 for n in [game, *repertoire.iter_nodes(game)]
+    )
+    headers = {
+        k.lower(): game.headers[k]
+        for k in _PGN_HEADER_KEYS
+        if game.headers.get(k, "?") not in ("", "?")
+    }
+    if opening := (game.headers.get("Opening") or game.headers.get("ECO")):
+        headers["opening"] = opening
+    return {
+        "valid": True,
+        "mainline_plies": plies,
+        "has_variations": has_variations,
+        "headers": headers,
+    }
 
 
 # Move classification → PGN NAG glyph. Good moves get no glyph (kept clean).

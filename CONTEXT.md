@@ -28,8 +28,10 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 
 ## Current state
 
-Sixteen tools: six original game-analysis tools, `compare_moves` (rank caller-supplied candidate
-moves from a FEN), `identify_opening` (ECO name from a 3700-entry table), `export_annotated_pgn`
+Eighteen tools: six original game-analysis tools, `compare_moves` (rank caller-supplied candidate
+moves from a FEN), `validate_fen` + `validate_pgn` (engine-free validators for user-supplied input —
+validate before answering; `validate_fen` also rejects illegal-but-parseable positions via
+`board.status()`), `identify_opening` (ECO name from a 3700-entry table), `export_annotated_pgn`
 (engine-annotated PGN artifact), and seven repertoire tools (`load_repertoire`,
 `get_structural_profile`, `analyze_repertoire_congruence`, `get_transpositions`,
 `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), `find_repertoire_gaps`
@@ -39,20 +41,20 @@ classifier covers 8 pawn skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's
 Sicilian), measured by `evals/structure_accuracy.py`. The cached engine pass walks the whole game
 tree (mainline + variations) once, keyed by SAN path; every engine tool also accepts an optional
 `time_limit`. All containerized; game tools verified end-to-end in Docker. Repertoire + tool-layer
-paths verified engine-free via pytest (`cd server && uv run pytest`, 126 tests pass; branch coverage
-on by default via `addopts`). Engine paths (`compare_moves`, `find_repertoire_gaps`,
+paths verified engine-free via pytest (`cd server && uv run pytest`; branch coverage
+on by default via `addopts`; 134 tests pass). Engine paths (`compare_moves`, `find_repertoire_gaps`,
 `suggest_complementary_lines` ranking) and the `evals/capture.py` snapshot are verified in Docker.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
-**Release:** v0.1.5 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.5 — image published and
-public at `ghcr.io/azeajr/chess-mcp` (`latest` + `v0.1.5`); the `docker compose pull` / `docker run`
+**Release:** v0.1.6 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.6 — image published and
+public at `ghcr.io/azeajr/chess-mcp` (`latest` + `v0.1.6`); the `docker compose pull` / `docker run`
 prebuilt install path is verified end-to-end (pull → boot → tools over SSE).
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `server/chess_mcp.py` | All 16 MCP tools, FastMCP SSE server |
+| `server/chess_mcp.py` | All 18 MCP tools, FastMCP SSE server |
 | `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (8 structures, scorer functions are the single source of truth), `position_profile` |
 | `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection, coverage report + opponent-reply-node selection (for gaps) |
 | `server/openings.py` | ECO opening lookup (EPD → eco/name); `identify` (exact position) + `deepest_in_line` |
@@ -64,7 +66,7 @@ prebuilt install path is verified end-to-end (pull → boot → tools over SSE).
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
 | `.github/workflows/ci.yml` | Single workflow: `test` (`uv run pytest`, engine-free + branch coverage) + `docker` (build image **and** boot it) + `publish` (tag-gated, `needs: [test, docker]` → push `ghcr.io/azeajr/chess-mcp:latest`+`:<tag>` to GHCR) |
-| `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
+| `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install`/`sync-skills` |
 | `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
 | `LICENSE` | MIT, © 2026 Antonio Zea |
 | `.claude-plugin/marketplace.json` | Makes the repo a plugin marketplace (`name: azeajr`), listing the `chess-mcp` plugin at `source: ./plugin` |
@@ -123,7 +125,7 @@ Cutting a release is just: bump the version (`pyproject` + `plugin/.claude-plugi
 `.claude-plugin/marketplace.json` — keep them equal), commit, then `git tag v0.x.y && git push origin
 v0.x.y`. The tag drives the rest (image publish + GitHub release) via the workflow; **the tag itself
 is the trigger, so it stays a manual push** (a workflow can't create the tag that starts it).
-**v0.1.0 / v0.1.1 / v0.1.2 / v0.1.3 / v0.1.4 / v0.1.5** are published (v0.1.1 has no GitHub release — predates the `release` job).
+**v0.1.0 / v0.1.1 / v0.1.2 / v0.1.3 / v0.1.4 / v0.1.5 / v0.1.6** are published (v0.1.1 has no GitHub release — predates the `release` job).
 The GHCR package's visibility was set to **public** once (a manual one-time step in package settings —
 no reliable REST endpoint for it), so anonymous `docker compose pull` / stdio `docker run` works.
 
@@ -137,7 +139,8 @@ The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplac
 `/plugin install chess-mcp@azeajr`; skills are namespaced `/chess-mcp:<skill>`.
 
 - The skills in `plugin/skills/` are **copies** of `.claude/skills/` (a plugin can't reference files
-  outside its own dir, and symlinks are cross-platform-fragile). Keep both in sync when a skill
+  outside its own dir, and symlinks are cross-platform-fragile). Keep both in sync via
+  `make sync-skills` (canonical = `plugin/skills/` → mirrors into `.claude/skills/`) when a skill
   changes — `.claude/skills/` is the in-repo/standalone copy (auto-loads when running `claude` in the
   repo against the SSE server); `plugin/skills/` is the distributed copy.
 - Verified end-to-end (June 2026): `claude plugin validate` passes; installing from the **GitHub**
