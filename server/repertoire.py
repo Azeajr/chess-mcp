@@ -90,6 +90,28 @@ def san_path(node) -> list[str]:
     return moves
 
 
+def _position_key(board: chess.Board) -> str:
+    """Position identity ignoring move clocks: placement + turn + castling + en passant.
+    Two move orders that reach the same position share this key (a transposition)."""
+    return " ".join(board.fen().split()[:4])
+
+
+def find_transpositions(game: chess.pgn.Game) -> list[dict]:
+    """Positions the repertoire reaches by more than one distinct move order.
+
+    Returns [{fen, paths: [<san_path>, ...]}] for each such position, largest groups
+    first — the lines that converge, so the user can learn one move order for several.
+    """
+    groups: dict[str, dict] = {}
+    for node in iter_nodes(game):
+        key = _position_key(node.board())
+        g = groups.setdefault(key, {"fen": node.board().fen(), "paths": []})
+        g["paths"].append(san_path(node))
+    converging = [g for g in groups.values() if len(g["paths"]) > 1]
+    converging.sort(key=lambda g: -len(g["paths"]))
+    return converging
+
+
 # ---------------------------------------------------------------------------
 # In-memory handle cache — bounded LRU + TTL (REPERTOIRE_DESIGN.md section 3).
 # ---------------------------------------------------------------------------

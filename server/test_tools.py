@@ -84,6 +84,15 @@ def test_congruence_bad_id():
     assert cm.analyze_repertoire_congruence("nope")["error"] == "repertoire_not_found"
 
 
+def test_transpositions_tool(rid):
+    r = cm.get_transpositions(rid)
+    assert "total" in r and isinstance(r["transpositions"], list)
+
+
+def test_transpositions_bad_id():
+    assert cm.get_transpositions("nope")["error"] == "repertoire_not_found"
+
+
 def test_congruence_limit_clamped(rid):
     assert len(cm.analyze_repertoire_congruence(rid, "low", 999)["incongruencies"]) <= 50
 

@@ -482,3 +482,19 @@ def test_resolve_path_illegal_san_returns_none(sample_game):
 
 def test_resolve_path_empty_returns_root(sample_game):
     assert repertoire.resolve_path(sample_game, []) is sample_game
+
+
+def test_find_transpositions():
+    # two move orders reaching the same position
+    rep = build_repertoire(["d4 Nf6 c4 g6", "c4 g6 d4 Nf6"])
+    groups = repertoire.find_transpositions(rep.game)
+    assert len(groups) >= 1
+    big = max(groups, key=lambda g: len(g["paths"]))
+    assert len(big["paths"]) == 2
+    assert ["d4", "Nf6", "c4", "g6"] in big["paths"]
+    assert ["c4", "g6", "d4", "Nf6"] in big["paths"]
+
+
+def test_no_transpositions_in_linear_tree():
+    rep = build_repertoire(["d4 d5 c4 e6 Nc3 Nf6"])
+    assert repertoire.find_transpositions(rep.game) == []

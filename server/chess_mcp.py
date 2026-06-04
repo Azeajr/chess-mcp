@@ -527,6 +527,24 @@ def analyze_repertoire_congruence(
 
 
 @mcp.tool()
+def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
+    """
+    Positions the repertoire reaches by more than one move order (transpositions). Engine-free.
+
+    Useful for study efficiency: converging lines mean one move order can cover several. Returns
+    total (count of converging positions) and transpositions (each: fen, paths = the SAN
+    variation_paths that reach it), largest groups first, capped to limit (default 20, max 100).
+    Empty if the tree never transposes. Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+    limit = max(1, min(100, limit))
+    groups = repertoire.find_transpositions(rep.game)
+    return {"total": len(groups), "transpositions": groups[:limit]}
+
+
+@mcp.tool()
 def suggest_complementary_lines(
     repertoire_id: str,
     fen: str,
