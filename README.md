@@ -144,11 +144,11 @@ docker compose up -d --build   # build locally (Stockfish + deps), serves SSE on
 ```
 
 A prebuilt image is published to GHCR (public) — skip the build and pull it instead (tags:
-`latest`, `v0.1.4`):
+`latest`, `v0.1.5`):
 
 ```bash
 docker compose pull && docker compose up -d
-# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.4
+# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.5
 ```
 
 `restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
