@@ -4,6 +4,21 @@
 
 MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via Stockfish. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
 
+## Quickstart
+
+**Prerequisites:** [Docker + Docker Compose](https://docs.docker.com/get-docker/) and [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
+
+```bash
+git clone https://github.com/Azeajr/chess-mcp
+cd chess-mcp
+docker compose pull && docker compose up -d   # prebuilt image from GHCR, serves SSE on :8000
+claude                                         # run inside the repo: approve the chess-analysis MCP when prompted
+```
+
+Running `claude` from the repo auto-registers the server (`.mcp.json`) and loads the skills in `.claude/skills/`. Then paste a PGN and invoke `chess-game-review`, give your repertoire PGN + color and invoke `repertoire-builder`, or hand it a FEN for `analyze-position`.
+
+Want to build locally instead of pulling, install without Docker, register globally, or point at a remote host? See [Setup](#setup).
+
 ## Problem
 
 AI agents reviewing chess games generate moves from pattern-matching, not board state. They have no legal move generator and no engine — so they invent plausible-looking but illegal or nonsensical lines. This MCP fixes that by giving the agent real tools to check its work before stating anything.
