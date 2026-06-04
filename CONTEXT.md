@@ -83,6 +83,12 @@ builds locally instead (both work — `compose.yml` has `image:` + `build:`). Re
 URL at `http://<HOST_IP>:8000/sse`. `make` wraps the common commands. Full deploy steps + the native
 (pacman/apt/brew) path live in `README.md`.
 
+**Transport** is selected by `MCP_TRANSPORT` (`chess_mcp.py` `__main__`): `sse` (default — the
+networked/Docker/remote server) or `stdio` (the client spawns the process; no port, no long-running
+server). The low-friction local install is one command —
+`claude mcp add chess-analysis -- docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest`
+— and needs the published image to carry the toggle (v0.1.1+).
+
 ## CI
 
 `.github/workflows/ci.yml` runs on push to `main` and on PRs. Two jobs:

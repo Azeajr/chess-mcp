@@ -622,4 +622,9 @@ def suggest_complementary_lines(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Transport: "sse" (default — networked, for the Docker/remote server) or "stdio"
+    # (client spawns the server as a subprocess; the low-friction local path, no port).
+    transport = os.environ.get("MCP_TRANSPORT", "sse")
+    if transport not in ("sse", "stdio", "streamable-http"):
+        transport = "sse"
+    mcp.run(transport=transport)

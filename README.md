@@ -100,7 +100,20 @@ Code and keep every move/line engine-grounded:
 - **Docker + Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install).
 - **Claude Code** (`claude` CLI) — the MCP client.
 
-### 1. Start the server
+### Fastest: one command (stdio)
+
+No server to manage, no port, nothing to clone — Claude Code spawns the server on demand over
+**stdio**. One command (Docker pulls the image the first time):
+
+```bash
+claude mcp add chess-analysis -- docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest
+```
+
+Confirm by asking Claude to run `get_legal_moves` on the start position. The `.claude/skills/` are
+optional workflow helpers; to get them too, clone the repo and copy them into `~/.claude/skills/`
+(or install the plugin). For a long-running / shared / remote server, use the SSE path below instead.
+
+### 1. Start the server (SSE — for a shared or remote host)
 
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
@@ -190,8 +203,9 @@ Environment variables (set in `compose.yml`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FASTMCP_HOST` | `127.0.0.1` | Bind address. Docker image/compose set `0.0.0.0` so the published port is reachable |
-| `FASTMCP_PORT` | `8000` | Listen port |
+| `MCP_TRANSPORT` | `sse` | Transport: `sse` (networked server) or `stdio` (client spawns the process — no port; the one-command local install) |
+| `FASTMCP_HOST` | `127.0.0.1` | Bind address (SSE only). Docker image/compose set `0.0.0.0` so the published port is reachable |
+| `FASTMCP_PORT` | `8000` | Listen port (SSE only) |
 | `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
 | `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
 | `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
