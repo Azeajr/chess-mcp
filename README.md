@@ -6,18 +6,18 @@ MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via 
 
 ## Quickstart
 
-**Prerequisites:** [Docker + Docker Compose](https://docs.docker.com/get-docker/) and [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
 
-```bash
-git clone https://github.com/Azeajr/chess-mcp
-cd chess-mcp
-docker compose pull && docker compose up -d   # prebuilt image from GHCR, serves SSE on :8000
-claude                                         # run inside the repo: approve the chess-analysis MCP when prompted
+Install the **plugin** — it bundles the chess engine (MCP server) *and* the skills in one step, no clone. In Claude Code:
+
+```text
+/plugin marketplace add azeajr/chess-mcp
+/plugin install chess-mcp@azeajr
 ```
 
-Running `claude` from the repo auto-registers the server (`.mcp.json`) and loads the skills in `.claude/skills/`. Then paste a PGN and invoke `chess-game-review`, give your repertoire PGN + color and invoke `repertoire-builder`, or hand it a FEN for `analyze-position`.
+The `chess-analysis` server runs on demand via Docker (stdio); the first call pulls the image. Then paste a PGN and invoke `/chess-mcp:chess-game-review`, give your repertoire PGN + color for `/chess-mcp:repertoire-builder`, or hand it a FEN for `/chess-mcp:analyze-position`.
 
-Want to build locally instead of pulling, install without Docker, register globally, or point at a remote host? See [Setup](#setup).
+Prefer a long-running / shared / remote server, or a one-line server-only install without the plugin? See [Setup](#setup).
 
 ## Problem
 
@@ -97,21 +97,29 @@ Code and keep every move/line engine-grounded:
 
 ### Prerequisites
 
-- **Docker + Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install).
+- **Docker** — runs the server (bundles Stockfish + Python deps; no host install). Docker **Compose** is only needed for the long-running SSE server path below.
 - **Claude Code** (`claude` CLI) — the MCP client.
 
-### Fastest: one command (stdio)
+### Recommended: install the plugin (server + skills, one step)
 
-No server to manage, no port, nothing to clone — Claude Code spawns the server on demand over
-**stdio**. One command (Docker pulls the image the first time):
+The plugin bundles the `chess-analysis` MCP server (stdio over Docker) **and** the four skills. In Claude Code:
+
+```text
+/plugin marketplace add azeajr/chess-mcp
+/plugin install chess-mcp@azeajr
+```
+
+Restart (or `/reload-plugins`) to activate. The server is spawned on demand via Docker — the first call pulls the image. Skills are namespaced under the plugin: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
+
+### Server only, one command (stdio, no plugin)
+
+Just the MCP server, no skills, nothing to clone — Claude Code spawns it on demand over **stdio**:
 
 ```bash
 claude mcp add chess-analysis -- docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest
 ```
 
-Confirm by asking Claude to run `get_legal_moves` on the start position. The `.claude/skills/` are
-optional workflow helpers; to get them too, clone the repo and copy them into `~/.claude/skills/`
-(or install the plugin). For a long-running / shared / remote server, use the SSE path below instead.
+Confirm by asking Claude to run `get_legal_moves` on the start position. For a long-running / shared / remote server, use the SSE path below instead.
 
 ### 1. Start the server (SSE — for a shared or remote host)
 
@@ -224,7 +232,9 @@ chess-mcp/
 ├── Makefile                 # up / pull / down / logs / test / lint / register / install
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
-├── .claude/skills/          # Claude Code workflow skills that drive the MCP tools
+├── .claude-plugin/          # marketplace.json — lists the chess-mcp plugin (this repo as a marketplace)
+├── plugin/                  # the distributable plugin: .claude-plugin/plugin.json, .mcp.json (stdio), skills/
+├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, SSE workflow)
 ├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals

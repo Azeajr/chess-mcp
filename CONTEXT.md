@@ -58,6 +58,8 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 | `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
 | `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
 | `LICENSE` | MIT, © 2026 Antonio Zea |
+| `.claude-plugin/marketplace.json` | Makes the repo a plugin marketplace (`name: azeajr`), listing the `chess-mcp` plugin at `source: ./plugin` |
+| `plugin/` | The distributable Claude Code plugin: `.claude-plugin/plugin.json`, `.mcp.json` (stdio `docker run` of the published image), and `skills/` (copies of the 4 skills) |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
@@ -108,6 +110,25 @@ Publishing a release = bump `pyproject` version, tag, push (`git tag v0.x.y && g
 then `gh release create`. **v0.1.0** and **v0.1.1** are published; the GHCR package's visibility was set
 to **public** once (a manual one-time step in package settings — no reliable REST endpoint for it), so
 anonymous `docker compose pull` / stdio `docker run` works.
+
+## Plugin
+
+The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplace.json` (name
+`azeajr`) lists one plugin, `chess-mcp`, at `source: ./plugin`. The plugin (`plugin/`) bundles the
+`chess-analysis` MCP server as **stdio over Docker** (`plugin/.mcp.json` →
+`docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest`) plus the four skills
+(`plugin/skills/`). Install is one step: `/plugin marketplace add azeajr/chess-mcp` then
+`/plugin install chess-mcp@azeajr`; skills are namespaced `/chess-mcp:<skill>`.
+
+- The skills in `plugin/skills/` are **copies** of `.claude/skills/` (a plugin can't reference files
+  outside its own dir, and symlinks are cross-platform-fragile). Keep both in sync when a skill
+  changes — `.claude/skills/` is the in-repo/standalone copy (auto-loads when running `claude` in the
+  repo against the SSE server); `plugin/skills/` is the distributed copy.
+- Verified non-interactively: `claude plugin validate plugin` passes; `claude plugin marketplace add`
+  + `install` + `details` showed all 4 skills and the 1 MCP server detected. Interactive end-to-end
+  (`/plugin install` then actually calling a tool through the docker-stdio server) is the user's to
+  confirm in a live Claude Code session.
+- The plugin's MCP server requires Docker on the user's machine (it shells out to `docker run`).
 
 ## Known design notes
 
