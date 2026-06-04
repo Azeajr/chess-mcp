@@ -37,6 +37,9 @@ branch coverage on by default via `addopts` — `structure.py` 98%, `repertoire.
 re-run for `suggest_complementary_lines` ranking and the `evals/capture.py` snapshot update.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
+**Release:** v0.1.0 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.0 — image published and
+public at `ghcr.io/azeajr/chess-mcp` (`latest` + `v0.1.0`); the `docker compose pull` / `docker run`
+prebuilt install path is verified end-to-end (pull → boot → 10 tools over SSE).
 
 ## Files
 
@@ -94,6 +97,9 @@ they need Stockfish and are verified manually in Docker. Status badge is in `REA
 `release.yml` is separate: on a `v*` tag (or manual dispatch) it builds the image and pushes it to
 GHCR (`ghcr.io/azeajr/chess-mcp`), which `compose.yml`'s `image:` then lets users pull. Publishing a
 release = tag and push (`git tag v0.x.0 && git push --tags`); CI's build/boot already gates `main`.
+**v0.1.0** was published this way; the GHCR package's visibility was set to **public** once (a manual
+one-time step in package settings — there's no reliable REST endpoint for it), so anonymous
+`docker compose pull` works. `gh release create v0.1.0` published the GitHub release.
 
 ## Known design notes
 

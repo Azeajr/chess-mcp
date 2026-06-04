@@ -93,11 +93,12 @@ cd chess-mcp
 docker compose up -d --build   # build locally (Stockfish + deps), serves SSE on :8000
 ```
 
-Once a release is published (a `v*` tag pushes the image to GHCR and the package is made public),
-you can skip the build and pull the prebuilt image instead:
+A prebuilt image is published to GHCR (public) — skip the build and pull it instead (tags:
+`latest`, `v0.1.0`):
 
 ```bash
 docker compose pull && docker compose up -d
+# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.0
 ```
 
 `restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
