@@ -8,6 +8,8 @@ Only the pre-engine guards of suggest are exercised below.
 Run (needs mcp, which is a main dependency):  uv run pytest   (from server/)
 """
 
+import io
+
 import chess
 import chess.pgn
 import pytest
@@ -247,3 +249,58 @@ def test_analyse_all_moves_projects_mainline_only(monkeypatch):
     monkeypatch.setattr(cm, "_analyse_tree", lambda *a: (records_by_path, game))
     mainline, _ = cm._analyse_all_moves("pgn", 1, 1, None)
     assert [r["p"] for r in mainline] == [("d4",), ("d4", "d5"), ("d4", "d5", "c4")]
+
+
+# --- export_annotated_pgn: annotation + serialization (engine-free, _analyse_tree faked) ---
+
+EXPORT_PGN = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 ( 1... Nf6 2. c4 ) 2. c4 *\n'
+
+
+def _rec(classification: str, cp_loss: int) -> dict:
+    return {
+        "classification": classification,
+        "cp_loss": cp_loss,
+        "eval_after": -120,
+        "best_move": "Nf3",
+    }
+
+
+def _fake_tree(*_a):
+    # records for every node of EXPORT_PGN's fresh parse, keyed by SAN path
+    recs = {
+        ("d4",): _rec("good", 0),
+        ("d4", "d5"): _rec("blunder", 300),  # flagged
+        ("d4", "Nf6"): _rec("inaccuracy", 60),  # flagged (side line)
+        ("d4", "Nf6", "c4"): _rec("good", 10),
+        ("d4", "d5", "c4"): _rec("good", 20),
+    }
+    return recs, None  # game is unused: export re-parses its own mutable tree
+
+
+def test_export_counts_only_flagged_moves(monkeypatch):
+    monkeypatch.setattr(cm, "_analyse_tree", _fake_tree)
+    out = cm.export_annotated_pgn(EXPORT_PGN, min_cp_loss=50)
+    assert (
+        out["moves_annotated"] == 2
+    )  # d5 blunder + Nf6 inaccuracy; good moves untouched
+
+
+def test_export_glyphs_land_on_right_moves_and_preserve_variation(monkeypatch):
+    monkeypatch.setattr(cm, "_analyse_tree", _fake_tree)
+    g = chess.pgn.read_game(io.StringIO(cm.export_annotated_pgn(EXPORT_PGN)["pgn"]))
+    d4 = g.variations[0]
+    assert d4.nags == set()  # good move → no glyph
+    assert len(d4.variations) == 2  # the 1...Nf6 side line survived serialization
+    d5, nf6 = d4.variations[0], d4.variations[1]
+    assert chess.pgn.NAG_BLUNDER in d5.nags and "best" in d5.comment
+    assert chess.pgn.NAG_DUBIOUS_MOVE in nf6.nags  # side-line move annotated too
+
+
+def test_export_clean_when_threshold_above_all(monkeypatch):
+    monkeypatch.setattr(cm, "_analyse_tree", _fake_tree)
+    out = cm.export_annotated_pgn(EXPORT_PGN, min_cp_loss=1000)
+    assert out["moves_annotated"] == 0
+
+
+def test_export_too_large():
+    assert cm.export_annotated_pgn("1. e4 e5 " * 200000)["error"] == "pgn_too_large"

@@ -811,6 +811,61 @@ def identify_opening(pgn: str) -> dict:
     return openings.deepest_in_line(game) or {"opening": None}
 
 
+# Move classification → PGN NAG glyph. Good moves get no glyph (kept clean).
+_NAG_BY_CLASS = {
+    "inaccuracy": chess.pgn.NAG_DUBIOUS_MOVE,  # ?!
+    "mistake": chess.pgn.NAG_MISTAKE,  # ?
+    "blunder": chess.pgn.NAG_BLUNDER,  # ??
+}
+
+
+@mcp.tool()
+def export_annotated_pgn(
+    pgn: str,
+    depth: int = DEFAULT_DEPTH,
+    min_cp_loss: int = 50,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Engine-annotated PGN artifact: NAG glyphs + inline eval comments on flagged moves,
+    across the mainline AND every variation, in one engine pass. Importable into any board
+    GUI — the grounded, server-side counterpart to the annotate-pgn skill.
+
+    Moves with cp_loss >= min_cp_loss (default 50) get a glyph (?! inaccuracy, ? mistake,
+    ?? blunder) and a comment (white-POV eval after the move + the engine's best move). Good
+    moves are left clean so the artifact stays close to the input size. depth, time_limit,
+    and min_cp_loss tune the pass exactly as in analyze_game.
+
+    Returns: pgn (annotated PGN string — an artifact, not a reasoning primitive),
+    moves_annotated (count of glyphed/commented moves). Bad input → {"error","reason"}.
+    """
+    if err := _pgn_too_large(pgn):
+        return err
+    depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
+    try:
+        records_by_path, _ = _analyse_tree(pgn, depth, DEFAULT_MULTIPV, time_limit)
+    except ValueError as e:
+        return {"error": "invalid_pgn", "reason": str(e)}
+
+    # Annotate a FRESH parse — never the cached game — so the analysis cache stays read-only.
+    game = _parse_game(pgn)
+    annotated = 0
+    for node in repertoire.iter_nodes(game):
+        rec = records_by_path.get(tuple(repertoire.san_path(node)))
+        if rec is None or rec["cp_loss"] < min_cp_loss:
+            continue
+        nag = _NAG_BY_CLASS.get(rec["classification"])
+        if nag is not None:
+            node.nags.add(nag)
+        node.comment = f"{rec['eval_after'] / 100:+.2f} best {rec['best_move']}"
+        annotated += 1
+
+    exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+    return {"pgn": game.accept(exporter), "moves_annotated": annotated}
+
+
 if __name__ == "__main__":
     # Transport: "sse" (default — networked, for the Docker/remote server) or "stdio"
     # (client spawns the server as a subprocess; the low-friction local path, no port).
