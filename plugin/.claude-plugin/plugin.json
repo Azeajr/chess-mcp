@@ -1,7 +1,7 @@
 {
   "name": "chess-mcp",
   "description": "Grounded chess analysis for Claude Code: engine-verified game review and opening-repertoire analysis via Stockfish. Bundles the chess-analysis MCP server (stdio over Docker) and its workflow skills.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": {
     "name": "Antonio Zea"
   },
