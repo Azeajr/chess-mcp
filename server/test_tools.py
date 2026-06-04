@@ -36,6 +36,7 @@ def rid() -> str:
 
 # --- load_repertoire ---
 
+
 def test_load_ok():
     r = cm.load_repertoire(REP_PGN, "white")
     assert r["color"] == "white" and r["nodes"] > 0 and "repertoire_id" in r
@@ -55,6 +56,7 @@ def test_load_too_large():
 
 # --- get_structural_profile ---
 
+
 def test_profile_aggregate(rid):
     agg = cm.get_structural_profile(rid)
     assert "structures" in agg and "leaves_analyzed" in agg
@@ -70,10 +72,13 @@ def test_profile_bad_id():
 
 
 def test_profile_bad_path(rid):
-    assert cm.get_structural_profile(rid, ["d4", "Qh5"])["error"] == "variation_not_found"
+    assert (
+        cm.get_structural_profile(rid, ["d4", "Qh5"])["error"] == "variation_not_found"
+    )
 
 
 # --- analyze_repertoire_congruence ---
+
 
 def test_congruence_tool(rid):
     r = cm.analyze_repertoire_congruence(rid)
@@ -94,17 +99,26 @@ def test_transpositions_bad_id():
 
 
 def test_congruence_limit_clamped(rid):
-    assert len(cm.analyze_repertoire_congruence(rid, "low", 999)["incongruencies"]) <= 50
+    assert (
+        len(cm.analyze_repertoire_congruence(rid, "low", 999)["incongruencies"]) <= 50
+    )
 
 
 # --- suggest_complementary_lines (pre-engine guards only) ---
 
+
 def test_suggest_bad_id():
-    assert cm.suggest_complementary_lines("nope", chess.STARTING_FEN)["error"] == "repertoire_not_found"
+    assert (
+        cm.suggest_complementary_lines("nope", chess.STARTING_FEN)["error"]
+        == "repertoire_not_found"
+    )
 
 
 def test_suggest_bad_mode(rid):
-    assert cm.suggest_complementary_lines(rid, chess.STARTING_FEN, "wild")["error"] == "invalid_mode"
+    assert (
+        cm.suggest_complementary_lines(rid, chess.STARTING_FEN, "wild")["error"]
+        == "invalid_mode"
+    )
 
 
 def test_suggest_bad_fen(rid):
@@ -118,6 +132,7 @@ def test_suggest_game_over_short_circuits(rid):
 
 
 # --- original engine-free tools (were untested) ---
+
 
 def test_validate_line_ok():
     r = cm.validate_line(chess.STARTING_FEN, ["e4", "e5", "Nf3"])
@@ -145,6 +160,28 @@ def test_get_legal_moves_uci():
 
 def test_get_legal_moves_bad_fen():
     assert cm.get_legal_moves("nope")["error"] == "invalid_fen"
+
+
+# --- _move_accuracy (pure helper feeding get_game_summary's accuracy_pct) ---
+
+
+def test_move_accuracy_perfect_at_zero_loss():
+    assert cm._move_accuracy(0) == 1.0
+
+
+def test_move_accuracy_monotonic_decreasing_and_bounded():
+    # worse moves score strictly lower, and accuracy stays within [0, 1]
+    a_good, a_inacc, a_blunder = (
+        cm._move_accuracy(0),
+        cm._move_accuracy(100),
+        cm._move_accuracy(500),
+    )
+    assert 0.0 < a_blunder < a_inacc < a_good == 1.0
+
+
+def test_move_accuracy_negative_loss_clamped_to_perfect():
+    # cp_loss is floored at 0 upstream, but the helper must not exceed 1.0 regardless
+    assert cm._move_accuracy(-50) == 1.0
 
 
 def test_identify_opening_tool():

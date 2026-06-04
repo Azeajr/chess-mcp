@@ -6,6 +6,7 @@ import chess
 import chess.pgn
 import chess.engine
 import io
+import math
 import os
 
 import structure
@@ -29,7 +30,10 @@ def _clamp_depth(depth: int) -> int:
 
 def _pgn_too_large(pgn: str) -> dict | None:
     if len(pgn.encode("utf-8")) > MAX_PGN_BYTES:
-        return {"error": "pgn_too_large", "reason": f"PGN exceeds {MAX_PGN_BYTES} bytes"}
+        return {
+            "error": "pgn_too_large",
+            "reason": f"PGN exceeds {MAX_PGN_BYTES} bytes",
+        }
     return None
 
 
@@ -66,6 +70,15 @@ def _classify(cp_loss: int) -> str:
     if cp_loss > 50:
         return "inaccuracy"
     return "good"
+
+
+def _move_accuracy(cp_loss: int) -> float:
+    """Per-move accuracy in [0, 1] from centipawn loss: 1.0 at no loss, decaying smoothly.
+
+    A monotonic heuristic (exponential decay) — averaged across a side's moves and scaled
+    to a percentage for get_game_summary's accuracy_pct. Not an engine win-probability model.
+    """
+    return math.exp(-max(0, cp_loss) / 300.0)
 
 
 def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
@@ -131,19 +144,21 @@ def _analyze_game_moves(
         cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
         cp_loss = max(0, cp_loss)
 
-        records.append({
-            "move_number": move_number,
-            "color": color,
-            "move": san,
-            "cp_loss": cp_loss,
-            "classification": _classify(cp_loss),
-            "eval_before": eval_before,
-            "eval_after": after_cp,
-            "best_move": best_san,
-            "best_pv": best_pv_str,
-            "alternatives": alternatives,
-            "fen": fen_before,
-        })
+        records.append(
+            {
+                "move_number": move_number,
+                "color": color,
+                "move": san,
+                "cp_loss": cp_loss,
+                "classification": _classify(cp_loss),
+                "eval_before": eval_before,
+                "eval_after": after_cp,
+                "best_move": best_san,
+                "best_pv": best_pv_str,
+                "alternatives": alternatives,
+                "fen": fen_before,
+            }
+        )
 
         prev_cp = after_cp
         prev_info = infos[0]
@@ -186,7 +201,7 @@ def analyze_game(
     Call get_game_summary first for overview. Drill one mistake (FEN, alternatives,
     full line) via get_position(move_number, color). Bad input → {"error","reason"}.
     """
-    if (err := _pgn_too_large(pgn)):
+    if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
     try:
@@ -226,7 +241,7 @@ def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
     Drill any worst_move via get_position(pgn, move_number, color).
     Bad input → {"error","reason"}.
     """
-    if (err := _pgn_too_large(pgn)):
+    if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
     try:
@@ -238,8 +253,22 @@ def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
     opening = headers.get("Opening") or headers.get("ECO") or None
 
     stats: dict[str, dict] = {
-        "white": {"blunder": 0, "mistake": 0, "inaccuracy": 0, "good": 0, "_acc_sum": 0.0, "_count": 0},
-        "black": {"blunder": 0, "mistake": 0, "inaccuracy": 0, "good": 0, "_acc_sum": 0.0, "_count": 0},
+        "white": {
+            "blunder": 0,
+            "mistake": 0,
+            "inaccuracy": 0,
+            "good": 0,
+            "_acc_sum": 0.0,
+            "_count": 0,
+        },
+        "black": {
+            "blunder": 0,
+            "mistake": 0,
+            "inaccuracy": 0,
+            "good": 0,
+            "_acc_sum": 0.0,
+            "_count": 0,
+        },
     }
 
     for r in records:
@@ -301,7 +330,7 @@ def get_position(
     """
     if color not in ("white", "black"):
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
-    if (err := _pgn_too_large(pgn)):
+    if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
     try:
@@ -319,7 +348,10 @@ def get_position(
                 "best_pv": r["best_pv"],
                 "alternatives": r["alternatives"],
             }
-    return {"error": "move_not_found", "reason": f"no {color} move {move_number} in game"}
+    return {
+        "error": "move_not_found",
+        "reason": f"no {color} move {move_number} in game",
+    }
 
 
 @mcp.tool()
@@ -344,7 +376,9 @@ def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH, multipv: int = 1) ->
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         if multipv > 1:
-            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+            infos = engine.analyse(
+                board, chess.engine.Limit(depth=depth), multipv=multipv
+            )
         else:
             infos = [engine.analyse(board, chess.engine.Limit(depth=depth))]
 
@@ -386,7 +420,10 @@ def validate_line(fen: str, moves: list[str]) -> dict:
     Invalid FEN → {"error","reason"}.
     """
     if len(moves) > MAX_LINE_MOVES:
-        return {"error": "too_many_moves", "reason": f"line exceeds {MAX_LINE_MOVES} moves"}
+        return {
+            "error": "too_many_moves",
+            "reason": f"line exceeds {MAX_LINE_MOVES} moves",
+        }
     try:
         board = chess.Board(fen)
     except ValueError as e:
@@ -470,7 +507,10 @@ def load_repertoire(pgn: str, color: Literal["white", "black"]) -> dict:
     Bad input → {"error","reason"}.
     """
     if len(pgn.encode("utf-8")) > MAX_REPERTOIRE_BYTES:
-        return {"error": "pgn_too_large", "reason": f"repertoire PGN exceeds {MAX_REPERTOIRE_BYTES} bytes"}
+        return {
+            "error": "pgn_too_large",
+            "reason": f"repertoire PGN exceeds {MAX_REPERTOIRE_BYTES} bytes",
+        }
     if color not in ("white", "black"):
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
     game = chess.pgn.read_game(io.StringIO(pgn))
@@ -503,12 +543,18 @@ def get_structural_profile(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
     if variation_path is None:
         return repertoire.aggregate_profile(rep)
     node = repertoire.resolve_path(rep.game, variation_path)
     if node is None:
-        return {"error": "variation_not_found", "reason": "variation_path does not match a line in the repertoire"}
+        return {
+            "error": "variation_not_found",
+            "reason": "variation_path does not match a line in the repertoire",
+        }
     profile = structure.position_profile(node.board(), rep.color)
     profile["opening"] = openings.identify(node.board())  # {eco, name} or null
     return profile
@@ -535,7 +581,10 @@ def analyze_repertoire_congruence(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
     limit = max(1, min(50, limit))
     return repertoire.analyze_congruence(rep, min_severity, limit)
 
@@ -552,7 +601,10 @@ def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
     limit = max(1, min(100, limit))
     groups = repertoire.find_transpositions(rep.game)
     return {"total": len(groups), "transpositions": groups[:limit]}
@@ -583,9 +635,15 @@ def suggest_complementary_lines(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {"error": "repertoire_not_found", "reason": "unknown or expired repertoire_id; call load_repertoire"}
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
     if mode not in ("low_memorization", "sharp"):
-        return {"error": "invalid_mode", "reason": "mode must be 'low_memorization' or 'sharp'"}
+        return {
+            "error": "invalid_mode",
+            "reason": "mode must be 'low_memorization' or 'sharp'",
+        }
     try:
         board = chess.Board(fen)
     except ValueError as e:
@@ -595,7 +653,9 @@ def suggest_complementary_lines(
 
     depth = _clamp_depth(depth)
     limit = max(1, min(MAX_MULTIPV, limit))
-    pool = min(MAX_MULTIPV, limit + 2)  # extra candidates so the soundness floor has slack
+    pool = min(
+        MAX_MULTIPV, limit + 2
+    )  # extra candidates so the soundness floor has slack
     mover = board.turn
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
@@ -629,12 +689,18 @@ def suggest_complementary_lines(
         if mode == "low_memorization":
             # Don't credit unknown→unknown as familiarity: an unclassified resulting
             # structure carries no signal about plans the user already knows.
-            match = 0.0 if result_struct == "unknown" else shares.get(result_struct, 0.0)
+            match = (
+                0.0 if result_struct == "unknown" else shares.get(result_struct, 0.0)
+            )
             entry["profile_match"] = round(match, 2)
         else:
             imbalance = sum(
                 len(fn(after, c))
-                for fn in (structure.get_isolated_pawns, structure.get_doubled_pawns, structure.get_passed_pawns)
+                for fn in (
+                    structure.get_isolated_pawns,
+                    structure.get_doubled_pawns,
+                    structure.get_passed_pawns,
+                )
                 for c in (chess.WHITE, chess.BLACK)
             )
             novelty = 0.0 if result_struct in shares else 1.0
@@ -664,7 +730,7 @@ def identify_opening(pgn: str) -> dict:
     or {"opening": null} if no position matches a known opening. Use when PGN headers omit the
     opening. Bad input → {"error","reason"}.
     """
-    if (err := _pgn_too_large(pgn)):
+    if err := _pgn_too_large(pgn):
         return err
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None or game.next() is None:
