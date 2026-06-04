@@ -23,7 +23,9 @@ OUT = pathlib.Path(__file__).parent.parent / "server" / "openings.tsv"
 def main() -> None:
     rows = []
     for fname in FILES:
-        text = urllib.request.urlopen(f"{BASE}/{fname}", timeout=60).read().decode("utf-8")
+        text = (
+            urllib.request.urlopen(f"{BASE}/{fname}", timeout=60).read().decode("utf-8")
+        )
         for line in text.splitlines()[1:]:  # skip header
             if not line.strip():
                 continue

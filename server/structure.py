@@ -170,27 +170,25 @@ def center_state(board: chess.Board) -> str:
 
 # ---------------------------------------------------------------------------
 # Macro classifier — narrow set + confidence, never forces a label (D2).
-# Flattened rule-based patterns: simple data-driven scoring, not 6 similar functions.
+# The per-structure scorers below are the SINGLE source of truth: classify_structure
+# ranks their outputs, and they double as the tested private API. No pattern logic is
+# written twice (each returns a confidence in [0, 1]; 0.0 means "not this structure").
 # ---------------------------------------------------------------------------
 
 
 def _iqp_confidence(board: chess.Board, color: chess.Color) -> float:
-    """Isolated Queen's Pawn confidence. Tested as a private API; delegates to classify_structure."""
-    result = classify_structure(board)
-    if result["structure_class"] != "IQP":
-        return 0.0
-    # For the test contract, we need to check if this color's IQP is the match
-    # by re-checking the pattern (avoiding deep refactor of the classifier).
+    """Isolated Queen's Pawn confidence for `color`: a lone d-pawn with no c/e pawn while
+    the opponent has no d-pawn, scored highest on the classic central square."""
     d_pawns = [
         sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3
     ]
     if len(d_pawns) != 1:
         return 0.0
     files = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, color)}
-    if 2 in files or 4 in files:
+    if 2 in files or 4 in files:  # a c- or e-pawn means the d-pawn is not isolated
         return 0.0
     if any(chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)):
-        return 0.0
+        return 0.0  # opponent still has a d-pawn → not an isolani
     r = chess.square_rank(d_pawns[0])
     if color == chess.WHITE:
         return 0.9 if r == 3 else 0.6 if r in (4, 5) else 0.0
@@ -198,29 +196,22 @@ def _iqp_confidence(board: chess.Board, color: chess.Color) -> float:
 
 
 def _carlsbad_confidence(board: chess.Board) -> float:
-    """Carlsbad confidence. Tested as a private API; delegates to classify_structure."""
-    result = classify_structure(board)
-    if result["structure_class"] != "Carlsbad":
-        return 0.0
-    # Re-check the pattern to satisfy test contract
+    """Carlsbad confidence: d4/d5 skeleton with one side half-open on the c-file, no e-pawn."""
     wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
     bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
     wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
     bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
-    if "d4" in wnames and "d5" in bnames:
-        if 2 not in wfiles and 2 in bfiles and 4 not in bfiles:
-            return 0.85
-        if 2 in wfiles and 2 not in bfiles and 4 not in wfiles:
-            return 0.7
+    if "d4" not in wnames or "d5" not in bnames:
+        return 0.0
+    if 2 not in wfiles and 2 in bfiles and 4 not in bfiles:
+        return 0.85  # White half-open c; Black keeps c, no e
+    if 2 in wfiles and 2 not in bfiles and 4 not in wfiles:
+        return 0.7  # Black half-open c; White keeps c, no e
     return 0.0
 
 
 def _maroczy_confidence(board: chess.Board) -> float:
-    """Maroczy confidence. Tested as a private API; delegates to classify_structure."""
-    result = classify_structure(board)
-    if result["structure_class"] != "Maroczy":
-        return 0.0
-    # Re-check the pattern to satisfy test contract
+    """Maroczy bind confidence: a c+e pawn duo with no d-pawn (White c4/e4 or Black c5/e5)."""
     wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
     bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
     wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
@@ -258,42 +249,17 @@ def classify_structure(board: chess.Board) -> dict:
 
     candidates: list[tuple[str, float]] = []
 
-    # IQP: check both sides (White or Black can have an IQP)
-    for color, names, files in [
-        (chess.WHITE, wnames, wfiles),
-        (chess.BLACK, bnames, bfiles),
-    ]:
-        d_pawns = [
-            sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3
-        ]
-        if len(d_pawns) == 1 and 2 not in files and 4 not in files:
-            # d-pawn is isolated (no c/e pawn)
-            if not any(
-                chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)
-            ):
-                # Opponent has no d-pawn
-                r = chess.square_rank(d_pawns[0])
-                if color == chess.WHITE:
-                    conf = 0.9 if r == 3 else 0.6 if r in (4, 5) else 0.0
-                else:
-                    conf = 0.9 if r == 4 else 0.6 if r in (2, 3) else 0.0
-                if conf > 0:
-                    candidates.append(("IQP", conf))
-
-    # Carlsbad: d4/d5 skeleton with one side half-open on c
-    if "d4" in wnames and "d5" in bnames:
-        if 2 not in wfiles and 2 in bfiles and 4 not in bfiles:
-            # White half-open c, Black has c + no e
-            candidates.append(("Carlsbad", 0.85))
-        elif 2 in wfiles and 2 not in bfiles and 4 not in wfiles:
-            # Black half-open c, White has c + no e
-            candidates.append(("Carlsbad", 0.7))
-
-    # Maroczy: c4 + e4 binding
-    if "c4" in wnames and "e4" in wnames and 3 not in wfiles:
-        candidates.append(("Maroczy", 0.85))
-    if "c5" in bnames and "e5" in bnames and 3 not in bfiles:
-        candidates.append(("Maroczy", 0.7))
+    # IQP / Carlsbad / Maroczy — scored by the shared scorers above (one source of truth).
+    for color in (chess.WHITE, chess.BLACK):  # either side can carry an IQP
+        conf = _iqp_confidence(board, color)
+        if conf > 0:
+            candidates.append(("IQP", conf))
+    for name, conf in (
+        ("Carlsbad", _carlsbad_confidence(board)),
+        ("Maroczy", _maroczy_confidence(board)),
+    ):
+        if conf > 0:
+            candidates.append((name, conf))
 
     # French Advance: e5/d4 vs e6/d5
     if {"e5", "d4"} <= wnames and {"e6", "d5"} <= bnames:

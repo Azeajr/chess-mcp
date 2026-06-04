@@ -23,7 +23,9 @@ import chess.pgn
 import structure
 
 MAX_REPERTOIRES = int(os.environ.get("MAX_REPERTOIRES", "16"))  # LRU cap
-REPERTOIRE_TTL_S = int(os.environ.get("REPERTOIRE_TTL_S", "3600"))  # idle expiry, seconds
+REPERTOIRE_TTL_S = int(
+    os.environ.get("REPERTOIRE_TTL_S", "3600")
+)  # idle expiry, seconds
 
 _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -134,7 +136,9 @@ _LOCK = threading.Lock()
 
 def _evict_locked(now: float) -> None:
     """Caller must hold _LOCK. Drop expired entries, then enforce the LRU cap."""
-    expired = [rid for rid, rep in _CACHE.items() if now - rep.touched > REPERTOIRE_TTL_S]
+    expired = [
+        rid for rid, rep in _CACHE.items() if now - rep.touched > REPERTOIRE_TTL_S
+    ]
     for rid in expired:
         del _CACHE[rid]
     while len(_CACHE) > MAX_REPERTOIRES:
@@ -202,7 +206,11 @@ def aggregate_profile(rep: _Repertoire) -> dict:
     denom = n or 1
     structures = sorted(
         (
-            {"structure_class": k, "count": v[0], "avg_confidence": round(v[1] / v[0], 2)}
+            {
+                "structure_class": k,
+                "count": v[0],
+                "avg_confidence": round(v[1] / v[0], 2),
+            }
             for k, v in struct_counts.items()
         ),
         key=lambda d: (-d["count"], d["structure_class"]),
@@ -211,7 +219,9 @@ def aggregate_profile(rep: _Repertoire) -> dict:
         "leaves_analyzed": n,
         "structures": structures,
         "center_distribution": dict(center_counts),
-        "common_open_files": sorted(f for f, c in open_tally.items() if c / denom >= 0.5),
+        "common_open_files": sorted(
+            f for f, c in open_tally.items() if c / denom >= 0.5
+        ),
         "common_half_open_files": sorted(
             f for f, c in half_open_tally.items() if c / denom >= 0.5
         ),
@@ -286,7 +296,14 @@ def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
     else:
         # Minority of lines have weaknesses → flag each as inconsistent
         for d in weak:
-            kinds = [k for k, present in (("doubled", d["doubled"]), ("isolated", d["isolated"])) if present]
+            kinds = [
+                k
+                for k, present in (
+                    ("doubled", d["doubled"]),
+                    ("isolated", d["isolated"]),
+                )
+                if present
+            ]
             incongruencies.append(
                 {
                     "type": "weakness_inconsistency",

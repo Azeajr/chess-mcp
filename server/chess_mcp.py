@@ -225,6 +225,22 @@ def _analyse_all_moves(
     return mainline, game
 
 
+# The lean mistake entry — shared by analyze_game's list and get_game_summary's worst_moves
+# so the public shape is defined once.
+_LEAN_FIELDS = (
+    "move_number",
+    "color",
+    "move",
+    "cp_loss",
+    "classification",
+    "best_move",
+)
+
+
+def _lean_move(r: dict) -> dict:
+    return {k: r[k] for k in _LEAN_FIELDS}
+
+
 @mcp.tool()
 def analyze_game(
     pgn: str,
@@ -261,14 +277,7 @@ def analyze_game(
     for r in records:
         if r["cp_loss"] < min_cp_loss:
             continue
-        entry = {
-            "move_number": r["move_number"],
-            "color": r["color"],
-            "move": r["move"],
-            "cp_loss": r["cp_loss"],
-            "classification": r["classification"],
-            "best_move": r["best_move"],
-        }
+        entry = _lean_move(r)
         if verbose:
             entry["eval_after"] = r["eval_after"]
             entry["best_pv"] = r["best_pv"]
@@ -344,24 +353,13 @@ def get_game_summary(
         }
 
     worst_3 = sorted(records, key=lambda r: r["cp_loss"], reverse=True)[:3]
-    worst_3_out = [
-        {
-            "move_number": r["move_number"],
-            "color": r["color"],
-            "move": r["move"],
-            "cp_loss": r["cp_loss"],
-            "classification": r["classification"],
-            "best_move": r["best_move"],
-        }
-        for r in worst_3
-    ]
 
     return {
         "opening": opening,
         "total_moves": len(records),
         "white": _side_summary(stats["white"]),
         "black": _side_summary(stats["black"]),
-        "worst_moves": worst_3_out,
+        "worst_moves": [_lean_move(r) for r in worst_3],
     }
 
 
