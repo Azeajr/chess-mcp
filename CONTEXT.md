@@ -124,10 +124,11 @@ The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplac
   outside its own dir, and symlinks are cross-platform-fragile). Keep both in sync when a skill
   changes — `.claude/skills/` is the in-repo/standalone copy (auto-loads when running `claude` in the
   repo against the SSE server); `plugin/skills/` is the distributed copy.
-- Verified non-interactively: `claude plugin validate plugin` passes; `claude plugin marketplace add`
-  + `install` + `details` showed all 4 skills and the 1 MCP server detected. Interactive end-to-end
-  (`/plugin install` then actually calling a tool through the docker-stdio server) is the user's to
-  confirm in a live Claude Code session.
+- Verified end-to-end (June 2026): `claude plugin validate` passes; installing from the **GitHub**
+  marketplace (`claude plugin marketplace add azeajr/chess-mcp` → `install` → `details`) detects all 4
+  skills + the 1 `chess-analysis` MCP server; and a headless `claude -p … --permission-mode
+  bypassPermissions` session loaded the plugin, spawned the docker-stdio server, and called
+  `get_legal_moves` (→ `move_count` 20). The test marketplace/install was removed afterward.
 - The plugin's MCP server requires Docker on the user's machine (it shells out to `docker run`).
 
 ## Known design notes

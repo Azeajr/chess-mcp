@@ -111,6 +111,8 @@ The plugin bundles the `chess-analysis` MCP server (stdio over Docker) **and** t
 
 Restart (or `/reload-plugins`) to activate. The server is spawned on demand via Docker — the first call pulls the image. Skills are namespaced under the plugin: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
 
+> This path is verified end-to-end: marketplace add → install → a live tool call routed through the plugin's Docker-stdio server. Requires Docker.
+
 ### Server only, one command (stdio, no plugin)
 
 Just the MCP server, no skills, nothing to clone — Claude Code spawns it on demand over **stdio**:
