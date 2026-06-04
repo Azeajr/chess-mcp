@@ -54,8 +54,7 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 | `server/Dockerfile` | Container: uv+Python3.14 base, apt stockfish, uv sync |
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
-| `.github/workflows/ci.yml` | CI: `test` job (`uv run pytest`, engine-free + branch coverage) and `docker` job (build image **and** boot it, waiting for "Application startup complete") |
-| `.github/workflows/release.yml` | On `v*` tags: build + push `ghcr.io/azeajr/chess-mcp:latest` + `:<tag>` to GHCR |
+| `.github/workflows/ci.yml` | Single workflow: `test` (`uv run pytest`, engine-free + branch coverage) + `docker` (build image **and** boot it) + `publish` (tag-gated, `needs: [test, docker]` → push `ghcr.io/azeajr/chess-mcp:latest`+`:<tag>` to GHCR) |
 | `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
 | `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
 | `LICENSE` | MIT, © 2026 Antonio Zea |
@@ -91,22 +90,24 @@ server). The low-friction local install is one command —
 
 ## CI
 
-`.github/workflows/ci.yml` runs on push to `main` and on PRs. Two jobs:
+One workflow, `.github/workflows/ci.yml`, runs on push to `main`, on PRs, and on `v*` tags. Three jobs:
 - **test** — `cd server && uv run pytest` (engine-free suite, branch coverage via `addopts`). uv
   installs Python 3.14 + project deps; no Stockfish needed.
 - **docker** — `docker compose build` then `docker compose up -d`, polling logs for "Application
   startup complete". The boot step catches a runtime `ImportError` (e.g. a module missing from the
   Dockerfile `COPY`) that a build-only check would miss — the class of bug that broke `main` once.
+- **publish** — gated `if: startsWith(github.ref, 'refs/tags/v')` and `needs: [test, docker]`, so it
+  runs only on a tag and only after the other two pass (a tag can never publish a red build). Pushes
+  the image to GHCR (`ghcr.io/azeajr/chess-mcp:latest` + `:<tag>`), which `compose.yml`'s `image:`
+  lets users pull. Job-scoped `packages: write`.
 
 Engine-backed paths (`suggest_complementary_lines` ranking, `evals/capture.py`) are **not** in CI —
 they need Stockfish and are verified manually in Docker. Status badge is in `README.md`.
 
-`release.yml` is separate: on a `v*` tag (or manual dispatch) it builds the image and pushes it to
-GHCR (`ghcr.io/azeajr/chess-mcp`), which `compose.yml`'s `image:` then lets users pull. Publishing a
-release = tag and push (`git tag v0.x.0 && git push --tags`); CI's build/boot already gates `main`.
-**v0.1.0** was published this way; the GHCR package's visibility was set to **public** once (a manual
-one-time step in package settings — there's no reliable REST endpoint for it), so anonymous
-`docker compose pull` works. `gh release create v0.1.0` published the GitHub release.
+Publishing a release = bump `pyproject` version, tag, push (`git tag v0.x.y && git push origin v0.x.y`),
+then `gh release create`. **v0.1.0** and **v0.1.1** are published; the GHCR package's visibility was set
+to **public** once (a manual one-time step in package settings — no reliable REST endpoint for it), so
+anonymous `docker compose pull` / stdio `docker run` works.
 
 ## Known design notes
 

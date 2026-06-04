@@ -223,7 +223,7 @@ chess-mcp/
 ├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
 ├── Makefile                 # up / pull / down / logs / test / lint / register / install
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
-├── .github/workflows/       # ci.yml (pytest + docker build/boot), release.yml (push image to GHCR)
+├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
 ├── .claude/skills/          # Claude Code workflow skills that drive the MCP tools
 ├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals
