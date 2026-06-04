@@ -116,7 +116,8 @@ def get_open_files(board: chess.Board) -> list[str]:
     """Files with no pawn of either color."""
     pawn_files = {
         chess.square_file(sq)
-        for sq in board.pieces(chess.PAWN, chess.WHITE) | board.pieces(chess.PAWN, chess.BLACK)
+        for sq in board.pieces(chess.PAWN, chess.WHITE)
+        | board.pieces(chess.PAWN, chess.BLACK)
     }
     return [FILE_NAMES[f] for f in range(8) if f not in pawn_files]
 
@@ -141,7 +142,9 @@ def center_state(board: chess.Board) -> str:
     w_central = [sq for sq in white if chess.square_file(sq) in central]
     b_central = [sq for sq in black if chess.square_file(sq) in central]
 
-    for sq in w_central:  # a White central pawn attacks a Black pawn (forward diagonals)
+    for (
+        sq
+    ) in w_central:  # a White central pawn attacks a Black pawn (forward diagonals)
         f, r = chess.square_file(sq), chess.square_rank(sq)
         if r + 1 <= 7:
             for nf in (f - 1, f + 1):
@@ -178,7 +181,9 @@ def _iqp_confidence(board: chess.Board, color: chess.Color) -> float:
         return 0.0
     # For the test contract, we need to check if this color's IQP is the match
     # by re-checking the pattern (avoiding deep refactor of the classifier).
-    d_pawns = [sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3]
+    d_pawns = [
+        sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3
+    ]
     if len(d_pawns) != 1:
         return 0.0
     files = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, color)}
@@ -231,7 +236,8 @@ def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
     Returns {structure_class, confidence}. structure_class is one of
-    IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni / unknown.
+    IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni /
+    Closed Sicilian / unknown.
     Never forces a label — a weak or absent match yields {"unknown", 0.0}.
     Highest-confidence candidate wins.
 
@@ -243,6 +249,7 @@ def classify_structure(board: chess.Board) -> dict:
     - Stonewall: d5/e6/f5 pawn wall (Black side) or d4/e3/f4 (White).
     - King's Indian: c4/d5/e4 (White) vs d6/e5/g6 (Black), locked center.
     - Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e-file for Black.
+    - Closed Sicilian: e4/d3/f4 (White) vs c5/d6 (Black), the Grand Prix skeleton.
     """
     wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
     bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
@@ -256,10 +263,14 @@ def classify_structure(board: chess.Board) -> dict:
         (chess.WHITE, wnames, wfiles),
         (chess.BLACK, bnames, bfiles),
     ]:
-        d_pawns = [sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3]
+        d_pawns = [
+            sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3
+        ]
         if len(d_pawns) == 1 and 2 not in files and 4 not in files:
             # d-pawn is isolated (no c/e pawn)
-            if not any(chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)):
+            if not any(
+                chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)
+            ):
                 # Opponent has no d-pawn
                 r = chess.square_rank(d_pawns[0])
                 if color == chess.WHITE:
@@ -307,6 +318,12 @@ def classify_structure(board: chess.Board) -> dict:
         candidates.append(("Benoni", 0.85))
     if {"d4", "e5"} <= bnames and {"c4", "d3"} <= wnames and 4 not in wfiles:
         candidates.append(("Benoni", 0.6))
+
+    # Closed Sicilian (Grand Prix skeleton): White e4/d3/f4 small center vs Black c5/d6.
+    # Brittle under static matching (D2) → lower confidence; the d3 (not d4) + f4 trio
+    # separates it from open-Sicilian and KIA-vs-Sicilian reads. No mirrored Black variant.
+    if {"e4", "d3", "f4"} <= wnames and {"c5", "d6"} <= bnames:
+        candidates.append(("Closed Sicilian", 0.7))
 
     if not candidates:
         return {"structure_class": "unknown", "confidence": 0.0}

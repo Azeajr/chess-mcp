@@ -35,6 +35,10 @@ STONEWALL_FEN = "rnb1k2r/pp2q1pp/2pbpn2/3p1p2/2PP4/1P3NP1/P3PPBP/RNBQ1RK1 w kq -
 KID_FEN = "rnbq1rk1/1pp2pbp/3p1np1/p2Pp3/2P1P3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 8"
 # Benoni: White d5+e4 vs Black c5+d6, half-open e-file.
 BENONI_FEN = "rnbqk2r/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP3PPP/R1BQKB1R w KQkq - 2 8"
+# Closed Sicilian (Grand Prix): White e4/d3/f4 vs Black c5/d6.
+CLOSED_SICILIAN_FEN = (
+    "r1bqk1nr/pp2ppbp/2np2p1/2p5/4PP2/2NP2P1/PPP3BP/R1BQK1NR b KQkq - 0 6"
+)
 
 SAMPLE_PGN = """\
 [Event "Test"]
@@ -77,6 +81,7 @@ def _clear_cache():
 # ---------------------------------------------------------------------------
 # Primitives
 # ---------------------------------------------------------------------------
+
 
 def test_starting_position_has_no_weaknesses():
     start = chess.Board()
@@ -139,6 +144,7 @@ def test_half_open_and_open_files():
 # Center state
 # ---------------------------------------------------------------------------
 
+
 def test_center_tense_white_capture():
     b = pawns((chess.E4, True), (chess.D5, False))
     assert structure.center_state(b) == "tense"
@@ -164,22 +170,42 @@ def test_center_open():
 # Classifier
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("fen,expected", [
-    (IQP_FEN, "IQP"),
-    (CARLSBAD_FEN, "Carlsbad"),
-    (MAROCZY_FEN, "Maroczy"),
-    (FRENCH_FEN, "French"),
-    (STONEWALL_FEN, "Stonewall"),
-    (KID_FEN, "King's Indian"),
-    (BENONI_FEN, "Benoni"),
-    (chess.STARTING_FEN, "unknown"),
-    ("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "unknown"),  # 1.e4 e5
-])
+
+@pytest.mark.parametrize(
+    "fen,expected",
+    [
+        (IQP_FEN, "IQP"),
+        (CARLSBAD_FEN, "Carlsbad"),
+        (MAROCZY_FEN, "Maroczy"),
+        (FRENCH_FEN, "French"),
+        (STONEWALL_FEN, "Stonewall"),
+        (KID_FEN, "King's Indian"),
+        (BENONI_FEN, "Benoni"),
+        (CLOSED_SICILIAN_FEN, "Closed Sicilian"),
+        (chess.STARTING_FEN, "unknown"),
+        (
+            "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+            "unknown",
+        ),  # 1.e4 e5
+    ],
+)
 def test_classify_structure(fen, expected):
     assert structure.classify_structure(chess.Board(fen))["structure_class"] == expected
 
 
-@pytest.mark.parametrize("fen", [IQP_FEN, CARLSBAD_FEN, MAROCZY_FEN, FRENCH_FEN, STONEWALL_FEN, KID_FEN, BENONI_FEN])
+@pytest.mark.parametrize(
+    "fen",
+    [
+        IQP_FEN,
+        CARLSBAD_FEN,
+        MAROCZY_FEN,
+        FRENCH_FEN,
+        STONEWALL_FEN,
+        KID_FEN,
+        BENONI_FEN,
+        CLOSED_SICILIAN_FEN,
+    ],
+)
 def test_named_structures_have_confidence(fen):
     assert structure.classify_structure(chess.Board(fen))["confidence"] >= 0.7
 
@@ -210,6 +236,7 @@ def test_position_profile_shape():
 # ---------------------------------------------------------------------------
 # Walker
 # ---------------------------------------------------------------------------
+
 
 def test_tree_stats(sample_game):
     nodes, leaves, depth = repertoire.tree_stats(sample_game)
@@ -244,6 +271,7 @@ def test_walk_leaves_yields_childless_nodes(sample_game):
 # Cache
 # ---------------------------------------------------------------------------
 
+
 def test_store_and_get():
     game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
     summary = repertoire.store_repertoire(game, chess.WHITE)
@@ -262,7 +290,9 @@ def test_store_sweeps_expired_entries():
     rid1 = repertoire.store_repertoire(g1, chess.WHITE)["repertoire_id"]
     repertoire._CACHE[rid1].touched = time.time() - repertoire.REPERTOIRE_TTL_S - 1
     # storing another repertoire runs _evict_locked, which sweeps the expired entry
-    repertoire.store_repertoire(chess.pgn.read_game(io.StringIO(SAMPLE_PGN)), chess.WHITE)
+    repertoire.store_repertoire(
+        chess.pgn.read_game(io.StringIO(SAMPLE_PGN)), chess.WHITE
+    )
     assert rid1 not in repertoire._CACHE
 
 
@@ -283,20 +313,26 @@ def test_lru_eviction(monkeypatch):
         for _ in range(3)
     ]
     assert len(repertoire._CACHE) == 2
-    assert repertoire.get_repertoire(ids[0]) is None      # oldest evicted
-    assert repertoire.get_repertoire(ids[2]) is not None   # newest retained
+    assert repertoire.get_repertoire(ids[0]) is None  # oldest evicted
+    assert repertoire.get_repertoire(ids[2]) is not None  # newest retained
 
 
 # ---------------------------------------------------------------------------
 # Aggregate profile & congruence
 # ---------------------------------------------------------------------------
 
+
 def _make_rep(pgn: str) -> repertoire._Repertoire:
     game = chess.pgn.read_game(io.StringIO(pgn))
     now = time.time()
     return repertoire._Repertoire(
-        game=game, color=chess.WHITE, created=now, touched=now,
-        nodes=0, leaves=0, max_depth=0,
+        game=game,
+        color=chess.WHITE,
+        created=now,
+        touched=now,
+        nodes=0,
+        leaves=0,
+        max_depth=0,
     )
 
 
@@ -304,7 +340,12 @@ def test_aggregate_profile_shape():
     rep = _make_rep(SAMPLE_PGN)
     agg = repertoire.aggregate_profile(rep)
     assert agg["leaves_analyzed"] == len(list(repertoire.walk_leaves(rep.game)))
-    for key in ("structures", "center_distribution", "common_open_files", "common_half_open_files"):
+    for key in (
+        "structures",
+        "center_distribution",
+        "common_open_files",
+        "common_half_open_files",
+    ):
         assert key in agg
 
 
@@ -329,10 +370,12 @@ def test_congruence_limit_respected():
 # Congruence — rule FIRING (each line reaches a verified structure / center).
 # ---------------------------------------------------------------------------
 
-LINE_CARLSBAD = "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7"          # Carlsbad, locked center
-LINE_MAROCZY = "c4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6 e4"                # Maroczy
-LINE_IQP = "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 dxc5"                   # White IQP
-LINE_DOUBLED = "d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 Bxc3 bxc3"       # White doubled c-pawns (unknown)
+LINE_CARLSBAD = "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7"  # Carlsbad, locked center
+LINE_MAROCZY = "c4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6 e4"  # Maroczy
+LINE_IQP = "d4 d5 c4 e6 Nc3 c5 cxd5 exd5 dxc5"  # White IQP
+LINE_DOUBLED = (
+    "d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 Bxc3 bxc3"  # White doubled c-pawns (unknown)
+)
 LINE_OPEN = "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nc3 Bb4 Nxc6 dxc6"  # open center (unknown)
 
 
@@ -341,7 +384,9 @@ def _line_moves(sans: str) -> list[chess.Move]:
     return [b.push_san(s) for s in sans.split()]
 
 
-def build_repertoire(lines: list[str], color: chess.Color = chess.WHITE) -> repertoire._Repertoire:
+def build_repertoire(
+    lines: list[str], color: chess.Color = chess.WHITE
+) -> repertoire._Repertoire:
     """Assemble a _Repertoire from SAN line strings, merging shared prefixes into a tree."""
     game = chess.pgn.Game()
     for sans in lines:
@@ -415,13 +460,16 @@ def test_aggregate_profile_content():
 # Black-side primitives & classifier (direction-sensitive logic must hold for Black).
 # ---------------------------------------------------------------------------
 
+
 def test_passed_pawn_black():
     b = pawns((chess.E4, False), (chess.A2, True))  # nothing white ahead of Black's e4
     assert "e4" in structure.get_passed_pawns(b, chess.BLACK)
 
 
 def test_passed_pawn_black_blocked_by_adjacent():
-    b = pawns((chess.E4, False), (chess.D3, True))  # white d3 is ahead+adjacent for Black
+    b = pawns(
+        (chess.E4, False), (chess.D3, True)
+    )  # white d3 is ahead+adjacent for Black
     assert structure.get_passed_pawns(b, chess.BLACK) == []
 
 
@@ -438,27 +486,37 @@ def test_isolated_pawn_black():
 
 
 def test_black_iqp_classified():
-    b = pawns((chess.D5, False), (chess.A2, True))  # Black d5 isolani, White has no d-pawn
+    b = pawns(
+        (chess.D5, False), (chess.A2, True)
+    )  # Black d5 isolani, White has no d-pawn
     assert structure._iqp_confidence(b, chess.BLACK) == 0.9
 
 
 def test_iqp_rejected_when_opponent_has_d_pawn():
-    b = pawns((chess.D4, True), (chess.D7, False))  # White d4 isolani but Black still has d7
+    b = pawns(
+        (chess.D4, True), (chess.D7, False)
+    )  # White d4 isolani but Black still has d7
     assert structure._iqp_confidence(b, chess.WHITE) == 0.0
 
 
 def test_iqp_advanced_rank_scores_lower():
-    b = pawns((chess.D5, True), (chess.A7, False))  # White d5 (advanced, not the classic d4)
+    b = pawns(
+        (chess.D5, True), (chess.A7, False)
+    )  # White d5 (advanced, not the classic d4)
     assert structure._iqp_confidence(b, chess.WHITE) == 0.6
 
 
 def test_carlsbad_rejected_when_owner_keeps_c_pawn():
     b = pawns((chess.D4, True), (chess.C2, True), (chess.D5, False), (chess.C6, False))
-    assert structure._carlsbad_confidence(b) == 0.0  # White still has a c-pawn → not Carlsbad
+    assert (
+        structure._carlsbad_confidence(b) == 0.0
+    )  # White still has a c-pawn → not Carlsbad
 
 
 def test_maroczy_mirrored_black_binds():
-    b = pawns((chess.C5, False), (chess.E5, False), (chess.A2, True))  # Black c5+e5, no d-pawn
+    b = pawns(
+        (chess.C5, False), (chess.E5, False), (chess.A2, True)
+    )  # Black c5+e5, no d-pawn
     assert structure._maroczy_confidence(b) == 0.7
 
 
@@ -469,13 +527,16 @@ def test_carlsbad_mirrored_black_half_open_c():
 
 
 def test_center_semi_open():
-    b = pawns((chess.D4, True), (chess.E6, False))  # central pawns, no contact, not locked
+    b = pawns(
+        (chess.D4, True), (chess.E6, False)
+    )  # central pawns, no contact, not locked
     assert structure.center_state(b) == "semi-open"
 
 
 # ---------------------------------------------------------------------------
 # Walker edge cases.
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_path_illegal_san_returns_none(sample_game):
     assert repertoire.resolve_path(sample_game, ["Zz9"]) is None
@@ -504,6 +565,7 @@ def test_no_transpositions_in_linear_tree():
 # ---------------------------------------------------------------------------
 # ECO opening lookup
 # ---------------------------------------------------------------------------
+
 
 def test_opening_identify_known_position():
     b = chess.Board()
