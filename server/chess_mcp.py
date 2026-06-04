@@ -21,11 +21,27 @@ MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
 MAX_REPERTOIRE_BYTES = int(os.environ.get("MAX_REPERTOIRE_BYTES", "1000000"))
 MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
 MIN_DEPTH, MAX_DEPTH = 1, 30
+MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
 
 
 def _clamp_depth(depth: int) -> int:
     return max(MIN_DEPTH, min(MAX_DEPTH, depth))
+
+
+def _clamp_time(time_limit: float) -> float:
+    return max(MIN_TIME, min(MAX_TIME, time_limit))
+
+
+def _limit(depth: int, time_limit: float | None) -> chess.engine.Limit:
+    """Engine search limit: by wall-clock when time_limit is set, else by depth.
+
+    Depth is the reproducible default; time-based search is wall-clock dependent (not
+    bit-reproducible across runs/hardware) but useful on slow hardware or for fast iteration.
+    """
+    if time_limit is not None:
+        return chess.engine.Limit(time=time_limit)
+    return chess.engine.Limit(depth=depth)
 
 
 def _pgn_too_large(pgn: str) -> dict | None:
@@ -100,16 +116,19 @@ def _parse_game(pgn: str) -> chess.pgn.Game:
 
 
 def _analyze_game_moves(
-    game: chess.pgn.Game, engine: chess.engine.SimpleEngine, depth: int, multipv: int
+    game: chess.pgn.Game,
+    engine: chess.engine.SimpleEngine,
+    limit: chess.engine.Limit,
+    multipv: int,
 ) -> list[dict]:
     """Analyze every move in the mainline with Stockfish.
 
     Returns a list of move records, each containing eval, classification, alternatives.
-    Pure function of game + engine + depth + multipv; engine IO is caller's responsibility.
+    Pure function of game + engine + limit + multipv; engine IO is caller's responsibility.
     """
     records = []
     board = game.board()
-    prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+    prev_infos = engine.analyse(board, limit, multipv=multipv)
     prev_info = prev_infos[0]
     prev_cp = _score_cp(prev_info["score"])
 
@@ -137,7 +156,7 @@ def _analyze_game_moves(
         ]
 
         board.push(move)
-        infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+        infos = engine.analyse(board, limit, multipv=multipv)
         info = infos[0]
         after_cp = _score_cp(info["score"])
 
@@ -169,17 +188,18 @@ def _analyze_game_moves(
 
 @lru_cache(maxsize=32)
 def _analyse_all_moves(
-    pgn: str, depth: int, multipv: int
+    pgn: str, depth: int, multipv: int, time_limit: float | None
 ) -> tuple[list[dict], chess.pgn.Game]:
     """Run engine analysis on every move. Returns (move_records, game).
 
-    Cached by (pgn, depth, multipv) so get_game_summary, analyze_game, and
+    Cached by (pgn, depth, multipv, time_limit) so get_game_summary, analyze_game, and
     get_position share a single engine pass instead of re-analysing the game.
     Records are treated as read-only; callers must not mutate them.
     """
     game = _parse_game(pgn)
+    limit = _limit(depth, time_limit)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        records = _analyze_game_moves(game, engine, depth, multipv)
+        records = _analyze_game_moves(game, engine, limit, multipv)
     return records, game
 
 
@@ -189,6 +209,7 @@ def analyze_game(
     depth: int = DEFAULT_DEPTH,
     min_cp_loss: int = 50,
     verbose: bool = False,
+    time_limit: float | None = None,
 ) -> list[dict] | dict:
     """
     Mistakes in a PGN game: moves where cp_loss >= min_cp_loss (default 50 =
@@ -198,14 +219,19 @@ def analyze_game(
     best_move. cp_loss = centipawns worse than best play, white-POV.
     verbose=True adds eval_after (position eval, white-POV) + best_pv (refutation, SAN).
 
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth is then
+    ignored) — for slow hardware or fast iteration; depth is the reproducible default.
+
     Call get_game_summary first for overview. Drill one mistake (FEN, alternatives,
     full line) via get_position(move_number, color). Bad input → {"error","reason"}.
     """
     if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
     try:
-        records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
+        records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
         return {"error": "invalid_pgn", "reason": str(e)}
 
@@ -229,7 +255,9 @@ def analyze_game(
 
 
 @mcp.tool()
-def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
+def get_game_summary(
+    pgn: str, depth: int = DEFAULT_DEPTH, time_limit: float | None = None
+) -> dict:
     """
     Overview of a PGN game, no per-move detail. Call this first.
 
@@ -238,14 +266,19 @@ def get_game_summary(pgn: str, depth: int = DEFAULT_DEPTH) -> dict:
     accuracy_pct}, worst_moves (top 3 by cp_loss, each: move_number, color, move,
     cp_loss, classification, best_move).
 
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
+    ignored) — for slow hardware or fast iteration; depth is the reproducible default.
+
     Drill any worst_move via get_position(pgn, move_number, color).
     Bad input → {"error","reason"}.
     """
     if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
     try:
-        records, game = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
+        records, game = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
         return {"error": "invalid_pgn", "reason": str(e)}
 
@@ -316,6 +349,7 @@ def get_position(
     move_number: int,
     color: str,
     depth: int = DEFAULT_DEPTH,
+    time_limit: float | None = None,
 ) -> dict:
     """
     Detail for one move — drill-down companion to get_game_summary and analyze_game.
@@ -326,6 +360,9 @@ def get_position(
     move_played (SAN), best_move (SAN), best_pv (best line, SAN), alternatives
     (top engine replies, each {move, eval}).
 
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
+    ignored) — for slow hardware or fast iteration; depth is the reproducible default.
+
     Bad input or no such move → {"error","reason"}.
     """
     if color not in ("white", "black"):
@@ -333,8 +370,10 @@ def get_position(
     if err := _pgn_too_large(pgn):
         return err
     depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
     try:
-        records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV)
+        records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
         return {"error": "invalid_pgn", "reason": str(e)}
 
@@ -355,7 +394,12 @@ def get_position(
 
 
 @mcp.tool()
-def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH, multipv: int = 1) -> dict:
+def evaluate_position(
+    fen: str,
+    depth: int = DEFAULT_DEPTH,
+    multipv: int = 1,
+    time_limit: float | None = None,
+) -> dict:
     """
     Evaluate one position by FEN with Stockfish.
 
@@ -365,22 +409,25 @@ def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH, multipv: int = 1) ->
     multipv>1 (max 10) adds candidates: top-N ranked moves, each
     {move (SAN), eval (white-POV cp), pv (SAN)} — use to compare options or
     explore opponent deviations (repertoire work).
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
+    ignored) — for slow hardware or fast iteration; depth is the reproducible default.
     Invalid FEN → {"error","reason"}.
     """
     depth = _clamp_depth(depth)
     multipv = max(1, min(MAX_MULTIPV, multipv))
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
     try:
         board = chess.Board(fen)
     except ValueError as e:
         return {"error": "invalid_fen", "reason": str(e)}
 
+    limit = _limit(depth, time_limit)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         if multipv > 1:
-            infos = engine.analyse(
-                board, chess.engine.Limit(depth=depth), multipv=multipv
-            )
+            infos = engine.analyse(board, limit, multipv=multipv)
         else:
-            infos = [engine.analyse(board, chess.engine.Limit(depth=depth))]
+            infos = [engine.analyse(board, limit)]
 
     top = infos[0]
     pv = top.get("pv", [])
@@ -617,6 +664,7 @@ def suggest_complementary_lines(
     mode: Literal["low_memorization", "sharp"] = "low_memorization",
     depth: int = DEFAULT_DEPTH,
     limit: int = 5,
+    time_limit: float | None = None,
 ) -> dict:
     """
     Suggest continuations from an anchor position (fen), ranked to fit the user's
@@ -631,7 +679,8 @@ def suggest_complementary_lines(
 
     Returns: mode, anchor_fen, suggestions (each: move SAN, resulting_structure, eval
     (white-POV cp), pv, and profile_match or sharpness). limit default 5, max 10.
-    Bad input → {"error","reason"}.
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
+    ignored); depth is the reproducible default. Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -652,6 +701,8 @@ def suggest_complementary_lines(
         return {"mode": mode, "anchor_fen": board.fen(), "suggestions": []}
 
     depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
     limit = max(1, min(MAX_MULTIPV, limit))
     pool = min(
         MAX_MULTIPV, limit + 2
@@ -659,7 +710,7 @@ def suggest_complementary_lines(
     mover = board.turn
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=pool)
+        infos = engine.analyse(board, _limit(depth, time_limit), multipv=pool)
 
     def _mover_cp(info: dict) -> int:
         cp = _score_cp(info["score"])  # white-POV

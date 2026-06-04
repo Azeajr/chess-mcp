@@ -191,3 +191,22 @@ def test_identify_opening_tool():
 
 def test_identify_opening_empty():
     assert cm.identify_opening("")["error"] == "invalid_pgn"
+
+
+# --- time_limit / engine search-limit selection (engine-free) ---
+
+
+def test_clamp_time_bounds():
+    assert cm._clamp_time(0.0) == cm.MIN_TIME  # below floor → clamped up
+    assert cm._clamp_time(10**9) == cm.MAX_TIME  # above ceiling → clamped down
+    assert cm._clamp_time(0.5) == 0.5  # in range → unchanged
+
+
+def test_limit_depth_is_default():
+    lim = cm._limit(18, None)
+    assert lim.depth == 18 and lim.time is None
+
+
+def test_limit_time_overrides_depth():
+    lim = cm._limit(18, 0.5)
+    assert lim.time == 0.5 and lim.depth is None
