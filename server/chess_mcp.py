@@ -115,92 +115,114 @@ def _parse_game(pgn: str) -> chess.pgn.Game:
     return game
 
 
-def _analyze_game_moves(
+def _path_of(node, board_by_node: dict) -> tuple[str, ...]:
+    """SAN route from the root to `node`, using precomputed parent boards.
+
+    A node's SAN path is its stable identity across re-parses of the same PGN — the key the
+    cached tree analysis is stored under, so export_annotated_pgn can look records up against
+    a fresh game it owns and is free to mutate (the cached game must stay untouched).
+    """
+    moves: list[str] = []
+    while node.parent is not None:
+        moves.append(board_by_node[node.parent].san(node.move))
+        node = node.parent
+    moves.reverse()
+    return tuple(moves)
+
+
+def _analyze_tree_nodes(
     game: chess.pgn.Game,
     engine: chess.engine.SimpleEngine,
     limit: chess.engine.Limit,
     multipv: int,
-) -> list[dict]:
-    """Analyze every move in the mainline with Stockfish.
+) -> dict[tuple[str, ...], dict]:
+    """Analyze EVERY node in the game tree (mainline + variations) in one pass.
 
-    Returns a list of move records, each containing eval, classification, alternatives.
-    Pure function of game + engine + limit + multipv; engine IO is caller's responsibility.
+    Each distinct position (root included) is analyzed exactly once; a move-node's record
+    draws eval_before / best_move / alternatives from its parent's analysis and eval_after
+    from its own. Returns {san_path: record}; each record matches the mainline record shape.
+    Pure function of game + engine + limit + multipv; engine IO is the caller's.
     """
-    records = []
-    board = game.board()
-    prev_infos = engine.analyse(board, limit, multipv=multipv)
-    prev_info = prev_infos[0]
-    prev_cp = _score_cp(prev_info["score"])
+    board_by_node: dict = {}
+    info_by_node: dict = {}
+    for node in [game, *repertoire.iter_nodes(game)]:
+        board = node.board()
+        board_by_node[node] = board
+        info_by_node[node] = engine.analyse(board, limit, multipv=multipv)
 
-    for node in game.mainline():
-        move = node.move
-        color = "white" if board.turn == chess.WHITE else "black"
-        san = board.san(move)
-        move_number = board.fullmove_number
-        fen_before = board.fen()
-        eval_before = prev_cp
-
-        # Best move and line from current position
-        best_move = prev_info["pv"][0] if prev_info.get("pv") else move
-        best_san = board.san(best_move)
-        best_pv_str = _pv_san(board, prev_info.get("pv", []))
-
-        # Alternative moves (multipv rank 2+)
-        alternatives = [
-            {
-                "move": board.san(alt_info["pv"][0]),
-                "eval": _score_cp(alt_info["score"]),
-            }
-            for alt_info in prev_infos[1:]
-            if alt_info.get("pv")
-        ]
-
-        board.push(move)
-        infos = engine.analyse(board, limit, multipv=multipv)
-        info = infos[0]
-        after_cp = _score_cp(info["score"])
-
-        cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
-        cp_loss = max(0, cp_loss)
-
-        records.append(
-            {
-                "move_number": move_number,
-                "color": color,
-                "move": san,
-                "cp_loss": cp_loss,
-                "classification": _classify(cp_loss),
-                "eval_before": eval_before,
-                "eval_after": after_cp,
-                "best_move": best_san,
-                "best_pv": best_pv_str,
-                "alternatives": alternatives,
-                "fen": fen_before,
-            }
+    records: dict[tuple[str, ...], dict] = {}
+    for node in repertoire.iter_nodes(game):
+        pboard = board_by_node[node.parent]
+        parent_infos = info_by_node[node.parent]
+        top = parent_infos[0]
+        color = "white" if pboard.turn == chess.WHITE else "black"
+        eval_before = _score_cp(top["score"])
+        eval_after = _score_cp(info_by_node[node][0]["score"])
+        cp_loss = (
+            (eval_before - eval_after)
+            if color == "white"
+            else (eval_after - eval_before)
         )
+        best_move = top["pv"][0] if top.get("pv") else node.move
 
-        prev_cp = after_cp
-        prev_info = infos[0]
-        prev_infos = infos
-
+        records[_path_of(node, board_by_node)] = {
+            "move_number": pboard.fullmove_number,
+            "color": color,
+            "move": pboard.san(node.move),
+            "cp_loss": max(0, cp_loss),
+            "classification": _classify(max(0, cp_loss)),
+            "eval_before": eval_before,
+            "eval_after": eval_after,
+            "best_move": pboard.san(best_move),
+            "best_pv": _pv_san(pboard, top.get("pv", [])),
+            "alternatives": [
+                {"move": pboard.san(ai["pv"][0]), "eval": _score_cp(ai["score"])}
+                for ai in parent_infos[1:]
+                if ai.get("pv")
+            ],
+            "fen": pboard.fen(),
+        }
     return records
 
 
 @lru_cache(maxsize=32)
-def _analyse_all_moves(
+def _analyse_tree(
     pgn: str, depth: int, multipv: int, time_limit: float | None
-) -> tuple[list[dict], chess.pgn.Game]:
-    """Run engine analysis on every move. Returns (move_records, game).
+) -> tuple[dict[tuple[str, ...], dict], chess.pgn.Game]:
+    """Engine pass over the whole game tree. Returns ({san_path: record}, game).
 
-    Cached by (pgn, depth, multipv, time_limit) so get_game_summary, analyze_game, and
-    get_position share a single engine pass instead of re-analysing the game.
-    Records are treated as read-only; callers must not mutate them.
+    Cached by (pgn, depth, multipv, time_limit). The map and game are READ-ONLY for callers
+    (export_annotated_pgn re-parses its own mutable game and looks records up by path). One
+    pass feeds both the mainline game tools and the annotated-PGN export.
     """
     game = _parse_game(pgn)
     limit = _limit(depth, time_limit)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        records = _analyze_game_moves(game, engine, limit, multipv)
+        records = _analyze_tree_nodes(game, engine, limit, multipv)
     return records, game
+
+
+def _analyse_all_moves(
+    pgn: str, depth: int, multipv: int, time_limit: float | None
+) -> tuple[list[dict], chess.pgn.Game]:
+    """Mainline move records (in order), projected from the cached whole-tree analysis.
+
+    Drop-in for the former mainline-only pass: get_game_summary, analyze_game, and
+    get_position consume this and are unaffected by the tree generalization. Bad PGN raises
+    ValueError (from _parse_game) for the tools to map to invalid_pgn.
+    """
+    records_by_path, game = _analyse_tree(pgn, depth, multipv, time_limit)
+    mainline: list[dict] = []
+    board = game.board()
+    node = game
+    path: list[str] = []
+    while node.variations:
+        child = node.variations[0]
+        path.append(board.san(child.move))
+        board.push(child.move)
+        mainline.append(records_by_path[tuple(path)])
+        node = child
+    return mainline, game
 
 
 @mcp.tool()

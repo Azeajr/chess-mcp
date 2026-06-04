@@ -9,6 +9,7 @@ Run (needs mcp, which is a main dependency):  uv run pytest   (from server/)
 """
 
 import chess
+import chess.pgn
 import pytest
 
 import chess_mcp as cm
@@ -210,3 +211,39 @@ def test_limit_depth_is_default():
 def test_limit_time_overrides_depth():
     lim = cm._limit(18, 0.5)
     assert lim.time == 0.5 and lim.depth is None
+
+
+# --- whole-tree analysis: _path_of + mainline projection (engine-free) ---
+
+
+def _branching_game() -> chess.pgn.Game:
+    """d4 d5 c4 mainline with a 1...Nf6 side line branching off after 1.d4."""
+    game = chess.pgn.Game()
+    d4 = game.add_variation(chess.Move.from_uci("d2d4"))
+    d5 = d4.add_variation(
+        chess.Move.from_uci("d7d5")
+    )  # mainline (added first → variations[0])
+    d4.add_variation(chess.Move.from_uci("g8f6"))  # side line 1...Nf6
+    d5.add_variation(chess.Move.from_uci("c2c4"))  # mainline continues
+    return game
+
+
+def test_path_of_addresses_every_node():
+    game = _branching_game()
+    board_by_node = {n: n.board() for n in [game, *repertoire.iter_nodes(game)]}
+    paths = {cm._path_of(n, board_by_node) for n in repertoire.iter_nodes(game)}
+    assert paths == {("d4",), ("d4", "d5"), ("d4", "Nf6"), ("d4", "d5", "c4")}
+
+
+def test_analyse_all_moves_projects_mainline_only(monkeypatch):
+    game = _branching_game()
+    # fake whole-tree analysis: every node maps to a record tagged with its own path
+    records_by_path = {
+        ("d4",): {"p": ("d4",)},
+        ("d4", "d5"): {"p": ("d4", "d5")},
+        ("d4", "Nf6"): {"p": ("d4", "Nf6")},  # side line — must NOT be projected
+        ("d4", "d5", "c4"): {"p": ("d4", "d5", "c4")},
+    }
+    monkeypatch.setattr(cm, "_analyse_tree", lambda *a: (records_by_path, game))
+    mainline, _ = cm._analyse_all_moves("pgn", 1, 1, None)
+    assert [r["p"] for r in mainline] == [("d4",), ("d4", "d5"), ("d4", "d5", "c4")]
