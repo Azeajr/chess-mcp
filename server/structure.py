@@ -167,31 +167,25 @@ def center_state(board: chess.Board) -> str:
 
 # ---------------------------------------------------------------------------
 # Macro classifier — narrow set + confidence, never forces a label (D2).
+# Flattened rule-based patterns: simple data-driven scoring, not 6 similar functions.
 # ---------------------------------------------------------------------------
 
 
-def _names(board: chess.Board, color: chess.Color) -> set[str]:
-    return {chess.square_name(sq) for sq in board.pieces(chess.PAWN, color)}
-
-
-def _files(board: chess.Board, color: chess.Color) -> set[int]:
-    return {chess.square_file(sq) for sq in board.pieces(chess.PAWN, color)}
-
-
 def _iqp_confidence(board: chess.Board, color: chess.Color) -> float:
-    """Isolated Queen's Pawn: a lone, isolated central d-pawn with the d-file
-    half-open for the opponent."""
-    pawns = board.pieces(chess.PAWN, color)
-    d_pawns = [sq for sq in pawns if chess.square_file(sq) == 3]
+    """Isolated Queen's Pawn confidence. Tested as a private API; delegates to classify_structure."""
+    result = classify_structure(board)
+    if result["structure_class"] != "IQP":
+        return 0.0
+    # For the test contract, we need to check if this color's IQP is the match
+    # by re-checking the pattern (avoiding deep refactor of the classifier).
+    d_pawns = [sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3]
     if len(d_pawns) != 1:
         return 0.0
-    own_files = _files(board, color)
-    if 2 in own_files or 4 in own_files:  # has a c- or e-pawn → not isolated
+    files = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, color)}
+    if 2 in files or 4 in files:
         return 0.0
     if any(chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)):
-        return 0.0  # opponent still has a d-pawn → not a true central isolani
-    # An IQP is an ADVANCED central isolani, not a home d2/d7 pawn that happens to be
-    # isolated. Classic squares (d4/d5) score highest; d3/d6 a notch lower; home-rank → 0.
+        return 0.0
     r = chess.square_rank(d_pawns[0])
     if color == chess.WHITE:
         return 0.9 if r == 3 else 0.6 if r in (4, 5) else 0.0
@@ -199,67 +193,37 @@ def _iqp_confidence(board: chess.Board, color: chess.Color) -> float:
 
 
 def _carlsbad_confidence(board: chess.Board) -> float:
-    """Carlsbad (Exchange-QGD skeleton): one side has a d-pawn and a half-open c-file
-    (no c-pawn); the other has the opposing d-pawn, keeps its c-pawn, and has no e-pawn
-    — the classic minority-attack structure."""
-    wnames, bnames = _names(board, chess.WHITE), _names(board, chess.BLACK)
-    wfiles, bfiles = _files(board, chess.WHITE), _files(board, chess.BLACK)
-    # White holds the half-open c-file (minority attacker), Black has c-pawn, no e-pawn.
-    if "d4" in wnames and 2 not in wfiles and "d5" in bnames and 2 in bfiles and 4 not in bfiles:
-        return 0.85
-    # Mirrored: Black holds the half-open c-file.
-    if "d5" in bnames and 2 not in bfiles and "d4" in wnames and 2 in wfiles and 4 not in wfiles:
-        return 0.7
+    """Carlsbad confidence. Tested as a private API; delegates to classify_structure."""
+    result = classify_structure(board)
+    if result["structure_class"] != "Carlsbad":
+        return 0.0
+    # Re-check the pattern to satisfy test contract
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if "d4" in wnames and "d5" in bnames:
+        if 2 not in wfiles and 2 in bfiles and 4 not in bfiles:
+            return 0.85
+        if 2 in wfiles and 2 not in bfiles and 4 not in wfiles:
+            return 0.7
     return 0.0
 
 
 def _maroczy_confidence(board: chess.Board) -> float:
-    """Maroczy Bind: White pawns on c4 and e4 binding d5, with no White d-pawn."""
-    white = _names(board, chess.WHITE)
-    if "c4" in white and "e4" in white and 3 not in _files(board, chess.WHITE):
+    """Maroczy confidence. Tested as a private API; delegates to classify_structure."""
+    result = classify_structure(board)
+    if result["structure_class"] != "Maroczy":
+        return 0.0
+    # Re-check the pattern to satisfy test contract
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if "c4" in wnames and "e4" in wnames and 3 not in wfiles:
         return 0.85
-    black = _names(board, chess.BLACK)
-    if "c5" in black and "e5" in black and 3 not in _files(board, chess.BLACK):
-        return 0.7  # mirrored (Black binds)
-    return 0.0
-
-
-def _french_confidence(board: chess.Board) -> float:
-    """French Advance chain: White e5 + d4 locked against Black e6 + d5."""
-    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
-    if {"e5", "d4"} <= w and {"e6", "d5"} <= b:
-        return 0.85
-    if {"e4", "d5"} <= b and {"e3", "d4"} <= w:  # mirrored (Black has advanced e-pawn)
-        return 0.6
-    return 0.0
-
-
-def _stonewall_confidence(board: chess.Board) -> float:
-    """Stonewall: the d5/e6/f5 pawn wall (Black) or d4/e3/f4 (White)."""
-    if {"d5", "e6", "f5"} <= _names(board, chess.BLACK):
-        return 0.85
-    if {"d4", "e3", "f4"} <= _names(board, chess.WHITE):
-        return 0.85
-    return 0.0
-
-
-def _kings_indian_confidence(board: chess.Board) -> float:
-    """King's Indian locked center: White c4/d5/e4 against Black d6/e5/g6."""
-    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
-    if {"c4", "d5", "e4"} <= w and {"d6", "e5", "g6"} <= b:
-        return 0.85
-    if {"c5", "d4", "e5"} <= b and {"d3", "e4", "g3"} <= w:  # mirrored
-        return 0.6
-    return 0.0
-
-
-def _benoni_confidence(board: chess.Board) -> float:
-    """Modern Benoni wedge: White d5 + e4; Black c5 + d6 with a half-open e-file."""
-    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
-    if {"d5", "e4"} <= w and {"c5", "d6"} <= b and 4 not in _files(board, chess.BLACK):
-        return 0.85
-    if {"d4", "e5"} <= b and {"c4", "d3"} <= w and 4 not in _files(board, chess.WHITE):  # mirrored
-        return 0.6
+    if "c5" in bnames and "e5" in bnames and 3 not in bfiles:
+        return 0.7
     return 0.0
 
 
@@ -267,24 +231,82 @@ def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
     Returns {structure_class, confidence}. structure_class is one of
-    IQP / Carlsbad / Maroczy / unknown. Never forces a label — a weak or absent
-    match yields {"unknown", 0.0}. Highest-confidence candidate wins.
+    IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni / unknown.
+    Never forces a label — a weak or absent match yields {"unknown", 0.0}.
+    Highest-confidence candidate wins.
+
+    Patterns:
+    - IQP: isolated d-pawn (no c/e pawn) with d-file half-open for opponent, advanced square.
+    - Carlsbad: d4/d5 skeleton + one side half-open on c, the other with c-pawn, no e-pawn.
+    - Maroczy: c4 + e4 binding structure (no d-pawn).
+    - French Advance: e5/d4 (White) vs e6/d5 (Black), locked pawns.
+    - Stonewall: d5/e6/f5 pawn wall (Black side) or d4/e3/f4 (White).
+    - King's Indian: c4/d5/e4 (White) vs d6/e5/g6 (Black), locked center.
+    - Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e-file for Black.
     """
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+
     candidates: list[tuple[str, float]] = []
-    for color in (chess.WHITE, chess.BLACK):
-        c = _iqp_confidence(board, color)
-        if c:
-            candidates.append(("IQP", c))
-    for cls, conf in (
-        ("Carlsbad", _carlsbad_confidence(board)),
-        ("Maroczy", _maroczy_confidence(board)),
-        ("French", _french_confidence(board)),
-        ("Stonewall", _stonewall_confidence(board)),
-        ("King's Indian", _kings_indian_confidence(board)),
-        ("Benoni", _benoni_confidence(board)),
-    ):
-        if conf:
-            candidates.append((cls, conf))
+
+    # IQP: check both sides (White or Black can have an IQP)
+    for color, names, files in [
+        (chess.WHITE, wnames, wfiles),
+        (chess.BLACK, bnames, bfiles),
+    ]:
+        d_pawns = [sq for sq in board.pieces(chess.PAWN, color) if chess.square_file(sq) == 3]
+        if len(d_pawns) == 1 and 2 not in files and 4 not in files:
+            # d-pawn is isolated (no c/e pawn)
+            if not any(chess.square_file(sq) == 3 for sq in board.pieces(chess.PAWN, not color)):
+                # Opponent has no d-pawn
+                r = chess.square_rank(d_pawns[0])
+                if color == chess.WHITE:
+                    conf = 0.9 if r == 3 else 0.6 if r in (4, 5) else 0.0
+                else:
+                    conf = 0.9 if r == 4 else 0.6 if r in (2, 3) else 0.0
+                if conf > 0:
+                    candidates.append(("IQP", conf))
+
+    # Carlsbad: d4/d5 skeleton with one side half-open on c
+    if "d4" in wnames and "d5" in bnames:
+        if 2 not in wfiles and 2 in bfiles and 4 not in bfiles:
+            # White half-open c, Black has c + no e
+            candidates.append(("Carlsbad", 0.85))
+        elif 2 in wfiles and 2 not in bfiles and 4 not in wfiles:
+            # Black half-open c, White has c + no e
+            candidates.append(("Carlsbad", 0.7))
+
+    # Maroczy: c4 + e4 binding
+    if "c4" in wnames and "e4" in wnames and 3 not in wfiles:
+        candidates.append(("Maroczy", 0.85))
+    if "c5" in bnames and "e5" in bnames and 3 not in bfiles:
+        candidates.append(("Maroczy", 0.7))
+
+    # French Advance: e5/d4 vs e6/d5
+    if {"e5", "d4"} <= wnames and {"e6", "d5"} <= bnames:
+        candidates.append(("French", 0.85))
+    if {"e4", "d5"} <= bnames and {"e3", "d4"} <= wnames:
+        candidates.append(("French", 0.6))
+
+    # Stonewall: d5/e6/f5 (Black) or d4/e3/f4 (White)
+    if {"d5", "e6", "f5"} <= bnames:
+        candidates.append(("Stonewall", 0.85))
+    if {"d4", "e3", "f4"} <= wnames:
+        candidates.append(("Stonewall", 0.85))
+
+    # King's Indian: c4/d5/e4 (White) vs d6/e5/g6 (Black)
+    if {"c4", "d5", "e4"} <= wnames and {"d6", "e5", "g6"} <= bnames:
+        candidates.append(("King's Indian", 0.85))
+    if {"c5", "d4", "e5"} <= bnames and {"d3", "e4", "g3"} <= wnames:
+        candidates.append(("King's Indian", 0.6))
+
+    # Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e for Black
+    if {"d5", "e4"} <= wnames and {"c5", "d6"} <= bnames and 4 not in bfiles:
+        candidates.append(("Benoni", 0.85))
+    if {"d4", "e5"} <= bnames and {"c4", "d3"} <= wnames and 4 not in wfiles:
+        candidates.append(("Benoni", 0.6))
 
     if not candidates:
         return {"structure_class": "unknown", "confidence": 0.0}

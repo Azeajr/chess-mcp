@@ -238,6 +238,7 @@ def profile_structure_shares(rep: _Repertoire) -> dict[str, float]:
 
 def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
     """Flag thematic inconsistencies across the repertoire's leaves."""
+    # Collect structural + pawn data for every leaf
     data = []
     for leaf in walk_leaves(rep.game):
         board = leaf.board()
@@ -255,28 +256,35 @@ def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
 
     # 1. structure_outlier — a line veering off the repertoire's dominant structure.
     known = [d for d in data if d["structure"] != "unknown"]
-    if known:
+    if not known:
+        pass  # No known structures → skip this check
+    else:
         sc_counts = Counter(d["structure"] for d in known)
         dominant, dom_count = sc_counts.most_common(1)[0]
         dom_share = dom_count / len(known)
         if dom_share >= 0.5:
+            # Dominant structure found; flag outliers
             for d in known:
-                if d["structure"] != dominant:
-                    incongruencies.append(
-                        {
-                            "type": "structure_outlier",
-                            "severity": "high" if dom_share > 0.8 else "medium",
-                            "description": (
-                                f"Most lines reach a {dominant} structure; this line reaches "
-                                f"{d['structure']} — a separate middlegame plan to learn."
-                            ),
-                            "paths": [d["path"]],
-                        }
-                    )
+                if d["structure"] == dominant:
+                    continue  # Early return for non-outliers
+                incongruencies.append(
+                    {
+                        "type": "structure_outlier",
+                        "severity": "high" if dom_share > 0.8 else "medium",
+                        "description": (
+                            f"Most lines reach a {dominant} structure; this line reaches "
+                            f"{d['structure']} — a separate middlegame plan to learn."
+                        ),
+                        "paths": [d["path"]],
+                    }
+                )
 
     # 2. weakness_inconsistency — accepting a pawn weakness against the repertoire's grain.
     weak = [d for d in data if d["isolated"] or d["doubled"]]
-    if n and 0 < len(weak) < n * 0.5:
+    if n == 0 or len(weak) == 0 or len(weak) >= n * 0.5:
+        pass  # Skip: no weaknesses, all weak, or majority weak → no inconsistency signal
+    else:
+        # Minority of lines have weaknesses → flag each as inconsistent
         for d in weak:
             kinds = [k for k, present in (("doubled", d["doubled"]), ("isolated", d["isolated"])) if present]
             incongruencies.append(
@@ -294,7 +302,12 @@ def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
     # 3. center_inconsistency — repertoire split between locking and opening the center.
     centers = Counter(d["center"] for d in data)
     locked, opened = centers.get("locked", 0), centers.get("open", 0)
-    if n and locked / n >= 0.25 and opened / n >= 0.25:
+    if n == 0:
+        pass  # Skip: no leaves
+    elif locked / n < 0.25 or opened / n < 0.25:
+        pass  # Skip: one style dominates → no split
+    else:
+        # Both locked and open are significant → flag the split
         examples = [d["path"] for d in data if d["center"] == "locked"][:2]
         examples += [d["path"] for d in data if d["center"] == "open"][:2]
         incongruencies.append(
@@ -309,11 +322,12 @@ def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
             }
         )
 
+    # Filter and sort by severity; cap to limit
     floor = _SEVERITY_RANK[min_severity]
     filtered = [x for x in incongruencies if _SEVERITY_RANK[x["severity"]] >= floor]
     filtered.sort(key=lambda x: -_SEVERITY_RANK[x["severity"]])
 
-    by_type: Counter = Counter(x["type"] for x in filtered)
+    by_type = Counter(x["type"] for x in filtered)
     return {
         "total_flagged": len(filtered),
         "leaves_analyzed": n,

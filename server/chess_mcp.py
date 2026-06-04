@@ -48,8 +48,8 @@ def _score_cp(pov_score: chess.engine.PovScore) -> int:
     return s.score()
 
 
-def _score_details(pov_score: chess.engine.PovScore) -> tuple:
-    """Returns (cp_white_pov, score_type, mate_in)."""
+def _score_with_type(pov_score: chess.engine.PovScore) -> tuple:
+    """Returns (cp_white_pov, score_type, mate_in) for evaluate_position."""
     s = pov_score.white()
     if s.is_mate():
         mate = s.mate()
@@ -58,6 +58,7 @@ def _score_details(pov_score: chess.engine.PovScore) -> tuple:
 
 
 def _classify(cp_loss: int) -> str:
+    """Classify a move by cp_loss: blunder (>200) > mistake (>100) > inaccuracy (>50) > good."""
     if cp_loss > 200:
         return "blunder"
     if cp_loss > 100:
@@ -68,7 +69,7 @@ def _classify(cp_loss: int) -> str:
 
 
 def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
-    """Convert PV move list to SAN string."""
+    """Convert PV move list to SAN string, up to 5 moves."""
     b = board.copy()
     parts = []
     for move in pv[:5]:
@@ -77,9 +78,78 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
     return " ".join(parts)
 
 
-def _move_accuracy(cp_loss: int) -> float:
-    """Per-move accuracy score [0, 1]. 0 cp_loss → 1.0, 400+ cp_loss → 0.0."""
-    return max(0.0, 1.0 - cp_loss / 400.0)
+def _parse_game(pgn: str) -> chess.pgn.Game:
+    """Parse PGN into a game tree, validating it has moves."""
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    if game is None or game.next() is None:
+        raise ValueError("PGN contains no moves")
+    return game
+
+
+def _analyze_game_moves(
+    game: chess.pgn.Game, engine: chess.engine.SimpleEngine, depth: int, multipv: int
+) -> list[dict]:
+    """Analyze every move in the mainline with Stockfish.
+
+    Returns a list of move records, each containing eval, classification, alternatives.
+    Pure function of game + engine + depth + multipv; engine IO is caller's responsibility.
+    """
+    records = []
+    board = game.board()
+    prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+    prev_info = prev_infos[0]
+    prev_cp = _score_cp(prev_info["score"])
+
+    for node in game.mainline():
+        move = node.move
+        color = "white" if board.turn == chess.WHITE else "black"
+        san = board.san(move)
+        move_number = board.fullmove_number
+        fen_before = board.fen()
+        eval_before = prev_cp
+
+        # Best move and line from current position
+        best_move = prev_info["pv"][0] if prev_info.get("pv") else move
+        best_san = board.san(best_move)
+        best_pv_str = _pv_san(board, prev_info.get("pv", []))
+
+        # Alternative moves (multipv rank 2+)
+        alternatives = [
+            {
+                "move": board.san(alt_info["pv"][0]),
+                "eval": _score_cp(alt_info["score"]),
+            }
+            for alt_info in prev_infos[1:]
+            if alt_info.get("pv")
+        ]
+
+        board.push(move)
+        infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+        info = infos[0]
+        after_cp = _score_cp(info["score"])
+
+        cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
+        cp_loss = max(0, cp_loss)
+
+        records.append({
+            "move_number": move_number,
+            "color": color,
+            "move": san,
+            "cp_loss": cp_loss,
+            "classification": _classify(cp_loss),
+            "eval_before": eval_before,
+            "eval_after": after_cp,
+            "best_move": best_san,
+            "best_pv": best_pv_str,
+            "alternatives": alternatives,
+            "fen": fen_before,
+        })
+
+        prev_cp = after_cp
+        prev_info = infos[0]
+        prev_infos = infos
+
+    return records
 
 
 @lru_cache(maxsize=32)
@@ -92,68 +162,9 @@ def _analyse_all_moves(
     get_position share a single engine pass instead of re-analysing the game.
     Records are treated as read-only; callers must not mutate them.
     """
-    game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None:
-        raise ValueError("could not parse PGN")
-    if game.next() is None:
-        # python-chess returns an empty Game for unparseable text rather than None
-        raise ValueError("PGN contains no moves")
-
-    records = []
-    board = game.board()
-
+    game = _parse_game(pgn)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        prev_infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
-        prev_info = prev_infos[0]
-        prev_cp = _score_cp(prev_info["score"])
-
-        for node in game.mainline():
-            move = node.move
-            color = "white" if board.turn == chess.WHITE else "black"
-            san = board.san(move)
-
-            move_number = board.fullmove_number
-            fen_before = board.fen()
-            eval_before = prev_cp
-            best_move = prev_info["pv"][0] if prev_info.get("pv") else move
-            best_san = board.san(best_move)
-            best_pv_str = _pv_san(board, prev_info.get("pv", []))
-
-            alternatives = []
-            for alt_info in prev_infos[1:]:
-                if alt_info.get("pv"):
-                    alt_move = alt_info["pv"][0]
-                    alternatives.append({
-                        "move": board.san(alt_move),
-                        "eval": _score_cp(alt_info["score"]),
-                    })
-
-            board.push(move)
-            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
-            info = infos[0]
-            after_cp = _score_cp(info["score"])
-
-            cp_loss = (prev_cp - after_cp) if color == "white" else (after_cp - prev_cp)
-            cp_loss = max(0, cp_loss)
-
-            records.append({
-                "move_number": move_number,
-                "color": color,
-                "move": san,
-                "cp_loss": cp_loss,
-                "classification": _classify(cp_loss),
-                "eval_before": eval_before,
-                "eval_after": after_cp,
-                "best_move": best_san,
-                "best_pv": best_pv_str,
-                "alternatives": alternatives,
-                "fen": fen_before,
-            })
-
-            prev_cp = after_cp
-            prev_info = infos[0]
-            prev_infos = infos
-
+        records = _analyze_game_moves(game, engine, depth, multipv)
     return records, game
 
 
@@ -340,7 +351,7 @@ def evaluate_position(fen: str, depth: int = DEFAULT_DEPTH, multipv: int = 1) ->
     top = infos[0]
     pv = top.get("pv", [])
     best_move = board.san(pv[0]) if pv else None
-    cp, score_type, mate_in = _score_details(top["score"])
+    cp, score_type, mate_in = _score_with_type(top["score"])
 
     result = {
         "score_cp": cp,
