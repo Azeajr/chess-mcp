@@ -8,7 +8,12 @@ In Docker (the supported way to get Stockfish):
         -e STOCKFISH_PATH=/usr/games/stockfish \
         chess-mcp-chess-mcp:latest uv run python /work/evals/capture.py
 """
-import json, datetime, pathlib, sys
+
+import json
+import datetime
+import pathlib
+import sys
+
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "server"))
 import chess_mcp as cm
 
@@ -25,14 +30,16 @@ def main():
     pos = cm.get_position(PGN, wm["move_number"], wm["color"], DEPTH)
     fen = pos["fen"]
     outputs = {
-        "get_game_summary":      summary,
-        "analyze_game.lean":     cm.analyze_game(PGN, DEPTH, 50, False),
-        "analyze_game.verbose":  cm.analyze_game(PGN, DEPTH, 50, True),
-        "get_position":          pos,
-        "evaluate_position":     cm.evaluate_position(fen, DEPTH),
+        "get_game_summary": summary,
+        "analyze_game.lean": cm.analyze_game(PGN, DEPTH, 50, False),
+        "analyze_game.verbose": cm.analyze_game(PGN, DEPTH, 50, True),
+        "get_position": pos,
+        "evaluate_position": cm.evaluate_position(fen, DEPTH),
         "evaluate_position.mpv": cm.evaluate_position(fen, DEPTH, 3),
-        "get_legal_moves.san":   cm.get_legal_moves(fen, False),
-        "get_legal_moves.uci":   cm.get_legal_moves(fen, True),
+        "get_legal_moves.san": cm.get_legal_moves(fen, False),
+        "get_legal_moves.uci": cm.get_legal_moves(fen, True),
+        "identify_opening": cm.identify_opening(PGN),
+        "export_annotated_pgn": cm.export_annotated_pgn(PGN, DEPTH),
     }
 
     # --- repertoire tools (engine-free paths; suggest uses engine for anchor FEN) ---
@@ -42,25 +49,40 @@ def main():
     outputs["get_structural_profile.aggregate"] = cm.get_structural_profile(rid)
 
     # first leaf path from the repertoire
-    import chess.pgn, io, repertoire as rp
+    import chess.pgn
+    import io
+    import repertoire as rp
+
     game = chess.pgn.read_game(io.StringIO(REPERTOIRE_PGN))
     leaf_path = rp.san_path(next(rp.walk_leaves(game)))
     outputs["get_structural_profile.node"] = cm.get_structural_profile(rid, leaf_path)
     outputs["analyze_repertoire_congruence"] = cm.analyze_repertoire_congruence(rid)
+    outputs["get_transpositions"] = cm.get_transpositions(rid)
 
     # suggest from the leaf FEN (uses engine)
     node = rp.resolve_path(game, leaf_path)
     leaf_fen = node.board().fen()
     outputs["suggest_complementary_lines.low_mem"] = cm.suggest_complementary_lines(
-        rid, leaf_fen, "low_memorization", DEPTH, 3)
+        rid, leaf_fen, "low_memorization", DEPTH, 3
+    )
     outputs["suggest_complementary_lines.sharp"] = cm.suggest_complementary_lines(
-        rid, leaf_fen, "sharp", DEPTH, 3)
+        rid, leaf_fen, "sharp", DEPTH, 3
+    )
 
     tools = [
-        cm.get_game_summary, cm.analyze_game, cm.get_position,
-        cm.evaluate_position, cm.validate_line, cm.get_legal_moves,
-        cm.load_repertoire, cm.get_structural_profile,
-        cm.analyze_repertoire_congruence, cm.suggest_complementary_lines,
+        cm.get_game_summary,
+        cm.analyze_game,
+        cm.get_position,
+        cm.evaluate_position,
+        cm.validate_line,
+        cm.get_legal_moves,
+        cm.identify_opening,
+        cm.export_annotated_pgn,
+        cm.load_repertoire,
+        cm.get_structural_profile,
+        cm.analyze_repertoire_congruence,
+        cm.get_transpositions,
+        cm.suggest_complementary_lines,
     ]
     snap = {
         "metadata": {
@@ -69,7 +91,9 @@ def main():
             "depth": DEPTH,
             "captured_at": datetime.datetime.now(datetime.UTC).isoformat(),
         },
-        "outputs": {k: json.dumps(v, separators=(",", ":")) for k, v in outputs.items()},
+        "outputs": {
+            k: json.dumps(v, separators=(",", ":")) for k, v in outputs.items()
+        },
         "descriptions": {t.__name__: (t.__doc__ or "") for t in tools},
     }
     out = ROOT / "evals" / "snapshots" / "outputs.json"

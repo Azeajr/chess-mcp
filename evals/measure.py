@@ -4,7 +4,8 @@ No engine, no API. tiktoken o200k_base (OpenAI BPE; approximates Claude's
 tokenizer — ratios meaningful, absolutes approximate).
 Run: uv run --with tiktoken python evals/measure.py
 """
-import json, pathlib
+import json
+import pathlib
 import tiktoken
 
 ENC = tiktoken.get_encoding("o200k_base")

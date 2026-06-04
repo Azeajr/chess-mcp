@@ -28,15 +28,17 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 
 ## Current state
 
-Twelve tools: six original game-analysis tools, `identify_opening` (ECO name from a 3700-entry
-table), and five repertoire tools (`load_repertoire`, `get_structural_profile`,
-`analyze_repertoire_congruence`, `suggest_complementary_lines`, `get_transpositions`). The structural
-classifier covers 7 pawn skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni),
-measured by `evals/structure_accuracy.py`. All containerized; game tools verified end-to-end in Docker.
-Repertoire tools verified engine-free via pytest (`cd server && uv run pytest`, 81 tests pass;
-branch coverage on by default via `addopts` — `structure.py` 98%, `repertoire.py` 100%, `chess_mcp.py`
-37% with the remainder being engine-dependent game tools that need Docker). Engine path needs Docker
-re-run for `suggest_complementary_lines` ranking and the `evals/capture.py` snapshot update.
+Thirteen tools: six original game-analysis tools, `identify_opening` (ECO name from a 3700-entry
+table), `export_annotated_pgn` (engine-annotated PGN artifact), and five repertoire tools
+(`load_repertoire`, `get_structural_profile`, `analyze_repertoire_congruence`,
+`suggest_complementary_lines`, `get_transpositions`). The structural classifier covers 8 pawn
+skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni/Closed Sicilian), measured by
+`evals/structure_accuracy.py`. The cached engine pass now walks the whole game tree (mainline +
+variations) once, keyed by SAN path; every engine tool also accepts an optional `time_limit`. All
+containerized; game tools verified end-to-end in Docker. Repertoire + tool-layer paths verified
+engine-free via pytest (`cd server && uv run pytest`, 113 tests pass; branch coverage on by default
+via `addopts`). Engine path needs Docker re-run for `suggest_complementary_lines` ranking and the
+`evals/capture.py` snapshot update.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 **Release:** v0.1.0 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.0 — image published and
@@ -47,8 +49,8 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 
 | File | Purpose |
 |------|---------|
-| `server/chess_mcp.py` | All ten MCP tools, FastMCP SSE server |
-| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (IQP/Carlsbad/Maroczy), `position_profile` |
+| `server/chess_mcp.py` | All 13 MCP tools, FastMCP SSE server |
+| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (8 structures), `position_profile` |
 | `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection |
 | `server/openings.py` | ECO opening lookup (EPD → eco/name); `identify` (exact position) + `deepest_in_line` |
 | `server/openings.tsv` | 3700 openings keyed by EPD, vendored from lichess-org/chess-openings (CC0); regen via `evals/build_openings.py` |
@@ -68,6 +70,7 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
 | `REPERTOIRE_DESIGN.md` | Design spec for the repertoire analysis feature set |
+| `ROADMAP_DESIGN.md` | Design spec for the shipped roadmap items (time_limit, whole-tree analysis, export_annotated_pgn, Closed Sicilian) |
 | `ENGINEERING_PASSES.md` | Reusable refactor/security/testing execution-loop prompts, adapted to this repo |
 | `.claude/skills/` | Claude Code workflow skills: `chess-game-review`, `repertoire-builder`, `analyze-position`, `annotate-pgn` |
 
@@ -144,17 +147,19 @@ The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplac
 
 - `python-chess` Stockfish wrapper opens engine as subprocess per analysis and holds it open for the full game — correct behavior, one engine instance per analysis.
 - `eval` values are centipawns from white's POV. Mate → ±10000.
-- `_analyse_all_moves` is the shared internal helper for `get_game_summary`, `analyze_game`, and `get_position`. It is `@lru_cache(maxsize=32)` keyed on `(pgn, depth, multipv)`; all three tools call it with the canonical `DEFAULT_MULTIPV=3`, so a summary→analyze→get_position sequence runs the engine **once** per `(pgn, depth)` instead of repeating the full pass. Cache is a transparent impl detail — the tool interface stays stateless/idempotent. Records are read-only (callers must not mutate them).
+- `_analyse_tree` is the shared cached engine pass (`@lru_cache(maxsize=32)`, keyed on `(pgn, depth, multipv, time_limit)`): it walks the WHOLE game tree (mainline + variations), analysing each distinct position once, and returns `{san_path: record}` + the parsed game (both **read-only** — callers must not mutate). `_analyse_all_moves` projects the mainline-in-order from it for `get_game_summary`/`analyze_game`/`get_position` (their output is byte-unchanged by the tree generalization — verified against the prior snapshot); `export_annotated_pgn` consumes the full path map, mapping records onto a FRESH parse it owns so the cache stays untouched. All callers pass the canonical `DEFAULT_MULTIPV=3`, so the workflow runs the engine **once** per `(pgn, depth, time_limit)`. Cache is a transparent impl detail — the tool interface stays stateless/idempotent.
 - Each record carries `fen` (position before the move, side-to-move = `color`) and `eval_before`, which is what `get_position` returns for the drill-down→engine bridge.
 - Invalid/empty PGN: `python-chess` returns an empty `Game` (not `None`) for garbage text, so `_analyse_all_moves` also rejects zero-move games (`game.next() is None`) → structured `{error, reason}`.
-- Input caps (networked server, untrusted PGN/FEN): `MAX_PGN_BYTES` (default 100000), `MAX_REPERTOIRE_BYTES` (default 1000000 — separate cap for large variation trees), `MAX_LINE_MOVES` (default 500), and `depth` clamped to `[1, 30]`. Depth is clamped **before** the cache key, which also normalizes cache entries (fewer distinct keys). Closed error-code set: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`.
+- Input caps (networked server, untrusted PGN/FEN): `MAX_PGN_BYTES` (default 100000), `MAX_REPERTOIRE_BYTES` (default 1000000 — separate cap for large variation trees), `MAX_LINE_MOVES` (default 500), and `depth` clamped to `[1, 30]`. Depth is clamped **before** the cache key, which also normalizes cache entries (fewer distinct keys). The optional `time_limit` (seconds) is likewise clamped to `[0.01, MAX_ENGINE_TIME_S]` (default 60) before the cache key; when set it selects `Limit(time=...)` over depth (depth stays the reproducible default — time search is wall-clock dependent). Closed error-code set: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`.
 - `evaluate_position(fen, depth, multipv=1)`: `multipv>1` (≤ `MAX_MULTIPV`=10) adds a ranked `candidates` list (top-N moves for *any* FEN), exposing engine multipv off-game — the primitive the `repertoire-builder` / `analyze-position` skills use to explore opponent deviations. `multipv=1` keeps the lean single-best shape (backward compatible).
 
 - Repertoire handle cache (`repertoire.py`): `_REPERTOIRE_CACHE` is an `OrderedDict` with bounded LRU eviction (default 16 entries) and idle TTL expiry (default 1h). Controlled by env vars `MAX_REPERTOIRES` and `REPERTOIRE_TTL_S`. A `threading.Lock` guards all mutations (concurrent SSE calls). Distinct from `_analyse_all_moves` lru_cache — the engine cache keys on PGN text; the repertoire cache holds parsed game trees. See REPERTOIRE_DESIGN.md section 3.
-- `structure.py` `classify_structure` ships a **narrow** set (IQP / Carlsbad / Maroczy) with `confidence` + `unknown` fallback. Returns the highest-confidence candidate; ties broken by first-match order. Never forces a label on a weak match. See REPERTOIRE_DESIGN.md Decision D2.
+- `structure.py` `classify_structure` ships 8 structures (IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni / Closed Sicilian) with `confidence` + `unknown` fallback. Returns the highest-confidence candidate; ties broken by first-match order. Never forces a label on a weak match. Closed Sicilian is intentionally lower-confidence (0.7) — brittle under static matching per D2; the `e4/d3/f4` trio guards precision (`structure_accuracy.py`: 12/12, 0 false positives). See REPERTOIRE_DESIGN.md Decision D2.
 - `variation_path` is a SAN move list (`["e4","c5","Nf3"]`); `resolve_path` walks the tree matching SAN ply-by-ply. `None` → aggregate over all leaves.
 
 ## What's not done
 
-Canonical roadmap = README "Roadmap" (`time_limit` param, ECO opening resource,
-`classify_structure` expansion). Not repeated here — single source.
+Canonical roadmap = README "Roadmap" — all listed items are now checked (handle, ECO names,
+8-structure classifier, `time_limit`, whole-tree variation-aware analysis, `export_annotated_pgn`).
+Open candidates noted there: more pawn structures (French Exchange, Hedgehog) via the
+`structure_accuracy.py` harness; exposing ECO openings as an MCP *resource* (vs the current tool).

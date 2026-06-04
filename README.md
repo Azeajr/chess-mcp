@@ -45,6 +45,7 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
 | `identify_opening` | PGN | ECO code + opening name (deepest named position); 3700-opening table |
+| `export_annotated_pgn` | PGN, depth, min_cp_loss | Annotated PGN string: NAG glyphs (?!/?/??) + eval & best-move comments on flagged moves, mainline **and** variations, plus `moves_annotated` count |
 
 ### Repertoire analysis
 
@@ -56,7 +57,9 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
 | `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
 
-Structural analysis recognizes IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, and Benoni pawn skeletons (else `unknown`); opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
+Structural analysis recognizes IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, and Closed Sicilian pawn skeletons (else `unknown`); opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
+
+Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `evaluate_position`, `suggest_complementary_lines`, `export_annotated_pgn`) also accepts an optional `time_limit` (seconds): when set, the engine searches by wall-clock instead of `depth` — useful on slow hardware or for fast iteration. Depth stays the default and the reproducible path.
 
 ### Recommended workflow
 
@@ -222,6 +225,7 @@ Environment variables (set in `compose.yml`):
 | `FASTMCP_PORT` | `8000` | Listen port (SSE only) |
 | `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
 | `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
+| `MAX_ENGINE_TIME_S` | `60` | Ceiling for the optional per-call `time_limit` (seconds; floor 0.01) |
 | `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
 | `MAX_REPERTOIRE_BYTES` | `1000000` | Reject `load_repertoire` PGN larger than this (larger cap for variation trees) |
 | `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
@@ -246,6 +250,7 @@ chess-mcp/
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
 ├── MCP_DESIGN.md            # design principles for this server
 ├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
+├── ROADMAP_DESIGN.md        # design spec for the shipped roadmap items (time_limit, tree analysis, export, structures)
 ├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ├── evals/                   # harnesses (engine-free unless noted)
 │   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
@@ -254,8 +259,8 @@ chess-mcp/
 │   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
 │   └── snapshots/outputs.json
 └── server/
-    ├── chess_mcp.py         # All 12 MCP tools, FastMCP SSE server
-    ├── structure.py         # engine-free pawn-structure analysis (7 structures)
+    ├── chess_mcp.py         # All 13 MCP tools, FastMCP SSE server
+    ├── structure.py         # engine-free pawn-structure analysis (8 structures)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
     ├── openings.py          # ECO opening lookup (EPD → name)
     ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
@@ -275,8 +280,11 @@ chess-mcp/
 
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
-- [x] **`classify_structure` expansion** — now 7 structures (added French, Stonewall, King's Indian, Benoni), measured by `evals/structure_accuracy.py`. More can follow the same harness-validated pattern.
-- [ ] **`time_limit` param** — expose `Limit(time=N)` as alternative to depth; useful for slower hardware or faster iteration.
+- [x] **`classify_structure` expansion** — now 8 structures (French, Stonewall, King's Indian, Benoni, Closed Sicilian), measured by `evals/structure_accuracy.py`. More can follow the same harness-validated pattern.
+- [x] **`time_limit` param** — every engine tool takes an optional `time_limit` (seconds) → `Limit(time=N)` instead of depth; clamped to `[0.01, MAX_ENGINE_TIME_S]`. Depth stays the reproducible default.
+- [x] **Variation-aware game analysis** — the cached engine pass now walks the whole game tree (mainline + variations) once, keyed by SAN path. The mainline game tools project the mainline unchanged; side lines are analyzed in the same pass.
+- [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.
+- [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `evals/structure_accuracy.py` harness-validated pattern (candidates: French Exchange, Hedgehog).
 
 ## License
 
