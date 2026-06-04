@@ -28,30 +28,33 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 
 ## Current state
 
-Thirteen tools: six original game-analysis tools, `identify_opening` (ECO name from a 3700-entry
-table), `export_annotated_pgn` (engine-annotated PGN artifact), and five repertoire tools
-(`load_repertoire`, `get_structural_profile`, `analyze_repertoire_congruence`,
-`suggest_complementary_lines`, `get_transpositions`). The structural classifier covers 8 pawn
-skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni/Closed Sicilian), measured by
-`evals/structure_accuracy.py`. The cached engine pass now walks the whole game tree (mainline +
-variations) once, keyed by SAN path; every engine tool also accepts an optional `time_limit`. All
-containerized; game tools verified end-to-end in Docker. Repertoire + tool-layer paths verified
-engine-free via pytest (`cd server && uv run pytest`, 113 tests pass; branch coverage on by default
-via `addopts`). Engine path needs Docker re-run for `suggest_complementary_lines` ranking and the
-`evals/capture.py` snapshot update.
+Sixteen tools: six original game-analysis tools, `compare_moves` (rank caller-supplied candidate
+moves from a FEN), `identify_opening` (ECO name from a 3700-entry table), `export_annotated_pgn`
+(engine-annotated PGN artifact), and seven repertoire tools (`load_repertoire`,
+`get_structural_profile`, `analyze_repertoire_congruence`, `get_transpositions`,
+`get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), `find_repertoire_gaps`
+(engine scan for strong uncovered opponent replies), `suggest_complementary_lines`). The closed
+error-code set is unchanged — every new failure path reuses an existing code. The structural
+classifier covers 8 pawn skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni/Closed
+Sicilian), measured by `evals/structure_accuracy.py`. The cached engine pass walks the whole game
+tree (mainline + variations) once, keyed by SAN path; every engine tool also accepts an optional
+`time_limit`. All containerized; game tools verified end-to-end in Docker. Repertoire + tool-layer
+paths verified engine-free via pytest (`cd server && uv run pytest`, 126 tests pass; branch coverage
+on by default via `addopts`). Engine paths (`compare_moves`, `find_repertoire_gaps`,
+`suggest_complementary_lines` ranking) and the `evals/capture.py` snapshot are verified in Docker.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
 **Release:** v0.1.4 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.4 — image published and
 public at `ghcr.io/azeajr/chess-mcp` (`latest` + `v0.1.4`); the `docker compose pull` / `docker run`
-prebuilt install path is verified end-to-end (pull → boot → 13 tools over SSE).
+prebuilt install path is verified end-to-end (pull → boot → tools over SSE).
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `server/chess_mcp.py` | All 13 MCP tools, FastMCP SSE server |
-| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (8 structures), `position_profile` |
-| `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection |
+| `server/chess_mcp.py` | All 16 MCP tools, FastMCP SSE server |
+| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (8 structures, scorer functions are the single source of truth), `position_profile` |
+| `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection, coverage report + opponent-reply-node selection (for gaps) |
 | `server/openings.py` | ECO opening lookup (EPD → eco/name); `identify` (exact position) + `deepest_in_line` |
 | `server/openings.tsv` | 3700 openings keyed by EPD, vendored from lichess-org/chess-openings (CC0); regen via `evals/build_openings.py` |
 | `server/test_structure_repertoire.py` | pytest suite (engine-free) for structure.py + repertoire.py |
@@ -71,6 +74,7 @@ prebuilt install path is verified end-to-end (pull → boot → 13 tools over SS
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
 | `REPERTOIRE_DESIGN.md` | Design spec for the repertoire analysis feature set |
 | `ROADMAP_DESIGN.md` | Design spec for the shipped roadmap items (time_limit, whole-tree analysis, export_annotated_pgn, Closed Sicilian) |
+| `FEATURES_DESIGN.md` | Design spec for `find_repertoire_gaps`, `get_repertoire_coverage`, `compare_moves` (post-roadmap tools) |
 | `ENGINEERING_PASSES.md` | Reusable refactor/security/testing execution-loop prompts, adapted to this repo |
 | `.claude/skills/` | Claude Code workflow skills: `chess-game-review`, `repertoire-builder`, `analyze-position`, `annotate-pgn` |
 
@@ -159,7 +163,10 @@ The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplac
 
 ## What's not done
 
-Canonical roadmap = README "Roadmap" — all listed items are now checked (handle, ECO names,
-8-structure classifier, `time_limit`, whole-tree variation-aware analysis, `export_annotated_pgn`).
-Open candidates noted there: more pawn structures (French Exchange, Hedgehog) via the
+Canonical roadmap = README "Roadmap". All originally-planned items are checked (handle, ECO names,
+8-structure classifier, `time_limit`, whole-tree variation-aware analysis, `export_annotated_pgn`),
+plus the post-roadmap completeness trio (`find_repertoire_gaps`, `get_repertoire_coverage`,
+`compare_moves`). Open prospective items now in the README Roadmap: opponent-move-popularity
+weighting for `find_repertoire_gaps` (frequency dataset), and `compare_repertoires(id_a, id_b)`.
+Earlier-noted candidates still open: more pawn structures (French Exchange, Hedgehog) via the
 `structure_accuracy.py` harness; exposing ECO openings as an MCP *resource* (vs the current tool).

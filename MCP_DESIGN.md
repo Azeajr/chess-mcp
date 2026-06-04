@@ -207,15 +207,18 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 | get_position | 97 |
 | evaluate_position | 40 |
 | evaluate_position (multipv=3) | 93 |
+| compare_moves | 118 |
 | get_legal_moves (SAN string) | 18 |
 | get_legal_moves (`{uci,san}` list) | 39 |
 | identify_opening | 24 |
 | export_annotated_pgn | 502 |
-| load_repertoire | 40 |
+| load_repertoire | 41 |
 | get_structural_profile (aggregate) | 51 |
 | get_structural_profile (node) | 117 |
 | analyze_repertoire_congruence | 25 |
 | get_transpositions | 9 |
+| get_repertoire_coverage | 161 |
+| find_repertoire_gaps | 629 |
 | suggest_complementary_lines (low_memorization) | 190 |
 | suggest_complementary_lines (sharp) | 187 |
 
@@ -230,7 +233,11 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 - `export_annotated_pgn` is the one **artifact** output (a full annotated PGN string, 502 tok here),
   not a reasoning primitive — the justified exception to "reshape, don't dump". It is bounded by
   `MAX_PGN_BYTES` input and gates comments behind `min_cp_loss`, so it stays close to the input size.
-- All 13 tool descriptions total ~1927 tok, re-read on every `tools/list` — why descriptions are
+- `find_repertoire_gaps` is the heaviest reasoning primitive (629 tok on the single-deep-line sample,
+  where each gap carries a long SAN drill-down `path`). Still well within ~2k; it is bounded by
+  `limit` (gaps) and `max_positions` (engine passes), and the `path` stays structured because it is a
+  drill-down handle (a compact string would force the model to re-derive it — see the boundary note above).
+- All 16 tool descriptions total ~2500 tok, re-read on every `tools/list` — why descriptions are
   kept compressed (they are routing logic, paid every call).
 
 Regenerate after any output-shape change; stale numbers are worse than none.

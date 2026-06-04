@@ -42,6 +42,12 @@ def main():
         "export_annotated_pgn": cm.export_annotated_pgn(PGN, DEPTH),
     }
 
+    # compare_moves: rank a few legal candidate moves from the worst-move position
+    import chess
+
+    cand = [chess.Board(fen).san(m) for m in list(chess.Board(fen).legal_moves)[:3]]
+    outputs["compare_moves"] = cm.compare_moves(fen, cand, DEPTH)
+
     # --- repertoire tools (engine-free paths; suggest uses engine for anchor FEN) ---
     rep = cm.load_repertoire(REPERTOIRE_PGN, "white")
     rid = rep["repertoire_id"]
@@ -58,6 +64,8 @@ def main():
     outputs["get_structural_profile.node"] = cm.get_structural_profile(rid, leaf_path)
     outputs["analyze_repertoire_congruence"] = cm.analyze_repertoire_congruence(rid)
     outputs["get_transpositions"] = cm.get_transpositions(rid)
+    outputs["get_repertoire_coverage"] = cm.get_repertoire_coverage(rid)
+    outputs["find_repertoire_gaps"] = cm.find_repertoire_gaps(rid, DEPTH)
 
     # suggest from the leaf FEN (uses engine)
     node = rp.resolve_path(game, leaf_path)
@@ -76,12 +84,15 @@ def main():
         cm.evaluate_position,
         cm.validate_line,
         cm.get_legal_moves,
+        cm.compare_moves,
         cm.identify_opening,
         cm.export_annotated_pgn,
         cm.load_repertoire,
         cm.get_structural_profile,
         cm.analyze_repertoire_congruence,
         cm.get_transpositions,
+        cm.get_repertoire_coverage,
+        cm.find_repertoire_gaps,
         cm.suggest_complementary_lines,
     ]
     snap = {
