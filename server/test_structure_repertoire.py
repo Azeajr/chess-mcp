@@ -563,6 +563,65 @@ def test_no_transpositions_in_linear_tree():
 
 
 # ---------------------------------------------------------------------------
+# Opponent-reply nodes (find_repertoire_gaps engine-free seam)
+# ---------------------------------------------------------------------------
+
+
+def test_opponent_reply_nodes_white_skips_player_moves():
+    # White repertoire: opponent (Black) decision points only, with >= 1 prepared reply.
+    rep = build_repertoire(["d4 d5 c4 e6", "d4 d5 c4 dxc4"])
+    nodes = repertoire.opponent_reply_nodes(rep)
+    paths = [n["path"] for n in nodes]
+    assert paths[0] == ["d4"]  # shallowest first
+    assert ["d4", "d5", "c4"] in paths
+    assert ["d4", "d5"] not in paths  # White-to-move node excluded
+    c4 = next(n for n in nodes if n["path"] == ["d4", "d5", "c4"])
+    assert {"e7e6", "d5c4"} <= c4["covered"]  # covered = opponent replies, as uci
+
+
+def test_opponent_reply_nodes_black_includes_root_excludes_frontier():
+    rep = build_repertoire(["e4 c5 Nf3 d6", "d4 Nf6"], color=chess.BLACK)
+    nodes = repertoire.opponent_reply_nodes(rep)
+    paths = [n["path"] for n in nodes]
+    assert [] in paths  # root: White (opponent) to move with prepared first moves
+    root = next(n for n in nodes if n["path"] == [])
+    assert {"e2e4", "d2d4"} <= root["covered"]
+    assert ["e4", "c5", "Nf3", "d6"] not in paths  # frontier leaf (no replies) excluded
+
+
+# ---------------------------------------------------------------------------
+# Coverage report (get_repertoire_coverage engine-free)
+# ---------------------------------------------------------------------------
+
+
+def test_coverage_flags_dangling_line():
+    # e6 ends on White's move (player owes a reply) → dangling; dxc4 e3 ends on Black → frontier.
+    rep = build_repertoire(["d4 d5 c4 e6", "d4 d5 c4 dxc4 e3"])
+    cov = repertoire.coverage_report(rep, limit=20)
+    assert cov["leaves"] == 2
+    assert cov["dangling_count"] == 1 and cov["frontier_count"] == 1
+    assert cov["dangling_count"] + cov["frontier_count"] == cov["leaves"]
+    assert cov["dangling_lines"][0]["path"] == ["d4", "d5", "c4", "e6"]
+    assert cov["dangling_lines"][0]["ply"] == 4
+    assert cov["max_depth"] == 5 and cov["shallowest_leaf_ply"] == 4
+
+
+def test_coverage_no_dangling_when_all_frontier():
+    # both lines end on White's move → opponent to move at every leaf → no holes
+    rep = build_repertoire(["e4", "d4"])
+    cov = repertoire.coverage_report(rep, limit=20)
+    assert cov["dangling_count"] == 0 and cov["frontier_count"] == 2
+
+
+def test_coverage_limit_caps_dangling_list():
+    rep = build_repertoire(
+        ["d4 d5 c4 e6", "d4 Nf6 c4 e6", "g3 d5 Bg2 e6"]
+    )  # 3 dangling
+    cov = repertoire.coverage_report(rep, limit=1)
+    assert cov["dangling_count"] == 3 and len(cov["dangling_lines"]) == 1
+
+
+# ---------------------------------------------------------------------------
 # ECO opening lookup
 # ---------------------------------------------------------------------------
 

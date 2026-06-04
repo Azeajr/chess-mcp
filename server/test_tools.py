@@ -11,6 +11,7 @@ Run (needs mcp, which is a main dependency):  uv run pytest   (from server/)
 import io
 
 import chess
+import chess.engine
 import chess.pgn
 import pytest
 
@@ -304,3 +305,74 @@ def test_export_clean_when_threshold_above_all(monkeypatch):
 
 def test_export_too_large():
     assert cm.export_annotated_pgn("1. e4 e5 " * 200000)["error"] == "pgn_too_large"
+
+
+# --- compare_moves (pre-engine guards only; engine ranking verified in Docker) ---
+
+
+def test_compare_moves_bad_fen():
+    assert cm.compare_moves("garbage", ["e4"])["error"] == "invalid_fen"
+
+
+def test_compare_moves_too_many():
+    over = ["e4"] * (cm.MAX_COMPARE_MOVES + 1)
+    assert cm.compare_moves(chess.STARTING_FEN, over)["error"] == "too_many_moves"
+
+
+def test_compare_moves_all_illegal_short_circuits():
+    # every input illegal/unparseable → returns before opening the engine (no Stockfish)
+    r = cm.compare_moves(chess.STARTING_FEN, ["Ke2", "zzz"])
+    assert r["results"] == [] and set(r["illegal"]) == {"Ke2", "zzz"}
+    assert r["side_to_move"] == "white"
+
+
+# --- _gaps_from_infos (pure helper feeding find_repertoire_gaps; engine-free) ---
+
+# After 1.d4 — Black (the opponent for a White repertoire) to move.
+_BLACK_TO_MOVE = "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
+
+
+def _info(white_cp: int, uci: str) -> dict:
+    return {
+        "score": chess.engine.PovScore(chess.engine.Cp(white_cp), chess.WHITE),
+        "pv": [chess.Move.from_uci(uci)],
+    }
+
+
+def test_gaps_from_infos_flags_uncovered_with_severity():
+    board = chess.Board(_BLACK_TO_MOVE)
+    # Black to move: mover_cp = -white_cp. Best = Nf6 (mover_cp 20).
+    infos = [
+        _info(-20, "g8f6"),  # Nf6  — best for Black, but COVERED
+        _info(20, "d7d5"),  # d5   — mover_cp -20, loss 40 → medium
+        _info(100, "g7g6"),  # g6   — mover_cp -100, loss 120 → low
+    ]
+    gaps = cm._gaps_from_infos(board, infos, {"g8f6"})
+    by_move = {e["uncovered_move"]: e for e, _ in gaps}
+    assert set(by_move) == {"d5", "g6"}  # covered Nf6 excluded
+    assert by_move["d5"]["severity"] == "medium"
+    assert by_move["g6"]["severity"] == "low"
+    assert by_move["d5"]["eval"] == 20  # eval is white-POV
+
+
+def test_gaps_from_infos_all_covered_or_empty():
+    board = chess.Board(_BLACK_TO_MOVE)
+    assert cm._gaps_from_infos(board, [_info(-20, "g8f6")], {"g8f6"}) == []
+    assert cm._gaps_from_infos(board, [], set()) == []
+
+
+# --- repertoire tool guards (engine-free path) ---
+
+
+def test_find_gaps_bad_id():
+    assert cm.find_repertoire_gaps("nope")["error"] == "repertoire_not_found"
+
+
+def test_coverage_bad_id():
+    assert cm.get_repertoire_coverage("nope")["error"] == "repertoire_not_found"
+
+
+def test_coverage_tool(rid):
+    cov = cm.get_repertoire_coverage(rid)
+    assert cov["color"] == "white" and "leaves" in cov
+    assert cov["dangling_count"] + cov["frontier_count"] == cov["leaves"]

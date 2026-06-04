@@ -239,6 +239,56 @@ def profile_structure_shares(rep: _Repertoire) -> dict[str, float]:
     return {sc: count / denom for sc, count in counts.items()}
 
 
+def opponent_reply_nodes(rep: _Repertoire) -> list[dict]:
+    """Nodes where the OPPONENT is to move and the repertoire already prepares >= 1 reply.
+
+    The decision points a completeness scan cares about (find_repertoire_gaps): a frontier
+    leaf has no replies yet, so every opponent move there is trivially "uncovered" — noise;
+    an internal opponent-to-move node is where a missed strong reply is a real gap. Returns
+    [{path, board, covered: {uci, ...}}] shallowest first (positions nearer the root are
+    reached by more games). Engine-free — the engine pass is the caller's.
+    """
+    out: list[dict] = []
+    for node in [rep.game, *iter_nodes(rep.game)]:
+        board = node.board()
+        if board.turn == rep.color:  # player's move — their choice, not a coverage gap
+            continue
+        if not node.variations:  # frontier leaf — no replies prepared yet
+            continue
+        out.append(
+            {
+                "path": san_path(node),
+                "board": board,
+                "covered": {child.move.uci() for child in node.variations},
+            }
+        )
+    out.sort(key=lambda d: len(d["path"]))
+    return out
+
+
+def coverage_report(rep: _Repertoire, limit: int) -> dict:
+    """Engine-free tree-shape hygiene over the repertoire's leaves.
+
+    Headline signal: a "dangling" line — a leaf where it is the PLAYER's turn, so the line
+    stops exactly where a prepared move is owed (a real hole). A leaf where the opponent is to
+    move is a natural frontier (move played, paused) → frontier_count, not flagged. Returns
+    leaf counts, the dangling lines (with drill-down path + ply), and depth hints.
+    """
+    leaves = list(walk_leaves(rep.game))
+    dangling = [leaf for leaf in leaves if leaf.board().turn == rep.color]
+    depths = [leaf.ply() for leaf in leaves]
+    return {
+        "leaves": len(leaves),
+        "dangling_count": len(dangling),
+        "dangling_lines": [
+            {"path": san_path(leaf), "ply": leaf.ply()} for leaf in dangling[:limit]
+        ],
+        "frontier_count": len(leaves) - len(dangling),
+        "max_depth": max(depths) if depths else 0,
+        "shallowest_leaf_ply": min(depths) if depths else 0,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Congruence — engine-free thematic consistency checks (summary→detail).
 # Each incongruency carries the leaf variation_path(s) so the agent can drill via

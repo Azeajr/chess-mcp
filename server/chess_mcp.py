@@ -23,6 +23,8 @@ MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
 MIN_DEPTH, MAX_DEPTH = 1, 30
 MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
+MAX_COMPARE_MOVES = MAX_MULTIPV  # compare_moves searches one line per candidate
+MAX_GAP_POSITIONS = 60  # find_repertoire_gaps engine-pass ceiling
 
 
 def _clamp_depth(depth: int) -> int:
@@ -551,6 +553,94 @@ def get_legal_moves(fen: str, uci: bool = False) -> dict:
     return {"turn": turn, "move_count": len(legal), "moves": moves}
 
 
+@mcp.tool()
+def compare_moves(
+    fen: str,
+    moves: list[str],
+    depth: int = DEFAULT_DEPTH,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Rank YOUR OWN candidate moves from a position, best→worst. Unlike evaluate_position
+    (which ranks the engine's top moves), this scores the exact moves you pass — even ones
+    the engine wouldn't pick — so you can compare options you are actually weighing.
+
+    moves = candidate moves (UCI or SAN). Returns: fen, side_to_move ("white"/"black"),
+    results (each: move SAN, eval white-POV cp, cp_loss = centipawns worse than the best of
+    YOUR candidates from the mover's POV (best = 0), pv best line SAN), illegal (any inputs
+    that were not legal moves here, echoed back). Results sorted best first.
+
+    time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
+    ignored); depth is the reproducible default. More than 10 moves → too_many_moves;
+    invalid FEN → invalid_fen. Bad input → {"error","reason"}.
+    """
+    if len(moves) > MAX_COMPARE_MOVES:
+        return {
+            "error": "too_many_moves",
+            "reason": f"compare at most {MAX_COMPARE_MOVES} moves",
+        }
+    depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
+    try:
+        board = chess.Board(fen)
+    except ValueError as e:
+        return {"error": "invalid_fen", "reason": str(e)}
+
+    valid: list[chess.Move] = []
+    illegal: list[str] = []
+    for move_str in moves:
+        try:
+            move = board.parse_uci(move_str)
+        except ValueError:
+            try:
+                move = board.parse_san(move_str)
+            except ValueError:
+                illegal.append(move_str)  # not valid UCI or SAN
+                continue
+        if move not in board.legal_moves:
+            illegal.append(move_str)  # parsed but not legal here
+            continue
+        if move not in valid:
+            valid.append(move)  # drop duplicate candidates silently
+
+    side = "white" if board.turn == chess.WHITE else "black"
+    if not valid:
+        return {
+            "fen": board.fen(),
+            "side_to_move": side,
+            "results": [],
+            "illegal": illegal,
+        }
+
+    with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        infos = engine.analyse(
+            board, _limit(depth, time_limit), multipv=len(valid), root_moves=valid
+        )
+
+    def _mover_cp(info: dict) -> int:
+        cp = _score_cp(info["score"])  # white-POV
+        return cp if board.turn == chess.WHITE else -cp
+
+    best = _mover_cp(infos[0]) if infos else 0
+    results = [
+        {
+            "move": board.san(info["pv"][0]),
+            "eval": _score_cp(info["score"]),
+            "cp_loss": max(0, best - _mover_cp(info)),
+            "pv": _pv_san(board, info["pv"]),
+        }
+        for info in infos
+        if info.get("pv")
+    ]
+    return {
+        "fen": board.fen(),
+        "side_to_move": side,
+        "results": results,
+        "illegal": illegal,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Repertoire tools — stateful (handle) layer. See REPERTOIRE_DESIGN.md.
 # load_repertoire parses once and caches; the rest accept the repertoire_id handle.
@@ -678,6 +768,33 @@ def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
 
 
 @mcp.tool()
+def get_repertoire_coverage(repertoire_id: str, limit: int = 20) -> dict:
+    """
+    Tree-shape hygiene of a repertoire. Engine-free. Finds where the tree is structurally
+    incomplete, independent of move quality (use find_repertoire_gaps for engine criticality).
+
+    Headline: dangling_lines — leaves where it is YOUR turn to move, so the line stops exactly
+    where a prepared move is owed (a real hole to fill). Leaves where the opponent is to move
+    are natural frontiers (you played, paused) → counted as frontier_count, not flagged.
+
+    Returns: color, leaves (total), dangling_count, dangling_lines (each: path = SAN
+    variation_path for drill-down, ply), frontier_count, max_depth, shallowest_leaf_ply (the
+    earliest a line stops — an extension candidate). dangling_lines capped to limit (default
+    20, max 100). Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    limit = max(1, min(100, limit))
+    report = repertoire.coverage_report(rep, limit)
+    report["color"] = "white" if rep.color == chess.WHITE else "black"
+    return report
+
+
+@mcp.tool()
 def suggest_complementary_lines(
     repertoire_id: str,
     fen: str,
@@ -787,6 +904,113 @@ def suggest_complementary_lines(
         "mode": mode,
         "anchor_fen": board.fen(),
         "suggestions": [entry for entry, _ in ranked[:limit]],
+    }
+
+
+# Gap severity: how close an uncovered opponent move is to their best reply (cp, opponent POV).
+_GAP_HIGH_CP, _GAP_MED_CP = 30, 80
+_GAP_SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def _gaps_from_infos(
+    board: chess.Board, infos: list, covered: set[str]
+) -> list[tuple[dict, int]]:
+    """Uncovered strong opponent replies at one position (pure; engine IO is the caller's).
+
+    board: the opponent-to-move position. infos: its multipv analysis. covered: uci strings the
+    repertoire already answers. Returns [(entry, mover_cp)] for each engine top move NOT in
+    covered; entry = {uncovered_move SAN, eval white-POV cp, severity}. Severity is set by how
+    close the move is to the opponent's best — a near-best uncovered move is the urgent hole.
+    """
+    if not infos:
+        return []
+
+    def _mover_cp(info: dict) -> int:
+        cp = _score_cp(info["score"])  # white-POV
+        return cp if board.turn == chess.WHITE else -cp
+
+    best = _mover_cp(infos[0])
+    gaps: list[tuple[dict, int]] = []
+    for info in infos:
+        pv = info.get("pv")
+        if not pv or pv[0].uci() in covered:
+            continue
+        mcp = _mover_cp(info)
+        loss = best - mcp
+        severity = (
+            "high"
+            if loss <= _GAP_HIGH_CP
+            else "medium"
+            if loss <= _GAP_MED_CP
+            else "low"
+        )
+        gaps.append(
+            (
+                {
+                    "uncovered_move": board.san(pv[0]),
+                    "eval": _score_cp(info["score"]),
+                    "severity": severity,
+                },
+                mcp,
+            )
+        )
+    return gaps
+
+
+@mcp.tool()
+def find_repertoire_gaps(
+    repertoire_id: str,
+    depth: int = DEFAULT_DEPTH,
+    min_severity: Literal["low", "medium", "high"] = "medium",
+    limit: int = 10,
+    max_positions: int = 20,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Engine completeness scan: where does the repertoire fail to answer a strong opponent move?
+    Checks every position where the OPPONENT is to move and you ALREADY prepare >= 1 reply (an
+    internal decision point — not an unextended frontier leaf), runs the engine, and flags top
+    opponent moves you do not cover.
+
+    Returns: color, positions_scanned, total_gaps, gaps (each: path = SAN variation_path of the
+    position to drill via get_structural_profile/suggest_complementary_lines, uncovered_move
+    (SAN, opponent's), eval (white-POV cp after it), severity high/medium/low by how close it is
+    to the opponent's best). Filtered to min_severity (default medium), gaps capped to limit
+    (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
+    shallowest first; depth/time_limit tune each engine pass. Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
+    limit = max(1, min(50, limit))
+    max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
+    nodes = repertoire.opponent_reply_nodes(rep)[:max_positions]
+
+    floor = _GAP_SEVERITY_RANK[min_severity]
+    multipv = min(MAX_MULTIPV, 5)  # enough breadth to surface a missed strong reply
+    found: list[tuple[dict, int]] = []
+    with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        for nd in nodes:
+            infos = engine.analyse(
+                nd["board"], _limit(depth, time_limit), multipv=multipv
+            )
+            for entry, mcp in _gaps_from_infos(nd["board"], infos, nd["covered"]):
+                if _GAP_SEVERITY_RANK[entry["severity"]] < floor:
+                    continue
+                found.append(({"path": nd["path"], **entry}, mcp))
+
+    found.sort(key=lambda t: (-_GAP_SEVERITY_RANK[t[0]["severity"]], -t[1]))
+    return {
+        "color": "white" if rep.color == chess.WHITE else "black",
+        "positions_scanned": len(nodes),
+        "total_gaps": len(found),
+        "gaps": [entry for entry, _ in found[:limit]],
     }
 
 
