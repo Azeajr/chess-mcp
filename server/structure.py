@@ -224,6 +224,45 @@ def _maroczy_confidence(board: chess.Board) -> float:
     return 0.0
 
 
+def _french_confidence(board: chess.Board) -> float:
+    """French Advance chain: White e5 + d4 locked against Black e6 + d5."""
+    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
+    if {"e5", "d4"} <= w and {"e6", "d5"} <= b:
+        return 0.85
+    if {"e4", "d5"} <= b and {"e3", "d4"} <= w:  # mirrored (Black has advanced e-pawn)
+        return 0.6
+    return 0.0
+
+
+def _stonewall_confidence(board: chess.Board) -> float:
+    """Stonewall: the d5/e6/f5 pawn wall (Black) or d4/e3/f4 (White)."""
+    if {"d5", "e6", "f5"} <= _names(board, chess.BLACK):
+        return 0.85
+    if {"d4", "e3", "f4"} <= _names(board, chess.WHITE):
+        return 0.85
+    return 0.0
+
+
+def _kings_indian_confidence(board: chess.Board) -> float:
+    """King's Indian locked center: White c4/d5/e4 against Black d6/e5/g6."""
+    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
+    if {"c4", "d5", "e4"} <= w and {"d6", "e5", "g6"} <= b:
+        return 0.85
+    if {"c5", "d4", "e5"} <= b and {"d3", "e4", "g3"} <= w:  # mirrored
+        return 0.6
+    return 0.0
+
+
+def _benoni_confidence(board: chess.Board) -> float:
+    """Modern Benoni wedge: White d5 + e4; Black c5 + d6 with a half-open e-file."""
+    w, b = _names(board, chess.WHITE), _names(board, chess.BLACK)
+    if {"d5", "e4"} <= w and {"c5", "d6"} <= b and 4 not in _files(board, chess.BLACK):
+        return 0.85
+    if {"d4", "e5"} <= b and {"c4", "d3"} <= w and 4 not in _files(board, chess.WHITE):  # mirrored
+        return 0.6
+    return 0.0
+
+
 def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
@@ -239,6 +278,10 @@ def classify_structure(board: chess.Board) -> dict:
     for cls, conf in (
         ("Carlsbad", _carlsbad_confidence(board)),
         ("Maroczy", _maroczy_confidence(board)),
+        ("French", _french_confidence(board)),
+        ("Stonewall", _stonewall_confidence(board)),
+        ("King's Indian", _kings_indian_confidence(board)),
+        ("Benoni", _benoni_confidence(board)),
     ):
         if conf:
             candidates.append((cls, conf))
