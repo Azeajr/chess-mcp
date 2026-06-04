@@ -10,6 +10,7 @@ import os
 
 import structure
 import repertoire
+import openings
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
@@ -497,7 +498,9 @@ def get_structural_profile(
     node = repertoire.resolve_path(rep.game, variation_path)
     if node is None:
         return {"error": "variation_not_found", "reason": "variation_path does not match a line in the repertoire"}
-    return structure.position_profile(node.board(), rep.color)
+    profile = structure.position_profile(node.board(), rep.color)
+    profile["opening"] = openings.identify(node.board())  # {eco, name} or null
+    return profile
 
 
 @mcp.tool()
@@ -637,6 +640,25 @@ def suggest_complementary_lines(
         "anchor_fen": board.fen(),
         "suggestions": [entry for entry, _ in ranked[:limit]],
     }
+
+
+@mcp.tool()
+def identify_opening(pgn: str) -> dict:
+    """
+    Name the opening of a PGN by ECO code. Engine-free; uses a 3700-entry table
+    (lichess-org/chess-openings). Walks the mainline and returns the DEEPEST named opening
+    position it passes through — engines give evals, this gives the opening's name and plan label.
+
+    Returns: eco (e.g. "C60"), name (e.g. "Ruy Lopez"), ply (half-moves in where it's reached);
+    or {"opening": null} if no position matches a known opening. Use when PGN headers omit the
+    opening. Bad input → {"error","reason"}.
+    """
+    if (err := _pgn_too_large(pgn)):
+        return err
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    if game is None or game.next() is None:
+        return {"error": "invalid_pgn", "reason": "PGN contains no moves"}
+    return openings.deepest_in_line(game) or {"opening": None}
 
 
 if __name__ == "__main__":

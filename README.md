@@ -44,6 +44,7 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `evaluate_position` | FEN, depth, multipv | Centipawn score, best move, top line; `multipv>1` adds ranked `candidates` (top-N moves) |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
+| `identify_opening` | PGN | ECO code + opening name (deepest named position); 3700-opening table |
 
 ### Repertoire analysis
 
@@ -53,6 +54,9 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, open files. `variation_path=null` → aggregate fingerprint over all leaves |
 | `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies: structure outliers, weakness mismatches, center-handling splits — each with drill-down path |
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
+| `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
+
+Structural analysis recognizes IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, and Benoni pawn skeletons (else `unknown`); opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
 
 ### Recommended workflow
 
@@ -243,14 +247,18 @@ chess-mcp/
 ├── MCP_DESIGN.md            # design principles for this server
 ├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
 ├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
-├── evals/                   # token-measurement harness
+├── evals/                   # harnesses (engine-free unless noted)
 │   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
-│   ├── measure.py           # tiktoken token count, engine-free
+│   ├── measure.py           # tiktoken token count
+│   ├── structure_accuracy.py # structural-classifier precision/recall vs labeled FENs
+│   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
 │   └── snapshots/outputs.json
 └── server/
-    ├── chess_mcp.py         # All ten MCP tools, FastMCP SSE server
-    ├── structure.py         # engine-free pawn-structure analysis (StructuralExtractor)
-    ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence checks
+    ├── chess_mcp.py         # All 12 MCP tools, FastMCP SSE server
+    ├── structure.py         # engine-free pawn-structure analysis (7 structures)
+    ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
+    ├── openings.py          # ECO opening lookup (EPD → name)
+    ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
     ├── test_structure_repertoire.py  # pytest suite (engine-free): structure + repertoire
     ├── test_tools.py                  # pytest suite: tool wrappers (validation, errors, caps)
     ├── pyproject.toml       # uv project + dependencies
@@ -266,9 +274,9 @@ chess-mcp/
 ## Roadmap
 
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
+- [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
+- [x] **`classify_structure` expansion** — now 7 structures (added French, Stonewall, King's Indian, Benoni), measured by `evals/structure_accuracy.py`. More can follow the same harness-validated pattern.
 - [ ] **`time_limit` param** — expose `Limit(time=N)` as alternative to depth; useful for slower hardware or faster iteration.
-- [ ] **Opening resource** — serve ECO opening names as an MCP resource so `get_game_summary` can return opening name even when PGN headers omit it.
-- [ ] **`classify_structure` expansion** — current classifier ships IQP / Carlsbad / Maroczy. Extend to French Advance / Closed Sicilian once PGN fixtures are available to validate matching accuracy.
 
 ## License
 

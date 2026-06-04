@@ -28,9 +28,11 @@ MCP server that grounds AI chess game review with real Stockfish analysis. Built
 
 ## Current state
 
-Ten tools implemented: six original game-analysis tools + four new repertoire-analysis tools
-(`load_repertoire`, `get_structural_profile`, `analyze_repertoire_congruence`,
-`suggest_complementary_lines`). All containerized; game tools verified end-to-end in Docker.
+Twelve tools: six original game-analysis tools, `identify_opening` (ECO name from a 3700-entry
+table), and five repertoire tools (`load_repertoire`, `get_structural_profile`,
+`analyze_repertoire_congruence`, `suggest_complementary_lines`, `get_transpositions`). The structural
+classifier covers 7 pawn skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni),
+measured by `evals/structure_accuracy.py`. All containerized; game tools verified end-to-end in Docker.
 Repertoire tools verified engine-free via pytest (`cd server && uv run pytest`, 81 tests pass;
 branch coverage on by default via `addopts` — `structure.py` 98%, `repertoire.py` 100%, `chess_mcp.py`
 37% with the remainder being engine-dependent game tools that need Docker). Engine path needs Docker
@@ -47,7 +49,9 @@ prebuilt install path is verified end-to-end (pull → boot → 10 tools over SS
 |------|---------|
 | `server/chess_mcp.py` | All ten MCP tools, FastMCP SSE server |
 | `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (IQP/Carlsbad/Maroczy), `position_profile` |
-| `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks |
+| `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection |
+| `server/openings.py` | ECO opening lookup (EPD → eco/name); `identify` (exact position) + `deepest_in_line` |
+| `server/openings.tsv` | 3700 openings keyed by EPD, vendored from lichess-org/chess-openings (CC0); regen via `evals/build_openings.py` |
 | `server/test_structure_repertoire.py` | pytest suite (engine-free) for structure.py + repertoire.py |
 | `server/test_tools.py` | pytest suite for the chess_mcp.py tool wrappers (engine-free paths: validation, errors, caps) |
 | `server/pyproject.toml` | uv project, deps: `mcp[cli]`, `chess`, Python 3.14; `pytest`+`pytest-cov` in `dev` group (excluded from image via `uv sync --no-dev`); `addopts` enables branch coverage |

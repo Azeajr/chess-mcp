@@ -14,6 +14,7 @@ import pytest
 
 import structure
 import repertoire
+import openings
 
 
 # ---------------------------------------------------------------------------
@@ -498,3 +499,25 @@ def test_find_transpositions():
 def test_no_transpositions_in_linear_tree():
     rep = build_repertoire(["d4 d5 c4 e6 Nc3 Nf6"])
     assert repertoire.find_transpositions(rep.game) == []
+
+
+# ---------------------------------------------------------------------------
+# ECO opening lookup
+# ---------------------------------------------------------------------------
+
+def test_opening_identify_known_position():
+    b = chess.Board()
+    for s in ("e4", "c5"):
+        b.push_san(s)
+    op = openings.identify(b)
+    assert op is not None and op["eco"].startswith("B") and "Sicilian" in op["name"]
+
+
+def test_opening_identify_unknown_position():
+    assert openings.identify(chess.Board("8/8/4k3/8/8/4K3/8/8 w - - 0 1")) is None
+
+
+def test_opening_deepest_in_line():
+    game = chess.pgn.read_game(io.StringIO("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *"))
+    op = openings.deepest_in_line(game)
+    assert op is not None and "Ruy Lopez" in op["name"] and op["ply"] >= 5

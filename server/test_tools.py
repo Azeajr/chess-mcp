@@ -145,3 +145,12 @@ def test_get_legal_moves_uci():
 
 def test_get_legal_moves_bad_fen():
     assert cm.get_legal_moves("nope")["error"] == "invalid_fen"
+
+
+def test_identify_opening_tool():
+    r = cm.identify_opening("1. e4 e5 2. Nf3 Nc6 3. Bb5 *")
+    assert r.get("eco", "").startswith("C") and "Ruy Lopez" in r.get("name", "")
+
+
+def test_identify_opening_empty():
+    assert cm.identify_opening("")["error"] == "invalid_pgn"
