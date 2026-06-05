@@ -558,11 +558,30 @@ def test_aggregate_profile_shape():
     assert agg["leaves_analyzed"] == len(list(repertoire.walk_leaves(rep.game)))
     for key in (
         "structures",
+        "themes",
         "center_distribution",
         "common_open_files",
         "common_half_open_files",
     ):
         assert key in agg
+
+
+FIANCHETTO_PGN = """\
+[Event "Fianchetto English"]
+[Result "*"]
+
+1. c4 Nf6 2. Nc3 g6 3. g3 Bg7 4. Bg2 O-O 5. e4 d6 6. Nge2 e5 *
+"""
+
+
+def test_aggregate_themes_rollup_carries_unknown_fianchetto_lines():
+    # The fianchetto English classifies as `unknown` (it's a system, not a named pawn
+    # structure) — but the aggregate theme rollup still surfaces its DNA.
+    rep = _make_rep(FIANCHETTO_PGN)
+    agg = repertoire.aggregate_profile(rep)
+    assert agg["structures"][0]["structure_class"] == "unknown"  # no named structure
+    assert agg["themes"]["fianchetto_white"] >= 1  # ...but the rollup catches it
+    assert "avg_space_white" in agg["themes"] and "avg_space_black" in agg["themes"]
 
 
 def test_congruence_shape_and_drilldown():

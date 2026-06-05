@@ -740,8 +740,11 @@ def get_structural_profile(
     color_complex) — themes carry signal even when structure_class is unknown.
 
     variation_path = null (default) → AGGREGATE fingerprint over all leaves: structures
-    (each {structure_class, count, avg_confidence}), center_distribution,
-    common_open_files, common_half_open_files.
+    (each {structure_class, count, avg_confidence}), themes (leaf-count per structural
+    theme — fianchetto/minority_attack/flank_vs_center/double_fianchetto/wing_majority/
+    color_complex + avg_space_white/black; surfaces the DNA of leaves that classify as
+    unknown, e.g. fianchetto systems), center_distribution, common_open_files,
+    common_half_open_files.
 
     Get repertoire_id from load_repertoire; drill the paths reported by
     analyze_repertoire_congruence. Bad input → {"error","reason"}.

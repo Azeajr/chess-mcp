@@ -191,6 +191,17 @@ def aggregate_profile(rep: _Repertoire) -> dict:
     open_tally: Counter = Counter()
     half_open_tally: Counter = Counter()
     center_counts: Counter = Counter()
+    # Theme rollup — so leaves that classify as `unknown` (e.g. fianchetto/system
+    # English) still contribute their structural DNA to the aggregate (A).
+    bool_themes = (
+        "fianchetto_white",
+        "fianchetto_black",
+        "minority_attack_white",
+        "minority_attack_black",
+        "flank_vs_center",
+    )
+    theme_tally: Counter = Counter()
+    space_white_sum = space_black_sum = 0
 
     for leaf in leaves:
         board = leaf.board()
@@ -202,6 +213,16 @@ def aggregate_profile(rep: _Repertoire) -> dict:
         open_tally.update(structure.get_open_files(board))
         half_open_tally.update(structure.get_half_open_files(board, rep.color))
         center_counts.update([structure.center_state(board)])
+
+        t = structure.themes(board, rep.color)
+        theme_tally.update(k for k in bool_themes if t[k])
+        if t["fianchetto_white"] and t["fianchetto_black"]:
+            theme_tally["double_fianchetto"] += 1
+        for k in ("wing_majority_white", "wing_majority_black", "color_complex"):
+            if t[k] is not None:
+                theme_tally[f"{k}:{t[k]}"] += 1
+        space_white_sum += t["space_white"]
+        space_black_sum += t["space_black"]
 
     denom = n or 1
     structures = sorted(
@@ -215,9 +236,13 @@ def aggregate_profile(rep: _Repertoire) -> dict:
         ),
         key=lambda d: (-d["count"], d["structure_class"]),
     )
+    themes = {k: theme_tally[k] for k in sorted(theme_tally)}  # leaf-count per theme
+    themes["avg_space_white"] = round(space_white_sum / denom, 1)
+    themes["avg_space_black"] = round(space_black_sum / denom, 1)
     return {
         "leaves_analyzed": n,
         "structures": structures,
+        "themes": themes,
         "center_distribution": dict(center_counts),
         "common_open_files": sorted(
             f for f, c in open_tally.items() if c / denom >= 0.5
