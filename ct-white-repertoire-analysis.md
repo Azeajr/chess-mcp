@@ -126,9 +126,73 @@ Ends at move 7-8. Needs ~8-10 more moves before usable in practice.
 ### MCP Retro Notes (0.1.8)
 
 1. **Classifier coverage** — English Opening is underserved. `unknown` at 12/17 leaves; theme tags are the practical substitute.
+
 2. **Congruence + intentional weakness** — all 6 flags are deliberate bxc3 bets. Checker can't distinguish intentional from accidental. A "weakness acknowledged" marker or `severity:low` tier would reduce noise.
+
 3. **`suggest_complementary_lines` not run** — defer until Gap 1 and Gap 2 stubs are filled; then `mode="low_memorization"` against Maroczy leaf is next.
-4. **Transposition detection** — bxc3 lines likely share mid-game FENs; `get_transpositions` can confirm and reduce redundant encoding.
+
+4. **Transposition blindness in leaf analysis** — `get_structural_profile` and the depth/gap assessment treat each leaf as an independent endpoint. They do not check whether a "short" leaf is already a transposition to a deeper node elsewhere in the tree. This caused an incorrect "depth gap" flag on the `1...c5 g6...O-O` leaf (ends at move 7) — it actually converges with the `1...Nf6` branch at the same FEN and is fully covered to move 10. A pre-flight `get_transpositions` call should be standard before flagging any leaf as shallow or uncovered. Tool implication: `get_structural_profile` (and any gap-detection logic) should cross-reference `get_transpositions` output before surfacing a leaf as a coverage hole.
+
+5. **Congruence remediation needs full continuation, not a single move** — when `analyze_repertoire_congruence` flags an incongruent line, the natural follow-up is to find a replacement. `suggest_complementary_lines` returns candidate *moves* from an anchor FEN but does not: (a) anchor to the specific Black move the original line was answering, or (b) validate and show a full continuation from that replacement move. In this session, replacing the Be2 island required manually chaining `validate_line` → `evaluate_position` → `suggest_complementary_lines` → `validate_line` across 8 moves to produce a usable line. A `suggest_replacement_line(repertoire_id, outlier_variation_path, mode)` tool that returns a full validated continuation — not just a pivot move — would close this gap. The continuation must address the same Black move order and show White's plan to a practical depth.
+
+---
+
+### Follow-up Analysis (same session)
+
+**Tools:** `get_transpositions` → `get_structural_profile` → `validate_line` → `evaluate_position` → `suggest_complementary_lines`
+
+#### Gaps 1, 3, 4 revised — all resolved by transpositions
+
+`get_transpositions` found 3 converging positions:
+
+| FEN (abbreviated) | Paths |
+|-------------------|-------|
+| after move 7...O-O (Maroczy/KID bind) | `1...Nf6` deep line · `1...c5 g6...Nf6 O-O` · `1...c5 Nf6...Nc6 d6` |
+| after `1.c4 e5 2.Nc3` | `1...e5 Nc3 Nc6` · `1...Nc6 Nc3 e5` |
+| after `1.c4 c5 2.Nc3 g6 3.g3 Bg7 4.Bg2` | `2...g6...Nc6` · `2...Nc6...g6` |
+
+**Corrected gap picture:**
+- Gap 1 (`1...Nc6` stub) — **resolved**: transposes directly to `1...e5 2.Nc3 Nc6` main line.
+- Gap 3 (Maroczy "shallow" leaf) — **resolved**: transposes to the `1...Nf6` branch which continues to 10.Be3. Not shallow at all.
+- Gap 4 (bxc3 transposition detection) — **resolved**: confirmed. The 6 bxc3 lines share one structural identity; no redundant FEN overlap found at mid-game depth, but move-order overlap is confirmed at the convergence points above.
+
+**The repertoire has no real coverage holes in the lines it covers.** Every apparent short leaf is a transposition endpoint.
+
+#### The only genuine issue: 2...c6 Be2 island
+
+`1.c4 e5 2.Nc3 c6 3.Nf3 d6 4.d4 Nd7 5.e4 Ngf6 6.Be2` structural profile:
+- `fianchetto_white: false` — **only leaf in the entire repertoire without Bg2**
+- `space_white: 3`, no fianchetto, d4+c4+e4 center — different setup, different middlegame
+- Apparent eval advantage (+78–112 cp per PGN comments) reflects Black's passive play, not the line quality
+
+Investigated whether `3.g3` instead of `3.Nf3` could transpose into existing fianchetto lines: **it cannot**. After `3.g3 Nf6 4.Bg2 d5 5.cxd5 Nxd5 6.Nf3 Nxc3 7.bxc3 Bd6`, Black's c-pawn is still on c6 (never captured). The main reversed-Grünfeld requires Black's c-pawn on c7 so that ...Nc6 is available as a key development move. With c6 on the board, ...Nc6 is permanently blocked — the positions structurally diverge and the FENs never converge.
+
+#### Recommended replacement line
+
+Replace the Be2 island with a fianchetto line that uses the same structural knowledge already in the repertoire:
+
+```
+1.c4  e5
+2.Nc3 c6
+3.g3  Nf6
+4.Bg2 d5
+5.cxd5 Nxd5
+6.Nf3  Nxc3
+7.bxc3 Bd6
+8.d4   Nd7   (+58 cp)
+9.O-O  O-O
+10.a4  ...    (+50 cp)
+```
+
+Black's best at move 10: Re8 (+50) → Qc2 Qe7 e4 exd4. White plan: Qc2 + e4 central push.
+
+**Why it fits:**
+- Bg2 fianchetto — same as 13/17 other leaves
+- `bxc3` after Nxc3 — same structural bet as 6 other lines; no new positional knowledge
+- d4 + a4/Qc2 queenside plan — mirrors b4 expansion in other lines
+- Better eval than the original Be2 line at equivalent depth
+
+**Action required:** replace the `2...c6` variation in `ct-white-repertoire.pgn` with this line.
 
 ---
 
