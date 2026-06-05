@@ -55,14 +55,14 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | Tool | Input | Output |
 |------|-------|--------|
 | `load_repertoire` | PGN (variation tree), color | Handle (`repertoire_id`) + tree stats — call this first; avoids re-sending the full PGN on every call |
-| `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, open files. `variation_path=null` → aggregate fingerprint over all leaves |
+| `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, theme tags, open files. `variation_path=null` → aggregate fingerprint (structures + theme rollup) over all leaves |
 | `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies: structure outliers, weakness mismatches, center-handling splits — each with drill-down path |
 | `find_repertoire_gaps` | repertoire_id, depth, min_severity, limit, max_positions | Engine scan for completeness: at every opponent-to-move node you already answer, flags strong opponent replies the tree doesn't cover, each with drill-down path + severity |
 | `get_repertoire_coverage` | repertoire_id, limit | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers, plus depth hints |
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
 | `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
 
-Structural analysis recognizes IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, and Closed Sicilian pawn skeletons (else `unknown`); opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
+Structural analysis recognizes **19 canonical pawn structures** — IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, and Benko — each gated on a core skeleton with graduated confidence (a position missing a peripheral pawn still classifies), the open-Sicilian family scored bidirectionally (reversed-English positions included), else `unknown`. The canon is traced to Flores Rios *Chess Structures* and Soltis *Pawn Structure Chess*; every scorer is validated against an engine-verified canonical FEN (see `STRUCTURE_CLASSIFIER_DESIGN.md`). Beyond the named class, every position also carries always-on **theme tags** (fianchetto, space, wing-majority, minority-attack, flank-vs-centre, colour-complex) — these stay informative even when the class is `unknown` (e.g. fianchetto systems), and the aggregate profile rolls them up across all leaves. Opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
 
 Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `evaluate_position`, `compare_moves`, `suggest_complementary_lines`, `find_repertoire_gaps`, `export_annotated_pgn`) also accepts an optional `time_limit` (seconds): when set, the engine searches by wall-clock instead of `depth` — useful on slow hardware or for fast iteration. Depth stays the default and the reproducible path.
 
@@ -267,7 +267,7 @@ chess-mcp/
 │   └── snapshots/outputs.json
 └── server/
     ├── chess_mcp.py         # All 18 MCP tools, FastMCP SSE server
-    ├── structure.py         # engine-free pawn-structure analysis (8 structures)
+    ├── structure.py         # engine-free pawn-structure analysis (19 structures + theme tags)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
     ├── openings.py          # ECO opening lookup (EPD → name)
     ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
@@ -287,7 +287,7 @@ chess-mcp/
 
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
-- [x] **`classify_structure` expansion** — now 8 structures (French, Stonewall, King's Indian, Benoni, Closed Sicilian), measured by `evals/structure_accuracy.py`. More can follow the same harness-validated pattern.
+- [x] **`classify_structure` expansion** — now **19 source-traced structures** (added Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, Benko) with graduated core+bonus confidence and bidirectional open-Sicilian scoring, plus always-on **theme tags** (A) rolled up in the aggregate profile. Each scorer is validated against an engine-verified canonical FEN; see `STRUCTURE_CLASSIFIER_DESIGN.md`.
 - [x] **`time_limit` param** — every engine tool takes an optional `time_limit` (seconds) → `Limit(time=N)` instead of depth; clamped to `[0.01, MAX_ENGINE_TIME_S]`. Depth stays the reproducible default.
 - [x] **Variation-aware game analysis** — the cached engine pass now walks the whole game tree (mainline + variations) once, keyed by SAN path. The mainline game tools project the mainline unchanged; side lines are analyzed in the same pass.
 - [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.

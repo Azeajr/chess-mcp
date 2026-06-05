@@ -215,8 +215,8 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 | identify_opening | 24 |
 | export_annotated_pgn | 502 |
 | load_repertoire | 42 |
-| get_structural_profile (aggregate) | 51 |
-| get_structural_profile (node) | 117 |
+| get_structural_profile (aggregate) | 111 |
+| get_structural_profile (node) | 190 |
 | analyze_repertoire_congruence | 25 |
 | get_transpositions | 9 |
 | get_repertoire_coverage | 161 |

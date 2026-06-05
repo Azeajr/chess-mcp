@@ -37,8 +37,12 @@ validate before answering; `validate_fen` also rejects illegal-but-parseable pos
 `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), `find_repertoire_gaps`
 (engine scan for strong uncovered opponent replies), `suggest_complementary_lines`). The closed
 error-code set is unchanged — every new failure path reuses an existing code. The structural
-classifier covers 8 pawn skeletons (IQP/Carlsbad/Maroczy/French/Stonewall/King's Indian/Benoni/Closed
-Sicilian), measured by `evals/structure_accuracy.py`. The cached engine pass walks the whole game
+classifier covers 19 source-traced pawn structures (the original 8 plus Hanging pawns, Caro-Kann,
+Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez,
+Benko) with graduated core+bonus confidence and bidirectional open-Sicilian scoring; every position
+also carries always-on theme tags (fianchetto/space/wing-majority/minority-attack/flank-vs-centre/
+colour-complex), rolled up in the aggregate profile. Canon + provenance in `STRUCTURE_CLASSIFIER_DESIGN.md`.
+The cached engine pass walks the whole game
 tree (mainline + variations) once, keyed by SAN path; every engine tool also accepts an optional
 `time_limit`. All containerized; game tools verified end-to-end in Docker. Repertoire + tool-layer
 paths verified engine-free via pytest (`cd server && uv run pytest`; branch coverage
@@ -55,7 +59,7 @@ prebuilt install path is verified end-to-end (pull → boot → tools over SSE).
 | File | Purpose |
 |------|---------|
 | `server/chess_mcp.py` | All 18 MCP tools, FastMCP SSE server |
-| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `classify_structure` (8 structures, scorer functions are the single source of truth), `position_profile` |
+| `server/structure.py` | Engine-free pawn-structure analysis: primitives, `themes` (always-on theme tags), `classify_structure` (19 structures, graded core+bonus scorers are the single source of truth, open-Sicilian family bidirectional), `position_profile` |
 | `server/repertoire.py` | Variation-tree walker, bounded LRU handle cache, aggregate profile, congruence checks, transposition detection, coverage report + opponent-reply-node selection (for gaps) |
 | `server/openings.py` | ECO opening lookup (EPD → eco/name); `identify` (exact position) + `deepest_in_line` |
 | `server/openings.tsv` | 3700 openings keyed by EPD, vendored from lichess-org/chess-openings (CC0); regen via `evals/build_openings.py` |
@@ -161,7 +165,7 @@ The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplac
 - `evaluate_position(fen, depth, multipv=1)`: `multipv>1` (≤ `MAX_MULTIPV`=10) adds a ranked `candidates` list (top-N moves for *any* FEN), exposing engine multipv off-game — the primitive the `repertoire-builder` / `analyze-position` skills use to explore opponent deviations. `multipv=1` keeps the lean single-best shape (backward compatible).
 
 - Repertoire handle cache (`repertoire.py`): `_REPERTOIRE_CACHE` is an `OrderedDict` with bounded LRU eviction (default 16 entries) and idle TTL expiry (default 1h). Controlled by env vars `MAX_REPERTOIRES` and `REPERTOIRE_TTL_S`. A `threading.Lock` guards all mutations (concurrent SSE calls). Distinct from `_analyse_all_moves` lru_cache — the engine cache keys on PGN text; the repertoire cache holds parsed game trees. See REPERTOIRE_DESIGN.md section 3.
-- `structure.py` `classify_structure` ships 8 structures (IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni / Closed Sicilian) with `confidence` + `unknown` fallback. Returns the highest-confidence candidate; ties broken by first-match order. Never forces a label on a weak match. Closed Sicilian is intentionally lower-confidence (0.7) — brittle under static matching per D2; the `e4/d3/f4` trio guards precision (`structure_accuracy.py`: 12/12, 0 false positives). See REPERTOIRE_DESIGN.md Decision D2.
+- `structure.py` `classify_structure` ships 19 source-traced structures (IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni / Closed Sicilian / Hanging pawns / Caro-Kann / Slav / Grünfeld Centre / Nimzo-Grünfeld / Hedgehog / Najdorf / Scheveningen / Symmetric Benoni / Lopez / Benko) with `confidence` + `unknown` fallback. Each scorer is a private `_*_confidence` (single source of truth), gated on a core skeleton and graduated by bonus squares (`_graded` helper) — a position missing a peripheral pawn still classifies, just lower. Returns the highest-confidence candidate, so more-specific structures out-score generic parents (Hedgehog > Maroczy). Never forces a label on a weak match (D2). The open-Sicilian family (Closed Sicilian, Hedgehog, Najdorf, Scheveningen) is bidirectional via `_rel`/`_mirror_name` (reversed-English positions). Beyond the class, `themes(board, color)` returns always-on descriptors that stay informative when the class is `unknown` (fianchetto systems). Canon traced to Flores Rios / Soltis; each scorer validated against an engine-verified canonical FEN. See `STRUCTURE_CLASSIFIER_DESIGN.md` and REPERTOIRE_DESIGN.md Decision D2.
 - `variation_path` is a SAN move list (`["e4","c5","Nf3"]`); `resolve_path` walks the tree matching SAN ply-by-ply. `None` → aggregate over all leaves.
 
 ## What's not done

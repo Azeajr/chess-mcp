@@ -203,6 +203,12 @@ PGN to confirm validity and that glyphs/comments appear on the known mistakes.
 
 ## 4. More pawn structures — add **Closed Sicilian** (8th structure)
 
+> **Superseded (done + far beyond).** The classifier has since grown to **19 source-traced
+> structures** with graded core+bonus confidence, bidirectional open-Sicilian scoring, and an
+> always-on theme-tag layer. The current canon, provenance, and rationale live in
+> `STRUCTURE_CLASSIFIER_DESIGN.md`. The recommendation below is preserved as the historical
+> first step.
+
 **Recommendation:** add **Closed Sicilian** to `classify_structure`. Note the roadmap also
 lists "French Advance" — that skeleton is **already covered** by the existing `French`
 pattern (`e5/d4` vs `e6/d5`), so the genuinely-new structure here is Closed Sicilian.
