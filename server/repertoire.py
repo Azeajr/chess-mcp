@@ -349,10 +349,20 @@ def analyze_congruence(
     """
     ack_set: set[tuple] = {tuple(p) for p in (acknowledged_weaknesses or [])}
 
+    # Bool themes available for fallback outlier detection (see block 1b below).
+    _BOOL_THEMES = (
+        "fianchetto_white",
+        "fianchetto_black",
+        "minority_attack_white",
+        "minority_attack_black",
+        "flank_vs_center",
+    )
+
     # Collect structural + pawn data for every leaf
     data = []
     for leaf in walk_leaves(rep.game):
         board = leaf.board()
+        t = structure.themes(board, rep.color)
         data.append(
             {
                 "path": san_path(leaf),
@@ -360,6 +370,7 @@ def analyze_congruence(
                 "isolated": structure.get_isolated_pawns(board, rep.color),
                 "doubled": structure.get_doubled_pawns(board, rep.color),
                 "center": structure.center_state(board),
+                "theme_tags": {k for k in _BOOL_THEMES if t[k]},
             }
         )
     n = len(data)
@@ -367,17 +378,17 @@ def analyze_congruence(
 
     # 1. structure_outlier — a line veering off the repertoire's dominant structure.
     known = [d for d in data if d["structure"] != "unknown"]
-    if not known:
-        pass  # No known structures → skip this check
-    else:
+    known_share = len(known) / n if n else 0.0
+
+    if known_share >= 0.5:
+        # Enough named structures: use the named-structure outlier check.
         sc_counts = Counter(d["structure"] for d in known)
         dominant, dom_count = sc_counts.most_common(1)[0]
         dom_share = dom_count / len(known)
         if dom_share >= 0.5:
-            # Dominant structure found; flag outliers
             for d in known:
                 if d["structure"] == dominant:
-                    continue  # Early return for non-outliers
+                    continue
                 incongruencies.append(
                     {
                         "type": "structure_outlier",
@@ -387,6 +398,35 @@ def analyze_congruence(
                             f"{d['structure']} — a separate middlegame plan to learn."
                         ),
                         "paths": [d["path"]],
+                    }
+                )
+    elif n > 0:
+        # 1b. Theme-based fallback: most leaves are unknown — use dominant bool theme
+        # as a structural proxy. A leaf that lacks the dominant theme is an outlier even
+        # when no named structure can be assigned (e.g. hypermodern English repertoires
+        # where fianchetto_white fires on most leaves but structure_class is unknown).
+        theme_counts = Counter(
+            theme for d in data for theme in d["theme_tags"]
+        )
+        dominant_theme_candidates = [
+            (t, c) for t, c in theme_counts.items() if c / n >= 0.5
+        ]
+        if dominant_theme_candidates:
+            dominant_theme, _ = max(dominant_theme_candidates, key=lambda x: x[1])
+            dom_theme_share = theme_counts[dominant_theme] / n
+            for d in data:
+                if dominant_theme in d["theme_tags"]:
+                    continue
+                incongruencies.append(
+                    {
+                        "type": "structure_outlier",
+                        "severity": "high" if dom_theme_share > 0.8 else "medium",
+                        "description": (
+                            f"Most lines share the '{dominant_theme}' theme; this line "
+                            f"lacks it — a structural inconsistency in the repertoire's DNA."
+                        ),
+                        "paths": [d["path"]],
+                        "source": "theme",
                     }
                 )
 

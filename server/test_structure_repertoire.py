@@ -894,6 +894,44 @@ def test_opening_deepest_in_line():
 
 
 # ---------------------------------------------------------------------------
+# Congruence — theme-based outlier fallback (issue #5)
+# ---------------------------------------------------------------------------
+
+# Two lines with fianchetto + one without, all positions classify as unknown.
+# g3+Bg2 setup for White, simple pawn-only leaf.
+LINE_FIANCHETTO_A = "g3 d5 Bg2 c5 c4 Nc6 Nc3 g6"   # white fianchetto + c4 (structure: unknown)
+LINE_FIANCHETTO_B = "g3 d5 Bg2 Nf6 c4 e6 Nc3 Be7"  # white fianchetto + c4 (structure: unknown)
+LINE_NO_FIANCHETTO = "e4 e5 Nf3 Nc6 d4 exd4 Nxd4"  # no fianchetto at all (structure: unknown)
+
+
+def test_theme_fallback_flags_non_fianchetto_outlier():
+    # Two fianchetto lines + one e4 line: all unknown structures.
+    # Theme fallback detects fianchetto_white as dominant (2/3 >= 50%) and flags the e4 leaf.
+    rep = build_repertoire([LINE_FIANCHETTO_A, LINE_FIANCHETTO_B, LINE_NO_FIANCHETTO])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    outliers = [i for i in result["incongruencies"] if i["type"] == "structure_outlier"]
+    assert len(outliers) == 1
+    assert outliers[0].get("source") == "theme"
+    assert "fianchetto_white" in outliers[0]["description"]
+
+
+def test_theme_fallback_no_flag_when_no_dominant_theme():
+    # Three completely different unknown lines, no dominant theme.
+    rep = build_repertoire([LINE_NO_FIANCHETTO, LINE_DOUBLED, LINE_OPEN])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    outliers = [i for i in result["incongruencies"] if i["type"] == "structure_outlier"]
+    assert len(outliers) == 0  # no dominant theme → no flag
+
+
+def test_named_structure_check_takes_priority_over_theme_fallback():
+    # When known_share >= 0.5, named-structure logic runs (no "source":"theme" field).
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    for item in result["incongruencies"]:
+        assert item.get("source") != "theme"
+
+
+# ---------------------------------------------------------------------------
 # Congruence — acknowledged_weaknesses (issue #4)
 # ---------------------------------------------------------------------------
 
