@@ -167,6 +167,107 @@ def test_center_open():
 
 
 # ---------------------------------------------------------------------------
+# Theme tags (A)
+# ---------------------------------------------------------------------------
+
+
+def test_themes_fianchetto_both_sides():
+    b = chess.Board("6k1/6b1/8/8/8/8/6B1/6K1 w - - 0 1")  # White Bg2, Black Bg7
+    t = structure.themes(b, chess.WHITE)
+    assert t["fianchetto_white"] is True
+    assert t["fianchetto_black"] is True
+
+
+def test_themes_no_fianchetto_on_home_bishops():
+    t = structure.themes(chess.Board(), chess.WHITE)
+    assert t["fianchetto_white"] is False and t["fianchetto_black"] is False
+
+
+def test_themes_space_counts_advanced_pawns():
+    b = pawns((chess.E4, True), (chess.D4, True), (chess.A2, True))
+    t = structure.themes(b, chess.WHITE)
+    assert t["space_white"] == 2  # e4, d4 on rank 4; a2 is home
+
+
+def test_themes_wing_majority():
+    # White 3 queenside pawns vs Black 2; kingside equal (4 each) → White qs majority.
+    b = pawns(
+        (chess.A2, True), (chess.B2, True), (chess.C2, True),
+        (chess.E2, True), (chess.F2, True), (chess.G2, True), (chess.H2, True),
+        (chess.A7, False), (chess.B7, False),
+        (chess.E7, False), (chess.F7, False), (chess.G7, False), (chess.H7, False),
+    )
+    t = structure.themes(b, chess.WHITE)
+    assert t["wing_majority_white"] == "queenside"
+    assert t["wing_majority_black"] is None
+
+
+def test_themes_minority_attack_carlsbad_motif():
+    # White has 2 queenside pawns (a,b) vs Black's 3 (a,b,c) + half-open c-file → minority attack.
+    b = pawns(
+        (chess.A2, True), (chess.B2, True),
+        (chess.A7, False), (chess.B7, False), (chess.C7, False),
+    )
+    t = structure.themes(b, chess.WHITE)
+    assert t["minority_attack_white"] is True
+
+
+def test_themes_minority_attack_kingside():
+    # Mirror motif on the kingside: White 2 (g,h) vs Black 3 (f,g,h) + half-open f.
+    b = pawns(
+        (chess.G2, True), (chess.H2, True),
+        (chess.F7, False), (chess.G7, False), (chess.H7, False),
+    )
+    assert structure.themes(b, chess.WHITE)["minority_attack_white"] is True
+
+
+def test_themes_color_complex_skew():
+    # All White pawns on dark squares → the light-square complex is the weak one.
+    b = pawns((chess.B2, True), (chess.D2, True), (chess.F2, True), (chess.H2, True))
+    assert structure.themes(b, chess.WHITE)["color_complex"] == "light"
+
+
+def test_themes_color_complex_dark():
+    # All White pawns on light squares → the dark-square complex is weak.
+    b = pawns((chess.A2, True), (chess.C2, True), (chess.E2, True), (chess.G2, True))
+    assert structure.themes(b, chess.WHITE)["color_complex"] == "dark"
+
+
+def test_themes_symmetric_has_no_majority_or_complex():
+    t = structure.themes(chess.Board(), chess.WHITE)  # starting position is symmetric
+    assert t["wing_majority_white"] is None and t["wing_majority_black"] is None
+    assert t["color_complex"] is None
+    assert t["flank_vs_center"] is False
+
+
+def test_themes_flank_vs_center():
+    b = pawns((chess.D4, True), (chess.E4, True), (chess.A7, False), (chess.H7, False))
+    assert structure.themes(b, chess.WHITE)["flank_vs_center"] is True
+
+
+def test_themes_always_populated_when_structure_unknown():
+    # The whole point of A: themes carry signal even where classify_structure gives up.
+    prof = structure.position_profile(chess.Board(), chess.WHITE)
+    assert prof["structure_class"] == "unknown"
+    assert isinstance(prof["themes"], dict) and prof["themes"]  # non-empty
+    # flat: no nested dicts under themes (MCP nesting budget)
+    assert all(not isinstance(v, dict) for v in prof["themes"].values())
+
+
+# Real English-Opening bxc3 leaf from ct-white-repertoire-analysis.md: the position
+# that returned structure_class "unknown" and motivated the theme-tag work (A).
+ENGLISH_BXC3_FEN = "1rbq1rk1/ppp2pp1/2nb3p/4p3/3P4/2P2NP1/P1Q1PPBP/1RB2RK1 b - - 1 11"
+
+
+def test_themes_rescue_english_unknown_leaf():
+    prof = structure.position_profile(chess.Board(ENGLISH_BXC3_FEN), chess.WHITE)
+    assert prof["structure_class"] == "unknown"  # the classifier still can't name it
+    # ...but themes now describe it: g2 fianchetto + half-open b-file (the bxc3 artifact).
+    assert prof["themes"]["fianchetto_white"] is True
+    assert "b" in prof["half_open_files"]
+
+
+# ---------------------------------------------------------------------------
 # Classifier
 # ---------------------------------------------------------------------------
 

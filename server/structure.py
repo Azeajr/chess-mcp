@@ -123,6 +123,107 @@ def get_open_files(board: chess.Board) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Theme tags (A) — always-computed descriptors, never "unknown".
+# Derived from pawns + cheap piece checks. Descriptive, not name-guesses, so they
+# carry signal even when classify_structure returns unknown (STRUCTURE_CLASSIFIER_DESIGN.md
+# §2A). Heuristic thresholds are deliberately conservative (D-STRUCT-2): bias to
+# false-negative so a tag, when present, is trustworthy.
+# ---------------------------------------------------------------------------
+
+_QUEENSIDE = frozenset({0, 1, 2, 3})  # files a–d
+_QS_FILE_NAMES = frozenset("abcd")
+_KS_FILE_NAMES = frozenset("efgh")
+
+
+def _wing_pawn_counts(board: chess.Board, color: chess.Color) -> tuple[int, int]:
+    """(queenside, kingside) pawn counts for `color`. Queenside = files a–d."""
+    qs = ks = 0
+    for sq in board.pieces(chess.PAWN, color):
+        if chess.square_file(sq) in _QUEENSIDE:
+            qs += 1
+        else:
+            ks += 1
+    return qs, ks
+
+
+def _wing_majority(board: chess.Board, color: chess.Color) -> str | None:
+    """Which single wing `color` holds a strict pawn majority on, else None.
+
+    Majority on both wings (or neither) → None: only a distinctive single-wing
+    majority is reported (the competing-majorities / 3-3 vs 4-2 signal)."""
+    own_qs, own_ks = _wing_pawn_counts(board, color)
+    opp_qs, opp_ks = _wing_pawn_counts(board, not color)
+    qs_maj = own_qs > opp_qs
+    ks_maj = own_ks > opp_ks
+    if qs_maj and not ks_maj:
+        return "queenside"
+    if ks_maj and not qs_maj:
+        return "kingside"
+    return None
+
+
+def _minority_attack(board: chess.Board, color: chess.Color) -> bool:
+    """`color` has a pawn minority on a wing AND a half-open file there to lever
+    the opponent's majority (the Carlsbad minority-attack motif)."""
+    own_qs, own_ks = _wing_pawn_counts(board, color)
+    opp_qs, opp_ks = _wing_pawn_counts(board, not color)
+    half = set(get_half_open_files(board, color))
+    if own_qs < opp_qs and (half & _QS_FILE_NAMES):
+        return True
+    if own_ks < opp_ks and (half & _KS_FILE_NAMES):
+        return True
+    return False
+
+
+def _color_complex(board: chess.Board, color: chess.Color) -> str | None:
+    """The weak square-complex for `color`: the color opposite where its pawns
+    cluster. Conservative — needs a clear skew (diff >= 3) to report."""
+    light = dark = 0
+    for sq in board.pieces(chess.PAWN, color):
+        if (chess.square_file(sq) + chess.square_rank(sq)) % 2 == 0:
+            dark += 1  # a1 (file 0 + rank 0) is dark
+        else:
+            light += 1
+    if dark - light >= 3:
+        return "light"  # pawns on dark squares → light squares are weak
+    if light - dark >= 3:
+        return "dark"
+    return None
+
+
+def themes(board: chess.Board, color: chess.Color) -> dict:
+    """Always-on structural theme tags (A). Flat (one level) to stay within the
+    MCP nesting budget. `color_complex` is from `color`'s POV; the rest are absolute."""
+    wbishops = board.pieces(chess.BISHOP, chess.WHITE)
+    bbishops = board.pieces(chess.BISHOP, chess.BLACK)
+    w_center = sum(
+        1 for sq in board.pieces(chess.PAWN, chess.WHITE) if chess.square_file(sq) in (3, 4)
+    )
+    b_center = sum(
+        1 for sq in board.pieces(chess.PAWN, chess.BLACK) if chess.square_file(sq) in (3, 4)
+    )
+    return {
+        "fianchetto_white": chess.G2 in wbishops or chess.B2 in wbishops,
+        "fianchetto_black": chess.G7 in bbishops or chess.B7 in bbishops,
+        # space = own pawns on advancing ranks (White 4–6, Black 3–5).
+        "space_white": sum(
+            1 for sq in board.pieces(chess.PAWN, chess.WHITE) if 3 <= chess.square_rank(sq) <= 5
+        ),
+        "space_black": sum(
+            1 for sq in board.pieces(chess.PAWN, chess.BLACK) if 2 <= chess.square_rank(sq) <= 4
+        ),
+        "wing_majority_white": _wing_majority(board, chess.WHITE),
+        "wing_majority_black": _wing_majority(board, chess.BLACK),
+        "minority_attack_white": _minority_attack(board, chess.WHITE),
+        "minority_attack_black": _minority_attack(board, chess.BLACK),
+        # one side commits the centre while the other has vacated it.
+        "flank_vs_center": (w_center >= 2 and b_center == 0)
+        or (b_center >= 2 and w_center == 0),
+        "color_complex": _color_complex(board, color),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Center tension — locked / tense / open / semi-open.
 # ---------------------------------------------------------------------------
 
@@ -317,4 +418,5 @@ def position_profile(board: chess.Board, color: chess.Color) -> dict:
         },
         "half_open_files": get_half_open_files(board, color),
         "open_files": get_open_files(board),
+        "themes": themes(board, color),
     }
