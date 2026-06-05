@@ -192,10 +192,19 @@ def test_themes_space_counts_advanced_pawns():
 def test_themes_wing_majority():
     # White 3 queenside pawns vs Black 2; kingside equal (4 each) → White qs majority.
     b = pawns(
-        (chess.A2, True), (chess.B2, True), (chess.C2, True),
-        (chess.E2, True), (chess.F2, True), (chess.G2, True), (chess.H2, True),
-        (chess.A7, False), (chess.B7, False),
-        (chess.E7, False), (chess.F7, False), (chess.G7, False), (chess.H7, False),
+        (chess.A2, True),
+        (chess.B2, True),
+        (chess.C2, True),
+        (chess.E2, True),
+        (chess.F2, True),
+        (chess.G2, True),
+        (chess.H2, True),
+        (chess.A7, False),
+        (chess.B7, False),
+        (chess.E7, False),
+        (chess.F7, False),
+        (chess.G7, False),
+        (chess.H7, False),
     )
     t = structure.themes(b, chess.WHITE)
     assert t["wing_majority_white"] == "queenside"
@@ -205,8 +214,11 @@ def test_themes_wing_majority():
 def test_themes_minority_attack_carlsbad_motif():
     # White has 2 queenside pawns (a,b) vs Black's 3 (a,b,c) + half-open c-file → minority attack.
     b = pawns(
-        (chess.A2, True), (chess.B2, True),
-        (chess.A7, False), (chess.B7, False), (chess.C7, False),
+        (chess.A2, True),
+        (chess.B2, True),
+        (chess.A7, False),
+        (chess.B7, False),
+        (chess.C7, False),
     )
     t = structure.themes(b, chess.WHITE)
     assert t["minority_attack_white"] is True
@@ -215,8 +227,11 @@ def test_themes_minority_attack_carlsbad_motif():
 def test_themes_minority_attack_kingside():
     # Mirror motif on the kingside: White 2 (g,h) vs Black 3 (f,g,h) + half-open f.
     b = pawns(
-        (chess.G2, True), (chess.H2, True),
-        (chess.F7, False), (chess.G7, False), (chess.H7, False),
+        (chess.G2, True),
+        (chess.H2, True),
+        (chess.F7, False),
+        (chess.G7, False),
+        (chess.H7, False),
     )
     assert structure.themes(b, chess.WHITE)["minority_attack_white"] is True
 
@@ -356,8 +371,11 @@ def test_kid_brittleness_missing_c4_still_classifies():
     # KID core (d5/e4 vs e5/d6) without the c4 bonus pawn: exact matching gave 0.0;
     # core+bonus keeps it classified, just below the full-confidence 0.85.
     b = pawns(
-        (chess.D5, True), (chess.E4, True),
-        (chess.E5, False), (chess.D6, False), (chess.G6, False),
+        (chess.D5, True),
+        (chess.E4, True),
+        (chess.E5, False),
+        (chess.D6, False),
+        (chess.G6, False),
     )
     out = structure.classify_structure(b)
     assert out["structure_class"] == "King's Indian"
@@ -379,15 +397,21 @@ def test_closed_sicilian_bidirectional_black_side():
 
 
 def test_reversed_colour_branches():
-    french = pawns((chess.D4, True), (chess.E3, True), (chess.D5, False), (chess.E4, False))
+    french = pawns(
+        (chess.D4, True), (chess.E3, True), (chess.D5, False), (chess.E4, False)
+    )
     assert structure._french_confidence(french) == 0.6
     benoni = pawns(
         (chess.D4, False), (chess.E5, False), (chess.C4, True), (chess.D3, True)
     )
     assert structure._benoni_confidence(benoni) == 0.6
     kid = pawns(
-        (chess.D4, False), (chess.E5, False), (chess.C5, False),
-        (chess.E4, True), (chess.D3, True), (chess.G3, True),
+        (chess.D4, False),
+        (chess.E5, False),
+        (chess.C5, False),
+        (chess.E4, True),
+        (chess.D3, True),
+        (chess.G3, True),
     )
     assert structure._kid_confidence(kid) == 0.6
 
@@ -398,7 +422,10 @@ def test_reversed_colour_branches():
 
 # (structure_class, canonical FEN from the provenance log)
 CANON_C_FENS = [
-    ("Nimzo-Grünfeld", "rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6"),
+    (
+        "Nimzo-Grünfeld",
+        "rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6",
+    ),
     ("Grünfeld Centre", "rnbqkb1r/ppp1pp1p/6p1/8/3PP3/2P5/P4PPP/R1BQKBNR b KQkq - 0 6"),
     ("Hedgehog", "rnbqkb1r/5ppp/pp1ppn2/8/2PNP3/2N5/PP2BPPP/R1BQK2R w KQkq - 0 8"),
     ("Najdorf", "rnbqkb1r/1p3ppp/p2p1n2/4p3/3NP3/2N5/PPP1BPPP/R1BQK2R w KQkq - 0 7"),
@@ -408,7 +435,10 @@ CANON_C_FENS = [
     ("Lopez", "r1bq1rk1/2p1bppp/p1np1n2/1p2p3/4P3/1BPP1N2/PP3PPP/RNBQR1K1 b - - 0 9"),
     ("Benko", "rn1qkb1r/4pppp/b2p1n2/2pP4/8/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 7"),
     ("Hanging pawns", "rnb2rk1/p3qpp1/7p/2pp4/8/4PN2/PP2BPPP/R2QK2R w KQ - 0 13"),
-    ("Symmetric Benoni", "rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6"),
+    (
+        "Symmetric Benoni",
+        "rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6",
+    ),
 ]
 
 
@@ -424,14 +454,22 @@ def test_hedgehog_outscores_maroczy_by_specificity():
     hedgehog = "rnbqkb1r/5ppp/pp1ppn2/8/2PNP3/2N5/PP2BPPP/R1BQK2R w KQkq - 0 8"
     board = chess.Board(hedgehog)
     assert structure._maroczy_confidence(board) > 0  # Maroczy also fires...
-    assert structure.classify_structure(board)["structure_class"] == "Hedgehog"  # ...but loses
+    assert (
+        structure.classify_structure(board)["structure_class"] == "Hedgehog"
+    )  # ...but loses
 
 
 def test_nimzo_grunfeld_vs_grunfeld_centre_split_on_doubled_c():
     # Doubled c3+c4 → Nimzo-Grünfeld; single c3 → Grünfeld Centre. Mutually exclusive.
-    nimzo = chess.Board("rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6")
-    assert structure._grunfeld_center_confidence(nimzo) == 0.0  # c4 present → not Grünfeld
-    grunfeld = chess.Board("rnbqkb1r/ppp1pp1p/6p1/8/3PP3/2P5/P4PPP/R1BQKBNR b KQkq - 0 6")
+    nimzo = chess.Board(
+        "rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6"
+    )
+    assert (
+        structure._grunfeld_center_confidence(nimzo) == 0.0
+    )  # c4 present → not Grünfeld
+    grunfeld = chess.Board(
+        "rnbqkb1r/ppp1pp1p/6p1/8/3PP3/2P5/P4PPP/R1BQKBNR b KQkq - 0 6"
+    )
     assert structure._nimzo_grunfeld_confidence(grunfeld) == 0.0  # single c → not Nimzo
 
 
@@ -440,7 +478,9 @@ def test_symmetric_vs_asymmetric_benoni_split_on_e_pawn():
     symmetric = chess.Board(
         "rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6"
     )
-    assert structure._benoni_confidence(symmetric) == 0.0  # Black e5 present → not Asymmetric
+    assert (
+        structure._benoni_confidence(symmetric) == 0.0
+    )  # Black e5 present → not Asymmetric
 
 
 def test_grunfeld_centre_requires_half_open_b():
@@ -452,8 +492,11 @@ def test_grunfeld_centre_requires_half_open_b():
 # The open-Sicilian family is bidirectional: mirroring a canonical FEN (board.mirror()
 # swaps colours + flips ranks) gives the reversed-English form where Black holds the
 # space. It must classify as the SAME structure.
-FAMILY2_FENS = [(name, fen) for name, fen in CANON_C_FENS
-                if name in {"Hedgehog", "Najdorf", "Scheveningen"}]
+FAMILY2_FENS = [
+    (name, fen)
+    for name, fen in CANON_C_FENS
+    if name in {"Hedgehog", "Najdorf", "Scheveningen"}
+]
 
 
 @pytest.mark.parametrize("expected,fen", FAMILY2_FENS)
@@ -899,9 +942,15 @@ def test_opening_deepest_in_line():
 
 # Two lines with fianchetto + one without, all positions classify as unknown.
 # g3+Bg2 setup for White, simple pawn-only leaf.
-LINE_FIANCHETTO_A = "g3 d5 Bg2 c5 c4 Nc6 Nc3 g6"   # white fianchetto + c4 (structure: unknown)
-LINE_FIANCHETTO_B = "g3 d5 Bg2 Nf6 c4 e6 Nc3 Be7"  # white fianchetto + c4 (structure: unknown)
-LINE_NO_FIANCHETTO = "e4 e5 Nf3 Nc6 d4 exd4 Nxd4"  # no fianchetto at all (structure: unknown)
+LINE_FIANCHETTO_A = (
+    "g3 d5 Bg2 c5 c4 Nc6 Nc3 g6"  # white fianchetto + c4 (structure: unknown)
+)
+LINE_FIANCHETTO_B = (
+    "g3 d5 Bg2 Nf6 c4 e6 Nc3 Be7"  # white fianchetto + c4 (structure: unknown)
+)
+LINE_NO_FIANCHETTO = (
+    "e4 e5 Nf3 Nc6 d4 exd4 Nxd4"  # no fianchetto at all (structure: unknown)
+)
 
 
 def test_theme_fallback_flags_non_fianchetto_outlier():
@@ -948,7 +997,9 @@ def test_congruence_acknowledged_weakness_downgrades_to_low():
 
     # With the weak path acknowledged: severity drops to low, acknowledged:true set
     weak_path = weak_item["paths"][0]
-    acked = repertoire.analyze_congruence(rep, "low", 10, acknowledged_weaknesses=[weak_path])
+    acked = repertoire.analyze_congruence(
+        rep, "low", 10, acknowledged_weaknesses=[weak_path]
+    )
     acked_item = next(
         i for i in acked["incongruencies"] if i["type"] == "weakness_inconsistency"
     )
@@ -971,6 +1022,49 @@ def test_congruence_acknowledged_weakness_filtered_by_min_severity():
     assert all(i["type"] != "weakness_inconsistency" for i in result["incongruencies"])
 
 
+def test_congruence_acknowledged_count_field():
+    # acknowledged_count present; total_flagged excludes acknowledged items (Issue #10).
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    unacked = repertoire.analyze_congruence(rep, "low", 10)
+    weak_path = next(
+        i for i in unacked["incongruencies"] if i["type"] == "weakness_inconsistency"
+    )["paths"][0]
+
+    acked = repertoire.analyze_congruence(
+        rep, "low", 10, acknowledged_weaknesses=[weak_path]
+    )
+    assert "acknowledged_count" in acked
+    assert acked["acknowledged_count"] == 1
+    assert acked["total_flagged"] == unacked["total_flagged"] - 1
+
+
+def test_theme_fallback_skips_transposition_stubs():
+    # A short stub ending at a transposition endpoint lacks the dominant theme only
+    # because the line is intentionally short — it must NOT be flagged (Issue #9).
+    #
+    # c4 e5 Nc3 Nc6 g3 g6 Bg2  — fianchetto leaf (fianchetto_white: True)
+    # c4 Nf6 g3 g6 Bg2 d5      — fianchetto leaf (fianchetto_white: True)
+    # c4 Nc6 Nc3 e5             — 4-ply stub; same FEN at move 4 as first line's
+    #                             internal node after c4 e5 Nc3 Nc6 → transposition
+    rep = build_repertoire(
+        [
+            "c4 e5 Nc3 Nc6 g3 g6 Bg2",
+            "c4 Nf6 g3 g6 Bg2 d5",
+            "c4 Nc6 Nc3 e5",
+        ]
+    )
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    outlier_paths = [
+        tuple(i["paths"][0])
+        for i in result["incongruencies"]
+        if i["type"] == "structure_outlier"
+    ]
+    stub_path = ("c4", "Nc6", "Nc3", "e5")
+    assert stub_path not in outlier_paths, (
+        "transposition stub must not be flagged as outlier"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Transposition-aware opponent_reply_nodes (issue #3)
 # ---------------------------------------------------------------------------
@@ -979,9 +1073,7 @@ def test_congruence_acknowledged_weakness_filtered_by_min_severity():
 def test_opponent_reply_nodes_merges_covered_for_transpositions():
     # Two paths reach the same Black-to-move position: d4 Nf6 c4 and c4 Nf6 d4.
     # One path covers e6, the other covers g6. Merged, both are in covered.
-    rep = build_repertoire(
-        ["d4 Nf6 c4 e6 Nc3", "c4 Nf6 d4 g6 Nc3"], color=chess.WHITE
-    )
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3", "c4 Nf6 d4 g6 Nc3"], color=chess.WHITE)
     nodes = repertoire.opponent_reply_nodes(rep)
     # Find the node where Black played Nf6 and White has c4+d4 (Black to move after c4+d4)
     transposed = [n for n in nodes if len(n["transposition_paths"]) > 1]

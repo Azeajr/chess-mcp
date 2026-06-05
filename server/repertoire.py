@@ -29,6 +29,14 @@ REPERTOIRE_TTL_S = int(
 
 _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
+BOOL_THEMES = (
+    "fianchetto_white",
+    "fianchetto_black",
+    "minority_attack_white",
+    "minority_attack_black",
+    "flank_vs_center",
+)
+
 
 # ---------------------------------------------------------------------------
 # Variation-tree walking (the foundation every repertoire tool needs).
@@ -193,13 +201,6 @@ def aggregate_profile(rep: _Repertoire) -> dict:
     center_counts: Counter = Counter()
     # Theme rollup — so leaves that classify as `unknown` (e.g. fianchetto/system
     # English) still contribute their structural DNA to the aggregate (A).
-    bool_themes = (
-        "fianchetto_white",
-        "fianchetto_black",
-        "minority_attack_white",
-        "minority_attack_black",
-        "flank_vs_center",
-    )
     theme_tally: Counter = Counter()
     space_white_sum = space_black_sum = 0
 
@@ -215,7 +216,7 @@ def aggregate_profile(rep: _Repertoire) -> dict:
         center_counts.update([structure.center_state(board)])
 
         t = structure.themes(board, rep.color)
-        theme_tally.update(k for k in bool_themes if t[k])
+        theme_tally.update(k for k in BOOL_THEMES if t[k])
         if t["fianchetto_white"] and t["fianchetto_black"]:
             theme_tally["double_fianchetto"] += 1
         for k in ("wing_majority_white", "wing_majority_black", "color_complex"):
@@ -349,15 +350,6 @@ def analyze_congruence(
     """
     ack_set: set[tuple] = {tuple(p) for p in (acknowledged_weaknesses or [])}
 
-    # Bool themes available for fallback outlier detection (see block 1b below).
-    _BOOL_THEMES = (
-        "fianchetto_white",
-        "fianchetto_black",
-        "minority_attack_white",
-        "minority_attack_black",
-        "flank_vs_center",
-    )
-
     # Collect structural + pawn data for every leaf
     data = []
     for leaf in walk_leaves(rep.game):
@@ -366,11 +358,12 @@ def analyze_congruence(
         data.append(
             {
                 "path": san_path(leaf),
+                "_pos_key": _position_key(board),
                 "structure": structure.classify_structure(board)["structure_class"],
                 "isolated": structure.get_isolated_pawns(board, rep.color),
                 "doubled": structure.get_doubled_pawns(board, rep.color),
                 "center": structure.center_state(board),
-                "theme_tags": {k for k in _BOOL_THEMES if t[k]},
+                "theme_tags": {k for k in BOOL_THEMES if t[k]},
             }
         )
     n = len(data)
@@ -405,18 +398,26 @@ def analyze_congruence(
         # as a structural proxy. A leaf that lacks the dominant theme is an outlier even
         # when no named structure can be assigned (e.g. hypermodern English repertoires
         # where fianchetto_white fires on most leaves but structure_class is unknown).
-        theme_counts = Counter(
-            theme for d in data for theme in d["theme_tags"]
-        )
+        theme_counts = Counter(theme for d in data for theme in d["theme_tags"])
         dominant_theme_candidates = [
             (t, c) for t, c in theme_counts.items() if c / n >= 0.5
         ]
         if dominant_theme_candidates:
             dominant_theme, _ = max(dominant_theme_candidates, key=lambda x: x[1])
             dom_theme_share = theme_counts[dominant_theme] / n
+            # Transposition endpoint stubs reach a position that a longer line also
+            # reaches by a different move order. The stub ends before the dominant
+            # theme is played — but it's covered structurally via the longer path.
+            # Suppress outlier flags for these nodes (Issue #9).
+            _key_counts: Counter = Counter(
+                _position_key(node.board()) for node in iter_nodes(rep.game)
+            )
+            _transposition_keys = {k for k, c in _key_counts.items() if c > 1}
             for d in data:
                 if dominant_theme in d["theme_tags"]:
                     continue
+                if d["_pos_key"] in _transposition_keys:
+                    continue  # transposition stub — structural coverage via longer path
                 incongruencies.append(
                     {
                         "type": "structure_outlier",
@@ -488,9 +489,15 @@ def analyze_congruence(
     filtered = [x for x in incongruencies if _SEVERITY_RANK[x["severity"]] >= floor]
     filtered.sort(key=lambda x: -_SEVERITY_RANK[x["severity"]])
 
-    by_type = Counter(x["type"] for x in filtered)
+    # Acknowledged items are downgraded (severity: low, acknowledged: true) — they are
+    # still included in incongruencies for visibility but excluded from the headline
+    # counts so callers can see how many real (unacknowledged) issues remain (Issue #10).
+    acknowledged_count = sum(1 for x in filtered if x.get("acknowledged"))
+    unacknowledged = [x for x in filtered if not x.get("acknowledged")]
+    by_type = Counter(x["type"] for x in unacknowledged)
     return {
-        "total_flagged": len(filtered),
+        "total_flagged": len(unacknowledged),
+        "acknowledged_count": acknowledged_count,
         "leaves_analyzed": n,
         "by_type": dict(by_type),
         "incongruencies": filtered[:limit],

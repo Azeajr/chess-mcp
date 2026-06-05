@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from mcp.server.fastmcp import FastMCP
+from collections import Counter
 from functools import lru_cache
 from typing import Literal
 import chess
@@ -15,7 +16,9 @@ import openings
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
-_GAP_DEFAULT_DEPTH = 20  # gap tool uses depth 20 — depth 18 showed 26 cp discrepancy vs depth 20
+_GAP_DEFAULT_DEPTH = (
+    20  # gap tool uses depth 20 — depth 18 showed 26 cp discrepancy vs depth 20
+)
 DEFAULT_MULTIPV = 3
 
 MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
@@ -802,7 +805,9 @@ def analyze_repertoire_congruence(
             "reason": "unknown or expired repertoire_id; call load_repertoire",
         }
     limit = max(1, min(50, limit))
-    return repertoire.analyze_congruence(rep, min_severity, limit, acknowledged_weaknesses)
+    return repertoire.analyze_congruence(
+        rep, min_severity, limit, acknowledged_weaknesses
+    )
 
 
 @mcp.tool()
@@ -1010,13 +1015,66 @@ def suggest_replacement_line(
             "reason": "outlier_variation_path does not match a line in the repertoire",
         }
 
-    # Walk up to find the last node where the USER played a move (the move to replace).
-    # node.parent.board().turn == rep.color means rep.color made node.move.
-    pivot_node = node
-    while pivot_node.parent is not None:
-        if pivot_node.parent.board().turn == rep.color:
-            break
-        pivot_node = pivot_node.parent
+    # Find structural divergence: the earliest user move not shared with any
+    # dominant-theme line. Dominant theme = bool theme present in ≥50% of leaves.
+    # Walk the path forward; the first user move absent from dominant-theme lines is
+    # the outlier_move. Falls back to the last user move if no divergence is found
+    # (e.g. no dominant theme, or the whole path is unique to this line). (Issue #7)
+    all_leaves = list(repertoire.walk_leaves(rep.game))
+    n_leaves = len(all_leaves)
+    dominant_themes: set[str] = set()
+    if n_leaves > 0:
+        theme_counts = Counter(
+            t
+            for leaf in all_leaves
+            for t in repertoire.BOOL_THEMES
+            if structure.themes(leaf.board(), rep.color).get(t)
+        )
+        dominant_themes = {t for t, c in theme_counts.items() if c / n_leaves >= 0.5}
+
+    # (position_key, move_uci) pairs present in any dominant-theme leaf's path.
+    dominant_pairs: set[tuple[str, str]] = set()
+    for leaf in all_leaves:
+        leaf_tags = {
+            t
+            for t in repertoire.BOOL_THEMES
+            if structure.themes(leaf.board(), rep.color).get(t)
+        }
+        if not dominant_themes or not (dominant_themes <= leaf_tags):
+            continue
+        n = leaf
+        while n.parent is not None:
+            b = n.parent.board()
+            if b.turn == rep.color:
+                dominant_pairs.add((repertoire._position_key(b), n.move.uci()))
+            n = n.parent
+
+    # Walk path forward; first user move absent from dominant_pairs is the divergence.
+    pivot_node = None
+    if dominant_pairs:
+        walk_node = rep.game
+        for san in outlier_variation_path:
+            board = walk_node.board()
+            try:
+                move = board.parse_san(san)
+            except ValueError:
+                break
+            child = next((c for c in walk_node.variations if c.move == move), None)
+            if child is None:
+                break
+            if board.turn == rep.color:
+                if (repertoire._position_key(board), move.uci()) not in dominant_pairs:
+                    pivot_node = child
+                    break
+            walk_node = child
+
+    # Fall back: last user move in the path.
+    if pivot_node is None:
+        pivot_node = node
+        while pivot_node.parent is not None:
+            if pivot_node.parent.board().turn == rep.color:
+                break
+            pivot_node = pivot_node.parent
 
     if pivot_node.parent is None or pivot_node.parent.board().turn != rep.color:
         return {
@@ -1024,10 +1082,8 @@ def suggest_replacement_line(
             "reason": "outlier_variation_path contains no user move to replace",
         }
 
-    pivot_board = pivot_node.parent.board()  # position where the user must choose
+    pivot_board = pivot_node.parent.board()
     outlier_uci = pivot_node.move.uci()
-
-    # The opponent's last move = the move that triggered this line (what we're answering).
     anchor_path = repertoire.san_path(pivot_node.parent)
     anchored_to = anchor_path[-1] if anchor_path else None
 
@@ -1062,7 +1118,26 @@ def suggest_replacement_line(
         after = pivot_board.copy()
         after.push(move)
         result_struct = structure.classify_structure(after)["structure_class"]
-        match = 0.0 if result_struct == "unknown" else shares.get(result_struct, 0.0)
+        if result_struct != "unknown":
+            match = shares.get(result_struct, 0.0)
+        elif dominant_themes:
+            # Classifier blind to this structure. Apply the full PV (up to 5 moves) and
+            # compare theme tags at the end against the repertoire's dominant themes.
+            # A suggestion whose PV reaches a fianchetto position scores higher than one
+            # that doesn't, even when no named structure is assigned. (Issue #8)
+            end_board = pivot_board.copy()
+            for m in pv[:5]:
+                if end_board.is_game_over():
+                    break
+                end_board.push(m)
+            end_tags = {
+                t
+                for t in repertoire.BOOL_THEMES
+                if structure.themes(end_board, rep.color).get(t)
+            }
+            match = round(len(dominant_themes & end_tags) / len(dominant_themes), 2)
+        else:
+            match = 0.0
         suggestions.append(
             {
                 "pivot_move": pivot_board.san(move),
