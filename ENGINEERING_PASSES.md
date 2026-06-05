@@ -22,6 +22,8 @@ Repo shape the prompts assume:
 | [2. Security Mitigation](#2-security-mitigation) | Concrete, local hardening against this server's real threat model — not security theater. |
 | [3. High-Signal Testing](#3-high-signal-testing) | Coverage is thin or vanity; you want behavior tests that make refactoring safe. |
 
+| [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `ct-white-repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
+
 Verification commands referenced by every pass (this repo):
 
 ```bash
@@ -90,6 +92,82 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 3. Test: `cd server && uv run pytest -q`, and add tests for any new cap/guard (oversized input, expired handle, eviction, malformed PGN/FEN). Do not compromise core functionality for security theater. For engine-touching changes, verify in Docker (rebuild + capture.py and/or the SSE smoke client).
 4. Commit: the message must state the EXACT vulnerability mitigated and the method used. No Co-Authored-By trailer.
 5. Push: `git push origin main`.
+```
+
+---
+
+## 4. Repertoire Analysis Loop
+
+This pass is designed to be run repeatedly. Each run exercises the MCP against a real repertoire, documents what works and what breaks, and ships fixes for the bounded problems it finds. Over time this drives the MCP toward the behavior you actually need.
+
+```text
+Act as a pragmatic chess analyst and Python engineer working on chess-mcp. Run a full repertoire analysis loop against `ct-white-repertoire.pgn`, document the findings, capture retro friction, implement any bounded fixes, and ship. The goal is iterative MCP improvement: each run surfaces new shortcomings and closes the previous ones.
+
+CONTEXT
+- chess-mcp: FastMCP + python-chess + Stockfish MCP server (Stockfish is Docker-only — never install on host)
+- MCP owns all FEN/PGN reasoning — never hand-author positions or move sequences; use tools, which return engine-verified FENs and evals
+- Analysis docs: `ct-white-repertoire-analysis.md` (versioned run log) and `ct-white-repertoire-retro.md` (living retro — append, never overwrite)
+- Design constraints: `MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract, closed error-code set), `REPERTOIRE_DESIGN.md` (cache, structural classifier)
+- Open issues: check `gh issue list` before logging a new shortcoming — don't duplicate
+
+PHASE 1 — RUN THE ANALYSIS FLOW
+Run tools in this exact order against `ct-white-repertoire.pgn`:
+
+1. `validate_pgn` — confirm the file is valid before loading
+2. `load_repertoire` — get the repertoire handle; record tree stats (nodes, leaves, max depth, color)
+3. `get_transpositions` — PRE-FLIGHT REQUIRED before any gap or depth analysis; record all convergence points
+4. `get_structural_profile` — full tree; record named structures, confidence, theme tags, center distribution
+5. `analyze_repertoire_congruence` — record all flags; for each flagged line cross-check the transposition map before treating it as a real issue
+6. `find_repertoire_gaps` — cross-check every reported gap against the transposition map before recording it; suppress any gap that resolves to a transposition endpoint
+7. `evaluate_position` (depth 20) — run on: the deepest leaf of the main bxc3 line, the Maroczy/KID bind leaf, and any leaf flagged by congruence or gaps that survived transposition cross-check
+
+Assess each result against what the tool was supposed to do. Note: incorrect output, missing signal, false flags, unexplained `unknown` returns, or output that required manual multi-step chaining to interpret.
+
+PHASE 2 — UPDATE ANALYSIS DOC
+Append a new versioned section to `ct-white-repertoire-analysis.md`. Follow the existing format exactly:
+- Header: `## v<N> — <date> — chess-mcp <version>`
+- Subheadings: Tools used, Tree Stats, Structural Identity, Congruence Results, Soundness Checks, Gaps, MCP Retro Notes
+- Bump the version table at the top of the file (add new row, mark it current)
+- Do not edit previous version sections
+
+PHASE 3 — APPEND RETRO
+Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `ct-white-repertoire-retro.md`. Rules:
+- Only record NEW findings not already in the retro
+- For each new shortcoming: describe the observed behavior, the expected behavior, and a concrete one-sentence fix
+- For each tool that shone: record what it got right (evidence-based, not general praise)
+- Update the "Skipped Tools" section to reflect current status
+
+PHASE 4 — IMPLEMENT BOUNDED FIXES
+For each new shortcoming identified in Phase 3, classify it:
+
+IMPLEMENT NOW (all must be true):
+- Engine-free change (server/structure.py or server/repertoire.py only — no chess_mcp.py tool signature changes)
+- ≤ 2 files touched
+- Existing test suite covers the behavior being changed, or you can add ≤ 5 targeted tests
+- No new tool, no new output field visible to callers, no change to closed error-code set
+
+OPEN ISSUE ONLY (any one is true):
+- New tool or changed tool signature
+- Requires Stockfish / Docker to verify
+- Design-doc-worthy (non-obvious architecture or data-model decision)
+- Touches more than 2 files
+
+For issues: `gh issue create` with a body that includes: problem statement, proposed fix, acceptance criteria, and a reference back to the retro section. Check `gh issue list` first to avoid duplicates.
+
+PHASE 5 — VERIFY AND SHIP
+Run in order; do not proceed past a failure:
+1. Import sanity: `uv run --with chess --with "mcp[cli]" python -c "import sys; sys.path.insert(0,'server'); import chess_mcp; print('import ok')"`
+2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`
+3. Test: `cd server && uv run pytest -q` — if you changed engine-touching paths, also verify in Docker
+4. If all green: bump the patch version in `pyproject.toml` (or wherever version is stored), commit all changes in a single commit with a message of the form `feat/fix: <what changed> — retro v<N>` describing the BEHAVIOR change. No Co-Authored-By trailer.
+5. Push: `git push origin main`
+
+GUARDRAILS
+- Never edit or delete prior sections of either analysis doc or the retro
+- Never hand-author a FEN or move sequence — if you need a position, derive it from tool output
+- Never install Stockfish on the host — engine-backed verification goes in Docker
+- If a shortcoming's fix is ambiguous, open the issue and skip implementation; do not guess at architecture
+- If Phase 5 fails, revert your implementation changes (do NOT use --no-verify), fix the root cause, and re-run from the lint step
 ```
 
 ---

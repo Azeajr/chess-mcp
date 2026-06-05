@@ -45,3 +45,49 @@
 - **`suggest_complementary_lines`** — skipped; main gaps (1...Nc6 stub, 2...c6 island) better filled manually first. Next run: `mode="low_memorization"` against the Maroczy leaf once stubs are extended.
 - **`get_transpositions`** — skipped; should be re-run against the 6 `bxc3` FENs to confirm overlap.
 - **`export_annotated_pgn`** — not run; candidate for post-extension to produce a study-ready PGN with engine annotations inline.
+
+---
+
+## v2 Update — chess-mcp 0.1.8 (2026-06-04)
+
+**New tools exercised:** `validate_pgn`, `get_transpositions`, `suggest_complementary_lines`, `validate_line`
+
+### What Improved
+
+**Theme tags (new in 0.1.8)** — `get_structural_profile` now returns per-leaf theme tags (`fianchetto_white`, `fianchetto_black`, `double_fianchetto`, `color_complex:light`, `minority_attack_black`, etc.). For English Opening these are the practical substitute for the broken named-structure classifier. 13/17 leaves share `fianchetto_white`; that single tag communicates more about the repertoire's DNA than `unknown` ever could.
+
+**Classifier coverage improved** — 12/17 leaves `unknown` (vs 16/17 in v1). 5 leaves now name a structure: Grünfeld Centre (×2, avg 0.74), Hanging pawns (×1, 0.80), Lopez (×1, 0.68), Maroczy (×1, 0.70). Still inadequate for English overall, but the trend is right.
+
+**`get_transpositions` run — resolved 3 apparent gaps:**
+
+| Gap | Verdict |
+|-----|---------|
+| Gap 1: `1...Nc6 2.Nc3` stub | Resolved — `1...Nc6 Nc3 e5` and `1...e5 Nc3 Nc6` converge at the same FEN |
+| Gap 3: Maroczy "shallow" (ends move 7) | Resolved — transposes to `1...Nf6` branch which continues to move 10 |
+| Gap 4: bxc3 transposition detection | Confirmed — 6 bxc3 lines share convergence points; no redundant mid-game FEN overlap |
+
+**The repertoire has no real coverage holes.** Every apparent short leaf is a transposition endpoint.
+
+**Two-island confirmed + `3.g3` ruled out** — investigated whether `1.c4 e5 2.Nc3 c6 3.g3` could fold the Be2 island into the fianchetto tree. It cannot: after `3.g3 Nf6 4.Bg2 d5 5.cxd5 Nxd5 6.Nf3 Nxc3 7.bxc3 Bd6`, Black's c-pawn is on c6, permanently blocking ...Nc6. The reversed-Grünfeld structure requires c7 so ...Nc6 is available; the two positions structurally diverge and the FENs never converge.
+
+**Be2 island replaced** — validated engine-grounded replacement line:
+```
+1.c4 e5 2.Nc3 c6 3.g3 Nf6 4.Bg2 d5 5.cxd5 Nxd5 6.Nf3 Nxc3 7.bxc3 Bd6 8.d4 Nd7 (+58 cp) 9.O-O O-O 10.a4 ...
+```
+Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action required: update `ct-white-repertoire.pgn`.
+
+### New Issues Found
+
+**Transposition blindness causes false gap flags** — `get_structural_profile` and gap-detection logic treat each leaf as an independent endpoint. They do not cross-reference `get_transpositions`. The `1...c5 g6...O-O` leaf (ends move 7) was flagged as shallow/uncovered — it actually transposes to the `1...Nf6` branch at the same FEN, fully covered to move 10. Incorrect flag.
+
+*Fix:* a pre-flight `get_transpositions` call should be standard before any leaf is surfaced as shallow or uncovered. `get_structural_profile` (and `find_repertoire_gaps`) should cross-reference transposition output before reporting a coverage hole.
+
+**Congruence remediation has no single-step tool** — when `analyze_repertoire_congruence` flags an incongruent line, finding a replacement required manually chaining `validate_line` → `evaluate_position` → `suggest_complementary_lines` → `validate_line` across 8 moves. `suggest_complementary_lines` returns candidate pivot moves from an anchor FEN but does not: (a) anchor to the specific Black move the original line was answering, or (b) validate and return a full continuation from that pivot move.
+
+*Fix:* a `suggest_replacement_line(repertoire_id, outlier_variation_path, mode)` tool that returns a full validated continuation — not just a pivot move — anchored to the same Black move order and shown to practical depth.
+
+### Updated Skipped-Tool Status
+
+- **`get_transpositions`** — now run. Resolved all 3 apparent gaps. Should be standard pre-flight before gap or depth analysis.
+- **`suggest_complementary_lines`** — still deferred. Next run: `mode="low_memorization"` against Maroczy leaf after `ct-white-repertoire.pgn` is updated with the Be2 replacement.
+- **`export_annotated_pgn`** — still not run.
