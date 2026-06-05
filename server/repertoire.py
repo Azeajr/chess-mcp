@@ -269,24 +269,38 @@ def opponent_reply_nodes(rep: _Repertoire) -> list[dict]:
 
     The decision points a completeness scan cares about (find_repertoire_gaps): a frontier
     leaf has no replies yet, so every opponent move there is trivially "uncovered" — noise;
-    an internal opponent-to-move node is where a missed strong reply is a real gap. Returns
-    [{path, board, covered: {uci, ...}}] shallowest first (positions nearer the root are
-    reached by more games). Engine-free — the engine pass is the caller's.
+    an internal opponent-to-move node is where a missed strong reply is a real gap.
+
+    Transposition-aware: when multiple move orders reach the same position, covered sets
+    are merged so a move answered in one branch is not flagged as a gap in another.
+    Positions reached by multiple paths are deduplicated; `transposition_paths` lists all
+    paths that converge there (len > 1 means it's a transposition endpoint).
+
+    Returns [{path, board, covered: {uci,...}, transposition_paths: [path,...]}]
+    shallowest first. Engine-free — the engine pass is the caller's.
     """
-    out: list[dict] = []
+    key_to_entry: dict[str, dict] = {}
     for node in [rep.game, *iter_nodes(rep.game)]:
         board = node.board()
-        if board.turn == rep.color:  # player's move — their choice, not a coverage gap
+        if board.turn == rep.color:  # player's move — not a coverage gap
             continue
         if not node.variations:  # frontier leaf — no replies prepared yet
             continue
-        out.append(
-            {
-                "path": san_path(node),
+        key = _position_key(board)
+        covered = {child.move.uci() for child in node.variations}
+        path = san_path(node)
+        if key not in key_to_entry:
+            key_to_entry[key] = {
+                "path": path,
                 "board": board,
-                "covered": {child.move.uci() for child in node.variations},
+                "covered": covered,
+                "transposition_paths": [path],
             }
-        )
+        else:
+            key_to_entry[key]["covered"].update(covered)
+            key_to_entry[key]["transposition_paths"].append(path)
+
+    out = list(key_to_entry.values())
     out.sort(key=lambda d: len(d["path"]))
     return out
 
@@ -321,8 +335,20 @@ def coverage_report(rep: _Repertoire, limit: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
-    """Flag thematic inconsistencies across the repertoire's leaves."""
+def analyze_congruence(
+    rep: _Repertoire,
+    min_severity: str,
+    limit: int,
+    acknowledged_weaknesses: list | None = None,
+) -> dict:
+    """Flag thematic inconsistencies across the repertoire's leaves.
+
+    acknowledged_weaknesses: list of variation paths (each a list of SAN strings) whose
+    weakness_inconsistency flags should be downgraded to severity "low" with
+    acknowledged:true — for known positional systems the user accepts intentionally.
+    """
+    ack_set: set[tuple] = {tuple(p) for p in (acknowledged_weaknesses or [])}
+
     # Collect structural + pawn data for every leaf
     data = []
     for leaf in walk_leaves(rep.game):
@@ -379,17 +405,20 @@ def analyze_congruence(rep: _Repertoire, min_severity: str, limit: int) -> dict:
                 )
                 if present
             ]
-            incongruencies.append(
-                {
-                    "type": "weakness_inconsistency",
-                    "severity": "medium",
-                    "description": (
-                        f"Most lines keep a sound pawn structure, but here you accept "
-                        f"{'/'.join(kinds)} pawns — inconsistent structural comfort."
-                    ),
-                    "paths": [d["path"]],
-                }
-            )
+            acknowledged = bool(ack_set and tuple(d["path"]) in ack_set)
+            severity = "low" if acknowledged else "medium"
+            entry: dict = {
+                "type": "weakness_inconsistency",
+                "severity": severity,
+                "description": (
+                    f"Most lines keep a sound pawn structure, but here you accept "
+                    f"{'/'.join(kinds)} pawns — inconsistent structural comfort."
+                ),
+                "paths": [d["path"]],
+            }
+            if acknowledged:
+                entry["acknowledged"] = True
+            incongruencies.append(entry)
 
     # 3. center_inconsistency — repertoire split between locking and opening the center.
     centers = Counter(d["center"] for d in data)

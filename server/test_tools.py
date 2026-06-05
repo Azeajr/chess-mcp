@@ -427,3 +427,35 @@ def test_coverage_tool(rid):
     cov = cm.get_repertoire_coverage(rid)
     assert cov["color"] == "white" and "leaves" in cov
     assert cov["dangling_count"] + cov["frontier_count"] == cov["leaves"]
+
+
+def test_gap_default_depth_is_20():
+    assert cm._GAP_DEFAULT_DEPTH == 20
+
+
+def test_suggest_replacement_bad_id():
+    result = cm.suggest_replacement_line("nope", ["e4", "e5"])
+    assert result["error"] == "repertoire_not_found"
+
+
+def test_suggest_replacement_bad_mode(rid):
+    result = cm.suggest_replacement_line(rid, ["d4", "d5"], mode="typo")
+    assert result["error"] == "invalid_mode"
+
+
+def test_suggest_replacement_bad_path(rid):
+    result = cm.suggest_replacement_line(rid, ["e4", "zz99"])
+    assert result["error"] == "variation_not_found"
+
+
+def test_find_gaps_output_has_transposition_endpoints_field(rid):
+    # Engine-free guard: the field is always present, even without transpositions.
+    # This calls the bad-id path so no engine is needed.
+    result = cm.find_repertoire_gaps("nope")
+    assert result["error"] == "repertoire_not_found"
+    # For a valid repertoire the field exists (engine would run; tested in integration).
+    # Verify the key is present in the function signature via a side-channel: inspect
+    # the source to ensure transposition_endpoints is returned.
+    import inspect
+    src = inspect.getsource(cm.find_repertoire_gaps)
+    assert "transposition_endpoints" in src

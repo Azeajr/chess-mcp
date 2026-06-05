@@ -588,13 +588,13 @@ FIANCHETTO_PGN = """\
 """
 
 
-def test_aggregate_themes_rollup_carries_unknown_fianchetto_lines():
-    # The fianchetto English classifies as `unknown` (it's a system, not a named pawn
-    # structure) — but the aggregate theme rollup still surfaces its DNA.
+def test_aggregate_themes_rollup_fianchetto_english_now_named():
+    # The fianchetto English (c4+Bg2+no d4) now classifies as "English Fianchetto" — the
+    # aggregate surfaces it as a named structure, not unknown.
     rep = _make_rep(FIANCHETTO_PGN)
     agg = repertoire.aggregate_profile(rep)
-    assert agg["structures"][0]["structure_class"] == "unknown"  # no named structure
-    assert agg["themes"]["fianchetto_white"] >= 1  # ...but the rollup catches it
+    assert agg["structures"][0]["structure_class"] == "English Fianchetto"
+    assert agg["themes"]["fianchetto_white"] >= 1
     assert "avg_space_white" in agg["themes"] and "avg_space_black" in agg["themes"]
 
 
@@ -891,3 +891,142 @@ def test_opening_deepest_in_line():
     game = chess.pgn.read_game(io.StringIO("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *"))
     op = openings.deepest_in_line(game)
     assert op is not None and "Ruy Lopez" in op["name"] and op["ply"] >= 5
+
+
+# ---------------------------------------------------------------------------
+# Hypermodern structure classifiers (issue #5)
+# ---------------------------------------------------------------------------
+
+# English Fianchetto: Bg2 + c4, no d4 push.
+# After 1.c4 e5 2.Nc3 Nf6 3.g3 d5 4.Bg2 (Black to move — Black has no c-pawn on c5,
+# so Symmetrical English doesn't fire and English Fianchetto wins cleanly.)
+ENGLISH_FIANCHETTO_FEN = "rnbqkb1r/ppp2ppp/5n2/3pp3/2P5/2N3P1/PP1PPPBP/R1BQK2R b KQkq - 1 4"
+
+# Réti/KIA: Bg2 + no c4, no d4 (flexible center).
+# After 1.Nf3 d5 2.g3 c5 3.Bg2 (Black to move)
+RETI_KIA_FEN = "rnbqkbnr/pp2pppp/8/2pp4/8/5NP1/PPPPPPBP/RNBQK1NR b KQkq - 1 3"
+
+# Symmetrical English: c4 vs c5, no d4/d5, both fianchettoed.
+# After 1.c4 c5 2.Nc3 Nc6 3.g3 g6 4.Bg2 Bg7 (White to move)
+SYMMETRICAL_ENGLISH_FEN = "r1bqk1nr/pp1pppbp/2n3p1/2p5/2P5/2N3P1/PP1PPPBP/R1BQK1NR w KQkq - 3 5"
+
+
+def test_english_fianchetto_classifies():
+    out = structure.classify_structure(chess.Board(ENGLISH_FIANCHETTO_FEN))
+    assert out["structure_class"] == "English Fianchetto"
+    assert out["confidence"] >= 0.5
+
+
+def test_english_fianchetto_confidence_direct():
+    b = chess.Board(ENGLISH_FIANCHETTO_FEN)
+    conf = structure._english_fianchetto_confidence(b, chess.WHITE)
+    assert conf >= 0.65  # base at minimum (no g3 bonus counted from this position actually has g3)
+    assert conf > 0
+
+
+def test_reti_kia_classifies():
+    out = structure.classify_structure(chess.Board(RETI_KIA_FEN))
+    assert out["structure_class"] == "Réti/KIA"
+    assert out["confidence"] >= 0.5
+
+
+def test_reti_kia_requires_no_c4():
+    # Adding c4 to a Réti position should switch to English Fianchetto, not Réti/KIA
+    b = chess.Board(RETI_KIA_FEN)
+    b.set_piece_at(chess.C4, chess.Piece(chess.PAWN, chess.WHITE))
+    b.remove_piece_at(chess.C2)
+    out = structure.classify_structure(b)
+    assert out["structure_class"] == "English Fianchetto"
+
+
+def test_symmetrical_english_classifies():
+    out = structure.classify_structure(chess.Board(SYMMETRICAL_ENGLISH_FEN))
+    assert out["structure_class"] == "Symmetrical English"
+    assert out["confidence"] >= 0.5
+
+
+def test_symmetrical_english_loses_to_maroczy_when_e4_pushed():
+    # After White pushes e4 AND the d-pawn is gone (Maroczy: c4+e4, no d-pawn at all),
+    # Maroczy outscores Symmetrical English (0.85 vs 0.74).
+    b = chess.Board(SYMMETRICAL_ENGLISH_FEN)
+    b.set_piece_at(chess.E4, chess.Piece(chess.PAWN, chess.WHITE))
+    b.remove_piece_at(chess.E2)
+    b.remove_piece_at(chess.D2)  # Maroczy needs file-3 absent entirely
+    out = structure.classify_structure(b)
+    assert out["structure_class"] == "Maroczy"
+
+
+def test_issue6_position_no_longer_unknown():
+    # The test position from issue #6 (move 7 in the v3 repertoire analysis) now classifies
+    # as Symmetrical English (c4 vs c5, both fianchettoed Bg2/Bg7) — not unknown.
+    issue6_fen = "r1bqk2r/pp2ppbp/2np1np1/2p5/2P1P3/2N3P1/PP1PNPBP/R1BQ1RK1 b kq - 3 7"
+    out = structure.classify_structure(chess.Board(issue6_fen))
+    assert out["structure_class"] != "unknown"
+    assert out["confidence"] > 0.5
+
+
+# ---------------------------------------------------------------------------
+# Congruence — acknowledged_weaknesses (issue #4)
+# ---------------------------------------------------------------------------
+
+
+def test_congruence_acknowledged_weakness_downgrades_to_low():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    # Without acknowledgement: weakness_inconsistency fires at severity medium
+    unacked = repertoire.analyze_congruence(rep, "low", 10)
+    weak_item = next(
+        (i for i in unacked["incongruencies"] if i["type"] == "weakness_inconsistency"),
+        None,
+    )
+    assert weak_item is not None and weak_item["severity"] == "medium"
+
+    # With the weak path acknowledged: severity drops to low, acknowledged:true set
+    weak_path = weak_item["paths"][0]
+    acked = repertoire.analyze_congruence(rep, "low", 10, acknowledged_weaknesses=[weak_path])
+    acked_item = next(
+        i for i in acked["incongruencies"] if i["type"] == "weakness_inconsistency"
+    )
+    assert acked_item["severity"] == "low"
+    assert acked_item.get("acknowledged") is True
+
+
+def test_congruence_acknowledged_weakness_filtered_by_min_severity():
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    weak_item = next(
+        i
+        for i in repertoire.analyze_congruence(rep, "low", 10)["incongruencies"]
+        if i["type"] == "weakness_inconsistency"
+    )
+    weak_path = weak_item["paths"][0]
+    # acknowledged → severity low; min_severity=medium → filtered out entirely
+    result = repertoire.analyze_congruence(
+        rep, "medium", 10, acknowledged_weaknesses=[weak_path]
+    )
+    assert all(i["type"] != "weakness_inconsistency" for i in result["incongruencies"])
+
+
+# ---------------------------------------------------------------------------
+# Transposition-aware opponent_reply_nodes (issue #3)
+# ---------------------------------------------------------------------------
+
+
+def test_opponent_reply_nodes_merges_covered_for_transpositions():
+    # Two paths reach the same Black-to-move position: d4 Nf6 c4 and c4 Nf6 d4.
+    # One path covers e6, the other covers g6. Merged, both are in covered.
+    rep = build_repertoire(
+        ["d4 Nf6 c4 e6 Nc3", "c4 Nf6 d4 g6 Nc3"], color=chess.WHITE
+    )
+    nodes = repertoire.opponent_reply_nodes(rep)
+    # Find the node where Black played Nf6 and White has c4+d4 (Black to move after c4+d4)
+    transposed = [n for n in nodes if len(n["transposition_paths"]) > 1]
+    assert len(transposed) >= 1
+    merged = transposed[0]
+    # Both e6 and g6 (Black replies) should be in the merged covered set
+    assert len(merged["covered"]) >= 2
+
+
+def test_opponent_reply_nodes_no_transpositions_has_single_path():
+    rep = build_repertoire(["d4 d5 c4 e6 Nc3 Nf6"])
+    nodes = repertoire.opponent_reply_nodes(rep)
+    for n in nodes:
+        assert len(n["transposition_paths"]) == 1

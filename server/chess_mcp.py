@@ -15,6 +15,7 @@ import openings
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
+_GAP_DEFAULT_DEPTH = 20  # gap tool uses depth 20 — depth 18 showed 26 cp discrepancy vs depth 20
 DEFAULT_MULTIPV = 3
 
 MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
@@ -730,10 +731,11 @@ def get_structural_profile(
 
     variation_path = SAN move list addressing one node (e.g. ["e4","c5","Nf3"]); each
     SAN must match a move in the tree. Then returns one position: fen, structure_class
-    (one of 19 canonical pawn structures — IQP, Carlsbad, Maroczy, French, Stonewall,
+    (one of 22 canonical pawn structures — IQP, Carlsbad, Maroczy, French, Stonewall,
     King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld
     Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez,
-    Benko — or unknown), confidence, center (locked/tense/open/semi-open),
+    Benko, English Fianchetto, Réti/KIA, Symmetrical English — or unknown), confidence,
+    center (locked/tense/open/semi-open),
     primitives {doubled, isolated, passed, chains}, half_open_files, open_files, and
     themes (always-on descriptors: fianchetto_white/black, space_white/black,
     wing_majority_white/black, minority_attack_white/black, flank_vs_center,
@@ -773,6 +775,7 @@ def analyze_repertoire_congruence(
     repertoire_id: str,
     min_severity: Literal["low", "medium", "high"] = "medium",
     limit: int = 10,
+    acknowledged_weaknesses: list[list[str]] | None = None,
 ) -> dict:
     """
     Flag logical/thematic incongruencies across a repertoire's lines. Engine-free.
@@ -782,10 +785,16 @@ def analyze_repertoire_congruence(
     isolated pawns against the repertoire's otherwise-clean grain), center_inconsistency
     (the repertoire is split between locking and opening the center).
 
+    acknowledged_weaknesses = list of variation_paths (each a SAN move list, same format
+    as the paths field in congruence output) for known positional systems where the
+    structural weakness is intentional. Matching weakness_inconsistency flags are
+    downgraded to severity "low" with acknowledged:true instead of surfacing as "medium".
+
     Returns: total_flagged, leaves_analyzed, by_type (counts), incongruencies (each:
     type, severity, description, paths = the SAN variation_path(s) — feed a path to
-    get_structural_profile to inspect that exact position). Filtered to min_severity and
-    capped to limit (default 10, max 50). Bad input → {"error","reason"}.
+    get_structural_profile to inspect that exact position; acknowledged:true when
+    suppressed by acknowledged_weaknesses). Filtered to min_severity and capped to limit
+    (default 10, max 50). Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -794,7 +803,7 @@ def analyze_repertoire_congruence(
             "reason": "unknown or expired repertoire_id; call load_repertoire",
         }
     limit = max(1, min(50, limit))
-    return repertoire.analyze_congruence(rep, min_severity, limit)
+    return repertoire.analyze_congruence(rep, min_severity, limit, acknowledged_weaknesses)
 
 
 @mcp.tool()
@@ -958,6 +967,129 @@ def suggest_complementary_lines(
     }
 
 
+@mcp.tool()
+def suggest_replacement_line(
+    repertoire_id: str,
+    outlier_variation_path: list[str],
+    mode: Literal["structural_fit", "low_memorization", "solid"] = "structural_fit",
+    depth: int = DEFAULT_DEPTH,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Single-call replacement for an incongruent repertoire line. Given the variation_path
+    of a flagged line (from analyze_repertoire_congruence), finds the last user move in
+    that line, identifies the opponent move it was answering (anchored_to), then suggests
+    sound alternatives with full engine-validated continuations.
+
+    Replaces an 8-step manual chain (validate_line → evaluate_position →
+    suggest_complementary_lines → validate_line across ~8 moves) with one call.
+
+    mode "structural_fit" / "low_memorization" → alternatives ranked by how well the
+    resulting structure matches the existing repertoire (profile_match [0,1]).
+    mode "solid" → alternatives ranked by eval (best-evaluated first).
+
+    Returns: outlier_move (the user move being replaced), anchored_to (the opponent move
+    that triggered this line), suggestions (each: pivot_move, line = full SAN continuation,
+    eval_cp white-POV, resulting_structure, profile_match). Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    if mode not in ("structural_fit", "low_memorization", "solid"):
+        return {
+            "error": "invalid_mode",
+            "reason": "mode must be 'structural_fit', 'low_memorization', or 'solid'",
+        }
+
+    node = repertoire.resolve_path(rep.game, outlier_variation_path)
+    if node is None:
+        return {
+            "error": "variation_not_found",
+            "reason": "outlier_variation_path does not match a line in the repertoire",
+        }
+
+    # Walk up to find the last node where the USER played a move (the move to replace).
+    # node.parent.board().turn == rep.color means rep.color made node.move.
+    pivot_node = node
+    while pivot_node.parent is not None:
+        if pivot_node.parent.board().turn == rep.color:
+            break
+        pivot_node = pivot_node.parent
+
+    if pivot_node.parent is None or pivot_node.parent.board().turn != rep.color:
+        return {
+            "error": "no_user_move",
+            "reason": "outlier_variation_path contains no user move to replace",
+        }
+
+    pivot_board = pivot_node.parent.board()  # position where the user must choose
+    outlier_uci = pivot_node.move.uci()
+
+    # The opponent's last move = the move that triggered this line (what we're answering).
+    anchor_path = repertoire.san_path(pivot_node.parent)
+    anchored_to = anchor_path[-1] if anchor_path else None
+
+    depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
+
+    shares = repertoire.profile_structure_shares(rep)
+
+    with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        infos = engine.analyse(
+            pivot_board, _limit(depth, time_limit), multipv=min(MAX_MULTIPV, 5)
+        )
+
+    def _mover_cp(info: dict) -> int:
+        cp = _score_cp(info["score"])
+        return cp if pivot_board.turn == chess.WHITE else -cp
+
+    best_cp = _mover_cp(infos[0]) if infos else 0
+    suggestions = []
+
+    for info in infos:
+        pv = info.get("pv")
+        if not pv:
+            continue
+        move = pv[0]
+        if move.uci() == outlier_uci:
+            continue  # skip the exact move being replaced
+        mcp = _mover_cp(info)
+        if best_cp - mcp > 100:  # unsound relative to best → skip
+            continue
+        after = pivot_board.copy()
+        after.push(move)
+        result_struct = structure.classify_structure(after)["structure_class"]
+        match = 0.0 if result_struct == "unknown" else shares.get(result_struct, 0.0)
+        suggestions.append(
+            {
+                "pivot_move": pivot_board.san(move),
+                "line": _pv_san(pivot_board, pv),
+                "eval_cp": _score_cp(info["score"]),
+                "resulting_structure": result_struct,
+                "profile_match": round(match, 2),
+                "_mcp": mcp,
+            }
+        )
+
+    if mode == "solid":
+        suggestions.sort(key=lambda s: -s["_mcp"])
+    else:
+        suggestions.sort(key=lambda s: (-s["profile_match"], -s["_mcp"]))
+
+    for s in suggestions:
+        del s["_mcp"]
+
+    return {
+        "outlier_move": pivot_board.san(pivot_node.move),
+        "anchored_to": anchored_to,
+        "suggestions": suggestions,
+    }
+
+
 # Gap severity: how close an uncovered opponent move is to their best reply (cp, opponent POV).
 _GAP_HIGH_CP, _GAP_MED_CP = 30, 80
 _GAP_SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
@@ -1011,7 +1143,7 @@ def _gaps_from_infos(
 @mcp.tool()
 def find_repertoire_gaps(
     repertoire_id: str,
-    depth: int = DEFAULT_DEPTH,
+    depth: int = _GAP_DEFAULT_DEPTH,
     min_severity: Literal["low", "medium", "high"] = "medium",
     limit: int = 10,
     max_positions: int = 20,
@@ -1023,12 +1155,19 @@ def find_repertoire_gaps(
     internal decision point — not an unextended frontier leaf), runs the engine, and flags top
     opponent moves you do not cover.
 
+    Transposition-aware: positions reached by multiple move orders are deduplicated and
+    their covered-move sets merged, so a move answered in one branch is not flagged as a
+    gap in another. transposition_endpoints lists positions where this merging occurred.
+
     Returns: color, positions_scanned, total_gaps, gaps (each: path = SAN variation_path of the
     position to drill via get_structural_profile/suggest_complementary_lines, uncovered_move
     (SAN, opponent's), eval (white-POV cp after it), severity high/medium/low by how close it is
-    to the opponent's best). Filtered to min_severity (default medium), gaps capped to limit
+    to the opponent's best), transposition_endpoints (positions resolved by transposition — each
+    {fen, paths}). Filtered to min_severity (default medium), gaps capped to limit
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
-    shallowest first; depth/time_limit tune each engine pass. Bad input → {"error","reason"}.
+    shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can
+    diverge ~26 cp from depth 20); depth/time_limit tune each engine pass.
+    Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -1042,6 +1181,12 @@ def find_repertoire_gaps(
     limit = max(1, min(50, limit))
     max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
     nodes = repertoire.opponent_reply_nodes(rep)[:max_positions]
+
+    transposition_endpoints = [
+        {"fen": nd["board"].fen(), "paths": nd["transposition_paths"]}
+        for nd in nodes
+        if len(nd["transposition_paths"]) > 1
+    ]
 
     floor = _GAP_SEVERITY_RANK[min_severity]
     multipv = min(MAX_MULTIPV, 5)  # enough breadth to surface a missed strong reply
@@ -1062,6 +1207,7 @@ def find_repertoire_gaps(
         "positions_scanned": len(nodes),
         "total_gaps": len(found),
         "gaps": [entry for entry, _ in found[:limit]],
+        "transposition_endpoints": transposition_endpoints,
     }
 
 

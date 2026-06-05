@@ -560,14 +560,71 @@ def _benko_confidence(board: chess.Board) -> float:
     return _graded(True, bonus, base=0.72, cap=0.82)
 
 
+# ---------------------------------------------------------------------------
+# Hypermodern structure scorers (English, Réti, KIA).
+# These are bidirectional (either side can carry the kingside fianchetto role).
+# Pawn + bishop checks — fianchetto bishop is the structural anchor, not central pawns.
+# ---------------------------------------------------------------------------
+
+
+def _english_fianchetto_confidence(board: chess.Board, color: chess.Color) -> float:
+    """English Fianchetto: c4/c5 anchor + kingside fianchetto (Bg2/Bg7), no d4/d5 push.
+
+    The defining signature of the main-line English opening system: c-pawn advanced,
+    king's bishop fianchettoed, d-pawn kept at home or d3 (not yet committed to d4).
+    """
+    own_n, _ = _names_files(board, color)
+    bishops = board.pieces(chess.BISHOP, color)
+    g_sq = chess.G2 if color == chess.WHITE else chess.G7
+    c_sq = "c4" if color == chess.WHITE else "c5"
+    d4_sq = "d4" if color == chess.WHITE else "d5"
+    core_ok = (g_sq in bishops) and (c_sq in own_n) and (d4_sq not in own_n)
+    g_pawn = "g3" if color == chess.WHITE else "g6"
+    bonus = g_pawn in own_n
+    return _graded(core_ok, int(bonus), base=0.65, cap=0.75)
+
+
+def _reti_kia_confidence(board: chess.Board, color: chess.Color) -> float:
+    """Réti / KIA: kingside fianchetto (Bg2/Bg7) without c4/c5 anchor, flexible center.
+
+    Distinguishes Réti (no c4 early) from English Fianchetto (has c4). d3+e4 bonus
+    identifies the King's Indian Attack pawn structure (d3 support + e4 push).
+    """
+    own_n, _ = _names_files(board, color)
+    bishops = board.pieces(chess.BISHOP, color)
+    g_sq = chess.G2 if color == chess.WHITE else chess.G7
+    c_sq = "c4" if color == chess.WHITE else "c5"
+    d4_sq = "d4" if color == chess.WHITE else "d5"
+    core_ok = (g_sq in bishops) and (c_sq not in own_n) and (d4_sq not in own_n)
+    d3_sq = "d3" if color == chess.WHITE else "d6"
+    e4_sq = "e4" if color == chess.WHITE else "e5"
+    bonus = (d3_sq in own_n) + (e4_sq in own_n)
+    return _graded(core_ok, bonus, base=0.60, cap=0.72)
+
+
+def _symmetrical_english_confidence(board: chess.Board) -> float:
+    """Symmetrical English: c4 vs c5, no d4/d5 breaks (pure symmetric English setup).
+
+    Both sides mirror each other on the c-file; the double-fianchetto bonus (Bg2+Bg7)
+    lifts confidence above the English Fianchetto single-side score to win ties.
+    """
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    core_ok = "c4" in wn and "c5" in bn and "d4" not in wn and "d5" not in bn
+    bishops_w = board.pieces(chess.BISHOP, chess.WHITE)
+    bishops_b = board.pieces(chess.BISHOP, chess.BLACK)
+    bonus = (chess.G2 in bishops_w) + (chess.G7 in bishops_b)
+    return _graded(core_ok, bonus, base=0.60, cap=0.74, step=0.07)
+
+
 def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
-    Returns {structure_class, confidence}. structure_class is one of the 19 canonical
-    structures (STRUCTURE_CLASSIFIER_DESIGN.md §4) — IQP, Carlsbad, Maroczy, French,
-    Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav,
-    Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni,
-    Lopez, Benko — or unknown.
+    Returns {structure_class, confidence}. structure_class is one of 22 canonical
+    structures — IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni,
+    Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld,
+    Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, Benko, English Fianchetto,
+    Réti/KIA, Symmetrical English — or unknown.
     Never forces a label — a weak or absent match yields {"unknown", 0.0} (D2). Each
     scorer is a private `_*_confidence` (single source of truth), gated on a core skeleton
     and graduated by bonus squares (B). Highest-confidence candidate wins; more-specific
@@ -584,6 +641,8 @@ def classify_structure(board: chess.Board) -> dict:
             ("Hedgehog", _hedgehog_confidence(board, color)),
             ("Najdorf", _najdorf_confidence(board, color)),
             ("Scheveningen", _scheveningen_confidence(board, color)),
+            ("English Fianchetto", _english_fianchetto_confidence(board, color)),
+            ("Réti/KIA", _reti_kia_confidence(board, color)),
         ):
             if conf > 0:
                 candidates.append((name, conf))
@@ -608,6 +667,7 @@ def classify_structure(board: chess.Board) -> dict:
         ("Symmetric Benoni", _symmetric_benoni_confidence(board)),
         ("Lopez", _lopez_confidence(board)),
         ("Benko", _benko_confidence(board)),
+        ("Symmetrical English", _symmetrical_english_confidence(board)),
     ):
         if conf > 0:
             candidates.append((name, conf))
