@@ -1121,21 +1121,28 @@ def suggest_replacement_line(
         if result_struct != "unknown":
             match = shares.get(result_struct, 0.0)
         elif dominant_themes:
-            # Classifier blind to this structure. Apply the full PV (up to 5 moves) and
-            # compare theme tags at the end against the repertoire's dominant themes.
-            # A suggestion whose PV reaches a fianchetto position scores higher than one
-            # that doesn't, even when no named structure is assigned. (Issue #8)
-            end_board = pivot_board.copy()
-            for m in pv[:5]:
-                if end_board.is_game_over():
+            # Classifier blind to this structure. Walk the full PV ply by ply and score
+            # by the best theme-overlap seen at any point in the line. Taking max across
+            # all plies (vs end-only check of pv[:5]) catches the characteristic moves
+            # appearing mid-PV — e.g. g3/Bg2 fianchetto at ply 6 of an 18-ply PV when
+            # the pivot is early. (Issue #11 — extends Issue #8 fix)
+            walk_board = pivot_board.copy()
+            best_match = 0.0
+            for m in pv:
+                if walk_board.is_game_over():
                     break
-                end_board.push(m)
-            end_tags = {
-                t
-                for t in repertoire.BOOL_THEMES
-                if structure.themes(end_board, rep.color).get(t)
-            }
-            match = round(len(dominant_themes & end_tags) / len(dominant_themes), 2)
+                walk_board.push(m)
+                tags = {
+                    t
+                    for t in repertoire.BOOL_THEMES
+                    if structure.themes(walk_board, rep.color).get(t)
+                }
+                ply_match = len(dominant_themes & tags) / len(dominant_themes)
+                if ply_match > best_match:
+                    best_match = ply_match
+                if best_match == 1.0:
+                    break  # full match — stop early
+            match = round(best_match, 2)
         else:
             match = 0.0
         suggestions.append(
