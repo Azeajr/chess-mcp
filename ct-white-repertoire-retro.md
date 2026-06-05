@@ -136,3 +136,65 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 - **`find_repertoire_gaps`** — now in the loop. Works correctly but requires manual transposition cross-check to be useful. Issue #3 is the blocker for autonomous use.
 - **`suggest_complementary_lines`** — still deferred. Next precondition: Issue #3 resolved so the Maroczy leaf can be used as a clean anchor without gap-list noise. Then: `mode="low_memorization"` against that leaf.
 - **`export_annotated_pgn`** — still not run.
+
+---
+
+## v4 Update — chess-mcp 0.1.8 (2026-06-05)
+
+**New tools exercised:** `suggest_replacement_line` (first run), `analyze_repertoire_congruence` with `acknowledged_weaknesses`, `get_structural_profile` on individual leaf (Be2 island)
+
+### What Shone
+
+**`acknowledged_weaknesses` (Issue #4) works correctly** — all 6 bxc3 `weakness_inconsistency` paths downgraded to `severity: low`, `acknowledged: true`. Clean workflow: pass known intentional weaknesses, filter at `min_severity: medium`, see only real issues. Exact path arrays from prior congruence output are valid input — no reformatting needed.
+
+**Theme-based outlier (Issue #5) correctly catches Be2 island and b6 lines** — `analyze_repertoire_congruence` now flags `structure_outlier` with `source: "theme"` for lines lacking the dominant `fianchetto_white` theme. The Be2 island (previously required manual structural reasoning) is now automatically flagged. The b6 Qc2/Bf4/Bd3 system and its blunder-punish variation are also correctly caught.
+
+**Soundness evals remain stable** — `evaluate_position` at depth 20 returned identical results for bxc3 (+21 Re8) and Maroczy (+4 a3) vs v2/v3. Be2 island leaf confirmed at +88 (consistent with PGN comment range +78–112 cp).
+
+### New Shortcomings
+
+**`suggest_replacement_line` identifies terminal move, not structural divergence point**
+- Observed: Be2 island path (19 plies, ends at `h3`) → `outlier_move: "h3"`, `anchored_to: "Qc7"`. The actual structural divergence is `3.Nf3` (move 3, where `g3` should have been played). Suggestions replace `h3`, not `Nf3`.
+- Expected: tool walks the path backwards to find the move where the line's theme profile first departs from the repertoire's dominant themes; suggestions pivot from that point.
+- Fix: see Issue #7.
+
+**`profile_match: 0.0` universally — `structural_fit` mode inoperative for English Opening**
+- Observed: all 4 `suggest_replacement_line` suggestions return `profile_match: 0.0`, `resulting_structure: "unknown"`. The structural_fit ranking is meaningless — suggestions are indistinguishable from each other on the structural axis.
+- Expected: when `resulting_structure: unknown`, fall back to theme-tag similarity (e.g., suggestions that produce `fianchetto_white: true` should score higher than those that don't).
+- Fix: see Issue #8. Direct cascade from Issue #5 classifier revert.
+
+**Theme-based outlier fires on transposition stub leaves (false positive)**
+- Observed: `1...Nc6 2.Nc3 e5` (4-ply) flagged as `structure_outlier`. Line ends before any `g3/Bg2` move, so `fianchetto_white` is absent — but this is a transposition endpoint, not a genuinely non-fianchetto setup.
+- Expected: transposition endpoint stubs not flagged; the fianchetto theme is present in the line they transpose into.
+- Fix: see Issue #9.
+
+**`total_flagged` count includes acknowledged items**
+- Observed: with all 6 bxc3 paths acknowledged, `total_flagged: 10`, `by_type: {structure_outlier: 4, weakness_inconsistency: 6}`. Acknowledged items appear in both headline count and type breakdown.
+- Expected: `total_flagged` reflects unacknowledged issues; acknowledged items counted separately.
+- Workaround: set `min_severity: medium` — acknowledged items are `severity: low` and filtered from the list, but counts in the response header still mislead.
+- Fix: see Issue #10.
+
+**Issue #3 transposition fix scope mismatch**
+- Observed: `find_repertoire_gaps` returns `transposition_endpoints: []` despite 3 known transpositions. All 3 transpositions in this repertoire occur at White-to-move positions. The Issue #3 fix deduplicates Black-to-move decision points; White-to-move transpositions are out of scope.
+- Expected: the gap count reduction attributed to Issue #3 was actually from scanning fewer positions (max_positions=20 this run vs 60 in v3); the fix does not apply to this repertoire's transposition structure.
+- Impact: signal-to-noise improvement from Issue #3 is near-zero for English Opening transpositions. Issue needs re-scoping to cover White-to-move transposition points.
+
+**Gap severity collapses in near-equal opening positions**
+- Observed: all 20 listed gaps are "high" severity with evals +17 to +29 cp (White-POV after opponent's uncovered move). In the opening, almost every reasonable Black move scores within a narrow range of the engine's best.
+- Expected: severity should differentiate gaps that truly threaten equality from move-order variants. A flat "high" for everything from +17 to +29 provides no prioritization.
+- Fix: severity thresholds may need calibration based on phase (opening vs middlegame). Or: add an `eval_spread` field showing how much better the uncovered move is vs the covered alternatives, not just its absolute eval.
+
+### Actionable Issues Filed
+
+- Issue #7: `suggest_replacement_line` targets terminal move, not structural divergence
+- Issue #8: `profile_match: 0.0` for unknown structures in `structural_fit` mode
+- Issue #9: theme-based outlier fires on transposition stub leaves
+- Issue #10: `total_flagged` includes acknowledged items
+
+### Updated Skipped-Tool Status
+
+- **`get_transpositions`** — standard pre-flight, run every loop.
+- **`find_repertoire_gaps`** — in the loop. Issue #3 fix confirmed ineffective for this repertoire's transposition structure. Gap severity flattens in the opening. Manual transposition cross-check still required.
+- **`suggest_replacement_line`** — now tested. Two blocking issues: wrong outlier identification (#7) and inoperative `profile_match` ranking (#8). Not usable for structural remediation until both resolved.
+- **`suggest_complementary_lines`** — still deferred. Precondition: Issues #7/#8 resolved, PGN updated with Be2 island replacement derived manually.
+- **`export_annotated_pgn`** — still not run.

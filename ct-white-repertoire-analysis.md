@@ -4,9 +4,116 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v3 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v4 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v3 | 2026-06-05 | chess-mcp 0.1.8 |
 | v2 | 2026-06-04 | chess-mcp 0.1.8 |
 | v1 | 2026-06-04 | chess-mcp 0.1.7 |
+
+---
+
+## v4 — 2026-06-05 — chess-mcp 0.1.8
+
+**Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` (×2: with and without `acknowledged_weaknesses`) → `find_repertoire_gaps` → `evaluate_position` (×3) → `suggest_replacement_line`
+
+**Focus:** First run after closing Issues #1–#6. Stress-testing new features: theme-based outlier fallback (#5), `acknowledged_weaknesses` (#4), transposition-aware gaps (#3), `suggest_replacement_line` (#2), depth calibration (#6).
+
+### Tree Stats
+
+Unchanged from v3.
+
+| Metric | Value |
+|--------|-------|
+| Nodes | 213 |
+| Leaves (distinct lines) | 17 |
+| Max depth (plies) | 21 |
+| Color | White |
+
+### Structural Identity
+
+Unchanged from v3 (12/17 unknown; Grünfeld Centre ×2, Hanging pawns ×1, Lopez ×1, Maroczy ×1). Theme tags unchanged (fianchetto_white 13/17, double_fianchetto 6/17, etc.). Center distribution unchanged.
+
+*Note: Issue #5 classifier fix was committed then reverted (`ce903e4`). English Opening positions remain `unknown`.*
+
+### Transpositions (pre-flight)
+
+Unchanged from v3 — same 3 transpositions:
+
+| Convergence FEN (abbrev) | Paths |
+|--------------------------|-------|
+| Maroczy/KID bind after 7...O-O | `1...Nf6` deep · `1...c5 g6...Nf6 O-O` · `1...c5 Nf6...Nc6 O-O d6` |
+| After `1.c4 e5 2.Nc3` | `1...e5 Nc3 Nc6` · `1...Nc6 Nc3 e5` |
+| After `4.Bg2` in 1...c5 Nc6/g6 split | `2...g6...Nc6` · `2...Nc6...g6` |
+
+### Congruence Results
+
+**Without `acknowledged_weaknesses`:** 10 flagged — 4 `structure_outlier` (new, `source: "theme"`) + 6 `weakness_inconsistency` (same bxc3 lines as v1–v3).
+
+**Theme-based outlier (new in this run):**
+
+| Path | Flag | Assessment |
+|------|------|------------|
+| `c4 e5 Nc3 c6 Nf3 d6...h3` (Be2 island) | `structure_outlier / medium` | Correct — no `fianchetto_white` throughout |
+| `c4 Nc6 Nc3 e5` (4-ply stub) | `structure_outlier / medium` | **False positive** — transposition endpoint; lacks `fianchetto_white` only because line is intentionally short |
+| `c4 b6 Nc3 Bb7 d4...Bd3` (b6 main) | `structure_outlier / medium` | Correct — d4/Qc2/Bf4/Bd3 setup, no fianchetto |
+| `c4 b6 Nc3 Bb7 d4 d5$2...e5` (b6 punish) | `structure_outlier / medium` | Correct — Bc4/Ng5 tactical refutation, no fianchetto |
+
+**With `acknowledged_weaknesses` (all 6 bxc3 paths passed):**
+
+All 6 `weakness_inconsistency` flags: `severity: low`, `acknowledged: true`. Issue #4 working correctly.
+
+Issue: `total_flagged` still shows 10 (includes acknowledged). Filed as Issue #10.
+
+### Soundness Checks (depth 20)
+
+**Main bxc3 leaf** — +21 Re8 (stable vs v2/v3).
+
+**Maroczy/KID bind leaf** — +4 a3 (stable vs v2/v3).
+
+**Be2 island leaf** (new) — FEN: `r1b2rk1/1pqnbppp/p1pp1n2/4p3/2PPP3/2N2N1P/PPQ1BPP1/R1BR2K1 b - - 0 10`
+
+| Black candidate | Eval (white-POV cp) | Engine line |
+|-----------------|---------------------|-------------|
+| b5 | +88 | b5 a3 Re8 Be3 exd4 |
+| exd4 | +94 | exd4 Nxd4 Re8 Be3 Bf8 |
+| h6 | +104 | h6 Be3 exd4 Nxd4 Re8 |
+
+White has a substantial structural advantage (+88 to +104 cp). Consistent with PGN comment range (+78–112 cp). Structure not flawed on White's side; this is Black's passive opening getting punished.
+
+### Gaps (`find_repertoire_gaps`)
+
+**72 total gaps, max_positions=20** (default). Not directly comparable to v3's 232 (which used max_positions=60). Density: 3.6 gaps/position vs v3's 3.87 — similar; the volume difference is scanning depth, not Issue #3's fix.
+
+**`transposition_endpoints: []`** — All 3 known transpositions occur at White-to-move positions. The gap tool only deduplicates Black-to-move decision points. The Issue #3 fix does not apply to this repertoire's transposition structure. See Issue #9 (filed as theme outlier; same root applies to gaps).
+
+Gap severity: all 20 listed are "high" with evals +17 to +29 cp. In the opening, near-equal positions mean almost every Black move is "close to the engine's best" — severity field loses signal at shallow depth. See MCP Retro Notes.
+
+### `suggest_replacement_line` (first test)
+
+Run on Be2 island path, `mode="structural_fit"`.
+
+| Field | Observed | Expected |
+|-------|----------|----------|
+| `outlier_move` | `h3` (last White move) | `Nf3` (move where divergence begins) |
+| `anchored_to` | `Qc7` (last Black move) | `c6` (Black move that triggered divergence) |
+| `profile_match` | `0.0` for all suggestions | Non-zero for fianchetto alternatives |
+
+Tool correctly found the position and returned sound continuations (+85–88 cp) but the structural replacement logic is broken:
+- Targets terminal move, not divergence point → Issue #7
+- `profile_match: 0.0` because `resulting_structure: unknown` (cascade from Issue #5 revert) → Issue #8
+
+### MCP Retro Notes (v4)
+
+1. **`acknowledged_weaknesses` works** — Issue #4 closed correctly. All 6 bxc3 paths acknowledged and downgraded to low. Workflow improvement: running with `min_severity: medium` after passing acknowledged paths gives clean 4-item output.
+
+2. **Theme-based outlier partially works** — Be2 island and b6 lines correctly caught. False positive on `1...Nc6 Nc3 e5` transposition stub. Issue #9 filed.
+
+3. **Issue #3 transposition fix scope mismatch** — fix applies to Black-to-move decision points; all 3 repertoire transpositions are at White-to-move positions. `transposition_endpoints: []` despite known transpositions. Issue was closed but the fix doesn't help this repertoire.
+
+4. **`suggest_replacement_line` outlier detection broken** — targets terminal move, not divergence. `structural_fit` mode inoperative for English Opening (unknown structures). Issues #7, #8 filed.
+
+5. **`total_flagged` misleading with acknowledged_weaknesses** — count includes acknowledged items. Issue #10 filed.
+
+6. **Gap severity flattens in the opening** — near-equal opening positions yield "high" severity for virtually all Black moves. The severity field can't meaningfully prioritize in shallow near-equal positions.
 
 ---
 
