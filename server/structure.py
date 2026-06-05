@@ -473,36 +473,56 @@ def _nimzo_grunfeld_confidence(board: chess.Board) -> float:
     return _graded(core_ok, bonus, base=0.8, cap=0.88)
 
 
-def _hedgehog_confidence(board: chess.Board) -> float:
-    """Hedgehog: White space pawns c4+e4 vs Black's a6/b6/d6/e6 6th-rank wall. The
-    full a6+b6 wall is what lifts it above a bare Maroczy (specificity = confidence)."""
-    wn, _ = _names_files(board, chess.WHITE)
-    bn, _ = _names_files(board, chess.BLACK)
-    if not ({"c4", "e4"} <= wn and {"d6", "e6"} <= bn):
+def _mirror_name(name: str) -> str:
+    """Rank-mirror a square name (e4↔e5, d6↔d3, a6↔a3)."""
+    return chess.square_name(chess.square_mirror(chess.parse_square(name)))
+
+
+def _rel(color: chess.Color, *names: str) -> set[str]:
+    """White-relative square names, rank-mirrored for Black so one spec serves both
+    orientations. A Sicilian structure with the colours flipped is the reversed-English
+    form (the side carrying the space pawns can be either colour)."""
+    if color == chess.WHITE:
+        return set(names)
+    return {_mirror_name(n) for n in names}
+
+
+# The Family-2 (open-Sicilian) scorers are bidirectional: `color` is the side carrying the
+# space pawns (Sicilian-White role); the opponent carries the small centre. Running both
+# colours covers reversed-English positions where Black holds the space. File-index gates
+# (no d-pawn, opp no c-pawn) are colour-symmetric and need no mirroring.
+
+
+def _hedgehog_confidence(board: chess.Board, color: chess.Color) -> float:
+    """Hedgehog: `color`'s space pawns c4+e4 vs the opponent's a6/b6/d6/e6 6th-rank wall
+    (mirrored for Black). The full a6+b6 wall lifts it above a bare Maroczy (specificity)."""
+    own, _ = _names_files(board, color)
+    opp, _ = _names_files(board, not color)
+    if not (_rel(color, "c4", "e4") <= own and _rel(color, "d6", "e6") <= opp):
         return 0.0
-    bonus = ("a6" in bn) + ("b6" in bn)
+    bonus = sum(s in opp for s in _rel(color, "a6", "b6"))
     return _graded(True, bonus, base=0.78, cap=0.9)
 
 
-def _najdorf_confidence(board: chess.Board) -> float:
-    """Najdorf / Boleslavsky: White e4 (no d-pawn) vs Black d6+e5 — the backward d6,
-    d5-hole structure."""
-    wn, wf = _names_files(board, chess.WHITE)
-    bn, bf = _names_files(board, chess.BLACK)
-    if not ("e4" in wn and 3 not in wf and {"d6", "e5"} <= bn):
+def _najdorf_confidence(board: chess.Board, color: chess.Color) -> float:
+    """Najdorf / Boleslavsky: `color` has e4 (no d-pawn) vs the opponent's d6+e5 — the
+    backward-d6, d5-hole structure (mirrored for Black)."""
+    own_n, own_f = _names_files(board, color)
+    opp_n, opp_f = _names_files(board, not color)
+    if not (_rel(color, "e4") <= own_n and 3 not in own_f and _rel(color, "d6", "e5") <= opp_n):
         return 0.0
-    bonus = 2 not in bf  # Black has traded the c-pawn (open Sicilian)
+    bonus = 2 not in opp_f  # opponent has traded the c-pawn (open Sicilian)
     return _graded(True, bonus, base=0.72, cap=0.8)
 
 
-def _scheveningen_confidence(board: chess.Board) -> float:
-    """Scheveningen / Najdorf II: White e4 (no d-pawn) vs Black d6+e6 small centre.
-    (Najdorf II reaches the identical pawns — merged.)"""
-    wn, wf = _names_files(board, chess.WHITE)
-    bn, bf = _names_files(board, chess.BLACK)
-    if not ("e4" in wn and 3 not in wf and {"d6", "e6"} <= bn):
+def _scheveningen_confidence(board: chess.Board, color: chess.Color) -> float:
+    """Scheveningen / Najdorf II: `color` has e4 (no d-pawn) vs the opponent's d6+e6 small
+    centre (mirrored for Black). Najdorf II reaches the identical pawns — merged."""
+    own_n, own_f = _names_files(board, color)
+    opp_n, opp_f = _names_files(board, not color)
+    if not (_rel(color, "e4") <= own_n and 3 not in own_f and _rel(color, "d6", "e6") <= opp_n):
         return 0.0
-    bonus = 2 not in bf
+    bonus = 2 not in opp_f
     return _graded(True, bonus, base=0.7, cap=0.78)
 
 
@@ -555,11 +575,15 @@ def classify_structure(board: chess.Board) -> dict:
     """
     candidates: list[tuple[str, float]] = []
 
-    # Bidirectional scorers — either side can carry the structure.
+    # Bidirectional scorers — either side can carry the structure (the open-Sicilian
+    # family covers reversed-English positions where Black holds the space).
     for color in (chess.WHITE, chess.BLACK):
         for name, conf in (
             ("IQP", _iqp_confidence(board, color)),
             ("Closed Sicilian", _closed_sicilian_confidence(board, color)),
+            ("Hedgehog", _hedgehog_confidence(board, color)),
+            ("Najdorf", _najdorf_confidence(board, color)),
+            ("Scheveningen", _scheveningen_confidence(board, color)),
         ):
             if conf > 0:
                 candidates.append((name, conf))
@@ -581,9 +605,6 @@ def classify_structure(board: chess.Board) -> dict:
         ("Slav", _slav_confidence(board)),
         ("Grünfeld Centre", _grunfeld_center_confidence(board)),
         ("Nimzo-Grünfeld", _nimzo_grunfeld_confidence(board)),
-        ("Hedgehog", _hedgehog_confidence(board)),
-        ("Najdorf", _najdorf_confidence(board)),
-        ("Scheveningen", _scheveningen_confidence(board)),
         ("Symmetric Benoni", _symmetric_benoni_confidence(board)),
         ("Lopez", _lopez_confidence(board)),
         ("Benko", _benko_confidence(board)),

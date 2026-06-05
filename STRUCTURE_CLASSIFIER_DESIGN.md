@@ -259,10 +259,10 @@ Per `structure.py` convention (scorers are the tested private API, `test_structu
    the original analysis's bxc3 gap — the English `…Nxc3 bxc3` leaf now classifies as Grünfeld
    Centre 0.7 instead of unknown/0.0. **Nimzo-Grünfeld** is gated on doubled c3+c4, mutually
    exclusive with Grünfeld Centre. Specificity ordering verified (Hedgehog out-scores Maroczy).
-   Family-2 Sicilian scorers (Hedgehog, Najdorf, Scheveningen) ship **White-oriented**; the
-   reversed-English Black-side variants are a follow-up (the provenance pass showed this
-   user's English reaches Grünfeld-Centre/fianchetto structures, not reversed-Sicilian, so the
-   bidirectional Sicilian is lower priority than §4's original framing implied).
+   Family-2 Sicilian scorers (Hedgehog, Najdorf, Scheveningen) are **bidirectional** via a
+   rank-mirror helper (`_rel`/`_mirror_name`): `color` is the side holding the space pawns, so
+   running both colours classifies reversed-English positions where Black carries the space.
+   Verified by mirroring each canonical FEN (`board.mirror()`) and asserting the same label.
 4. ✅ `classify_structure` docstring enum + `get_structural_profile` tool docstring updated to
    the 19-structure set. 114 tests green, structure.py 99%.
 

@@ -449,6 +449,20 @@ def test_grunfeld_centre_requires_half_open_b():
     assert structure._grunfeld_center_confidence(b) == 0.0
 
 
+# The open-Sicilian family is bidirectional: mirroring a canonical FEN (board.mirror()
+# swaps colours + flips ranks) gives the reversed-English form where Black holds the
+# space. It must classify as the SAME structure.
+FAMILY2_FENS = [(name, fen) for name, fen in CANON_C_FENS
+                if name in {"Hedgehog", "Najdorf", "Scheveningen"}]
+
+
+@pytest.mark.parametrize("expected,fen", FAMILY2_FENS)
+def test_family2_scorers_are_bidirectional(expected, fen):
+    mirrored = chess.Board(fen).mirror()  # reversed-English: Black carries the space
+    assert mirrored.fen() != fen
+    assert structure.classify_structure(mirrored)["structure_class"] == expected
+
+
 # ---------------------------------------------------------------------------
 # Walker
 # ---------------------------------------------------------------------------
