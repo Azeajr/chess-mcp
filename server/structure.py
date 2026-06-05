@@ -324,6 +324,78 @@ def _maroczy_confidence(board: chess.Board) -> float:
     return 0.0
 
 
+def _graded(core_ok: bool, bonus_present: int, *, base: float, cap: float, step: float = 0.05) -> float:
+    """Core+bonus confidence (B). `core_ok` is the hard gate — False → 0.0 (D2: no
+    core, no label). Each present bonus square lifts confidence from `base` toward
+    `cap`, so a position missing a peripheral square still classifies (just lower),
+    instead of the all-or-nothing exact-match brittleness it replaces."""
+    if not core_ok:
+        return 0.0
+    return round(min(cap, base + step * bonus_present), 2)
+
+
+def _french_confidence(board: chess.Board) -> float:
+    """French/Advance chain: d4+e5 vs d5+e6 (reversed-colour variant scored lower)."""
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if {"d4", "e5"} <= wnames and {"d5", "e6"} <= bnames:
+        return 0.85
+    if {"d4", "e3"} <= wnames and {"d5", "e4"} <= bnames:
+        return 0.6
+    return 0.0
+
+
+def _stonewall_confidence(board: chess.Board) -> float:
+    """Stonewall wall: White d4/e3/f4 or Black d5/e6/f5."""
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if {"d4", "e3", "f4"} <= wnames or {"d5", "e6", "f5"} <= bnames:
+        return 0.85
+    return 0.0
+
+
+def _kid_confidence(board: chess.Board) -> float:
+    """King's Indian chain. Core d5+e4 vs e5+d6 (the locked centre); the c4 pawn and
+    the g6 fianchetto are bonus, so a KID missing one still classifies (B)."""
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if {"d5", "e4"} <= wnames and {"e5", "d6"} <= bnames:
+        bonus = ("c4" in wnames) + ("g6" in bnames)
+        return _graded(True, bonus, base=0.7, cap=0.85, step=0.075)
+    if {"d4", "e5"} <= bnames and {"e4", "d3"} <= wnames:  # reversed colours
+        bonus = ("c5" in bnames) + ("g3" in wnames)
+        return _graded(True, bonus, base=0.45, cap=0.6, step=0.075)
+    return 0.0
+
+
+def _benoni_confidence(board: chess.Board) -> float:
+    """Asymmetric Benoni: d5+e4 vs c5+d6 with a half-open e-file for the defender."""
+    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
+    bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
+    if {"d5", "e4"} <= wnames and {"c5", "d6"} <= bnames and 4 not in bfiles:
+        return 0.85
+    if {"d4", "e5"} <= bnames and {"c4", "d3"} <= wnames and 4 not in wfiles:
+        return 0.6
+    return 0.0
+
+
+def _closed_sicilian_confidence(board: chess.Board, color: chess.Color) -> float:
+    """Closed Sicilian / Grand Prix wall, scored for `color` (bidirectional — the
+    Black side is the reversed-English Grand Prix). Core e4+f4 vs opp c5; d3 and the
+    opponent's d6 are bonus."""
+    own = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, color)}
+    opp = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, not color)}
+    if color == chess.WHITE:
+        core_ok = {"e4", "f4"} <= own and "c5" in opp
+        bonus = ("d3" in own) + ("d6" in opp)
+        return _graded(core_ok, bonus, base=0.6, cap=0.7)
+    core_ok = {"e5", "f5"} <= own and "c4" in opp  # mirror for Black
+    bonus = ("d6" in own) + ("d3" in opp)
+    return _graded(core_ok, bonus, base=0.5, cap=0.65)
+
+
 def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
@@ -343,54 +415,28 @@ def classify_structure(board: chess.Board) -> dict:
     - Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e-file for Black.
     - Closed Sicilian: e4/d3/f4 (White) vs c5/d6 (Black), the Grand Prix skeleton.
     """
-    wnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
-    bnames = {chess.square_name(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
-    wfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.WHITE)}
-    bfiles = {chess.square_file(sq) for sq in board.pieces(chess.PAWN, chess.BLACK)}
-
     candidates: list[tuple[str, float]] = []
 
-    # IQP / Carlsbad / Maroczy — scored by the shared scorers above (one source of truth).
-    for color in (chess.WHITE, chess.BLACK):  # either side can carry an IQP
-        conf = _iqp_confidence(board, color)
-        if conf > 0:
-            candidates.append(("IQP", conf))
+    # Bidirectional scorers — either side can carry the structure.
+    for color in (chess.WHITE, chess.BLACK):
+        for name, conf in (
+            ("IQP", _iqp_confidence(board, color)),
+            ("Closed Sicilian", _closed_sicilian_confidence(board, color)),
+        ):
+            if conf > 0:
+                candidates.append((name, conf))
+
+    # Single-orientation scorers (each handles its own colour logic internally).
     for name, conf in (
         ("Carlsbad", _carlsbad_confidence(board)),
         ("Maroczy", _maroczy_confidence(board)),
+        ("French", _french_confidence(board)),
+        ("Stonewall", _stonewall_confidence(board)),
+        ("King's Indian", _kid_confidence(board)),
+        ("Benoni", _benoni_confidence(board)),
     ):
         if conf > 0:
             candidates.append((name, conf))
-
-    # French Advance: e5/d4 vs e6/d5
-    if {"e5", "d4"} <= wnames and {"e6", "d5"} <= bnames:
-        candidates.append(("French", 0.85))
-    if {"e4", "d5"} <= bnames and {"e3", "d4"} <= wnames:
-        candidates.append(("French", 0.6))
-
-    # Stonewall: d5/e6/f5 (Black) or d4/e3/f4 (White)
-    if {"d5", "e6", "f5"} <= bnames:
-        candidates.append(("Stonewall", 0.85))
-    if {"d4", "e3", "f4"} <= wnames:
-        candidates.append(("Stonewall", 0.85))
-
-    # King's Indian: c4/d5/e4 (White) vs d6/e5/g6 (Black)
-    if {"c4", "d5", "e4"} <= wnames and {"d6", "e5", "g6"} <= bnames:
-        candidates.append(("King's Indian", 0.85))
-    if {"c5", "d4", "e5"} <= bnames and {"d3", "e4", "g3"} <= wnames:
-        candidates.append(("King's Indian", 0.6))
-
-    # Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e for Black
-    if {"d5", "e4"} <= wnames and {"c5", "d6"} <= bnames and 4 not in bfiles:
-        candidates.append(("Benoni", 0.85))
-    if {"d4", "e5"} <= bnames and {"c4", "d3"} <= wnames and 4 not in wfiles:
-        candidates.append(("Benoni", 0.6))
-
-    # Closed Sicilian (Grand Prix skeleton): White e4/d3/f4 small center vs Black c5/d6.
-    # Brittle under static matching (D2) → lower confidence; the d3 (not d4) + f4 trio
-    # separates it from open-Sicilian and KIA-vs-Sicilian reads. No mirrored Black variant.
-    if {"e4", "d3", "f4"} <= wnames and {"c5", "d6"} <= bnames:
-        candidates.append(("Closed Sicilian", 0.7))
 
     if not candidates:
         return {"structure_class": "unknown", "confidence": 0.0}

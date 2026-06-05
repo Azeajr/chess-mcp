@@ -335,6 +335,61 @@ def test_position_profile_shape():
 
 
 # ---------------------------------------------------------------------------
+# Graded confidence + brittleness tolerance + bidirectional (B)
+# ---------------------------------------------------------------------------
+
+
+def test_graded_gate_blocks_without_core():
+    assert structure._graded(False, 5, base=0.7, cap=0.9) == 0.0
+
+
+def test_graded_scales_with_bonus_and_caps():
+    assert structure._graded(True, 0, base=0.6, cap=0.7) == 0.6
+    assert structure._graded(True, 2, base=0.6, cap=0.7) == 0.7  # 0.6 + 2*0.05
+    assert structure._graded(True, 9, base=0.6, cap=0.7) == 0.7  # clamped to cap
+
+
+def test_kid_brittleness_missing_c4_still_classifies():
+    # KID core (d5/e4 vs e5/d6) without the c4 bonus pawn: exact matching gave 0.0;
+    # core+bonus keeps it classified, just below the full-confidence 0.85.
+    b = pawns(
+        (chess.D5, True), (chess.E4, True),
+        (chess.E5, False), (chess.D6, False), (chess.G6, False),
+    )
+    out = structure.classify_structure(b)
+    assert out["structure_class"] == "King's Indian"
+    assert 0.7 <= out["confidence"] < 0.85
+
+
+def test_closed_sicilian_brittleness_missing_d3():
+    b = pawns((chess.E4, True), (chess.F4, True), (chess.C5, False))  # no d3/d6 bonus
+    out = structure.classify_structure(b)
+    assert out["structure_class"] == "Closed Sicilian"
+    assert out["confidence"] == 0.6
+
+
+def test_closed_sicilian_bidirectional_black_side():
+    # Reversed-English Grand Prix: Black runs the e5/f5 wall vs White's c4.
+    b = pawns((chess.E5, False), (chess.F5, False), (chess.C4, True))
+    assert structure._closed_sicilian_confidence(b, chess.BLACK) > 0
+    assert structure.classify_structure(b)["structure_class"] == "Closed Sicilian"
+
+
+def test_reversed_colour_branches():
+    french = pawns((chess.D4, True), (chess.E3, True), (chess.D5, False), (chess.E4, False))
+    assert structure._french_confidence(french) == 0.6
+    benoni = pawns(
+        (chess.D4, False), (chess.E5, False), (chess.C4, True), (chess.D3, True)
+    )
+    assert structure._benoni_confidence(benoni) == 0.6
+    kid = pawns(
+        (chess.D4, False), (chess.E5, False), (chess.C5, False),
+        (chess.E4, True), (chess.D3, True), (chess.G3, True),
+    )
+    assert structure._kid_confidence(kid) == 0.6
+
+
+# ---------------------------------------------------------------------------
 # Walker
 # ---------------------------------------------------------------------------
 

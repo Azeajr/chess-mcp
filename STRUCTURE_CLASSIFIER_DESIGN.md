@@ -82,7 +82,14 @@ Replace exact subset matching with a **core + bonus** model per scorer:
 Concretely, each scorer declares `(core: set, bonus: set, base: float, cap: float)` and
 confidence = `base + step * |bonus ∩ position|`, clamped to `cap`, gated on `core ⊆ position`.
 This single change repairs brittleness across *all* scorers at once and makes
-`max(candidates)` (`structure.py:296`) a meaningful tiebreak rather than a constant lottery.
+`max(candidates)` a meaningful tiebreak rather than a constant lottery.
+
+**Implemented as the `_graded(core_ok, bonus_present, *, base, cap, step)` helper.** Scope
+note: B applied core+bonus to the 5 previously-inline matchers (French, Stonewall, KID,
+Benoni, Closed Sicilian) — the brittle ones, exact-set-matched. The 3 standalone private
+scorers (IQP, Carlsbad, Maroczy) were already hard-gated and rank/half-open-graduated, so
+they were left intact rather than churned for no behavioural gain. Closed Sicilian is now
+bidirectional (the Black side is the reversed-English Grand Prix).
 
 ### C — Near-exhaustive canon (the structure set)
 
@@ -239,11 +246,12 @@ Per `structure.py` convention (scorers are the tested private API, `test_structu
 
 ## 7. Build order
 
-1. **A** — `themes` block in `position_profile` + tests. Independent, ship first; immediately
-   fixes the English "empty profile" complaint.
-2. **B** — refactor existing 8 scorers to core+bonus graduated confidence; make Family-2 +
-   Closed-Sicilian scorers bidirectional; tests prove no regression on current canonical FENs,
-   plus new brittleness fixtures.
+1. ✅ **A (shipped, ce65940)** — `themes` block in `position_profile` + 13 tests. Independent;
+   fixes the English "empty profile" complaint (grounded on the real bxc3 leaf).
+2. ✅ **B (shipped)** — `_graded` core+bonus helper; the 5 brittle inline matchers extracted to
+   graded private scorers; Closed Sicilian bidirectional. 6 new tests (brittleness, bidirectional,
+   reversed-colour); zero regression on the 8 canonical FENs. IQP/Carlsbad/Maroczy left intact
+   (already gated+graduated).
 3. **C** — add the 10 new scorers on the B foundation; one canonical + one negative fixture
    each; collision fixtures for the known overlaps. **Grünfeld Centre first** — its core+bonus
    form (core c3+d4+half-open-b, bonus e4) closes the original analysis's bxc3 congruence gap
