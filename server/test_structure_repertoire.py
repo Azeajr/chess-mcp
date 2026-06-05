@@ -259,10 +259,13 @@ def test_themes_always_populated_when_structure_unknown():
 ENGLISH_BXC3_FEN = "1rbq1rk1/ppp2pp1/2nb3p/4p3/3P4/2P2NP1/P1Q1PPBP/1RB2RK1 b - - 1 11"
 
 
-def test_themes_rescue_english_unknown_leaf():
+def test_english_bxc3_leaf_now_classifies_grunfeld_centre():
+    # The original analysis profiled this leaf as unknown/0.0. After C it classifies as
+    # Grünfeld Centre (single c3+d4, half-open b, e-pawn home → no e4 bonus → base 0.7),
+    # and themes still describe the g2 fianchetto + half-open b-file (the bxc3 artifact).
     prof = structure.position_profile(chess.Board(ENGLISH_BXC3_FEN), chess.WHITE)
-    assert prof["structure_class"] == "unknown"  # the classifier still can't name it
-    # ...but themes now describe it: g2 fianchetto + half-open b-file (the bxc3 artifact).
+    assert prof["structure_class"] == "Grünfeld Centre"
+    assert prof["confidence"] == 0.7
     assert prof["themes"]["fianchetto_white"] is True
     assert "b" in prof["half_open_files"]
 
@@ -387,6 +390,63 @@ def test_reversed_colour_branches():
         (chess.E4, True), (chess.D3, True), (chess.G3, True),
     )
     assert structure._kid_confidence(kid) == 0.6
+
+
+# ---------------------------------------------------------------------------
+# Canonical-canon scorers (C) — every FEN is MCP-verified (design §8 provenance log)
+# ---------------------------------------------------------------------------
+
+# (structure_class, canonical FEN from the provenance log)
+CANON_C_FENS = [
+    ("Nimzo-Grünfeld", "rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6"),
+    ("Grünfeld Centre", "rnbqkb1r/ppp1pp1p/6p1/8/3PP3/2P5/P4PPP/R1BQKBNR b KQkq - 0 6"),
+    ("Hedgehog", "rnbqkb1r/5ppp/pp1ppn2/8/2PNP3/2N5/PP2BPPP/R1BQK2R w KQkq - 0 8"),
+    ("Najdorf", "rnbqkb1r/1p3ppp/p2p1n2/4p3/3NP3/2N5/PPP1BPPP/R1BQK2R w KQkq - 0 7"),
+    ("Scheveningen", "rnbqkb1r/1p3ppp/p2ppn2/8/3NP3/2N5/PPP1BPPP/R1BQK2R w KQkq - 0 7"),
+    ("Caro-Kann", "rn1qkbnr/pp3ppp/2p1p3/3pPb2/3P4/5N2/PPP2PPP/RNBQKB1R w KQkq - 0 5"),
+    ("Slav", "rn1qkb1r/pp3ppp/2p1pn2/3p1b2/2PP4/2N1PN2/PP3PPP/R1BQKB1R w KQkq - 0 6"),
+    ("Lopez", "r1bq1rk1/2p1bppp/p1np1n2/1p2p3/4P3/1BPP1N2/PP3PPP/RNBQR1K1 b - - 0 9"),
+    ("Benko", "rn1qkb1r/4pppp/b2p1n2/2pP4/8/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 7"),
+    ("Hanging pawns", "rnb2rk1/p3qpp1/7p/2pp4/8/4PN2/PP2BPPP/R2QK2R w KQ - 0 13"),
+    ("Symmetric Benoni", "rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6"),
+]
+
+
+@pytest.mark.parametrize("expected,fen", CANON_C_FENS)
+def test_canon_c_scorer_classifies_its_model_position(expected, fen):
+    out = structure.classify_structure(chess.Board(fen))
+    assert out["structure_class"] == expected
+    assert out["confidence"] >= 0.7
+
+
+def test_hedgehog_outscores_maroczy_by_specificity():
+    # Hedgehog's a6/b6/d6/e6 wall (4 pawns) beats a bare Maroczy (c4/e4) on the same FEN.
+    hedgehog = "rnbqkb1r/5ppp/pp1ppn2/8/2PNP3/2N5/PP2BPPP/R1BQK2R w KQkq - 0 8"
+    board = chess.Board(hedgehog)
+    assert structure._maroczy_confidence(board) > 0  # Maroczy also fires...
+    assert structure.classify_structure(board)["structure_class"] == "Hedgehog"  # ...but loses
+
+
+def test_nimzo_grunfeld_vs_grunfeld_centre_split_on_doubled_c():
+    # Doubled c3+c4 → Nimzo-Grünfeld; single c3 → Grünfeld Centre. Mutually exclusive.
+    nimzo = chess.Board("rnbqk2r/p1pp1ppp/1p2pn2/8/2PP4/P1P1P3/5PPP/R1BQKBNR b KQkq - 0 6")
+    assert structure._grunfeld_center_confidence(nimzo) == 0.0  # c4 present → not Grünfeld
+    grunfeld = chess.Board("rnbqkb1r/ppp1pp1p/6p1/8/3PP3/2P5/P4PPP/R1BQKBNR b KQkq - 0 6")
+    assert structure._nimzo_grunfeld_confidence(grunfeld) == 0.0  # single c → not Nimzo
+
+
+def test_symmetric_vs_asymmetric_benoni_split_on_e_pawn():
+    # Asymmetric Benoni gates on a half-open e-file (no Black e-pawn); Symmetric keeps e5.
+    symmetric = chess.Board(
+        "rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6"
+    )
+    assert structure._benoni_confidence(symmetric) == 0.0  # Black e5 present → not Asymmetric
+
+
+def test_grunfeld_centre_requires_half_open_b():
+    # Negative guard: c3+d4 but a b-pawn present (b-file not half-open) → no false label.
+    b = pawns((chess.C3, True), (chess.D4, True), (chess.B2, True), (chess.A7, False))
+    assert structure._grunfeld_center_confidence(b) == 0.0
 
 
 # ---------------------------------------------------------------------------

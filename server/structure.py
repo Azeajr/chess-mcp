@@ -396,24 +396,162 @@ def _closed_sicilian_confidence(board: chess.Board, color: chess.Color) -> float
     return _graded(core_ok, bonus, base=0.5, cap=0.65)
 
 
+# --- C: the canonical-canon additions (STRUCTURE_CLASSIFIER_DESIGN.md §4). Each ships
+# with an MCP-verified canonical FEN fixture (the provenance log in the design doc). The
+# Family-2 Sicilian scorers are implemented White-oriented here; the reversed-English
+# (Black-side) variants are a documented follow-up (D-STRUCT-3). ----------------------
+
+
+def _names_files(board: chess.Board, color: chess.Color) -> tuple[set[str], set[int]]:
+    """(square-name set, file-index set) of `color`'s pawns — scorer boilerplate."""
+    pawns = board.pieces(chess.PAWN, color)
+    return (
+        {chess.square_name(s) for s in pawns},
+        {chess.square_file(s) for s in pawns},
+    )
+
+
+def _hanging_pawns_confidence(board: chess.Board, color: chess.Color) -> float:
+    """A c+d pawn pair with no friendly b- or e-pawn (the hanging duo), the flanking
+    b/e files half-open for the owner to defend."""
+    _, files = _names_files(board, color)
+    core_ok = {2, 3} <= files and 1 not in files and 4 not in files
+    half = set(get_half_open_files(board, color))
+    bonus = ("b" in half) + ("e" in half)
+    return _graded(core_ok, bonus, base=0.7, cap=0.8)
+
+
+def _caro_kann_confidence(board: chess.Board) -> float:
+    """Caro-Kann Formation: White d4+e5 chain vs Black c6+d5; the c6 pawn and a
+    light bishop developed *outside* the chain separate it from the French."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    if not ({"d4", "e5"} <= wn and {"c6", "d5"} <= bn):
+        return 0.0
+    bishops = board.pieces(chess.BISHOP, chess.BLACK)
+    outside = any(sq in bishops for sq in (chess.F5, chess.G4, chess.G6, chess.H5))
+    bonus = ("e6" in bn) + outside
+    return _graded(True, bonus, base=0.78, cap=0.88)
+
+
+def _slav_confidence(board: chess.Board) -> float:
+    """Slav Formation: White c4+d4 vs Black c6+d5 triangle (bishop typically on f5)."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    if not ({"c4", "d4"} <= wn and {"c6", "d5"} <= bn):
+        return 0.0
+    bishops = board.pieces(chess.BISHOP, chess.BLACK)
+    outside = any(sq in bishops for sq in (chess.F5, chess.G4))
+    bonus = ("e6" in bn) + outside
+    return _graded(True, bonus, base=0.75, cap=0.85)
+
+
+def _grunfeld_center_confidence(board: chess.Board) -> float:
+    """Grünfeld Centre: White c3+d4 (single c-pawn, half-open b) from …Nxc3 bxc3,
+    with the e4 phalanx push a bonus. Core c3+d4 with c4 ABSENT — this is what finally
+    classifies the English …Nxc3 bxc3 leaves (single c3+d4, e-pawn still home)."""
+    wn, _ = _names_files(board, chess.WHITE)
+    core_ok = (
+        "c3" in wn
+        and "c4" not in wn  # single c-pawn → not the doubled Nimzo-Grünfeld
+        and "d4" in wn
+        and "b" in set(get_half_open_files(board, chess.WHITE))
+    )
+    bonus = "e4" in wn
+    return _graded(core_ok, bonus, base=0.7, cap=0.82, step=0.08)
+
+
+def _nimzo_grunfeld_confidence(board: chess.Board) -> float:
+    """Nimzo-Grünfeld Formation: White DOUBLED c-pawns c3+c4 + d4, half-open b (from
+    Nimzo …Bxc3 bxc3). The doubled c gate is what separates it from Grünfeld Centre."""
+    wn, _ = _names_files(board, chess.WHITE)
+    core_ok = (
+        {"c3", "c4", "d4"} <= wn
+        and "b" in set(get_half_open_files(board, chess.WHITE))
+    )
+    bonus = "e3" in wn
+    return _graded(core_ok, bonus, base=0.8, cap=0.88)
+
+
+def _hedgehog_confidence(board: chess.Board) -> float:
+    """Hedgehog: White space pawns c4+e4 vs Black's a6/b6/d6/e6 6th-rank wall. The
+    full a6+b6 wall is what lifts it above a bare Maroczy (specificity = confidence)."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    if not ({"c4", "e4"} <= wn and {"d6", "e6"} <= bn):
+        return 0.0
+    bonus = ("a6" in bn) + ("b6" in bn)
+    return _graded(True, bonus, base=0.78, cap=0.9)
+
+
+def _najdorf_confidence(board: chess.Board) -> float:
+    """Najdorf / Boleslavsky: White e4 (no d-pawn) vs Black d6+e5 — the backward d6,
+    d5-hole structure."""
+    wn, wf = _names_files(board, chess.WHITE)
+    bn, bf = _names_files(board, chess.BLACK)
+    if not ("e4" in wn and 3 not in wf and {"d6", "e5"} <= bn):
+        return 0.0
+    bonus = 2 not in bf  # Black has traded the c-pawn (open Sicilian)
+    return _graded(True, bonus, base=0.72, cap=0.8)
+
+
+def _scheveningen_confidence(board: chess.Board) -> float:
+    """Scheveningen / Najdorf II: White e4 (no d-pawn) vs Black d6+e6 small centre.
+    (Najdorf II reaches the identical pawns — merged.)"""
+    wn, wf = _names_files(board, chess.WHITE)
+    bn, bf = _names_files(board, chess.BLACK)
+    if not ("e4" in wn and 3 not in wf and {"d6", "e6"} <= bn):
+        return 0.0
+    bonus = 2 not in bf
+    return _graded(True, bonus, base=0.7, cap=0.78)
+
+
+def _symmetric_benoni_confidence(board: chess.Board) -> float:
+    """Symmetric / Czech Benoni: White d5+e4 vs Black c5+d6+e5 — fully locked (Black
+    KEEPS the e-pawn, unlike the e-file-half-open Asymmetric Benoni)."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    if not ({"d5", "e4"} <= wn and {"c5", "d6", "e5"} <= bn):
+        return 0.0
+    bonus = "c4" in wn
+    return _graded(True, bonus, base=0.8, cap=0.88)
+
+
+def _lopez_confidence(board: chess.Board) -> float:
+    """Lopez Formation: White e4+d3 small centre vs Black e5+d6 (closed Ruy), the
+    c3 prep-pawn a bonus."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    if not ({"e4", "d3"} <= wn and {"e5", "d6"} <= bn):
+        return 0.0
+    bonus = "c3" in wn
+    return _graded(True, bonus, base=0.68, cap=0.78)
+
+
+def _benko_confidence(board: chess.Board) -> float:
+    """Benko structure: White d5 vs Black c5+d6 with the a- and b-files half-open for
+    Black (the gambit's queenside file pressure)."""
+    wn, _ = _names_files(board, chess.WHITE)
+    bn, _ = _names_files(board, chess.BLACK)
+    half = set(get_half_open_files(board, chess.BLACK))
+    if not ("d5" in wn and {"c5", "d6"} <= bn and {"a", "b"} <= half):
+        return 0.0
+    bonus = ("a2" in wn) + ("b2" in wn)
+    return _graded(True, bonus, base=0.72, cap=0.82)
+
+
 def classify_structure(board: chess.Board) -> dict:
     """Pattern-match the board to a named pawn structure.
 
-    Returns {structure_class, confidence}. structure_class is one of
-    IQP / Carlsbad / Maroczy / French / Stonewall / King's Indian / Benoni /
-    Closed Sicilian / unknown.
-    Never forces a label — a weak or absent match yields {"unknown", 0.0}.
-    Highest-confidence candidate wins.
-
-    Patterns:
-    - IQP: isolated d-pawn (no c/e pawn) with d-file half-open for opponent, advanced square.
-    - Carlsbad: d4/d5 skeleton + one side half-open on c, the other with c-pawn, no e-pawn.
-    - Maroczy: c4 + e4 binding structure (no d-pawn).
-    - French Advance: e5/d4 (White) vs e6/d5 (Black), locked pawns.
-    - Stonewall: d5/e6/f5 pawn wall (Black side) or d4/e3/f4 (White).
-    - King's Indian: c4/d5/e4 (White) vs d6/e5/g6 (Black), locked center.
-    - Benoni: d5/e4 (White) vs c5/d6 (Black) + half-open e-file for Black.
-    - Closed Sicilian: e4/d3/f4 (White) vs c5/d6 (Black), the Grand Prix skeleton.
+    Returns {structure_class, confidence}. structure_class is one of the 19 canonical
+    structures (STRUCTURE_CLASSIFIER_DESIGN.md §4) — IQP, Carlsbad, Maroczy, French,
+    Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav,
+    Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni,
+    Lopez, Benko — or unknown.
+    Never forces a label — a weak or absent match yields {"unknown", 0.0} (D2). Each
+    scorer is a private `_*_confidence` (single source of truth), gated on a core skeleton
+    and graduated by bonus squares (B). Highest-confidence candidate wins; more-specific
+    structures out-score their generic parents because they match more defining squares.
     """
     candidates: list[tuple[str, float]] = []
 
@@ -426,6 +564,11 @@ def classify_structure(board: chess.Board) -> dict:
             if conf > 0:
                 candidates.append((name, conf))
 
+    for color in (chess.WHITE, chess.BLACK):  # either side can carry hanging pawns
+        conf = _hanging_pawns_confidence(board, color)
+        if conf > 0:
+            candidates.append(("Hanging pawns", conf))
+
     # Single-orientation scorers (each handles its own colour logic internally).
     for name, conf in (
         ("Carlsbad", _carlsbad_confidence(board)),
@@ -434,6 +577,16 @@ def classify_structure(board: chess.Board) -> dict:
         ("Stonewall", _stonewall_confidence(board)),
         ("King's Indian", _kid_confidence(board)),
         ("Benoni", _benoni_confidence(board)),
+        ("Caro-Kann", _caro_kann_confidence(board)),
+        ("Slav", _slav_confidence(board)),
+        ("Grünfeld Centre", _grunfeld_center_confidence(board)),
+        ("Nimzo-Grünfeld", _nimzo_grunfeld_confidence(board)),
+        ("Hedgehog", _hedgehog_confidence(board)),
+        ("Najdorf", _najdorf_confidence(board)),
+        ("Scheveningen", _scheveningen_confidence(board)),
+        ("Symmetric Benoni", _symmetric_benoni_confidence(board)),
+        ("Lopez", _lopez_confidence(board)),
+        ("Benko", _benko_confidence(board)),
     ):
         if conf > 0:
             candidates.append((name, conf))

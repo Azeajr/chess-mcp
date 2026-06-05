@@ -93,14 +93,14 @@ bidirectional (the Black side is the reversed-English Grand Prix).
 
 ### C — Near-exhaustive canon (the structure set)
 
-Implement the recognized middlegame canon (§4). 10 additions on top of the existing 8,
+Implement the recognized middlegame canon (§4). 11 additions on top of the existing 8,
 each as a private `_<name>_confidence(board)` scorer (the existing single-source-of-truth
 pattern, `structure.py:173-176`), wired into `classify_structure`'s candidate loop. Family-2
 (Sicilian) and Closed-Sicilian scorers run bidirectionally, so English structures are covered
 with no extra scorers (§4 bidirectional note).
 
 **Exhaustiveness is bounded, not absolute.** The canon is a finite, literature-attested set
-(18 structures, every row TOC-traced to Flores Rios / Soltis, §4). It does not cover every
+(19 structures, every row TOC-traced to Flores Rios / Soltis, §4). It does not cover every
 possible position — transitional / amorphous positions exist. Those fall through to A.
 C-exhaustive + A-backstop = honest full coverage; C alone merely relocates the `unknown` cliff.
 
@@ -108,7 +108,7 @@ C-exhaustive + A-backstop = honest full coverage; C alone merely relocates the `
 
 ## 3. Collision & precedence model
 
-With ~18 scorers (some bidirectional), many positions match 2–3 candidates (Hedgehog ∩
+With ~19 scorers (some bidirectional), many positions match 2–3 candidates (Hedgehog ∩
 Maroczy ∩ Scheveningen all share c4/e4; Symmetric ∩ Asymmetric Benoni; Nimzo-Grünfeld ∩
 Carlsbad both have doubled/half-open c-play). The resolution rule:
 
@@ -208,10 +208,11 @@ canon chapter. A misapplied name here is the exact D2 failure mode:
 | 3-3 vs 4-2 structure | Flores ch22, but defined by *majority distribution* not squares; skeleton UNVERIFIED (§8) | `themes` (queenside/kingside majority) |
 | Doubled-isolated pair | not a named structure | `themes` / primitives |
 
-**Total: 8 existing scorers + 10 additions = 18 canonical structures** (Najdorf II merged into
+**Total: 8 existing scorers + 11 additions = 19 canonical structures** (Najdorf II merged into
 Scheveningen, and 3-3 vs 4-2 demoted to a theme tag — both per the provenance pass; Family 2 +
 Closed Sicilian each count once but run bidirectionally), plus the A backstop for everything
-else.
+else. The 11 additions: Hanging, Caro-Kann, Slav, Grünfeld Centre, Najdorf I/Boleslavsky,
+Scheveningen/Najdorf II, Hedgehog, Symmetric Benoni, Lopez, Nimzo-Grünfeld, Benko.
 
 ---
 
@@ -252,13 +253,18 @@ Per `structure.py` convention (scorers are the tested private API, `test_structu
    graded private scorers; Closed Sicilian bidirectional. 6 new tests (brittleness, bidirectional,
    reversed-colour); zero regression on the 8 canonical FENs. IQP/Carlsbad/Maroczy left intact
    (already gated+graduated).
-3. **C** — add the 10 new scorers on the B foundation; one canonical + one negative fixture
-   each; collision fixtures for the known overlaps. **Grünfeld Centre first** — its core+bonus
-   form (core c3+d4+half-open-b, bonus e4) closes the original analysis's bxc3 congruence gap
-   (`ct-white-repertoire-analysis.md`), which is single-c. **Nimzo-Grünfeld is separate** —
-   doubled c3+c4 from `…Bxc3 bxc3`; it does NOT match the English `…Nxc3 bxc3` single-c
-   positions (provenance pass, §8 D-STRUCT-1).
-4. Update `classify_structure` docstring enum; regen any evals snapshot.
+3. ✅ **C (shipped)** — all 11 new scorers on the B foundation, each gated on its core
+   skeleton and validated against its MCP-verified canonical FEN (§8 provenance log), which
+   doubles as the test fixture. **Grünfeld Centre** (core c3+d4+half-open-b, bonus e4) closes
+   the original analysis's bxc3 gap — the English `…Nxc3 bxc3` leaf now classifies as Grünfeld
+   Centre 0.7 instead of unknown/0.0. **Nimzo-Grünfeld** is gated on doubled c3+c4, mutually
+   exclusive with Grünfeld Centre. Specificity ordering verified (Hedgehog out-scores Maroczy).
+   Family-2 Sicilian scorers (Hedgehog, Najdorf, Scheveningen) ship **White-oriented**; the
+   reversed-English Black-side variants are a follow-up (the provenance pass showed this
+   user's English reaches Grünfeld-Centre/fianchetto structures, not reversed-Sicilian, so the
+   bidirectional Sicilian is lower priority than §4's original framing implied).
+4. ✅ `classify_structure` docstring enum + `get_structural_profile` tool docstring updated to
+   the 19-structure set. 114 tests green, structure.py 99%.
 
 ---
 
@@ -286,6 +292,8 @@ Per `structure.py` convention (scorers are the tested private API, `test_structu
   | Lopez | 1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 4.Ba4 Nf6 5.O-O Be7 6.Re1 b5 7.Bb3 d6 8.c3 O-O 9.d3 | `r1bq1rk1/2p1bppp/p1np1n2/1p2p3/4P3/1BPP1N2/PP3PPP/RNBQR1K1 b - - 0 9` | White e4/d3/c3; Black e5/d6 (vs Closed Sic: c3-not-f4, e5-not-c5) ✅ |
   | Benko | 1.d4 Nf6 2.c4 c5 3.d5 b5 4.cxb5 a6 5.bxa6 Bxa6 6.Nc3 d6 | `rn1qkb1r/4pppp/b2p1n2/2pP4/8/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 7` | White d5 + a2/b2; Black c5/d6, a+b half-open, down a pawn ✅ |
   | Asymmetric Benoni | 1.d4 Nf6 2.c4 c5 3.d5 e6 4.Nc3 exd5 5.cxd5 d6 6.e4 g6 | `rnbqkb1r/pp3p1p/3p1np1/2pP4/4P3/2N5/PP3PPP/R1BQKBNR w KQkq - 0 7` | White d5+e4; Black c5/d6, e half-open, g6 — matches existing code ✅ |
+  | Hanging pawns | 1.d4 d5 2.c4 e6 3.Nc3 Nf6 4.Nf3 Be7 5.Bg5 O-O 6.e3 h6 7.Bh4 b6 8.cxd5 Nxd5 9.Bxe7 Qxe7 10.Nxd5 exd5 11.Be2 c5 12.dxc5 bxc5 | `rnb2rk1/p3qpp1/7p/2pp4/8/4PN2/PP2BPPP/R2QK2R w KQ - 0 13` | Black c5+d5 duo, no b/e pawn, b & e half-open ✅ |
+  | Symmetric Benoni | 1.d4 Nf6 2.c4 c5 3.d5 e5 4.Nc3 d6 5.e4 Be7 | `rnbqk2r/pp2bppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq - 1 6` | White c4/d5/e4; Black c5/d6/e5 fully locked (keeps e-pawn) ✅ |
   | 3-3 vs 4-2 | — | — | ⚠️ **UNVERIFIED** — Flores ch22 confirmed (TOC), but exact skeleton + model game not obtainable from accessible sources; defined by majority distribution not squares → demoted to theme tag (A), no scorer |
 
   **Finding (provenance pass earns its keep):** the original headline claim "Nimzo-Grünfeld =

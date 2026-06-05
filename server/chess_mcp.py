@@ -730,7 +730,10 @@ def get_structural_profile(
 
     variation_path = SAN move list addressing one node (e.g. ["e4","c5","Nf3"]); each
     SAN must match a move in the tree. Then returns one position: fen, structure_class
-    (IQP/Carlsbad/Maroczy/unknown), confidence, center (locked/tense/open/semi-open),
+    (one of 19 canonical pawn structures — IQP, Carlsbad, Maroczy, French, Stonewall,
+    King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld
+    Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez,
+    Benko — or unknown), confidence, center (locked/tense/open/semi-open),
     primitives {doubled, isolated, passed, chains}, half_open_files, open_files, and
     themes (always-on descriptors: fianchetto_white/black, space_white/black,
     wing_majority_white/black, minority_attack_white/black, flank_vs_center,
