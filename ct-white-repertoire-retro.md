@@ -198,3 +198,41 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 - **`suggest_replacement_line`** — now tested. Two blocking issues: wrong outlier identification (#7) and inoperative `profile_match` ranking (#8). Not usable for structural remediation until both resolved.
 - **`suggest_complementary_lines`** — still deferred. Precondition: Issues #7/#8 resolved, PGN updated with Be2 island replacement derived manually.
 - **`export_annotated_pgn`** — still not run.
+
+---
+
+## v5 Update — chess-mcp 0.1.8 (2026-06-05)
+
+**Focus:** Verification run confirming fixes for Issues #7, #8, #9, #10.
+
+### What Resolved
+
+**Issue #7 FIXED — `suggest_replacement_line` now finds structural divergence point**
+- v4: `outlier_move: "h3"`, `anchored_to: "Qc7"` (terminal node)
+- v5: `outlier_move: "Nf3"`, `anchored_to: "c6"` — first White move departing dominant-theme paths
+- Verified correct for Be2 island (19-ply path; divergence at ply 5).
+
+**Issue #9 FIXED — transposition stub suppression working**
+- `c4 Nc6 Nc3 e5` (4-ply endpoint) absent from `structure_outlier` list in v5
+- v4 had 4 `structure_outlier` items; v5 has 3 — exactly the stub removed
+- No new false negatives observed: the 3 remaining outliers are all genuine (Be2 island, b6 main, b6 punish)
+
+**Issue #10 FIXED — `total_flagged` and `acknowledged_count` correct**
+- Without `acknowledged_weaknesses`: `total_flagged: 9`, `acknowledged_count: 0`
+- With one path acknowledged: `total_flagged: 8`, `acknowledged_count: 1`, item shown with `severity: low` + `acknowledged: true`
+- Counts are now reliable and actionable without workarounds.
+
+### New Shortcoming
+
+**Issue #8 theme fallback has limited reach for early-pivot outliers**
+- Observed: `suggest_replacement_line` on the Be2 island returns `profile_match: 0.0` for all suggestions despite the Issue #8 fix being deployed.
+- Root cause: pivot position is after Black's `c6` on move 4. The dominant theme is `fianchetto_white` (g3+Bg2). From this early juncture, Stockfish's 5-move PV (e.g., `e4 Bb4 a3 Bxc3 dxc3`) does not reach g3 or Bg2 — the theme is absent at the PV end, so the fallback returns 0.0. The PV window (5 moves) is too short relative to the number of development moves needed to complete a fianchetto from this position.
+- The fix is correct in design but structurally unable to fire for outliers whose divergence point precedes the structural commitment by more moves than the PV covers.
+- Fix options: (a) extend PV window beyond 5 moves for early-pivot outliers; (b) check themes at each ply of the PV rather than only at the end; (c) use plan-level heuristics (does this line include g3? Bg2?) rather than only the resulting board state.
+- Impact: `structural_fit` mode ranking remains unreliable for English Opening repertoires where the characteristic moves are several plies into the game.
+
+### Updated Skipped-Tool Status
+
+- **`suggest_replacement_line`** — Issues #7 and #9 resolved. Issue #8 theme fallback confirmed deployed but doesn't fire for this repertoire's outliers (pivot too early). Suggestions are structurally sound but not ranked by fianchetto fit.
+- **`suggest_complementary_lines`** — still deferred. Next precondition: PGN updated with Be2 island replacement.
+- **`export_annotated_pgn`** — still not run.

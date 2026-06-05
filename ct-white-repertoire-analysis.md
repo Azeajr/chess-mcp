@@ -4,10 +4,86 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v4 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v5 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v4 | 2026-06-05 | chess-mcp 0.1.8 |
 | v3 | 2026-06-05 | chess-mcp 0.1.8 |
 | v2 | 2026-06-04 | chess-mcp 0.1.8 |
 | v1 | 2026-06-04 | chess-mcp 0.1.7 |
+
+---
+
+## v5 — 2026-06-05 — chess-mcp 0.1.8
+
+**Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` (×2) → `find_repertoire_gaps` → `evaluate_position` → `suggest_replacement_line`
+
+**Focus:** Verification run — confirm Issues #7, #8, #9, #10 resolved after Docker rebuild.
+
+### Tree Stats
+
+Unchanged from v4.
+
+| Metric | Value |
+|--------|-------|
+| Nodes | 213 |
+| Leaves (distinct lines) | 17 |
+| Max depth (plies) | 21 |
+| Color | White |
+
+### Structural Identity
+
+Unchanged from v4 (12/17 unknown; Grünfeld Centre ×2, Hanging pawns ×1, Lopez ×1, Maroczy ×1). Theme tags unchanged (fianchetto_white 13/17, etc.). Center distribution unchanged.
+
+### Transpositions (pre-flight)
+
+Unchanged — same 3 transpositions as v4.
+
+### Congruence Results — Issue #9 + #10 Verification
+
+**Without `acknowledged_weaknesses`:** 9 flagged — **3** `structure_outlier` + 6 `weakness_inconsistency`. v4 had 4 outliers; the `c4 Nc6 Nc3 e5` transposition stub is gone.
+
+| Outlier path | Still flagged? | Assessment |
+|---|---|---|
+| `c4 e5 Nc3 c6 Nf3...h3` (Be2 island) | ✅ yes | Correct — genuinely lacks `fianchetto_white` |
+| `c4 Nc6 Nc3 e5` (4-ply stub) | **✅ no** | **Issue #9 FIXED** — transposition endpoint correctly suppressed |
+| `c4 b6 Nc3 Bb7 d4...Bd3` (b6 main) | ✅ yes | Correct — no fianchetto |
+| `c4 b6 Nc3 Bb7 d4 d5$2...e5` (b6 punish) | ✅ yes | Correct — tactical refutation, no fianchetto |
+
+**Issue #10 FIXED — `acknowledged_count` field present:**
+
+| Call | `total_flagged` | `acknowledged_count` |
+|------|-----------------|----------------------|
+| Without `acknowledged_weaknesses` | 9 | 0 |
+| With main bxc3 leaf acknowledged | 8 | 1 |
+
+The acknowledged item appears in `incongruencies` with `severity: low` and `acknowledged: true`. `total_flagged` excludes it. Counts are correct.
+
+### `suggest_replacement_line` — Issue #7 + #8 Verification
+
+Run on Be2 island path, `mode="structural_fit"`.
+
+| Field | v4 (broken) | v5 (fixed) | Expected |
+|-------|------------|------------|----------|
+| `outlier_move` | `h3` | **`Nf3`** | `Nf3` |
+| `anchored_to` | `Qc7` | **`c6`** | `c6` |
+| `profile_match` | 0.0 | 0.0 | Non-zero |
+
+**Issue #7 FIXED.** Pivot correctly identified as `Nf3` after `c6` — the first White move where the line diverges from dominant-theme paths.
+
+**Issue #8 code deployed, not observable for this input.** The PV-end theme fallback is in place: when `resulting_structure == "unknown"` and `dominant_themes` is non-empty, themes are checked at the end of the 5-move PV. However, the pivot position is after Black's `c6` on move 4. Stockfish's PV from that point (e.g., `e4 Bb4 a3 Bxc3 dxc3`, `d4 d5 cxd5 cxd5 dxe5`) does not include `g3+Bg2` within 5 moves — so `fianchetto_white` is absent at the PV end and `profile_match` remains 0.0. Fix is correct; theme fallback needs a later pivot or longer PV to fire. New shortcoming filed (see retro).
+
+### Gaps (`find_repertoire_gaps`)
+
+72 total gaps, max_positions=20 — identical parameters and volume as v4. No regression.
+
+### Soundness Check (depth 18)
+
+After `1.c4`: **+8 cp**, best_move `e5`, pv `e5 Nc3 Nf6 Nf3 Nc6`. Consistent with all prior runs. Engine stable.
+
+### MCP Retro Notes (v5)
+
+1. **Issues #7, #9, #10 fully resolved.** Correct outlier pivot, stub suppression, and acknowledged-count separation all verified.
+
+2. **Issue #8 fix has limited reach for early pivots.** Theme fallback at PV end only fires when dominant-theme moves (g3+Bg2) appear within 5 moves of the pivot. For the Be2 island the pivot is after move 4 (c6) — fianchetto development is at least 2 further moves away and Stockfish's PV doesn't prioritize it. `profile_match: 0.0` is technically correct for these PV lines but unhelpful for structural ranking. Fix would require either a longer PV window or a different scoring approach for very early pivots.
 
 ---
 

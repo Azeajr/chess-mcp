@@ -457,5 +457,6 @@ def test_find_gaps_output_has_transposition_endpoints_field(rid):
     # Verify the key is present in the function signature via a side-channel: inspect
     # the source to ensure transposition_endpoints is returned.
     import inspect
+
     src = inspect.getsource(cm.find_repertoire_gaps)
     assert "transposition_endpoints" in src

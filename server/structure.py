@@ -197,20 +197,28 @@ def themes(board: chess.Board, color: chess.Color) -> dict:
     wbishops = board.pieces(chess.BISHOP, chess.WHITE)
     bbishops = board.pieces(chess.BISHOP, chess.BLACK)
     w_center = sum(
-        1 for sq in board.pieces(chess.PAWN, chess.WHITE) if chess.square_file(sq) in (3, 4)
+        1
+        for sq in board.pieces(chess.PAWN, chess.WHITE)
+        if chess.square_file(sq) in (3, 4)
     )
     b_center = sum(
-        1 for sq in board.pieces(chess.PAWN, chess.BLACK) if chess.square_file(sq) in (3, 4)
+        1
+        for sq in board.pieces(chess.PAWN, chess.BLACK)
+        if chess.square_file(sq) in (3, 4)
     )
     return {
         "fianchetto_white": chess.G2 in wbishops or chess.B2 in wbishops,
         "fianchetto_black": chess.G7 in bbishops or chess.B7 in bbishops,
         # space = own pawns on advancing ranks (White 4–6, Black 3–5).
         "space_white": sum(
-            1 for sq in board.pieces(chess.PAWN, chess.WHITE) if 3 <= chess.square_rank(sq) <= 5
+            1
+            for sq in board.pieces(chess.PAWN, chess.WHITE)
+            if 3 <= chess.square_rank(sq) <= 5
         ),
         "space_black": sum(
-            1 for sq in board.pieces(chess.PAWN, chess.BLACK) if 2 <= chess.square_rank(sq) <= 4
+            1
+            for sq in board.pieces(chess.PAWN, chess.BLACK)
+            if 2 <= chess.square_rank(sq) <= 4
         ),
         "wing_majority_white": _wing_majority(board, chess.WHITE),
         "wing_majority_black": _wing_majority(board, chess.BLACK),
@@ -324,7 +332,9 @@ def _maroczy_confidence(board: chess.Board) -> float:
     return 0.0
 
 
-def _graded(core_ok: bool, bonus_present: int, *, base: float, cap: float, step: float = 0.05) -> float:
+def _graded(
+    core_ok: bool, bonus_present: int, *, base: float, cap: float, step: float = 0.05
+) -> float:
     """Core+bonus confidence (B). `core_ok` is the hard gate — False → 0.0 (D2: no
     core, no label). Each present bonus square lifts confidence from `base` toward
     `cap`, so a position missing a peripheral square still classifies (just lower),
@@ -465,9 +475,8 @@ def _nimzo_grunfeld_confidence(board: chess.Board) -> float:
     """Nimzo-Grünfeld Formation: White DOUBLED c-pawns c3+c4 + d4, half-open b (from
     Nimzo …Bxc3 bxc3). The doubled c gate is what separates it from Grünfeld Centre."""
     wn, _ = _names_files(board, chess.WHITE)
-    core_ok = (
-        {"c3", "c4", "d4"} <= wn
-        and "b" in set(get_half_open_files(board, chess.WHITE))
+    core_ok = {"c3", "c4", "d4"} <= wn and "b" in set(
+        get_half_open_files(board, chess.WHITE)
     )
     bonus = "e3" in wn
     return _graded(core_ok, bonus, base=0.8, cap=0.88)
@@ -509,7 +518,11 @@ def _najdorf_confidence(board: chess.Board, color: chess.Color) -> float:
     backward-d6, d5-hole structure (mirrored for Black)."""
     own_n, own_f = _names_files(board, color)
     opp_n, opp_f = _names_files(board, not color)
-    if not (_rel(color, "e4") <= own_n and 3 not in own_f and _rel(color, "d6", "e5") <= opp_n):
+    if not (
+        _rel(color, "e4") <= own_n
+        and 3 not in own_f
+        and _rel(color, "d6", "e5") <= opp_n
+    ):
         return 0.0
     bonus = 2 not in opp_f  # opponent has traded the c-pawn (open Sicilian)
     return _graded(True, bonus, base=0.72, cap=0.8)
@@ -520,7 +533,11 @@ def _scheveningen_confidence(board: chess.Board, color: chess.Color) -> float:
     centre (mirrored for Black). Najdorf II reaches the identical pawns — merged."""
     own_n, own_f = _names_files(board, color)
     opp_n, opp_f = _names_files(board, not color)
-    if not (_rel(color, "e4") <= own_n and 3 not in own_f and _rel(color, "d6", "e6") <= opp_n):
+    if not (
+        _rel(color, "e4") <= own_n
+        and 3 not in own_f
+        and _rel(color, "d6", "e6") <= opp_n
+    ):
         return 0.0
     bonus = 2 not in opp_f
     return _graded(True, bonus, base=0.7, cap=0.78)
