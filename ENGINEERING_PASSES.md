@@ -136,6 +136,7 @@ Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `ct-wh
 - For each new shortcoming: describe the observed behavior, the expected behavior, and a concrete one-sentence fix
 - For each tool that shone: record what it got right (evidence-based, not general praise)
 - Update the "Skipped Tools" section to reflect current status
+- SCOPE: the retro captures MCP/tool/workflow shortcomings ONLY. Do not record user-side content issues (missing PGN lines, unresolved repertoire islands, PGN update tasks). Those belong in the analysis doc as observations. Ask: "is this a tool limitation or a content gap?" — only tool limitations go in the retro.
 
 PHASE 4 — IMPLEMENT BOUNDED FIXES
 For each new shortcoming identified in Phase 3, classify it:
