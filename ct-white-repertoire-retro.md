@@ -91,3 +91,43 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 - **`get_transpositions`** — now run. Resolved all 3 apparent gaps. Should be standard pre-flight before gap or depth analysis.
 - **`suggest_complementary_lines`** — still deferred. Next run: `mode="low_memorization"` against Maroczy leaf after `ct-white-repertoire.pgn` is updated with the Be2 replacement.
 - **`export_annotated_pgn`** — still not run.
+
+---
+
+## v3 Update — chess-mcp 0.1.8 (2026-06-05)
+
+**New tools exercised:** `find_repertoire_gaps` (first run in this loop)
+
+### What Improved
+
+**`find_repertoire_gaps` now in the loop** — correctly scanned 60 decision points, identified 232 total gaps. After transposition cross-check two actionable gaps survived:
+- **Gap A** (c5 after 5.e4 in KID): engine's top choice at −8 cp. Resolves via transposition 1 after `Nge2 Nc6 O-O d6`. Fix is a PGN move-order redirect, not new structural preparation.
+- **Gap B** (h5 after 7.O-O in Maroczy): engine's top choice at −34 cp (depth 20). Does not resolve via transposition — `d4 cxd4 Nxd4 Nd7` is a structurally new branch. Genuine coverage hole.
+
+**Transposition pre-flight confirmed effective** — 3 known transpositions used to dismiss the majority of high-severity gap flags. Manual cross-check shows most of the 20 listed high-severity gaps are move-order variants of covered lines, not new territory.
+
+**Soundness checks stable** — bxc3 leaf (+21 Re8) and Maroczy leaf (+4 a3) unchanged from v2 at depth 20. Repertoire soundness is consistent.
+
+### New Shortcomings
+
+**Gap tool eval discrepancy at low depth**
+- Observed: `find_repertoire_gaps` (depth 18) reports h5 at −8 cp; `evaluate_position` (depth 20) at the same position reports −34 cp.
+- Expected: gap tool eval should be within ±15 cp of depth-20 evaluation for positions without forced tactics.
+- Fix: raise `find_repertoire_gaps` default depth from 18 to 20, or add a caveat in the tool output warning that evals near ±20 cp should be verified with `evaluate_position`.
+
+**Be2 island still unresolved**
+- Observed: `ct-white-repertoire.pgn` still contains `2...c6 3.Nf3 d6 4.d4 Nd7 5.e4 Ngf6 6.Be2` — the structurally incompatible line recommended for removal in v2.
+- Expected: replaced with the engine-verified `3.g3 Nf6 4.Bg2 d5 5.cxd5 Nxd5 6.Nf3 Nxc3 7.bxc3 Bd6 8.d4 Nd7` fianchetto line.
+- Fix: user must update `ct-white-repertoire.pgn` manually; PGN update cannot be derived from MCP tools alone (the replacement line needs to be authored and imported).
+
+### Actionable Issues Filed
+
+- Existing Issue #3 (`pre-flight get_transpositions`) — covers gap over-count; confirmed relevant.
+- New issue filed: gap tool depth calibration (default 18 underestimates severity; h5 example).
+
+### Updated Skipped-Tool Status
+
+- **`get_transpositions`** — standard pre-flight, run every loop.
+- **`find_repertoire_gaps`** — now run. First loop pass confirms it works. Must be paired with manual transposition cross-check until Issue #3 is closed.
+- **`suggest_complementary_lines`** — still deferred. PGN not updated. Precondition: close Be2 island + add c5 transposition redirect, then run `mode="low_memorization"` against Maroczy leaf.
+- **`export_annotated_pgn`** — still not run.

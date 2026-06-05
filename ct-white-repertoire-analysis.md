@@ -4,8 +4,128 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v2 (current) | 2026-06-04 | chess-mcp 0.1.8 |
+| v3 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v2 | 2026-06-04 | chess-mcp 0.1.8 |
 | v1 | 2026-06-04 | chess-mcp 0.1.7 |
+
+---
+
+## v3 — 2026-06-05 — chess-mcp 0.1.8
+
+**Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` → `find_repertoire_gaps` → `evaluate_position`
+
+### Tree Stats
+
+Unchanged from v2.
+
+| Metric | Value |
+|--------|-------|
+| Nodes | 213 |
+| Leaves (distinct lines) | 17 |
+| Max depth (plies) | 21 |
+| Color | White |
+
+### Structural Identity
+
+Unchanged from v2.
+
+| Structure | Leaves | Avg confidence |
+|-----------|--------|----------------|
+| unknown | 12 | 0.00 |
+| Grünfeld Centre | 2 | 0.74 |
+| Hanging pawns | 1 | 0.80 |
+| Lopez | 1 | 0.68 |
+| Maroczy | 1 | 0.70 |
+
+Theme tags unchanged (fianchetto_white 13/17, double_fianchetto 6/17, etc.). Center distribution unchanged (semi-open 9, tense 3, open 3, locked 2).
+
+### Congruence Results
+
+Unchanged from v2. 6/17 leaves flagged, all `weakness_inconsistency / medium`, all bxc3 lines. Still intentional — bishop pair + b-file compensation plan.
+
+### Soundness Checks (depth 20)
+
+**Main bxc3 leaf** — FEN: `1rbq1rk1/ppp2pp1/2nb3p/4p3/3P4/2P2NP1/P1Q1PPBP/1RB2RK1 b - - 1 11`
+
+| Black candidate | Eval (white-POV cp) | Engine line |
+|-----------------|---------------------|-------------|
+| Re8 | +21 | Re8 Rd1 b6 Ng5 hxg5 |
+| Qe8 | +24 | Qe8 Rd1 b6 Nh4 Ne7 |
+| b6 | +35 | b6 Nh4 Bd7 Bb2 b5 |
+
+Stable vs v2. Small persistent White edge.
+
+**Maroczy/KID bind leaf** — FEN: `r1bq1rk1/pp2ppbp/2np1np1/2p5/2P1P3/2N3P1/PP1PNPBP/R1BQ1RK1 w - - 4 8`
+
+| White candidate | Eval (white-POV cp) | Engine line |
+|-----------------|---------------------|-------------|
+| a3 | +4 | a3 Rb8 Rb1 a6 b4 |
+| Rb1 | +3 | Rb1 Ne8 a3 a5 d3 |
+| d3 | +1 | d3 a6 Rb1 Rb8 a3 |
+
+Stable vs v2. Essentially equal; a3/b4 expansion is the plan.
+
+### Transpositions (pre-flight)
+
+3 transpositions confirmed — identical to v2:
+
+| Convergence FEN (abbrev) | Paths |
+|--------------------------|-------|
+| Maroczy/KID bind after 7...O-O | `1...Nf6` deep · `1...c5 g6...Nf6 O-O` · `1...c5 Nf6...Nc6 O-O d6` |
+| After `1.c4 e5 2.Nc3` | `1...e5 Nc3 Nc6` · `1...Nc6 Nc3 e5` |
+| After `4.Bg2` in 1...c5 Nc6/g6 split | `2...g6...Nc6` · `2...Nc6...g6` |
+
+### Gaps (`find_repertoire_gaps` — first run this loop)
+
+**232 total gaps, 20 high-severity listed.** Most are move-order variants in the KID/Maroczy complex that are structurally covered by transpositions but not in the PGN. Two survive transposition cross-check as actionable:
+
+**Gap A — 5...c5 in the KID setup (high, evaluated)**
+
+Path: `1.c4 Nf6 2.Nc3 g6 3.g3 Bg7 4.Bg2 O-O 5.e4`  
+Uncovered: `c5` | Gap tool eval: −8 cp
+
+FEN at gap: `rnbq1rk1/ppppppbp/5np1/8/2P1P3/2N3P1/PP1P1PBP/R1BQK1NR b KQ - 0 5`
+
+Engine evaluation (depth 20, Black to move):
+
+| Black move | Eval (white-POV) | Engine line |
+|------------|-----------------|-------------|
+| **c5** | **−8** | c5 Nge2 Nc6 O-O d6 |
+| d6 (covered) | +8 | d6 d4 c5 Nge2 cxd4 |
+| e5 | +26 | e5 d3 c5 Nge2 Nc6 |
+
+**c5 is the engine's top choice.** After `c5 Nge2 Nc6 O-O d6` the position reaches transposition 1's FEN (same as the covered `d6 Nge2 c5 O-O Nc6` path). The gap is a missing move-order annotation in the PGN, not a new structural problem. Fix: add `5...c5 6.Nge2` as a transposition redirect in the PGN.
+
+**Gap B — 7...h5 in the Maroczy complex (high, evaluated)**
+
+Path: `1.c4 c5 2.Nc3 g6 3.g3 Bg7 4.Bg2 Nc6 5.e4 d6 6.Nge2 Nf6 7.O-O`  
+Uncovered: `h5` | Gap tool eval: −8 cp (depth 18)
+
+FEN at gap: `r1bqk2r/pp2ppbp/2np1np1/2p5/2P1P3/2N3P1/PP1PNPBP/R1BQ1RK1 b kq - 3 7`
+
+Engine evaluation (depth 20, Black to move):
+
+| Black move | Eval (white-POV) | Engine line |
+|------------|-----------------|-------------|
+| **h5** | **−34** | h5 d4 cxd4 Nxd4 Nd7 |
+| O-O (covered) | −10 | O-O Rb1 Ne8 a3 a5 |
+| Bg4 | −2 | Bg4 d3 O-O Rb1 Rb8 |
+
+**h5 is the engine's top choice at −34 cp** (significant Black edge). Does NOT transpose to any covered node — d4/cxd4/Nxd4 is a different structural direction. This is a genuine coverage hole requiring new lines. Note: gap tool eval (−8) differs substantially from depth-20 eval (−34) — see MCP Retro Notes.
+
+**Note on gap volume:** 232 total gaps is inflated because `find_repertoire_gaps` does not cross-reference `get_transpositions` output (see Issue #3). After manual transposition cross-check: most of the 20 listed high-severity gaps are move-order variants reaching covered transposition endpoints. Gap A (c5) is one such case. Gap B (h5) is the only confirmed genuinely uncovered line.
+
+### MCP Retro Notes (v3)
+
+1. **`find_repertoire_gaps` first run** — tool works. 232 gaps is high but expected for a transposition-heavy KID/Maroczy complex with a sparse PGN. Manually filtering to 2 actionable items.
+
+2. **Gap tool eval discrepancy** — for Gap B (h5 after 7.O-O), the gap tool reports −8 cp (depth 18) while `evaluate_position` at depth 20 finds −34 cp. A 26 cp difference changes severity assessment. The gap tool's depth-18 eval may not see far enough into the positional h5 pawn storm plan. `evaluate_position` follow-up at depth 20 is now confirmed necessary for any gap flagged within ±15 cp of even.
+
+3. **Be2 island still present** — recommended replacement (`2...c6 3.g3` fianchetto line) from v2 not yet applied to `ct-white-repertoire.pgn`. PGN update pending.
+
+4. **Gap A resolves via transposition** — `5...c5 6.Nge2 Nc6 7.O-O d6` reaches transposition 1's FEN. The PGN just needs a move-order redirect annotation, not new structural preparation.
+
+5. **`suggest_complementary_lines` still deferred** — skipped again; PGN not updated since v2, so Maroczy leaf isn't the clean anchor it needs to be. Next run: update PGN first (Be2 island + c5 transposition redirect), then run `mode="low_memorization"` against Maroczy leaf.
 
 ---
 
