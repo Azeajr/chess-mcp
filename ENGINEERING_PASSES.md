@@ -22,7 +22,7 @@ Repo shape the prompts assume:
 | [2. Security Mitigation](#2-security-mitigation) | Concrete, local hardening against this server's real threat model — not security theater. |
 | [3. High-Signal Testing](#3-high-signal-testing) | Coverage is thin or vanity; you want behavior tests that make refactoring safe. |
 
-| [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `repertoires/ct-white/repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
+| [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `repertoires/<name>/repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
 
 Verification commands referenced by every pass (this repo):
 
@@ -101,17 +101,31 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 This pass is designed to be run repeatedly. Each run exercises the MCP against a real repertoire, documents what works and what breaks, and ships fixes for the bounded problems it finds. Over time this drives the MCP toward the behavior you actually need.
 
 ```text
-Act as a pragmatic chess analyst and Python engineer working on chess-mcp. Run a full repertoire analysis loop against `repertoires/ct-white/repertoire.pgn`, document the findings, capture retro friction, implement any bounded fixes, and ship. The goal is iterative MCP improvement: each run surfaces new shortcomings and closes the previous ones.
+Act as a pragmatic chess analyst and Python engineer working on chess-mcp. Run a full repertoire analysis loop against `repertoires/<name>/repertoire.pgn`, document the findings, capture retro friction, implement any bounded fixes, and ship. The goal is iterative MCP improvement: each run surfaces new shortcomings and closes the previous ones.
+
+Set `<name>` to the repertoire under test (a short kebab opening name, e.g. `ct-white`, `ct-black`, `english-opening`). If `repertoires/<name>/` does not exist yet — i.e. a brand-new repertoire PGN — complete PHASE 0 first to create the directory structure, then proceed. On every later run for that repertoire, skip PHASE 0.
 
 CONTEXT
 - chess-mcp: FastMCP + python-chess + Stockfish MCP server (Stockfish is Docker-only — never install on host)
 - MCP owns all FEN/PGN reasoning — never hand-author positions or move sequences; use tools, which return engine-verified FENs and evals
-- Analysis docs: `repertoires/ct-white/analysis.md` (versioned run log) and `repertoires/ct-white/retro.md` (living retro — append, never overwrite)
+- Repertoire layout: each repertoire lives in its own folder `repertoires/<name>/` with three uniform files — `repertoire.pgn` (the PGN under test), `analysis.md` (versioned run log), `retro.md` (living retro — append, never overwrite). `sample-*.pgn` at repo root are eval fixtures, NOT repertoires — leave them.
+- Analysis docs: `repertoires/<name>/analysis.md` and `repertoires/<name>/retro.md`
 - Design constraints: `MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract, closed error-code set), `REPERTOIRE_DESIGN.md` (cache, structural classifier)
 - Open issues: check `gh issue list` before logging a new shortcoming — don't duplicate
 
+PHASE 0 — FIRST-PASS SETUP (new repertoire only; skip if `repertoires/<name>/` already exists)
+When the loop is pointed at a brand-new PGN that has no folder yet:
+1. Pick `<name>` — a short kebab opening label (e.g. `english-opening`).
+2. `mkdir -p repertoires/<name>/`.
+3. Create `repertoires/<name>/repertoire.pgn` as an ANONYMIZED, reproducible fixture of the source PGN:
+   - strip PII headers and prose (`Annotator`, `ChapterURL`, `StudyName`, UTC stamps, @-mentions); keep `Event`/`ECO`/`Opening` and ALL moves + side variations so the tree is unchanged.
+   - confirm the fixture loads to the same nodes/leaves/max_depth as the source before relying on it.
+   - delete the original PII-named source file once the anonymized fixture is committed; never commit the PII-named original.
+4. Seed `repertoires/<name>/analysis.md` and `repertoires/<name>/retro.md` from the existing repertoires' format (version table starting at v1, the standard subheadings). Each repertoire's retro starts fresh at v1 — do NOT dedup its findings against another repertoire's retro; the only cross-run dedup is the gh issue list.
+5. Determine the repertoire color from the PGN (whose moves are being recommended) and run the loop only for that side — a White study has no value analyzed `as black`, and vice versa.
+
 PHASE 1 — RUN THE ANALYSIS FLOW
-Run tools in this exact order against `repertoires/ct-white/repertoire.pgn`:
+Run tools in this exact order against `repertoires/<name>/repertoire.pgn`:
 
 1. `validate_pgn` — confirm the file is valid before loading
 2. `load_repertoire` — get the repertoire handle; record tree stats (nodes, leaves, max depth, color)
@@ -119,19 +133,19 @@ Run tools in this exact order against `repertoires/ct-white/repertoire.pgn`:
 4. `get_structural_profile` — full tree; record named structures, confidence, theme tags, center distribution
 5. `analyze_repertoire_congruence` — record all flags; for each flagged line cross-check the transposition map before treating it as a real issue
 6. `find_repertoire_gaps` — cross-check every reported gap against the transposition map before recording it; suppress any gap that resolves to a transposition endpoint
-7. `evaluate_position` (depth 20) — run on: the deepest leaf of the main bxc3 line, the Maroczy/KID bind leaf, and any leaf flagged by congruence or gaps that survived transposition cross-check
+7. `evaluate_position` (depth 20) — run on: the repertoire's deepest main-line leaf, any structurally-defining leaf (a forced-weakness or space-bind position the repertoire bets on — e.g. a bxc3 / Maroczy / IQP / KID-bind leaf if present), and any leaf flagged by congruence or gaps that survived transposition cross-check
 
 Assess each result against what the tool was supposed to do. Note: incorrect output, missing signal, false flags, unexplained `unknown` returns, or output that required manual multi-step chaining to interpret.
 
 PHASE 2 — UPDATE ANALYSIS DOC
-Append a new versioned section to `repertoires/ct-white/analysis.md`. Follow the existing format exactly:
+Append a new versioned section to `repertoires/<name>/analysis.md`. Follow the existing format exactly:
 - Header: `## v<N> — <date> — chess-mcp <version>`
 - Subheadings: Tools used, Tree Stats, Structural Identity, Congruence Results, Soundness Checks, Gaps, MCP Retro Notes
 - Bump the version table at the top of the file (add new row, mark it current)
 - Do not edit previous version sections
 
 PHASE 3 — APPEND RETRO
-Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `repertoires/ct-white/retro.md`. Rules:
+Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `repertoires/<name>/retro.md`. Rules:
 - Only record NEW findings not already in the retro
 - For each new shortcoming: describe the observed behavior, the expected behavior, and a concrete one-sentence fix
 - For each tool that shone: record what it got right (evidence-based, not general praise)
@@ -164,6 +178,7 @@ Run in order; do not proceed past a failure:
 5. Push: `git push origin main`
 
 GUARDRAILS
+- First-pass fixtures (PHASE 0) must be anonymized and neutrally named (`repertoire.pgn`) before commit — never commit a PII-named source PGN
 - Never edit or delete prior sections of either analysis doc or the retro
 - Never hand-author a FEN or move sequence — if you need a position, derive it from tool output
 - Never install Stockfish on the host — engine-backed verification goes in Docker
