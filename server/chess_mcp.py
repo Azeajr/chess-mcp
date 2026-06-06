@@ -1004,9 +1004,11 @@ def suggest_replacement_line(
 ) -> dict:
     """
     Single-call replacement for an incongruent repertoire line. Given the variation_path
-    of a flagged line (from analyze_repertoire_congruence), finds the last user move in
-    that line, identifies the opponent move it was answering (anchored_to), then suggests
-    sound alternatives with full engine-validated continuations.
+    of a flagged line (from analyze_repertoire_congruence), pivots at the move that caused
+    the flag — the structural divergence point for a structure_outlier, or the move that
+    incurs the weakness for a weakness_inconsistency line (falling back to the last user
+    move) — identifies the opponent move it answers (anchored_to), then suggests sound
+    alternatives with full engine-validated continuations.
 
     Replaces an 8-step manual chain (validate_line → evaluate_position →
     suggest_complementary_lines → validate_line across ~8 moves) with one call.
@@ -1087,6 +1089,31 @@ def suggest_replacement_line(
                 break
             if board.turn == rep.color:
                 if (repertoire._position_key(board), move.uci()) not in dominant_pairs:
+                    pivot_node = child
+                    break
+            walk_node = child
+
+    # Weakness divergence (Issue #16): structure_outlier flags pivot on theme departure
+    # above, but weakness_inconsistency flags (doubled/isolated pawns) have no theme signal,
+    # so they fell through to the terminal move — which cannot undo a weakness incurred
+    # earlier. Instead pivot at the first user move after which the player carries a
+    # doubled/isolated pawn (the move that incurs it), so the replacement can avoid it.
+    if pivot_node is None:
+        walk_node = rep.game
+        for san in outlier_variation_path:
+            board = walk_node.board()
+            try:
+                move = board.parse_san(san)
+            except ValueError:
+                break
+            child = next((c for c in walk_node.variations if c.move == move), None)
+            if child is None:
+                break
+            if board.turn == rep.color:
+                after_b = child.board()
+                if structure.get_doubled_pawns(
+                    after_b, rep.color
+                ) or structure.get_isolated_pawns(after_b, rep.color):
                     pivot_node = child
                     break
             walk_node = child
