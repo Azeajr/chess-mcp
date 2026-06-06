@@ -222,11 +222,11 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 - Fix options: (a) cap PV walk at N plies past the pivot (e.g., 8–10 plies); (b) weight by ply index (theme at ply 2 scores higher than ply 18); (c) require theme within the structural commitment window for the opening phase.
 - Impact: current differentiation (`d4` 1.0 vs `e4` 0.0) appears meaningful but the mechanism may be fragile for deep PVs. Needs investigation before declaring `structural_fit` mode robust.
 
-**Deployment lag — `by_type_acknowledged` absent from congruence response**
+**Deployment lag — `by_type_acknowledged` absent from congruence response** *(resolved same session)*
 - Observed: `analyze_repertoire_congruence` response missing `by_type_acknowledged` field despite being a v0.2.1 addition. Server running pre-0.2.1 code.
 - Root cause: local Docker container not rebuilt after v0.2.1 commit. Engine-free changes (dominant_themes fix, PV walk start, `by_type_acknowledged` field) are in the committed server code but not in the running container.
 - Fix: `docker compose up -d --build` required after any server code change. Analysis loop should verify version endpoint or field presence at start of each run.
-- Impact: `by_type_acknowledged` fix unverified. Loop must re-run after container rebuild to confirm.
+- Resolution: container rebuilt; `by_type_acknowledged: {"weakness_inconsistency": 6}` confirmed present and correct with all 6 bxc3 paths acknowledged. `by_type` shows only unacknowledged types (`{structure_outlier: 3}`); counts reconcile exactly.
 
 ### Updated Skipped-Tool Status
 
