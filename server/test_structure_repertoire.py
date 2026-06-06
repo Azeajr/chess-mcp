@@ -15,6 +15,7 @@ import pytest
 import structure
 import repertoire
 import openings
+import chess_mcp as cm
 
 
 # ---------------------------------------------------------------------------
@@ -835,12 +836,101 @@ def test_congruence_all_unknown_flags_nothing():
 
 
 def test_congruence_min_severity_filters():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP])  # one opening; outlier is 'medium'
+    rep = build_repertoire(
+        [LINE_CARLSBAD, LINE_IQP]
+    )  # one opening; outlier is 'medium'
     low = repertoire.analyze_congruence(rep, "low", 10)
     high = repertoire.analyze_congruence(rep, "high", 10)
     assert any(i["type"] == "structure_outlier" for i in low["incongruencies"])
     assert high["total_flagged"] <= low["total_flagged"]
     assert all(i["severity"] == "high" for i in high["incongruencies"])
+
+
+# ---------------------------------------------------------------------------
+# #21 — theme grain requires a strong majority, not a plurality
+# ---------------------------------------------------------------------------
+
+# All classify `unknown` (theme fallback path); fianchetto_white present in the first four.
+_THEME_FW = [
+    "g3 d5 Bg2 Nf6 Nf3 e6 O-O Be7 d3 O-O",
+    "g3 Nf6 Bg2 g6 Nf3 Bg7 O-O O-O d3 d6",
+    "g3 c5 Bg2 Nc6 Nf3 g6 O-O Bg7 d3 d6",
+    "g3 e5 Bg2 Nc6 Nf3 d5 d3 Nf6 O-O Be7",
+]
+_THEME_NO_FW = [  # same opening (1.g3), no fianchetto_white
+    "g3 e5 Nf3 e4 Nd4 d5 d3 exd3 Qxd3",
+    "g3 d5 Nf3 Nf6 d4 e6 c4 Be7 Nc3 O-O",
+    "g3 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6 c4 Bg7",
+]
+
+
+def test_congruence_theme_plurality_below_threshold_no_outlier():
+    # fianchetto_white is only 4/7 ≈ 0.57 of the opening's leaves — a plurality, not a
+    # grain. Below _THEME_DOMINANCE it must NOT raise structure_outlier (#21).
+    rep = build_repertoire(_THEME_FW + _THEME_NO_FW)
+    result = repertoire.analyze_congruence(rep, "low", 50)
+    assert result["by_type"].get("structure_outlier") is None
+
+
+def test_congruence_theme_strong_majority_still_flags_outlier():
+    # fianchetto_white is 4/5 = 0.8 of the leaves — a genuine grain; the lone line lacking
+    # it is still flagged. The #21 threshold doesn't silence real majorities.
+    rep = build_repertoire(_THEME_FW + _THEME_NO_FW[1:2])
+    result = repertoire.analyze_congruence(rep, "low", 50)
+    assert result["by_type"].get("structure_outlier") == 1
+
+
+# ---------------------------------------------------------------------------
+# #19 — gap severity is capped by the opponent's absolute edge
+# ---------------------------------------------------------------------------
+
+
+def _gap_info(cp_white: int, pv_moves: list[chess.Move]) -> dict:
+    return {
+        "score": chess.engine.PovScore(chess.engine.Cp(cp_white), chess.WHITE),
+        "pv": pv_moves,
+    }
+
+
+def test_gap_severity_low_when_opponent_gains_no_edge():
+    # Near-best uncovered reply, but the position stays ~equal (+0.10) → low, not high (#19).
+    b = chess.Board()  # White (the opponent here) to move
+    e4, d4 = b.parse_san("e4"), b.parse_san("d4")
+    gaps = cm._gaps_from_infos(
+        b, [_gap_info(15, [e4]), _gap_info(10, [d4])], {e4.uci()}
+    )
+    sev = {g["uncovered_move"]: g["severity"] for g, _ in gaps}
+    assert sev["d4"] == "low"
+
+
+def test_gap_severity_high_when_opponent_gains_real_edge():
+    # Same closeness-to-best, but now the opponent stands clearly better (+0.80) → high.
+    b = chess.Board()
+    e4, d4 = b.parse_san("e4"), b.parse_san("d4")
+    gaps = cm._gaps_from_infos(
+        b, [_gap_info(90, [e4]), _gap_info(80, [d4])], {e4.uci()}
+    )
+    sev = {g["uncovered_move"]: g["severity"] for g, _ in gaps}
+    assert sev["d4"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# #20 — path-bearing result lists are bounded by a byte budget
+# ---------------------------------------------------------------------------
+
+
+def test_fit_to_budget_truncates_and_keeps_leading_items():
+    items = [{"pad": "x" * 100, "i": i} for i in range(50)]
+    kept, truncated = cm._fit_to_budget(items, budget=300)
+    assert truncated is True
+    assert 0 < len(kept) < len(items)
+    assert kept[0] == items[0]  # largest/most-important items are kept
+
+
+def test_fit_to_budget_keeps_all_under_budget():
+    items = [{"i": i} for i in range(3)]
+    kept, truncated = cm._fit_to_budget(items, budget=10_000)
+    assert kept == items and truncated is False
 
 
 def test_profile_structure_shares():
@@ -1039,7 +1129,12 @@ def test_coverage_genuine_dangling_still_flagged_with_transpositions():
     rep = build_repertoire(["d4 Nf6 c4 e6 Nc3", "c4 e6 d4 Nf6", "d4 d5 c4 dxc4"])
     cov = repertoire.coverage_report(rep, limit=20)
     paths = [p["path"] for p in cov["dangling_lines"]]
-    assert ["d4", "d5", "c4", "dxc4"] in paths  # White to move, never continued elsewhere
+    assert [
+        "d4",
+        "d5",
+        "c4",
+        "dxc4",
+    ] in paths  # White to move, never continued elsewhere
 
 
 # ---------------------------------------------------------------------------
@@ -1074,7 +1169,9 @@ def test_opening_deepest_to_node_reads_named_ancestor():
     leaf = next(repertoire.walk_leaves(rep.game))
     assert openings.identify(leaf.board()) is None  # leaf itself is too deep to match
     op = openings.deepest_to_node(leaf)
-    assert op is not None and op["eco"].startswith("D")  # QGD family, named at an ancestor
+    assert op is not None and op["eco"].startswith(
+        "D"
+    )  # QGD family, named at an ancestor
     assert op["ply"] < leaf.ply()  # the name comes from a shallower ancestor
 
 

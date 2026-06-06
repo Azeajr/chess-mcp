@@ -28,6 +28,10 @@ REPERTOIRE_TTL_S = int(
 )  # idle expiry, seconds
 
 _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
+# A bool theme is the repertoire's structural "grain" only when it covers a STRONG
+# majority of an opening's leaves. A mere plurality (e.g. fianchetto_black ~55% of a
+# multi-system Sicilian) is not a grain — flagging the rest as outliers is noise (#21).
+_THEME_DOMINANCE = 0.66
 
 BOOL_THEMES = (
     "fianchetto_white",
@@ -471,7 +475,7 @@ def analyze_congruence(
             # where fianchetto_white fires on most leaves but structure_class is unknown).
             theme_counts = Counter(theme for d in group for theme in d["theme_tags"])
             dominant_theme_candidates = [
-                (t, c) for t, c in theme_counts.items() if c / gn >= 0.5
+                (t, c) for t, c in theme_counts.items() if c / gn >= _THEME_DOMINANCE
             ]
             if dominant_theme_candidates:
                 dominant_theme, _ = max(dominant_theme_candidates, key=lambda x: x[1])

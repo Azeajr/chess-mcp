@@ -7,6 +7,7 @@ import chess
 import chess.pgn
 import chess.engine
 import io
+import json
 import math
 import os
 
@@ -32,6 +33,24 @@ MAX_GAP_POSITIONS = 60  # find_repertoire_gaps engine-pass ceiling
 _PV_THEME_WINDOW = (
     8  # plies walked from pivot when scoring profile_match via theme fallback
 )
+_MAX_LIST_CHARS = 6000  # byte budget for path-bearing result lists (#20)
+
+
+def _fit_to_budget(items: list, budget: int = _MAX_LIST_CHARS) -> tuple[list, bool]:
+    """Keep leading `items` until the serialized list would exceed `budget` chars.
+
+    transposition / congruence items embed full root-to-leaf SAN paths whose length
+    scales with depth; `limit` bounds item count but not bytes, so a deep/large
+    repertoire blows the lean-output cap (#20). Returns (kept_items, truncated)."""
+    kept: list = []
+    size = 0
+    for it in items:
+        s = len(json.dumps(it, separators=(",", ":")))
+        if kept and size + s > budget:
+            return kept, True
+        kept.append(it)
+        size += s
+    return kept, False
 
 
 def _clamp_depth(depth: int) -> int:
@@ -821,8 +840,10 @@ def analyze_repertoire_congruence(
     Returns: total_flagged, leaves_analyzed, by_type (counts), incongruencies (each:
     type, severity, description, paths = the SAN variation_path(s) — feed a path to
     get_structural_profile to inspect that exact position; acknowledged:true when
-    suppressed by acknowledged_weaknesses). Filtered to min_severity and capped to limit
-    (default 10, max 50). Bad input → {"error","reason"}.
+    suppressed by acknowledged_weaknesses) and truncated (true when the incongruencies list
+    was shortened to fit the output budget — the headline counts still reflect all flags).
+    Filtered to min_severity and capped to limit (default 10, max 50). Bad input →
+    {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -831,9 +852,15 @@ def analyze_repertoire_congruence(
             "reason": "unknown or expired repertoire_id; call load_repertoire",
         }
     limit = max(1, min(50, limit))
-    return repertoire.analyze_congruence(
+    result = repertoire.analyze_congruence(
         rep, min_severity, limit, acknowledged_weaknesses
     )
+    # Headline counts are computed over all flags (above); trim only the displayed list
+    # to the byte budget so deep repertoires stay under the lean-output cap (#20).
+    result["incongruencies"], result["truncated"] = _fit_to_budget(
+        result["incongruencies"]
+    )
+    return result
 
 
 @mcp.tool()
@@ -842,8 +869,10 @@ def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
     Positions the repertoire reaches by more than one move order (transpositions). Engine-free.
 
     Useful for study efficiency: converging lines mean one move order can cover several. Returns
-    total (count of converging positions) and transpositions (each: fen, paths = the SAN
-    variation_paths that reach it), largest groups first, capped to limit (default 20, max 100).
+    total (count of converging positions), transpositions (each: fen, paths = the SAN
+    variation_paths that reach it), largest groups first, capped to limit (default 20, max 100),
+    returned (count actually included) and truncated (true when the list was shortened to stay
+    within the output budget — raise nothing, lower limit, or read the largest groups shown).
     Empty if the tree never transposes. Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
@@ -854,7 +883,13 @@ def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
         }
     limit = max(1, min(100, limit))
     groups = repertoire.find_transpositions(rep.game)
-    return {"total": len(groups), "transpositions": groups[:limit]}
+    shown, truncated = _fit_to_budget(groups[:limit])
+    return {
+        "total": len(groups),
+        "returned": len(shown),
+        "truncated": truncated,
+        "transpositions": shown,
+    }
 
 
 @mcp.tool()
@@ -1228,6 +1263,9 @@ def suggest_replacement_line(
 
 # Gap severity: how close an uncovered opponent move is to their best reply (cp, opponent POV).
 _GAP_HIGH_CP, _GAP_MED_CP = 30, 80
+# A gap is only as urgent as the edge the opponent actually gains by it. A near-best
+# uncovered move that still leaves the opponent near-equal is low-stakes, not "high" (#19).
+_GAP_EDGE_LOW, _GAP_EDGE_MED = 25, 60
 _GAP_SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -1263,6 +1301,13 @@ def _gaps_from_infos(
             if loss <= _GAP_MED_CP
             else "low"
         )
+        # #19: cap severity by the opponent's absolute edge after the move. Closeness to
+        # the opponent's best (loss) alone flags every near-equal opening reply as "high";
+        # gate on whether the opponent actually stands better.
+        if mcp < _GAP_EDGE_LOW:
+            severity = "low"
+        elif mcp < _GAP_EDGE_MED and severity == "high":
+            severity = "medium"
         gaps.append(
             (
                 {
@@ -1298,7 +1343,8 @@ def find_repertoire_gaps(
     Returns: color, positions_scanned, total_gaps, gaps (each: path = SAN variation_path of the
     position to drill via get_structural_profile/suggest_complementary_lines, uncovered_move
     (SAN, opponent's), eval (white-POV cp after it), severity high/medium/low by how close it is
-    to the opponent's best), transposition_endpoints (positions resolved by transposition — each
+    to the opponent's best AND how large an edge the opponent gains — a near-best reply that keeps the
+    opponent near-equal is downgraded), transposition_endpoints (positions resolved by transposition — each
     {fen, paths}). Filtered to min_severity (default medium), gaps capped to limit
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
     shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can

@@ -392,18 +392,21 @@ def _info(white_cp: int, uci: str) -> dict:
 
 def test_gaps_from_infos_flags_uncovered_with_severity():
     board = chess.Board(_BLACK_TO_MOVE)
-    # Black to move: mover_cp = -white_cp. Best = Nf6 (mover_cp 20).
+    # Black to move: mover_cp = -white_cp. Severity = closeness to the mover's best, capped
+    # by the mover's absolute edge (#19). Best = Nf6 (mover_cp 200), but COVERED.
     infos = [
-        _info(-20, "g8f6"),  # Nf6  — best for Black, but COVERED
-        _info(20, "d7d5"),  # d5   — mover_cp -20, loss 40 → medium
-        _info(100, "g7g6"),  # g6   — mover_cp -100, loss 120 → low
+        _info(-200, "g8f6"),  # Nf6 — best for Black, COVERED
+        _info(-180, "d7d5"),  # d5  — mover_cp 180, loss 20, edge>=60 → high
+        _info(-130, "g7g6"),  # g6  — mover_cp 130, loss 70, edge>=60 → medium
+        _info(-10, "a7a6"),  # a6  — mover_cp 10, edge<25 → low
     ]
     gaps = cm._gaps_from_infos(board, infos, {"g8f6"})
     by_move = {e["uncovered_move"]: e for e, _ in gaps}
-    assert set(by_move) == {"d5", "g6"}  # covered Nf6 excluded
-    assert by_move["d5"]["severity"] == "medium"
-    assert by_move["g6"]["severity"] == "low"
-    assert by_move["d5"]["eval"] == 20  # eval is white-POV
+    assert set(by_move) == {"d5", "g6", "a6"}  # covered Nf6 excluded
+    assert by_move["d5"]["severity"] == "high"
+    assert by_move["g6"]["severity"] == "medium"
+    assert by_move["a6"]["severity"] == "low"
+    assert by_move["d5"]["eval"] == -180  # eval is white-POV
 
 
 def test_gaps_from_infos_all_covered_or_empty():
