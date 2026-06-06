@@ -1,6 +1,6 @@
 # White Repertoire Analysis — English Opening (teaching study)
 
-**Source:** `english-opening-repertoire.pgn` (Lichess gamebook study export, anonymized; 18 chapters, all side-variations preserved)
+**Source:** `repertoire.pgn` (Lichess gamebook study export, anonymized; 18 chapters, all side-variations preserved)
 
 | Run | Date | MCP version |
 |-----|------|-------------|
@@ -12,7 +12,7 @@
 
 **Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` → `find_repertoire_gaps` → `evaluate_position` (×3)
 
-**Focus:** First run against a *gamebook teaching study* rather than a Chesstempo export. Unlike `ct-white-repertoire.pgn`, this PGN embeds illustrative **wrong-answer side variations** (deliberately bad moves shown to a student, e.g. `(6. Bd2 {-7})`, `(6. Nd2 {-7.5})`, `(8. Qd4 {fails})`). This shape stresses the tools differently — see MCP Retro Notes.
+**Focus:** First run against a *gamebook teaching study* rather than a Chesstempo export. Unlike `../ct-white/repertoire.pgn`, this PGN embeds illustrative **wrong-answer side variations** (deliberately bad moves shown to a student, e.g. `(6. Bd2 {-7})`, `(6. Nd2 {-7.5})`, `(8. Qd4 {fails})`). This shape stresses the tools differently — see MCP Retro Notes.
 
 ### Tree Stats
 
@@ -84,7 +84,7 @@ This is the expected behavior of a **single-recommendation teaching study**: eac
 
 ### MCP Retro Notes
 
-New shortcomings observed on 0.2.7 (full detail in `english-opening-repertoire-retro.md` v1):
+New shortcomings observed on 0.2.7 (full detail in `retro.md` v1):
 
 1. **No annotation/NAG awareness** — illustrative "wrong-answer" side variations are parsed as first-class repertoire leaves. Inflates leaf count (38 vs ~18 chapters), produces false congruence flags on moves the author marks as blunders, and feeds bad positions to the gap scanner. The study marks badness only in prose (`{-7}`), with no machine NAGs, so even NAG-filtering would not catch it. → Issue #18.
 2. **`find_repertoire_gaps` severity ignores absolute eval** — severity is set purely by closeness to the opponent's best move, so a gap that leaves White at +0.2 is `high` exactly like one that drops White to −2. On a single-recommendation study this yields 154 uniform-`high` gaps with no prioritization. Distinct from the (closed) depth issue #6. → Issue #19.

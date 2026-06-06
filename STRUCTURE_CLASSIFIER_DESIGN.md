@@ -21,7 +21,7 @@ label misleads an LLM more than "unknown" does.* The narrowness is intentional a
 preserved as a value, not eroded.
 
 Two failure modes surfaced during a real English-Opening repertoire analysis
-(`ct-white-repertoire-analysis.md`):
+(`repertoires/ct-white/analysis.md`):
 
 1. **Coverage hole.** 16 / 17 leaves returned `unknown / 0.0`. The known schemas are
    1.d4 / 1.e4-derived; hypermodern / flank structures (English, Hedgehog, KIA, Catalan,

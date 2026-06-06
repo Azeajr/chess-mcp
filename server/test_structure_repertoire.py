@@ -269,7 +269,7 @@ def test_themes_always_populated_when_structure_unknown():
     assert all(not isinstance(v, dict) for v in prof["themes"].values())
 
 
-# Real English-Opening bxc3 leaf from ct-white-repertoire-analysis.md: the position
+# Real English-Opening bxc3 leaf from repertoires/ct-white/analysis.md: the position
 # that returned structure_class "unknown" and motivated the theme-tag work (A).
 ENGLISH_BXC3_FEN = "1rbq1rk1/ppp2pp1/2nb3p/4p3/3P4/2P2NP1/P1Q1PPBP/1RB2RK1 b - - 1 11"
 

@@ -1,6 +1,6 @@
 # Black Repertoire Analysis — Caro-Kann / Nimzo / Anti-English / 1.b4
 
-**Source:** `ct-black-repertoire.pgn` (Chesstempo export, 2026-06-06)
+**Source:** `repertoire.pgn` (Chesstempo export, 2026-06-06)
 
 This repertoire ships as a **4-game PGN** — Chesstempo exports one `[Event]` block per
 opening. The four games are: Anti-English (`1.c4`), Caro-Kann (`1.e4 c6`), Nimzo-Indian
@@ -216,7 +216,7 @@ Several are likely transposition-resolvable (e.g. `d4 Nf6 c4 e6 → g3` is the C
 
 ### MCP Retro Notes
 
-- **Issue #13 fixed and verified live** — the dominant outcome. Full forest loads (518/54), `validate_pgn` reports `games: 4`, cross-game transpositions surface (21 vs 1), and the false `1.e4`/`1.d4` root gaps are eliminated. Detail in `ct-black-repertoire-retro.md` § v2.
+- **Issue #13 fixed and verified live** — the dominant outcome. Full forest loads (518/54), `validate_pgn` reports `games: 4`, cross-game transpositions surface (21 vs 1), and the false `1.e4`/`1.d4` root gaps are eliminated. Detail in `retro.md` § v2.
 - **Congruence has no per-opening grouping (new, exposed by #13)** — with four merged openings, `analyze_repertoire_congruence` judges every leaf against the whole 54-leaf forest. `structure_outlier` goes inert (no theme reaches 50% across four systems) and `weakness_inconsistency` frames per-opening concessions as repertoire-wide inconsistency. Filed as Issue #14.
 - **Classifier markedly better on the full repertoire** — 15/54 named, French ×4 correctly tags the Advance Caro. The hypermodern-`1.c4` blind spot persists (Anti-English leaves still `unknown`), but that is the known Issue #5 class.
 
@@ -303,7 +303,7 @@ Both engine-grounded. The mainline endpoint at dead-equal is exactly what a Blac
 
 ### MCP Retro Notes
 
-- **Multi-game PGN silently truncated to game 1** — the dominant finding this run. `load_repertoire` and `validate_pgn` both read a single game; games 2–N are dropped with no signal. 83% of this repertoire was invisible. Cascades into false gaps (`1.e4`/`1.d4` "uncovered") and prevents cross-game congruence/structure analysis. Filed as Issue #13. Full detail in `ct-black-repertoire-retro.md`.
+- **Multi-game PGN silently truncated to game 1** — the dominant finding this run. `load_repertoire` and `validate_pgn` both read a single game; games 2–N are dropped with no signal. 83% of this repertoire was invisible. Cascades into false gaps (`1.e4`/`1.d4` "uncovered") and prevents cross-game congruence/structure analysis. Filed as Issue #13. Full detail in `retro.md`.
 - **Classifier still misses canonical Black structures** — Nimzo `bxc3` and Advance-Caro skeletons return `unknown`. Same class of gap as the English White repertoire (Issue #5 territory); theme tags carry the load.
 - **Congruence is static-only** — correctly flags the `9.exd4??` leaf's doubled pawns / missing fianchetto, but that leaf is a winning tactical refutation, not a strategic island. Expected behavior, low practical value here.
 

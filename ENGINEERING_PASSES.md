@@ -22,7 +22,7 @@ Repo shape the prompts assume:
 | [2. Security Mitigation](#2-security-mitigation) | Concrete, local hardening against this server's real threat model — not security theater. |
 | [3. High-Signal Testing](#3-high-signal-testing) | Coverage is thin or vanity; you want behavior tests that make refactoring safe. |
 
-| [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `ct-white-repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
+| [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `repertoires/ct-white/repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
 
 Verification commands referenced by every pass (this repo):
 
@@ -101,17 +101,17 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 This pass is designed to be run repeatedly. Each run exercises the MCP against a real repertoire, documents what works and what breaks, and ships fixes for the bounded problems it finds. Over time this drives the MCP toward the behavior you actually need.
 
 ```text
-Act as a pragmatic chess analyst and Python engineer working on chess-mcp. Run a full repertoire analysis loop against `ct-white-repertoire.pgn`, document the findings, capture retro friction, implement any bounded fixes, and ship. The goal is iterative MCP improvement: each run surfaces new shortcomings and closes the previous ones.
+Act as a pragmatic chess analyst and Python engineer working on chess-mcp. Run a full repertoire analysis loop against `repertoires/ct-white/repertoire.pgn`, document the findings, capture retro friction, implement any bounded fixes, and ship. The goal is iterative MCP improvement: each run surfaces new shortcomings and closes the previous ones.
 
 CONTEXT
 - chess-mcp: FastMCP + python-chess + Stockfish MCP server (Stockfish is Docker-only — never install on host)
 - MCP owns all FEN/PGN reasoning — never hand-author positions or move sequences; use tools, which return engine-verified FENs and evals
-- Analysis docs: `ct-white-repertoire-analysis.md` (versioned run log) and `ct-white-repertoire-retro.md` (living retro — append, never overwrite)
+- Analysis docs: `repertoires/ct-white/analysis.md` (versioned run log) and `repertoires/ct-white/retro.md` (living retro — append, never overwrite)
 - Design constraints: `MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract, closed error-code set), `REPERTOIRE_DESIGN.md` (cache, structural classifier)
 - Open issues: check `gh issue list` before logging a new shortcoming — don't duplicate
 
 PHASE 1 — RUN THE ANALYSIS FLOW
-Run tools in this exact order against `ct-white-repertoire.pgn`:
+Run tools in this exact order against `repertoires/ct-white/repertoire.pgn`:
 
 1. `validate_pgn` — confirm the file is valid before loading
 2. `load_repertoire` — get the repertoire handle; record tree stats (nodes, leaves, max depth, color)
@@ -124,14 +124,14 @@ Run tools in this exact order against `ct-white-repertoire.pgn`:
 Assess each result against what the tool was supposed to do. Note: incorrect output, missing signal, false flags, unexplained `unknown` returns, or output that required manual multi-step chaining to interpret.
 
 PHASE 2 — UPDATE ANALYSIS DOC
-Append a new versioned section to `ct-white-repertoire-analysis.md`. Follow the existing format exactly:
+Append a new versioned section to `repertoires/ct-white/analysis.md`. Follow the existing format exactly:
 - Header: `## v<N> — <date> — chess-mcp <version>`
 - Subheadings: Tools used, Tree Stats, Structural Identity, Congruence Results, Soundness Checks, Gaps, MCP Retro Notes
 - Bump the version table at the top of the file (add new row, mark it current)
 - Do not edit previous version sections
 
 PHASE 3 — APPEND RETRO
-Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `ct-white-repertoire-retro.md`. Rules:
+Append a new `## v<N> Update — chess-mcp <version> (<date>)` section to `repertoires/ct-white/retro.md`. Rules:
 - Only record NEW findings not already in the retro
 - For each new shortcoming: describe the observed behavior, the expected behavior, and a concrete one-sentence fix
 - For each tool that shone: record what it got right (evidence-based, not general praise)

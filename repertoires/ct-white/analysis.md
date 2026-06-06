@@ -1,6 +1,6 @@
 # White Repertoire Analysis — English Opening
 
-**Source:** `ct-white-repertoire.pgn` (Chesstempo export, 2026-06-03)
+**Source:** `repertoire.pgn` (Chesstempo export, 2026-06-03)
 
 | Run | Date | MCP version |
 |-----|------|-------------|
@@ -377,7 +377,7 @@ Engine evaluation (depth 20, Black to move):
 
 2. **Gap tool eval discrepancy** — for Gap B (h5 after 7.O-O), the gap tool reports −8 cp (depth 18) while `evaluate_position` at depth 20 finds −34 cp. A 26 cp difference changes severity assessment. The gap tool's depth-18 eval may not see far enough into the positional h5 pawn storm plan. `evaluate_position` follow-up at depth 20 is now confirmed necessary for any gap flagged within ±15 cp of even.
 
-3. **Be2 island still present** — recommended replacement (`2...c6 3.g3` fianchetto line) from v2 not yet applied to `ct-white-repertoire.pgn`. PGN update pending.
+3. **Be2 island still present** — recommended replacement (`2...c6 3.g3` fianchetto line) from v2 not yet applied to `repertoire.pgn`. PGN update pending.
 
 4. **Gap A resolves via transposition** — `5...c5 6.Nge2 Nc6 7.O-O d6` reaches transposition 1's FEN. The PGN just needs a move-order redirect annotation, not new structural preparation.
 
@@ -568,7 +568,7 @@ Black's best at move 10: Re8 (+50) → Qc2 Qe7 e4 exd4. White plan: Qc2 + e4 cen
 - d4 + a4/Qc2 queenside plan — mirrors b4 expansion in other lines
 - Better eval than the original Be2 line at equivalent depth
 
-**Action required:** replace the `2...c6` variation in `ct-white-repertoire.pgn` with this line.
+**Action required:** replace the `2...c6` variation in `repertoire.pgn` with this line.
 
 ---
 

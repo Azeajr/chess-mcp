@@ -1,11 +1,11 @@
 # MCP Retro — English Opening Teaching Study
 
-**Source analysis:** `english-opening-repertoire-analysis.md`
+**Source analysis:** `analysis.md`
 **Retro date:** 2026-06-06
 **MCP version:** chess-mcp 0.2.7
 **Tools exercised:** `validate_pgn`, `load_repertoire`, `get_transpositions`, `get_structural_profile`, `analyze_repertoire_congruence`, `find_repertoire_gaps`, `evaluate_position`
 
-> This is a **distinct repertoire** from `ct-white-repertoire.pgn`. Its retro starts fresh at v1; findings are not deduped against the ct-white retro. The only cross-run dedup is the gh issue list (all 17 issues currently CLOSED). What makes this PGN new: it is a **gamebook teaching study** with deliberate wrong-answer side variations, a shape the prior repertoires never exercised.
+> This is a **distinct repertoire** from `../ct-white/repertoire.pgn`. Its retro starts fresh at v1; findings are not deduped against the ct-white retro. The only cross-run dedup is the gh issue list (all 17 issues currently CLOSED). What makes this PGN new: it is a **gamebook teaching study** with deliberate wrong-answer side variations, a shape the prior repertoires never exercised.
 
 ---
 

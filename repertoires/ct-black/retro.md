@@ -1,8 +1,8 @@
 # MCP Retro — Black Repertoire Analysis (Caro-Kann / Nimzo / Anti-English / 1.b4)
 
-**Source analysis:** `ct-black-repertoire-analysis.md`
+**Source analysis:** `analysis.md`
 **Retro date:** 2026-06-05
-**Companion retro:** `ct-white-repertoire-retro.md` (English White repertoire — single-game tree)
+**Companion retro:** `../ct-white/retro.md` (English White repertoire — single-game tree)
 
 This retro captures MCP/tool/workflow shortcomings ONLY. Content gaps in the repertoire
 itself live in the analysis doc, not here.
@@ -102,7 +102,7 @@ Exercised the tools skipped in v1/v2 (unblocked by #13/#14): `get_repertoire_cov
 ### What Resolved
 
 **Issue #15 FIXED — `get_repertoire_coverage` is now transposition-aware**
-- v3 first run: `dangling_count: 20` on `ct-black-repertoire.pgn`, but most were transposition stubs (`c4 Nf6 d4` covered by the `d4 Nf6 c4` Nimzo mainline, the Caro `c3`/`Nbd2` pair, the Nimzo `e3`/`Nf3 … Bd3` pair, etc.).
+- v3 first run: `dangling_count: 20` on `repertoire.pgn`, but most were transposition stubs (`c4 Nf6 d4` covered by the `d4 Nf6 c4` Nimzo mainline, the Caro `c3`/`Nbd2` pair, the Nimzo `e3`/`Nf3 … Bd3` pair, etc.).
 - Fix: `coverage_report` excludes a player-to-move leaf from `dangling` when its position key also occurs as an internal node that continues — covered by transposition (mirrors the gap tool's #3 dedup). After: `dangling_count: 3` (genuine holes only). Engine-free, shipped 0.2.5.
 
 ### What Shone

@@ -1,6 +1,6 @@
 # MCP Retro — White Repertoire Analysis (English Opening)
 
-**Source analysis:** `ct-white-repertoire-analysis.md`  
+**Source analysis:** `analysis.md`  
 **Retro date:** 2026-06-04  
 **Tools exercised:** `load_repertoire`, `get_structural_profile`, `analyze_repertoire_congruence`, `evaluate_position`, `find_repertoire_gaps`
 
@@ -74,7 +74,7 @@
 ```
 1.c4 e5 2.Nc3 c6 3.g3 Nf6 4.Bg2 d5 5.cxd5 Nxd5 6.Nf3 Nxc3 7.bxc3 Bd6 8.d4 Nd7 (+58 cp) 9.O-O O-O 10.a4 ...
 ```
-Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action required: update `ct-white-repertoire.pgn`.
+Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action required: update `repertoire.pgn`.
 
 ### New Issues Found
 
@@ -89,7 +89,7 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 ### Updated Skipped-Tool Status
 
 - **`get_transpositions`** — now run. Resolved all 3 apparent gaps. Should be standard pre-flight before gap or depth analysis.
-- **`suggest_complementary_lines`** — still deferred. Next run: `mode="low_memorization"` against Maroczy leaf after `ct-white-repertoire.pgn` is updated with the Be2 replacement.
+- **`suggest_complementary_lines`** — still deferred. Next run: `mode="low_memorization"` against Maroczy leaf after `repertoire.pgn` is updated with the Be2 replacement.
 - **`export_annotated_pgn`** — still not run.
 
 ---
