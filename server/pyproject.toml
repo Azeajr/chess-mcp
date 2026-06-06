@@ -1,6 +1,6 @@
 [project]
 name = "chess-mcp"
-version = "0.1.8"
+version = "0.2.1"
 requires-python = ">=3.14"
 dependencies = [
     "mcp[cli]>=1.27.2",
