@@ -8,11 +8,56 @@ opening. The four games are: Anti-English (`1.c4`), Caro-Kann (`1.e4 c6`), Nimzo
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v3 (current) | 2026-06-06 | chess-mcp 0.2.5 |
+| v4 (current) | 2026-06-06 | chess-mcp 0.2.7 |
+| v3 | 2026-06-06 | chess-mcp 0.2.5 |
 | v2 | 2026-06-06 | chess-mcp 0.2.3 |
 | v1 | 2026-06-05 | chess-mcp 0.2.2 |
 
 ---
+
+## v4 — 2026-06-06 — chess-mcp 0.2.7
+
+**Tools:** `load_repertoire` → `analyze_repertoire_congruence` → `suggest_replacement_line` → `identify_opening` (×4) → `compare_moves` → `get_structural_profile`.
+
+**Focus:** Verify all prior fixes (#13–#16) hold on 0.2.6 and exercise the last unrun tools (`identify_opening`, `compare_moves`). One new shortcoming surfaced and was fixed (#17).
+
+### Fix verification (all hold on 0.2.6)
+
+| Fix | Check | Result |
+|-----|-------|--------|
+| #13 multi-game | `load_repertoire` | 516/54 (canonical 518/54), `validate_pgn games: 4` |
+| #14 per-opening congruence | `analyze_repertoire_congruence` | 6 weakness, **no spurious structure_outlier**, scoped per opening |
+| #15 coverage transposition | `get_repertoire_coverage` | dangling 3 (was 20) |
+| #16 weakness anchoring | `suggest_replacement_line` (Caro IQP) | `outlier_move: exd4`, `anchored_to: d4` (not terminal) |
+
+**#16 generalizes well** beyond the original Nimzo case: on the Caro IQP line (`… exd4 exd5 cxd5 …`) it pivots at `exd4` (where Black first takes on the doubled/isolated structure) and returns 4 genuine alternatives (Nxe4, dxe4, Nbd7, Bg4; evals 0–29) — more useful than the Nimzo case where the recapture was forced.
+
+### `identify_opening` (first run on Black) — shone
+
+Named all four games by ECO, engine-free:
+
+| Game | ECO | Name |
+|------|-----|------|
+| Caro-Kann | B12 | Caro-Kann Defense: Advance Variation, Short Variation |
+| Nimzo | E59 | Nimzo-Indian Defense: Normal Variation, Bernstein Defense |
+| Anti-English | A28 | English Opening: King's English, Four Knights, Flexible Line |
+| Other | A00 | Polish Opening |
+
+Notably **A28 names the Anti-English game that `structure_class` returns `unknown` for** — the ECO table covers what the pawn-structure classifier misses.
+
+### `compare_moves` (first run on Black)
+
+At the Nimzo extension leaf (`… e3 O-O Bd3`, Black to move), ranked Black's 5 candidate replies correctly: c5/b6 best (cp_loss 0), dxc4 +8, Nbd7 +10, Re8 +17; PVs returned, no illegal. Works as intended.
+
+### MCP Retro Notes
+
+- **`get_structural_profile.opening` always null on leaves (NEW, fixed #17)** — the `opening` field used a single-position EPD lookup on the (too-deep) leaf, so it returned `null` on every leaf in v2–v4 despite the leaf clearly descending from a named opening. Fixed: report the deepest named opening on the path to the node (`openings.deepest_to_node`). Also backstops `structure_class: unknown`. Detail in retro § v4.
+- **All four prior fixes (#13–#16) verified stable** on 0.2.6.
+- **`identify_opening` / `compare_moves` work correctly** — no shortcomings.
+
+#### Content observations (not MCP issues)
+
+- The ECO table (`identify_opening` / the fixed `opening` field) is the practical name source for the hypermodern Anti-English leaves the structural classifier leaves `unknown`.
 
 ## v3 — 2026-06-06 — chess-mcp 0.2.5
 

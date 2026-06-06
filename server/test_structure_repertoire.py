@@ -1065,6 +1065,19 @@ def test_opening_deepest_in_line():
     assert op is not None and "Ruy Lopez" in op["name"] and op["ply"] >= 5
 
 
+def test_opening_deepest_to_node_reads_named_ancestor():
+    # Issue #17: a deep repertoire leaf is beyond ECO-table depth, so a single-position
+    # lookup on the leaf misses — its opening identity comes from the deepest named ancestor.
+    rep = build_repertoire(
+        ["d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7 e3 O-O Bd3 Nbd7 Nf3 Re8"]
+    )
+    leaf = next(repertoire.walk_leaves(rep.game))
+    assert openings.identify(leaf.board()) is None  # leaf itself is too deep to match
+    op = openings.deepest_to_node(leaf)
+    assert op is not None and op["eco"].startswith("D")  # QGD family, named at an ancestor
+    assert op["ply"] < leaf.ply()  # the name comes from a shallower ancestor
+
+
 # ---------------------------------------------------------------------------
 # Congruence — theme-based outlier fallback (issue #5)
 # ---------------------------------------------------------------------------

@@ -40,3 +40,25 @@ def deepest_in_line(game: chess.pgn.Game) -> dict | None:
         if hit is not None:
             best = {"eco": hit[0], "name": hit[1], "ply": board.ply()}
     return best
+
+
+def deepest_to_node(node) -> dict | None:
+    """The DEEPEST named opening on the path from the root down to `node`, or None.
+
+    A repertoire leaf sits beyond ECO-table depth, so a single-position lookup on the leaf
+    itself almost always misses — the leaf's opening identity lives at the deepest *named
+    ancestor*. Walk root→node, last match wins; includes the ply where it is reached.
+    """
+    table = _table()
+    chain = []
+    n = node
+    while n is not None:
+        chain.append(n)
+        n = n.parent
+    best = None
+    for nd in reversed(chain):  # root → node
+        board = nd.board()
+        hit = table.get(board.epd())
+        if hit is not None:
+            best = {"eco": hit[0], "name": hit[1], "ply": board.ply()}
+    return best

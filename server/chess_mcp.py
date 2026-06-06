@@ -791,7 +791,10 @@ def get_structural_profile(
             "reason": "variation_path does not match a line in the repertoire",
         }
     profile = structure.position_profile(node.board(), rep.color)
-    profile["opening"] = openings.identify(node.board())  # {eco, name} or null
+    # Deepest named opening on the path to this node (not a single-position lookup on the
+    # leaf — leaves sit beyond ECO depth, so that almost always misses). Backstops the
+    # structural classifier where structure_class is "unknown" (e.g. hypermodern English).
+    profile["opening"] = openings.deepest_to_node(node)  # {eco, name, ply} or null
     return profile
 
 

@@ -126,3 +126,32 @@ Exercised the tools skipped in v1/v2 (unblocked by #13/#14): `get_repertoire_cov
 
 - **All previously-skipped repertoire tools have now been exercised.** `get_repertoire_coverage`, `suggest_complementary_lines`, `suggest_replacement_line`, and `export_annotated_pgn` all ran this loop.
 - Remaining structural-ranking weakness (`profile_match` on unknown structures) is bounded by the classifier's coverage of Black/QGD systems — the standing classifier-extension work (Issue #5 class), not a per-tool fix.
+
+---
+
+## v4 Update — chess-mcp 0.2.7 (2026-06-06)
+
+Verification run on 0.2.6 — all prior fixes (#13–#16) confirmed stable — plus the last
+unrun tools (`identify_opening`, `compare_moves`). One new shortcoming found and fixed.
+
+### What Resolved
+
+**Issue #17 FIXED — `get_structural_profile.opening` now reads the named ancestor**
+- v2–v4: every leaf returned `"opening": null`. Root cause: the field used `openings.identify(node.board())`, a single-position EPD lookup on the leaf — but leaves sit beyond ECO-table depth, so it always missed.
+- Fix: added `openings.deepest_to_node(node)` (root→node, last ECO match wins — the node analogue of `deepest_in_line`); `get_structural_profile` now reports `{eco, name, ply}` from the deepest named ancestor. Engine-free, shipped 0.2.7. Also backstops `structure_class: "unknown"` (the ECO table names what the pawn-structure classifier cannot).
+
+**Issues #13–#16 verified stable on 0.2.6** — multi-game load 516/54 + `games: 4`; congruence per-opening (no spurious outlier); coverage dangling 3; `suggest_replacement_line` #16 anchoring confirmed and shown to generalize (Caro IQP → `outlier_move: exd4`, 4 real alternatives).
+
+### What Shone
+
+- **`identify_opening`** — named all four games by ECO engine-free (B12 Caro Advance, E59 Nimzo Bernstein, A28 King's English Four Knights, A00 Polish). A28 names the Anti-English game the structural classifier returns `unknown` for — the ECO table is the practical name source for hypermodern systems.
+- **`compare_moves`** — ranked Black's candidate replies correctly at a Nimzo extension leaf (c5/b6 best, Re8 worst +17), PVs, no illegal inputs.
+
+### Carried Over
+
+- **`profile_match` inert on unknown-structure lines** (#8/#11/#12 lineage) — still applies to the Nimzo/QGD suggestions; bounded by classifier coverage (Issue #5 class), not a per-tool fix.
+- **Classifier `unknown` for hypermodern `1.c4`** — now backstopped at the tool level by the fixed `opening` field (#17), which surfaces the ECO name even when `structure_class` is `unknown`.
+
+### Skipped Tools
+
+- None outstanding for the repertoire workflow. All repertoire and supporting tools (`identify_opening`, `compare_moves`, `validate_line` surface) have now been exercised across v1–v4.
