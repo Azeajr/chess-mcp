@@ -81,6 +81,7 @@ This is the expected behavior of a **single-recommendation teaching study**: eac
 **Content observations (not MCP shortcomings):**
 - The study is a teaching tool, not a complete repertoire tree — by design it does not branch on every Black alternative. Converting it into a playable repertoire would require filling the high-volume gaps with real lines.
 - The two "transpositional value" chapters (QGD / Queen's Gambit / KID-via-e4) intentionally hand off to *other* openings (`2.d4`, `3.e4`) — these are escape hatches, not English lines.
+- **White-only — do not run the loop `as black` on this PGN.** Every node encodes a White recommendation (`1.c4`, `2.Nc3/g3`, …); it is not a Black repertoire. Loading `color=black` inverts the POV — `find_repertoire_gaps` would scan White-to-move points where Black prepared nothing (empty/noise), and congruence/structure themes would flip to a side the tree never describes. Black-side analysis belongs to `../ct-black/`.
 
 ### MCP Retro Notes
 
