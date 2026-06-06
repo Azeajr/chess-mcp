@@ -79,7 +79,7 @@ Note: the v2 manual analysis recommended `3.g3` (immediate fianchetto) as the st
 
 1. **Issue #11 fix working.** `profile_match` now differentiates suggestions: `d4` scores 1.0, others 0.0. Rankings are actionable for the first time in this repertoire.
 
-2. **`profile_match` may over-score via incidental fianchetto in deep PV.** `d4` scores 1.0 because `fianchetto_white` appears somewhere in Stockfish's ~20-move continuation — the 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) itself is a central pawn battle, not a structural commitment to fianchetto. A long engine continuation can include g3/Bg2 incidentally. See retro.
+2. **`profile_match` over-scored via incidental fianchetto in deep PV** *(fixed in v0.2.2 — Issue #12)*. `d4` scored 1.0 because `fianchetto_white` appeared somewhere in Stockfish's ~20-move continuation. After cap at `_PV_THEME_WINDOW = 8` plies: all 4 suggestions return `profile_match: 0.0` — correct, as none commit to fianchetto within 8 plies of the `c6` pivot. Eval-only ranking (`d4` at +43 cp) is the honest fallback.
 
 3. **Deployment lag — `by_type_acknowledged` absent** *(resolved same session)*. Local MCP container not rebuilt after v0.2.1 commit. After rebuild: `by_type_acknowledged: {"weakness_inconsistency": 6}` confirmed correct; `by_type` shows only unacknowledged types. All v0.2.1 fixes verified.
 

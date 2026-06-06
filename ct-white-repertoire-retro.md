@@ -215,12 +215,10 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 
 ### New Shortcomings
 
-**`profile_match` saturates at 1.0 via incidental fianchetto in deep PV**
-- Observed: `d4` suggestion returns `profile_match: 1.0`. Its 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) is a central pawn battle, not a structural fianchetto commitment at the pivot. The full ~20-move Stockfish continuation includes `g3/Bg2` at some later ply — which fires `fianchetto_white: true`.
-- Expected: `profile_match` should reflect structural commitment at or near the pivot point, not theme appearances far down the PV.
-- Risk: any sufficiently long engine continuation may include g3/Bg2 for stylistic development reasons unrelated to the structural identity of the pivot move. Multiple suggestions could score 1.0 in deep-search scenarios, collapsing the ranking again.
-- Fix options: (a) cap PV walk at N plies past the pivot (e.g., 8–10 plies); (b) weight by ply index (theme at ply 2 scores higher than ply 18); (c) require theme within the structural commitment window for the opening phase.
-- Impact: current differentiation (`d4` 1.0 vs `e4` 0.0) appears meaningful but the mechanism may be fragile for deep PVs. Needs investigation before declaring `structural_fit` mode robust.
+**`profile_match` saturates at 1.0 via incidental fianchetto in deep PV** *(fixed in v0.2.2 — Issue #12)*
+- Observed: `d4` suggestion returned `profile_match: 1.0`. Its 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) is a central pawn battle; the full ~20-move continuation incidentally included `g3/Bg2`, firing `fianchetto_white: true`.
+- Fix: added `_PV_THEME_WINDOW = 8` constant; walk sliced to `pv[1:_PV_THEME_WINDOW]`. Structural theme commitments (g3/Bg2) appear within 6–8 plies of any genuine suggestion; appearances beyond that window are engine stylistic choices.
+- Verified: after fix all 4 suggestions on Be2 island return `profile_match: 0.0` — correct, none commit to fianchetto within 8 plies of the pivot. Eval-only ranking is the honest fallback.
 
 **Deployment lag — `by_type_acknowledged` absent from congruence response** *(resolved same session)*
 - Observed: `analyze_repertoire_congruence` response missing `by_type_acknowledged` field despite being a v0.2.1 addition. Server running pre-0.2.1 code.
@@ -230,7 +228,7 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 
 ### Updated Skipped-Tool Status
 
-- **`suggest_replacement_line`** — Issues #7, #9, #11 resolved. `profile_match` now non-zero and differentiating. Tool is actionable for structural remediation. `resulting_structure: "unknown"` persists — theme fallback is the active ranking mechanism. Open question: does deep-PV scoring produce reliable rankings across suggestion sets?
+- **`suggest_replacement_line`** — Issues #7, #9, #11, #12 resolved. `profile_match` theme fallback capped at 8 plies; incidental deep-PV inflation eliminated. Tool is actionable for structural remediation. `resulting_structure: "unknown"` persists — theme fallback is the active ranking mechanism; eval_cp is the tiebreaker when profile_match is uniformly 0.0.
 - **`suggest_complementary_lines`** — still deferred. Precondition: PGN updated with Be2 island replacement.
 - **`export_annotated_pgn`** — still not run.
 
