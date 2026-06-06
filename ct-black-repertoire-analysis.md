@@ -8,9 +8,106 @@ opening. The four games are: Anti-English (`1.c4`), Caro-Kann (`1.e4 c6`), Nimzo
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v1 (current) | 2026-06-05 | chess-mcp 0.2.2 |
+| v2 (current) | 2026-06-06 | chess-mcp 0.2.3 |
+| v1 | 2026-06-05 | chess-mcp 0.2.2 |
 
 ---
+
+## v2 — 2026-06-06 — chess-mcp 0.2.3
+
+**Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` → `find_repertoire_gaps` → `evaluate_position` (×3).
+
+**Focus:** First run after the Issue #13 fix (multi-game merge, shipped in 0.2.3, container rebuilt). The whole 4-game repertoire now loads as one forest, so this is the first run that actually analyzes all four openings instead of just the Anti-English game.
+
+### Tree Stats
+
+| Metric | v1 (game 1 only) | v2 (full forest) |
+|--------|------------------|------------------|
+| Nodes | 64 | **518** (canonical; 516 via the inline paste this run — 2 optional sub-lines dropped in transcription) |
+| Leaves | 5 | **54** |
+| Max depth (plies) | 20 | **28** |
+| Color | black | black |
+| `validate_pgn` games | (only game 1 seen) | **4** |
+
+The fix is verified end-to-end through the live MCP: `validate_pgn` reports `games: 4`; `load_repertoire` returns the full forest.
+
+### Structural Identity (full repertoire, 54 leaves)
+
+15/54 leaves now name a structure (vs all-`unknown` for the game-1-only v1 view):
+
+| structure_class | count | avg_conf |
+|-----------------|-------|----------|
+| unknown | 39 | 0.0 |
+| French | 4 | 0.85 |
+| Carlsbad | 3 | 0.75 |
+| IQP | 3 | 0.90 |
+| Grünfeld Centre | 2 | 0.70 |
+| Caro-Kann | 1 | 0.88 |
+| King's Indian | 1 | 0.53 |
+| Slav | 1 | 0.80 |
+
+The **French ×4** hits are the Advance Caro-Kann main lines (Black's b7–c6–d5–e6–f7 chain vs White e5/d4) — correctly classified now that the Caro game loads. Center distribution: tense 25, semi-open 18, locked 8, open 3. Dominant themes: `minority_attack_white` 18, `minority_attack_black` 16, `fianchetto_white` 10, `wing_majority_white:queenside` 10. No single theme reaches 50% — the repertoire is four structurally independent systems, as expected for a Black repertoire (one answer per White first move).
+
+### Transpositions (pre-flight)
+
+**21 transpositions** (v1 saw 1). The merge surfaced cross-game convergence the single-game load could never see:
+
+- `c4 Nf6 d4` ↔ `d4 Nf6 c4` — the **Anti-English game and the Nimzo game converge** after a `c4`/`d4` move-order swap.
+- `c4 Nf6 Nf3` ↔ `Nf3 Nf6 c4` — same two games via `Nf3`.
+- `d4 Nf6 c4 e6 Nf3` ↔ `Nf3 Nf6 d4 e6 c4` ↔ `Nf3 Nf6 c4 e6 d4` — Nimzo main + its `1.Nf3` sideline.
+- Many within-Caro move-order merges (`e4 c6 d4 d5 Nc3` ↔ `e4 c6 Nc3 d5 d4`, etc.).
+
+This is direct evidence the forest merge is transposition-aware across game boundaries.
+
+### Congruence Results
+
+`total_flagged: 6`, all `weakness_inconsistency` (medium), `acknowledged_count: 0`. **Zero `structure_outlier`** this run.
+
+The 6 weakness flags span all four games:
+- Anti-English `3.e3 … 9.exd4?? dxc3` (doubled) — the v1 blunder-punish leaf.
+- Caro `2.Nf3 … 3.d4 dxe4 4.Ng5 … Rxh1+` (doubled) — the exchange-sac line, Black up material.
+- Caro `3.d3 … d4 exd4 exd5 cxd5 Nb3/Nxd4` (isolated ×2) — IQP after the central trade.
+- Caro `2.Bc4 … Bxc6+ bxc6` (isolated) — the doubled/hanging c-pawns line.
+- Nimzo `4.Qc2 d5 cxd5 Qxd5 … Qxf5 exf5` (doubled f-pawns).
+
+Each is a real, mostly forced/intentional structural concession **specific to that opening**. See MCP Retro Notes / Issue #14: across four independent systems, "inconsistent with the repertoire's grain" is the wrong frame — these should be judged against their own opening's siblings, not all 54 leaves.
+
+### Soundness Checks (`evaluate_position`, depth 20)
+
+| Line | FEN | Eval (White-POV) | Best | Verdict |
+|------|-----|------------------|------|---------|
+| Caro Advance main (`…a5`, French) | `r2qkb1r/1p1n1ppb/2p1p2p/p2pPn2/P2P4/1NP2N2/1P2BPPP/R1BQ1RK1 w kq - 0 11` | **+40** | Bd3 | Slight White pull — normal Advance Caro |
+| Nimzo main (`…Qc7`, Grünfeld Centre) | `r1b2rk1/ppq2ppp/2n1pn2/2p5/2BP4/P1P1PN2/5PPP/R1BQ1RK1 w - - 1 11` | **+27** | h3 | Normal small edge — sound for Black |
+| Anti-English main (`…Qd7`) | `r4rk1/1ppqbppp/2n1b3/p2np3/8/P1NP1NP1/1P1BPPBP/R2Q1RK1 w - - 2 11` | **−5** | Rc1 | Equal — unchanged from v1 |
+
+All three mainline endpoints sit in the normal Black range (≤ +40). The repertoire is sound.
+
+### Gaps (`find_repertoire_gaps`, depth 20, min_severity medium)
+
+`positions_scanned: 20`, `total_gaps: 57`, `transposition_endpoints: []`. **The v1 false root gaps are gone:** `1.e4` and `1.d4` are no longer flagged as uncovered — the Caro-Kann and Nimzo games now answer them. Only `path: []` gap remaining is `e3` (1.e3, +20, a genuinely rare first move).
+
+Top gaps are now legitimate move-order points inside the covered openings:
+
+| path | uncovered_move | eval | severity |
+|------|----------------|------|----------|
+| `e4 c6 Nc3 d5` | Nf3 | 31 | high |
+| `d4 Nf6 c4 e6` | g3 (Catalan) | 27 | high |
+| `e4 c6` | c3 | 26 | high |
+| `e4 c6` | Be2 | 24 | high |
+| `c4 Nf6` | g3 | 22 | high |
+
+Several are likely transposition-resolvable (e.g. `d4 Nf6 c4 e6 → g3` is the Catalan, reachable via other move orders), but most are real opening-theory branches the repertoire does not yet answer. These are **content gaps** for the user to extend, not tool defects — tracked here, not in the retro.
+
+### MCP Retro Notes
+
+- **Issue #13 fixed and verified live** — the dominant outcome. Full forest loads (518/54), `validate_pgn` reports `games: 4`, cross-game transpositions surface (21 vs 1), and the false `1.e4`/`1.d4` root gaps are eliminated. Detail in `ct-black-repertoire-retro.md` § v2.
+- **Congruence has no per-opening grouping (new, exposed by #13)** — with four merged openings, `analyze_repertoire_congruence` judges every leaf against the whole 54-leaf forest. `structure_outlier` goes inert (no theme reaches 50% across four systems) and `weakness_inconsistency` frames per-opening concessions as repertoire-wide inconsistency. Filed as Issue #14.
+- **Classifier markedly better on the full repertoire** — 15/54 named, French ×4 correctly tags the Advance Caro. The hypermodern-`1.c4` blind spot persists (Anti-English leaves still `unknown`), but that is the known Issue #5 class.
+
+#### Content observations (not MCP issues)
+
+- 57 gaps include real opening-theory branches the repertoire omits (e.g. `1.e4 c6 2.c3`, `1.d4 Nf6 2.c4 e6 3.g3` Catalan, `1.c4 Nf6 2.g3`). Extending these is a user PGN task.
+- The 6 weakness lines are mostly forced/intentional; candidates to pass via `acknowledged_weaknesses` once the user confirms they are deliberate.
 
 ## v1 — 2026-06-05 — chess-mcp 0.2.2
 

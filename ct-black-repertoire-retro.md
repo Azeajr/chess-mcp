@@ -51,3 +51,43 @@ per opening, four games in one file. That difference surfaced a new, high-impact
 - **`suggest_replacement_line`** — skipped; the only congruence flag was a winning tactical leaf, not a real outlier to remediate.
 - **`get_transpositions`** — run (pre-flight). Found 1 transposition inside the Anti-English game (`Nf3`/`g3` move-order into the same `...Nb6` position). Cross-game transpositions unreachable until Issue #13.
 - **`export_annotated_pgn`** — not run; candidate once the full repertoire loads.
+
+---
+
+## v2 Update — chess-mcp 0.2.3 (2026-06-06)
+
+First run after the Issue #13 fix shipped (0.2.3) and the container was rebuilt. The whole
+4-game repertoire now loads as one forest, so every tool sees all four openings.
+
+### What Resolved
+
+**Issue #13 FIXED — multi-game PGN loads as one forest (verified live)**
+- v1: `load_repertoire` on the 4-game file returned 64 nodes / 5 leaves — game 1 only.
+- v2: returns the full forest (518/54 canonical; 516/54 via the inline paste this run). `validate_pgn` reports `games: 4` and `has_variations: true`. Confirmed through the live MCP container, not just unit tests.
+- Cross-game transpositions now surface: 21 vs 1 in v1, including `c4 Nf6 d4` ↔ `d4 Nf6 c4` (the Anti-English and Nimzo games converging on a move-order swap) — proof the merge is transposition-aware across game boundaries.
+- The v1 false root gaps are gone: `find_repertoire_gaps` no longer flags `1.e4` / `1.d4` as uncovered, because the Caro-Kann and Nimzo games now answer them. The only remaining `path: []` gap is `1.e3` (genuinely rare).
+
+### What Shone
+
+- **`get_transpositions` scales cleanly to the forest** — 21 convergence points across four openings, grouped correctly, including the cross-game `c4`/`d4`/`Nf3` move-order merges. No spurious groups.
+- **Classifier names 15/54 leaves on the full repertoire** — French ×4 (0.85) correctly tags the Advance Caro main lines; IQP ×3 (0.90), Carlsbad ×3, Caro-Kann (0.88), Slav (0.80) all plausible. The full-forest view is where the classifier earns its keep.
+- **`evaluate_position` soundness stable** — Anti-English main still −5 (identical to v1); Caro/French main +40, Nimzo/Grünfeld main +27 — all normal Black ranges.
+
+### New Shortcoming
+
+**`analyze_repertoire_congruence` has no per-opening grouping (exposed by Issue #13)**
+- Observed: with four merged openings, congruence judges every leaf against the whole 54-leaf forest. `structure_outlier` produced **zero** flags because no structure or theme reaches the 50% dominance threshold across four independent systems (fianchetto_white is the highest at 10/54). `weakness_inconsistency` fired 6 times, each describing a per-opening structural concession (the Caro exchange-sac `…Rxh1+`, the Caro IQP after `exd5`, the Nimzo `…exf5` doubled f-pawns) as "inconsistent with the repertoire's grain" — but a Black repertoire is one opening per White first move; there is no single grain to be inconsistent with.
+- Expected: congruence should partition leaves by opening (e.g. by root first move, transposition-aware) and judge each leaf's structure/weakness against its own opening's siblings, not the entire forest.
+- Concrete fix: group leaves by their first move before computing dominant structure/theme and the weakness baseline; report incongruencies within each opening. Design-worthy (what defines an "opening" boundary — root move vs ECO vs transposition cluster), so opened, not implemented this run.
+- Filed: Issue #14.
+- Note: this only became visible once #13 let the full multi-opening forest load — single-game v1 could not surface it.
+
+### Carried Over
+
+- **Classifier misses hypermodern `1.c4` structures** — the Anti-English (reversed-Sicilian / King's-English) leaves are still `unknown`. Same class as the English White repertoire (Issue #5 territory). Theme tags carry the signal there. Not re-filed.
+
+### Skipped Tools (this run)
+
+- **`suggest_complementary_lines`** / **`suggest_replacement_line`** — deferred. Now unblocked (#13 fixed), but the real next step is extending the repertoire's content gaps (e.g. `1.e4 c6 2.c3`, Catalan `3.g3`) — a user PGN task — before line suggestion is useful.
+- **`get_transpositions`** — run (pre-flight), now genuinely informative across the forest.
+- **`export_annotated_pgn`** — still not run; viable now that the full repertoire loads.
