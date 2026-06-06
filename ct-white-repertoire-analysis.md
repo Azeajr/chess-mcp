@@ -4,11 +4,84 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v5 (current) | 2026-06-05 | chess-mcp 0.1.8 |
+| v6 (current) | 2026-06-06 | chess-mcp 0.2.1 |
+| v5 | 2026-06-05 | chess-mcp 0.1.8 |
 | v4 | 2026-06-05 | chess-mcp 0.1.8 |
 | v3 | 2026-06-05 | chess-mcp 0.1.8 |
 | v2 | 2026-06-04 | chess-mcp 0.1.8 |
 | v1 | 2026-06-04 | chess-mcp 0.1.7 |
+
+---
+
+## v6 — 2026-06-06 — chess-mcp 0.2.1
+
+**Tools:** `validate_pgn` → `load_repertoire` → `get_transpositions` → `get_structural_profile` → `analyze_repertoire_congruence` (×2) → `find_repertoire_gaps` → `evaluate_position` (×2) → `suggest_replacement_line`
+
+**Focus:** First run on chess-mcp 0.2.1 — verify Issue #11 fix (full PV ply walk for `profile_match`).
+
+### Tree Stats
+
+Unchanged from v5.
+
+| Metric | Value |
+|--------|-------|
+| Nodes | 213 |
+| Leaves (distinct lines) | 17 |
+| Max depth (plies) | 21 |
+| Color | White |
+
+### Structural Identity
+
+Unchanged from v5 (12/17 unknown; fianchetto_white 13/17; center distribution unchanged).
+
+### Transpositions (pre-flight)
+
+Unchanged — same 3 transpositions as v3–v5.
+
+### Congruence Results
+
+**Without `acknowledged_weaknesses`:** 9 flagged — 3 `structure_outlier` + 6 `weakness_inconsistency`. Identical to v5.
+
+**With 6 bxc3 paths acknowledged:** `total_flagged: 3`, `acknowledged_count: 6`. Counts correct.
+
+**`by_type_acknowledged` absent from response** — server running pre-0.2.1 code (container not rebuilt since v0.2.1 commit). The `by_type_acknowledged` field (new in 0.2.1) is missing. All other behavior unchanged vs v5.
+
+### `suggest_replacement_line` — Issue #11 Verification
+
+Run on Be2 island path (`c4 e5 Nc3 c6 Nf3 d6 d4 Nd7 e4 Ngf6 Be2 Be7 O-O O-O Qc2 a6 Rd1 Qc7 h3`), `mode="structural_fit"`, `depth=20`.
+
+| Field | v5 | v6 | Expected |
+|-------|----|----|----------|
+| `outlier_move` | `Nf3` | `Nf3` | `Nf3` |
+| `anchored_to` | `c6` | `c6` | `c6` |
+| `d4` `profile_match` | 0.0 | **1.0** | Non-zero |
+| `e4` `profile_match` | 0.0 | 0.0 | — |
+| `Qc2` `profile_match` | 0.0 | 0.0 | — |
+| `e3` `profile_match` | 0.0 | 0.0 | — |
+
+**Issue #11 FIXED.** `d4` now returns `profile_match: 1.0` — the ply-by-ply PV walk catches `fianchetto_white` within Stockfish's deep continuation. `e4`, `Qc2`, `e3` correctly score 0.0; their engine PVs do not include fianchetto development.
+
+Top suggestion by combined ranking: `d4` (eval_cp: +43, profile_match: 1.0). Full PV: `d4 d5 cxd5 cxd5 dxe5`. All suggestions still return `resulting_structure: "unknown"` — classifier cannot name the structure; theme fallback is the active ranking mechanism.
+
+Note: the v2 manual analysis recommended `3.g3` (immediate fianchetto) as the structural replacement. The tool now surfaces `3.d4` (+43 cp) as the top suggestion. These diverge: d4 is higher eval at the pivot depth but the PV does not commit to fianchetto until later plies; g3 commits structurally at move 3.
+
+### Gaps (`find_repertoire_gaps`)
+
+72 total, max_positions=20 — identical to v4/v5. `transposition_endpoints: []` persists (White-to-move transpositions out of scope, unchanged from v4). All 10 listed high-severity gaps: "high" severity, evals +17–+22 cp. Flatness pattern unchanged from v4/v5.
+
+### Soundness Checks (depth 20)
+
+**bxc3 leaf** — +21 Re8. Stable vs v2–v5.
+
+**Maroczy/KID bind leaf** — +4 a3. Stable vs v2–v5.
+
+### MCP Retro Notes (v6)
+
+1. **Issue #11 fix working.** `profile_match` now differentiates suggestions: `d4` scores 1.0, others 0.0. Rankings are actionable for the first time in this repertoire.
+
+2. **`profile_match` may over-score via incidental fianchetto in deep PV.** `d4` scores 1.0 because `fianchetto_white` appears somewhere in Stockfish's ~20-move continuation — the 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) itself is a central pawn battle, not a structural commitment to fianchetto. A long engine continuation can include g3/Bg2 incidentally. See retro.
+
+3. **Deployment lag — `by_type_acknowledged` absent.** Local MCP container not rebuilt after v0.2.1 commit. `docker compose up -d --build` required after any server code change.
 
 ---
 

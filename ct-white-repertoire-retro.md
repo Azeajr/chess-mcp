@@ -201,6 +201,41 @@ Uses same Bg2 fianchetto + bxc3 structural bet as 13 other leaves. Action requir
 
 ---
 
+## v6 Update — chess-mcp 0.2.1 (2026-06-06)
+
+**Focus:** First run on v0.2.1 — verify Issue #11 (full PV ply walk for `profile_match`). Confirm all 0.2.1 fixes reflected in server behavior.
+
+### What Resolved
+
+**Issue #11 FIXED — `profile_match` now differentiates suggestions**
+- v5: all suggestions `profile_match: 0.0` (5-move end-only check didn't reach fianchetto development from an early pivot)
+- v6: `d4` suggestion `profile_match: 1.0` — ply-by-ply PV walk catches `fianchetto_white` within Stockfish's deep continuation
+- `e4`, `Qc2`, `e3` correctly score 0.0; their engine PVs contain no fianchetto development
+- Top suggestion is now clear: `d4` (+43 cp, profile_match 1.0). Structural ranking is actionable for the first time in this repertoire.
+
+### New Shortcomings
+
+**`profile_match` saturates at 1.0 via incidental fianchetto in deep PV**
+- Observed: `d4` suggestion returns `profile_match: 1.0`. Its 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) is a central pawn battle, not a structural fianchetto commitment at the pivot. The full ~20-move Stockfish continuation includes `g3/Bg2` at some later ply — which fires `fianchetto_white: true`.
+- Expected: `profile_match` should reflect structural commitment at or near the pivot point, not theme appearances far down the PV.
+- Risk: any sufficiently long engine continuation may include g3/Bg2 for stylistic development reasons unrelated to the structural identity of the pivot move. Multiple suggestions could score 1.0 in deep-search scenarios, collapsing the ranking again.
+- Fix options: (a) cap PV walk at N plies past the pivot (e.g., 8–10 plies); (b) weight by ply index (theme at ply 2 scores higher than ply 18); (c) require theme within the structural commitment window for the opening phase.
+- Impact: current differentiation (`d4` 1.0 vs `e4` 0.0) appears meaningful but the mechanism may be fragile for deep PVs. Needs investigation before declaring `structural_fit` mode robust.
+
+**Deployment lag — `by_type_acknowledged` absent from congruence response**
+- Observed: `analyze_repertoire_congruence` response missing `by_type_acknowledged` field despite being a v0.2.1 addition. Server running pre-0.2.1 code.
+- Root cause: local Docker container not rebuilt after v0.2.1 commit. Engine-free changes (dominant_themes fix, PV walk start, `by_type_acknowledged` field) are in the committed server code but not in the running container.
+- Fix: `docker compose up -d --build` required after any server code change. Analysis loop should verify version endpoint or field presence at start of each run.
+- Impact: `by_type_acknowledged` fix unverified. Loop must re-run after container rebuild to confirm.
+
+### Updated Skipped-Tool Status
+
+- **`suggest_replacement_line`** — Issues #7, #9, #11 resolved. `profile_match` now non-zero and differentiating. Tool is actionable for structural remediation. `resulting_structure: "unknown"` persists — theme fallback is the active ranking mechanism. Open question: does deep-PV scoring produce reliable rankings across suggestion sets?
+- **`suggest_complementary_lines`** — still deferred. Precondition: PGN updated with Be2 island replacement.
+- **`export_annotated_pgn`** — still not run.
+
+---
+
 ## v5 Update — chess-mcp 0.1.8 (2026-06-05)
 
 **Focus:** Verification run confirming fixes for Issues #7, #8, #9, #10.
