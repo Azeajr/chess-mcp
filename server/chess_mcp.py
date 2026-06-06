@@ -124,6 +124,20 @@ def _parse_game(pgn: str) -> chess.pgn.Game:
     return game
 
 
+def _parse_games(pgn: str) -> list[chess.pgn.Game]:
+    """Parse every game in a (possibly multi-game) PGN. A repertoire export is one
+    [Event] block per opening, so all are returned for the caller to merge. Games with no
+    moves (header-only stubs) are skipped; raises ValueError if none have moves."""
+    stream = io.StringIO(pgn)
+    games: list[chess.pgn.Game] = []
+    while (game := chess.pgn.read_game(stream)) is not None:
+        if game.next() is not None:
+            games.append(game)
+    if not games:
+        raise ValueError("PGN contains no moves")
+    return games
+
+
 def _path_of(node, board_by_node: dict) -> tuple[str, ...]:
     """SAN route from the root to `node`, using precomputed parent boards.
 
@@ -708,6 +722,10 @@ def load_repertoire(pgn: str, color: Literal["white", "black"]) -> dict:
     repertoire tools), color ("white"/"black"), nodes (move-nodes in the tree), leaves
     (variation ends), max_depth (deepest line, in plies).
 
+    Multi-game PGNs (one [Event] per opening — the common repertoire export shape) are
+    merged into a single variation forest, so the returned stats and every downstream
+    tool cover the whole repertoire, not just the first game.
+
     Then: get_structural_profile (themes), analyze_repertoire_congruence (consistency),
     suggest_complementary_lines (extensions). Handle expires after idle TTL → reload.
     Bad input → {"error","reason"}.
@@ -719,9 +737,11 @@ def load_repertoire(pgn: str, color: Literal["white", "black"]) -> dict:
         }
     if color not in ("white", "black"):
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
-    game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None or game.next() is None:
-        return {"error": "invalid_pgn", "reason": "PGN contains no moves"}
+    try:
+        games = _parse_games(pgn)
+    except ValueError as e:
+        return {"error": "invalid_pgn", "reason": str(e)}
+    game = repertoire.merge_games(games)
     color_bool = chess.WHITE if color == "white" else chess.BLACK
     return repertoire.store_repertoire(game, color_bool)
 
@@ -1327,22 +1347,25 @@ def validate_pgn(pgn: str) -> dict:
 
     valid:true → {valid, mainline_plies (half-moves in the main line), has_variations (tree has
     side lines → use load_repertoire for repertoire work, else the game tools), headers (event,
-    white, black, result, date, opening — present values only)}.
+    white, black, result, date, opening — present values only), games (only when > 1: a
+    multi-game repertoire export — load_repertoire merges them; mainline_plies/headers describe
+    the first game)}.
     valid:false → {valid:false, error:"invalid_pgn"|"pgn_too_large", reason}.
     """
     if err := _pgn_too_large(pgn):
         return {"valid": False, **err}
     try:
-        game = _parse_game(pgn)
+        games = _parse_games(pgn)
     except ValueError as e:
         return {"valid": False, "error": "invalid_pgn", "reason": str(e)}
+    game = games[0]
 
     plies = 0
     node = game
     while node.variations:
         node = node.variations[0]
         plies += 1
-    has_variations = any(
+    has_variations = len(games) > 1 or any(
         len(n.variations) > 1 for n in [game, *repertoire.iter_nodes(game)]
     )
     headers = {
@@ -1352,12 +1375,15 @@ def validate_pgn(pgn: str) -> dict:
     }
     if opening := (game.headers.get("Opening") or game.headers.get("ECO")):
         headers["opening"] = opening
-    return {
+    result = {
         "valid": True,
         "mainline_plies": plies,
         "has_variations": has_variations,
         "headers": headers,
     }
+    if len(games) > 1:
+        result["games"] = len(games)
+    return result
 
 
 # Move classification → PGN NAG glyph. Good moves get no glyph (kept clean).

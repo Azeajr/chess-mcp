@@ -123,6 +123,49 @@ def find_transpositions(game: chess.pgn.Game) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Multi-game merge. A Chesstempo repertoire export is one [Event] block per opening
+# (e.g. a Black repertoire = Caro-Kann + Nimzo + Anti-English + ...). Reading only the
+# first game silently drops the rest; merging them into one variation forest lets every
+# repertoire tool (walker, transpositions, congruence) see the whole repertoire.
+# ---------------------------------------------------------------------------
+
+
+def _merge_into(base: chess.pgn.Game, other: chess.pgn.Game) -> None:
+    """Graft `other`'s subtree onto `base` (both at the same position), merging shared
+    moves so repeated move orders across games collapse into one node instead of
+    duplicating a root child (which would confuse resolve_path). Iterative — no
+    recursion-depth risk on deep trees."""
+    stack = [(base, other)]
+    while stack:
+        dest, src = stack.pop()
+        for src_child in src.variations:
+            dest_child = next(
+                (c for c in dest.variations if c.move == src_child.move), None
+            )
+            if dest_child is None:
+                src_child.parent = dest  # re-parent the whole subtree onto base
+                dest.variations.append(src_child)
+            else:
+                stack.append((dest_child, src_child))
+
+
+def merge_games(games: list[chess.pgn.Game]) -> chess.pgn.Game:
+    """Merge a multi-game PGN into a single variation forest under one root.
+
+    Games sharing the standard starting position are grafted onto the first game's root.
+    A game with a non-standard start (FEN/SetUp header) cannot share that root and is
+    skipped — repertoire openings start from the initial position. Returns the first game
+    with the others merged in (the single-game case returns it unchanged)."""
+    base = games[0]
+    base_fen = base.board().fen()
+    for g in games[1:]:
+        if g.board().fen() != base_fen:
+            continue  # non-standard start position — cannot graft onto the base root
+        _merge_into(base, g)
+    return base
+
+
+# ---------------------------------------------------------------------------
 # In-memory handle cache — bounded LRU + TTL (REPERTOIRE_DESIGN.md section 3).
 # ---------------------------------------------------------------------------
 

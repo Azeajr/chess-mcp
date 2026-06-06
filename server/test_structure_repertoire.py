@@ -541,6 +541,92 @@ def test_walk_leaves_yields_childless_nodes(sample_game):
 
 
 # ---------------------------------------------------------------------------
+# Multi-game merge (Chesstempo exports one [Event] per opening — Issue #13)
+# ---------------------------------------------------------------------------
+
+# Three openings in one file, each a distinct first move (1.d4 / 1.e4 / 1.c4).
+MULTI_PGN = """\
+[Event "G1"]
+[Result "*"]
+
+1. d4 d5 2. c4 e6 *
+
+[Event "G2"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 *
+
+[Event "G3"]
+[Result "*"]
+
+1. c4 Nf6 ( 1... e5 2. Nc3 ) 2. Nc3 *
+"""
+
+
+def _games(pgn: str) -> list[chess.pgn.Game]:
+    stream = io.StringIO(pgn)
+    out = []
+    while (g := chess.pgn.read_game(stream)) is not None:
+        if g.next() is not None:
+            out.append(g)
+    return out
+
+
+def test_merge_games_unions_all_first_moves():
+    merged = repertoire.merge_games(_games(MULTI_PGN))
+    first_moves = {merged.board().san(c.move) for c in merged.variations}
+    assert first_moves == {"d4", "e4", "c4"}
+
+
+def test_merge_games_tree_stats_sum_all_games():
+    games = _games(MULTI_PGN)
+    per_game = [repertoire.tree_stats(g) for g in games]
+    merged = repertoire.merge_games(games)
+    m_nodes, m_leaves, m_depth = repertoire.tree_stats(merged)
+    assert m_nodes == sum(n for n, _, _ in per_game)
+    assert m_leaves == sum(lv for _, lv, _ in per_game)
+    assert m_depth == max(d for _, _, d in per_game)
+
+
+def test_merge_games_paths_resolve_across_games():
+    merged = repertoire.merge_games(_games(MULTI_PGN))
+    assert repertoire.resolve_path(merged, ["e4", "c6", "d4", "d5"]) is not None
+    assert repertoire.resolve_path(merged, ["c4", "e5", "Nc3"]) is not None
+
+
+def test_merge_games_shared_first_move_collapses():
+    # Two games both starting 1.d4 — the shared root child must not duplicate.
+    pgn = '[Event "A"]\n\n1. d4 d5 *\n\n[Event "B"]\n\n1. d4 Nf6 *\n'
+    merged = repertoire.merge_games(_games(pgn))
+    d4_children = [c for c in merged.variations if merged.board().san(c.move) == "d4"]
+    assert len(d4_children) == 1
+    replies = {d4_children[0].board().san(c.move) for c in d4_children[0].variations}
+    assert replies == {"d5", "Nf6"}
+
+
+def test_merge_games_single_game_unchanged():
+    game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    expected = repertoire.tree_stats(game)
+    merged = repertoire.merge_games([chess.pgn.read_game(io.StringIO(SAMPLE_PGN))])
+    assert repertoire.tree_stats(merged) == expected
+
+
+def test_merge_games_skips_non_standard_start():
+    # A game starting from a FEN-set position cannot graft onto the standard root.
+    fen_game = (
+        '[Event "FEN start"]\n'
+        '[FEN "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"]\n'
+        '[SetUp "1"]\n\n1... c5 *\n'
+    )
+    games = _games(SAMPLE_PGN + "\n" + fen_game)
+    merged = repertoire.merge_games(games)
+    # Only the standard-start SAMPLE_PGN game survives the merge.
+    assert repertoire.tree_stats(merged) == repertoire.tree_stats(
+        chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    )
+
+
+# ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
 
