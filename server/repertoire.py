@@ -495,10 +495,12 @@ def analyze_congruence(
     acknowledged_count = sum(1 for x in filtered if x.get("acknowledged"))
     unacknowledged = [x for x in filtered if not x.get("acknowledged")]
     by_type = Counter(x["type"] for x in unacknowledged)
+    by_type_ack = Counter(x["type"] for x in filtered if x.get("acknowledged"))
     return {
         "total_flagged": len(unacknowledged),
         "acknowledged_count": acknowledged_count,
         "leaves_analyzed": n,
         "by_type": dict(by_type),
+        "by_type_acknowledged": dict(by_type_ack),
         "incongruencies": filtered[:limit],
     }

@@ -1040,7 +1040,7 @@ def suggest_replacement_line(
             for t in repertoire.BOOL_THEMES
             if structure.themes(leaf.board(), rep.color).get(t)
         }
-        if not dominant_themes or not (dominant_themes <= leaf_tags):
+        if not dominant_themes or not (dominant_themes & leaf_tags):
             continue
         n = leaf
         while n.parent is not None:
@@ -1126,12 +1126,11 @@ def suggest_replacement_line(
             # all plies (vs end-only check of pv[:5]) catches the characteristic moves
             # appearing mid-PV — e.g. g3/Bg2 fianchetto at ply 6 of an 18-ply PV when
             # the pivot is early. (Issue #11 — extends Issue #8 fix)
-            walk_board = pivot_board.copy()
+            walk_board = after.copy()
             best_match = 0.0
-            for m in pv:
-                if walk_board.is_game_over():
-                    break
-                walk_board.push(m)
+            # Score `after` first, then push remaining PV plies. pv[0] is the
+            # suggestion move already applied in `after`; iterate pv[1:] onward.
+            for nxt in [*pv[1:], None]:
                 tags = {
                     t
                     for t in repertoire.BOOL_THEMES
@@ -1140,8 +1139,9 @@ def suggest_replacement_line(
                 ply_match = len(dominant_themes & tags) / len(dominant_themes)
                 if ply_match > best_match:
                     best_match = ply_match
-                if best_match == 1.0:
-                    break  # full match — stop early
+                if best_match == 1.0 or nxt is None or walk_board.is_game_over():
+                    break
+                walk_board.push(nxt)
             match = round(best_match, 2)
         else:
             match = 0.0
