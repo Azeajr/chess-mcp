@@ -101,6 +101,8 @@ Recurring (already filed): gap severity ignores absolute eval (#19); illustrativ
 
 The structural diversity that produced 311 outliers in v1 is now correctly read as *intended*
 multi-system breadth, not inconsistency. The depth-54 tree no longer overflows any tool's
-output. New minor finding: the #18 engine tier scans at most `max_positions` (20 here)
-shallowest player-side candidates, so a clear blunder demo deeper than that sample can be
-missed — same bounded-scan trade-off as `find_repertoire_gaps` (retro v2).
+output. New minor finding: the #18 engine tier scans at most `max_positions` shallowest
+player-side candidates, so a clear blunder demo deeper than that sample can be missed — same
+bounded-scan trade-off as `find_repertoire_gaps` (retro v2). Follow-up shipped this session:
+the default was raised 20→40 (which surfaced a 3rd Sicilian demo, 2→3), and congruence/gaps
+now take `exclude_paths` to drop illustrative lines (congruence 198→196 here).

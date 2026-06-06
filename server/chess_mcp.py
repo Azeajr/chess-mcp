@@ -823,6 +823,7 @@ def analyze_repertoire_congruence(
     min_severity: Literal["low", "medium", "high"] = "medium",
     limit: int = 10,
     acknowledged_weaknesses: list[list[str]] | None = None,
+    exclude_paths: list[list[str]] | None = None,
 ) -> dict:
     """
     Flag logical/thematic incongruencies across a repertoire's lines. Engine-free.
@@ -836,6 +837,10 @@ def analyze_repertoire_congruence(
     as the paths field in congruence output) for known positional systems where the
     structural weakness is intentional. Matching weakness_inconsistency flags are
     downgraded to severity "low" with acknowledged:true instead of surfacing as "medium".
+
+    exclude_paths = variation_paths (e.g. the lines reported by classify_illustrative_lines)
+    whose subtree is dropped from analysis entirely — illustrative "wrong-answer" lines are
+    not real repertoire lines and should not be judged for congruence.
 
     Returns: total_flagged, leaves_analyzed, by_type (counts), incongruencies (each:
     type, severity, description, paths = the SAN variation_path(s) — feed a path to
@@ -853,7 +858,7 @@ def analyze_repertoire_congruence(
         }
     limit = max(1, min(50, limit))
     result = repertoire.analyze_congruence(
-        rep, min_severity, limit, acknowledged_weaknesses
+        rep, min_severity, limit, acknowledged_weaknesses, exclude_paths
     )
     # Headline counts are computed over all flags (above); trim only the displayed list
     # to the byte budget so deep repertoires stay under the lean-output cap (#20).
@@ -1329,6 +1334,7 @@ def find_repertoire_gaps(
     limit: int = 10,
     max_positions: int = 20,
     time_limit: float | None = None,
+    exclude_paths: list[list[str]] | None = None,
 ) -> dict:
     """
     Engine completeness scan: where does the repertoire fail to answer a strong opponent move?
@@ -1349,6 +1355,8 @@ def find_repertoire_gaps(
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
     shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can
     diverge ~26 cp from depth 20); depth/time_limit tune each engine pass.
+    exclude_paths = variation_paths (e.g. from classify_illustrative_lines) whose subtree is
+    skipped — don't spend the engine budget scanning illustrative "wrong-answer" lines.
     Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
@@ -1362,7 +1370,11 @@ def find_repertoire_gaps(
         time_limit = _clamp_time(time_limit)
     limit = max(1, min(50, limit))
     max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
-    nodes = repertoire.opponent_reply_nodes(rep)[:max_positions]
+    nodes = repertoire.opponent_reply_nodes(rep)
+    if exclude_paths:
+        excl = [list(p) for p in exclude_paths]
+        nodes = [nd for nd in nodes if not repertoire.path_excluded(nd["path"], excl)]
+    nodes = nodes[:max_positions]
 
     transposition_endpoints = [
         {"fen": nd["board"].fen(), "paths": nd["transposition_paths"]}
@@ -1400,7 +1412,7 @@ _ILLUS_LOSS_CP, _ILLUS_BAD_CP = 150, 120  # #18 Tier-3 engine thresholds
 def classify_illustrative_lines(
     repertoire_id: str,
     depth: int = DEFAULT_DEPTH,
-    max_positions: int = 20,
+    max_positions: int = 40,
     limit: int = 50,
     time_limit: float | None = None,
 ) -> dict:

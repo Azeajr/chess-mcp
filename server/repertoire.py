@@ -189,6 +189,12 @@ def player_side_variations(
     ]
 
 
+def path_excluded(path: list[str], exclude_paths: list) -> bool:
+    """True if `path` lies under (is prefixed by) any path in `exclude_paths` — used to drop
+    illustrative side-lines (from classify_illustrative_lines) out of congruence / gap scans."""
+    return any(list(path[: len(p)]) == list(p) for p in exclude_paths)
+
+
 # ---------------------------------------------------------------------------
 # Multi-game merge. A Chesstempo repertoire export is one [Event] block per opening
 # (e.g. a Black repertoire = Caro-Kann + Nimzo + Anti-English + ...). Reading only the
@@ -464,23 +470,32 @@ def analyze_congruence(
     min_severity: str,
     limit: int,
     acknowledged_weaknesses: list | None = None,
+    exclude_paths: list | None = None,
 ) -> dict:
     """Flag thematic inconsistencies across the repertoire's leaves.
 
     acknowledged_weaknesses: list of variation paths (each a list of SAN strings) whose
     weakness_inconsistency flags should be downgraded to severity "low" with
     acknowledged:true — for known positional systems the user accepts intentionally.
+
+    exclude_paths: variation paths (e.g. from classify_illustrative_lines) whose subtree is
+    dropped from analysis entirely — illustrative "wrong-answer" lines are not real lines, so
+    they should not be judged for congruence at all.
     """
     ack_set: set[tuple] = {tuple(p) for p in (acknowledged_weaknesses or [])}
+    excl: list = [list(p) for p in (exclude_paths or [])]
 
-    # Collect structural + pawn data for every leaf
+    # Collect structural + pawn data for every leaf (skipping excluded illustrative lines)
     data = []
     for leaf in walk_leaves(rep.game):
+        path = san_path(leaf)
+        if excl and path_excluded(path, excl):
+            continue
         board = leaf.board()
         t = structure.themes(board, rep.color)
         data.append(
             {
-                "path": san_path(leaf),
+                "path": path,
                 "_pos_key": _position_key(board),
                 "structure": structure.classify_structure(board)["structure_class"],
                 "isolated": structure.get_isolated_pawns(board, rep.color),

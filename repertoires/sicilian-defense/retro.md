@@ -74,7 +74,11 @@
 ### New Shortcoming
 
 - **#18 engine-tier recall is bounded by `max_positions`.** It scans at most `max_positions`
-  (default 20) shallowest player-side candidates, so a clear blunder demo deeper in a 3946-node
-  tree can be missed — the same bounded-engine-scan trade-off as `find_repertoire_gaps`. Raise
-  `max_positions` (≤60) for fuller coverage on large studies; NAG-tagged demos are free
-  (engine-independent) once NAGs are preserved.
+  shallowest player-side candidates, so a clear blunder demo deeper in a 3946-node tree can be
+  missed — the same bounded-engine-scan trade-off as `find_repertoire_gaps`.
+  *Addressed this session:* default raised 20→40 (caught a 3rd Sicilian demo, 2→3); cap stays
+  60 (`max_positions=60` for fuller coverage). NAG-tagged demos remain engine-independent once
+  NAGs are preserved.
+  *Also shipped (phase 2):* `analyze_repertoire_congruence` and `find_repertoire_gaps` now take
+  `exclude_paths` — feed the classifier's lines to drop illustrative subtrees from analysis
+  (congruence 198→196 here; engine-free tools stay engine-free, they only filter given paths).

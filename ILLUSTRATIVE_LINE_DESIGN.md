@@ -58,9 +58,15 @@ fix; engine recall is intentionally limited to *clear* blunders to avoid false p
 - Exposed as a **new, additive tool** `classify_illustrative_lines(repertoire_id, …)` →
   `{color, leaves_total, illustrative_leaves, lines:[{path, reason: nag|stub|engine, eval?}],
   positions_scanned}`. No existing tool signature or output changes (zero regression risk);
-  the analyst / loop subtracts these paths from leaf counts and cross-references the congruence
-  / gap paths. Auto-filtering inside the other tools (an `exclude_illustrative` param) is a
-  **phase 2** follow-up once this classifier is validated.
+  the analyst / loop reads the reported `lines`. **Phase 2 (done):** `analyze_repertoire_congruence`
+  and `find_repertoire_gaps` take an `exclude_paths` argument — feed the classifier's `lines`
+  paths to drop those subtrees from congruence judgement and skip them in the gap scan
+  (`repertoire.path_excluded` does the prefix match). Engine-free tools stay engine-free: they
+  only filter the paths the caller supplies, they don't run the engine themselves.
+
+The classifier's engine scan is bounded by `max_positions` (default 40, max 60), shallowest
+candidates first — a clear demo deeper than that sample is missed (same trade-off as
+`find_repertoire_gaps`); raise it for fuller coverage on large studies.
 
 ## Constants
 - `_ILLUS_LOSS_CP = 150`, `_ILLUS_BAD_CP = 120`. Conservative on purpose: better to miss a

@@ -966,6 +966,29 @@ def test_player_side_variations_respects_exclude_ids():
     assert all(c["path"][-1] != "Nf3" for c in excluded)
 
 
+def test_path_excluded_prefix_semantics():
+    assert repertoire.path_excluded(["c4", "g5", "Bd2"], [["c4", "g5"]]) is True
+    assert repertoire.path_excluded(["c4", "e5"], [["c4", "g5"]]) is False
+    assert repertoire.path_excluded(["c4"], [["c4", "g5"]]) is False  # shorter than exclude
+    assert repertoire.path_excluded(["d4", "d5"], []) is False
+
+
+def test_congruence_exclude_paths_drops_subtree():
+    # Two d4 lines of distinct structure → the minority structure is an outlier; excluding its
+    # path removes that leaf from analysis, so the flag (and a leaf) disappear (#18 phase 2).
+    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP])
+    base = repertoire.analyze_congruence(rep, "low", 10)
+    assert base["by_type"].get("structure_outlier") == 1
+    outlier = next(
+        i for i in base["incongruencies"] if i["type"] == "structure_outlier"
+    )
+    pruned = repertoire.analyze_congruence(
+        rep, "low", 10, exclude_paths=[outlier["paths"][0]]
+    )
+    assert pruned["by_type"].get("structure_outlier") is None
+    assert pruned["leaves_analyzed"] == base["leaves_analyzed"] - 1
+
+
 def test_profile_structure_shares():
     rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
     shares = repertoire.profile_structure_shares(rep)
