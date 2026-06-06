@@ -29,6 +29,9 @@ MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
 MAX_COMPARE_MOVES = MAX_MULTIPV  # compare_moves searches one line per candidate
 MAX_GAP_POSITIONS = 60  # find_repertoire_gaps engine-pass ceiling
+_PV_THEME_WINDOW = (
+    8  # plies walked from pivot when scoring profile_match via theme fallback
+)
 
 
 def _clamp_depth(depth: int) -> int:
@@ -1121,16 +1124,18 @@ def suggest_replacement_line(
         if result_struct != "unknown":
             match = shares.get(result_struct, 0.0)
         elif dominant_themes:
-            # Classifier blind to this structure. Walk the full PV ply by ply and score
-            # by the best theme-overlap seen at any point in the line. Taking max across
-            # all plies (vs end-only check of pv[:5]) catches the characteristic moves
-            # appearing mid-PV — e.g. g3/Bg2 fianchetto at ply 6 of an 18-ply PV when
-            # the pivot is early. (Issue #11 — extends Issue #8 fix)
+            # Classifier blind to this structure. Walk PV ply by ply and score by the
+            # best theme-overlap seen within _PV_THEME_WINDOW plies of the pivot.
+            # Capped window (vs full PV) prevents incidental theme appearances deep in a
+            # 20-ply continuation from inflating profile_match — structural commitments
+            # (e.g. g3/Bg2 fianchetto) appear within 6–8 plies; beyond that the theme
+            # is a stylistic engine choice unrelated to the suggestion's identity.
+            # (Issue #11 — full ply walk; Issue #12 — window cap)
             walk_board = after.copy()
             best_match = 0.0
             # Score `after` first, then push remaining PV plies. pv[0] is the
             # suggestion move already applied in `after`; iterate pv[1:] onward.
-            for nxt in [*pv[1:], None]:
+            for nxt in [*pv[1:_PV_THEME_WINDOW], None]:
                 tags = {
                     t
                     for t in repertoire.BOOL_THEMES
