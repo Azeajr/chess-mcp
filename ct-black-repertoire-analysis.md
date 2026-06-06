@@ -8,10 +8,46 @@ opening. The four games are: Anti-English (`1.c4`), Caro-Kann (`1.e4 c6`), Nimzo
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v2 (current) | 2026-06-06 | chess-mcp 0.2.3 |
+| v3 (current) | 2026-06-06 | chess-mcp 0.2.5 |
+| v2 | 2026-06-06 | chess-mcp 0.2.3 |
 | v1 | 2026-06-05 | chess-mcp 0.2.2 |
 
 ---
+
+## v3 — 2026-06-06 — chess-mcp 0.2.5
+
+**Tools:** `load_repertoire` → `get_repertoire_coverage` → `suggest_replacement_line` → `get_structural_profile` → `suggest_complementary_lines` → `export_annotated_pgn`.
+
+**Focus:** Exercise the tools skipped in v1/v2 — now unblocked because #13 lets the full forest load and #14 fixed congruence. Core flow (transpositions/structure/congruence/gaps/soundness) was validated in v2 and is unchanged on 0.2.4; v3 hunts shortcomings in the previously-unrun tools.
+
+### `get_repertoire_coverage` (first run)
+
+`leaves: 54`, `dangling_count: 20`, `frontier_count: 34`, `shallowest_leaf_ply: 3`. **The dangling count was inflated by transposition stubs** — e.g. `c4 Nf6 d4` (ply 3) reaches the same position as the `d4 Nf6 c4` Nimzo mainline that continues; `Nf3 Nf6 c4 e6 d4`, the Caro `c3`/`Nbd2` pair, and the Nimzo `e3`/`Nf3 … Bd3` pair are all move-order duplicates already covered. The gap tool got transposition dedup (#3); coverage had not. **Fixed this run (Issue #15):** after the fix `dangling_count` drops to **3** genuine holes (17 stubs excluded). The 3 real dangling lines are extension points the user owes a move at.
+
+### `suggest_replacement_line` (first run on Black)
+
+Run on the Nimzo doubled-f-pawn line (`… Qxf5 exf5 … Be6`), `mode="structural_fit"`. Returned 4 full engine-validated continuations (evals +21…+28). Two problems:
+- **Anchored to the terminal move** `Be6` (`anchored_to: "e3"`), not to `…exf5` where the doubled f-pawns were incurred. The #7 divergence walk is `structure_outlier`-only; for `weakness_inconsistency` flags the tool replaces the last move, which cannot fix the weakness. Filed **Issue #16**.
+- **`profile_match: 0.0`** for all suggestions (`resulting_structure: unknown`). Known #8/#11/#12 lineage — the Nimzo/QGD positions classify `unknown`, and the quiet deep pivots don't hit a theme within the 8-ply window, so ranking degenerates to eval order.
+
+### `suggest_complementary_lines` (first run on Black)
+
+Run from a genuine Nimzo extension leaf (`… e3 O-O Bd3`, Black to move), `mode="low_memorization"`. Returned 5 sound suggestions with PVs (c5 +19, b6 +21, dxc4 +21, Nbd7 +28, Re8 +34). **All `profile_match: 0.0`, `resulting_structure: unknown`** — `low_memorization` ranking ("structures you already play") is inert here for the same reason: the resulting positions are `unknown`, so the mode provides no structural discrimination and falls back to eval order. The suggestions themselves are valid; the ranking signal is the limitation.
+
+### `export_annotated_pgn` (first run on Black) — shone
+
+Run on the Anti-English game. Correctly annotated across the mainline AND variations in one pass: the only flagged move is the intentional `9.exd4 $4 { -5.88 best Nxd4 }` blunder (the line Black baits White into), sound moves left clean, `moves_annotated: 1`. Importable artifact, accurate eval and best-move. Works as intended.
+
+### MCP Retro Notes
+
+- **`get_repertoire_coverage` transposition-blindness (NEW, fixed)** — 20 → 3 dangling after Issue #15 fix. Detail in retro § v3.
+- **`suggest_replacement_line` mis-anchors weakness flags (NEW)** — terminal move, not weakness origin. Issue #16 (engine-backed, opened not implemented).
+- **`profile_match` inert for unknown-structure lines (carried-over)** — confirmed for both suggest tools on the Nimzo/QGD positions. #8/#11/#12 lineage; theme fallback doesn't reach quiet early pivots. Not re-filed.
+- **`export_annotated_pgn` works correctly** across variations.
+
+#### Content observations (not MCP issues)
+
+- 3 genuine dangling lines (post-#15) are real extension points the user owes a reply at; extending them is a PGN task.
 
 ## v2 — 2026-06-06 — chess-mcp 0.2.3
 

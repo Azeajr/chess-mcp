@@ -356,9 +356,22 @@ def coverage_report(rep: _Repertoire, limit: int) -> dict:
     stops exactly where a prepared move is owed (a real hole). A leaf where the opponent is to
     move is a natural frontier (move played, paused) → frontier_count, not flagged. Returns
     leaf counts, the dangling lines (with drill-down path + ply), and depth hints.
+
+    Transposition-aware: a player-to-move leaf whose position is also reached elsewhere as an
+    internal node that DOES continue is already covered by that move order — it is not a real
+    hole, so it is excluded from dangling (Issue #15; mirrors the gap tool's #3 dedup).
     """
     leaves = list(walk_leaves(rep.game))
-    dangling = [leaf for leaf in leaves if leaf.board().turn == rep.color]
+    # Positions that continue somewhere in the tree (an internal node with >= 1 reply).
+    continued_keys = {
+        _position_key(node.board()) for node in iter_nodes(rep.game) if node.variations
+    }
+    dangling = [
+        leaf
+        for leaf in leaves
+        if leaf.board().turn == rep.color
+        and _position_key(leaf.board()) not in continued_keys
+    ]
     depths = [leaf.ply() for leaf in leaves]
     return {
         "leaves": len(leaves),

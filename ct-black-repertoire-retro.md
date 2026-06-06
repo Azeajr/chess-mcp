@@ -91,3 +91,38 @@ First run after the Issue #13 fix shipped (0.2.3) and the container was rebuilt.
 - **`suggest_complementary_lines`** / **`suggest_replacement_line`** — deferred. Now unblocked (#13 fixed), but the real next step is extending the repertoire's content gaps (e.g. `1.e4 c6 2.c3`, Catalan `3.g3`) — a user PGN task — before line suggestion is useful.
 - **`get_transpositions`** — run (pre-flight), now genuinely informative across the forest.
 - **`export_annotated_pgn`** — still not run; viable now that the full repertoire loads.
+
+---
+
+## v3 Update — chess-mcp 0.2.5 (2026-06-06)
+
+Exercised the tools skipped in v1/v2 (unblocked by #13/#14): `get_repertoire_coverage`,
+`suggest_replacement_line`, `suggest_complementary_lines`, `export_annotated_pgn`.
+
+### What Resolved
+
+**Issue #15 FIXED — `get_repertoire_coverage` is now transposition-aware**
+- v3 first run: `dangling_count: 20` on `ct-black-repertoire.pgn`, but most were transposition stubs (`c4 Nf6 d4` covered by the `d4 Nf6 c4` Nimzo mainline, the Caro `c3`/`Nbd2` pair, the Nimzo `e3`/`Nf3 … Bd3` pair, etc.).
+- Fix: `coverage_report` excludes a player-to-move leaf from `dangling` when its position key also occurs as an internal node that continues — covered by transposition (mirrors the gap tool's #3 dedup). After: `dangling_count: 3` (genuine holes only). Engine-free, shipped 0.2.5.
+
+### What Shone
+
+- **`export_annotated_pgn`** — annotated the Anti-English game across mainline + variations in one pass; flagged only the intentional `9.exd4 $4 { -5.88 best Nxd4 }` blunder, left sound moves clean (`moves_annotated: 1`). Accurate, importable, correct.
+- **`suggest_complementary_lines` / `suggest_replacement_line` return sound lines** — engine-validated continuations with PVs and evals. The engine soundness floor works; only the structural ranking is degraded (below).
+
+### New Shortcomings
+
+**`suggest_replacement_line` mis-anchors `weakness_inconsistency` flags**
+- Observed: on the Nimzo doubled-f-pawn line (`… Qxf5 exf5 … Be6`), the tool returned `outlier_move: "Be6"`, `anchored_to: "e3"` — the terminal move, not `…exf5` where the doubled pawns were incurred. Replacing the last move cannot remediate the weakness.
+- Expected: for weakness flags, walk back to the move that incurred the weakness and pivot from there (the #7 divergence walk is `structure_outlier`-only).
+- Filed: Issue #16 (engine-backed → opened, not implemented).
+
+**`profile_match` inert for unknown-structure repertoires (carried-over, now confirmed broadly)**
+- Observed: both `suggest_complementary_lines` (`low_memorization`) and `suggest_replacement_line` (`structural_fit`) return `profile_match: 0.0` / `resulting_structure: unknown` for every suggestion on the Nimzo/QGD positions. The structural ranking modes provide no discrimination; ranking falls back to eval.
+- Root cause: these positions classify `unknown` (the classifier gap), and the #11/#12 theme fallback doesn't reach the quiet, early pivots within its 8-ply window.
+- This is the #8/#11/#12 lineage, not a new defect — recorded so the limitation is visible for Black/QGD repertoires too. Not re-filed.
+
+### Skipped Tools (this run)
+
+- **All previously-skipped repertoire tools have now been exercised.** `get_repertoire_coverage`, `suggest_complementary_lines`, `suggest_replacement_line`, and `export_annotated_pgn` all ran this loop.
+- Remaining structural-ranking weakness (`profile_match` on unknown structures) is bounded by the classifier's coverage of Black/QGD systems — the standing classifier-extension work (Issue #5 class), not a per-tool fix.

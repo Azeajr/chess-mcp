@@ -1023,6 +1023,25 @@ def test_coverage_limit_caps_dangling_list():
     assert cov["dangling_count"] == 3 and len(cov["dangling_lines"]) == 1
 
 
+def test_coverage_excludes_transposition_stub_from_dangling():
+    # Issue #15: the c4-first stub (White to move at its leaf) reaches the same position as
+    # the d4-first line's internal node, which continues — so it is covered by transposition,
+    # not a real hole. It must be excluded from dangling (mirrors the gap tool's #3 dedup).
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3", "c4 e6 d4 Nf6"])
+    cov = repertoire.coverage_report(rep, limit=20)
+    assert cov["dangling_count"] == 0
+    assert all(p["path"] != ["c4", "e6", "d4", "Nf6"] for p in cov["dangling_lines"])
+
+
+def test_coverage_genuine_dangling_still_flagged_with_transpositions():
+    # A real hole (no other move order continues from its position) is still flagged even
+    # when the tree contains transpositions elsewhere.
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3", "c4 e6 d4 Nf6", "d4 d5 c4 dxc4"])
+    cov = repertoire.coverage_report(rep, limit=20)
+    paths = [p["path"] for p in cov["dangling_lines"]]
+    assert ["d4", "d5", "c4", "dxc4"] in paths  # White to move, never continued elsewhere
+
+
 # ---------------------------------------------------------------------------
 # ECO opening lookup
 # ---------------------------------------------------------------------------
