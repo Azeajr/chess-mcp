@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.2.0  # no moving v8 major tag; pin exact
         with:
           cache-dependency-glob: server/pyproject.toml
       - name: Run pytest (branch coverage via addopts)
