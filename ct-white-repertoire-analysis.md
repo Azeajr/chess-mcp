@@ -81,7 +81,7 @@ Note: the v2 manual analysis recommended `3.g3` (immediate fianchetto) as the st
 
 2. **`profile_match` may over-score via incidental fianchetto in deep PV.** `d4` scores 1.0 because `fianchetto_white` appears somewhere in Stockfish's ~20-move continuation — the 5-move PV (`d4 d5 cxd5 cxd5 dxe5`) itself is a central pawn battle, not a structural commitment to fianchetto. A long engine continuation can include g3/Bg2 incidentally. See retro.
 
-3. **Deployment lag — `by_type_acknowledged` absent.** Local MCP container not rebuilt after v0.2.1 commit. `docker compose up -d --build` required after any server code change.
+3. **Deployment lag — `by_type_acknowledged` absent** *(resolved same session)*. Local MCP container not rebuilt after v0.2.1 commit. After rebuild: `by_type_acknowledged: {"weakness_inconsistency": 6}` confirmed correct; `by_type` shows only unacknowledged types. All v0.2.1 fixes verified.
 
 ---
 
