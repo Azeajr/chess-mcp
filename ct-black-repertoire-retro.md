@@ -155,3 +155,19 @@ unrun tools (`identify_opening`, `compare_moves`). One new shortcoming found and
 ### Skipped Tools
 
 - None outstanding for the repertoire workflow. All repertoire and supporting tools (`identify_opening`, `compare_moves`, `validate_line` surface) have now been exercised across v1–v4.
+
+---
+
+## v5 Update — chess-mcp 0.2.7 (2026-06-06)
+
+Edge/robustness probe of the last unexercised behaviors: `suggest_complementary_lines`
+mode `sharp` (only `low_memorization` had run) and `validate_line`.
+
+### What Shone
+
+- **`sharp` mode** — returns a differentiated `sharpness` ranking and correctly surfaces the most committal move (`dxc4`, 1.21) above quiet moves (0.28–0.35) on a position where every `resulting_structure` is `unknown`. It degrades more gracefully than `low_memorization`, whose `profile_match` goes inert (0.0) on the same unknown-structure positions — `sharp` still ranks usefully.
+- **`validate_line`** — validated a 10-move Caro line from the start position, correct `final_fen`.
+
+### No New Shortcomings
+
+Nothing new surfaced. All prior fixes (#13–#17) remain in effect; `sharp` and `validate_line` work correctly. After five loops the Black repertoire and the full tool surface are thoroughly exercised with every found shortcoming closed — the standard flow has reached diminishing returns on this input. To find fresh tool behavior, the next loop should use a structurally different repertoire (e.g. a single-system or heavily-transposing tree) or deliberate edge inputs (oversized PGN, single-line, FEN-setup games). No code change this run.

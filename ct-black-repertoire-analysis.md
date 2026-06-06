@@ -8,10 +8,45 @@ opening. The four games are: Anti-English (`1.c4`), Caro-Kann (`1.e4 c6`), Nimzo
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v4 (current) | 2026-06-06 | chess-mcp 0.2.7 |
+| v5 (current) | 2026-06-06 | chess-mcp 0.2.7 |
+| v4 | 2026-06-06 | chess-mcp 0.2.7 |
 | v3 | 2026-06-06 | chess-mcp 0.2.5 |
 | v2 | 2026-06-06 | chess-mcp 0.2.3 |
 | v1 | 2026-06-05 | chess-mcp 0.2.2 |
+
+---
+
+## v5 — 2026-06-06 — chess-mcp 0.2.7
+
+**Tools:** `load_repertoire` → `suggest_complementary_lines` (mode `sharp`) → `validate_line`.
+
+**Focus:** Edge/robustness probe of the last unexercised tool behaviors — the `sharp`
+mode of `suggest_complementary_lines` (only `low_memorization` had run) and `validate_line`.
+The standard analysis flow is exhausted on this repertoire (v1–v4); v5 looked for fresh
+shortcomings in untested code paths.
+
+### `suggest_complementary_lines` mode `sharp` (first run)
+
+From the Nimzo branch position (`… e3 O-O Bd3`, Black to move): returned a differentiated
+`sharpness` ranking — `dxc4` top (1.21), then quiet moves clustered low (Qe7/h6 0.35,
+Re8 0.34, Nbd7 0.28). `dxc4` is correctly the sharpest/most committal choice (it resolves
+the central tension and changes the structure). Unlike `low_memorization` (whose
+`profile_match` goes inert at 0.0 on these `unknown`-structure positions), `sharp` still
+produces a usable ranking — it degrades more gracefully on unknown structures. Works.
+
+### `validate_line` (first run on Black)
+
+Validated the Caro Advance line `e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 Nd7` from the start
+position: `valid: true`, `moves_validated: 10`, correct `final_fen`. Works.
+
+### MCP Retro Notes
+
+- **No new shortcoming.** `sharp` mode and `validate_line` both function correctly; all
+  prior fixes (#13–#17) remain in effect. The Black repertoire and the full tool surface
+  have now been exercised across five loops with every found shortcoming closed — the
+  standard flow has reached diminishing returns as a shortcoming-surfacing input. Future
+  loops should use a structurally different repertoire (or deliberate edge inputs) to find
+  fresh tool behavior. No code change, no version bump this run.
 
 ---
 
