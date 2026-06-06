@@ -118,7 +118,7 @@ When the loop is pointed at a brand-new PGN that has no folder yet:
 1. Pick `<name>` — a short kebab opening label (e.g. `english-opening`).
 2. `mkdir -p repertoires/<name>/`.
 3. Create `repertoires/<name>/repertoire.pgn` as an ANONYMIZED, reproducible fixture of the source PGN:
-   - strip PII headers and prose (`Annotator`, `ChapterURL`, `StudyName`, UTC stamps, @-mentions); keep `Event`/`ECO`/`Opening` and ALL moves + side variations so the tree is unchanged.
+   - strip PII headers and prose comments (`Annotator`, `ChapterURL`, `StudyName`, UTC stamps, @-mentions); keep `Event`/`ECO`/`Opening`, ALL moves + side variations (tree unchanged), and PRESERVE move NAGs (`?`/`??`/`?!` → `$2/$4/$6`) so illustrative-line detection (#18 Tier 1) keeps its signal.
    - confirm the fixture loads to the same nodes/leaves/max_depth as the source before relying on it.
    - delete the original PII-named source file once the anonymized fixture is committed; never commit the PII-named original.
 4. Seed `repertoires/<name>/analysis.md` and `repertoires/<name>/retro.md` from the existing repertoires' format (version table starting at v1, the standard subheadings). Each repertoire's retro starts fresh at v1 — do NOT dedup its findings against another repertoire's retro; the only cross-run dedup is the gh issue list.

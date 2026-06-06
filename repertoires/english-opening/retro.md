@@ -43,3 +43,31 @@
 - **`suggest_replacement_line` / `suggest_complementary_lines`** — deferred; remediation is premature while the wrong-answer variations still inflate the tree (Issue 1 above is the precondition for clean anchors).
 - **`export_annotated_pgn`** — not run.
 - **`identify_opening` / `compare_moves` / `get_structural_profile` on more leaves** — covered enough via the aggregate + 3 targeted leaf profiles to characterize the repertoire.
+
+---
+
+## v2 Update — chess-mcp 0.2.9 (2026-06-06)
+
+**Focus:** verification run after implementing #18/#19/#20/#21.
+
+### What Resolved
+
+- **#19 FIXED — gap severity now eval-aware.** v1 reported 154 uniform-`high` gaps; v2 reports
+  **0 high** (160 total at min `low`). Every uncovered reply leaves White ≥ equal, so the
+  opponent gains no edge and the gap is correctly low-stakes. Severity is now `loss`-gated AND
+  `edge`-gated (`_GAP_EDGE_LOW/MED`).
+- **#18 FIXED (new tool) — `classify_illustrative_lines`.** Flags 5 leaves, all `engine`, all
+  true blunder demos (`4.g4` −187, `8.e4` −450, Myers `6.Bd2/Nd2/Qd2` −405/−407/−654). Zero
+  false positives.
+
+### New Shortcomings
+
+- **#18 stub heuristic over-flagged (caught and removed before ship).** A first cut used a
+  standalone "short player-side side line" verdict; on this merged multi-chapter forest it
+  falsely flagged the legitimate Anti-Grünfeld (`2.Nc3`) and QGD-transposition (`2.d4`)
+  chapters (short side branches by merge order). Fix: demote the structural signal to an
+  engine *candidate* gate — only confirmed-losing lines flag. Captured in
+  ILLUSTRATIVE_LINE_DESIGN.md.
+- **#18 mild-inaccuracy recall limit (by design).** "Passable, not great" demos (`Nh3`, `Qc2`,
+  `Bg5`) are below the losing threshold and carry no NAG, so they are not flagged. Preserving
+  NAGs (PHASE 0 updated) is the intended path to catch them via Tier 1.

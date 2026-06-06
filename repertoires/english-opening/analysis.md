@@ -4,7 +4,8 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v1 (current) | 2026-06-06 | chess-mcp 0.2.7 |
+| v2 (current) | 2026-06-06 | chess-mcp 0.2.9 |
+| v1 | 2026-06-06 | chess-mcp 0.2.7 |
 
 ---
 
@@ -89,3 +90,24 @@ New shortcomings observed on 0.2.7 (full detail in `retro.md` v1):
 
 1. **No annotation/NAG awareness** — illustrative "wrong-answer" side variations are parsed as first-class repertoire leaves. Inflates leaf count (38 vs ~18 chapters), produces false congruence flags on moves the author marks as blunders, and feeds bad positions to the gap scanner. The study marks badness only in prose (`{-7}`), with no machine NAGs, so even NAG-filtering would not catch it. → Issue #18.
 2. **`find_repertoire_gaps` severity ignores absolute eval** — severity is set purely by closeness to the opponent's best move, so a gap that leaves White at +0.2 is `high` exactly like one that drops White to −2. On a single-recommendation study this yields 154 uniform-`high` gaps with no prioritization. Distinct from the (closed) depth issue #6. → Issue #19.
+
+---
+
+## v2 — 2026-06-06 — chess-mcp 0.2.9
+
+**Focus:** verify the #18/#19/#20/#21 fixes shipped this session.
+
+| Check | v1 | v2 | Verdict |
+|-------|----|----|---------|
+| #19 `find_repertoire_gaps` high-severity | 154 (all "high") | **0** | Fixed — every uncovered reply leaves White ≥ equal, so the opponent gains no edge → downgraded |
+| #18 illustrative leaves | n/a | **5** (all `engine`) | New `classify_illustrative_lines` tool catches only true blunder demos, 0 false positives |
+| #21 `structure_outlier` | 0 | 0 | n/a here (fianchetto_white was already < 50% of the single opening group) |
+| #20 transpositions / congruence | within cap | within cap | n/a here (3 transpositions / 7 flags — too small to truncate) |
+
+**#18 hits (white-POV cp after the demo move):** Agincourt `4.g4` (−187), Anglo-Scandinavian
+`8.e4` (−450), Myers `6.Bd2`/`6.Nd2`/`6.Qd2` (−405/−407/−654) — exactly the study's
+explicitly-bad "wrong-answer" demonstrations. The mild "passable, not great" inaccuracies
+(`Nh3`, `Qc2`, `Bg5`, the `3.Nf3` move-order) are correctly NOT flagged: below the losing
+threshold and carrying no NAG, they are indistinguishable from real sidelines (documented
+limit — preserve NAGs to catch them). The legit Anti-Grünfeld (`2.Nc3`) and QGD-transposition
+(`2.d4`) chapters, which an earlier stub heuristic falsely flagged, are correctly clean.

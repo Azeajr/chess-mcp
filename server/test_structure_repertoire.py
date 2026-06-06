@@ -933,6 +933,39 @@ def test_fit_to_budget_keeps_all_under_budget():
     assert kept == items and truncated is False
 
 
+# ---------------------------------------------------------------------------
+# #18 — illustrative side-variation detection (NAG verdict + engine candidates)
+# ---------------------------------------------------------------------------
+
+_GAMEBOOK_PGN = '[Event "x"]\n\n1. e4 c5 ( 1... e5 2. Nf3 ) 2. Nf3 d6 ( 2... Nf6?? 3. e5 ) 3. d4 *\n'
+
+
+def test_nag_illustrative_flags_only_annotated_blunders():
+    # Tier 1 is authoritative and side-agnostic: only the ?? move is flagged; the unannotated
+    # short e5 sideline is NOT (a bare stub is no longer a verdict — it over-flagged).
+    game = chess.pgn.read_game(io.StringIO(_GAMEBOOK_PGN))
+    flagged = {tuple(o["path"]): o["reason"] for o in repertoire.nag_illustrative_nodes(game)}
+    assert flagged == {("e4", "c5", "Nf3", "Nf6"): "nag"}
+
+
+def test_player_side_variations_are_player_to_move_only():
+    game = chess.pgn.read_game(io.StringIO(_GAMEBOOK_PGN))
+    # Black repertoire: both side lines are Black-to-move (player) → candidates.
+    black = {tuple(c["path"]) for c in repertoire.player_side_variations(game, chess.BLACK, set())}
+    assert ("e4", "e5") in black and ("e4", "c5", "Nf3", "Nf6") in black
+    # White repertoire: those same side lines are opponent moves → no candidates.
+    assert repertoire.player_side_variations(game, chess.WHITE, set()) == []
+
+
+def test_player_side_variations_respects_exclude_ids():
+    # SAMPLE_PGN's 5.Nf3 is a White-side (player) side variation → a candidate, unless excluded.
+    game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    cands = repertoire.player_side_variations(game, chess.WHITE, set())
+    nf3 = next(c for c in cands if c["path"][-1] == "Nf3")
+    excluded = repertoire.player_side_variations(game, chess.WHITE, {id(nf3["node"])})
+    assert all(c["path"][-1] != "Nf3" for c in excluded)
+
+
 def test_profile_structure_shares():
     rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
     shares = repertoire.profile_structure_shares(rep)

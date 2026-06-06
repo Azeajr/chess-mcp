@@ -32,6 +32,9 @@ _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 # majority of an opening's leaves. A mere plurality (e.g. fianchetto_black ~55% of a
 # multi-system Sicilian) is not a grain — flagging the rest as outliers is noise (#21).
 _THEME_DOMINANCE = 0.66
+# Illustrative-line detection (#18, see ILLUSTRATIVE_LINE_DESIGN.md). NAG = mistake/blunder/
+# dubious move glyphs ($2/$4/$6) — the authoritative Tier-1 signal.
+_NAG_BAD = {chess.pgn.NAG_MISTAKE, chess.pgn.NAG_BLUNDER, chess.pgn.NAG_DUBIOUS_MOVE}
 
 BOOL_THEMES = (
     "fianchetto_white",
@@ -124,6 +127,66 @@ def find_transpositions(game: chess.pgn.Game) -> list[dict]:
     converging = [g for g in groups.values() if len(g["paths"]) > 1]
     converging.sort(key=lambda g: -len(g["paths"]))
     return converging
+
+
+# ---------------------------------------------------------------------------
+# Illustrative-line detection (Issue #18). A gamebook study embeds "wrong-answer" side
+# variations; the cheap (engine-free) tiers live here, the engine tier in chess_mcp.py.
+# See ILLUSTRATIVE_LINE_DESIGN.md.
+# ---------------------------------------------------------------------------
+
+
+def _subtree(node):
+    """Pre-order over `node` and all its descendants (includes `node` itself)."""
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        yield n
+        stack.extend(n.variations)
+
+
+def _side_variations(game: chess.pgn.Game):
+    """Yield (parent, node) for every non-mainline child (parent.variations[0] is the
+    recommended mainline; the rest are side variations)."""
+    for node in iter_nodes(game):
+        p = node.parent
+        if p is not None and p.variations and p.variations[0] is not node:
+            yield p, node
+
+
+def leaves_under(node) -> list:
+    """Every leaf in `node`'s subtree."""
+    return [n for n in _subtree(node) if not n.variations]
+
+
+def nag_illustrative_nodes(game: chess.pgn.Game) -> list[dict]:
+    """Tier 1 (engine-free, authoritative): side variations whose move carries a
+    mistake/blunder/dubious NAG ($2/$4/$6). Returns [{node, path, reason="nag"}].
+
+    A bare structural "stub" signal (a short player-side side line) was tried as a standalone
+    verdict but over-flagged: in a merged multi-chapter forest a legitimate short chapter
+    becomes a side branch, and dense theory trees are full of short legitimate sub-variations
+    (#18 retro v2). So stubs are no longer a verdict — every player-side side variation is an
+    engine *candidate* (player_side_variations) and only confirmed-losing lines are flagged."""
+    return [
+        {"node": node, "path": san_path(node), "reason": "nag"}
+        for _, node in _side_variations(game)
+        if node.nags & _NAG_BAD
+    ]
+
+
+def player_side_variations(
+    game: chess.pgn.Game, color: chess.Color, exclude_ids: set
+) -> list[dict]:
+    """Every player-to-move side variation (the player chose a non-mainline move) not already
+    excluded — the engine tier (#18 Tier 3, in chess_mcp.py) checks which are losing demos.
+    Player-side only: a short OPPONENT side line is the author addressing an opponent try, not
+    a wrong answer. Returns [{parent, node, path}]."""
+    return [
+        {"parent": parent, "node": node, "path": san_path(node)}
+        for parent, node in _side_variations(game)
+        if id(node) not in exclude_ids and parent.board().turn == color
+    ]
 
 
 # ---------------------------------------------------------------------------

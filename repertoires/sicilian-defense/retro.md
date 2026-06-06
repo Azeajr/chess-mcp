@@ -48,3 +48,33 @@
 
 - **#19 — gap severity ignores absolute eval**: reproduced — 91 gaps uniform `high` at +40…+77 cp.
 - **#18 — illustrative gamebook lines walked as real leaves**: reproduced — the Intro chapter's contrast lines `1...e5` / `1...a6` seed gap flags (`["e4","a6"]`).
+
+---
+
+## v2 Update — chess-mcp 0.2.9 (2026-06-06)
+
+**Focus:** verification run after implementing #18/#19/#20/#21 — the scale fixes land here.
+
+### What Resolved
+
+- **#20 FIXED — output now byte-bounded.** v1: `get_transpositions` (32 KB) and
+  `analyze_repertoire_congruence` (39 KB) blew the output cap on this 693-leaf / depth-54 tree.
+  v2: both fit — transpositions `returned=17 truncated=true`, congruence `shown=14
+  truncated=true`. `_fit_to_budget` trims the displayed list; headline totals (`total`,
+  `total_flagged`, `by_type`) still cover everything.
+- **#21 FIXED — `structure_outlier` plurality gate.** v1 flagged 311 outliers because the
+  dominant theme was a 55% plurality; v2 flags **0** (`_THEME_DOMINANCE` 0.66). `total_flagged`
+  509 → 198 (only intentional `weakness_inconsistency` remains).
+- **#19 FIXED — gap severity eval-aware.** 91 high → **2 high** (the genuinely White-better
+  anti-Sicilian replies). 
+- **#18 (new tool) — engine-precise.** 2 leaves flagged: the study's labeled `6...Ng4` "Big
+  Blunder" line (+317/+527). Zero false positives; the 35 false "stub" hits an interim
+  heuristic produced on this dense theory tree are gone (see ILLUSTRATIVE_LINE_DESIGN.md).
+
+### New Shortcoming
+
+- **#18 engine-tier recall is bounded by `max_positions`.** It scans at most `max_positions`
+  (default 20) shallowest player-side candidates, so a clear blunder demo deeper in a 3946-node
+  tree can be missed — the same bounded-engine-scan trade-off as `find_repertoire_gaps`. Raise
+  `max_positions` (≤60) for fuller coverage on large studies; NAG-tagged demos are free
+  (engine-independent) once NAGs are preserved.

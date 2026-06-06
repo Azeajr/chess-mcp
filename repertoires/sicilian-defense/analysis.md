@@ -4,7 +4,8 @@
 
 | Run | Date | MCP version |
 |-----|------|-------------|
-| v1 (current) | 2026-06-06 | chess-mcp 0.2.7 |
+| v2 (current) | 2026-06-06 | chess-mcp 0.2.9 |
+| v1 | 2026-06-06 | chess-mcp 0.2.7 |
 
 ---
 
@@ -82,3 +83,24 @@ New shortcoming observed on 0.2.7 (detail in `retro.md` v1):
 1. **Lean-output contract breaks at scale** — `get_transpositions` (32 KB) and `analyze_repertoire_congruence` (39 KB) exceeded the MCP token cap on this 693-leaf / depth-54 tree. The `limit` parameter bounds the *number* of items, not total bytes; each item carries full SAN paths that scale with depth, so even 46 transpositions / 50 incongruencies overflow the ~2k-token target. → Issue #20.
 
 Recurring (already filed): gap severity ignores absolute eval (#19); illustrative gamebook lines walked as real leaves (#18).
+
+---
+
+## v2 — 2026-06-06 — chess-mcp 0.2.9
+
+**Focus:** verify the #18/#19/#20/#21 fixes shipped this session, on the largest tree.
+
+| Check | v1 | v2 | Verdict |
+|-------|----|----|---------|
+| #20 `get_transpositions` | 32 KB — blew the cap | total=46, **returned=17, truncated=true** | Fixed — fits the output budget |
+| #20 `analyze_repertoire_congruence` | 39 KB — blew the cap | shown=14, **truncated=true** | Fixed |
+| #21 `structure_outlier` | 311 | **0** | Fixed — plurality (`fianchetto_black` 55%) no longer treated as a grain |
+| congruence `total_flagged` | 509 | **198** | The 311 false outliers gone; only intentional `weakness_inconsistency` remains |
+| #19 `find_repertoire_gaps` high-severity | 91 | **2** | Fixed — only the two genuinely White-better anti-Sicilian replies stay `high` |
+| #18 illustrative leaves | n/a | **2** (`engine`) | The study's labeled `6...Ng4` "Big Blunder" line (+317/+527); 0 false positives |
+
+The structural diversity that produced 311 outliers in v1 is now correctly read as *intended*
+multi-system breadth, not inconsistency. The depth-54 tree no longer overflows any tool's
+output. New minor finding: the #18 engine tier scans at most `max_positions` (20 here)
+shallowest player-side candidates, so a clear blunder demo deeper than that sample can be
+missed — same bounded-scan trade-off as `find_repertoire_gaps` (retro v2).

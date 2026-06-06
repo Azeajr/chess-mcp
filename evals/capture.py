@@ -68,6 +68,7 @@ def main():
     outputs["get_transpositions"] = cm.get_transpositions(rid)
     outputs["get_repertoire_coverage"] = cm.get_repertoire_coverage(rid)
     outputs["find_repertoire_gaps"] = cm.find_repertoire_gaps(rid, DEPTH)
+    outputs["classify_illustrative_lines"] = cm.classify_illustrative_lines(rid, DEPTH)
 
     # suggest from the leaf FEN (uses engine)
     node = rp.resolve_path(game, leaf_path)
@@ -97,6 +98,7 @@ def main():
         cm.get_transpositions,
         cm.get_repertoire_coverage,
         cm.find_repertoire_gaps,
+        cm.classify_illustrative_lines,
         cm.suggest_complementary_lines,
     ]
     snap = {

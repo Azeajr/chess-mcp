@@ -1393,6 +1393,94 @@ def find_repertoire_gaps(
     }
 
 
+_ILLUS_LOSS_CP, _ILLUS_BAD_CP = 150, 120  # #18 Tier-3 engine thresholds
+
+
+@mcp.tool()
+def classify_illustrative_lines(
+    repertoire_id: str,
+    depth: int = DEFAULT_DEPTH,
+    max_positions: int = 20,
+    limit: int = 50,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Flag "illustrative" side-variations — moves a teaching/gamebook study shows because they
+    are BAD, not because they are repertoire lines. They inflate leaf counts and seed false
+    congruence flags / gaps. Two signals (see ILLUSTRATIVE_LINE_DESIGN.md):
+      - nag    (engine-free, authoritative): move carries a mistake/blunder/dubious NAG ($2/$4/$6)
+      - engine: a player-to-move side variation the engine scores as a losing demo — worse than
+                its mainline sibling by a wide margin AND leaving the player clearly lost.
+    A short side line alone is NOT a verdict (legit short sidelines / merged chapters look the
+    same) — every player-side side variation is an engine candidate, only losing ones flag.
+
+    Returns: color, leaves_total, illustrative_leaves (leaves under all flagged side nodes),
+    positions_scanned (engine-checked candidates), lines (each: path = SAN variation_path,
+    reason = nag|engine, eval = white-POV cp for engine hits), truncated (list shortened
+    to the output budget). Subtract these paths from leaf counts and cross-reference congruence
+    / gap paths. Engine tier needs Stockfish; without candidates it is skipped. Bad input →
+    {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    depth = _clamp_depth(depth)
+    if time_limit is not None:
+        time_limit = _clamp_time(time_limit)
+    max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
+    limit = max(1, min(100, limit))
+    white = rep.color == chess.WHITE
+
+    nagged = repertoire.nag_illustrative_nodes(rep.game)
+    illus_node_ids = {id(c["node"]) for c in nagged}
+    illus_leaf_ids: set[int] = set()
+    lines: list[dict] = []
+    for c in nagged:
+        lines.append({"path": c["path"], "reason": c["reason"]})
+        illus_leaf_ids.update(id(lf) for lf in repertoire.leaves_under(c["node"]))
+
+    candidates = repertoire.player_side_variations(
+        rep.game, rep.color, illus_node_ids
+    )[:max_positions]
+    scanned = 0
+    if candidates:
+        with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+            for cand in candidates:
+                scanned += 1
+                side = _score_cp(
+                    engine.analyse(cand["node"].board(), _limit(depth, time_limit))[
+                        "score"
+                    ]
+                )
+                main = _score_cp(
+                    engine.analyse(
+                        cand["parent"].variations[0].board(),
+                        _limit(depth, time_limit),
+                    )["score"]
+                )
+                side_pov, main_pov = (side, main) if white else (-side, -main)
+                if main_pov - side_pov > _ILLUS_LOSS_CP and side_pov <= -_ILLUS_BAD_CP:
+                    lines.append(
+                        {"path": cand["path"], "reason": "engine", "eval": side}
+                    )
+                    illus_leaf_ids.update(
+                        id(lf) for lf in repertoire.leaves_under(cand["node"])
+                    )
+
+    shown, truncated = _fit_to_budget(lines[:limit])
+    return {
+        "color": "white" if white else "black",
+        "leaves_total": sum(1 for _ in repertoire.walk_leaves(rep.game)),
+        "illustrative_leaves": len(illus_leaf_ids),
+        "positions_scanned": scanned,
+        "lines": shown,
+        "truncated": truncated,
+    }
+
+
 @mcp.tool()
 def identify_opening(pgn: str) -> dict:
     """
