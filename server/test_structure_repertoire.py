@@ -755,6 +755,10 @@ LINE_DOUBLED = (
     "d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 Bxc3 bxc3"  # White doubled c-pawns (unknown)
 )
 LINE_OPEN = "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nc3 Bb4 Nxc6 dxc6"  # open center (unknown)
+LINE_QGD_CLEAN = "d4 d5 c4 e6 Nf3 Nf6 Nc3 c6 e3 Nbd7"  # d4, Slav, clean structure
+LINE_E4_LOCKED = "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 d3 b5 Bb3 d6"  # e4, Lopez, locked center
+# Congruence groups leaves by opening (opponent's first move, Issue #14); the firing
+# tests below use lines that SHARE a first move so they fall in one opening's group.
 
 
 def _line_moves(sans: str) -> list[chess.Move]:
@@ -777,7 +781,8 @@ def build_repertoire(
 
 
 def test_congruence_flags_structure_outlier():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    # Two d4 lines (one opening), distinct structures → the minority structure is flagged.
+    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("structure_outlier") == 1
     item = next(i for i in result["incongruencies"] if i["type"] == "structure_outlier")
@@ -785,22 +790,41 @@ def test_congruence_flags_structure_outlier():
 
 
 def test_congruence_flags_weakness_inconsistency():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    # Three d4 lines (one opening), one with doubled pawns → minority weakness flagged.
+    rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("weakness_inconsistency") == 1
 
 
 def test_congruence_flags_center_inconsistency():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_OPEN])
+    # Two e4 lines (one opening): one locks the center, one opens it.
+    rep = build_repertoire([LINE_E4_LOCKED, LINE_OPEN])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("center_inconsistency") == 1
 
 
 def test_congruence_no_dominant_structure_flags_no_outlier():
-    # three distinct known structures, none >= 50% → structure_outlier must NOT fire
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_IQP])
+    # three distinct known structures in one opening, none >= 50% → no structure_outlier
+    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP, LINE_QGD_CLEAN])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("structure_outlier") is None
+
+
+def test_congruence_no_cross_opening_flags():
+    # Issue #14: distinct openings (d4 Carlsbad vs c4 Maroczy) are NOT outliers of each
+    # other — each leaf is judged within its own opening, not the whole forest.
+    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("structure_outlier") is None
+
+
+def test_congruence_weakness_scoped_to_opening():
+    # Issue #14: the lone d4 weakness line is a forest minority (1/3) — the old whole-forest
+    # check flagged it. Grouped by opening it is alone in the d4 group (majority of its own
+    # opening), so it is no longer flagged. Each opening is judged on its own grain.
+    rep = build_repertoire([LINE_DOUBLED, LINE_MAROCZY, LINE_OPEN])
+    result = repertoire.analyze_congruence(rep, "low", 10)
+    assert result["by_type"].get("weakness_inconsistency") is None
 
 
 def test_congruence_all_unknown_flags_nothing():
@@ -811,7 +835,7 @@ def test_congruence_all_unknown_flags_nothing():
 
 
 def test_congruence_min_severity_filters():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])  # outlier here is 'medium'
+    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP])  # one opening; outlier is 'medium'
     low = repertoire.analyze_congruence(rep, "low", 10)
     high = repertoire.analyze_congruence(rep, "high", 10)
     assert any(i["type"] == "structure_outlier" for i in low["incongruencies"])
@@ -1035,7 +1059,7 @@ LINE_FIANCHETTO_B = (
     "g3 d5 Bg2 Nf6 c4 e6 Nc3 Be7"  # white fianchetto + c4 (structure: unknown)
 )
 LINE_NO_FIANCHETTO = (
-    "e4 e5 Nf3 Nc6 d4 exd4 Nxd4"  # no fianchetto at all (structure: unknown)
+    "g3 d5 c4 Nc6 Nc3 e5 d3 Nf6"  # g3 but no Bg2 → no fianchetto (same opening as A/B)
 )
 
 
@@ -1060,8 +1084,9 @@ def test_theme_fallback_no_flag_when_no_dominant_theme():
 
 def test_named_structure_check_takes_priority_over_theme_fallback():
     # When known_share >= 0.5, named-structure logic runs (no "source":"theme" field).
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY])
+    rep = build_repertoire([LINE_CARLSBAD, LINE_IQP])  # one opening, both known
     result = repertoire.analyze_congruence(rep, "low", 10)
+    assert any(i["type"] == "structure_outlier" for i in result["incongruencies"])
     for item in result["incongruencies"]:
         assert item.get("source") != "theme"
 
@@ -1072,7 +1097,7 @@ def test_named_structure_check_takes_priority_over_theme_fallback():
 
 
 def test_congruence_acknowledged_weakness_downgrades_to_low():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     # Without acknowledgement: weakness_inconsistency fires at severity medium
     unacked = repertoire.analyze_congruence(rep, "low", 10)
     weak_item = next(
@@ -1094,7 +1119,7 @@ def test_congruence_acknowledged_weakness_downgrades_to_low():
 
 
 def test_congruence_acknowledged_weakness_filtered_by_min_severity():
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     weak_item = next(
         i
         for i in repertoire.analyze_congruence(rep, "low", 10)["incongruencies"]
@@ -1110,7 +1135,7 @@ def test_congruence_acknowledged_weakness_filtered_by_min_severity():
 
 def test_congruence_acknowledged_count_field():
     # acknowledged_count present; total_flagged excludes acknowledged items (Issue #10).
-    rep = build_repertoire([LINE_CARLSBAD, LINE_MAROCZY, LINE_DOUBLED])
+    rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     unacked = repertoire.analyze_congruence(rep, "low", 10)
     weak_path = next(
         i for i in unacked["incongruencies"] if i["type"] == "weakness_inconsistency"

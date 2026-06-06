@@ -410,122 +410,143 @@ def analyze_congruence(
             }
         )
     n = len(data)
-    incongruencies: list[dict] = []
 
-    # 1. structure_outlier — a line veering off the repertoire's dominant structure.
-    known = [d for d in data if d["structure"] != "unknown"]
-    known_share = len(known) / n if n else 0.0
+    # Transposition endpoints are global (a position reached by multiple move orders),
+    # computed once over the whole tree and shared by every opening group (Issue #9).
+    _key_counts: Counter = Counter(
+        _position_key(node.board()) for node in iter_nodes(rep.game)
+    )
+    transposition_keys = {k for k, c in _key_counts.items() if c > 1}
 
-    if known_share >= 0.5:
-        # Enough named structures: use the named-structure outlier check.
-        sc_counts = Counter(d["structure"] for d in known)
-        dominant, dom_count = sc_counts.most_common(1)[0]
-        dom_share = dom_count / len(known)
-        if dom_share >= 0.5:
-            for d in known:
-                if d["structure"] == dominant:
-                    continue
-                incongruencies.append(
-                    {
-                        "type": "structure_outlier",
-                        "severity": "high" if dom_share > 0.8 else "medium",
-                        "description": (
-                            f"Most lines reach a {dominant} structure; this line reaches "
-                            f"{d['structure']} — a separate middlegame plan to learn."
-                        ),
-                        "paths": [d["path"]],
-                    }
-                )
-    elif n > 0:
-        # 1b. Theme-based fallback: most leaves are unknown — use dominant bool theme
-        # as a structural proxy. A leaf that lacks the dominant theme is an outlier even
-        # when no named structure can be assigned (e.g. hypermodern English repertoires
-        # where fianchetto_white fires on most leaves but structure_class is unknown).
-        theme_counts = Counter(theme for d in data for theme in d["theme_tags"])
-        dominant_theme_candidates = [
-            (t, c) for t, c in theme_counts.items() if c / n >= 0.5
-        ]
-        if dominant_theme_candidates:
-            dominant_theme, _ = max(dominant_theme_candidates, key=lambda x: x[1])
-            dom_theme_share = theme_counts[dominant_theme] / n
-            # Transposition endpoint stubs reach a position that a longer line also
-            # reaches by a different move order. The stub ends before the dominant
-            # theme is played — but it's covered structurally via the longer path.
-            # Suppress outlier flags for these nodes (Issue #9).
-            _key_counts: Counter = Counter(
-                _position_key(node.board()) for node in iter_nodes(rep.game)
-            )
-            _transposition_keys = {k for k, c in _key_counts.items() if c > 1}
-            for d in data:
-                if dominant_theme in d["theme_tags"]:
-                    continue
-                if d["_pos_key"] in _transposition_keys:
-                    continue  # transposition stub — structural coverage via longer path
-                incongruencies.append(
-                    {
-                        "type": "structure_outlier",
-                        "severity": "high" if dom_theme_share > 0.8 else "medium",
-                        "description": (
-                            f"Most lines share the '{dominant_theme}' theme; this line "
-                            f"lacks it — a structural inconsistency in the repertoire's DNA."
-                        ),
-                        "paths": [d["path"]],
-                        "source": "theme",
-                    }
-                )
+    def _checks_for(group: list[dict]) -> list[dict]:
+        """Run the three congruence checks within ONE opening's leaves (Issue #14).
 
-    # 2. weakness_inconsistency — accepting a pawn weakness against the repertoire's grain.
-    weak = [d for d in data if d["isolated"] or d["doubled"]]
-    if n == 0 or len(weak) == 0 or len(weak) >= n * 0.5:
-        pass  # Skip: no weaknesses, all weak, or majority weak → no inconsistency signal
-    else:
-        # Minority of lines have weaknesses → flag each as inconsistent
-        for d in weak:
-            kinds = [
-                k
-                for k, present in (
-                    ("doubled", d["doubled"]),
-                    ("isolated", d["isolated"]),
-                )
-                if present
+        A repertoire spanning several openings (one answer per opponent first move) has no
+        single structural grain; judging a Caro IQP line against Nimzo leaves is noise. So
+        each leaf is compared only to its own opening's siblings."""
+        gn = len(group)
+        found: list[dict] = []
+
+        # 1. structure_outlier — a line veering off the opening's dominant structure.
+        known = [d for d in group if d["structure"] != "unknown"]
+        known_share = len(known) / gn if gn else 0.0
+
+        if known_share >= 0.5:
+            # Enough named structures: use the named-structure outlier check.
+            sc_counts = Counter(d["structure"] for d in known)
+            dominant, dom_count = sc_counts.most_common(1)[0]
+            dom_share = dom_count / len(known)
+            if dom_share >= 0.5:
+                for d in known:
+                    if d["structure"] == dominant:
+                        continue
+                    found.append(
+                        {
+                            "type": "structure_outlier",
+                            "severity": "high" if dom_share > 0.8 else "medium",
+                            "description": (
+                                f"Most lines reach a {dominant} structure; this line reaches "
+                                f"{d['structure']} — a separate middlegame plan to learn."
+                            ),
+                            "paths": [d["path"]],
+                        }
+                    )
+        elif gn > 0:
+            # 1b. Theme-based fallback: most leaves are unknown — use dominant bool theme
+            # as a structural proxy. A leaf that lacks the dominant theme is an outlier even
+            # when no named structure can be assigned (e.g. hypermodern English repertoires
+            # where fianchetto_white fires on most leaves but structure_class is unknown).
+            theme_counts = Counter(theme for d in group for theme in d["theme_tags"])
+            dominant_theme_candidates = [
+                (t, c) for t, c in theme_counts.items() if c / gn >= 0.5
             ]
-            acknowledged = bool(ack_set and tuple(d["path"]) in ack_set)
-            severity = "low" if acknowledged else "medium"
-            entry: dict = {
-                "type": "weakness_inconsistency",
-                "severity": severity,
-                "description": (
-                    f"Most lines keep a sound pawn structure, but here you accept "
-                    f"{'/'.join(kinds)} pawns — inconsistent structural comfort."
-                ),
-                "paths": [d["path"]],
-            }
-            if acknowledged:
-                entry["acknowledged"] = True
-            incongruencies.append(entry)
+            if dominant_theme_candidates:
+                dominant_theme, _ = max(dominant_theme_candidates, key=lambda x: x[1])
+                dom_theme_share = theme_counts[dominant_theme] / gn
+                for d in group:
+                    if dominant_theme in d["theme_tags"]:
+                        continue
+                    # Transposition endpoint stubs reach a position that a longer line also
+                    # reaches by a different move order. The stub ends before the dominant
+                    # theme is played — but it's covered structurally via the longer path.
+                    # Suppress outlier flags for these nodes (Issue #9).
+                    if d["_pos_key"] in transposition_keys:
+                        continue
+                    found.append(
+                        {
+                            "type": "structure_outlier",
+                            "severity": "high" if dom_theme_share > 0.8 else "medium",
+                            "description": (
+                                f"Most lines share the '{dominant_theme}' theme; this line "
+                                f"lacks it — a structural inconsistency in the repertoire's DNA."
+                            ),
+                            "paths": [d["path"]],
+                            "source": "theme",
+                        }
+                    )
 
-    # 3. center_inconsistency — repertoire split between locking and opening the center.
-    centers = Counter(d["center"] for d in data)
-    locked, opened = centers.get("locked", 0), centers.get("open", 0)
-    if n == 0:
-        pass  # Skip: no leaves
-    elif locked / n < 0.25 or opened / n < 0.25:
-        pass  # Skip: one style dominates → no split
-    else:
-        # Both locked and open are significant → flag the split
-        examples = [d["path"] for d in data if d["center"] == "locked"][:2]
-        examples += [d["path"] for d in data if d["center"] == "open"][:2]
-        incongruencies.append(
-            {
-                "type": "center_inconsistency",
-                "severity": "low",
-                "description": (
-                    f"Center handling is split: {locked} line(s) lock the center, {opened} "
-                    f"open it — differing strategic commitments across the repertoire."
-                ),
-                "paths": examples,
-            }
-        )
+        # 2. weakness_inconsistency — accepting a pawn weakness against the opening's grain.
+        weak = [d for d in group if d["isolated"] or d["doubled"]]
+        if gn == 0 or len(weak) == 0 or len(weak) >= gn * 0.5:
+            pass  # Skip: no weaknesses, all weak, or majority weak → no signal
+        else:
+            # Minority of lines have weaknesses → flag each as inconsistent
+            for d in weak:
+                kinds = [
+                    k
+                    for k, present in (
+                        ("doubled", d["doubled"]),
+                        ("isolated", d["isolated"]),
+                    )
+                    if present
+                ]
+                acknowledged = bool(ack_set and tuple(d["path"]) in ack_set)
+                severity = "low" if acknowledged else "medium"
+                entry: dict = {
+                    "type": "weakness_inconsistency",
+                    "severity": severity,
+                    "description": (
+                        f"Most lines keep a sound pawn structure, but here you accept "
+                        f"{'/'.join(kinds)} pawns — inconsistent structural comfort."
+                    ),
+                    "paths": [d["path"]],
+                }
+                if acknowledged:
+                    entry["acknowledged"] = True
+                found.append(entry)
+
+        # 3. center_inconsistency — opening split between locking and opening the center.
+        centers = Counter(d["center"] for d in group)
+        locked, opened = centers.get("locked", 0), centers.get("open", 0)
+        if gn == 0:
+            pass  # Skip: no leaves
+        elif locked / gn < 0.25 or opened / gn < 0.25:
+            pass  # Skip: one style dominates → no split
+        else:
+            # Both locked and open are significant → flag the split
+            examples = [d["path"] for d in group if d["center"] == "locked"][:2]
+            examples += [d["path"] for d in group if d["center"] == "open"][:2]
+            found.append(
+                {
+                    "type": "center_inconsistency",
+                    "severity": "low",
+                    "description": (
+                        f"Center handling is split: {locked} line(s) lock the center, "
+                        f"{opened} open it — differing strategic commitments."
+                    ),
+                    "paths": examples,
+                }
+            )
+        return found
+
+    # Group leaves by opening (opponent's first move) and judge each leaf against its own
+    # opening's siblings. A single-opening repertoire is one group → identical to before.
+    groups: dict[str, list[dict]] = {}
+    for d in data:
+        groups.setdefault(d["path"][0] if d["path"] else "", []).append(d)
+    incongruencies: list[dict] = []
+    for group in groups.values():
+        incongruencies.extend(_checks_for(group))
 
     # Filter and sort by severity; cap to limit
     floor = _SEVERITY_RANK[min_severity]
