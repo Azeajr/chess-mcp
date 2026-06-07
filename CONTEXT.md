@@ -54,9 +54,11 @@ on by default via `addopts`; 134 tests pass). Engine paths (`compare_moves`, `fi
 `suggest_complementary_lines` ranking) and the `evals/capture.py` snapshot are verified in Docker.
 
 **Repo:** https://github.com/Azeajr/chess-mcp
-**Release:** v0.1.6 — https://github.com/Azeajr/chess-mcp/releases/tag/v0.1.6 — image published and
-public at `ghcr.io/azeajr/chess-mcp` (`latest` + `v0.1.6`); the `docker compose pull` / `docker run`
-prebuilt install path is verified end-to-end (pull → boot → tools over SSE).
+**Release:** v0.2.11 — image published and public at `ghcr.io/azeajr/chess-mcp` (`latest` +
+`v0.2.11`); the `docker compose pull` / `docker run` prebuilt install path is verified end-to-end
+(pull → boot → tools over SSE). v0.2.11 also realigned `plugin/.claude-plugin/plugin.json` +
+`.claude-plugin/marketplace.json` (they had drifted, stuck at 0.1.6 through the 0.2.x line) back to
+the `pyproject.toml` version — keep all three equal on every bump.
 
 ## Files
 
@@ -133,7 +135,7 @@ Cutting a release is just: bump the version (`pyproject` + `plugin/.claude-plugi
 `.claude-plugin/marketplace.json` — keep them equal), commit, then `git tag v0.x.y && git push origin
 v0.x.y`. The tag drives the rest (image publish + GitHub release) via the workflow; **the tag itself
 is the trigger, so it stays a manual push** (a workflow can't create the tag that starts it).
-**v0.1.0 / v0.1.1 / v0.1.2 / v0.1.3 / v0.1.4 / v0.1.5 / v0.1.6** are published (v0.1.1 has no GitHub release — predates the `release` job).
+**v0.1.0–v0.1.8 and v0.2.0–v0.2.11** are published (v0.1.1 has no GitHub release — predates the `release` job).
 The GHCR package's visibility was set to **public** once (a manual one-time step in package settings —
 no reliable REST endpoint for it), so anonymous `docker compose pull` / stdio `docker run` works.
 

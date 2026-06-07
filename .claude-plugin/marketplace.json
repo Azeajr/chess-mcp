@@ -8,7 +8,7 @@
       "name": "chess-mcp",
       "source": "./plugin",
       "description": "Grounded chess game review + opening-repertoire analysis via Stockfish — the chess-analysis MCP server (stdio over Docker) plus its workflow skills.",
-      "version": "0.1.6"
+      "version": "0.2.11"
     }
   ]
 }
