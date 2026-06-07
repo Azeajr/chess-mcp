@@ -10,6 +10,7 @@ Engine-free throughout. The only engine-backed tool (suggest_complementary_lines
 in chess_mcp.py and calls the structural helpers here / in structure.py for scoring.
 """
 
+import copy
 import os
 import time
 import threading
@@ -21,6 +22,7 @@ import chess
 import chess.pgn
 
 import structure
+import openings
 
 MAX_REPERTOIRES = int(os.environ.get("MAX_REPERTOIRES", "16"))  # LRU cap
 REPERTOIRE_TTL_S = int(
@@ -236,6 +238,103 @@ def merge_games(games: list[chess.pgn.Game]) -> chess.pgn.Game:
             continue  # non-standard start position — cannot graft onto the base root
         _merge_into(base, g)
     return base
+
+
+# ---------------------------------------------------------------------------
+# Tree mutation — pure clone-on-write (REPERTOIRE_DESIGN.md section 9). Each editor deep-copies
+# the tree, edits the copy, and returns it; the source is never touched, so the source
+# repertoire_id keeps resolving to the unmodified tree (the immutable-handle contract). The
+# chess_mcp wrapper caches the returned clone under a fresh id via store_repertoire.
+# ---------------------------------------------------------------------------
+
+
+def clone_game(game: chess.pgn.Game) -> chess.pgn.Game:
+    """Independent deep copy of a parsed tree (variation order, NAGs, comments intact)."""
+    return copy.deepcopy(game)
+
+
+def _prune(
+    game: chess.pgn.Game, path: list[str]
+) -> tuple[chess.pgn.Game | None, str | None]:
+    """Drop the node at `path` and its subtree from a clone. The root cannot be pruned."""
+    if not path:
+        return None, "invalid_edit"  # empty path = the root; nothing to detach it from
+    clone = clone_game(game)
+    node = resolve_path(clone, path)
+    if node is None or node.parent is None:
+        return None, "variation_not_found"
+    node.parent.variations.remove(node)
+    return clone, None
+
+
+def _add(
+    game: chess.pgn.Game, path: list[str], add_moves: list[str]
+) -> tuple[chess.pgn.Game | None, str | None]:
+    """Graft SAN plies under the node at `path` in a clone, merging into an existing child when
+    the move already exists (no duplicate siblings — mirrors _merge_into)."""
+    if not add_moves:
+        return None, "invalid_edit"  # add with nothing to add
+    clone = clone_game(game)
+    node = resolve_path(clone, path)
+    if node is None:
+        return None, "variation_not_found"
+    for san in add_moves:
+        try:
+            move = node.board().parse_san(san)
+        except ValueError:
+            return None, "invalid_line"  # illegal/unparseable SAN at this ply
+        child = next((c for c in node.variations if c.move == move), None)
+        node = child if child is not None else node.add_variation(move)
+    return clone, None
+
+
+def _reorder(
+    game: chess.pgn.Game, path: list[str], promote_move: str | None
+) -> tuple[chess.pgn.Game | None, str | None]:
+    """Promote the child playing `promote_move` to the mainline (variations[0]) at `path`."""
+    if not promote_move:
+        return None, "invalid_edit"  # reorder needs a child to promote
+    clone = clone_game(game)
+    node = resolve_path(clone, path)
+    if node is None:
+        return None, "variation_not_found"
+    try:
+        move = node.board().parse_san(promote_move)
+    except ValueError:
+        return None, "variation_not_found"  # not legal here → cannot be a child move
+    child = next((c for c in node.variations if c.move == move), None)
+    if child is None:
+        return None, "variation_not_found"
+    node.promote_to_main(child)
+    return clone, None
+
+
+def apply_repertoire_edit(
+    game: chess.pgn.Game,
+    action: str,
+    path: list[str],
+    add_moves: list[str] | None,
+    promote_move: str | None,
+) -> tuple[chess.pgn.Game | None, str | None]:
+    """Dispatch a clone-on-write edit. Returns (new_game, None) on success, else
+    (None, error_code) — one of variation_not_found / invalid_line / invalid_edit."""
+    if action == "prune":
+        return _prune(game, path)
+    if action == "add":
+        return _add(game, path, add_moves or [])
+    if action == "reorder":
+        return _reorder(game, path, promote_move)
+    return (
+        None,
+        "invalid_edit",
+    )  # defensive — Literal guards the action at the schema layer
+
+
+def export_pgn(game: chess.pgn.Game) -> str:
+    """Serialize the tree to a multi-variation PGN string (E2a: one [Event], all variations,
+    NAGs + comments). Round-trips through load_repertoire (merge is idempotent)."""
+    exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+    return game.accept(exporter)
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +564,37 @@ def coverage_report(rep: _Repertoire, limit: int) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _cluster_label(leaf, structure_class: str, theme_tags: set, path: list[str]) -> str:
+    """The opening-SYSTEM a leaf belongs to — the congruence cluster key (REPERTOIRE_DESIGN.md
+    section 10). Move-order-robust so a system reached by several first moves clusters as ONE,
+    and granular enough that distinct systems under one first move don't dilute. NOT keyed on
+    structure_class: that would make every cluster structurally homogeneous and disable the
+    structure_outlier check — the per-system deviation we want surfaced would instead be hidden
+    in its own cluster (Decision C1).
+
+    Chain (prefer structural/named convergence over literal move order, Decision C3):
+      1. opening name family from openings.deepest_to_node (EPD-keyed → transpositions converge
+         for free), truncated at the first colon to FAMILY grain (Decision C2 — validated on the
+         two real repertoires: family-level keeps White's English one cohesive 17-leaf cluster
+         and gives Black ~8 well-sized systems with a real grain; finer variation-level grain
+         re-shatters both into thin 1–2-leaf groups that surface nothing);
+      2. structure_class, when the leaf is named-structure but not in the ECO table;
+      3. the leaf's primary bool theme (BOOL_THEMES priority), for unknown-structure systems;
+      4. the opponent's first move — the shipped key, last resort.
+    Fallback labels are namespaced ("structure:"/"theme:"/"first-move:") so they never collide
+    with a bare opening name.
+    """
+    op = openings.deepest_to_node(leaf)
+    if op:
+        return op["name"].split(":")[0].strip()
+    if structure_class != "unknown":
+        return f"structure:{structure_class}"
+    for theme in BOOL_THEMES:  # BOOL_THEMES order = priority
+        if theme in theme_tags:
+            return f"theme:{theme}"
+    return f"first-move:{path[0]}" if path else "first-move:"
+
+
 def analyze_congruence(
     rep: _Repertoire,
     min_severity: str,
@@ -493,15 +623,18 @@ def analyze_congruence(
             continue
         board = leaf.board()
         t = structure.themes(board, rep.color)
+        sc = structure.classify_structure(board)["structure_class"]
+        theme_tags = {k for k in BOOL_THEMES if t[k]}
         data.append(
             {
                 "path": path,
                 "_pos_key": _position_key(board),
-                "structure": structure.classify_structure(board)["structure_class"],
+                "structure": sc,
+                "cluster": _cluster_label(leaf, sc, theme_tags, path),
                 "isolated": structure.get_isolated_pawns(board, rep.color),
                 "doubled": structure.get_doubled_pawns(board, rep.color),
                 "center": structure.center_state(board),
-                "theme_tags": {k for k in BOOL_THEMES if t[k]},
+                "theme_tags": theme_tags,
             }
         )
     n = len(data)
@@ -634,14 +767,20 @@ def analyze_congruence(
             )
         return found
 
-    # Group leaves by opening (opponent's first move) and judge each leaf against its own
-    # opening's siblings. A single-opening repertoire is one group → identical to before.
+    # Group leaves by opening SYSTEM (move-order-robust cluster key, REPERTOIRE_DESIGN.md
+    # section 10) and judge each leaf only against its own system's siblings. A transposing
+    # system reached via several first moves clusters as ONE (fixes the multi-first-move
+    # shatter that washed Black repertoires out); distinct systems under one first move stay
+    # separate. Each flag carries its cluster label so the user sees which system it's relative
+    # to. A single-system repertoire is one group → same behaviour as before.
     groups: dict[str, list[dict]] = {}
     for d in data:
-        groups.setdefault(d["path"][0] if d["path"] else "", []).append(d)
+        groups.setdefault(d["cluster"], []).append(d)
     incongruencies: list[dict] = []
-    for group in groups.values():
-        incongruencies.extend(_checks_for(group))
+    for label, group in groups.items():
+        for flag in _checks_for(group):
+            flag["cluster"] = label
+            incongruencies.append(flag)
 
     # Filter and sort by severity; cap to limit
     floor = _SEVERITY_RANK[min_severity]
@@ -655,10 +794,19 @@ def analyze_congruence(
     unacknowledged = [x for x in filtered if not x.get("acknowledged")]
     by_type = Counter(x["type"] for x in unacknowledged)
     by_type_ack = Counter(x["type"] for x in filtered if x.get("acknowledged"))
+    # Cluster partition (label → leaf count), largest first — shows how the repertoire split
+    # into opening systems, so the user can read each flag relative to its system's grain.
+    clusters = dict(
+        sorted(
+            ((label, len(g)) for label, g in groups.items()),
+            key=lambda kv: (-kv[1], kv[0]),
+        )
+    )
     return {
         "total_flagged": len(unacknowledged),
         "acknowledged_count": acknowledged_count,
         "leaves_analyzed": n,
+        "clusters": clusters,
         "by_type": dict(by_type),
         "by_type_acknowledged": dict(by_type_ack),
         "incongruencies": filtered[:limit],

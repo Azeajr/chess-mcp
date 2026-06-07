@@ -144,7 +144,11 @@ reads as "nothing wrong."
 Keep a server's error codes **closed and enumerated** so the model can branch on the code instead
 of parsing prose. This server's set: `invalid_pgn`, `invalid_fen`, `invalid_color`,
 `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`,
-`variation_not_found`, `invalid_mode`.
+`variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`.
+
+(`invalid_line` — a supplied SAN line is illegal at some ply, e.g. a move in
+`modify_repertoire_line` add_moves; `invalid_edit` — a tree-edit request is malformed, e.g.
+empty add_moves, missing promote_move, or a prune of the root.)
 
 ## Resources vs Tools
 
@@ -214,13 +218,16 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 | validate_pgn | 47 |
 | identify_opening | 24 |
 | export_annotated_pgn | 502 |
-| load_repertoire | 42 |
+| load_repertoire | 37 |
 | get_structural_profile (aggregate) | 111 |
-| get_structural_profile (node) | 190 |
-| analyze_repertoire_congruence | 25 |
-| get_transpositions | 9 |
+| get_structural_profile (node) | 214 |
+| analyze_repertoire_congruence | 56 |
+| get_transpositions | 18 |
 | get_repertoire_coverage | 161 |
-| find_repertoire_gaps | 629 |
+| find_repertoire_gaps | 27 |
+| classify_illustrative_lines | 32 |
+| modify_repertoire_line | 62 |
+| export_repertoire | 188 |
 | suggest_complementary_lines (low_memorization) | 190 |
 | suggest_complementary_lines (sharp) | 187 |
 
@@ -231,15 +238,21 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 - Compact SAN string is 2.2× smaller than the `{uci, san}` list (18 vs 39), and that list even
   carries extra data — the encoding win grows with richer objects.
 - Every repertoire output also fits the budget: the stateful design keeps them small (the handle
-  replaces a re-sent PGN; `analyze_repertoire_congruence` is a capped summary→detail list).
-- `export_annotated_pgn` is the one **artifact** output (a full annotated PGN string, 502 tok here),
-  not a reasoning primitive — the justified exception to "reshape, don't dump". It is bounded by
-  `MAX_PGN_BYTES` input and gates comments behind `min_cp_loss`, so it stays close to the input size.
-- `find_repertoire_gaps` is the heaviest reasoning primitive (629 tok on the single-deep-line sample,
-  where each gap carries a long SAN drill-down `path`). Still well within ~2k; it is bounded by
-  `limit` (gaps) and `max_positions` (engine passes), and the `path` stays structured because it is a
-  drill-down handle (a compact string would force the model to re-derive it — see the boundary note above).
-- All 18 tool descriptions total ~2800 tok, re-read on every `tools/list` — why descriptions are
+  replaces a re-sent PGN; `analyze_repertoire_congruence` is a capped summary→detail list — 56 tok
+  including the per-flag `cluster` label + the `clusters` partition). The edit-loop action tool
+  `modify_repertoire_line` returns a handle + stats + one-line diff (62 tok) — it never returns a
+  tree; the agent loops on the new id and reads back the same compact reports.
+- **Two artifact outputs** (full PGN strings, the justified exception to "reshape, don't dump"):
+  `export_annotated_pgn` (502 tok here) and `export_repertoire` (188 tok on the small sample; scales
+  with tree size). Both are bounded by input caps (`MAX_PGN_BYTES` / `MAX_REPERTOIRE_BYTES`); the
+  agent Writes the string to disk rather than reasoning over it, so its size doesn't tax the workflow.
+- The path-bearing list outputs (`find_repertoire_gaps`, `get_transpositions`, congruence) are bounded
+  by `limit` / `max_positions` AND a byte budget (`_fit_to_budget`, #20) so a deep tree can't blow the
+  cap; their `path` fields stay structured because they are drill-down handles (a compact string would
+  force the model to re-derive them — see the boundary note above). After the #19 severity-capping,
+  `find_repertoire_gaps` on the sample is small (27 tok); the heaviest *reasoning* primitive is now
+  `get_structural_profile` (node, 214 tok).
+- All 22 tool descriptions total ~4570 tok, re-read on every `tools/list` — why descriptions are
   kept compressed (they are routing logic, paid every call).
 
 Regenerate after any output-shape change; stale numbers are worse than none.

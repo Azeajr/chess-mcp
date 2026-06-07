@@ -56,17 +56,19 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 |------|-------|--------|
 | `load_repertoire` | PGN (variation tree), color | Handle (`repertoire_id`) + tree stats — call this first; avoids re-sending the full PGN on every call |
 | `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, theme tags, open files. `variation_path=null` → aggregate fingerprint (structures + theme rollup) over all leaves |
-| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies: structure outliers, weakness mismatches, center-handling splits — each with drill-down path |
+| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies, judged WITHIN each opening system (lines clustered by move-order-robust system, not first move): structure outliers, weakness mismatches, center-handling splits — each with its `cluster` label + drill-down path; plus a `clusters` partition |
 | `find_repertoire_gaps` | repertoire_id, depth, min_severity, limit, max_positions | Engine scan for completeness: at every opponent-to-move node you already answer, flags strong opponent replies the tree doesn't cover, each with drill-down path + severity |
 | `get_repertoire_coverage` | repertoire_id, limit | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers, plus depth hints |
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
 | `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
+| `modify_repertoire_line` | repertoire_id, path, action (`prune`/`add`/`reorder`), add_moves?, promote_move? | **Action** — edit one line and get a NEW `repertoire_id` (clone-on-write; the source id is unchanged, so you branch/compare). Drives the single-session edit loop: every read tool works on the new id immediately |
+| `export_repertoire` | repertoire_id | The edit loop's escape hatch — serialize the current tree back to a PGN string (one `[Event]`) for you to Write to disk; round-trips through `load_repertoire` |
 
 Structural analysis recognizes **19 canonical pawn structures** — IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, and Benko — each gated on a core skeleton with graduated confidence (a position missing a peripheral pawn still classifies), the open-Sicilian family scored bidirectionally (reversed-English positions included), else `unknown`. The canon is traced to Flores Rios *Chess Structures* and Soltis *Pawn Structure Chess*; every scorer is validated against an engine-verified canonical FEN (see `STRUCTURE_CLASSIFIER_DESIGN.md`). Beyond the named class, every position also carries always-on **theme tags** (fianchetto, space, wing-majority, minority-attack, flank-vs-centre, colour-complex) — these stay informative even when the class is `unknown` (e.g. fianchetto systems), and the aggregate profile rolls them up across all leaves. Opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
 
 Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `evaluate_position`, `compare_moves`, `suggest_complementary_lines`, `find_repertoire_gaps`, `export_annotated_pgn`) also accepts an optional `time_limit` (seconds): when set, the engine searches by wall-clock instead of `depth` — useful on slow hardware or for fast iteration. Depth stays the default and the reproducible path.
 
-The closed error-code set is unchanged by these tools: bad input still returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`. `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
+Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
 
 ### Recommended workflow
 
@@ -80,9 +82,16 @@ The closed error-code set is unchanged by these tools: bad input still returns o
 
 1. Call `load_repertoire(pgn, color)` — parse once, get back `repertoire_id`.
 2. Call `get_structural_profile(repertoire_id)` (no path) — aggregate structural fingerprint.
-3. Call `analyze_repertoire_congruence(repertoire_id)` — inconsistency list; each item carries a `paths` array for drill-down.
+3. Call `analyze_repertoire_congruence(repertoire_id)` — inconsistency list clustered by opening system; each item carries a `paths` array for drill-down.
 4. Call `get_structural_profile(repertoire_id, variation_path)` to inspect a specific flagged line.
 5. Call `suggest_complementary_lines(repertoire_id, fen, mode)` to extend or diversify from any position.
+
+**Single-session edit loop** (no re-download, no new session): from any `repertoire_id`, call
+`modify_repertoire_line(repertoire_id, path, action, …)` to prune/add/reorder a line — it returns a
+NEW `repertoire_id` for the modified tree (the source id still resolves to the original, so you can
+branch and compare). Re-run the read tools above on the new id, iterate, then
+`export_repertoire(final_id)` and write the returned `pgn` to disk. The agent passes only paths +
+SAN the MCP surfaced — it never authors chess content.
 
 ### Move classifications
 
@@ -293,6 +302,8 @@ chess-mcp/
 - [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.
 - [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `evals/structure_accuracy.py` harness-validated pattern (candidates: French Exchange, Hedgehog).
 - [x] **Repertoire completeness + move comparison** — `find_repertoire_gaps` (engine scan for strong uncovered opponent replies), `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), and `compare_moves` (rank your own candidate moves from a FEN). 16 tools; closed error set unchanged.
+- [x] **Single-session edit loop** — `modify_repertoire_line` (clone-on-write prune/add/reorder → new `repertoire_id`; source id unchanged, so branch/compare) + `export_repertoire` (tree → PGN string for the agent to Write). Load → mutate → re-analyze the new id → … → export, all in one session, no re-download. New error codes `invalid_line`, `invalid_edit`. See REPERTOIRE_DESIGN.md §9.
+- [x] **Thematic-cluster congruence** — `analyze_repertoire_congruence` now clusters lines by move-order-robust opening SYSTEM (not the opponent's first move), so a system reached via several first moves is judged as one and distinct systems under one first move stay separate. Surfaces per-system inconsistencies a Black repertoire previously washed out. See REPERTOIRE_DESIGN.md §10.
 - [ ] **Opponent-popularity weighting for gaps** — rank `find_repertoire_gaps` output by how often opponents actually play each uncovered move (a moves-frequency dataset), so triage fixes the holes you'll hit, not just the engine-strong ones. Pairs the engine-criticality signal with a real-world frequency signal.
 - [ ] **`compare_repertoires(id_a, id_b)`** — structural + coverage diff between two loaded repertoire handles (shared themes, divergent lines, relative dangling/gap counts) to support evolving or merging a repertoire.
 

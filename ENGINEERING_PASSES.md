@@ -7,7 +7,7 @@ verifies through the toolchain, commits, and pushes. Pick a pass, paste its prom
 Repo shape the prompts assume:
 - `server/chess_mcp.py` — the FastMCP tools + the only I/O boundaries (Stockfish subprocess, SSE transport).
 - `server/structure.py` — engine-free pawn-structure analysis (pure functions).
-- `server/repertoire.py` — variation-tree walker, in-memory handle cache (LRU + TTL), congruence logic.
+- `server/repertoire.py` — variation-tree walker, in-memory handle cache (LRU + TTL), clone-on-write tree mutation (edit loop), system-clustered congruence logic.
 - `server/test_structure_repertoire.py` + `server/test_tools.py` — engine-free `pytest` suite (branch
   coverage on by default via `addopts`; `uv run pytest` from `server/`).
 - `evals/` — token-measurement harness (`capture.py` needs Stockfish → Docker; `measure.py` engine-free).
@@ -131,11 +131,13 @@ Run tools in this exact order against `repertoires/<name>/repertoire.pgn`:
 2. `load_repertoire` — get the repertoire handle; record tree stats (nodes, leaves, max depth, color)
 3. `get_transpositions` — PRE-FLIGHT REQUIRED before any gap or depth analysis; record all convergence points
 4. `get_structural_profile` — full tree; record named structures, confidence, theme tags, center distribution
-5. `analyze_repertoire_congruence` — record all flags; for each flagged line cross-check the transposition map before treating it as a real issue
+5. `analyze_repertoire_congruence` — flags are clustered by opening SYSTEM (move-order-robust), so record the `clusters` partition and read each flag relative to its `cluster`; for each flagged line cross-check the transposition map before treating it as a real issue
 6. `find_repertoire_gaps` — cross-check every reported gap against the transposition map before recording it; suppress any gap that resolves to a transposition endpoint
 7. `evaluate_position` (depth 20) — run on: the repertoire's deepest main-line leaf, any structurally-defining leaf (a forced-weakness or space-bind position the repertoire bets on — e.g. a bxc3 / Maroczy / IQP / KID-bind leaf if present), and any leaf flagged by congruence or gaps that survived transposition cross-check
 
 Assess each result against what the tool was supposed to do. Note: incorrect output, missing signal, false flags, unexplained `unknown` returns, or output that required manual multi-step chaining to interpret.
+
+In-session edit loop (optional, when the analysis surfaces a concrete repertoire-CONTENT fix — a refuted line to prune, a missing reply to add, a move-order to reorder): apply it with `modify_repertoire_line(repertoire_id, path, action, …)` → re-run the relevant tools above on the returned NEW id to confirm the fix, then `export_repertoire` and Write the `pgn` to `repertoires/<name>/repertoire.pgn`. Pass only paths + SAN the MCP surfaced; never hand-author content. This is distinct from PHASE 4 (which fixes the MCP CODE) — here you fix the repertoire fixture itself, in one session, no re-download.
 
 PHASE 2 — UPDATE ANALYSIS DOC
 Append a new versioned section to `repertoires/<name>/analysis.md`. Follow the existing format exactly:

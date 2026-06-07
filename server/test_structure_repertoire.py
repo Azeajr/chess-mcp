@@ -79,6 +79,17 @@ def _clear_cache():
     repertoire._CACHE.clear()
 
 
+@pytest.fixture
+def one_cluster(monkeypatch):
+    """Force every leaf into ONE congruence cluster (collapse the opening-system grouping).
+
+    The congruence CHECK machinery (outlier / weakness / center / dominance gates) runs
+    per-cluster and is unchanged by the re-key. These tests target that machinery, so they pin
+    a single cluster and let the dedicated clustering tests (test_clustering_*) cover the
+    opening-system grouping itself."""
+    monkeypatch.setattr(repertoire, "_cluster_label", lambda *a, **k: "one")
+
+
 # ---------------------------------------------------------------------------
 # Primitives
 # ---------------------------------------------------------------------------
@@ -790,22 +801,22 @@ def test_congruence_flags_structure_outlier():
     assert item["paths"] and item["severity"] in ("medium", "high")
 
 
-def test_congruence_flags_weakness_inconsistency():
-    # Three d4 lines (one opening), one with doubled pawns → minority weakness flagged.
+def test_congruence_flags_weakness_inconsistency(one_cluster):
+    # One cluster, one line with doubled pawns → minority weakness flagged.
     rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("weakness_inconsistency") == 1
 
 
-def test_congruence_flags_center_inconsistency():
-    # Two e4 lines (one opening): one locks the center, one opens it.
+def test_congruence_flags_center_inconsistency(one_cluster):
+    # One cluster: one line locks the center, one opens it.
     rep = build_repertoire([LINE_E4_LOCKED, LINE_OPEN])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("center_inconsistency") == 1
 
 
-def test_congruence_no_dominant_structure_flags_no_outlier():
-    # three distinct known structures in one opening, none >= 50% → no structure_outlier
+def test_congruence_no_dominant_structure_flags_no_outlier(one_cluster):
+    # three distinct known structures in one cluster, none >= 50% → no structure_outlier
     rep = build_repertoire([LINE_CARLSBAD, LINE_IQP, LINE_QGD_CLEAN])
     result = repertoire.analyze_congruence(rep, "low", 10)
     assert result["by_type"].get("structure_outlier") is None
@@ -872,7 +883,7 @@ def test_congruence_theme_plurality_below_threshold_no_outlier():
     assert result["by_type"].get("structure_outlier") is None
 
 
-def test_congruence_theme_strong_majority_still_flags_outlier():
+def test_congruence_theme_strong_majority_still_flags_outlier(one_cluster):
     # fianchetto_white is 4/5 = 0.8 of the leaves — a genuine grain; the lone line lacking
     # it is still flagged. The #21 threshold doesn't silence real majorities.
     rep = build_repertoire(_THEME_FW + _THEME_NO_FW[1:2])
@@ -944,14 +955,19 @@ def test_nag_illustrative_flags_only_annotated_blunders():
     # Tier 1 is authoritative and side-agnostic: only the ?? move is flagged; the unannotated
     # short e5 sideline is NOT (a bare stub is no longer a verdict — it over-flagged).
     game = chess.pgn.read_game(io.StringIO(_GAMEBOOK_PGN))
-    flagged = {tuple(o["path"]): o["reason"] for o in repertoire.nag_illustrative_nodes(game)}
+    flagged = {
+        tuple(o["path"]): o["reason"] for o in repertoire.nag_illustrative_nodes(game)
+    }
     assert flagged == {("e4", "c5", "Nf3", "Nf6"): "nag"}
 
 
 def test_player_side_variations_are_player_to_move_only():
     game = chess.pgn.read_game(io.StringIO(_GAMEBOOK_PGN))
     # Black repertoire: both side lines are Black-to-move (player) → candidates.
-    black = {tuple(c["path"]) for c in repertoire.player_side_variations(game, chess.BLACK, set())}
+    black = {
+        tuple(c["path"])
+        for c in repertoire.player_side_variations(game, chess.BLACK, set())
+    }
     assert ("e4", "e5") in black and ("e4", "c5", "Nf3", "Nf6") in black
     # White repertoire: those same side lines are opponent moves → no candidates.
     assert repertoire.player_side_variations(game, chess.WHITE, set()) == []
@@ -969,7 +985,9 @@ def test_player_side_variations_respects_exclude_ids():
 def test_path_excluded_prefix_semantics():
     assert repertoire.path_excluded(["c4", "g5", "Bd2"], [["c4", "g5"]]) is True
     assert repertoire.path_excluded(["c4", "e5"], [["c4", "g5"]]) is False
-    assert repertoire.path_excluded(["c4"], [["c4", "g5"]]) is False  # shorter than exclude
+    assert (
+        repertoire.path_excluded(["c4"], [["c4", "g5"]]) is False
+    )  # shorter than exclude
     assert repertoire.path_excluded(["d4", "d5"], []) is False
 
 
@@ -1281,7 +1299,7 @@ def test_named_structure_check_takes_priority_over_theme_fallback():
 # ---------------------------------------------------------------------------
 
 
-def test_congruence_acknowledged_weakness_downgrades_to_low():
+def test_congruence_acknowledged_weakness_downgrades_to_low(one_cluster):
     rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     # Without acknowledgement: weakness_inconsistency fires at severity medium
     unacked = repertoire.analyze_congruence(rep, "low", 10)
@@ -1303,7 +1321,7 @@ def test_congruence_acknowledged_weakness_downgrades_to_low():
     assert acked_item.get("acknowledged") is True
 
 
-def test_congruence_acknowledged_weakness_filtered_by_min_severity():
+def test_congruence_acknowledged_weakness_filtered_by_min_severity(one_cluster):
     rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     weak_item = next(
         i
@@ -1318,7 +1336,7 @@ def test_congruence_acknowledged_weakness_filtered_by_min_severity():
     assert all(i["type"] != "weakness_inconsistency" for i in result["incongruencies"])
 
 
-def test_congruence_acknowledged_count_field():
+def test_congruence_acknowledged_count_field(one_cluster):
     # acknowledged_count present; total_flagged excludes acknowledged items (Issue #10).
     rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED])
     unacked = repertoire.analyze_congruence(rep, "low", 10)
@@ -1332,6 +1350,56 @@ def test_congruence_acknowledged_count_field():
     assert "acknowledged_count" in acked
     assert acked["acknowledged_count"] == 1
     assert acked["total_flagged"] == unacked["total_flagged"] - 1
+
+
+# ---------------------------------------------------------------------------
+# Congruence clustering re-key (REPERTOIRE_DESIGN.md section 10). The cluster key is the
+# move-order-robust opening SYSTEM, not the opponent's first move. These pin the two behaviours
+# that the old single-ply key (path[0]) got wrong — each would FAIL under that key.
+# ---------------------------------------------------------------------------
+
+
+def test_clustering_merges_transposing_first_moves():
+    # A Black system reached via BOTH 1.c4 and 1.d4 transposes to one King's Indian setup, so
+    # it clusters as ONE system. The old path[0] key shattered it into two thin {c4},{d4} groups.
+    rep = build_repertoire(
+        ["c4 Nf6 d4 g6 Nc3 Bg7", "d4 Nf6 c4 g6 Nc3 Bg7"], chess.BLACK
+    )
+    result = repertoire.analyze_congruence(rep, "low", 50)
+    assert result["clusters"] == {"King's Indian Defense": 2}
+
+
+def test_clustering_splits_distinct_systems_under_one_first_move():
+    # Two 1.d4 lines that resolve to distinct systems (QGD vs Nimzo) stay SEPARATE clusters —
+    # the old path[0] key merged them into one diluted {d4} group.
+    rep = build_repertoire([LINE_CARLSBAD, LINE_DOUBLED], chess.WHITE)
+    result = repertoire.analyze_congruence(rep, "low", 50)
+    assert set(result["clusters"]) == {
+        "Queen's Gambit Declined",
+        "Nimzo-Indian Defense",
+    }
+
+
+def test_clustering_flags_carry_cluster_label():
+    # Every incongruency carries the system label it is judged relative to (Decision C4).
+    rep = build_repertoire([LINE_CARLSBAD, LINE_QGD_CLEAN, LINE_DOUBLED], chess.WHITE)
+    result = repertoire.analyze_congruence(rep, "low", 50)
+    assert "clusters" in result
+    for inc in result["incongruencies"]:
+        assert inc["cluster"] in result["clusters"]
+
+
+def test_cluster_label_fallback_chain(monkeypatch):
+    # With no ECO match, the key falls back structure → theme → first-move (Decision C3),
+    # namespaced so a fallback never collides with a bare opening name.
+    monkeypatch.setattr(openings, "deepest_to_node", lambda n: None)
+    leaf = next(repertoire.walk_leaves(build_repertoire(["e4 e5"]).game))
+    assert repertoire._cluster_label(leaf, "IQP", set(), ["e4"]) == "structure:IQP"
+    assert (
+        repertoire._cluster_label(leaf, "unknown", {"fianchetto_white"}, ["e4"])
+        == "theme:fianchetto_white"
+    )
+    assert repertoire._cluster_label(leaf, "unknown", set(), ["e4"]) == "first-move:e4"
 
 
 def test_theme_fallback_skips_transposition_stubs():
@@ -1384,3 +1452,45 @@ def test_opponent_reply_nodes_no_transpositions_has_single_path():
     nodes = repertoire.opponent_reply_nodes(rep)
     for n in nodes:
         assert len(n["transposition_paths"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tree mutation — pure clone-on-write helpers (REPERTOIRE_DESIGN.md section 9)
+# ---------------------------------------------------------------------------
+
+
+def test_clone_game_is_independent():
+    game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    n = sum(1 for _ in repertoire.iter_nodes(game))
+    clone = repertoire.clone_game(game)
+    clone.variations.clear()  # gut the clone
+    assert sum(1 for _ in repertoire.iter_nodes(game)) == n  # source untouched
+
+
+def test_export_pgn_preserves_nags_and_comments():
+    # Illustrative-line NAGs ($2/$4/$6) and comments must survive the edit loop.
+    clone = repertoire.clone_game(chess.pgn.read_game(io.StringIO(SAMPLE_PGN)))
+    node = clone.variations[0]
+    node.nags.add(chess.pgn.NAG_MISTAKE)
+    node.comment = "test-comment"
+    reparsed = chess.pgn.read_game(io.StringIO(repertoire.export_pgn(clone)))
+    rt = reparsed.variations[0]
+    assert chess.pgn.NAG_MISTAKE in rt.nags and rt.comment == "test-comment"
+
+
+def test_apply_edit_add_merges_existing_child():
+    # Adding a move that already exists must descend into it, not duplicate the sibling.
+    game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    n = sum(1 for _ in repertoire.iter_nodes(game))
+    new_game, err = repertoire.apply_repertoire_edit(game, "add", [], ["d4"], None)
+    assert err is None
+    assert sum(1 for _ in repertoire.iter_nodes(new_game)) == n  # no new node
+    assert sum(1 for c in new_game.variations if c.san() == "d4") == 1  # not duplicated
+
+
+def test_apply_edit_unknown_action():
+    game = chess.pgn.read_game(io.StringIO(SAMPLE_PGN))
+    assert repertoire.apply_repertoire_edit(game, "bogus", [], None, None) == (
+        None,
+        "invalid_edit",
+    )

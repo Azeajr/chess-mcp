@@ -70,6 +70,11 @@ def main():
     outputs["find_repertoire_gaps"] = cm.find_repertoire_gaps(rid, DEPTH)
     outputs["classify_illustrative_lines"] = cm.classify_illustrative_lines(rid, DEPTH)
 
+    # stateful edit loop (engine-free): graft a new first move, then export the modified tree
+    edited = cm.modify_repertoire_line(rid, [], "add", add_moves=["e4"])
+    outputs["modify_repertoire_line"] = edited
+    outputs["export_repertoire"] = cm.export_repertoire(edited["new_repertoire_id"])
+
     # suggest from the leaf FEN (uses engine)
     node = rp.resolve_path(game, leaf_path)
     leaf_fen = node.board().fen()
@@ -100,6 +105,9 @@ def main():
         cm.find_repertoire_gaps,
         cm.classify_illustrative_lines,
         cm.suggest_complementary_lines,
+        cm.suggest_replacement_line,
+        cm.modify_repertoire_line,
+        cm.export_repertoire,
     ]
     snap = {
         "metadata": {

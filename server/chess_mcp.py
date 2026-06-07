@@ -828,10 +828,15 @@ def analyze_repertoire_congruence(
     """
     Flag logical/thematic incongruencies across a repertoire's lines. Engine-free.
 
-    Checks: structure_outlier (a line veers off the repertoire's dominant structure →
-    extra middlegame plan to learn), weakness_inconsistency (a line accepts doubled/
-    isolated pawns against the repertoire's otherwise-clean grain), center_inconsistency
-    (the repertoire is split between locking and opening the center).
+    Lines are first clustered by opening SYSTEM (move-order-robust: a system reached via
+    several first moves clusters as ONE; distinct systems under one first move stay separate),
+    then each line is judged only against its own system's siblings — so a flag always means
+    "inconsistent WITHIN this system", never noise from comparing unrelated openings.
+
+    Checks (per system): structure_outlier (a line veers off the system's dominant structure →
+    extra middlegame plan to learn), weakness_inconsistency (a line accepts doubled/isolated
+    pawns against the system's otherwise-clean grain), center_inconsistency (the system is
+    split between locking and opening the center).
 
     acknowledged_weaknesses = list of variation_paths (each a SAN move list, same format
     as the paths field in congruence output) for known positional systems where the
@@ -842,13 +847,14 @@ def analyze_repertoire_congruence(
     whose subtree is dropped from analysis entirely — illustrative "wrong-answer" lines are
     not real repertoire lines and should not be judged for congruence.
 
-    Returns: total_flagged, leaves_analyzed, by_type (counts), incongruencies (each:
-    type, severity, description, paths = the SAN variation_path(s) — feed a path to
-    get_structural_profile to inspect that exact position; acknowledged:true when
-    suppressed by acknowledged_weaknesses) and truncated (true when the incongruencies list
-    was shortened to fit the output budget — the headline counts still reflect all flags).
-    Filtered to min_severity and capped to limit (default 10, max 50). Bad input →
-    {"error","reason"}.
+    Returns: total_flagged, leaves_analyzed, clusters (system label → leaf count, largest
+    first — the opening-system partition), by_type (counts), incongruencies (each: type,
+    severity, description, cluster = the system label the flag is relative to, paths = the SAN
+    variation_path(s) — feed a path to get_structural_profile to inspect that exact position;
+    acknowledged:true when suppressed by acknowledged_weaknesses) and truncated (true when the
+    incongruencies list was shortened to fit the output budget — the headline counts still
+    reflect all flags). Filtered to min_severity and capped to limit (default 10, max 50). Bad
+    input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -1266,6 +1272,142 @@ def suggest_replacement_line(
     }
 
 
+# ---------------------------------------------------------------------------
+# Stateful edit loop — mutation + export (REPERTOIRE_DESIGN.md section 9). Both are
+# engine-free. modify_repertoire_line is an ACTION tool (returns a NEW repertoire_id; the
+# source id is unchanged). export_repertoire is the read-only artifact escape hatch.
+# ---------------------------------------------------------------------------
+
+_EDIT_ERROR_REASON = {
+    "variation_not_found": "path (or promote_move) does not match a line in the repertoire",
+    "invalid_line": "add_moves contains a move that is illegal in its position",
+    "invalid_edit": (
+        "malformed edit: empty add_moves, missing promote_move, or prune of the root"
+    ),
+}
+
+
+def _edit_summary(
+    action: str,
+    path: list[str],
+    rep: "repertoire._Repertoire",
+    result: dict,
+    add_moves: list[str] | None,
+    promote_move: str | None,
+) -> str:
+    """One-line human-readable diff of an edit vs the source tree (node/leaf deltas)."""
+    where = " ".join(path) if path else "root"
+    dn = result["nodes"] - rep.nodes
+    dl = result["leaves"] - rep.leaves
+    if action == "prune":
+        return f"pruned subtree at '{where}' ({dn:+d} nodes, {dl:+d} leaves)"
+    if action == "add":
+        n = len(add_moves or [])
+        return f"added {n} ply under '{where}' ({dn:+d} nodes, {dl:+d} leaves)"
+    return f"promoted '{promote_move}' to mainline at '{where}'"
+
+
+@mcp.tool()
+def modify_repertoire_line(
+    repertoire_id: str,
+    path: list[str],
+    action: Literal["prune", "add", "reorder"],
+    add_moves: list[str] | None = None,
+    promote_move: str | None = None,
+) -> dict:
+    """
+    Edit ONE line of a repertoire and get back a NEW repertoire_id for the modified tree.
+    ACTION tool: the source repertoire_id keeps resolving to the UNMODIFIED tree (the edit is
+    applied to a deep copy), so you can branch and compare. The new id works IMMEDIATELY with
+    every read tool (analyze_repertoire_congruence, find_repertoire_gaps, get_structural_profile,
+    get_transpositions, get_repertoire_coverage) — load → edit → re-analyze without re-uploading.
+
+    path = SAN variation_path (e.g. ["e4","c5","Nf3"]) addressing the node the action operates on;
+    [] = the root. All chess validation is the server's — pass only paths + SAN a prior tool call
+    surfaced; never hand-author moves.
+      action "prune"   → remove the node at path and its whole subtree (path must be non-empty;
+                         the root cannot be pruned).
+      action "add"     → graft add_moves (SAN list) as plies UNDER the node at path, merging into
+                         an existing child when the move already exists (no duplicate siblings).
+                         Every ply is validated; an illegal SAN → invalid_line.
+      action "reorder" → make promote_move (one SAN) the recommended mainline (variations[0])
+                         among the children at path — a move-order/priority change, no new
+                         positions invented.
+
+    Returns: new_repertoire_id, action, nodes, leaves, max_depth, summary (one-line diff vs the
+    source). Then re-run the read tools on new_repertoire_id, or export_repertoire to save.
+    Errors: repertoire_not_found, variation_not_found, invalid_line (illegal SAN in add_moves),
+    invalid_edit (malformed request — empty add_moves, missing promote_move, prune of root),
+    too_many_moves. Bad input → {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    # Validate action↔payload agreement: a payload field set for the wrong action signals a
+    # mis-shaped request, not an edit to silently ignore (REPERTOIRE_DESIGN.md §9.2).
+    unexpected = []
+    if action != "add" and add_moves is not None:
+        unexpected.append("add_moves")
+    if action != "reorder" and promote_move is not None:
+        unexpected.append("promote_move")
+    if unexpected:
+        return {
+            "error": "invalid_edit",
+            "reason": f"action '{action}' does not take {', '.join(unexpected)}",
+        }
+    if action == "add" and add_moves and len(add_moves) > MAX_LINE_MOVES:
+        return {
+            "error": "too_many_moves",
+            "reason": f"add_moves exceeds {MAX_LINE_MOVES} plies",
+        }
+    new_game, err = repertoire.apply_repertoire_edit(
+        rep.game, action, path, add_moves, promote_move
+    )
+    if err is not None:
+        return {"error": err, "reason": _EDIT_ERROR_REASON[err]}
+    result = repertoire.store_repertoire(new_game, rep.color)
+    return {
+        "new_repertoire_id": result["repertoire_id"],
+        "action": action,
+        "nodes": result["nodes"],
+        "leaves": result["leaves"],
+        "max_depth": result["max_depth"],
+        "summary": _edit_summary(action, path, rep, result, add_moves, promote_move),
+    }
+
+
+@mcp.tool()
+def export_repertoire(repertoire_id: str) -> dict:
+    """
+    Serialize a repertoire's current tree back to a multi-variation PGN string — the escape
+    hatch that ends the edit loop. Read-only. WRITE the returned pgn to disk yourself; do NOT
+    echo it into the conversation — it is an artifact (potentially large), not a reasoning
+    primitive.
+
+    One [Event] holding the whole tree (a multi-opening repertoire's openings become first-move
+    variations under the root); re-loading it with load_repertoire reproduces the same tree.
+
+    Returns: pgn (the PGN string), nodes, leaves, max_depth, games (always 1). Bad input →
+    {"error","reason"}.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return {
+            "error": "repertoire_not_found",
+            "reason": "unknown or expired repertoire_id; call load_repertoire",
+        }
+    return {
+        "pgn": repertoire.export_pgn(rep.game),
+        "nodes": rep.nodes,
+        "leaves": rep.leaves,
+        "max_depth": rep.max_depth,
+        "games": 1,
+    }
+
+
 # Gap severity: how close an uncovered opponent move is to their best reply (cp, opponent POV).
 _GAP_HIGH_CP, _GAP_MED_CP = 30, 80
 # A gap is only as urgent as the edge the opponent actually gains by it. A near-best
@@ -1454,9 +1596,9 @@ def classify_illustrative_lines(
         lines.append({"path": c["path"], "reason": c["reason"]})
         illus_leaf_ids.update(id(lf) for lf in repertoire.leaves_under(c["node"]))
 
-    candidates = repertoire.player_side_variations(
-        rep.game, rep.color, illus_node_ids
-    )[:max_positions]
+    candidates = repertoire.player_side_variations(rep.game, rep.color, illus_node_ids)[
+        :max_positions
+    ]
     scanned = 0
     if candidates:
         with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:

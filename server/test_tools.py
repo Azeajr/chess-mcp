@@ -463,3 +463,132 @@ def test_find_gaps_output_has_transposition_endpoints_field(rid):
 
     src = inspect.getsource(cm.find_repertoire_gaps)
     assert "transposition_endpoints" in src
+
+
+# --- modify_repertoire_line + export_repertoire (stateful edit loop, engine-free) ---
+
+
+def test_modify_bad_id():
+    assert (
+        cm.modify_repertoire_line("nope", [], "prune")["error"]
+        == "repertoire_not_found"
+    )
+
+
+def test_modify_add_grafts_and_returns_new_id(rid):
+    r = cm.modify_repertoire_line(
+        rid, ["d4", "d5", "c4"], "add", add_moves=["c6", "Nf3"]
+    )
+    assert r["action"] == "add" and "new_repertoire_id" in r
+    assert r["new_repertoire_id"] != rid
+    assert r["nodes"] == 12 and r["leaves"] == 2  # +2 nodes (c6, Nf3), +1 leaf
+    assert "added 2 ply" in r["summary"]
+
+
+def test_modify_is_clone_on_write_source_unchanged(rid):
+    before = repertoire.get_repertoire(rid).nodes
+    cm.modify_repertoire_line(rid, ["d4", "d5", "c4"], "add", add_moves=["c6"])
+    # the source id still resolves to the UNMODIFIED tree (immutable-handle contract)
+    assert repertoire.get_repertoire(rid).nodes == before
+
+
+def test_modify_new_id_works_with_every_read_tool(rid):
+    new_id = cm.modify_repertoire_line(
+        rid, ["d4", "d5", "c4"], "add", add_moves=["c6", "Nf3"]
+    )["new_repertoire_id"]
+    # each engine-free read tool resolves the new id immediately (no re-upload)
+    assert cm.get_structural_profile(new_id)["leaves_analyzed"] == 2
+    assert "incongruencies" in cm.analyze_repertoire_congruence(new_id)
+    assert cm.get_repertoire_coverage(new_id)["leaves"] == 2
+    assert "transpositions" in cm.get_transpositions(new_id)
+
+
+def test_modify_add_illegal_move(rid):
+    r = cm.modify_repertoire_line(rid, ["d4"], "add", add_moves=["Qh9"])
+    assert r["error"] == "invalid_line"
+
+
+def test_modify_add_empty(rid):
+    assert cm.modify_repertoire_line(rid, ["d4"], "add")["error"] == "invalid_edit"
+
+
+def test_modify_add_too_many_moves(rid):
+    r = cm.modify_repertoire_line(rid, ["d4"], "add", add_moves=["a"] * 501)
+    assert r["error"] == "too_many_moves"
+
+
+def test_modify_prune_removes_subtree(rid):
+    leaf = ["d4", "d5", "c4", "e6", "Nc3", "Nf6", "cxd5", "exd5", "Bg5"]
+    r = cm.modify_repertoire_line(rid, leaf, "prune")
+    assert r["nodes"] < repertoire.get_repertoire(rid).nodes
+    assert "pruned subtree" in r["summary"]
+
+
+def test_modify_prune_root_rejected(rid):
+    assert cm.modify_repertoire_line(rid, [], "prune")["error"] == "invalid_edit"
+
+
+def test_modify_prune_bad_path(rid):
+    assert (
+        cm.modify_repertoire_line(rid, ["e4", "zz"], "prune")["error"]
+        == "variation_not_found"
+    )
+
+
+def test_modify_reorder_promotes_child(rid):
+    added = cm.modify_repertoire_line(rid, ["d4", "d5", "c4"], "add", add_moves=["c6"])[
+        "new_repertoire_id"
+    ]
+    r = cm.modify_repertoire_line(
+        added, ["d4", "d5", "c4"], "reorder", promote_move="c6"
+    )
+    assert "promoted 'c6'" in r["summary"]
+    # c6 is now variations[0] at that node on the returned tree
+    node = repertoire.resolve_path(
+        repertoire.get_repertoire(r["new_repertoire_id"]).game, ["d4", "d5", "c4"]
+    )
+    assert node.variations[0].san() == "c6"
+
+
+def test_modify_reorder_missing_promote_move(rid):
+    assert cm.modify_repertoire_line(rid, ["d4"], "reorder")["error"] == "invalid_edit"
+
+
+def test_modify_reorder_bad_child(rid):
+    r = cm.modify_repertoire_line(rid, ["d4"], "reorder", promote_move="h6")
+    assert r["error"] == "variation_not_found"
+
+
+def test_modify_rejects_payload_for_wrong_action(rid):
+    # a payload field set for the wrong action → invalid_edit (mis-shaped request, §9.2)
+    assert (
+        cm.modify_repertoire_line(rid, ["d4"], "prune", add_moves=["e4"])["error"]
+        == "invalid_edit"
+    )
+    assert (
+        cm.modify_repertoire_line(
+            rid, ["d4"], "add", add_moves=["d5"], promote_move="d5"
+        )["error"]
+        == "invalid_edit"
+    )
+
+
+def test_export_bad_id():
+    assert cm.export_repertoire("nope")["error"] == "repertoire_not_found"
+
+
+def test_export_roundtrips_through_load(rid):
+    exp = cm.export_repertoire(rid)
+    assert exp["games"] == 1 and exp["pgn"].strip()
+    reloaded = cm.load_repertoire(exp["pgn"], "white")
+    assert reloaded["nodes"] == exp["nodes"] and reloaded["leaves"] == exp["leaves"]
+
+
+def test_export_reflects_a_prior_edit(rid):
+    new_id = cm.modify_repertoire_line(
+        rid, ["d4", "d5", "c4"], "add", add_moves=["c6", "Nf3"]
+    )["new_repertoire_id"]
+    exp = cm.export_repertoire(new_id)
+    assert exp["nodes"] == 12
+    # the exported PGN carries the grafted line back through a fresh load
+    assert cm.load_repertoire(exp["pgn"], "white")["nodes"] == 12
