@@ -121,7 +121,7 @@ Code and keep every move/line engine-grounded:
 ### Prerequisites
 
 - **Docker** — runs the server (bundles Stockfish + Python deps; no host install). Docker **Compose** is only needed for the long-running SSE server path below.
-- **Claude Code** (`claude` CLI) — the MCP client.
+- **Claude Code** (`claude` CLI) or **OpenCode** (`opencode` CLI) — the MCP client.
 
 ### Recommended: install the plugin (server + skills, one step)
 
@@ -230,6 +230,55 @@ claude mcp get chess-analysis     # health-checks the connection
 Or in Claude Code: ask it to run `get_legal_moves` on the starting position. Then paste a PGN and
 invoke `chess-game-review`, or give your repertoire PGN + your color and invoke `repertoire-builder`.
 
+### OpenCode
+
+OpenCode supports MCP servers natively. When running `opencode` from this repository, the
+`opencode.json` config registers `chess-analysis` (SSE at `localhost:8000`) automatically —
+approve the prompt, no manual setup needed. Skills in `.claude/skills/` also auto-discover.
+
+```bash
+# Start the server (same as Claude Code)
+docker compose up -d --build
+# Then run opencode from this directory
+opencode
+```
+
+**User-scope (any directory):** register the server globally in
+`~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "chess-analysis": {
+      "type": "remote",
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+**One-line stdio (no daemon):** register as a local MCP server in `opencode.json`:
+
+```json
+{
+  "mcp": {
+    "chess-analysis": {
+      "type": "local",
+      "command": ["docker", "run", "-i", "--rm", "-e", "MCP_TRANSPORT=stdio", "ghcr.io/azeajr/chess-mcp:latest"]
+    }
+  }
+}
+```
+
+**Skills:** copy to user scope with `make opencode-setup` or manually:
+
+```bash
+cp -r .claude/skills/* ~/.config/opencode/skills/
+```
+
+Confirm with `get_legal_moves` on the start position. Then invoke skills:
+`repertoire-builder`, `chess-game-review`, `analyze-position`, `annotate-pgn`.
+
 ## Configuration
 
 Environment variables (set in `compose.yml`):
@@ -257,6 +306,7 @@ chess-mcp/
 ├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
 ├── Makefile                 # up / pull / down / logs / test / lint / register / install
 ├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
+├── opencode.json            # OpenCode MCP config (SSE at localhost:8000)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
 ├── .claude-plugin/          # marketplace.json — lists the chess-mcp plugin (this repo as a marketplace)
 ├── plugin/                  # the distributable plugin: .claude-plugin/plugin.json, .mcp.json (stdio), skills/

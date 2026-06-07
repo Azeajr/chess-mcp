@@ -1,4 +1,4 @@
-.PHONY: help up pull down logs build test lint register install sync-skills
+.PHONY: help up pull down logs build test lint register install sync-skills opencode-setup
 
 help:  ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -32,3 +32,16 @@ install:  ## Native (non-Docker) install: stockfish + uv deps
 
 sync-skills:  ## Mirror canonical plugin/skills -> .claude/skills (run after editing skills)
 	rm -rf .claude/skills && cp -r plugin/skills .claude/skills
+
+opencode-setup:  ## Install skills for OpenCode user scope + print MCP registration command
+	mkdir -p ~/.config/opencode/skills && cp -r .claude/skills/* ~/.config/opencode/skills/
+	@echo ""
+	@echo "Skills installed to ~/.config/opencode/skills/ — available in every OpenCode session."
+	@echo ""
+	@echo "MCP server (pick one):"
+	@echo "  In-repo (project config):  opencode.json already registers chess-analysis (SSE at :8000)."
+	@echo "                              Run 'docker compose up -d' first, then 'opencode' from this dir."
+	@echo "  Any dir (user scope):      Add to ~/.config/opencode/opencode.json:"
+	@echo '    {"mcp":{"chess-analysis":{"type":"remote","url":"http://localhost:8000/sse"}}}'
+	@echo "  One-line stdio (no daemon):"
+	@echo '    {"mcp":{"chess-analysis":{"type":"local","command":["docker","run","-i","--rm","-e","MCP_TRANSPORT=stdio","ghcr.io/azeajr/chess-mcp:latest"]}}}'
