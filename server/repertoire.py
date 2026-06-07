@@ -131,6 +131,48 @@ def find_transpositions(game: chess.pgn.Game) -> list[dict]:
     return converging
 
 
+# How far to follow an engine PV when checking whether an "uncovered" opponent move is
+# really a move-order transposition back into prepared territory (REPERTOIRE_DESIGN.md §13).
+_FWD_TRANSP_PLIES = 12
+
+
+def continued_position_keys(game: chess.pgn.Game) -> dict[str, list[str]]:
+    """{position_key: san_path} for every INTERIOR node (>= 1 reply) — the positions where
+    the repertoire continues. A forward line that transposes into one of these has rejoined
+    prepared territory. Keyed by `_position_key` (exact position identity); shallowest path
+    wins as the human-readable label. Used by the gap finder's forward-transposition check."""
+    out: dict[str, list[str]] = {}
+    for node in iter_nodes(game):
+        if not node.variations:
+            continue
+        path = san_path(node)
+        key = _position_key(node.board())
+        if key not in out or len(path) < len(out[key]):
+            out[key] = path
+    return out
+
+
+def pv_rejoins_prep(
+    board: chess.Board,
+    pv: list[chess.Move],
+    continued_keys: dict[str, list[str]],
+    max_plies: int = _FWD_TRANSP_PLIES,
+) -> list[str] | None:
+    """Walk the engine PV from `board` (an opponent-to-move gap position; pv[0] is the
+    uncovered opponent move) and return the first prepared position it transposes into, or
+    None. If the engine's best line re-enters the tree within max_plies, the "gap" is a
+    move-order transposition, not a real hole (REPERTOIRE_DESIGN.md §13). Pure — no engine IO."""
+    b = board.copy(stack=False)
+    for move in pv[:max_plies]:
+        if move not in b.legal_moves:  # a PV from a transposed search can desync — stop
+            break
+        b.push(move)
+        path = continued_keys.get(_position_key(b))
+        if path is not None:
+            return path
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Illustrative-line detection (Issue #18). A gamebook study embeds "wrong-answer" side
 # variations; the cheap (engine-free) tiers live here, the engine tier in chess_mcp.py.

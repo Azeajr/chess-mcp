@@ -590,3 +590,69 @@ Build order (tests + evals at each step):
 3. Validate clustering on the two real repertoires; pin the Black regression test.
 4. Skill + loop doc; update `CONTEXT.md` / `MCP_DESIGN.md` / `README.md` error-codes + tool
    count (18 → 20); regenerate `evals/` snapshots in Docker; measure the two new outputs.
+
+---
+
+## 13. Forward-transposition gap suppression
+
+### Problem
+
+`find_repertoire_gaps` flags an opponent move `M` at an opponent-to-move node `N` when
+`M ∉ covered(N)` and the engine rates `M` strong. Existing transposition-awareness
+(`opponent_reply_nodes`, issue #3) is **backward / at-node**: it dedups `N` nodes reached by
+several move orders and *unions* their `covered` sets. It does **not** look forward — so when
+the opponent reaches a prepared position by a *different move order one or more plies later*,
+the move that gets there is flagged as a phantom gap.
+
+Observed on the Black repertoire (ground-truth run, 208 raw gaps): the Caro Advance mainline is
+`…3.e5 Bf5 4.Nf3 e6 5.Be2 Nd7 6.O-O Ne7 7.c3`. The gap finder flags `5.c3` (eval +36, medium)
+because at ply 5 only `Be2` is a child of `N` — even though `5.c3 … 6.Be2 7.O-O` simply
+transposes into the same tabiya the mainline reaches at move 7. Pure move-order noise.
+
+### Insight (cost-free signal)
+
+The engine pass at `N` is already `multipv`, and **each `info["pv"]` is the full principal
+variation starting with the candidate move `M`** — the engine's best line for *both* sides after
+`M`. We do not need a second engine call: walk that PV and ask whether it re-enters prepared
+territory.
+
+### Mechanism
+
+- `repertoire.continued_position_keys(game) -> {position_key: san_path}` — every **interior**
+  tree node (`node.variations` non-empty), i.e. a position where the repertoire *continues*.
+  Keyed by `_position_key` (placement+turn+castling+ep — the same exact-position identity the
+  rest of the tooling uses; collisions are real transpositions, never accidental). Shallowest
+  path wins as the human-readable label.
+- `repertoire.pv_rejoins_prep(board, pv, continued_keys, max_plies=_FWD_TRANSP_PLIES)` — copy
+  `board` (the gap position), push PV moves one at a time (≤ `max_plies`), and return the first
+  `continued_keys` path whose position the line transposes into, else `None`. Engine-free, pure.
+- `_gaps_from_infos` takes an optional `continued_keys`; when given, a gap whose PV rejoins prep
+  gets `transposes_to = <rejoined path>`. `find_repertoire_gaps` partitions: rejoining gaps are
+  **removed from `gaps`** (and `total_gaps`) and reported under a new
+  `forward_transpositions: [{path, move, transposes_to}]` (capped at `limit`) so suppression is
+  transparent, never silent. `transposition_endpoints` (backward dedup) is unchanged.
+
+### Soundness & limits
+
+A key match means the *exact* position is in the tree with a continuation — so the destination
+is genuinely prepared. The **heuristic** part: the bridging moves the engine PV plays to get
+there may not yet be nodes in the tree, and the PV is the engine's single best line (the
+opponent could deviate from it). So suppression means "a sound line transposes back into your
+prep within `max_plies`," not "every continuation is memorised." `forward_transpositions` exists
+precisely so the user can inspect and, if desired, graft the connector via
+`modify_repertoire_line`. Conservative by construction: a short PV or no rejoin keeps the gap.
+
+### Decision log
+
+| # | Decision | Choice | Why |
+|---|----------|--------|-----|
+| F1 | Where to get the forward line | **Reuse `info["pv"]` from the existing multipv pass** | Zero extra engine cost; the PV is the engine's critical line after `M`. |
+| F2 | Rejoin target set | **Interior nodes only (`continued_keys`)** | Rejoining a frontier/dangling leaf is not coverage; an interior node is where prep continues. |
+| F3 | Suppress vs demote | **Suppress from `gaps`, list under `forward_transpositions`** | Directly kills move-order noise (the ask) while staying inspectable — mirrors `transposition_endpoints` transparency. |
+| F4 | Lookahead depth | **`_FWD_TRANSP_PLIES = 12`** | Covers multi-move transpositions (the Caro case rejoins ~ply 6) while bounded; longer PVs are simply truncated. |
+| F5 | New param? | **No toggle — always on** | Tight contract (AGENTS.md); the `forward_transpositions` list is the escape hatch, not a flag. |
+
+Build order: (1) `continued_position_keys` + `pv_rejoins_prep` + unit tests (engine-free);
+(2) thread `continued_keys` through `_gaps_from_infos` + partition in `find_repertoire_gaps` +
+docstring; (3) Docker: re-run gap finder on the Black repertoire, confirm move-order gaps move
+to `forward_transpositions`; regenerate `evals/` snapshot.

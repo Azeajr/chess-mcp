@@ -1455,6 +1455,72 @@ def test_opponent_reply_nodes_no_transpositions_has_single_path():
 
 
 # ---------------------------------------------------------------------------
+# Forward-transposition gap suppression (REPERTOIRE_DESIGN.md section 13)
+# ---------------------------------------------------------------------------
+
+
+def _key_after(sans: list[str]) -> str:
+    board = chess.Board()
+    for m in sans:
+        board.push_san(m)
+    return repertoire._position_key(board)
+
+
+def test_continued_position_keys_maps_interior_excludes_leaves():
+    rep = build_repertoire(["d4 d5 c4 e6 Nc3"])  # linear; Nc3 is the only leaf
+    keys = repertoire.continued_position_keys(rep.game)
+    assert _key_after(["d4"]) in keys  # first move continues → interior
+    assert _key_after(["d4", "d5", "c4", "e6"]) in keys  # continues with Nc3
+    assert keys[_key_after(["d4", "d5", "c4", "e6"])] == ["d4", "d5", "c4", "e6"]
+    assert _key_after(["d4", "d5", "c4", "e6", "Nc3"]) not in keys  # leaf excluded
+
+
+def test_continued_position_keys_shallowest_path_wins():
+    # Same position via two orders, both continuing (…Nc3). Label = a 4-ply path, not longer.
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3", "c4 e6 d4 Nf6 Nc3"])
+    keys = repertoire.continued_position_keys(rep.game)
+    key = _key_after(["d4", "Nf6", "c4", "e6"])
+    assert key in keys and len(keys[key]) == 4
+
+
+def test_pv_rejoins_prep_detects_transposition():
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3"])
+    keys = repertoire.continued_position_keys(rep.game)
+    # Gap reached by a different order (c4 first), Black to move; …e6 transposes into the
+    # prepared QGD position after d4 Nf6 c4 e6.
+    gap = chess.Board()
+    for m in ["c4", "Nf6", "d4"]:
+        gap.push_san(m)
+    pv = [gap.parse_san("e6")]
+    assert repertoire.pv_rejoins_prep(gap, pv, keys) == ["d4", "Nf6", "c4", "e6"]
+
+
+def test_pv_rejoins_prep_none_when_no_rejoin():
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3"])
+    keys = repertoire.continued_position_keys(rep.game)
+    gap = chess.Board()
+    gap.push_san("e4")  # unrelated opening
+    pv = [gap.parse_san("e5")]
+    assert repertoire.pv_rejoins_prep(gap, pv, keys) is None
+
+
+def test_pv_rejoins_prep_respects_max_plies():
+    rep = build_repertoire(["d4 Nf6 c4 e6 Nc3"])
+    keys = repertoire.continued_position_keys(rep.game)
+    gap = chess.Board()
+    for m in ["c4", "Nf6", "d4"]:
+        gap.push_san(m)
+    pv = [gap.parse_san("e6")]  # rejoins at ply 1
+    assert repertoire.pv_rejoins_prep(gap, pv, keys, max_plies=0) is None
+    assert repertoire.pv_rejoins_prep(gap, pv, keys, max_plies=1) == [
+        "d4",
+        "Nf6",
+        "c4",
+        "e6",
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Tree mutation — pure clone-on-write helpers (REPERTOIRE_DESIGN.md section 9)
 # ---------------------------------------------------------------------------
 

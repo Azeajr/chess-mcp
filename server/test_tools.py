@@ -415,6 +415,28 @@ def test_gaps_from_infos_all_covered_or_empty():
     assert cm._gaps_from_infos(board, [], set()) == []
 
 
+def test_gaps_from_infos_tags_forward_transposition():
+    # Gap board: Black (opponent) to move after c4 Nf6 d4. Candidate …e6 transposes into the
+    # prepared QGD position after d4 Nf6 c4 e6, which is interior in continued_keys.
+    board = chess.Board()
+    for m in ["c4", "Nf6", "d4"]:
+        board.push_san(m)
+    target = chess.Board()
+    for m in ["d4", "Nf6", "c4", "e6"]:
+        target.push_san(m)
+    continued = {repertoire._position_key(target): ["d4", "Nf6", "c4", "e6"]}
+    info = {
+        "score": chess.engine.PovScore(chess.engine.Cp(-30), chess.WHITE),
+        "pv": [board.parse_san("e6")],
+    }
+    # No continued_keys → flagged as a plain gap, no transposes_to.
+    plain = cm._gaps_from_infos(board, [info], set())
+    assert plain and "transposes_to" not in plain[0][0]
+    # With continued_keys → same gap gains transposes_to (the rejoined path).
+    tagged = cm._gaps_from_infos(board, [info], set(), continued)
+    assert tagged[0][0]["transposes_to"] == ["d4", "Nf6", "c4", "e6"]
+
+
 # --- repertoire tool guards (engine-free path) ---
 
 

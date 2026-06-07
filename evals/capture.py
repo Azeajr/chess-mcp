@@ -85,6 +85,12 @@ def main():
         rid, leaf_fen, "sharp", DEPTH, 3
     )
 
+    # suggest from a gap FEN (opponent to move) — exercises auto-advance
+    gap_fen = "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
+    outputs["suggest_complementary_lines.gap_auto_advance"] = (
+        cm.suggest_complementary_lines(rid, gap_fen, "low_memorization", DEPTH, 3)
+    )
+
     tools = [
         cm.get_game_summary,
         cm.analyze_game,

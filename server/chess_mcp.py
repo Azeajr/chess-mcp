@@ -950,8 +950,14 @@ def suggest_complementary_lines(
     elsewhere (least new theory), ranked by profile_match [0,1]. mode "sharp" → maximally
     unbalanced/novel structures, ranked by a sharpness heuristic.
 
+    Auto-advance: if fen has the OPPONENT to move (e.g. a gap position from
+    find_repertoire_gaps), the engine pushes the opponent's best move first, then
+    suggests user replies from the resulting position. The opponent_move field in the
+    output records what was auto-advanced.
+
     Returns: mode, anchor_fen, suggestions (each: move SAN, resulting_structure, eval
-    (white-POV cp), pv, and profile_match or sharpness). limit default 5, max 10.
+    (white-POV cp), pv, and profile_match or sharpness), opponent_move (SAN, present
+    only when auto-advance occurred). limit default 5, max 10.
     time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
     ignored); depth is the reproducible default. Bad input → {"error","reason"}.
     """
@@ -980,10 +986,29 @@ def suggest_complementary_lines(
     pool = min(
         MAX_MULTIPV, limit + 2
     )  # extra candidates so the soundness floor has slack
-    mover = board.turn
+
+    rep_color = rep.color  # chess.Color (bool); rep stores WHITE/BLACK, not the string
+    opponent_move_san = None
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        if board.turn != rep_color:
+            opp_info = engine.analyse(board, _limit(depth, time_limit))
+            opp_pv = opp_info.get("pv")
+            if not opp_pv:
+                return {"mode": mode, "anchor_fen": board.fen(), "suggestions": []}
+            opponent_move_san = board.san(opp_pv[0])
+            board.push(opp_pv[0])
+            if board.is_game_over():
+                return {
+                    "mode": mode,
+                    "anchor_fen": board.fen(),
+                    "opponent_move": opponent_move_san,
+                    "suggestions": [],
+                }
+
         infos = engine.analyse(board, _limit(depth, time_limit), multipv=pool)
+
+    mover = board.turn
 
     def _mover_cp(info: dict) -> int:
         cp = _score_cp(info["score"])  # white-POV
@@ -1036,11 +1061,14 @@ def suggest_complementary_lines(
     else:
         ranked.sort(key=lambda t: -t[0]["sharpness"])
 
-    return {
+    result = {
         "mode": mode,
         "anchor_fen": board.fen(),
         "suggestions": [entry for entry, _ in ranked[:limit]],
     }
+    if opponent_move_san is not None:
+        result["opponent_move"] = opponent_move_san
+    return result
 
 
 @mcp.tool()
@@ -1417,7 +1445,10 @@ _GAP_SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
 def _gaps_from_infos(
-    board: chess.Board, infos: list, covered: set[str]
+    board: chess.Board,
+    infos: list,
+    covered: set[str],
+    continued_keys: dict[str, list[str]] | None = None,
 ) -> list[tuple[dict, int]]:
     """Uncovered strong opponent replies at one position (pure; engine IO is the caller's).
 
@@ -1425,6 +1456,10 @@ def _gaps_from_infos(
     repertoire already answers. Returns [(entry, mover_cp)] for each engine top move NOT in
     covered; entry = {uncovered_move SAN, eval white-POV cp, severity}. Severity is set by how
     close the move is to the opponent's best — a near-best uncovered move is the urgent hole.
+
+    continued_keys (optional): {position_key: path} of the repertoire's interior positions. When
+    given, a gap whose engine PV transposes back into prepared territory gets an extra
+    transposes_to = <rejoined path> — a move-order transposition, not a real hole (§13).
     """
     if not infos:
         return []
@@ -1455,16 +1490,16 @@ def _gaps_from_infos(
             severity = "low"
         elif mcp < _GAP_EDGE_MED and severity == "high":
             severity = "medium"
-        gaps.append(
-            (
-                {
-                    "uncovered_move": board.san(pv[0]),
-                    "eval": _score_cp(info["score"]),
-                    "severity": severity,
-                },
-                mcp,
-            )
-        )
+        entry = {
+            "uncovered_move": board.san(pv[0]),
+            "eval": _score_cp(info["score"]),
+            "severity": severity,
+        }
+        if continued_keys is not None:
+            rejoin = repertoire.pv_rejoins_prep(board, pv, continued_keys)
+            if rejoin is not None:
+                entry["transposes_to"] = rejoin
+        gaps.append((entry, mcp))
     return gaps
 
 
@@ -1484,16 +1519,23 @@ def find_repertoire_gaps(
     internal decision point — not an unextended frontier leaf), runs the engine, and flags top
     opponent moves you do not cover.
 
-    Transposition-aware: positions reached by multiple move orders are deduplicated and
-    their covered-move sets merged, so a move answered in one branch is not flagged as a
-    gap in another. transposition_endpoints lists positions where this merging occurred.
+    Transposition-aware two ways: (1) backward — positions reached by multiple move orders are
+    deduplicated and their covered-move sets merged, so a move answered in one branch is not
+    flagged as a gap in another (transposition_endpoints lists where this merging occurred);
+    (2) forward — an uncovered opponent move whose engine PV transposes back into prepared
+    territory within a few plies is a move-order transposition, not a real hole, so it is moved
+    out of gaps into forward_transpositions (each {path, move, transposes_to = the rejoined
+    SAN path}). This is what keeps move-order noise (e.g. a tabiya reached a move early) out of
+    the gap list.
 
-    Returns: color, positions_scanned, total_gaps, gaps (each: path = SAN variation_path of the
+    Returns: color, positions_scanned, total_gaps (real holes only — excludes forward
+    transpositions), gaps (each: path = SAN variation_path of the
     position to drill via get_structural_profile/suggest_complementary_lines, uncovered_move
     (SAN, opponent's), eval (white-POV cp after it), severity high/medium/low by how close it is
     to the opponent's best AND how large an edge the opponent gains — a near-best reply that keeps the
     opponent near-equal is downgraded), transposition_endpoints (positions resolved by transposition — each
-    {fen, paths}). Filtered to min_severity (default medium), gaps capped to limit
+    {fen, paths}), forward_transpositions (suppressed move-order gaps, capped at limit).
+    Filtered to min_severity (default medium), gaps capped to limit
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
     shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can
     diverge ~26 cp from depth 20); depth/time_limit tune each engine pass.
@@ -1526,16 +1568,30 @@ def find_repertoire_gaps(
 
     floor = _GAP_SEVERITY_RANK[min_severity]
     multipv = min(MAX_MULTIPV, 5)  # enough breadth to surface a missed strong reply
+    continued_keys = repertoire.continued_position_keys(rep.game)
     found: list[tuple[dict, int]] = []
+    forward_transp: list[dict] = []
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         for nd in nodes:
             infos = engine.analyse(
                 nd["board"], _limit(depth, time_limit), multipv=multipv
             )
-            for entry, mcp in _gaps_from_infos(nd["board"], infos, nd["covered"]):
+            for entry, mcp in _gaps_from_infos(
+                nd["board"], infos, nd["covered"], continued_keys
+            ):
                 if _GAP_SEVERITY_RANK[entry["severity"]] < floor:
                     continue
-                found.append(({"path": nd["path"], **entry}, mcp))
+                rejoin = entry.pop("transposes_to", None)
+                if rejoin is not None:  # move-order transposition, not a real hole (§13)
+                    forward_transp.append(
+                        {
+                            "path": nd["path"],
+                            "move": entry["uncovered_move"],
+                            "transposes_to": rejoin,
+                        }
+                    )
+                else:
+                    found.append(({"path": nd["path"], **entry}, mcp))
 
     found.sort(key=lambda t: (-_GAP_SEVERITY_RANK[t[0]["severity"]], -t[1]))
     return {
@@ -1544,6 +1600,7 @@ def find_repertoire_gaps(
         "total_gaps": len(found),
         "gaps": [entry for entry, _ in found[:limit]],
         "transposition_endpoints": transposition_endpoints,
+        "forward_transpositions": forward_transp[:limit],
     }
 
 
