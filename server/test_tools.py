@@ -58,6 +58,24 @@ def test_load_too_large():
     assert cm.load_repertoire("1. e4 e5 " * 200000, "white")["error"] == "pgn_too_large"
 
 
+def test_load_rejects_illegal_move():
+    # the run's bug: a truncated PGN leaves an illegal SAN (here black "g3"); python-chess
+    # drops the tail and would load a partial tree silently. #1 makes it fail loudly.
+    bad = '[Event "t"]\n\n1. d4 d5 2. c4 e6 3. Nc3 g3 *\n'
+    assert cm.load_repertoire(bad, "white")["error"] == "invalid_pgn"
+
+
+def test_validate_pgn_rejects_illegal_move():
+    r = cm.validate_pgn('[Event "t"]\n\n1. e4 e5 2. Qh6 *\n')  # Qh6 is not a legal queen move
+    assert r["valid"] is False and r["error"] == "invalid_pgn"
+
+
+def test_parse_game_rejects_illegal_move():
+    # the single-game path (game tools) guards too — engine-free check via the raw parser
+    with pytest.raises(ValueError):
+        cm._parse_game('[Event "t"]\n\n1. e4 e5 2. Qh6 *\n')
+
+
 # --- get_structural_profile ---
 
 
@@ -79,6 +97,33 @@ def test_profile_bad_path(rid):
     assert (
         cm.get_structural_profile(rid, ["d4", "Qh5"])["error"] == "variation_not_found"
     )
+
+
+# --- find_repertoire_gaps (#2 wall-clock budget) ---
+
+
+def test_find_gaps_budget_exhausted_returns_partial(rid, monkeypatch):
+    # GAP_BUDGET_S=0 → the loop breaks before any engine call; verifies the partial-result
+    # contract (positions_scanned, budget_exhausted, reason) without needing Stockfish.
+    monkeypatch.setattr(cm, "_GAP_BUDGET_S", 0.0)
+
+    class _DummyEngine:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def analyse(self, *a, **k):
+            raise AssertionError("engine must not run once the budget is spent")
+
+    monkeypatch.setattr(
+        chess.engine.SimpleEngine, "popen_uci", staticmethod(lambda *a, **k: _DummyEngine())
+    )
+    r = cm.find_repertoire_gaps(rid)
+    assert r["positions_scanned"] == 0
+    assert r["budget_exhausted"] is True
+    assert r["gaps"] == [] and "reason" in r
 
 
 # --- analyze_repertoire_congruence ---

@@ -70,6 +70,25 @@ Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `e
 
 Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
 
+### Repertoire file I/O (`chess-files`, host-side)
+
+A companion MCP server — `chess-files` — loads a repertoire (and writes an export) by **file path**,
+so a large PGN is read on the host and never piped through the model's context: no client-side
+truncation, no per-load token cost. It runs over stdio (the client spawns it) and forwards to the
+`chess-analysis` server over SSE; the returned `repertoire_id` resolves across both because they
+share the one backend process. See `PROXY_DESIGN.md`.
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `load_repertoire_from_file` | path, color | Reads the PGN file on the host in full, loads it, returns the same handle as `load_repertoire` (`repertoire_id` + tree stats) — the PGN never enters the model's context |
+| `export_repertoire_to_file` | repertoire_id, path | Serializes the tree to a host PGN file, returns `{path, bytes, leaves}` only (never the PGN text) |
+
+Paths are confined to `REPERTOIRE_DIR` (default the repo's `repertoires/`). Errors:
+`file_not_found` / `not_a_file` / `path_not_allowed` / `pgn_too_large` / `decode_error` (host-side),
+`invalid_pgn` / `repertoire_not_found` (relayed), `backend_unreachable`. Auto-registered for the
+**in-repo SSE workflow** (`.mcp.json` / `opencode.json`); **not** bundled in the Docker-stdio plugin,
+which has no shared `:8000` to forward to.
+
 ### Recommended workflow
 
 **Game review:**
@@ -291,6 +310,7 @@ Environment variables (set in `compose.yml`):
 | `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
 | `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
 | `MAX_ENGINE_TIME_S` | `60` | Ceiling for the optional per-call `time_limit` (seconds; floor 0.01) |
+| `GAP_BUDGET_S` | `45` | `find_repertoire_gaps` total wall-clock budget (seconds): on a large tree it scans shallowest-first until spent, then returns partial results with `budget_exhausted:true`. Lower it if your MCP client's request timeout is under ~60s |
 | `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
 | `MAX_REPERTOIRE_BYTES` | `1000000` | Reject `load_repertoire` PGN larger than this (larger cap for variation trees) |
 | `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
@@ -299,14 +319,21 @@ Environment variables (set in `compose.yml`):
 
 > **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_REPERTOIRE_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without limit.
 
+### `chess-files` proxy env (set in `.mcp.json` / `opencode.json`, not `compose.yml`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHESS_MCP_URL` | `http://localhost:8000/sse` | SSE URL of the `chess-analysis` backend the proxy forwards to |
+| `REPERTOIRE_DIR` | repo `repertoires/` | Base dir that `load_repertoire_from_file` / `export_repertoire_to_file` paths are confined to |
+
 ## Project layout
 
 ```
 chess-mcp/
 ├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
 ├── Makefile                 # up / pull / down / logs / test / lint / register / install
-├── .mcp.json                # Claude Code MCP config (SSE at localhost:8000)
-├── opencode.json            # OpenCode MCP config (SSE at localhost:8000)
+├── .mcp.json                # Claude Code MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
+├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
 ├── .claude-plugin/          # marketplace.json — lists the chess-mcp plugin (this repo as a marketplace)
 ├── plugin/                  # the distributable plugin: .claude-plugin/plugin.json, .mcp.json (stdio), skills/
@@ -316,6 +343,7 @@ chess-mcp/
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
 ├── MCP_DESIGN.md            # design principles for this server
 ├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
+├── PROXY_DESIGN.md          # design spec for the chess-files file-path proxy (SSE-only, dev workflow)
 ├── ROADMAP_DESIGN.md        # design spec for the shipped roadmap items (time_limit, tree analysis, export, structures)
 ├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ├── evals/                   # harnesses (engine-free unless noted)
@@ -326,12 +354,14 @@ chess-mcp/
 │   └── snapshots/outputs.json
 └── server/
     ├── chess_mcp.py         # All 18 MCP tools, FastMCP SSE server
+    ├── chess_files.py       # chess-files proxy: load/export a repertoire by file path (stdio → SSE)
     ├── structure.py         # engine-free pawn-structure analysis (19 structures + theme tags)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
     ├── openings.py          # ECO opening lookup (EPD → name)
     ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
     ├── test_structure_repertoire.py  # pytest suite (engine-free): structure + repertoire
     ├── test_tools.py                  # pytest suite: tool wrappers (validation, errors, caps)
+    ├── test_chess_files.py            # pytest suite: chess-files proxy guards (backend mocked)
     ├── pyproject.toml       # uv project + dependencies
     ├── Dockerfile           # uv+Python3.14 base, apt stockfish
     └── .dockerignore

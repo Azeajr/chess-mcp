@@ -4,6 +4,11 @@
     "chess-analysis": {
       "type": "remote",
       "url": "http://localhost:8000/sse"
+    },
+    "chess-files": {
+      "type": "local",
+      "command": ["uv", "run", "--directory", "server", "chess_files.py"],
+      "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
     }
   }
 }

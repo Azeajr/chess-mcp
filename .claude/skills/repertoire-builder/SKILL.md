@@ -22,9 +22,9 @@ Everything engine-grounded; nothing asserted from memory.
 
 ## Grounding contract (applies to every step)
 
-1. **Validate the user's input first.** Pasted a FEN → call `validate_fen`; a PGN → `validate_pgn`.
-   On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the **normalized**
-   `fen` the validator returns as the position from here on.
+1. **Validate the user's input first.** Pasted a FEN → call `validate_fen`; a **pasted** PGN →
+   `validate_pgn`. On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the
+   **normalized** `fen` the validator returns as the position from here on.
 2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
    tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
    `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
@@ -33,6 +33,11 @@ Everything engine-grounded; nothing asserted from memory.
    standard start position.
 4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never
    fall back to analyzing from memory.
+5. **Never read a PGN file into your context.** A repertoire (or any PGN) on disk goes through
+   `load_repertoire_from_file(path, color)` — the file is read server-side, never by you. Do NOT
+   open it with Read / `cat` / Bash: that re-introduces the client-side truncation that silently
+   corrupts the tree (a whole analysis built on a half-loaded repertoire), and burns context for
+   nothing. `load_repertoire(pgn, color)` is only for a PGN the user already pasted into the chat.
 
 ## Inputs
 
@@ -46,6 +51,14 @@ Everything engine-grounded; nothing asserted from memory.
 of the PGN — don't re-send the PGN. The handle lives in the server's cache; if a later call returns
 `repertoire_not_found` (idle expiry), just call `load_repertoire` again.
 
+**Loading from a file? Use `load_repertoire_from_file(path, color)`** (the `chess-files` server) —
+never read the file yourself (grounding rule 5). It reads the file on the server host in full — no
+client-side truncation, and the PGN never enters your context — and returns the same `repertoire_id`
++ stats. `path` is confined to the configured repertoire dir. `load_repertoire(pgn, color)` is only
+for a PGN the user pasted into the chat (or if the `chess-files` server isn't available). Caveat:
+loading from a file, you can't pre-`validate_pgn` (you never hold the PGN) — rely on the loader's
+error if the file won't parse as a repertoire.
+
 Editing returns a NEW handle: `modify_repertoire_line` deep-copies the tree, applies the edit, and
 returns a fresh `repertoire_id` — the source id still resolves to the unmodified tree. So you improve
 a repertoire in ONE session (load → edit → re-analyze the new id → … → export), branching and
@@ -55,8 +68,9 @@ comparing handles, with no re-download. See "Edit loop" below.
 
 0. `validate_pgn(pgn)` — confirm the repertoire PGN parses (expect `has_variations:true` for a real
    tree). On `valid:false`, stop and report; never load unvalidated input.
-1. `load_repertoire(pgn, color)` → `repertoire_id`. Note `leaves` (how many distinct lines) and
-   `max_depth`.
+1. `load_repertoire(pgn, color)` → `repertoire_id` — or `load_repertoire_from_file(path, color)`
+   when the repertoire is a file on disk (same handle, read server-side; see above). Note `leaves`
+   (how many distinct lines) and `max_depth`.
 2. `get_structural_profile(repertoire_id)` (no path) → the repertoire's **aggregate fingerprint**:
    which `structures` it reaches (IQP / Carlsbad / Maroczy / unknown, with counts), center tendencies,
    common open / half-open files. This is the repertoire's strategic identity — state it plainly.
@@ -100,9 +114,11 @@ same session — no hand-editing, no re-download, no fresh session:
 3. **Re-analyze on the new id.** Run `analyze_repertoire_congruence` / `find_repertoire_gaps` /
    `get_structural_profile` / `get_repertoire_coverage` on the returned id to confirm the edit did what
    you intended (and didn't introduce a new gap). Iterate id → id → id; keep earlier ids to compare.
-4. **Export + save once done:** `export_repertoire(final_id)` returns the full multi-variation `pgn`
-   string — Write it to disk for the user to re-upload. **Write the `pgn` field straight to a file; do
-   NOT print it into the conversation** (it's a large artifact, not something to read aloud).
+4. **Export + save once done:** prefer `export_repertoire_to_file(final_id, path)` (the `chess-files`
+   server) — it writes the PGN to disk server-side and returns only `{path, bytes, leaves}`, so the
+   large PGN never enters your context (`path` is confined to the configured repertoire dir).
+   Otherwise `export_repertoire(final_id)` returns the `pgn` string — Write it to disk yourself;
+   **do NOT print it into the conversation** (large artifact, not something to read aloud).
 
 The agent orchestrates the loop purely with paths / actions / SAN the MCP surfaced. The ONLY chess
 content it ever writes to disk is the `pgn` string `export_repertoire` returned — it never authors,

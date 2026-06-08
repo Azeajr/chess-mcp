@@ -10,6 +10,7 @@ import io
 import json
 import math
 import os
+import time
 
 import structure
 import repertoire
@@ -30,6 +31,9 @@ MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
 MAX_COMPARE_MOVES = MAX_MULTIPV  # compare_moves searches one line per candidate
 MAX_GAP_POSITIONS = 60  # find_repertoire_gaps engine-pass ceiling
+_GAP_BUDGET_S = float(
+    os.environ.get("GAP_BUDGET_S", "45")
+)  # find_repertoire_gaps total wall-clock budget — keeps the scan under the client request timeout
 _PV_THEME_WINDOW = (
     8  # plies walked from pivot when scoring profile_match via theme fallback
 )
@@ -135,21 +139,41 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
     return " ".join(parts)
 
 
+def _parse_error(game: chess.pgn.Game) -> str | None:
+    """The first parse error python-chess recorded, cleaned of its noisy `while parsing
+    <Game at 0x…>` tail (a memory address). None when the game parsed cleanly.
+
+    python-chess's default reader logs an illegal/garbled move into `game.errors` and keeps
+    going — so a truncated or corrupt PGN parses "successfully" with its tail silently dropped.
+    Surfacing this is the difference between rejecting a half-loaded repertoire and analyzing
+    one (#1)."""
+    if not game.errors:
+        return None
+    return str(game.errors[0]).split(" while parsing")[0]
+
+
 def _parse_game(pgn: str) -> chess.pgn.Game:
-    """Parse PGN into a game tree, validating it has moves."""
+    """Parse PGN into a game tree, validating it has moves and parsed cleanly."""
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None or game.next() is None:
         raise ValueError("PGN contains no moves")
+    if reason := _parse_error(game):
+        raise ValueError(f"PGN has an unparseable move and would load incompletely: {reason}")
     return game
 
 
 def _parse_games(pgn: str) -> list[chess.pgn.Game]:
     """Parse every game in a (possibly multi-game) PGN. A repertoire export is one
     [Event] block per opening, so all are returned for the caller to merge. Games with no
-    moves (header-only stubs) are skipped; raises ValueError if none have moves."""
+    moves (header-only stubs) are skipped; raises ValueError if none have moves, or if any
+    game has a parse error (an illegal/garbled move — see _parse_error; #1)."""
     stream = io.StringIO(pgn)
     games: list[chess.pgn.Game] = []
     while (game := chess.pgn.read_game(stream)) is not None:
+        if reason := _parse_error(game):
+            raise ValueError(
+                f"PGN has an unparseable move and would load incompletely: {reason}"
+            )
         if game.next() is not None:
             games.append(game)
     if not games:
@@ -1538,7 +1562,10 @@ def find_repertoire_gaps(
     Filtered to min_severity (default medium), gaps capped to limit
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
     shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can
-    diverge ~26 cp from depth 20); depth/time_limit tune each engine pass.
+    diverge ~26 cp from depth 20); depth/time_limit tune each engine pass. A total wall-clock budget
+    (GAP_BUDGET_S env, default 45s) keeps the scan under the client's request timeout: on a large
+    tree it scans shallowest-first until the budget is spent, then returns partial results with
+    budget_exhausted:true + a reason (narrow via max_positions/exclude_paths, or raise GAP_BUDGET_S).
     exclude_paths = variation_paths (e.g. from classify_illustrative_lines) whose subtree is
     skipped — don't spend the engine budget scanning illustrative "wrong-answer" lines.
     Bad input → {"error","reason"}.
@@ -1571,11 +1598,28 @@ def find_repertoire_gaps(
     continued_keys = repertoire.continued_position_keys(rep.game)
     found: list[tuple[dict, int]] = []
     forward_transp: list[dict] = []
+    # Total wall-clock budget so a large tree can't run past the client's request timeout — the
+    # default depth-20 × max_positions × multipv scan otherwise did (#2). Scan shallowest-first
+    # (nodes are already ordered that way) at full depth until the budget runs out, then return
+    # partial results flagged budget_exhausted. The per-position time ceiling = remaining budget,
+    # so one slow position can't overrun; on fast opening positions depth stops it first, keeping
+    # the depth-20 accuracy rationale on the common path.
+    deadline = time.monotonic() + _GAP_BUDGET_S
+    scanned = 0
+    budget_exhausted = False
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         for nd in nodes:
-            infos = engine.analyse(
-                nd["board"], _limit(depth, time_limit), multipv=multipv
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                budget_exhausted = True
+                break
+            pos_limit = (
+                _limit(depth, time_limit)
+                if time_limit is not None
+                else chess.engine.Limit(depth=depth, time=remaining)
             )
+            infos = engine.analyse(nd["board"], pos_limit, multipv=multipv)
+            scanned += 1
             for entry, mcp in _gaps_from_infos(
                 nd["board"], infos, nd["covered"], continued_keys
             ):
@@ -1594,14 +1638,21 @@ def find_repertoire_gaps(
                     found.append(({"path": nd["path"], **entry}, mcp))
 
     found.sort(key=lambda t: (-_GAP_SEVERITY_RANK[t[0]["severity"]], -t[1]))
-    return {
+    result = {
         "color": "white" if rep.color == chess.WHITE else "black",
-        "positions_scanned": len(nodes),
+        "positions_scanned": scanned,
         "total_gaps": len(found),
         "gaps": [entry for entry, _ in found[:limit]],
         "transposition_endpoints": transposition_endpoints,
         "forward_transpositions": forward_transp[:limit],
     }
+    if budget_exhausted:
+        result["budget_exhausted"] = True
+        result["reason"] = (
+            f"stopped at the {_GAP_BUDGET_S:g}s budget after scanning {scanned}/{len(nodes)} "
+            "positions (shallowest first); narrow with max_positions/exclude_paths, or raise GAP_BUDGET_S"
+        )
+    return result
 
 
 _ILLUS_LOSS_CP, _ILLUS_BAD_CP = 150, 120  # #18 Tier-3 engine thresholds

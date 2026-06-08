@@ -3,6 +3,12 @@
     "chess-analysis": {
       "type": "sse",
       "url": "http://localhost:8000/sse"
+    },
+    "chess-files": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "server", "chess_files.py"],
+      "env": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
     }
   }
 }
