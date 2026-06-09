@@ -160,11 +160,11 @@ docker compose up -d --build   # build locally (Stockfish + deps), serves SSE on
 ```
 
 A prebuilt image is published to GHCR (public) — skip the build and pull it instead (tags:
-`latest`, `v0.1.6`):
+`latest`, `v0.2.12`):
 
 ```bash
 docker compose pull && docker compose up -d
-# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:v0.1.6
+# or standalone: docker run -p 8000:8000 ghcr.io/azeajr/chess-mcp:latest
 ```
 
 `restart: unless-stopped` keeps it running across reboots; after pulling code changes, rebuild with
@@ -181,8 +181,7 @@ Run Claude Code from the cloned directory:
 claude
 ```
 
-- Approve the project MCP server when prompted — `.mcp.json` registers `chess-analysis`; it shows
-  `⏸ Pending approval` until you approve it once.
+- Approve the MCP servers when prompted — `.mcp.json` registers `chess-analysis` (SSE) and `chess-files` (stdio proxy); each shows `⏸ Pending approval` until approved once.
 - The skills in `.claude/skills/` load automatically.
 
 Works only when Claude Code runs **inside the repo directory**.
@@ -248,7 +247,7 @@ docker compose up -d --build
 opencode
 ```
 
-**User-scope (any directory):** register the server globally in
+**User-scope (any directory):** register the servers globally in
 `~/.config/opencode/opencode.json`:
 
 ```json
@@ -257,10 +256,17 @@ opencode
     "chess-analysis": {
       "type": "remote",
       "url": "http://localhost:8000/sse"
+    },
+    "chess-files": {
+      "type": "local",
+      "command": ["uv", "run", "--directory", "/path/to/chess-mcp/server", "chess_files.py"],
+      "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
     }
   }
 }
 ```
+
+Replace `/path/to/chess-mcp` with the absolute path to your cloned repo.
 
 **One-line stdio (no daemon):** register as a local MCP server in `opencode.json`:
 
@@ -321,14 +327,19 @@ chess-mcp/
 ├── .mcp.json                # Claude Code MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
+├── .claude/settings.json    # project settings: SessionStart hook (auto-start Docker) + MCP server approvals
 ├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, SSE workflow)
 ├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
 ├── MCP_DESIGN.md            # design principles for this server
 ├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
-├── PROXY_DESIGN.md          # design spec for the chess-files file-path proxy (SSE-only, dev workflow)
-├── ROADMAP_DESIGN.md        # design spec for the shipped roadmap items (time_limit, tree analysis, export, structures)
+├── PROXY_DESIGN.md          # design spec for the chess-files file-path proxy
+├── FEATURES_DESIGN.md       # design spec for gaps, coverage, compare_moves
+├── ROADMAP_DESIGN.md        # design spec for shipped roadmap items
+├── STRUCTURE_CLASSIFIER_DESIGN.md  # design spec for pawn-structure classifier
+├── ILLUSTRATIVE_LINE_DESIGN.md     # design spec for classify_illustrative_lines
+├── GROUNDING_DESIGN.md      # grounding principles and skill-authoring decisions
 ├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ├── evals/                   # harnesses (engine-free unless noted)
 │   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
@@ -337,7 +348,7 @@ chess-mcp/
 │   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
 │   └── snapshots/outputs.json
 └── server/
-    ├── chess_mcp.py         # All 18 MCP tools, FastMCP SSE server
+    ├── chess_mcp.py         # All 22 MCP tools, FastMCP SSE server
     ├── chess_files.py       # chess-files proxy: load/export a repertoire by file path (stdio → SSE)
     ├── structure.py         # engine-free pawn-structure analysis (19 structures + theme tags)
     ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
