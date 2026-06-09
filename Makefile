@@ -1,4 +1,4 @@
-.PHONY: help up pull down logs build test lint register install sync-skills opencode-setup
+.PHONY: help up pull down logs build test lint register install opencode-setup
 
 help:  ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -29,9 +29,6 @@ register:  ## Register the MCP server with Claude Code (user scope)
 
 install:  ## Native (non-Docker) install: stockfish + uv deps
 	./install.sh
-
-sync-skills:  ## Mirror canonical plugin/skills -> .claude/skills (run after editing skills)
-	rm -rf .claude/skills && cp -r plugin/skills .claude/skills
 
 opencode-setup:  ## Install skills for OpenCode user scope + print MCP registration command
 	mkdir -p ~/.config/opencode/skills && cp -r .claude/skills/* ~/.config/opencode/skills/

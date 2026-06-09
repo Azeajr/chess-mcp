@@ -56,9 +56,7 @@ on by default via `addopts`; 134 tests pass). Engine paths (`compare_moves`, `fi
 **Repo:** https://github.com/Azeajr/chess-mcp
 **Release:** v0.2.11 — image published and public at `ghcr.io/azeajr/chess-mcp` (`latest` +
 `v0.2.11`); the `docker compose pull` / `docker run` prebuilt install path is verified end-to-end
-(pull → boot → tools over SSE). v0.2.11 also realigned `plugin/.claude-plugin/plugin.json` +
-`.claude-plugin/marketplace.json` (they had drifted, stuck at 0.1.6 through the 0.2.x line) back to
-the `pyproject.toml` version — keep all three equal on every bump.
+(pull → boot → tools over SSE). v0.2.11 also fixed a version drift issue — keep `server/pyproject.toml` version updated on every bump.
 
 ## Files
 
@@ -76,11 +74,9 @@ the `pyproject.toml` version — keep all three equal on every bump.
 | `compose.yml` | Docker Compose: port 8000, env vars |
 | `.mcp.json` | Claude Code MCP config: SSE at localhost:8000 |
 | `.github/workflows/ci.yml` | Single workflow: `test` (`uv run pytest`, engine-free + branch coverage) + `docker` (build image **and** boot it) + `publish` (tag-gated, `needs: [test, docker]` → push `ghcr.io/azeajr/chess-mcp:latest`+`:<tag>` to GHCR) |
-| `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install`/`sync-skills` |
+| `Makefile` | Command wrappers: `up`/`pull`/`down`/`logs`/`build`/`test`/`lint`/`register`/`install` |
 | `install.sh` | Native (non-Docker) install: detects pacman/apt/brew, `uv sync --no-dev`, optional `--systemd` unit |
 | `LICENSE` | MIT, © 2026 Antonio Zea |
-| `.claude-plugin/marketplace.json` | Makes the repo a plugin marketplace (`name: azeajr`), listing the `chess-mcp` plugin at `source: ./plugin` |
-| `plugin/` | The distributable Claude Code plugin: `.claude-plugin/plugin.json`, `.mcp.json` (stdio `docker run` of the published image), and `skills/` (copies of the 4 skills) |
 | `evals/` | Token harness: `capture.py` (real outputs, needs engine → Docker), `measure.py` (tiktoken, engine-free), `snapshots/outputs.json` |
 | `sample-game.pgn` | Anonymized single-game PGN fixture |
 | `sample-repertoire.pgn` | Sample White 1.d4 repertoire tree fixture |
@@ -131,34 +127,12 @@ One workflow, `.github/workflows/ci.yml`, runs on push to `main`, on PRs, and on
 Engine-backed paths (`suggest_complementary_lines` ranking, `evals/capture.py`) are **not** in CI —
 they need Stockfish and are verified manually in Docker. Status badge is in `README.md`.
 
-Cutting a release is just: bump the version (`pyproject` + `plugin/.claude-plugin/plugin.json` +
-`.claude-plugin/marketplace.json` — keep them equal), commit, then `git tag v0.x.y && git push origin
+Cutting a release is just: bump the version in `server/pyproject.toml`, commit, then `git tag v0.x.y && git push origin
 v0.x.y`. The tag drives the rest (image publish + GitHub release) via the workflow; **the tag itself
 is the trigger, so it stays a manual push** (a workflow can't create the tag that starts it).
 **v0.1.0–v0.1.8 and v0.2.0–v0.2.11** are published (v0.1.1 has no GitHub release — predates the `release` job).
 The GHCR package's visibility was set to **public** once (a manual one-time step in package settings —
 no reliable REST endpoint for it), so anonymous `docker compose pull` / stdio `docker run` works.
-
-## Plugin
-
-The repo doubles as a Claude Code plugin marketplace. `.claude-plugin/marketplace.json` (name
-`azeajr`) lists one plugin, `chess-mcp`, at `source: ./plugin`. The plugin (`plugin/`) bundles the
-`chess-analysis` MCP server as **stdio over Docker** (`plugin/.mcp.json` →
-`docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest`) plus the four skills
-(`plugin/skills/`). Install is one step: `/plugin marketplace add azeajr/chess-mcp` then
-`/plugin install chess-mcp@azeajr`; skills are namespaced `/chess-mcp:<skill>`.
-
-- The skills in `plugin/skills/` are **copies** of `.claude/skills/` (a plugin can't reference files
-  outside its own dir, and symlinks are cross-platform-fragile). Keep both in sync via
-  `make sync-skills` (canonical = `plugin/skills/` → mirrors into `.claude/skills/`) when a skill
-  changes — `.claude/skills/` is the in-repo/standalone copy (auto-loads when running `claude` in the
-  repo against the SSE server); `plugin/skills/` is the distributed copy.
-- Verified end-to-end (June 2026): `claude plugin validate` passes; installing from the **GitHub**
-  marketplace (`claude plugin marketplace add azeajr/chess-mcp` → `install` → `details`) detects all 4
-  skills + the 1 `chess-analysis` MCP server; and a headless `claude -p … --permission-mode
-  bypassPermissions` session loaded the plugin, spawned the docker-stdio server, and called
-  `get_legal_moves` (→ `move_count` 20). The test marketplace/install was removed afterward.
-- The plugin's MCP server requires Docker on the user's machine (it shells out to `docker run`).
 
 ## Known design notes
 

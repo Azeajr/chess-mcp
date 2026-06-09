@@ -16,9 +16,6 @@ docker compose up -d --build
 
 # pull prebuilt image + start
 docker compose pull && docker compose up -d
-
-# sync skills (canonical → .claude/skills)
-make sync-skills
 ```
 
 ## Architecture
@@ -40,7 +37,7 @@ Engine-backed tools are NOT in CI. CI runs only engine-free tests.
 
 ## Release
 
-1. Bump version in **three files** (must match): `server/pyproject.toml`, `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
+1. Bump version in `server/pyproject.toml`
 2. Commit, then `git tag v0.x.y && git push origin v0.x.y` — the tag triggers GHCR publish + GitHub release.
 
 ## CI workflow
@@ -62,7 +59,7 @@ Engine-backed tools are NOT in CI. CI runs only engine-free tests.
 
 - No Ruff config file — lint is ad-hoc via `uv run --with ruff ruff check server evals`.
 - No `Co-Authored-By` in commits.
-- Skills: canonical copy is `plugin/skills/`; run `make sync-skills` to mirror to `.claude/skills/`.
+- Skills: canonical copy is `.claude/skills/` — edit directly.
 - Tool contract: docstrings in `chess_mcp.py` are the single source of truth. README has the summary table. Design docs: `REPERTOIRE_DESIGN.md`, `STRUCTURE_CLASSIFIER_DESIGN.md`, `FEATURES_DESIGN.md`, `MCP_DESIGN.md`, `ILLUSTRATIVE_LINE_DESIGN.md`.
 - `validate_fen` also rejects illegal-but-parseable positions (two kings, side-not-to-move in check) via `board.status()` — not just syntax.
 - `suggest_complementary_lines`: `multipv = MAX_MULTIPV, limit + 2` for soundness slack; engine's best vs mover difference > 100cp → candidate skipped.

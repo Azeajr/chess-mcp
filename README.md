@@ -8,16 +8,17 @@ MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via 
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
 
-Install the **plugin** — it bundles the chess engine (MCP server) *and* the skills in one step, no clone. In Claude Code:
+```bash
+# Clone and start the server
+git clone https://github.com/Azeajr/chess-mcp
+cd chess-mcp
+docker compose pull && docker compose up -d
 
-```text
-/plugin marketplace add azeajr/chess-mcp
-/plugin install chess-mcp@azeajr
+# Open Claude Code from the repo directory — MCP servers + skills load automatically
+claude
 ```
 
-The `chess-analysis` server runs on demand via Docker (stdio); the first call pulls the image. Then paste a PGN and invoke `/chess-mcp:chess-game-review`, give your repertoire PGN + color for `/chess-mcp:repertoire-builder`, or hand it a FEN for `/chess-mcp:analyze-position`.
-
-Prefer a long-running / shared / remote server, or a one-line server-only install without the plugin? See [Setup](#setup).
+Approve the MCP servers when prompted. Then paste a PGN and invoke `/chess-game-review`, give your repertoire PGN + color for `/repertoire-builder`, or hand it a FEN for `/analyze-position`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
 
 ## Problem
 
@@ -85,9 +86,7 @@ share the one backend process. See `PROXY_DESIGN.md`.
 
 Paths are confined to `REPERTOIRE_DIR` (default the repo's `repertoires/`). Errors:
 `file_not_found` / `not_a_file` / `path_not_allowed` / `pgn_too_large` / `decode_error` (host-side),
-`invalid_pgn` / `repertoire_not_found` (relayed), `backend_unreachable`. Auto-registered for the
-**in-repo SSE workflow** (`.mcp.json` / `opencode.json`); **not** bundled in the Docker-stdio plugin,
-which has no shared `:8000` to forward to.
+`invalid_pgn` / `repertoire_not_found` (relayed), `backend_unreachable`. Registered in `.mcp.json` and `opencode.json`.
 
 ### Recommended workflow
 
@@ -142,20 +141,7 @@ Code and keep every move/line engine-grounded:
 - **Docker** — runs the server (bundles Stockfish + Python deps; no host install). Docker **Compose** is only needed for the long-running SSE server path below.
 - **Claude Code** (`claude` CLI) or **OpenCode** (`opencode` CLI) — the MCP client.
 
-### Recommended: install the plugin (server + skills, one step)
-
-The plugin bundles the `chess-analysis` MCP server (stdio over Docker) **and** the four skills. In Claude Code:
-
-```text
-/plugin marketplace add azeajr/chess-mcp
-/plugin install chess-mcp@azeajr
-```
-
-Restart (or `/reload-plugins`) to activate. The server is spawned on demand via Docker — the first call pulls the image. Skills are namespaced under the plugin: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
-
-> This path is verified end-to-end: marketplace add → install → a live tool call routed through the plugin's Docker-stdio server. Requires Docker.
-
-### Server only, one command (stdio, no plugin)
+### One-line server (stdio, no daemon)
 
 Just the MCP server, no skills, nothing to clone — Claude Code spawns it on demand over **stdio**:
 
@@ -335,8 +321,6 @@ chess-mcp/
 ├── .mcp.json                # Claude Code MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
-├── .claude-plugin/          # marketplace.json — lists the chess-mcp plugin (this repo as a marketplace)
-├── plugin/                  # the distributable plugin: .claude-plugin/plugin.json, .mcp.json (stdio), skills/
 ├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, SSE workflow)
 ├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals

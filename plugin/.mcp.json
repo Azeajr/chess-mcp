@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "chess-analysis": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "MCP_TRANSPORT=stdio", "ghcr.io/azeajr/chess-mcp:latest"]
-    }
-  }
-}

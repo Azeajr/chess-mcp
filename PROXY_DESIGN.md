@@ -5,9 +5,7 @@ write an export) by **file path**, so the PGN is read where it lives instead of 
 through the model's context. Companion to `MCP_DESIGN.md` (every rule below traces back to it)
 and `REPERTOIRE_DESIGN.md` (the repertoire tools it fronts).
 
-Status: **design signed off** — host-side stdio proxy (P1), SSE-only deployment (P2),
-load+export tool surface (P3), `repertoires/` base dir (P4). Implementing Phase 1 → 2 → 3.
-Not yet shipped in the plugin (deferred, §9).
+Status: **implemented** — host-side stdio proxy (P1), SSE-only deployment (P2), load+export tool surface (P3), `repertoires/` base dir (P4).
 
 This doc is the contract. Implementation follows it; if reality forces a change, change this
 doc in the same commit.
@@ -77,9 +75,6 @@ cache (`_CACHE`, `server/repertoire.py`) is **process-global** and the proxy's S
 and the main `chess-analysis` client connection terminate at the **same `:8000` process**. Load
 via the proxy, drill via the main client — same cache, same id.
 
-This is also exactly why the proxy cannot thinly forward in the plugin deployment (§4): there is
-no shared `:8000` there.
-
 ## 4. Deployment — SSE only (decision P2)
 
 The repo ships three client configs, and they reach the chess server three ways:
@@ -88,12 +83,8 @@ The repo ships three client configs, and they reach the chess server three ways:
 |---|---|---|
 | `.mcp.json` (local dev) | SSE `http://localhost:8000/sse` | yes |
 | `opencode.json` | SSE (remote) `:8000` | yes |
-| `plugin/.mcp.json` (published) | stdio `docker run … :latest` | **no** — fresh container per session |
 
-The proxy forwards over SSE, so it works for the first two and **not** the plugin. Phase 1
-registers `chess-files` in `.mcp.json` and `opencode.json` only. The plugin keeps Read +
-`load_repertoire` until the self-spawn path (§9) is built. This matches where development
-actually happens and avoids shipping a half-working tool to plugin users.
+The proxy forwards over SSE. `chess-files` is registered in `.mcp.json` and `opencode.json`.
 
 ## 5. Tool contracts
 
@@ -161,26 +152,17 @@ New (under `server/`, reusing its `pyproject.toml` / `mcp[cli]` dep — no secon
   `:8000` in unit tests), matching `test_tools.py` conventions.
 
 Edited:
-- `.mcp.json`, `opencode.json` — register `chess-files`
-  (`uv run --directory server chess_files.py`). **Not** `plugin/.mcp.json`.
+- `.mcp.json`, `opencode.json` — register `chess-files` (`uv run --directory server chess_files.py`).
 - `server/pyproject.toml` — add `--cov=chess_files` to the pytest addopts.
-- `.claude/skills/repertoire-builder/SKILL.md` **and** `plugin/skills/repertoire-builder/SKILL.md`
-  — a hard grounding rule that the model **never reads a PGN file into context**; a file on disk
-  goes through `load_repertoire_from_file(path)`, with `load_repertoire(pgn)` reserved for a PGN the
-  user pasted into the chat. Reading the file yourself is exactly the truncation bug this feature
-  removes. (Mirrored — edit both.)
+- `.claude/skills/repertoire-builder/SKILL.md` — a hard grounding rule that the model **never reads a PGN file into context**; a file on disk goes through `load_repertoire_from_file(path)`, with `load_repertoire(pgn)` reserved for a PGN the user pasted into the chat.
 - `README.md` — document the server and `CHESS_MCP_URL` / `REPERTOIRE_DIR`.
 - Move root `*-repertoire.pgn` into `repertoires/`.
 
 ## 9. Non-goals / deferred
 
-- **Plugin support (self-spawn).** For the stdio-docker plugin the proxy would have to spawn and
-  own its own chess container (a second container, its own cache) and proxy *all* file-taking
-  tools through it. Deferred until the SSE proxy proves out.
 - **Other file tools.** `validate_pgn_file`, `export_annotated_pgn_to_file`,
   `analyze_game_from_file` are natural follow-ons; not in Phase 1.
-- **Version bump.** No `0.2.x` bump or marketplace realignment while the feature is dev-only
-  (not in the plugin). Bump when it ships to the plugin.
+- **Version bump.** Bump `server/pyproject.toml` when shipping a new release.
 
 ## 10. Build order
 
