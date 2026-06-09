@@ -6,7 +6,7 @@ MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via 
 
 ## Quickstart
 
-**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/), [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`), and [uv](https://docs.astral.sh/uv/getting-started/installation/) (for the `chess-files` host proxy).
 
 ```bash
 # Clone and start the server
@@ -14,11 +14,11 @@ git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
 docker compose pull && docker compose up -d
 
-# Open Claude Code from the repo directory — MCP servers + skills load automatically
+# Open Claude Code — MCP servers and skills register on first open
 claude
 ```
 
-Approve the MCP servers when prompted. Then paste a PGN and invoke `/chess-game-review`, give your repertoire PGN + color for `/repertoire-builder`, or hand it a FEN for `/analyze-position`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
+Approve both MCP servers when prompted (one-time). After that, the `SessionStart` hook keeps Docker running automatically on every session open. Then paste a PGN and invoke `/chess-game-review`, give your repertoire PGN + color for `/repertoire-builder`, or hand it a FEN for `/analyze-position`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
 
 ## Problem
 
