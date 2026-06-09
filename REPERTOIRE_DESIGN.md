@@ -406,7 +406,7 @@ it is an artifact, not a reasoning primitive, so it may exceed the ~2k-token bud
 large tree (bounded by `MAX_REPERTOIRE_BYTES`). The skill (Phase 3) MUST write the `pgn`
 field straight to disk and never echo it into reasoning/prose — that keeps the loop's
 context cost tiny (the whole point: exchange paths/actions + compact reports, never raw PGN).
-Rejected: bind-mount write (brittle, unsafe, no mount in the plugin's `docker run`).
+Rejected: bind-mount write (server cannot safely manage host filesystem; Docker containers have no portable host-path binding).
 
 **Decision E2 — export shape: one merged `[Event]` (E2a, SIGNED OFF).** `load_repertoire`
 merges a multi-game export into one variation forest under `games[0]`'s root/headers

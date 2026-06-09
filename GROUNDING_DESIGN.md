@@ -32,7 +32,7 @@ and consolidates the grounding rules so they cannot drift between skills.
 | G2 | No intent-named, cheap validator. FEN-validation means misusing `get_legal_moves`; PGN has no engine-free pre-flight (`get_game_summary` runs the engine). | R2 |
 | G3 | The model can still guess in **prose**. No tool stops words — only skill prose does, and that prose is worded differently in each skill (drift risk). | R1 |
 | G4 | `annotate-pgn` instructs the model to **hand-assemble the annotated PGN** — that is a model-authored PGN. The grounded `export_annotated_pgn` tool exists but the skill ignores it. | R1 |
-| G5 | `plugin/skills/` and `.claude/skills/` are git-tracked **duplicates**, hand-synced. An edit to one silently diverges. | process |
+| G5 | ~~`plugin/skills/` and `.claude/skills/` are git-tracked duplicates~~ — resolved. | process |
 
 ---
 
@@ -98,18 +98,9 @@ hand-built one." `validate_fen`/`validate_pgn` docstrings state "call on any use
 FEN/PGN before analysis." Descriptions are routing logic (`MCP_DESIGN.md`), so the contract
 lives there too, not only in skills.
 
-### D5 — `make sync-skills` (G5)
+### D5 — skills location (G5)
 
-Canonical source = `plugin/skills/` (the marketplace ships `./plugin`). Target mirrors it into
-`.claude/skills/` (the copy active in this repo's sessions):
-
-```
-sync-skills:  ## Mirror canonical plugin/skills -> .claude/skills
-	rm -rf .claude/skills && cp -r plugin/skills .claude/skills
-```
-
-Workflow: edit `plugin/skills/`, run `make sync-skills`. *Rejected:* a symlink (brittle across
-plugin packaging, git checkouts, Windows).
+Skills live in `.claude/skills/` — auto-load when running `claude` in the repo. Canonical source; edit directly. Plugin distribution was removed (2026-06); the `plugin/skills/` duplicate and `make sync-skills` no longer exist.
 
 ---
 
