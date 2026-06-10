@@ -51,22 +51,25 @@ git commit -m "..." && git push origin main
 ## 1. Structural Refactoring
 
 ```text
-Act as a pragmatic, veteran Python engineer working on chess-mcp, a FastMCP + python-chess + Stockfish MCP server. Perform a deep code review of server/chess_mcp.py, server/structure.py, and server/repertoire.py and immediately implement the structural changes that maximize maintainability, testability, and immediate obviousness. Ruthlessly remove "clever" code, premature abstractions, and over-engineering. Do not change tool behavior, output shapes, or the closed error-code set.
+Act as a pragmatic, veteran Python engineer working on chess-mcp, a FastMCP + python-chess + Stockfish MCP server. Perform a deep code review of server/chess_mcp.py, server/structure.py, and server/repertoire.py. Your dual mandate is to (1) hunt down and fix hidden bugs, logic errors, and edge-case failures, and (2) immediately implement structural changes that maximize maintainability, testability, and immediate obviousness. 
+
+Ruthlessly remove "clever" code, premature abstractions, and over-engineering. Do not change tool behavior, output shapes, or the closed error-code set.
 
 Evaluate and modify against these criteria:
-1. YAGNI: Remove abstractions solving hypothetical future problems. Prefer simple, slightly repetitive code if it lowers cognitive load.
-2. Locality of Behavior: Keep related logic together — e.g. a tool's validation, computation, and result shaping in one readable flow; cache mutation next to its eviction.
-3. Explicit data flow: Remove hidden side effects and tight coupling. structure.py and repertoire.py must stay pure and engine-free; the ONLY I/O boundaries (Stockfish subprocess, FastMCP/SSE) live in chess_mcp.py — keep them there.
-4. Structural flattening: Replace deep nesting and complex conditionals with early returns and linear paths. The error-guard-then-compute shape (return structured {"error","reason"} early) is the house style — follow it.
-5. Output discipline: Tool outputs must stay lean (~2k tokens, see MCP_DESIGN.md), nesting <= 2 levels, no field inferable from another. Do not regress this while refactoring.
+1. Correctness & Defensive Execution: Treat every line as a potential failure point. Actively spot and fix silent failures, off-by-one errors, state leaks, and edge-case logic bugs (especially around FEN handling, terminal nodes, and asynchronous engine output). Do not mask errors; handle them using the existing closed error-code set.
+2. YAGNI: Remove abstractions solving hypothetical future problems. Prefer simple, slightly repetitive code if it lowers cognitive load.
+3. Locality of Behavior: Keep related logic together — e.g. a tool's validation, computation, and result shaping in one readable flow; cache mutation next to its eviction.
+4. Explicit data flow: Remove hidden side effects and tight coupling. structure.py and repertoire.py must stay pure and engine-free; the ONLY I/O boundaries (Stockfish subprocess, FastMCP/SSE) live in chess_mcp.py — keep them there.
+5. Structural flattening: Replace deep nesting and complex conditionals with early returns and linear paths. The error-guard-then-compute shape (return structured {"error","reason"} early) is the house style — follow it.
+6. Output discipline: Tool outputs must stay lean (~2k tokens, see MCP_DESIGN.md), nesting <= 2 levels, no field inferable from another. Do not regress this while refactoring or fixing bugs.
 
 Honor the existing contract: stateless interface (the repertoire_id handle is the one exception), closed error codes (invalid_pgn, invalid_fen, invalid_color, move_not_found, pgn_too_large, too_many_moves, repertoire_not_found, variation_not_found, invalid_mode), white-POV centipawns.
 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: run the import-sanity command; if you touched the Dockerfile or engine paths, also `docker compose build`.
 2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
-3. Test: `cd server && uv run pytest -q`. If anything fails, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
-4. Commit with a concise message explaining WHY the structural change was made (not what). No Co-Authored-By trailer.
+3. Test: `cd server && uv run pytest -q`. If anything fails, or if a bug fix broke an existing assumption, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
+4. Commit with a concise message explaining WHY the bug was fixed or the structural change was made (not what). No Co-Authored-By trailer.
 5. Push: `git push origin main`.
 ```
 
