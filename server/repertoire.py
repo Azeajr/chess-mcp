@@ -681,12 +681,15 @@ def analyze_congruence(
         )
     n = len(data)
 
-    # Transposition endpoints are global (a position reached by multiple move orders),
-    # computed once over the whole tree and shared by every opening group (Issue #9).
-    _key_counts: Counter = Counter(
-        _position_key(node.board()) for node in iter_nodes(rep.game)
-    )
-    transposition_keys = {k for k, c in _key_counts.items() if c > 1}
+    # Transposition stubs: a leaf whose position the tree ALSO reaches as an interior
+    # node that continues — the stub is covered structurally via that longer move order.
+    # Keyed on continued (interior) positions only, not any reached-twice position: two
+    # theme-lacking leaves converging on the same position are both genuine outliers,
+    # not stubs (review-findings #8). Computed once over the whole tree and shared by
+    # every opening group (Issue #9).
+    transposition_keys = {
+        _position_key(node.board()) for node in iter_nodes(rep.game) if node.variations
+    }
 
     def _checks_for(group: list[dict]) -> list[dict]:
         """Run the three congruence checks within ONE opening's leaves (Issue #14).

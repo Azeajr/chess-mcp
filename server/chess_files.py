@@ -64,7 +64,7 @@ def _resolve_in_base(path: str) -> tuple[pathlib.Path | None, dict | None]:
     if not p.is_absolute():
         p = base / p
     real = p.resolve()  # strict=False: missing final component is fine (export targets)
-    if real != base and not real.is_relative_to(base):
+    if not real.is_relative_to(base):
         return None, {
             "error": "path_not_allowed",
             "reason": f"path must be within {base}",
@@ -154,6 +154,13 @@ async def load_repertoire_from_file(path: str, color: Literal["white", "black"])
         pgn = real.read_text(encoding="utf-8")
     except UnicodeDecodeError as e:
         return {"error": "decode_error", "reason": f"{real} is not valid UTF-8: {e}"}
+    # Re-check on the bytes actually read: the file can grow between stat() and
+    # read_text() (TOCTOU) — the stat() guard alone is advisory.
+    if len(pgn.encode("utf-8")) > _max_bytes():
+        return {
+            "error": "pgn_too_large",
+            "reason": f"{real} exceeds {_max_bytes()} bytes",
+        }
     if color not in ("white", "black"):
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
     return await _call_backend("load_repertoire", {"pgn": pgn, "color": color})

@@ -1047,8 +1047,8 @@ def suggest_complementary_lines(
         if not pv:
             continue
         move = pv[0]
-        mcp = _mover_cp(info)
-        if best_cp - mcp > 100:  # unsound relative to the best move → skip
+        mover_cp = _mover_cp(info)
+        if best_cp - mover_cp > 100:  # unsound relative to the best move → skip
             continue
         after = board.copy()
         after.push(move)
@@ -1077,8 +1077,10 @@ def suggest_complementary_lines(
                 for c in (chess.WHITE, chess.BLACK)
             )
             novelty = 0.0 if result_struct in shares else 1.0
-            entry["sharpness"] = round(abs(mcp) / 100.0 + 0.5 * imbalance + novelty, 2)
-        ranked.append((entry, mcp))
+            entry["sharpness"] = round(
+                abs(mover_cp) / 100.0 + 0.5 * imbalance + novelty, 2
+            )
+        ranked.append((entry, mover_cp))
 
     if mode == "low_memorization":
         ranked.sort(key=lambda t: (-t[0]["profile_match"], -t[1]))
@@ -1142,7 +1144,10 @@ def suggest_replacement_line(
         }
 
     # Find structural divergence: the earliest user move not shared with any
-    # dominant-theme line. Dominant theme = bool theme present in ≥50% of leaves.
+    # dominant-theme line. Dominant theme = bool theme present in ≥ _THEME_DOMINANCE
+    # of leaves — the same threshold analyze_congruence uses, so a line this tool
+    # treats as divergent is one congruence would also flag (a lower threshold here
+    # produced replacement suggestions for lines congruence considered fine).
     # Walk the path forward; the first user move absent from dominant-theme lines is
     # the outlier_move. Falls back to the last user move if no divergence is found
     # (e.g. no dominant theme, or the whole path is unique to this line). (Issue #7)
@@ -1156,7 +1161,11 @@ def suggest_replacement_line(
             for t in repertoire.BOOL_THEMES
             if structure.themes(leaf.board(), rep.color).get(t)
         )
-        dominant_themes = {t for t, c in theme_counts.items() if c / n_leaves >= 0.5}
+        dominant_themes = {
+            t
+            for t, c in theme_counts.items()
+            if c / n_leaves >= repertoire._THEME_DOMINANCE
+        }
 
     # (position_key, move_uci) pairs present in any dominant-theme leaf's path.
     dominant_pairs: set[tuple[str, str]] = set()
@@ -1245,9 +1254,7 @@ def suggest_replacement_line(
     shares = repertoire.profile_structure_shares(rep)
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        infos = engine.analyse(
-            pivot_board, _limit(depth, time_limit), multipv=min(MAX_MULTIPV, 5)
-        )
+        infos = engine.analyse(pivot_board, _limit(depth, time_limit), multipv=5)
 
     def _mover_cp(info: dict) -> int:
         cp = _score_cp(info["score"])
@@ -1263,8 +1270,8 @@ def suggest_replacement_line(
         move = pv[0]
         if move.uci() == outlier_uci:
             continue  # skip the exact move being replaced
-        mcp = _mover_cp(info)
-        if best_cp - mcp > 100:  # unsound relative to best → skip
+        mover_cp = _mover_cp(info)
+        if best_cp - mover_cp > 100:  # unsound relative to best → skip
             continue
         after = pivot_board.copy()
         after.push(move)
@@ -1305,17 +1312,17 @@ def suggest_replacement_line(
                 "eval_cp": _score_cp(info["score"]),
                 "resulting_structure": result_struct,
                 "profile_match": round(match, 2),
-                "_mcp": mcp,
+                "_mover_cp": mover_cp,
             }
         )
 
     if mode == "solid":
-        suggestions.sort(key=lambda s: -s["_mcp"])
+        suggestions.sort(key=lambda s: -s["_mover_cp"])
     else:
-        suggestions.sort(key=lambda s: (-s["profile_match"], -s["_mcp"]))
+        suggestions.sort(key=lambda s: (-s["profile_match"], -s["_mover_cp"]))
 
     for s in suggestions:
-        del s["_mcp"]
+        del s["_mover_cp"]
 
     return {
         "outlier_move": pivot_board.san(pivot_node.move),
@@ -1498,8 +1505,8 @@ def _gaps_from_infos(
         pv = info.get("pv")
         if not pv or pv[0].uci() in covered:
             continue
-        mcp = _mover_cp(info)
-        loss = best - mcp
+        mover_cp = _mover_cp(info)
+        loss = best - mover_cp
         severity = (
             "high"
             if loss <= _GAP_HIGH_CP
@@ -1510,9 +1517,9 @@ def _gaps_from_infos(
         # #19: cap severity by the opponent's absolute edge after the move. Closeness to
         # the opponent's best (loss) alone flags every near-equal opening reply as "high";
         # gate on whether the opponent actually stands better.
-        if mcp < _GAP_EDGE_LOW:
+        if mover_cp < _GAP_EDGE_LOW:
             severity = "low"
-        elif mcp < _GAP_EDGE_MED and severity == "high":
+        elif mover_cp < _GAP_EDGE_MED and severity == "high":
             severity = "medium"
         entry = {
             "uncovered_move": board.san(pv[0]),
@@ -1523,7 +1530,7 @@ def _gaps_from_infos(
             rejoin = repertoire.pv_rejoins_prep(board, pv, continued_keys)
             if rejoin is not None:
                 entry["transposes_to"] = rejoin
-        gaps.append((entry, mcp))
+        gaps.append((entry, mover_cp))
     return gaps
 
 
@@ -1558,7 +1565,9 @@ def find_repertoire_gaps(
     (SAN, opponent's), eval (white-POV cp after it), severity high/medium/low by how close it is
     to the opponent's best AND how large an edge the opponent gains — a near-best reply that keeps the
     opponent near-equal is downgraded), transposition_endpoints (positions resolved by transposition — each
-    {fen, paths}), forward_transpositions (suppressed move-order gaps, capped at limit).
+    {fen, paths}; computed over the scanned positions only, so transpositions inside excluded or
+    max_positions-truncated subtrees are not listed), forward_transpositions (suppressed
+    move-order gaps, capped at limit).
     Filtered to min_severity (default medium), gaps capped to limit
     (default 10, max 50). Scans at most max_positions decision points (default 20, max 60),
     shallowest first; depth defaults to 20 (higher than other tools — gap evals at depth 18 can
@@ -1594,7 +1603,7 @@ def find_repertoire_gaps(
     ]
 
     floor = _GAP_SEVERITY_RANK[min_severity]
-    multipv = min(MAX_MULTIPV, 5)  # enough breadth to surface a missed strong reply
+    multipv = 5  # enough breadth to surface a missed strong reply
     continued_keys = repertoire.continued_position_keys(rep.game)
     found: list[tuple[dict, int]] = []
     forward_transp: list[dict] = []
@@ -1613,14 +1622,17 @@ def find_repertoire_gaps(
             if remaining <= 0:
                 budget_exhausted = True
                 break
+            # Per-position ceiling never exceeds the remaining budget: time_limit clamps
+            # to MAX_TIME (60s), which can be larger than GAP_BUDGET_S — uncapped, one
+            # position could overrun the whole scan budget.
             pos_limit = (
-                _limit(depth, time_limit)
+                chess.engine.Limit(time=min(time_limit, remaining))
                 if time_limit is not None
                 else chess.engine.Limit(depth=depth, time=remaining)
             )
             infos = engine.analyse(nd["board"], pos_limit, multipv=multipv)
             scanned += 1
-            for entry, mcp in _gaps_from_infos(
+            for entry, mover_cp in _gaps_from_infos(
                 nd["board"], infos, nd["covered"], continued_keys
             ):
                 if _GAP_SEVERITY_RANK[entry["severity"]] < floor:
@@ -1635,7 +1647,7 @@ def find_repertoire_gaps(
                         }
                     )
                 else:
-                    found.append(({"path": nd["path"], **entry}, mcp))
+                    found.append(({"path": nd["path"], **entry}, mover_cp))
 
     found.sort(key=lambda t: (-_GAP_SEVERITY_RANK[t[0]["severity"]], -t[1]))
     result = {
