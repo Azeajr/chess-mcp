@@ -766,3 +766,18 @@ def test_modify_reorder_unparseable_promote_move(rid):
     # Garbage SAN cannot name a child — same closed error as an absent child.
     r = cm.modify_repertoire_line(rid, ["d4"], "reorder", promote_move="zz9")
     assert r["error"] == "variation_not_found"
+
+
+def test_score_cp_delivered_mate_sign():
+    # "mate 0" = the side to move is already checkmated. A mated BLACK flips to
+    # MateGiven from white's POV — mate() == 0, so a `mate() > 0` sign test calls
+    # every White win by checkmate -10000. Sign must come from Score ordering.
+    PovScore, Mate = chess.engine.PovScore, chess.engine.Mate
+    assert cm._score_cp(PovScore(Mate(0), chess.BLACK)) == 10000  # white delivered
+    assert cm._score_cp(PovScore(Mate(0), chess.WHITE)) == -10000  # black delivered
+
+
+def test_score_with_type_delivered_mate_sign():
+    PovScore, Mate = chess.engine.PovScore, chess.engine.Mate
+    assert cm._score_with_type(PovScore(Mate(0), chess.BLACK)) == (10000, "mate", 0)
+    assert cm._score_with_type(PovScore(Mate(0), chess.WHITE)) == (-10000, "mate", 0)

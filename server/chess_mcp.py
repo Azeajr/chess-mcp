@@ -93,10 +93,15 @@ mcp = FastMCP(
 
 
 def _score_cp(pov_score: chess.engine.PovScore) -> int:
-    """Centipawns from white's POV. Mate → ±10000."""
+    """Centipawns from white's POV. Mate → ±10000.
+
+    The sign comes from Score ordering, NOT `mate() > 0`: a checkmated side to move
+    arrives as "mate 0", and after the white-POV flip a mated Black becomes MateGiven —
+    whose mate() is 0, so a `> 0` test mis-signs every position where White has
+    delivered mate (-10000 for a White win)."""
     s = pov_score.white()
     if s.is_mate():
-        return 10000 if s.mate() > 0 else -10000
+        return 10000 if s > chess.engine.Cp(0) else -10000
     return s.score()
 
 
@@ -109,11 +114,13 @@ def _pov_cp(info: dict, mover: chess.Color) -> int:
 
 
 def _score_with_type(pov_score: chess.engine.PovScore) -> tuple:
-    """Returns (cp_white_pov, score_type, mate_in) for evaluate_position."""
+    """Returns (cp_white_pov, score_type, mate_in) for evaluate_position.
+
+    Sign by Score ordering for the same MateGiven reason as _score_cp. mate_in stays
+    the signed distance; 0 means mate already on the board (the cp sign says for whom)."""
     s = pov_score.white()
     if s.is_mate():
-        mate = s.mate()
-        return (10000 if mate > 0 else -10000, "mate", mate)
+        return (10000 if s > chess.engine.Cp(0) else -10000, "mate", s.mate())
     return (s.score(), "cp", None)
 
 
