@@ -112,17 +112,23 @@ mcp = FastMCP(
 )
 
 
-def _score_cp(pov_score: chess.engine.PovScore) -> int:
-    """Centipawns from white's POV. Mate → ±10000.
+def _score_with_type(pov_score: chess.engine.PovScore) -> tuple:
+    """Returns (cp_white_pov, score_type, mate_in). Mate → ±10000.
 
     The sign comes from Score ordering, NOT `mate() > 0`: a checkmated side to move
     arrives as "mate 0", and after the white-POV flip a mated Black becomes MateGiven —
     whose mate() is 0, so a `> 0` test mis-signs every position where White has
-    delivered mate (-10000 for a White win)."""
+    delivered mate (-10000 for a White win). mate_in stays the signed distance; 0 means
+    mate already on the board (the cp sign says for whom)."""
     s = pov_score.white()
     if s.is_mate():
-        return 10000 if s > chess.engine.Cp(0) else -10000
-    return s.score()
+        return (10000 if s > chess.engine.Cp(0) else -10000, "mate", s.mate())
+    return (s.score(), "cp", None)
+
+
+def _score_cp(pov_score: chess.engine.PovScore) -> int:
+    """Centipawns from white's POV. Mate → ±10000 (sign semantics: _score_with_type)."""
+    return _score_with_type(pov_score)[0]
 
 
 def _pov_cp(info: dict, mover: chess.Color) -> int:
@@ -131,17 +137,6 @@ def _pov_cp(info: dict, mover: chess.Color) -> int:
     cp_loss must be computed from the side to move, not white."""
     cp = _score_cp(info["score"])
     return cp if mover == chess.WHITE else -cp
-
-
-def _score_with_type(pov_score: chess.engine.PovScore) -> tuple:
-    """Returns (cp_white_pov, score_type, mate_in) for evaluate_position.
-
-    Sign by Score ordering for the same MateGiven reason as _score_cp. mate_in stays
-    the signed distance; 0 means mate already on the board (the cp sign says for whom)."""
-    s = pov_score.white()
-    if s.is_mate():
-        return (10000 if s > chess.engine.Cp(0) else -10000, "mate", s.mate())
-    return (s.score(), "cp", None)
 
 
 def _classify(cp_loss: int) -> str:
@@ -206,14 +201,20 @@ def _parse_error(game: chess.pgn.Game) -> str | None:
 
 
 def _parse_game(pgn: str) -> chess.pgn.Game:
-    """Parse PGN into a game tree, validating it has moves and parsed cleanly."""
+    """Parse PGN into a game tree, validating it has moves and parsed cleanly.
+
+    The parse-error check runs BEFORE the no-moves check (matching _parse_games): a
+    PGN whose garbled move is early yields a moveless game AND a recorded error, and
+    "PGN contains no moves" would mask the actual reason."""
     game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None or game.next() is None:
+    if game is None:
         raise ValueError("PGN contains no moves")
     if reason := _parse_error(game):
         raise ValueError(
             f"PGN has an unparseable move and would load incompletely: {reason}"
         )
+    if game.next() is None:
+        raise ValueError("PGN contains no moves")
     return game
 
 
@@ -711,16 +712,9 @@ def validate_fen(fen: str) -> dict:
     valid:true → {valid, fen (NORMALIZED — pass this to other tools), side_to_move
     ("white"/"black"), is_game_over}. valid:false → {valid:false, error:"invalid_fen", reason}.
     """
-    try:
-        board = chess.Board(fen)
-    except ValueError as e:
-        return {"valid": False, "error": "invalid_fen", "reason": str(e)}
-    if board.status() != chess.STATUS_VALID:
-        return {
-            "valid": False,
-            "error": "invalid_fen",
-            "reason": _fen_status_reason(board.status()),
-        }
+    board, err = _safe_board(fen)
+    if err:
+        return {"valid": False, **err}
     return {
         "valid": True,
         "fen": board.fen(),
@@ -996,6 +990,8 @@ def get_repertoire_coverage(repertoire_id: str, limit: int = 20) -> dict:
     Headline: dangling_lines — leaves where it is YOUR turn to move, so the line stops exactly
     where a prepared move is owed (a real hole to fill). Leaves where the opponent is to move
     are natural frontiers (you played, paused) → counted as frontier_count, not flagged.
+    frontier_count also absorbs player-to-move leaves whose position continues elsewhere by
+    transposition (covered via another move order — not a real hole).
 
     Returns: color, leaves (total), dangling_count, dangling_lines (each: path = SAN
     variation_path for drill-down, ply), frontier_count, max_depth, shallowest_leaf_ply (the
@@ -1169,8 +1165,9 @@ def suggest_replacement_line(
     mode "solid" → alternatives ranked by eval (best-evaluated first).
 
     Returns: outlier_move (the user move being replaced), anchored_to (the opponent move
-    that triggered this line), suggestions (each: pivot_move, line = full SAN continuation,
-    eval_cp white-POV, resulting_structure, profile_match). Bad input → {"error","reason"}.
+    that triggered this line), suggestions (each: pivot_move, line = SAN continuation
+    (first 5 plies of the engine PV — validate_line can extend it), eval_cp white-POV,
+    resulting_structure, profile_match). Bad input → {"error","reason"}.
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
@@ -1746,7 +1743,17 @@ def validate_pgn(pgn: str) -> dict:
         for k in _PGN_HEADER_KEYS
         if game.headers.get(k, "?") not in ("", "?")
     }
-    if opening := (game.headers.get("Opening") or game.headers.get("ECO")):
+    # "?" is PGN's explicit unknown marker — skip it (and "") so ECO can backstop a
+    # "?" Opening header; same filter as get_game_summary's opening field.
+    opening = next(
+        (
+            v
+            for v in (game.headers.get("Opening"), game.headers.get("ECO"))
+            if v and v != "?"
+        ),
+        None,
+    )
+    if opening:
         headers["opening"] = opening
     result = {
         "valid": True,

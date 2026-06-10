@@ -584,7 +584,8 @@ def coverage_report(rep: _Repertoire, limit: int) -> dict:
 
     Transposition-aware: a player-to-move leaf whose position is also reached elsewhere as an
     internal node that DOES continue is already covered by that move order — it is not a real
-    hole, so it is excluded from dangling (Issue #15; mirrors the gap tool's #3 dedup).
+    hole, so it is excluded from dangling and lands in frontier_count (= leaves - dangling)
+    instead (Issue #15; mirrors the gap tool's #3 dedup).
     """
     leaves = list(walk_leaves(rep.game))
     continued_keys = continued_position_key_set(rep.game)
@@ -837,9 +838,10 @@ def analyze_congruence(
     filtered = [x for x in incongruencies if _SEVERITY_RANK[x["severity"]] >= floor]
     filtered.sort(key=lambda x: -_SEVERITY_RANK[x["severity"]])
 
-    # Acknowledged items are downgraded (severity: low, acknowledged: true) — they are
-    # still included in incongruencies for visibility but excluded from the headline
-    # counts so callers can see how many real (unacknowledged) issues remain (Issue #10).
+    # Acknowledged items are downgraded (severity: low, acknowledged: true) BEFORE the
+    # min_severity filter, so at the default "medium" floor they drop out entirely; pass
+    # min_severity="low" to see them. The headline counts exclude them either way, so
+    # callers see how many real (unacknowledged) issues remain (Issue #10).
     acknowledged_count = sum(1 for x in filtered if x.get("acknowledged"))
     unacknowledged = [x for x in filtered if not x.get("acknowledged")]
     by_type = Counter(x["type"] for x in unacknowledged)

@@ -276,6 +276,27 @@ def test_validate_pgn_too_large():
     assert r["valid"] is False and r["error"] == "pgn_too_large"
 
 
+def test_validate_pgn_unknown_opening_marker_backstopped_by_eco():
+    # [Opening "?"] is PGN's explicit unknown marker — it must not surface verbatim,
+    # and must not shadow a real ECO header (same filter as get_game_summary).
+    pgn = '[Event "t"]\n[Opening "?"]\n[ECO "B12"]\n\n1. e4 c6 *\n'
+    r = cm.validate_pgn(pgn)
+    assert r["valid"] is True and r["headers"]["opening"] == "B12"
+
+
+def test_validate_pgn_unknown_opening_marker_omitted():
+    pgn = '[Event "t"]\n[Opening "?"]\n\n1. e4 c6 *\n'
+    r = cm.validate_pgn(pgn)
+    assert r["valid"] is True and "opening" not in r["headers"]
+
+
+def test_parse_game_surfaces_parse_error_over_no_moves():
+    # A garbled FIRST move yields a moveless game AND a recorded parse error;
+    # the reason must name the unparseable move, not claim the PGN has no moves.
+    with pytest.raises(ValueError, match="unparseable"):
+        cm._parse_game('[Event "t"]\n\n1. Zz9 e5 *\n')
+
+
 # --- _move_accuracy (pure helper feeding get_game_summary's accuracy_pct) ---
 
 
