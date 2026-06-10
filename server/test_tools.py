@@ -66,7 +66,9 @@ def test_load_rejects_illegal_move():
 
 
 def test_validate_pgn_rejects_illegal_move():
-    r = cm.validate_pgn('[Event "t"]\n\n1. e4 e5 2. Qh6 *\n')  # Qh6 is not a legal queen move
+    r = cm.validate_pgn(
+        '[Event "t"]\n\n1. e4 e5 2. Qh6 *\n'
+    )  # Qh6 is not a legal queen move
     assert r["valid"] is False and r["error"] == "invalid_pgn"
 
 
@@ -118,7 +120,9 @@ def test_find_gaps_budget_exhausted_returns_partial(rid, monkeypatch):
             raise AssertionError("engine must not run once the budget is spent")
 
     monkeypatch.setattr(
-        chess.engine.SimpleEngine, "popen_uci", staticmethod(lambda *a, **k: _DummyEngine())
+        chess.engine.SimpleEngine,
+        "popen_uci",
+        staticmethod(lambda *a, **k: _DummyEngine()),
     )
     r = cm.find_repertoire_gaps(rid)
     assert r["positions_scanned"] == 0
@@ -659,3 +663,19 @@ def test_export_reflects_a_prior_edit(rid):
     assert exp["nodes"] == 12
     # the exported PGN carries the grafted line back through a fresh load
     assert cm.load_repertoire(exp["pgn"], "white")["nodes"] == 12
+
+
+def test_identify_opening_garbled_tail_rejected():
+    # A garbled move mid-PGN must surface invalid_pgn, not silently name the opening
+    # from the half-parsed mainline (parity with the other PGN tools).
+    r = cm.identify_opening("1. e4 e5 2. Nf3 Nc6 3. Bb5 zz99 4. Ba4 *")
+    assert r["error"] == "invalid_pgn"
+
+
+def test_suggest_replacement_no_user_move():
+    # Black repertoire, path holding only a White (opponent) move: pivot resolution
+    # finds no user move to replace and must error before any engine work.
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. e4 *\n'
+    rid = cm.load_repertoire(pgn, "black")["repertoire_id"]
+    result = cm.suggest_replacement_line(rid, ["e4"])
+    assert result["error"] == "no_user_move"

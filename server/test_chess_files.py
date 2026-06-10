@@ -48,7 +48,13 @@ def test_load_reads_full_file_and_relays_handle(base, monkeypatch):
     sink: list = []
     _stub_backend(
         monkeypatch,
-        {"repertoire_id": "abc", "color": "white", "nodes": 4, "leaves": 1, "max_depth": 4},
+        {
+            "repertoire_id": "abc",
+            "color": "white",
+            "nodes": 4,
+            "leaves": 1,
+            "max_depth": 4,
+        },
         sink,
     )
     out = _run(cf.load_repertoire_from_file(str(p), "white"))
@@ -132,7 +138,9 @@ def test_load_relays_backend_invalid_pgn(base, monkeypatch):
 
 def test_export_writes_file_and_returns_metadata_only(base, monkeypatch):
     sink: list = []
-    _stub_backend(monkeypatch, {"pgn": REP, "nodes": 4, "leaves": 1, "max_depth": 4}, sink)
+    _stub_backend(
+        monkeypatch, {"pgn": REP, "nodes": 4, "leaves": 1, "max_depth": 4}, sink
+    )
     target = base / "out.pgn"
     out = _run(cf.export_repertoire_to_file("rid", str(target)))
     assert out["leaves"] == 1 and out["bytes"] == len(REP.encode("utf-8"))
@@ -157,7 +165,9 @@ def test_export_outside_base_blocked(base, monkeypatch):
 
 def test_export_missing_parent_dir(base, monkeypatch):
     _stub_backend(monkeypatch, {"pgn": REP})
-    out = _run(cf.export_repertoire_to_file("rid", str(base / "no" / "such" / "out.pgn")))
+    out = _run(
+        cf.export_repertoire_to_file("rid", str(base / "no" / "such" / "out.pgn"))
+    )
     assert out["error"] == "file_not_found"
 
 

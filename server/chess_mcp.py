@@ -100,6 +100,14 @@ def _score_cp(pov_score: chess.engine.PovScore) -> int:
     return s.score()
 
 
+def _pov_cp(info: dict, mover: chess.Color) -> int:
+    """Centipawns from `mover`'s POV out of one engine info (white-POV, negated for
+    Black). The comparison every candidate-ranking tool makes — best-of-candidates and
+    cp_loss must be computed from the side to move, not white."""
+    cp = _score_cp(info["score"])
+    return cp if mover == chess.WHITE else -cp
+
+
 def _score_with_type(pov_score: chess.engine.PovScore) -> tuple:
     """Returns (cp_white_pov, score_type, mate_in) for evaluate_position."""
     s = pov_score.white()
@@ -139,6 +147,18 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
     return " ".join(parts)
 
 
+def _parse_move(board: chess.Board, move_str: str) -> chess.Move | None:
+    """Parse a move string as UCI, falling back to SAN. None when neither form parses
+    here — legality on `board` stays the caller's check."""
+    try:
+        return board.parse_uci(move_str)
+    except ValueError:
+        try:
+            return board.parse_san(move_str)
+        except ValueError:
+            return None
+
+
 def _parse_error(game: chess.pgn.Game) -> str | None:
     """The first parse error python-chess recorded, cleaned of its noisy `while parsing
     <Game at 0x…>` tail (a memory address). None when the game parsed cleanly.
@@ -158,7 +178,9 @@ def _parse_game(pgn: str) -> chess.pgn.Game:
     if game is None or game.next() is None:
         raise ValueError("PGN contains no moves")
     if reason := _parse_error(game):
-        raise ValueError(f"PGN has an unparseable move and would load incompletely: {reason}")
+        raise ValueError(
+            f"PGN has an unparseable move and would load incompletely: {reason}"
+        )
     return game
 
 
@@ -510,11 +532,10 @@ def evaluate_position(
         return {"error": "invalid_fen", "reason": str(e)}
 
     limit = _limit(depth, time_limit)
+    # An explicit multipv kwarg always yields a list (python-chess returns a bare
+    # InfoDict only when the kwarg is omitted), so multipv=1 needs no special case.
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        if multipv > 1:
-            infos = engine.analyse(board, limit, multipv=multipv)
-        else:
-            infos = [engine.analyse(board, limit)]
+        infos = engine.analyse(board, limit, multipv=multipv)
 
     top = infos[0]
     pv = top.get("pv", [])
@@ -564,20 +585,15 @@ def validate_line(fen: str, moves: list[str]) -> dict:
         return {"error": "invalid_fen", "reason": str(e)}
 
     for i, move_str in enumerate(moves):
-        try:
-            move = board.parse_uci(move_str)
-        except ValueError:
-            try:
-                move = board.parse_san(move_str)
-            except ValueError:
-                return {
-                    "valid": False,
-                    "error_at_index": i,
-                    "error_move": move_str,
-                    "reason": "parse error — not valid UCI or SAN",
-                    "fen_at_error": board.fen(),
-                }
-
+        move = _parse_move(board, move_str)
+        if move is None:
+            return {
+                "valid": False,
+                "error_at_index": i,
+                "error_move": move_str,
+                "reason": "parse error — not valid UCI or SAN",
+                "fen_at_error": board.fen(),
+            }
         if move not in board.legal_moves:
             return {
                 "valid": False,
@@ -696,14 +712,10 @@ def compare_moves(
     valid: list[chess.Move] = []
     illegal: list[str] = []
     for move_str in moves:
-        try:
-            move = board.parse_uci(move_str)
-        except ValueError:
-            try:
-                move = board.parse_san(move_str)
-            except ValueError:
-                illegal.append(move_str)  # not valid UCI or SAN
-                continue
+        move = _parse_move(board, move_str)
+        if move is None:
+            illegal.append(move_str)  # not valid UCI or SAN
+            continue
         if move not in board.legal_moves:
             illegal.append(move_str)  # parsed but not legal here
             continue
@@ -724,16 +736,12 @@ def compare_moves(
             board, _limit(depth, time_limit), multipv=len(valid), root_moves=valid
         )
 
-    def _mover_cp(info: dict) -> int:
-        cp = _score_cp(info["score"])  # white-POV
-        return cp if board.turn == chess.WHITE else -cp
-
-    best = _mover_cp(infos[0]) if infos else 0
+    best = _pov_cp(infos[0], board.turn) if infos else 0
     results = [
         {
             "move": board.san(info["pv"][0]),
             "eval": _score_cp(info["score"]),
-            "cp_loss": max(0, best - _mover_cp(info)),
+            "cp_loss": max(0, best - _pov_cp(info, board.turn)),
             "pv": _pv_san(board, info["pv"]),
         }
         for info in infos
@@ -979,9 +987,11 @@ def suggest_complementary_lines(
     suggests user replies from the resulting position. The opponent_move field in the
     output records what was auto-advanced.
 
-    Returns: mode, anchor_fen, suggestions (each: move SAN, resulting_structure, eval
-    (white-POV cp), pv, and profile_match or sharpness), opponent_move (SAN, present
-    only when auto-advance occurred). limit default 5, max 10.
+    Returns: mode, anchor_fen (the position suggestions are FROM — after auto-advance
+    this is the post-opponent-move position, not the input fen), suggestions (each:
+    move SAN, resulting_structure, eval (white-POV cp), pv, and profile_match or
+    sharpness), opponent_move (SAN, present only when auto-advance occurred).
+    limit default 5, max 10.
     time_limit (seconds, optional) searches by wall-clock instead of depth (depth then
     ignored); depth is the reproducible default. Bad input → {"error","reason"}.
     """
@@ -1033,12 +1043,7 @@ def suggest_complementary_lines(
         infos = engine.analyse(board, _limit(depth, time_limit), multipv=pool)
 
     mover = board.turn
-
-    def _mover_cp(info: dict) -> int:
-        cp = _score_cp(info["score"])  # white-POV
-        return cp if mover == chess.WHITE else -cp
-
-    best_cp = _mover_cp(infos[0]) if infos else 0
+    best_cp = _pov_cp(infos[0], mover) if infos else 0
     shares = repertoire.profile_structure_shares(rep)
     ranked: list[tuple[dict, int]] = []
 
@@ -1047,7 +1052,7 @@ def suggest_complementary_lines(
         if not pv:
             continue
         move = pv[0]
-        mover_cp = _mover_cp(info)
+        mover_cp = _pov_cp(info, mover)
         if best_cp - mover_cp > 100:  # unsound relative to the best move → skip
             continue
         after = board.copy()
@@ -1095,6 +1100,25 @@ def suggest_complementary_lines(
     if opponent_move_san is not None:
         result["opponent_move"] = opponent_move_san
     return result
+
+
+def _user_moves_along_path(game: chess.pgn.Game, path: list[str], color: chess.Color):
+    """Yield (parent_board, move, child) for each `color` (user) move along a SAN path
+    from the root, stopping silently at the first unparseable or absent ply — the path
+    came from resolve_path, so a mid-walk miss means the tree changed, not bad input."""
+    node = game
+    for san in path:
+        board = node.board()
+        try:
+            move = board.parse_san(san)
+        except ValueError:
+            return
+        child = next((c for c in node.variations if c.move == move), None)
+        if child is None:
+            return
+        if board.turn == color:
+            yield board, move, child
+        node = child
 
 
 @mcp.tool()
@@ -1153,29 +1177,25 @@ def suggest_replacement_line(
     # (e.g. no dominant theme, or the whole path is unique to this line). (Issue #7)
     all_leaves = list(repertoire.walk_leaves(rep.game))
     n_leaves = len(all_leaves)
-    dominant_themes: set[str] = set()
-    if n_leaves > 0:
-        theme_counts = Counter(
+    leaf_tags_by_leaf = [
+        {
             t
-            for leaf in all_leaves
             for t in repertoire.BOOL_THEMES
             if structure.themes(leaf.board(), rep.color).get(t)
-        )
-        dominant_themes = {
-            t
-            for t, c in theme_counts.items()
-            if c / n_leaves >= repertoire._THEME_DOMINANCE
         }
+        for leaf in all_leaves
+    ]
+    theme_counts = Counter(t for tags in leaf_tags_by_leaf for t in tags)
+    dominant_themes = {
+        t
+        for t, c in theme_counts.items()
+        if c / n_leaves >= repertoire._THEME_DOMINANCE
+    }
 
     # (position_key, move_uci) pairs present in any dominant-theme leaf's path.
     dominant_pairs: set[tuple[str, str]] = set()
-    for leaf in all_leaves:
-        leaf_tags = {
-            t
-            for t in repertoire.BOOL_THEMES
-            if structure.themes(leaf.board(), rep.color).get(t)
-        }
-        if not dominant_themes or not (dominant_themes & leaf_tags):
+    for leaf, leaf_tags in zip(all_leaves, leaf_tags_by_leaf):
+        if not (dominant_themes & leaf_tags):
             continue
         n = leaf
         while n.parent is not None:
@@ -1187,21 +1207,12 @@ def suggest_replacement_line(
     # Walk path forward; first user move absent from dominant_pairs is the divergence.
     pivot_node = None
     if dominant_pairs:
-        walk_node = rep.game
-        for san in outlier_variation_path:
-            board = walk_node.board()
-            try:
-                move = board.parse_san(san)
-            except ValueError:
+        for board, move, child in _user_moves_along_path(
+            rep.game, outlier_variation_path, rep.color
+        ):
+            if (repertoire._position_key(board), move.uci()) not in dominant_pairs:
+                pivot_node = child
                 break
-            child = next((c for c in walk_node.variations if c.move == move), None)
-            if child is None:
-                break
-            if board.turn == rep.color:
-                if (repertoire._position_key(board), move.uci()) not in dominant_pairs:
-                    pivot_node = child
-                    break
-            walk_node = child
 
     # Weakness divergence (Issue #16): structure_outlier flags pivot on theme departure
     # above, but weakness_inconsistency flags (doubled/isolated pawns) have no theme signal,
@@ -1209,24 +1220,15 @@ def suggest_replacement_line(
     # earlier. Instead pivot at the first user move after which the player carries a
     # doubled/isolated pawn (the move that incurs it), so the replacement can avoid it.
     if pivot_node is None:
-        walk_node = rep.game
-        for san in outlier_variation_path:
-            board = walk_node.board()
-            try:
-                move = board.parse_san(san)
-            except ValueError:
+        for _board, _move, child in _user_moves_along_path(
+            rep.game, outlier_variation_path, rep.color
+        ):
+            after_b = child.board()
+            if structure.get_doubled_pawns(
+                after_b, rep.color
+            ) or structure.get_isolated_pawns(after_b, rep.color):
+                pivot_node = child
                 break
-            child = next((c for c in walk_node.variations if c.move == move), None)
-            if child is None:
-                break
-            if board.turn == rep.color:
-                after_b = child.board()
-                if structure.get_doubled_pawns(
-                    after_b, rep.color
-                ) or structure.get_isolated_pawns(after_b, rep.color):
-                    pivot_node = child
-                    break
-            walk_node = child
 
     # Fall back: last user move in the path.
     if pivot_node is None:
@@ -1256,11 +1258,7 @@ def suggest_replacement_line(
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         infos = engine.analyse(pivot_board, _limit(depth, time_limit), multipv=5)
 
-    def _mover_cp(info: dict) -> int:
-        cp = _score_cp(info["score"])
-        return cp if pivot_board.turn == chess.WHITE else -cp
-
-    best_cp = _mover_cp(infos[0]) if infos else 0
+    best_cp = _pov_cp(infos[0], pivot_board.turn) if infos else 0
     suggestions = []
 
     for info in infos:
@@ -1270,7 +1268,7 @@ def suggest_replacement_line(
         move = pv[0]
         if move.uci() == outlier_uci:
             continue  # skip the exact move being replaced
-        mover_cp = _mover_cp(info)
+        mover_cp = _pov_cp(info, pivot_board.turn)
         if best_cp - mover_cp > 100:  # unsound relative to best → skip
             continue
         after = pivot_board.copy()
@@ -1495,17 +1493,13 @@ def _gaps_from_infos(
     if not infos:
         return []
 
-    def _mover_cp(info: dict) -> int:
-        cp = _score_cp(info["score"])  # white-POV
-        return cp if board.turn == chess.WHITE else -cp
-
-    best = _mover_cp(infos[0])
+    best = _pov_cp(infos[0], board.turn)
     gaps: list[tuple[dict, int]] = []
     for info in infos:
         pv = info.get("pv")
         if not pv or pv[0].uci() in covered:
             continue
-        mover_cp = _mover_cp(info)
+        mover_cp = _pov_cp(info, board.turn)
         loss = best - mover_cp
         severity = (
             "high"
@@ -1638,7 +1632,9 @@ def find_repertoire_gaps(
                 if _GAP_SEVERITY_RANK[entry["severity"]] < floor:
                     continue
                 rejoin = entry.pop("transposes_to", None)
-                if rejoin is not None:  # move-order transposition, not a real hole (§13)
+                if (
+                    rejoin is not None
+                ):  # move-order transposition, not a real hole (§13)
                     forward_transp.append(
                         {
                             "path": nd["path"],
@@ -1768,9 +1764,12 @@ def identify_opening(pgn: str) -> dict:
     """
     if err := _pgn_too_large(pgn):
         return err
-    game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None or game.next() is None:
-        return {"error": "invalid_pgn", "reason": "PGN contains no moves"}
+    # _parse_game (not a raw read_game) so a garbled-tail PGN is rejected like every
+    # other PGN tool — a silently half-parsed mainline names the wrong opening (#1).
+    try:
+        game = _parse_game(pgn)
+    except ValueError as e:
+        return {"error": "invalid_pgn", "reason": str(e)}
     return openings.deepest_in_line(game) or {"opening": None}
 
 

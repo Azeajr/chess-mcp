@@ -136,6 +136,14 @@ def find_transpositions(game: chess.pgn.Game) -> list[dict]:
 _FWD_TRANSP_PLIES = 12
 
 
+def continued_position_key_set(game: chess.pgn.Game) -> set[str]:
+    """Position keys of every INTERIOR node (>= 1 reply) — the positions where the
+    repertoire continues. Membership-only form of continued_position_keys (no SAN-path
+    labels, so no per-node path reconstruction). A leaf whose key is in this set is a
+    transposition stub: the same position carries on via another move order."""
+    return {_position_key(node.board()) for node in iter_nodes(game) if node.variations}
+
+
 def continued_position_keys(game: chess.pgn.Game) -> dict[str, list[str]]:
     """{position_key: san_path} for every INTERIOR node (>= 1 reply) — the positions where
     the repertoire continues. A forward line that transposes into one of these has rejoined
@@ -272,7 +280,11 @@ def merge_games(games: list[chess.pgn.Game]) -> chess.pgn.Game:
     Games sharing the standard starting position are grafted onto the first game's root.
     A game with a non-standard start (FEN/SetUp header) cannot share that root and is
     skipped — repertoire openings start from the initial position. Returns the first game
-    with the others merged in (the single-game case returns it unchanged)."""
+    with the others merged in (the single-game case returns it unchanged).
+
+    CONSUMES its inputs: grafting re-parents nodes from games[1:] into the base tree,
+    so the input games must not be walked or reused after this call — keep only the
+    returned game."""
     base = games[0]
     base_fen = base.board().fen()
     for g in games[1:]:
@@ -576,10 +588,7 @@ def coverage_report(rep: _Repertoire, limit: int) -> dict:
     hole, so it is excluded from dangling (Issue #15; mirrors the gap tool's #3 dedup).
     """
     leaves = list(walk_leaves(rep.game))
-    # Positions that continue somewhere in the tree (an internal node with >= 1 reply).
-    continued_keys = {
-        _position_key(node.board()) for node in iter_nodes(rep.game) if node.variations
-    }
+    continued_keys = continued_position_key_set(rep.game)
     dangling = [
         leaf
         for leaf in leaves
@@ -687,9 +696,7 @@ def analyze_congruence(
     # theme-lacking leaves converging on the same position are both genuine outliers,
     # not stubs (review-findings #8). Computed once over the whole tree and shared by
     # every opening group (Issue #9).
-    transposition_keys = {
-        _position_key(node.board()) for node in iter_nodes(rep.game) if node.variations
-    }
+    transposition_keys = continued_position_key_set(rep.game)
 
     def _checks_for(group: list[dict]) -> list[dict]:
         """Run the three congruence checks within ONE opening's leaves (Issue #14).

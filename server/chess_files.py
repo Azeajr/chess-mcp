@@ -119,7 +119,9 @@ mcp = FastMCP("chess-files")
 
 
 @mcp.tool()
-async def load_repertoire_from_file(path: str, color: Literal["white", "black"]) -> dict:
+async def load_repertoire_from_file(
+    path: str, color: Literal["white", "black"]
+) -> dict:
     """
     Load a repertoire PGN from a file ON THE SERVER HOST and return a handle — the
     truncation-proof, token-cheap way to load. PREFER THIS over reading the file yourself and
@@ -188,7 +190,10 @@ async def export_repertoire_to_file(repertoire_id: str, path: str) -> dict:
     if real.is_dir():
         return {"error": "not_a_file", "reason": f"{real} is a directory"}
     if not real.parent.exists():
-        return {"error": "file_not_found", "reason": f"parent dir {real.parent} does not exist"}
+        return {
+            "error": "file_not_found",
+            "reason": f"parent dir {real.parent} does not exist",
+        }
     data = await _call_backend("export_repertoire", {"repertoire_id": repertoire_id})
     if "error" in data:
         return data  # repertoire_not_found / backend_unreachable — nothing written
@@ -196,7 +201,11 @@ async def export_repertoire_to_file(repertoire_id: str, path: str) -> dict:
     if not isinstance(pgn, str):
         return {"error": "backend_unreachable", "reason": "export returned no pgn"}
     real.write_text(pgn, encoding="utf-8")
-    return {"path": str(real), "bytes": len(pgn.encode("utf-8")), "leaves": data.get("leaves")}
+    return {
+        "path": str(real),
+        "bytes": len(pgn.encode("utf-8")),
+        "leaves": data.get("leaves"),
+    }
 
 
 if __name__ == "__main__":
