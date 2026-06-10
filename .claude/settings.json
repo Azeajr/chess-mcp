@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "docker compose up -d && timeout 15 bash -c 'until curl -sf http://localhost:8000/ > /dev/null 2>&1; do sleep 0.5; done'"
+            "command": "docker compose up -d && timeout 15 bash -c 'until curl -s -o /dev/null http://localhost:8000/ 2>/dev/null; do sleep 0.5; done'"
           }
         ]
       }
