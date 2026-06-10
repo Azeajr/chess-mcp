@@ -31,8 +31,10 @@ Verification commands referenced by every pass (this repo):
 uv run --with chess --with "mcp[cli]" python -c "import sys; sys.path.insert(0,'server'); import chess_mcp; print('import ok')"
 docker compose build                      # only when engine-backed paths or the Dockerfile changed
 
-# Lint / format (no linter is committed; ruff runs ephemerally via uv)
-uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/
+# Lint / format (no linter is committed; ruff runs ephemerally via uv).
+# --target-version py314 is REQUIRED: run from the repo root, ruff does not pick up
+# server/pyproject.toml's requires-python and false-flags 3.11+ builtins (BaseExceptionGroup, F821).
+uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/
 
 # Test (engine-free suite + branch coverage via addopts; needs mcp+chess+pytest from the project, no Stockfish)
 cd server && uv run pytest -q
@@ -57,17 +59,23 @@ Ruthlessly remove "clever" code, premature abstractions, and over-engineering. D
 
 Evaluate and modify against these criteria:
 1. Correctness & Defensive Execution: Treat every line as a potential failure point. Actively spot and fix silent failures, off-by-one errors, state leaks, and edge-case logic bugs (especially around FEN handling, terminal nodes, and asynchronous engine output). Do not mask errors; handle them using the existing closed error-code set.
-2. YAGNI: Remove abstractions solving hypothetical future problems. Prefer simple, slightly repetitive code if it lowers cognitive load.
-3. Locality of Behavior: Keep related logic together — e.g. a tool's validation, computation, and result shaping in one readable flow; cache mutation next to its eviction.
-4. Explicit data flow: Remove hidden side effects and tight coupling. structure.py and repertoire.py must stay pure and engine-free; the ONLY I/O boundaries (Stockfish subprocess, FastMCP/SSE) live in chess_mcp.py — keep them there.
-5. Structural flattening: Replace deep nesting and complex conditionals with early returns and linear paths. The error-guard-then-compute shape (return structured {"error","reason"} early) is the house style — follow it.
-6. Output discipline: Tool outputs must stay lean (~2k tokens, see MCP_DESIGN.md), nesting <= 2 levels, no field inferable from another. Do not regress this while refactoring or fixing bugs.
+2. Verify before fixing: a suspected bug in third-party API usage (python-chess, FastMCP) must be confirmed against the INSTALLED version first — read the source under server/.venv, or test empirically in the Docker container for engine paths. Do not add dead defensive code for behavior the library doesn't have (e.g. python-chess analyse() returns a dict only when the multipv kwarg is omitted; an explicit multipv=1 returns a list — a "len==1 crash" guard there would be pure noise).
+3. YAGNI: Remove abstractions solving hypothetical future problems. Prefer simple, slightly repetitive code if it lowers cognitive load.
+4. Locality of Behavior: Keep related logic together — e.g. a tool's validation, computation, and result shaping in one readable flow; cache mutation next to its eviction.
+5. Explicit data flow: Remove hidden side effects and tight coupling. structure.py and repertoire.py must stay pure and engine-free; the ONLY I/O boundaries (Stockfish subprocess, FastMCP/SSE) live in chess_mcp.py — keep them there.
+6. Structural flattening: Replace deep nesting and complex conditionals with early returns and linear paths. The error-guard-then-compute shape (return structured {"error","reason"} early) is the house style — follow it.
+7. Output discipline: Tool outputs must stay lean (~2k tokens, see MCP_DESIGN.md), nesting <= 2 levels, no field inferable from another. Do not regress this while refactoring or fixing bugs.
+8. Test before restructuring: check coverage for the path you're about to refactor (`uv run pytest -q` prints per-file missing lines). If the engine-free suite doesn't reach it, first add <= 3 targeted tests for its pre-engine behavior (guards, pivot/path resolution, error returns) so the refactor lands verified, not hopeful. Engine-only paths get verified in Docker instead.
+
+SCOPE GUARDS:
+- structure.py scorer heuristics (_*_confidence thresholds, theme cutoffs) are MCP-verified canon with FEN fixtures — tuning them is a BEHAVIOR change, out of scope for this pass. Restructure around them, never re-weigh them.
+- Docstrings are part of the tool contract (the model reads them); update any docstring your change makes stale, and prefer documenting a sharp edge (consumed inputs, cache read-only contracts, post-auto-advance field semantics) over restructuring code that is merely subtle.
 
 Honor the existing contract: stateless interface (the repertoire_id handle is the one exception), closed error codes (invalid_pgn, invalid_fen, invalid_color, move_not_found, pgn_too_large, too_many_moves, repertoire_not_found, variation_not_found, invalid_mode), white-POV centipawns.
 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: run the import-sanity command; if you touched the Dockerfile or engine paths, also `docker compose build`.
-2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
+2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/` (the explicit target-version avoids false F821 on 3.11+ builtins when ruff runs from the repo root).
 3. Test: `cd server && uv run pytest -q`. If anything fails, or if a bug fix broke an existing assumption, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
 4. Commit with a concise message explaining WHY the bug was fixed or the structural change was made (not what). No Co-Authored-By trailer.
 5. Push: `git push origin main`.
@@ -91,7 +99,7 @@ Do not add authentication or a heavy security framework — that contradicts the
 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: import-sanity command; `docker compose build` if the image/Dockerfile changed.
-2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
+2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`.
 3. Test: `cd server && uv run pytest -q`, and add tests for any new cap/guard (oversized input, expired handle, eviction, malformed PGN/FEN). Do not compromise core functionality for security theater. For engine-touching changes, verify in Docker (rebuild + capture.py and/or the SSE smoke client).
 4. Commit: the message must state the EXACT vulnerability mitigated and the method used. No Co-Authored-By trailer.
 5. Push: `git push origin main`.
@@ -177,7 +185,7 @@ For issues: `gh issue create` with a body that includes: problem statement, prop
 PHASE 5 — VERIFY AND SHIP
 Run in order; do not proceed past a failure:
 1. Import sanity: `uv run --with chess --with "mcp[cli]" python -c "import sys; sys.path.insert(0,'server'); import chess_mcp; print('import ok')"`
-2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`
+2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`
 3. Test: `cd server && uv run pytest -q` — if you changed engine-touching paths, also verify in Docker
 4. If all green: bump the patch version in `pyproject.toml` (or wherever version is stored), commit all changes in a single commit with a message of the form `feat/fix: <what changed> — retro v<N>` describing the BEHAVIOR change. No Co-Authored-By trailer.
 5. Push: `git push origin main`
@@ -209,7 +217,7 @@ Match the existing file's style (pytest, parametrize, a `pawns(...)` helper for 
 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: import-sanity command.
-2. Lint/format: `uv run --with ruff ruff check --fix server/ evals/ && uv run --with ruff ruff format server/ evals/`.
+2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`.
 3. Test: `cd server && uv run pytest -q`. If new tests fail or break existing ones, debug and fix the TEST — unless you uncovered a real bug in structure.py/repertoire.py/chess_mcp.py, in which case fix the source and note it in the commit.
 4. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
 5. Push: `git push origin main`.
