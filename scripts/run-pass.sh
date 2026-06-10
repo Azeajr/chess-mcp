@@ -14,7 +14,8 @@ LOCK_FILE="${TMPDIR:-/tmp}/chess-mcp-run-pass.lock"
 
 INTERVAL="1h"
 PASS_NAME="Structural Refactoring"
-MODEL="fable"
+MODEL="claude-fable-5"
+TIMEOUT="30m"
 ONCE=0
 
 usage() {
@@ -26,7 +27,7 @@ Runs an ENGINEERING_PASSES.md pass prompt through claude (YOLO mode) on a loop.
   -i INTERVAL   sleep(1) duration between runs (default: 1h; e.g. 30m, 2h, 90m)
   -n PASS_NAME  pass heading to run, case-insensitive substring match
                 (default: "Structural Refactoring")
-  -m MODEL      claude model (default: fable)
+  -m MODEL      claude model (default: claude-fable-5)
   --once        run a single pass and exit (cron-friendly; cron owns the schedule)
   -h, --help    this help
 
@@ -82,7 +83,7 @@ run_once() {
     echo "[$ts] running '$PASS_NAME' (model: $MODEL) → $log"
     cd "$REPO_ROOT"
     rc=0
-    claude -p "$prompt" \
+    timeout "$TIMEOUT" claude -p "$prompt" \
         --model "$MODEL" \
         --dangerously-skip-permissions \
         </dev/null 2>&1 | tee "$log" || rc=$?
