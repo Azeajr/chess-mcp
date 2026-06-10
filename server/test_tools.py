@@ -201,6 +201,16 @@ def test_validate_line_bad_fen():
     assert cm.validate_line("garbage", ["e4"])["error"] == "invalid_fen"
 
 
+def test_validate_line_illegal_uci_reports_illegal_not_parse_error():
+    # board.parse_uci enforces legality itself, so the "illegal move" branch was
+    # unreachable: a well-formed but illegal UCI move ("e2e5") was misreported as
+    # "not valid UCI or SAN". Syntax-only UCI parsing routes it to the accurate reason.
+    r = cm.validate_line(chess.STARTING_FEN, ["e2e5"])
+    assert r["valid"] is False and r["error_at_index"] == 0
+    assert r["reason"] == "illegal move in this position"
+    assert r["fen_at_error"] == chess.STARTING_FEN
+
+
 def test_get_legal_moves_san():
     r = cm.get_legal_moves(chess.STARTING_FEN)
     assert r["move_count"] == 20 and isinstance(r["moves"], str)
@@ -405,6 +415,40 @@ def test_export_clean_when_threshold_above_all(monkeypatch):
 
 def test_export_too_large():
     assert cm.export_annotated_pgn("1. e4 e5 " * 200000)["error"] == "pgn_too_large"
+
+
+def test_export_preserves_existing_comment(monkeypatch):
+    # The annotation must append to a comment the input PGN already carries on a
+    # flagged move — overwriting silently destroyed the author's annotations.
+    monkeypatch.setattr(cm, "_analyse_tree", _fake_tree)
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 {hold the center} ( 1... Nf6 2. c4 ) 2. c4 *\n'
+    g = chess.pgn.read_game(io.StringIO(cm.export_annotated_pgn(pgn)["pgn"]))
+    d5 = g.variations[0].variations[0]
+    assert "hold the center" in d5.comment and "best Nf3" in d5.comment
+
+
+def test_game_summary_question_mark_opening_is_null(monkeypatch):
+    # [Opening "?"] is PGN's explicit unknown marker — it must surface as null, and a
+    # "?" Opening must not shadow a real ECO backstop (validate_pgn filters the same way).
+    rec = {
+        "move_number": 1,
+        "color": "white",
+        "move": "e4",
+        "cp_loss": 0,
+        "classification": "good",
+        "best_move": "e4",
+    }
+
+    def _summary_for(pgn: str) -> dict:
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        monkeypatch.setattr(cm, "_analyse_all_moves", lambda *a: ([rec], game))
+        return cm.get_game_summary(pgn)
+
+    assert _summary_for('[Event "t"]\n[Opening "?"]\n\n1. e4 *')["opening"] is None
+    assert (
+        _summary_for('[Event "t"]\n[Opening "?"]\n[ECO "B10"]\n\n1. e4 *')["opening"]
+        == "B10"
+    )
 
 
 # --- compare_moves (pre-engine guards only; engine ranking verified in Docker) ---

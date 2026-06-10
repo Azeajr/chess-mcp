@@ -69,6 +69,11 @@ def _clamp_time(time_limit: float) -> float:
     return max(MIN_TIME, min(MAX_TIME, time_limit))
 
 
+def _clamp_search(depth: int, time_limit: float | None) -> tuple[int, float | None]:
+    """Clamp the (depth, time_limit) search knobs every engine tool takes."""
+    return _clamp_depth(depth), None if time_limit is None else _clamp_time(time_limit)
+
+
 def _limit(depth: int, time_limit: float | None) -> chess.engine.Limit:
     """Engine search limit: by wall-clock when time_limit is set, else by depth.
 
@@ -170,10 +175,16 @@ def _pv_san(board: chess.Board, pv: list[chess.Move]) -> str:
 
 
 def _parse_move(board: chess.Board, move_str: str) -> chess.Move | None:
-    """Parse a move string as UCI, falling back to SAN. None when neither form parses
-    here — legality on `board` stays the caller's check."""
+    """Parse a move string as UCI, falling back to SAN. None when neither form parses;
+    legality on `board` stays the caller's check.
+
+    UCI goes through the syntax-only chess.Move.from_uci, NOT board.parse_uci: parse_uci
+    enforces legality itself (raises IllegalMoveError), which made the callers' legality
+    branch unreachable and misreported every well-formed-but-illegal UCI move as a parse
+    error. SAN has no syntax-only parse (resolving it requires legality), so an illegal
+    SAN still comes back None."""
     try:
-        return board.parse_uci(move_str)
+        return chess.Move.from_uci(move_str)
     except ValueError:
         try:
             return board.parse_san(move_str)
@@ -248,7 +259,8 @@ def _analyze_tree_nodes(
 ) -> dict[tuple[str, ...], dict]:
     """Analyze EVERY node in the game tree (mainline + variations) in one pass.
 
-    Each distinct position (root included) is analyzed exactly once; a move-node's record
+    Each node (root included) is analyzed exactly once — note nodes, not positions: a
+    position the tree reaches twice by transposition gets one pass per node. A move-node's record
     draws eval_before / best_move / alternatives from its parent's analysis and eval_after
     from its own. Returns {san_path: record}; each record matches the mainline record shape.
     Pure function of game + engine + limit + multipv; engine IO is the caller's.
@@ -382,9 +394,7 @@ def analyze_game(
     """
     if err := _pgn_too_large(pgn):
         return err
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
@@ -422,16 +432,19 @@ def get_game_summary(
     """
     if err := _pgn_too_large(pgn):
         return err
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     try:
         records, game = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
         return _pgn_analysis_error(e)
 
     headers = game.headers
-    opening = headers.get("Opening") or headers.get("ECO") or None
+    # "?" is PGN's explicit unknown marker — skip it (and "") so ECO can backstop a
+    # "?" Opening header; validate_pgn filters its headers the same way.
+    opening = next(
+        (v for v in (headers.get("Opening"), headers.get("ECO")) if v and v != "?"),
+        None,
+    )
 
     stats: dict[str, dict] = {
         "white": {
@@ -506,9 +519,7 @@ def get_position(
         return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
     if err := _pgn_too_large(pgn):
         return err
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
@@ -578,10 +589,8 @@ def evaluate_position(
     Pass a FEN from an MCP result (validate_fen / get_position / get_structural_profile /
     validate_line), not one typed from memory. Invalid FEN → {"error","reason"}.
     """
-    depth = _clamp_depth(depth)
+    depth, time_limit = _clamp_search(depth, time_limit)
     multipv = max(1, min(MAX_MULTIPV, multipv))
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
     board, err = _safe_board(fen)
     if err:
         return err
@@ -746,9 +755,7 @@ def compare_moves(
             "error": "too_many_moves",
             "reason": f"compare at most {MAX_COMPARE_MOVES} moves",
         }
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     board, err = _safe_board(fen)
     if err:
         return err
@@ -780,7 +787,9 @@ def compare_moves(
             board, _limit(depth, time_limit), multipv=len(valid), root_moves=valid
         )
 
-    best = _pov_cp(infos[0], board.turn) if infos else 0
+    # infos is never empty: analyse(multipv=N) seeds its list with one entry, and a
+    # legality-gated position with >= 1 legal candidate always gets a scored info line.
+    best = _pov_cp(infos[0], board.turn)
     results = [
         {
             "move": board.san(info["pv"][0]),
@@ -804,6 +813,14 @@ def compare_moves(
 # load_repertoire parses once and caches; the rest accept the repertoire_id handle.
 # All but suggest_complementary_lines are engine-free (static structural analysis).
 # ---------------------------------------------------------------------------
+
+
+def _repertoire_not_found() -> dict:
+    """The shared miss/expiry error every handle-taking repertoire tool returns."""
+    return {
+        "error": "repertoire_not_found",
+        "reason": "unknown or expired repertoire_id; call load_repertoire",
+    }
 
 
 @mcp.tool()
@@ -873,10 +890,7 @@ def get_structural_profile(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     if variation_path is None:
         return repertoire.aggregate_profile(rep)
     node = repertoire.resolve_path(rep.game, variation_path)
@@ -934,10 +948,7 @@ def analyze_repertoire_congruence(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     limit = max(1, min(50, limit))
     result = repertoire.analyze_congruence(
         rep, min_severity, limit, acknowledged_weaknesses, exclude_paths
@@ -964,10 +975,7 @@ def get_transpositions(repertoire_id: str, limit: int = 20) -> dict:
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     limit = max(1, min(100, limit))
     groups = repertoire.find_transpositions(rep.game)
     shown, truncated = _fit_to_budget(groups[:limit])
@@ -996,10 +1004,7 @@ def get_repertoire_coverage(repertoire_id: str, limit: int = 20) -> dict:
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     limit = max(1, min(100, limit))
     report = repertoire.coverage_report(rep, limit)
     report["color"] = "white" if rep.color == chess.WHITE else "black"
@@ -1041,10 +1046,7 @@ def suggest_complementary_lines(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     if mode not in ("low_memorization", "sharp"):
         return {
             "error": "invalid_mode",
@@ -1056,9 +1058,7 @@ def suggest_complementary_lines(
     if board.is_game_over():
         return {"mode": mode, "anchor_fen": board.fen(), "suggestions": []}
 
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     limit = max(1, min(MAX_MULTIPV, limit))
     pool = min(
         MAX_MULTIPV, limit + 2
@@ -1086,7 +1086,7 @@ def suggest_complementary_lines(
         infos = engine.analyse(board, _limit(depth, time_limit), multipv=pool)
 
     mover = board.turn
-    best_cp = _pov_cp(infos[0], mover) if infos else 0
+    best_cp = _pov_cp(infos[0], mover)  # non-terminal board → infos[0] is scored
     shares = repertoire.profile_structure_shares(rep)
     ranked: list[tuple[dict, int]] = []
 
@@ -1174,10 +1174,7 @@ def suggest_replacement_line(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     if mode not in ("structural_fit", "low_memorization", "solid"):
         return {
             "error": "invalid_mode",
@@ -1205,16 +1202,15 @@ def suggest_replacement_line(
     anchor_path = repertoire.san_path(pivot_node.parent)
     anchored_to = anchor_path[-1] if anchor_path else None
 
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
 
     shares = repertoire.profile_structure_shares(rep)
 
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         infos = engine.analyse(pivot_board, _limit(depth, time_limit), multipv=5)
 
-    best_cp = _pov_cp(infos[0], pivot_board.turn) if infos else 0
+    # pivot_board is never terminal (the outlier move was played from it).
+    best_cp = _pov_cp(infos[0], pivot_board.turn)
     suggestions = []
 
     for info in infos:
@@ -1355,10 +1351,7 @@ def modify_repertoire_line(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     # Validate action↔payload agreement: a payload field set for the wrong action signals a
     # mis-shaped request, not an edit to silently ignore (REPERTOIRE_DESIGN.md §9.2).
     unexpected = []
@@ -1408,10 +1401,7 @@ def export_repertoire(repertoire_id: str) -> dict:
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
+        return _repertoire_not_found()
     return {
         "pgn": repertoire.export_pgn(rep.game),
         "nodes": rep.nodes,
@@ -1531,13 +1521,8 @@ def find_repertoire_gaps(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+        return _repertoire_not_found()
+    depth, time_limit = _clamp_search(depth, time_limit)
     limit = max(1, min(50, limit))
     max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
     nodes = repertoire.opponent_reply_nodes(rep)
@@ -1649,13 +1634,8 @@ def classify_illustrative_lines(
     """
     rep = repertoire.get_repertoire(repertoire_id)
     if rep is None:
-        return {
-            "error": "repertoire_not_found",
-            "reason": "unknown or expired repertoire_id; call load_repertoire",
-        }
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+        return _repertoire_not_found()
+    depth, time_limit = _clamp_search(depth, time_limit)
     max_positions = max(1, min(MAX_GAP_POSITIONS, max_positions))
     limit = max(1, min(100, limit))
     white = rep.color == chess.WHITE
@@ -1800,18 +1780,17 @@ def export_annotated_pgn(
     GUI — the grounded, server-side counterpart to the annotate-pgn skill.
 
     Moves with cp_loss >= min_cp_loss (default 50) get a glyph (?! inaccuracy, ? mistake,
-    ?? blunder) and a comment (white-POV eval after the move + the engine's best move). Good
-    moves are left clean so the artifact stays close to the input size. depth, time_limit,
-    and min_cp_loss tune the pass exactly as in analyze_game.
+    ?? blunder) and a comment (white-POV eval after the move + the engine's best move);
+    a comment the input PGN already carries on that move is preserved, the annotation
+    appended. Good moves are left clean so the artifact stays close to the input size.
+    depth, time_limit, and min_cp_loss tune the pass exactly as in analyze_game.
 
     Returns: pgn (annotated PGN string — an artifact, not a reasoning primitive),
     moves_annotated (count of glyphed/commented moves). Bad input → {"error","reason"}.
     """
     if err := _pgn_too_large(pgn):
         return err
-    depth = _clamp_depth(depth)
-    if time_limit is not None:
-        time_limit = _clamp_time(time_limit)
+    depth, time_limit = _clamp_search(depth, time_limit)
     try:
         records_by_path, _ = _analyse_tree(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
@@ -1827,7 +1806,10 @@ def export_annotated_pgn(
         nag = _NAG_BY_CLASS.get(rec["classification"])
         if nag is not None:
             node.nags.add(nag)
-        node.comment = f"{rec['eval_after'] / 100:+.2f} best {rec['best_move']}"
+        # Append to any comment the input PGN already carries — overwriting silently
+        # destroys the author's annotations in the exported artifact.
+        ann = f"{rec['eval_after'] / 100:+.2f} best {rec['best_move']}"
+        node.comment = f"{node.comment} {ann}".strip()
         annotated += 1
 
     exporter = chess.pgn.StringExporter(headers=True, variations=True, comments=True)
