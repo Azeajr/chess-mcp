@@ -8,8 +8,8 @@ Repo shape the prompts assume:
 - `server/chess_mcp.py` — the FastMCP tools + the only I/O boundaries (Stockfish subprocess, SSE transport).
 - `server/structure.py` — engine-free pawn-structure analysis (pure functions).
 - `server/repertoire.py` — variation-tree walker, in-memory handle cache (LRU + TTL), clone-on-write tree mutation (edit loop), system-clustered congruence logic.
-- `server/test_structure_repertoire.py` + `server/test_tools.py` — engine-free `pytest` suite (branch
-  coverage on by default via `addopts`; `uv run pytest` from `server/`).
+- `server/test_structure_repertoire.py` + `server/test_tools.py` + `server/test_chess_files.py` —
+  engine-free `pytest` suite (branch coverage on by default via `addopts`; `uv run pytest` from `server/`).
 - `evals/` — token-measurement harness (`capture.py` needs Stockfish → Docker; `measure.py` engine-free).
 - Design constraints live in `MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract, closed
   error-code set) and `REPERTOIRE_DESIGN.md` (cache, structural classifier).
@@ -204,16 +204,23 @@ GUARDRAILS
 ## 3. High-Signal Testing
 
 ```text
-Act as a pragmatic, veteran Python engineer extending the chess-mcp test suite (server/test_structure_repertoire.py, pytest). Write tests optimized for high confidence, safe refactoring, and zero maintenance burden. No vanity/coverage-chasing tests; do not test python-chess or FastMCP themselves.
+Act as a pragmatic, veteran Python engineer extending the chess-mcp test suite (pytest). Write tests optimized for high confidence, safe refactoring, and zero maintenance burden. No vanity/coverage-chasing tests; do not test python-chess or FastMCP themselves — pin OUR usage of them, not their behavior.
+
+Route each test to the file that owns the layer:
+- server/test_structure_repertoire.py — the pure layers: structure.py scorers/primitives/themes, repertoire.py walkers, cache, merge, edit loop, congruence/coverage/gap helpers.
+- server/test_tools.py — the @mcp.tool wrappers in chess_mcp.py, called as plain functions (cm.tool(...) with the rid fixture): validation guards, clamps/caps, error returns, and any pre-engine logic (e.g. suggest_replacement_line's pivot resolution).
+- server/test_chess_files.py — the file proxy: path confinement, size caps, decode errors, backend-payload parsing (no live backend).
 
 Enforce these principles:
 1. Test behavior, not implementation: call the public functions/tools as a consumer would and assert on the OUTPUTS — returned dicts (structure_class, confidence, cp_loss, the closed error codes), parsed game trees, resolved FENs, cache hits/misses. Don't assert on internal call sequencing.
-2. Real instances over mocks: build real chess.Board / chess.pgn.Game / SquareSet positions and feed them through structure.py and repertoire.py. The engine-free layer needs NO mocks. Stockfish is the only true external boundary (and the host has none — engine-backed paths like suggest_complementary_lines and evals/capture.py are verified in Docker, not unit-mocked here).
-3. High-signal targeting: pawn primitives (doubled/isolated/passed/chains/half-open/open), classify_structure (the 19-structure canon + unknown + confidence; brittleness/specificity/bidirectional cases — each scorer has an MCP-verified canonical FEN fixture) and themes (the always-on theme tags), center_state, the variation walker (iter_nodes/walk_leaves/tree_stats), resolve_path + san_path round-trips, the cache (store/get, TTL expiry, LRU eviction), and the congruence rules. Skip trivial passthroughs.
+2. Real instances over mocks: build real chess.Board / chess.pgn.Game / SquareSet positions and feed them through structure.py and repertoire.py. The engine-free layer needs NO mocks. Stockfish is the only true external boundary (and the host has none): the hard line is SimpleEngine.popen_uci — a test that would reach it does not belong in this suite. Engine-backed tool bodies are verified in Docker (evals/capture.py, the SSE smoke client), but every guard, clamp, and error return that fires BEFORE the engine opens is testable here, and that pre-engine slice is where tool regressions actually live.
+3. High-signal targeting: pawn primitives (doubled/isolated/passed/chains/half-open/open), classify_structure (the 19-structure canon + unknown + confidence; brittleness/specificity/bidirectional cases — each scorer has an MCP-verified canonical FEN fixture) and themes (the always-on theme tags), center_state, the variation walker (iter_nodes/walk_leaves/tree_stats), resolve_path + san_path round-trips, the cache (store/get, TTL expiry, LRU eviction), the congruence rules, and the pure helpers behind the engine tools — pv_rejoins_prep, continued_position_key_set, opponent_reply_nodes, path_excluded, nag_illustrative_nodes / player_side_variations, apply_repertoire_edit, _fit_to_budget. Skip trivial passthroughs.
+   Pick targets from evidence, not vibes: `uv run pytest -q` prints per-file missing lines/branches — chase uncovered BRANCHES that encode a decision (a guard, a severity gate, a fallback) and ignore unreachable engine-loop interiors.
 4. Clean state hygiene: guarantee isolation. Clear the module-level repertoire._CACHE between tests (autouse fixture); monkeypatch repertoire.MAX_REPERTOIRES / REPERTOIRE_TTL_S for eviction/expiry tests so they are deterministic and don't leak across cases.
-5. Defensive boundaries: malformed/empty PGN and FEN, empty or single-node trees, expired/unknown handles (repertoire_not_found), unknown structures (must return "unknown", never a guessed label), terminal positions for suggest, oversized input vs the byte caps. Assert the app degrades into a structured error, never a crash.
+5. Defensive boundaries: malformed/empty PGN and FEN, garbled-tail PGN (python-chess "successfully" parses a truncated game and logs the error — assert the tools REJECT via _parse_error, not silently analyze half a game), empty or single-node trees, expired/unknown handles (repertoire_not_found), unknown structures (must return "unknown", never a guessed label), terminal positions for suggest, oversized input vs the byte caps, action↔payload mismatches in modify_repertoire_line. Assert the app degrades into a structured error from the closed set, never a crash.
+6. Assert meaning, not prose: pin error CODES and structural fields (paths, counts, severity ranks), not reason strings or float confidences to exact decimals — those are allowed to be reworded/re-tuned without breaking the suite.
 
-Match the existing file's style (pytest, parametrize, a `pawns(...)` helper for hand-built positions, the autouse cache-clearing fixture).
+Match the existing files' style (pytest, parametrize, a `pawns(...)` helper for hand-built positions, the autouse cache-clearing fixture, shared PGN constants like REP_PGN — reuse them instead of inventing new fixture PGNs; keep all fixtures synthetic, never from real user games).
 
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: import-sanity command.
