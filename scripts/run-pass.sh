@@ -82,8 +82,8 @@ run_once() {
     mkdir -p "$LOG_DIR"
     find "$LOG_DIR" -mtime +7 -delete 2>/dev/null || true
     if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
-        echo "[$ts] skipping '$PASS_NAME': working tree dirty — inspect and clean before next run" >&2
-        return 1
+        echo "[$ts] dirty tree — stashing before '$PASS_NAME' run (inspect with: git stash list)" >&2
+        git -C "$REPO_ROOT" stash push -u -m "run-pass auto-stash $ts ($PASS_NAME)"
     fi
     echo "[$ts] running '$PASS_NAME' (model: $MODEL) → $log"
     cd "$REPO_ROOT"
