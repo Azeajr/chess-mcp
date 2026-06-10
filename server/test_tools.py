@@ -679,3 +679,90 @@ def test_suggest_replacement_no_user_move():
     rid = cm.load_repertoire(pgn, "black")["repertoire_id"]
     result = cm.suggest_replacement_line(rid, ["e4"])
     assert result["error"] == "no_user_move"
+
+
+# --- engine-result scoring helpers (pure: PovScore in, ints out) ---
+
+
+def test_score_cp_mate_saturates_to_pm_10000():
+    PovScore, Mate = chess.engine.PovScore, chess.engine.Mate
+    assert cm._score_cp(PovScore(Mate(2), chess.WHITE)) == 10000
+    assert cm._score_cp(PovScore(Mate(-1), chess.WHITE)) == -10000
+    # Black-POV input normalizes to white-POV before saturating
+    assert cm._score_cp(PovScore(Mate(2), chess.BLACK)) == -10000
+
+
+def test_score_with_type_mate_and_cp():
+    PovScore, Cp, Mate = chess.engine.PovScore, chess.engine.Cp, chess.engine.Mate
+    assert cm._score_with_type(PovScore(Cp(35), chess.WHITE)) == (35, "cp", None)
+    assert cm._score_with_type(PovScore(Mate(3), chess.WHITE)) == (10000, "mate", 3)
+    assert cm._score_with_type(PovScore(Mate(-2), chess.WHITE)) == (-10000, "mate", -2)
+
+
+@pytest.mark.parametrize(
+    "cp_loss,expected",
+    [
+        (0, "good"),
+        (50, "good"),
+        (51, "inaccuracy"),
+        (100, "inaccuracy"),
+        (101, "mistake"),
+        (200, "mistake"),
+        (201, "blunder"),
+    ],
+)
+def test_classify_thresholds(cp_loss, expected):
+    assert cm._classify(cp_loss) == expected
+
+
+def test_pv_san_caps_at_five_moves_and_leaves_board_untouched():
+    board = chess.Board()
+    pv = [
+        chess.Move.from_uci(u) for u in ("e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6")
+    ]
+    assert cm._pv_san(board, pv) == "e4 e5 Nf3 Nc6 Bb5"
+    assert board == chess.Board()  # rendered on a copy
+
+
+def test_parse_move_uci_san_and_garbage():
+    board = chess.Board()
+    assert cm._parse_move(board, "e2e4") == chess.Move.from_uci("e2e4")
+    assert cm._parse_move(board, "Nf3") == chess.Move.from_uci("g1f3")
+    assert cm._parse_move(board, "zz99") is None
+
+
+# --- identify_opening / validate_pgn remaining guards ---
+
+
+def test_identify_opening_too_large():
+    big = "1. e4 e5 " * (cm.MAX_PGN_BYTES // 9 + 1)
+    assert cm.identify_opening(big)["error"] == "pgn_too_large"
+
+
+def test_validate_pgn_multigame_reports_games_and_opening():
+    two = (
+        '[Event "a"]\n[ECO "B10"]\n[Result "*"]\n\n1. e4 c6 *\n\n'
+        '[Event "b"]\n[Result "*"]\n\n1. d4 d5 *\n'
+    )
+    r = cm.validate_pgn(two)
+    assert r["valid"] and r["games"] == 2 and r["has_variations"]
+    assert r["headers"]["opening"] == "B10"  # ECO backstops a missing Opening header
+
+
+# --- modify_repertoire_line: path/SAN resolution errors in the editors ---
+
+
+def test_modify_add_bad_path(rid):
+    r = cm.modify_repertoire_line(rid, ["d4", "zz9"], "add", add_moves=["Nf3"])
+    assert r["error"] == "variation_not_found"
+
+
+def test_modify_reorder_bad_path(rid):
+    r = cm.modify_repertoire_line(rid, ["d4", "zz9"], "reorder", promote_move="d5")
+    assert r["error"] == "variation_not_found"
+
+
+def test_modify_reorder_unparseable_promote_move(rid):
+    # Garbage SAN cannot name a child — same closed error as an absent child.
+    r = cm.modify_repertoire_line(rid, ["d4"], "reorder", promote_move="zz9")
+    assert r["error"] == "variation_not_found"

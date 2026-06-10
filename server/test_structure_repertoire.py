@@ -1560,3 +1560,47 @@ def test_apply_edit_unknown_action():
         None,
         "invalid_edit",
     )
+
+
+# ---------------------------------------------------------------------------
+# Forward-transposition PV walk + illustrative subtree helpers (gap/illustrative
+# tool foundations — pure, no engine).
+# ---------------------------------------------------------------------------
+
+
+def _game(pgn: str) -> chess.pgn.Game:
+    return chess.pgn.read_game(io.StringIO(pgn))
+
+
+def test_pv_rejoins_prep_finds_rejoined_path():
+    game = _game("1. e4 e5 2. Nf3 *")
+    keys = repertoire.continued_position_keys(game)
+    board = game.variations[0].board()  # after 1. e4, opponent to move
+    pv = [chess.Move.from_uci("e7e5")]  # transposes straight into prep
+    assert repertoire.pv_rejoins_prep(board, pv, keys) == ["e4", "e5"]
+
+
+def test_pv_rejoins_prep_stops_on_desynced_pv():
+    # A PV from a transposed search can desync: the second move is illegal after
+    # the first. The walk must stop (no crash) and report no rejoin.
+    game = _game("1. e4 e5 2. Nf3 *")
+    keys = repertoire.continued_position_keys(game)
+    board = game.variations[0].board()
+    pv = [chess.Move.from_uci("e7e6"), chess.Move.from_uci("e7e5")]
+    assert repertoire.pv_rejoins_prep(board, pv, keys) is None
+
+
+def test_pv_rejoins_prep_respects_ply_window():
+    game = _game("1. e4 e5 2. Nf3 *")
+    keys = repertoire.continued_position_keys(game)
+    board = game.variations[0].board()
+    pv = [chess.Move.from_uci("e7e5")]
+    assert repertoire.pv_rejoins_prep(board, pv, keys, max_plies=0) is None
+
+
+def test_leaves_under_counts_subtree_leaves():
+    game = _game("1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *")
+    e4 = game.variations[0]
+    leaves = repertoire.leaves_under(e4)
+    # Two variation ends below e4: the 2. Nf3 mainline leaf and the c5-line leaf.
+    assert len(leaves) == 2 and all(not lf.variations for lf in leaves)

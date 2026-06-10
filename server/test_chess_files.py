@@ -193,3 +193,47 @@ def test_payload_unparseable_is_unreachable():
 def test_root_cause_unwraps_exception_group():
     eg = ExceptionGroup("boom", [ConnectionError("refused")])
     assert "refused" in cf._root_cause(eg)
+
+
+def test_payload_skips_textless_and_bad_json_blocks():
+    # Block order: no text -> unparseable text -> valid JSON. The parser must
+    # walk past the first two and return the third.
+    no_text = type("B", (), {"text": None})()
+    bad = type("B", (), {"text": "not json"})()
+    good = type("B", (), {"text": json.dumps({"ok": 1})})()
+    result = type(
+        "R", (), {"content": [no_text, bad, good], "structuredContent": None}
+    )()
+    assert cf._payload(result) == {"ok": 1}
+
+
+def test_load_size_recheck_after_read(base, monkeypatch):
+    # TOCTOU guard: the stat() check passes, then the bytes actually read exceed
+    # the cap (file grew between stat and read). Simulated by a cap that shrinks
+    # between the two _max_bytes() calls.
+    p = base / "grow.pgn"
+    p.write_text(REP, encoding="utf-8")
+    _stub_backend(monkeypatch, {"unexpected": True})
+    caps = iter((10**9, 1, 1))  # 3rd value: the error-reason f-string re-reads the cap
+    monkeypatch.setattr(cf, "_max_bytes", lambda: next(caps))
+    out = _run(cf.load_repertoire_from_file(str(p), "white"))
+    assert out["error"] == "pgn_too_large"
+
+
+def test_load_backend_down_is_unreachable(base, monkeypatch):
+    # Real (unstubbed) SSE client against a closed loopback port: every transport
+    # failure must collapse to the closed-set backend_unreachable, never raise.
+    p = base / "r.pgn"
+    p.write_text(REP, encoding="utf-8")
+    monkeypatch.setenv("CHESS_MCP_URL", "http://127.0.0.1:59/sse")
+    out = _run(cf.load_repertoire_from_file(str(p), "white"))
+    assert out["error"] == "backend_unreachable"
+    assert "127.0.0.1:59" in out["reason"]
+
+
+def test_export_backend_payload_missing_pgn_writes_nothing(base, monkeypatch):
+    _stub_backend(monkeypatch, {"nodes": 4})  # success-shaped but no pgn field
+    target = base / "out.pgn"
+    out = _run(cf.export_repertoire_to_file("rid", str(target)))
+    assert out["error"] == "backend_unreachable"
+    assert not target.exists()
