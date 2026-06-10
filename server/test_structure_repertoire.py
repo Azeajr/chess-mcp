@@ -1604,3 +1604,39 @@ def test_leaves_under_counts_subtree_leaves():
     leaves = repertoire.leaves_under(e4)
     # Two variation ends below e4: the 2. Nf3 mainline leaf and the c5-line leaf.
     assert len(leaves) == 2 and all(not lf.variations for lf in leaves)
+
+
+# ---------------------------------------------------------------------------
+# replacement_pivot — pure pivot resolution for suggest_replacement_line
+# (theme divergence → weakness-incurring move → last user move).
+# ---------------------------------------------------------------------------
+
+
+def test_replacement_pivot_theme_divergence():
+    # Two of three leaves carry fianchetto_white (>= _THEME_DOMINANCE); the third
+    # line abandons it with 2. e4 — the earliest user move outside any
+    # dominant-theme line is the pivot.
+    rep = _make_rep("1. g3 d5 (1... e5 2. Bg2 Nc6) (1... c5 2. e4 Nc6) 2. Bg2 Nf6 *")
+    node = repertoire.resolve_path(rep.game, ["g3", "c5", "e4", "Nc6"])
+    pivot, dominant = repertoire.replacement_pivot(rep, node)
+    assert "fianchetto_white" in dominant
+    assert pivot.san() == "e4"
+
+
+def test_replacement_pivot_weakness_incurring_move():
+    # No theme divergence (single line) — the pivot is the user move that incurs
+    # the doubled pawn (5. dxc3), not the terminal move, which can't undo it.
+    rep = _make_rep("1. e4 e5 2. Bc4 Nf6 3. Nc3 Bb4 4. Nf3 Bxc3 5. dxc3 d6 *")
+    node = next(repertoire.walk_leaves(rep.game))
+    pivot, _ = repertoire.replacement_pivot(rep, node)
+    assert pivot.san() == "dxc3"
+
+
+def test_replacement_pivot_falls_back_to_last_user_move():
+    rep = _make_rep("1. e4 e5 2. Nf3 Nc6 *")
+    node = next(repertoire.walk_leaves(rep.game))
+    pivot, _ = repertoire.replacement_pivot(rep, node)
+    assert pivot.san() == "Nf3"
+    # A line with no user move at all resolves to no pivot.
+    none_pivot, _ = repertoire.replacement_pivot(rep, rep.game)
+    assert none_pivot is None

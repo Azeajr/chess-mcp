@@ -429,7 +429,6 @@ def store_repertoire(game: chess.pgn.Game, color: chess.Color) -> dict:
     now = time.time()
     with _LOCK:
         _CACHE[rid] = _Repertoire(game, color, now, now, nodes, leaves, max_depth)
-        _CACHE.move_to_end(rid)
         _evict_locked(now)
     return {
         "repertoire_id": rid,
@@ -703,13 +702,14 @@ def analyze_congruence(
 
         A repertoire spanning several openings (one answer per opponent first move) has no
         single structural grain; judging a Caro IQP line against Nimzo leaves is noise. So
-        each leaf is compared only to its own opening's siblings."""
+        each leaf is compared only to its own opening's siblings. `group` is never empty —
+        groups exist only for leaves that produced data."""
         gn = len(group)
         found: list[dict] = []
 
         # 1. structure_outlier — a line veering off the opening's dominant structure.
         known = [d for d in group if d["structure"] != "unknown"]
-        known_share = len(known) / gn if gn else 0.0
+        known_share = len(known) / gn
 
         if known_share >= 0.5:
             # Enough named structures: use the named-structure outlier check.
@@ -731,7 +731,7 @@ def analyze_congruence(
                             "paths": [d["path"]],
                         }
                     )
-        elif gn > 0:
+        else:
             # 1b. Theme-based fallback: most leaves are unknown — use dominant bool theme
             # as a structural proxy. A leaf that lacks the dominant theme is an outlier even
             # when no named structure can be assigned (e.g. hypermodern English repertoires
@@ -767,8 +767,8 @@ def analyze_congruence(
 
         # 2. weakness_inconsistency — accepting a pawn weakness against the opening's grain.
         weak = [d for d in group if d["isolated"] or d["doubled"]]
-        if gn == 0 or len(weak) == 0 or len(weak) >= gn * 0.5:
-            pass  # Skip: no weaknesses, all weak, or majority weak → no signal
+        if not weak or len(weak) >= gn * 0.5:
+            pass  # Skip: no weaknesses, or weaknesses are the majority → no grain to violate
         else:
             # Minority of lines have weaknesses → flag each as inconsistent
             for d in weak:
@@ -798,9 +798,7 @@ def analyze_congruence(
         # 3. center_inconsistency — opening split between locking and opening the center.
         centers = Counter(d["center"] for d in group)
         locked, opened = centers.get("locked", 0), centers.get("open", 0)
-        if gn == 0:
-            pass  # Skip: no leaves
-        elif locked / gn < 0.25 or opened / gn < 0.25:
+        if locked / gn < 0.25 or opened / gn < 0.25:
             pass  # Skip: one style dominates → no split
         else:
             # Both locked and open are significant → flag the split
@@ -863,3 +861,75 @@ def analyze_congruence(
         "by_type_acknowledged": dict(by_type_ack),
         "incongruencies": filtered[:limit],
     }
+
+
+# ---------------------------------------------------------------------------
+# Replacement-pivot resolution (suggest_replacement_line). Pure tree analysis;
+# the engine pass on the pivot position stays in chess_mcp.py.
+# ---------------------------------------------------------------------------
+
+
+def _user_move_nodes(node, color: chess.Color) -> list:
+    """The nodes along root→`node` whose move was played by `color`, root-first."""
+    chain = []
+    while node.parent is not None:
+        chain.append(node)
+        node = node.parent
+    chain.reverse()
+    return [c for c in chain if c.parent.board().turn == color]
+
+
+def replacement_pivot(rep: _Repertoire, node) -> tuple:
+    """The user move suggest_replacement_line should replace in `node`'s line, plus the
+    repertoire's dominant bool themes (reused by the caller's PV-theme scoring).
+
+    Pivot, in order:
+      1. the earliest user move not played in any dominant-theme line — the structural
+         divergence point (Issue #7);
+      2. else the first user move after which the player carries a doubled/isolated pawn —
+         the move that incurs the weakness, which a replacement can avoid; the terminal
+         move cannot undo a weakness incurred earlier (Issue #16);
+      3. else the last user move in the line.
+
+    Dominant theme = bool theme on >= _THEME_DOMINANCE of leaves — the same threshold
+    analyze_congruence uses, so a line treated as divergent here is one congruence would
+    also flag (a lower threshold produced replacements for lines congruence considered fine).
+
+    Returns (pivot_node, dominant_themes); pivot_node is None when the line contains no
+    user move. A returned pivot is always a user-move node (parent has `rep.color` to move).
+    """
+    leaves = list(walk_leaves(rep.game))
+    tags_by_leaf = [
+        {t for t in BOOL_THEMES if structure.themes(leaf.board(), rep.color)[t]}
+        for leaf in leaves
+    ]
+    theme_counts = Counter(t for tags in tags_by_leaf for t in tags)
+    dominant_themes = {
+        t for t, c in theme_counts.items() if c / len(leaves) >= _THEME_DOMINANCE
+    }
+
+    # (position_key, move_uci) pairs the user plays in any dominant-theme leaf's line.
+    dominant_pairs: set[tuple[str, str]] = set()
+    for leaf, tags in zip(leaves, tags_by_leaf):
+        if not (dominant_themes & tags):
+            continue
+        n = leaf
+        while n.parent is not None:
+            b = n.parent.board()
+            if b.turn == rep.color:
+                dominant_pairs.add((_position_key(b), n.move.uci()))
+            n = n.parent
+
+    user_moves = _user_move_nodes(node, rep.color)
+    if dominant_pairs:
+        for child in user_moves:
+            key = (_position_key(child.parent.board()), child.move.uci())
+            if key not in dominant_pairs:
+                return child, dominant_themes
+    for child in user_moves:
+        after = child.board()
+        if structure.get_doubled_pawns(
+            after, rep.color
+        ) or structure.get_isolated_pawns(after, rep.color):
+            return child, dominant_themes
+    return (user_moves[-1] if user_moves else None), dominant_themes

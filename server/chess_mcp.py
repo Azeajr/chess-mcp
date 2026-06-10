@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from mcp.server.fastmcp import FastMCP
-from collections import Counter
 from functools import lru_cache
 from typing import Literal
 import chess
@@ -1146,25 +1145,6 @@ def suggest_complementary_lines(
     return result
 
 
-def _user_moves_along_path(game: chess.pgn.Game, path: list[str], color: chess.Color):
-    """Yield (parent_board, move, child) for each `color` (user) move along a SAN path
-    from the root, stopping silently at the first unparseable or absent ply — the path
-    came from resolve_path, so a mid-walk miss means the tree changed, not bad input."""
-    node = game
-    for san in path:
-        board = node.board()
-        try:
-            move = board.parse_san(san)
-        except ValueError:
-            return
-        child = next((c for c in node.variations if c.move == move), None)
-        if child is None:
-            return
-        if board.turn == color:
-            yield board, move, child
-        node = child
-
-
 @mcp.tool()
 def suggest_replacement_line(
     repertoire_id: str,
@@ -1211,78 +1191,10 @@ def suggest_replacement_line(
             "reason": "outlier_variation_path does not match a line in the repertoire",
         }
 
-    # Find structural divergence: the earliest user move not shared with any
-    # dominant-theme line. Dominant theme = bool theme present in ≥ _THEME_DOMINANCE
-    # of leaves — the same threshold analyze_congruence uses, so a line this tool
-    # treats as divergent is one congruence would also flag (a lower threshold here
-    # produced replacement suggestions for lines congruence considered fine).
-    # Walk the path forward; the first user move absent from dominant-theme lines is
-    # the outlier_move. Falls back to the last user move if no divergence is found
-    # (e.g. no dominant theme, or the whole path is unique to this line). (Issue #7)
-    all_leaves = list(repertoire.walk_leaves(rep.game))
-    n_leaves = len(all_leaves)
-    leaf_tags_by_leaf = [
-        {
-            t
-            for t in repertoire.BOOL_THEMES
-            if structure.themes(leaf.board(), rep.color).get(t)
-        }
-        for leaf in all_leaves
-    ]
-    theme_counts = Counter(t for tags in leaf_tags_by_leaf for t in tags)
-    dominant_themes = {
-        t
-        for t, c in theme_counts.items()
-        if c / n_leaves >= repertoire._THEME_DOMINANCE
-    }
-
-    # (position_key, move_uci) pairs present in any dominant-theme leaf's path.
-    dominant_pairs: set[tuple[str, str]] = set()
-    for leaf, leaf_tags in zip(all_leaves, leaf_tags_by_leaf):
-        if not (dominant_themes & leaf_tags):
-            continue
-        n = leaf
-        while n.parent is not None:
-            b = n.parent.board()
-            if b.turn == rep.color:
-                dominant_pairs.add((repertoire._position_key(b), n.move.uci()))
-            n = n.parent
-
-    # Walk path forward; first user move absent from dominant_pairs is the divergence.
-    pivot_node = None
-    if dominant_pairs:
-        for board, move, child in _user_moves_along_path(
-            rep.game, outlier_variation_path, rep.color
-        ):
-            if (repertoire._position_key(board), move.uci()) not in dominant_pairs:
-                pivot_node = child
-                break
-
-    # Weakness divergence (Issue #16): structure_outlier flags pivot on theme departure
-    # above, but weakness_inconsistency flags (doubled/isolated pawns) have no theme signal,
-    # so they fell through to the terminal move — which cannot undo a weakness incurred
-    # earlier. Instead pivot at the first user move after which the player carries a
-    # doubled/isolated pawn (the move that incurs it), so the replacement can avoid it.
+    # Pure pivot resolution (theme divergence → weakness-incurring move → last user
+    # move); dominant_themes is reused below for the PV-theme profile_match fallback.
+    pivot_node, dominant_themes = repertoire.replacement_pivot(rep, node)
     if pivot_node is None:
-        for _board, _move, child in _user_moves_along_path(
-            rep.game, outlier_variation_path, rep.color
-        ):
-            after_b = child.board()
-            if structure.get_doubled_pawns(
-                after_b, rep.color
-            ) or structure.get_isolated_pawns(after_b, rep.color):
-                pivot_node = child
-                break
-
-    # Fall back: last user move in the path.
-    if pivot_node is None:
-        pivot_node = node
-        while pivot_node.parent is not None:
-            if pivot_node.parent.board().turn == rep.color:
-                break
-            pivot_node = pivot_node.parent
-
-    if pivot_node.parent is None or pivot_node.parent.board().turn != rep.color:
         return {
             "error": "no_user_move",
             "reason": "outlier_variation_path contains no user move to replace",
@@ -1344,7 +1256,7 @@ def suggest_replacement_line(
                 if best_match == 1.0 or nxt is None or walk_board.is_game_over():
                     break
                 walk_board.push(nxt)
-            match = round(best_match, 2)
+            match = best_match
         else:
             match = 0.0
         suggestions.append(
