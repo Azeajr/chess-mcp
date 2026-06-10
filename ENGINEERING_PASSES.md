@@ -8,6 +8,7 @@ Repo shape the prompts assume:
 - `server/chess_mcp.py` — the FastMCP tools + the only I/O boundaries (Stockfish subprocess, SSE transport).
 - `server/structure.py` — engine-free pawn-structure analysis (pure functions).
 - `server/repertoire.py` — variation-tree walker, in-memory handle cache (LRU + TTL), clone-on-write tree mutation (edit loop), system-clustered congruence logic.
+- `server/chess_files.py` — host-side stdio proxy (file → backend): reads/writes repertoire PGNs by path, confined to REPERTOIRE_DIR, and relays to the SSE backend (PROXY_DESIGN.md).
 - `server/test_structure_repertoire.py` + `server/test_tools.py` + `server/test_chess_files.py` —
   engine-free `pytest` suite (branch coverage on by default via `addopts`; `uv run pytest` from `server/`).
 - `evals/` — token-measurement harness (`capture.py` needs Stockfish → Docker; `measure.py` engine-free).
@@ -44,8 +45,18 @@ docker compose up -d --build
 docker run --rm -v "$PWD":/work -w /app -e STOCKFISH_PATH=/usr/games/stockfish \
   chess-mcp-chess-mcp:latest uv run python /work/evals/capture.py   # regen evals snapshot
 
-# Commit + push — Conventional Commits, NO Co-Authored-By trailer (project preference); trunk-based
+# Engine spot-check of UNRELEASED source (bind-mount over the published image — no rebuild):
+# write a small script that sys.path.insert(0, "/work")s before importing chess_mcp, then
+docker run --rm -v "$PWD/server":/work:ro -w /app --entrypoint sh ghcr.io/azeajr/chess-mcp:latest \
+  -c 'uv run python /tmp/check.py'   # (heredoc the script into /tmp/check.py first)
+
+# Commit + push — Conventional Commits, NO Co-Authored-By trailer (project preference); trunk-based.
 git commit -m "..." && git push origin main
+# A pass is done only when CI is green (main pushes run tests + a docker boot check):
+gh run watch "$(gh run list -L1 --json databaseId -q '.[0].databaseId')" --exit-status
+# Do NOT create tags: a v* tag triggers the GHCR image publish + GitHub release. Releases are a
+# separate, explicitly requested step (bump server/pyproject.toml, tag, then pull/restart the container —
+# note a restart invalidates all live repertoire_id handles).
 ```
 
 ---
@@ -58,7 +69,7 @@ Act as a pragmatic, veteran Python engineer working on chess-mcp, a FastMCP + py
 Ruthlessly remove "clever" code, premature abstractions, and over-engineering. Do not change tool behavior, output shapes, or the closed error-code set.
 
 Evaluate and modify against these criteria:
-1. Correctness & Defensive Execution: Treat every line as a potential failure point. Actively spot and fix silent failures, off-by-one errors, state leaks, and edge-case logic bugs (especially around FEN handling, terminal nodes, and asynchronous engine output). Do not mask errors; handle them using the existing closed error-code set.
+1. Correctness & Defensive Execution: Treat every line as a potential failure point. Actively spot and fix silent failures, off-by-one errors, state leaks, and edge-case logic bugs — especially around FEN handling, terminal nodes, asynchronous engine output, and score/POV semantics (the highest-yield hunting ground so far: a checkmated side-to-move arrives as "mate 0"/MateGiven whose mate() is 0, and every white-POV flip or mover-POV negation is a place a sign can silently die). Do not mask errors; handle them using the existing closed error-code set.
 2. Verify before fixing: a suspected bug in third-party API usage (python-chess, FastMCP) must be confirmed against the INSTALLED version first — read the source under server/.venv, or test empirically in the Docker container for engine paths. Do not add dead defensive code for behavior the library doesn't have (e.g. python-chess analyse() returns a dict only when the multipv kwarg is omitted; an explicit multipv=1 returns a list — a "len==1 crash" guard there would be pure noise).
 3. YAGNI: Remove abstractions solving hypothetical future problems. Prefer simple, slightly repetitive code if it lowers cognitive load.
 4. Locality of Behavior: Keep related logic together — e.g. a tool's validation, computation, and result shaping in one readable flow; cache mutation next to its eviction.
@@ -76,9 +87,9 @@ Honor the existing contract: stateless interface (the repertoire_id handle is th
 EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build: run the import-sanity command; if you touched the Dockerfile or engine paths, also `docker compose build`.
 2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/` (the explicit target-version avoids false F821 on 3.11+ builtins when ruff runs from the repo root).
-3. Test: `cd server && uv run pytest -q`. If anything fails, or if a bug fix broke an existing assumption, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker.
+3. Test: `cd server && uv run pytest -q`. If anything fails, or if a bug fix broke an existing assumption, fix your implementation until it passes. If you changed any tool's output shape (you shouldn't), regen the evals snapshot in Docker. For an engine-semantics bug fix, also spot-check the fixed source against real Stockfish via the bind-mount pattern in the verification block, and pin the semantics with a host regression test (engine objects like PovScore are constructible without an engine).
 4. Commit with a concise message explaining WHY the bug was fixed or the structural change was made (not what). No Co-Authored-By trailer.
-5. Push: `git push origin main`.
+5. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
 ```
 
 ---
@@ -86,14 +97,15 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 ## 2. Security Mitigation
 
 ```text
-Act as a pragmatic, veteran security architect reviewing chess-mcp: a FastMCP server (SSE transport) that runs Stockfish on caller-supplied PGN/FEN and holds an in-memory repertoire cache. There is NO authentication; the documented trust boundary is a trusted LAN, default bind 127.0.0.1 (the Docker image binds 0.0.0.0). Implement concrete, local mitigations strictly for THIS threat model — no web/browser/OPFS/CSP concerns apply.
+Act as a pragmatic, veteran security architect reviewing chess-mcp: a FastMCP server (SSE transport) that runs Stockfish on caller-supplied PGN/FEN and holds an in-memory repertoire cache, plus a host-side stdio file proxy (server/chess_files.py) that reads/writes PGN files by caller-supplied path. There is NO authentication; the documented trust boundary is a trusted LAN, default bind 127.0.0.1 (the Docker image binds 0.0.0.0). Implement concrete, local mitigations strictly for THIS threat model — no web/browser/OPFS/CSP concerns apply.
 
 Focus your implementation on:
 1. Untrusted PGN/FEN input: enforce and unit-cover the input caps (MAX_PGN_BYTES, MAX_REPERTOIRE_BYTES, MAX_LINE_MOVES, depth clamped to [1,30], multipv cap). Validate SEMANTIC validity (python-chess returns an empty Game for garbage — reject zero-move games), and return only structured closed-set errors. No bare exceptions or tracebacks reach the caller.
 2. Denial of service via input/state: bound per-call engine work (depth clamp, multipv ceiling) and bound the handle cache (MAX_REPERTOIRES LRU + REPERTOIRE_TTL_S idle expiry). Confirm the cache mutation is guarded by the lock against concurrent SSE calls; confirm a flood of load_repertoire calls cannot grow memory without bound.
 3. Engine subprocess safety: confirm Stockfish is launched via argv (no shell), the binary path comes from STOCKFISH_PATH (env, not caller), and no caller-controlled UCI options are passed. Fix anything that lets caller input reach a shell or the engine config.
 4. Internal interpolation / injection surfaces: audit any f-string or interpolation that builds something executed or path-like; add allowlists or explicit inline justification. (No SQL here — but the same discipline applies to FENs, engine args, file paths.)
-5. Defense in depth / exposure: keep the code default-bind 127.0.0.1; ensure the README trust-boundary warning (no auth, never expose publicly) stays accurate; favor stdlib over custom security code. Do not leak internal paths or state in error messages.
+5. File-proxy path safety (chess_files.py): every caller path must resolve-then-prove inside REPERTOIRE_DIR (symlinks resolved BEFORE the containment check — `.resolve()` then `is_relative_to`); size caps must hold on the bytes actually read, not just a pre-read stat() (TOCTOU); exports must never write outside the base dir or follow a caller-controlled parent that doesn't exist. Unit-cover any new guard with traversal (`../`), absolute-path, and symlink-escape cases.
+6. Defense in depth / exposure: keep the code default-bind 127.0.0.1; ensure the README trust-boundary warning (no auth, never expose publicly) stays accurate; favor stdlib over custom security code. Do not leak internal paths or state in error messages crossing the SSE boundary (the stdio proxy's path echoes are acceptable — its caller owns the filesystem).
 
 Do not add authentication or a heavy security framework — that contradicts the local/trusted-LAN model. Do not weaken the lean output or stateless contract.
 
@@ -102,7 +114,7 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`.
 3. Test: `cd server && uv run pytest -q`, and add tests for any new cap/guard (oversized input, expired handle, eviction, malformed PGN/FEN). Do not compromise core functionality for security theater. For engine-touching changes, verify in Docker (rebuild + capture.py and/or the SSE smoke client).
 4. Commit: the message must state the EXACT vulnerability mitigated and the method used. No Co-Authored-By trailer.
-5. Push: `git push origin main`.
+5. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
 ```
 
 ---
@@ -138,17 +150,25 @@ When the loop is pointed at a brand-new PGN that has no folder yet:
 PHASE 1 — RUN THE ANALYSIS FLOW
 Run tools in this exact order against `repertoires/<name>/repertoire.pgn`:
 
-1. `validate_pgn` — confirm the file is valid before loading
-2. `load_repertoire` — get the repertoire handle; record tree stats (nodes, leaves, max depth, color)
+1. `load_repertoire_from_file` (chess-files proxy) — the token-cheap load: the PGN never
+   enters your context, validation errors (invalid_pgn etc.) are relayed from the backend.
+   Record tree stats (nodes, leaves, max depth, color). Fall back to validate_pgn +
+   load_repertoire(pgn=...) only if the proxy is unavailable. Handles are process-state:
+   a backend restart or TTL expiry invalidates them — just reload, never treat a dead
+   handle as a finding.
+2. `classify_illustrative_lines` — flag the gamebook "wrong-answer" side lines FIRST;
+   pass the flagged paths as exclude_paths to congruence and gaps below so they don't
+   seed false flags or burn the gap budget
 3. `get_transpositions` — PRE-FLIGHT REQUIRED before any gap or depth analysis; record all convergence points
 4. `get_structural_profile` — full tree; record named structures, confidence, theme tags, center distribution
-5. `analyze_repertoire_congruence` — flags are clustered by opening SYSTEM (move-order-robust), so record the `clusters` partition and read each flag relative to its `cluster`; for each flagged line cross-check the transposition map before treating it as a real issue
-6. `find_repertoire_gaps` — cross-check every reported gap against the transposition map before recording it; suppress any gap that resolves to a transposition endpoint
-7. `evaluate_position` (depth 20) — run on: the repertoire's deepest main-line leaf, any structurally-defining leaf (a forced-weakness or space-bind position the repertoire bets on — e.g. a bxc3 / Maroczy / IQP / KID-bind leaf if present), and any leaf flagged by congruence or gaps that survived transposition cross-check
+5. `get_repertoire_coverage` — tree-shape hygiene: dangling lines (your move owed) vs natural frontiers
+6. `analyze_repertoire_congruence` (with exclude_paths from step 2) — flags are clustered by opening SYSTEM (move-order-robust), so record the `clusters` partition and read each flag relative to its `cluster`; for each flagged line cross-check the transposition map before treating it as a real issue
+7. `find_repertoire_gaps` (with exclude_paths from step 2) — cross-check every reported gap against the transposition map before recording it; suppress any gap that resolves to a transposition endpoint. If `budget_exhausted` comes back true, narrow with max_positions/exclude_paths and re-run rather than reporting a partial scan as complete
+8. `evaluate_position` (depth 20) — run on: the repertoire's deepest main-line leaf, any structurally-defining leaf (a forced-weakness or space-bind position the repertoire bets on — e.g. a bxc3 / Maroczy / IQP / KID-bind leaf if present), and any leaf flagged by congruence or gaps that survived transposition cross-check
 
 Assess each result against what the tool was supposed to do. Note: incorrect output, missing signal, false flags, unexplained `unknown` returns, or output that required manual multi-step chaining to interpret.
 
-In-session edit loop (optional, when the analysis surfaces a concrete repertoire-CONTENT fix — a refuted line to prune, a missing reply to add, a move-order to reorder): apply it with `modify_repertoire_line(repertoire_id, path, action, …)` → re-run the relevant tools above on the returned NEW id to confirm the fix, then `export_repertoire` and Write the `pgn` to `repertoires/<name>/repertoire.pgn`. Pass only paths + SAN the MCP surfaced; never hand-author content. This is distinct from PHASE 4 (which fixes the MCP CODE) — here you fix the repertoire fixture itself, in one session, no re-download.
+In-session edit loop (optional, when the analysis surfaces a concrete repertoire-CONTENT fix — a refuted line to prune, a missing reply to add, a move-order to reorder): apply it with `modify_repertoire_line(repertoire_id, path, action, …)` → re-run the relevant tools above on the returned NEW id to confirm the fix, then `export_repertoire_to_file` (chess-files proxy) straight to `repertoires/<name>/repertoire.pgn` — the PGN never passes through your context. Pass only paths + SAN the MCP surfaced; never hand-author content. This is distinct from PHASE 4 (which fixes the MCP CODE) — here you fix the repertoire fixture itself, in one session, no re-download.
 
 PHASE 2 — UPDATE ANALYSIS DOC
 Append a new versioned section to `repertoires/<name>/analysis.md`. Follow the existing format exactly:
@@ -187,8 +207,8 @@ Run in order; do not proceed past a failure:
 1. Import sanity: `uv run --with chess --with "mcp[cli]" python -c "import sys; sys.path.insert(0,'server'); import chess_mcp; print('import ok')"`
 2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`
 3. Test: `cd server && uv run pytest -q` — if you changed engine-touching paths, also verify in Docker
-4. If all green: bump the patch version in `pyproject.toml` (or wherever version is stored), commit all changes in a single commit with a message of the form `feat/fix: <what changed> — retro v<N>` describing the BEHAVIOR change. No Co-Authored-By trailer.
-5. Push: `git push origin main`
+4. If all green: bump the patch version in `server/pyproject.toml` (+ `uv lock`), commit all changes in a single commit with a message of the form `feat/fix: <what changed> — retro v<N>` describing the BEHAVIOR change. No Co-Authored-By trailer.
+5. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — the v* tag (GHCR publish + GitHub release + container restart) is a separate, requested step.
 
 GUARDRAILS
 - First-pass fixtures (PHASE 0) must be anonymized and neutrally named (`repertoire.pgn`) before commit — never commit a PII-named source PGN
@@ -213,7 +233,7 @@ Route each test to the file that owns the layer:
 
 Enforce these principles:
 1. Test behavior, not implementation: call the public functions/tools as a consumer would and assert on the OUTPUTS — returned dicts (structure_class, confidence, cp_loss, the closed error codes), parsed game trees, resolved FENs, cache hits/misses. Don't assert on internal call sequencing.
-2. Real instances over mocks: build real chess.Board / chess.pgn.Game / SquareSet positions and feed them through structure.py and repertoire.py. The engine-free layer needs NO mocks. Stockfish is the only true external boundary (and the host has none): the hard line is SimpleEngine.popen_uci — a test that would reach it does not belong in this suite. Engine-backed tool bodies are verified in Docker (evals/capture.py, the SSE smoke client), but every guard, clamp, and error return that fires BEFORE the engine opens is testable here, and that pre-engine slice is where tool regressions actually live.
+2. Real instances over mocks: build real chess.Board / chess.pgn.Game / SquareSet positions and feed them through structure.py and repertoire.py. The engine-free layer needs NO mocks. Stockfish is the only true external boundary (and the host has none): the hard line is SimpleEngine.popen_uci — a test that would reach it does not belong in this suite. Engine-backed tool bodies are verified in Docker (evals/capture.py, the SSE smoke client), but every guard, clamp, and error return that fires BEFORE the engine opens is testable here, and that pre-engine slice is where tool regressions actually live. Engine RESULT objects (PovScore, Cp, Mate, MateGiven, InfoDict-shaped dicts) are plain constructibles — score/POV semantics, including bugs only *triggered* via the engine, get pinned host-side with them (this is how the delivered-mate sign bug stays dead).
 3. High-signal targeting: pawn primitives (doubled/isolated/passed/chains/half-open/open), classify_structure (the 19-structure canon + unknown + confidence; brittleness/specificity/bidirectional cases — each scorer has an MCP-verified canonical FEN fixture) and themes (the always-on theme tags), center_state, the variation walker (iter_nodes/walk_leaves/tree_stats), resolve_path + san_path round-trips, the cache (store/get, TTL expiry, LRU eviction), the congruence rules, and the pure helpers behind the engine tools — pv_rejoins_prep, continued_position_key_set, opponent_reply_nodes, path_excluded, nag_illustrative_nodes / player_side_variations, apply_repertoire_edit, _fit_to_budget. Skip trivial passthroughs.
    Pick targets from evidence, not vibes: `uv run pytest -q` prints per-file missing lines/branches — chase uncovered BRANCHES that encode a decision (a guard, a severity gate, a fallback) and ignore unreachable engine-loop interiors.
 4. Clean state hygiene: guarantee isolation. Clear the module-level repertoire._CACHE between tests (autouse fixture); monkeypatch repertoire.MAX_REPERTOIRES / REPERTOIRE_TTL_S for eviction/expiry tests so they are deterministic and don't leak across cases.
@@ -227,5 +247,5 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 2. Lint/format: `uv run --with ruff ruff check --fix --target-version py314 server/ evals/ && uv run --with ruff ruff format --target-version py314 server/ evals/`.
 3. Test: `cd server && uv run pytest -q`. If new tests fail or break existing ones, debug and fix the TEST — unless you uncovered a real bug in structure.py/repertoire.py/chess_mcp.py, in which case fix the source and note it in the commit.
 4. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
-5. Push: `git push origin main`.
+5. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
 ```
