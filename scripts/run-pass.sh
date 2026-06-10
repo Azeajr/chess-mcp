@@ -80,6 +80,11 @@ run_once() {
     slug="$(tr '[:upper:] ' '[:lower:]-' <<<"$PASS_NAME" | tr -cd 'a-z0-9-')"
     log="$LOG_DIR/$ts-$slug.log"
     mkdir -p "$LOG_DIR"
+    find "$LOG_DIR" -mtime +7 -delete 2>/dev/null || true
+    if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
+        echo "[$ts] skipping '$PASS_NAME': working tree dirty — inspect and clean before next run" >&2
+        return 1
+    fi
     echo "[$ts] running '$PASS_NAME' (model: $MODEL) → $log"
     cd "$REPO_ROOT"
     rc=0
