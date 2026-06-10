@@ -781,3 +781,43 @@ def test_score_with_type_delivered_mate_sign():
     PovScore, Mate = chess.engine.PovScore, chess.engine.Mate
     assert cm._score_with_type(PovScore(Mate(0), chess.BLACK)) == (10000, "mate", 0)
     assert cm._score_with_type(PovScore(Mate(0), chess.WHITE)) == (-10000, "mate", 0)
+
+
+# --- security pass: engine-input gates ---
+
+ILLEGAL_KINGLESS_FEN = "8/8/8/8/8/8/8/8 w - - 0 1"  # parseable, no kings
+
+
+def test_evaluate_position_rejects_illegal_position():
+    # Illegal-but-parseable positions are undefined behavior for Stockfish — the
+    # gate must fire BEFORE the engine subprocess opens.
+    assert cm.evaluate_position(ILLEGAL_KINGLESS_FEN)["error"] == "invalid_fen"
+
+
+def test_compare_moves_rejects_illegal_position():
+    assert cm.compare_moves(ILLEGAL_KINGLESS_FEN, ["e4"])["error"] == "invalid_fen"
+
+
+def test_suggest_rejects_illegal_position(rid):
+    r = cm.suggest_complementary_lines(rid, ILLEGAL_KINGLESS_FEN)
+    assert r["error"] == "invalid_fen"
+
+
+def test_analyze_game_node_cap(monkeypatch):
+    # The byte cap admits PGNs encoding thousands of plies; node count bounds the
+    # per-call engine work. Cap fires pre-engine -> too_many_moves, not a hang.
+    monkeypatch.setattr(cm, "ANALYZE_MAX_NODES", 5)
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *\n'
+    assert cm.analyze_game(pgn)["error"] == "too_many_moves"
+
+
+def test_export_annotated_node_cap(monkeypatch):
+    monkeypatch.setattr(cm, "ANALYZE_MAX_NODES", 5)
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *\n'
+    assert cm.export_annotated_pgn(pgn)["error"] == "too_many_moves"
+
+
+def test_clamp_depth_bounds():
+    assert cm._clamp_depth(0) == cm.MIN_DEPTH
+    assert cm._clamp_depth(99) == cm.MAX_DEPTH
+    assert cm._clamp_depth(18) == 18

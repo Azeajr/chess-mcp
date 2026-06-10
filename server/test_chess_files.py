@@ -237,3 +237,25 @@ def test_export_backend_payload_missing_pgn_writes_nothing(base, monkeypatch):
     out = _run(cf.export_repertoire_to_file("rid", str(target)))
     assert out["error"] == "backend_unreachable"
     assert not target.exists()
+
+
+def test_load_symlink_escape_blocked(base, monkeypatch, tmp_path_factory):
+    # A symlink INSIDE the base dir pointing OUTSIDE it must be rejected: resolve()
+    # follows the link, so containment is proven on the real target.
+    outside = tmp_path_factory.mktemp("outside") / "secret.pgn"
+    outside.write_text(REP, encoding="utf-8")
+    (base / "alias.pgn").symlink_to(outside)
+    _stub_backend(monkeypatch, {})
+    out = _run(cf.load_repertoire_from_file("alias.pgn", "white"))
+    assert out["error"] == "path_not_allowed"
+
+
+def test_export_symlink_escape_writes_nothing(base, monkeypatch, tmp_path_factory):
+    # A dangling symlink out of the base dir must not become a write outside it.
+    outside_dir = tmp_path_factory.mktemp("outside2")
+    link = base / "out.pgn"
+    link.symlink_to(outside_dir / "evil.pgn")
+    _stub_backend(monkeypatch, {"pgn": REP})
+    out = _run(cf.export_repertoire_to_file("rid", str(link)))
+    assert out["error"] == "path_not_allowed"
+    assert not (outside_dir / "evil.pgn").exists()

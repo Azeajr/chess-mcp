@@ -26,6 +26,11 @@ DEFAULT_MULTIPV = 3
 MAX_PGN_BYTES = int(os.environ.get("MAX_PGN_BYTES", "100000"))
 MAX_REPERTOIRE_BYTES = int(os.environ.get("MAX_REPERTOIRE_BYTES", "1000000"))
 MAX_LINE_MOVES = int(os.environ.get("MAX_LINE_MOVES", "500"))
+# Whole-tree analysis runs ONE ENGINE PASS PER NODE: the byte cap alone admits a PGN
+# encoding thousands of plies (hours of engine time per call). Node count is the third
+# work axis, bounded like depth and multipv. 500 covers any annotated game; repertoire-
+# scale trees belong in load_repertoire (engine-free) + the budgeted gap scan.
+ANALYZE_MAX_NODES = int(os.environ.get("ANALYZE_MAX_NODES", "500"))
 MIN_DEPTH, MAX_DEPTH = 1, 30
 MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
@@ -83,6 +88,17 @@ def _pgn_too_large(pgn: str) -> dict | None:
             "reason": f"PGN exceeds {MAX_PGN_BYTES} bytes",
         }
     return None
+
+
+class _TreeTooLarge(ValueError):
+    """Game tree exceeds the per-call engine-pass budget (ANALYZE_MAX_NODES)."""
+
+
+def _pgn_analysis_error(e: ValueError) -> dict:
+    """ValueError out of the tree analysis → closed-set error: _TreeTooLarge is a
+    resource cap (too_many_moves), anything else is a parse failure (invalid_pgn)."""
+    code = "too_many_moves" if isinstance(e, _TreeTooLarge) else "invalid_pgn"
+    return {"error": code, "reason": str(e)}
 
 
 mcp = FastMCP(
@@ -291,6 +307,13 @@ def _analyse_tree(
     pass feeds both the mainline game tools and the annotated-PGN export.
     """
     game = _parse_game(pgn)
+    n_nodes = sum(1 for _ in repertoire.iter_nodes(game))
+    if n_nodes > ANALYZE_MAX_NODES:
+        raise _TreeTooLarge(
+            f"game tree has {n_nodes} nodes; the analysis cap is {ANALYZE_MAX_NODES} "
+            "engine passes per call (raise ANALYZE_MAX_NODES, or use load_repertoire "
+            "for repertoire-scale trees)"
+        )
     limit = _limit(depth, time_limit)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
         records = _analyze_tree_nodes(game, engine, limit, multipv)
@@ -366,7 +389,7 @@ def analyze_game(
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
-        return {"error": "invalid_pgn", "reason": str(e)}
+        return _pgn_analysis_error(e)
 
     out = []
     for r in records:
@@ -406,7 +429,7 @@ def get_game_summary(
     try:
         records, game = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
-        return {"error": "invalid_pgn", "reason": str(e)}
+        return _pgn_analysis_error(e)
 
     headers = game.headers
     opening = headers.get("Opening") or headers.get("ECO") or None
@@ -490,7 +513,7 @@ def get_position(
     try:
         records, _ = _analyse_all_moves(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
-        return {"error": "invalid_pgn", "reason": str(e)}
+        return _pgn_analysis_error(e)
 
     for r in records:
         if r["move_number"] == move_number and r["color"] == color:
@@ -506,6 +529,33 @@ def get_position(
         "error": "move_not_found",
         "reason": f"no {color} move {move_number} in game",
     }
+
+
+def _fen_status_reason(status: chess.Status) -> str:
+    """Human reason for an illegal-but-parseable position (board.status() != STATUS_VALID)."""
+    flags = [
+        s.name.removeprefix("STATUS_").lower()
+        for s in chess.Status
+        if s.value and (status & s)
+    ]
+    return ", ".join(flags) or "illegal position"
+
+
+def _safe_board(fen: str) -> tuple[chess.Board | None, dict | None]:
+    """Parse AND legality-gate a caller FEN for engine-facing tools. An illegal-but-
+    parseable position (kingless board, side-not-to-move in check, ...) is undefined
+    behavior for Stockfish — it can crash or hang the engine subprocess, so it must
+    be rejected before popen, exactly as validate_fen rejects it for the caller."""
+    try:
+        board = chess.Board(fen)
+    except ValueError as e:
+        return None, {"error": "invalid_fen", "reason": str(e)}
+    if board.status() != chess.STATUS_VALID:
+        return None, {
+            "error": "invalid_fen",
+            "reason": _fen_status_reason(board.status()),
+        }
+    return board, None
 
 
 @mcp.tool()
@@ -533,10 +583,9 @@ def evaluate_position(
     multipv = max(1, min(MAX_MULTIPV, multipv))
     if time_limit is not None:
         time_limit = _clamp_time(time_limit)
-    try:
-        board = chess.Board(fen)
-    except ValueError as e:
-        return {"error": "invalid_fen", "reason": str(e)}
+    board, err = _safe_board(fen)
+    if err:
+        return err
 
     limit = _limit(depth, time_limit)
     # An explicit multipv kwarg always yields a list (python-chess returns a bare
@@ -642,16 +691,6 @@ def get_legal_moves(fen: str, uci: bool = False) -> dict:
     return {"turn": turn, "move_count": len(legal), "moves": moves}
 
 
-def _fen_status_reason(status: chess.Status) -> str:
-    """Human reason for an illegal-but-parseable position (board.status() != STATUS_VALID)."""
-    flags = [
-        s.name.removeprefix("STATUS_").lower()
-        for s in chess.Status
-        if s.value and (status & s)
-    ]
-    return ", ".join(flags) or "illegal position"
-
-
 @mcp.tool()
 def validate_fen(fen: str) -> dict:
     """
@@ -711,10 +750,9 @@ def compare_moves(
     depth = _clamp_depth(depth)
     if time_limit is not None:
         time_limit = _clamp_time(time_limit)
-    try:
-        board = chess.Board(fen)
-    except ValueError as e:
-        return {"error": "invalid_fen", "reason": str(e)}
+    board, err = _safe_board(fen)
+    if err:
+        return err
 
     valid: list[chess.Move] = []
     illegal: list[str] = []
@@ -1013,10 +1051,9 @@ def suggest_complementary_lines(
             "error": "invalid_mode",
             "reason": "mode must be 'low_memorization' or 'sharp'",
         }
-    try:
-        board = chess.Board(fen)
-    except ValueError as e:
-        return {"error": "invalid_fen", "reason": str(e)}
+    board, err = _safe_board(fen)
+    if err:
+        return err
     if board.is_game_over():
         return {"mode": mode, "anchor_fen": board.fen(), "suggestions": []}
 
@@ -1866,7 +1903,7 @@ def export_annotated_pgn(
     try:
         records_by_path, _ = _analyse_tree(pgn, depth, DEFAULT_MULTIPV, time_limit)
     except ValueError as e:
-        return {"error": "invalid_pgn", "reason": str(e)}
+        return _pgn_analysis_error(e)
 
     # Annotate a FRESH parse — never the cached game — so the analysis cache stays read-only.
     game = _parse_game(pgn)
