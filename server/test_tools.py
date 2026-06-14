@@ -1431,3 +1431,188 @@ def test_board_widget_has_pgn_input():
     """Widget has PGN input area for stepper mode."""
     html = cm.get_board_widget()
     assert "pgnInput" in html or "pgn" in html.lower()
+
+
+# --- #30 tablebase_lookup (engine-free, mocked HTTP) ---
+
+
+def test_count_pieces_empty_board():
+    """Empty board has 0 pieces."""
+    assert cm._count_pieces("8/8/8/8/8/8/8/8 w - - 0 1") == 0
+
+
+def test_count_pieces_starting_position():
+    """Starting position has 32 pieces (16 white, 16 black)."""
+    assert cm._count_pieces(chess.STARTING_FEN) == 32
+
+
+def test_count_pieces_kqk():
+    """King and queen vs king has 3 pieces."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    assert cm._count_pieces(fen) == 3
+
+
+def test_count_pieces_seven_piece_position():
+    """Count pieces correctly in a 7-piece position."""
+    fen = "8/8/8/8/8/k1K5/Q4r2/R7 w - - 0 1"  # K, Q, R, A vs k, r, unknown
+    count = cm._count_pieces(fen)
+    assert count == 5  # White: K, Q, R; Black: k, r
+
+
+def test_tablebase_lookup_bad_fen():
+    """Invalid FEN returns error."""
+    r = cm.tablebase_lookup("not a fen")
+    assert r["error"] == "invalid_fen"
+
+
+def test_tablebase_lookup_illegal_position():
+    """Illegal-but-parseable position (kingless board) returns error."""
+    r = cm.tablebase_lookup("8/8/8/8/8/8/8/8 w - - 0 1")
+    assert r["error"] == "invalid_fen"
+
+
+def test_tablebase_lookup_too_many_pieces_no_network_call(monkeypatch):
+    """8+ pieces returns error WITHOUT calling the network."""
+    calls = {"n": 0}
+
+    def mock_get_json(url, params=None):
+        calls["n"] += 1
+        return None
+
+    monkeypatch.setattr(apiclient, "get_json", mock_get_json)
+    # Starting position has 32 pieces → should fail immediately without a network call
+    r = cm.tablebase_lookup(chess.STARTING_FEN)
+    assert r["error"] == "too_many_pieces"
+    assert calls["n"] == 0  # network call was NOT made
+
+
+def test_tablebase_lookup_kqk_white_win(monkeypatch):
+    """Known white-win position (KQK) returns correct WDL and best_move."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {
+        "fen": fen,
+        "category": "win",
+        "dtz": 5,
+        "precise_dtz": 5,
+        "dtm": 30,
+        "checkmate": False,
+        "stalemate": False,
+        "moves": [
+            {
+                "uci": "a2a3",
+                "san": "Qa3",
+                "category": "win",
+                "dtz": 4,
+                "precise_dtz": 4,
+                "dtm": 29,
+                "zeroing": True,
+            }
+        ],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 2  # win
+    assert r["dtz"] == 5
+    assert r["best_move"] == "a2a3"
+    assert r["category"] == "win"
+
+
+def test_tablebase_lookup_cursed_win_maps_to_wdl_2(monkeypatch):
+    """Cursed-win (winning but unreachable in 50 moves) maps to wdl=2."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {
+        "category": "cursed-win",
+        "dtz": None,  # unreachable in 50 moves
+        "moves": [{"uci": "a2a3"}],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 2  # still a win
+    assert r["category"] == "cursed-win"  # but verbatim category
+
+
+def test_tablebase_lookup_draw(monkeypatch):
+    """Draw position returns wdl=0."""
+    fen = "7k/5K2/6B1/6B1/8/8/8/8 w - - 0 1"
+    mock_response = {
+        "category": "draw",
+        "dtz": 0,
+        "moves": [{"uci": "g5f4"}],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 0  # draw
+    assert r["category"] == "draw"
+
+
+def test_tablebase_lookup_blessed_loss_maps_to_wdl_0(monkeypatch):
+    """Blessed-loss (losing but drawable by 50-move rule) maps to wdl=0."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {
+        "category": "blessed-loss",
+        "dtz": 100,  # can force a draw by avoiding moves for 50 moves
+        "moves": [{"uci": "a2a3"}],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 0  # drawable, so treated as draw
+    assert r["category"] == "blessed-loss"
+
+
+def test_tablebase_lookup_loss(monkeypatch):
+    """Loss position returns wdl=-2."""
+    fen = "8/8/8/8/8/K7/q7/k7 w - - 0 1"
+    mock_response = {
+        "category": "loss",
+        "dtz": -5,
+        "moves": [{"uci": "a3a2"}],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == -2  # loss
+    assert r["category"] == "loss"
+
+
+def test_tablebase_lookup_maybe_win_maps_to_wdl_0(monkeypatch):
+    """Maybe-win (uncertain result) maps to wdl=0, keeping category verbatim."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {
+        "category": "maybe-win",
+        "dtz": None,
+        "moves": [{"uci": "a2a3"}],
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 0  # uncertain, treated as draw
+    assert r["category"] == "maybe-win"  # verbatim
+
+
+def test_tablebase_lookup_offline_returns_unavailable(monkeypatch):
+    """Network failure (apiclient returns None) returns unavailable error."""
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: None)
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    r = cm.tablebase_lookup(fen)
+    assert r["error"] == "unavailable"
+    assert "unreachable" in r["reason"]
+
+
+def test_tablebase_lookup_malformed_response(monkeypatch):
+    """Malformed response (non-dict) returns unavailable error."""
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: "not a dict")
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    r = cm.tablebase_lookup(fen)
+    assert r["error"] == "unavailable"
+
+
+def test_tablebase_lookup_no_best_move_in_response(monkeypatch):
+    """Missing moves list in response still returns valid result with best_move=None."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {
+        "category": "win",
+        "dtz": 5,
+        # no moves field
+    }
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == 2
+    assert r["best_move"] is None

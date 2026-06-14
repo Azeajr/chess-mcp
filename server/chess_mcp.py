@@ -581,6 +581,77 @@ def _safe_board(fen: str) -> tuple[chess.Board | None, dict | None]:
     return board, None
 
 
+def _count_pieces(fen: str) -> int:
+    """Count total pieces (both sides) from FEN placement field (first field)."""
+    placement = fen.split()[0]
+    count = 0
+    for char in placement:
+        if char.isalpha():
+            count += 1
+    return count
+
+
+@mcp.tool()
+def tablebase_lookup(fen: str) -> dict:
+    """
+    Query Lichess tablebase for a position with ≤7 pieces.
+
+    Positions with 8+ pieces return an error immediately (no network call).
+    Returns: wdl (2=win, 0=draw, -2=loss from side-to-move), dtz (distance to zero,
+    moves until 50-move rule resets), best_move (UCI), category (win|draw|loss|cursed-win|blessed-loss|...).
+    Offline or position-not-in-database → {"error":"unavailable"}.
+    Invalid FEN → {"error":"invalid_fen","reason":...}.
+    Positions with >7 pieces → {"error":"too_many_pieces","reason":...}.
+
+    Tablebase data is exact; it often disagrees with engine evals in deep endgames.
+    Use for endgame study and to verify engine conclusions in 7-piece zones.
+    """
+    board, err = _safe_board(fen)
+    if err:
+        return err
+
+    piece_count = _count_pieces(fen)
+    if piece_count > 7:
+        return {
+            "error": "too_many_pieces",
+            "reason": "position exceeds 7-piece tablebase limit",
+        }
+
+    data = apiclient.get_json(
+        "https://tablebase.lichess.ovh/standard",
+        {"fen": board.fen()},
+    )
+    if not isinstance(data, dict):
+        return {
+            "error": "unavailable",
+            "reason": "tablebase service unreachable or position not in database",
+        }
+
+    # Map category to WDL
+    category = data.get("category", "unknown")
+    if category in ("win", "cursed-win"):
+        wdl = 2
+    elif category in ("loss",):
+        wdl = -2
+    else:  # "draw", "blessed-loss", "maybe-win", "unknown", or any other
+        wdl = 0
+
+    # Extract best move (first move in moves list, or null if none)
+    best_move = None
+    moves = data.get("moves", [])
+    if moves and isinstance(moves[0], dict):
+        best_move = moves[0].get("uci")
+
+    dtz = data.get("dtz")
+
+    return {
+        "wdl": wdl,
+        "dtz": dtz,
+        "best_move": best_move,
+        "category": category,
+    }
+
+
 @mcp.tool()
 def evaluate_position(
     fen: str,
@@ -644,6 +715,13 @@ def evaluate_position(
             for info in infos
             if info.get("pv")
         ]
+
+    # Auto-integrate tablebase result for positions with ≤7 pieces
+    if _count_pieces(fen) <= 7:
+        tb_result = tablebase_lookup(fen)
+        if "error" not in tb_result:
+            result["tablebase"] = tb_result
+
     return result
 
 
