@@ -40,6 +40,9 @@ MIN_TIME, MAX_TIME = 0.01, float(os.environ.get("MAX_ENGINE_TIME_S", "60"))
 MAX_MULTIPV = 10
 MAX_COMPARE_MOVES = MAX_MULTIPV  # compare_moves searches one line per candidate
 MAX_GAP_POSITIONS = 60  # find_repertoire_gaps engine-pass ceiling
+MAX_FETCH_GAMES = int(
+    os.environ.get("MAX_FETCH_GAMES", "100")
+)  # batch_review, repertoire_vs_history max_games
 _GAP_BUDGET_S = float(
     os.environ.get("GAP_BUDGET_S", "45")
 )  # find_repertoire_gaps total wall-clock budget — keeps the scan under the client request timeout
@@ -2476,6 +2479,273 @@ def engine_move(
             "error": "backend_error",
             "reason": f"engine error with {backend}: {type(e).__name__}: {e}",
         }
+
+
+# Batch review: multi-game aggregation by opening/structure/color (#32)
+# ---------------------------------------------------------------------------
+
+
+def _aggregate_games(records: list[dict]) -> dict:
+    """Pure aggregator (engine-free): group per-game records by their group_key and compute
+    win rates, avg CPL, top blunders, and worst/best groups.
+
+    Each record: {result, group_key, group_name, avg_cpl, blunders: [{move, fen, classification}]}
+    Returns: {total_games, groups: [{key, name, games, win_rate, draw_rate, loss_rate, avg_cpl, top_blunders}], worst_group, best_group}
+    """
+    if not records:
+        return {
+            "total_games": 0,
+            "groups": [],
+            "worst_group": None,
+            "best_group": None,
+        }
+
+    # Group by key
+    groups_dict: dict[str, dict] = {}
+    for rec in records:
+        key = rec["group_key"]
+        if key not in groups_dict:
+            groups_dict[key] = {
+                "key": key,
+                "name": rec["group_name"],
+                "games": 0,
+                "wins": 0,
+                "draws": 0,
+                "losses": 0,
+                "cpl_sum": 0.0,
+                "blunder_freq": {},  # {move: count}
+            }
+        g = groups_dict[key]
+        g["games"] += 1
+        if rec["result"] == "win":
+            g["wins"] += 1
+        elif rec["result"] == "draw":
+            g["draws"] += 1
+        elif rec["result"] == "loss":
+            g["losses"] += 1
+        g["cpl_sum"] += rec["avg_cpl"]
+        for blunder in rec["blunders"]:
+            move = blunder["move"]
+            g["blunder_freq"][move] = g["blunder_freq"].get(move, 0) + 1
+
+    # Compute aggregates
+    groups = []
+    for key, g in groups_dict.items():
+        total = g["games"]
+        win_rate = g["wins"] / total if total > 0 else 0.0
+        draw_rate = g["draws"] / total if total > 0 else 0.0
+        loss_rate = g["losses"] / total if total > 0 else 0.0
+        avg_cpl = g["cpl_sum"] / total if total > 0 else 0.0
+
+        # Top blunders by frequency (limit to top 5)
+        top_blunders = sorted(g["blunder_freq"].items(), key=lambda x: -x[1])[:5]
+        top_blunders_list = [
+            {"move": move, "frequency": freq} for move, freq in top_blunders
+        ]
+
+        groups.append(
+            {
+                "key": g["key"],
+                "name": g["name"],
+                "games": g["games"],
+                "win_rate": round(win_rate, 3),
+                "draw_rate": round(draw_rate, 3),
+                "loss_rate": round(loss_rate, 3),
+                "avg_cpl": round(avg_cpl, 1),
+                "top_blunders": top_blunders_list,
+            }
+        )
+
+    # Find worst and best groups
+    worst_group = None
+    best_group = None
+    if groups:
+        worst_group = min(groups, key=lambda g: g["win_rate"])
+        best_group = max(groups, key=lambda g: g["win_rate"])
+        worst_group = {
+            "key": worst_group["key"],
+            "name": worst_group["name"],
+            "win_rate": worst_group["win_rate"],
+        }
+        best_group = {
+            "key": best_group["key"],
+            "name": best_group["name"],
+            "win_rate": best_group["win_rate"],
+        }
+
+    return {
+        "total_games": len(records),
+        "groups": groups,
+        "worst_group": worst_group,
+        "best_group": best_group,
+    }
+
+
+def _get_group_key_and_name(
+    game: chess.pgn.Game, group_by: str
+) -> tuple[str | None, str | None]:
+    """Determine group key and human-readable name based on group_by mode.
+
+    Returns (key, name) or (None, None) if grouping not applicable (e.g., structure but game incomplete)."""
+    if group_by == "eco":
+        # Get ECO code from headers or identify it
+        headers = game.headers
+        eco = headers.get("ECO")
+        opening = headers.get("Opening")
+        if eco:
+            return eco, opening or eco
+        # Identify opening from the mainline - export game to PGN string
+        exporter = chess.pgn.StringExporter(
+            headers=True, variations=False, comments=False
+        )
+        pgn_str = game.accept(exporter)
+        ident = identify_opening(pgn_str)
+        if ident and "eco" in ident:
+            eco = ident["eco"]
+            opening_name = ident.get("name", eco)
+            return eco, opening_name
+        return "unknown", "Unknown Opening"
+
+    elif group_by == "structure":
+        # Classify the game's final position
+        node = game
+        while node.variations:
+            node = node.variations[0]
+        board = node.board()
+        classification = structure.classify_structure(board)
+        struct_class = classification.get("structure_class", "unknown")
+        # Format the structure name nicely
+        struct_name = struct_class.replace("_", " ").title()
+        return struct_class, struct_name
+
+    elif group_by == "color":
+        # Grouping key is the user's color (determined later in batch_review)
+        # This should not be called directly; returns None so batch_review can handle it
+        return None, None
+
+    return None, None
+
+
+@mcp.tool()
+def batch_review(
+    pgn: str,
+    group_by: str = "eco",
+    username: str | None = None,
+    max_games: int = 100,
+    depth: int = DEFAULT_DEPTH,
+    time_limit: float | None = None,
+) -> dict:
+    """
+    Analyze multiple games and return aggregated statistics grouped by opening.
+
+    pgn: multi-game PGN string (e.g., from a Lichess/Chess.com bulk export). One [Event]
+    per opening is typical.
+
+    group_by: "eco" (ECO code, default), "structure" (pawn structure at game end), or
+    "color" (user's color — requires username).
+
+    username: optional, for matching the user's color in White/Black headers. If provided,
+    only games where username played are included; results (win/loss/draw) are from the
+    user's perspective. If omitted, all games analyzed and color-based grouping is
+    unavailable.
+
+    max_games: max number of games to analyze (default 100; higher values are slower).
+
+    depth, time_limit: engine search parameters (see get_game_summary).
+
+    Returns: {total_games, groups: [{key, name, games, win_rate, draw_rate, loss_rate,
+    avg_cpl, top_blunders: [{move, frequency}]}], worst_group: {key, name, win_rate},
+    best_group: {key, name, win_rate}}. Bad input → {error, reason}.
+    """
+    if err := _pgn_too_large(pgn):
+        return err
+
+    if group_by not in ("eco", "structure", "color"):
+        return {
+            "error": "invalid_group_by",
+            "reason": 'group_by must be "eco", "structure", or "color"',
+        }
+
+    if group_by == "color" and username is None:
+        return {
+            "error": "missing_username",
+            "reason": 'group_by="color" requires username to infer user\'s side',
+        }
+
+    depth, time_limit = _clamp_search(depth, time_limit)
+
+    # Parse all games
+    try:
+        games = _parse_games(pgn)
+    except ValueError as e:
+        return _pgn_analysis_error(e)
+
+    # Limit to max_games
+    games = games[: max(1, min(MAX_FETCH_GAMES, max_games))]
+
+    # Build per-game records
+    records = []
+    for game in games:
+        # Determine group key and name
+        if group_by == "color":
+            user_color = _user_color(game, username or "")
+            if user_color is None:
+                continue  # Skip games where user didn't play
+            group_key = user_color
+            group_name = "White" if user_color == "white" else "Black"
+        else:
+            group_key, group_name = _get_group_key_and_name(game, group_by)
+            if group_key is None:
+                continue  # Skip games that can't be grouped
+
+        # Get game summary (engine analysis) - export game to PGN string
+        exporter = chess.pgn.StringExporter(
+            headers=True, variations=False, comments=False
+        )
+        pgn_str = game.accept(exporter)
+        summary = get_game_summary(pgn_str, depth, time_limit)
+        if "error" in summary:
+            continue  # Skip games with analysis errors
+
+        # Determine result
+        result = _user_result(
+            game.headers.get("Result", "*"), _user_color(game, username or "")
+        )
+
+        # Collect worst moves by classification
+        blunders = []
+        for worst_move in summary.get("worst_moves", []):
+            classification = worst_move.get("classification", "")
+            if classification in ("blunder", "mistake", "inaccuracy"):
+                blunders.append(
+                    {
+                        "move": worst_move.get("move", ""),
+                        "fen": "",  # Not available from summary
+                        "classification": classification,
+                    }
+                )
+
+        # Compute average CPL (centipawn loss) from worst_moves
+        avg_cpl = 0.0
+        if summary.get("worst_moves"):
+            total_loss = sum(m.get("cp_loss", 0) for m in summary["worst_moves"])
+            avg_cpl = total_loss / len(summary["worst_moves"])
+
+        records.append(
+            {
+                "result": result,
+                "group_key": group_key,
+                "group_name": group_name,
+                "avg_cpl": avg_cpl,
+                "blunders": blunders,
+            }
+        )
+
+    # Aggregate
+    result = _aggregate_games(records)
+    result["username"] = username
+    result["group_by"] = group_by
+    return result
 
 
 if __name__ == "__main__":

@@ -1860,3 +1860,215 @@ def test_engine_move_all_maia_ratings():
         if result.get("error") == "invalid_backend":
             # This would mean the rating itself was invalid, which shouldn't happen
             assert False, f"Maia {rating} should be valid"
+
+
+# --- batch_review (pure aggregator) ---
+
+
+def test_aggregate_games_empty():
+    """Empty records → empty output."""
+    result = cm._aggregate_games([])
+    assert result["total_games"] == 0
+    assert result["groups"] == []
+    assert result["worst_group"] is None
+    assert result["best_group"] is None
+
+
+def test_aggregate_games_single_group():
+    """Single group with multiple results."""
+    records = [
+        {
+            "result": "win",
+            "group_key": "eco_b12",
+            "group_name": "Caro-Kann",
+            "avg_cpl": 50.0,
+            "blunders": [{"move": "e4", "fen": "", "classification": "mistake"}],
+        },
+        {
+            "result": "loss",
+            "group_key": "eco_b12",
+            "group_name": "Caro-Kann",
+            "avg_cpl": 80.0,
+            "blunders": [{"move": "d5", "fen": "", "classification": "blunder"}],
+        },
+        {
+            "result": "draw",
+            "group_key": "eco_b12",
+            "group_name": "Caro-Kann",
+            "avg_cpl": 30.0,
+            "blunders": [],
+        },
+    ]
+    result = cm._aggregate_games(records)
+    assert result["total_games"] == 3
+    assert len(result["groups"]) == 1
+    g = result["groups"][0]
+    assert g["key"] == "eco_b12"
+    assert g["games"] == 3
+    assert g["win_rate"] == pytest.approx(1 / 3, abs=0.01)
+    assert g["draw_rate"] == pytest.approx(1 / 3, abs=0.01)
+    assert g["loss_rate"] == pytest.approx(1 / 3, abs=0.01)
+    assert g["avg_cpl"] == pytest.approx(53.3, abs=0.1)
+    assert len(g["top_blunders"]) == 2
+
+
+def test_aggregate_games_multiple_groups():
+    """Multiple groups, each with distinct stats."""
+    records = [
+        {
+            "result": "win",
+            "group_key": "eco_c60",
+            "group_name": "Italian",
+            "avg_cpl": 20.0,
+            "blunders": [],
+        },
+        {
+            "result": "win",
+            "group_key": "eco_c60",
+            "group_name": "Italian",
+            "avg_cpl": 15.0,
+            "blunders": [],
+        },
+        {
+            "result": "loss",
+            "group_key": "eco_b12",
+            "group_name": "Caro-Kann",
+            "avg_cpl": 100.0,
+            "blunders": [{"move": "e4", "fen": "", "classification": "blunder"}],
+        },
+    ]
+    result = cm._aggregate_games(records)
+    assert result["total_games"] == 3
+    assert len(result["groups"]) == 2
+
+    # Italian group
+    italian = next(g for g in result["groups"] if g["key"] == "eco_c60")
+    assert italian["games"] == 2
+    assert italian["win_rate"] == 1.0
+    assert italian["avg_cpl"] == pytest.approx(17.5, abs=0.1)
+
+    # Caro-Kann group
+    caro = next(g for g in result["groups"] if g["key"] == "eco_b12")
+    assert caro["games"] == 1
+    assert caro["loss_rate"] == 1.0
+    assert caro["avg_cpl"] == 100.0
+
+    # worst/best groups
+    assert result["worst_group"]["key"] == "eco_b12"
+    assert result["best_group"]["key"] == "eco_c60"
+
+
+def test_aggregate_games_blunder_frequency():
+    """Top blunders are sorted by frequency."""
+    records = [
+        {
+            "result": "loss",
+            "group_key": "eco_e4",
+            "group_name": "Open Game",
+            "avg_cpl": 50.0,
+            "blunders": [
+                {"move": "e5", "fen": "", "classification": "blunder"},
+                {"move": "d4", "fen": "", "classification": "mistake"},
+                {"move": "e5", "fen": "", "classification": "blunder"},
+            ],
+        },
+        {
+            "result": "loss",
+            "group_key": "eco_e4",
+            "group_name": "Open Game",
+            "avg_cpl": 70.0,
+            "blunders": [
+                {"move": "e5", "fen": "", "classification": "blunder"},
+                {"move": "g5", "fen": "", "classification": "inaccuracy"},
+            ],
+        },
+    ]
+    result = cm._aggregate_games(records)
+    g = result["groups"][0]
+    # e5 appears 3 times, d4 once, g5 once
+    assert g["top_blunders"][0]["move"] == "e5"
+    assert g["top_blunders"][0]["frequency"] == 3
+    assert g["top_blunders"][1]["move"] in ("d4", "g5")
+    assert g["top_blunders"][1]["frequency"] == 1
+
+
+def test_batch_review_pgn_too_large():
+    """Oversized PGN → early error."""
+    big_pgn = "1. e4 e5 " * 100000
+    result = cm.batch_review(big_pgn)
+    assert result["error"] == "pgn_too_large"
+
+
+def test_batch_review_invalid_group_by():
+    """Invalid group_by mode → error."""
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. e4 e5 *\n'
+    result = cm.batch_review(pgn, group_by="invalid")
+    assert result["error"] == "invalid_group_by"
+
+
+def test_batch_review_color_without_username():
+    """group_by='color' without username → error."""
+    pgn = '[Event "t"]\n[Result "*"]\n\n1. e4 e5 *\n'
+    result = cm.batch_review(pgn, group_by="color", username=None)
+    assert result["error"] == "missing_username"
+
+
+def test_batch_review_invalid_pgn():
+    """Bad PGN → error."""
+    result = cm.batch_review("not a pgn")
+    assert result["error"] == "invalid_pgn"
+
+
+def test_batch_review_empty_pgn():
+    """Empty PGN → error."""
+    result = cm.batch_review("")
+    assert result["error"] == "invalid_pgn"
+
+
+def test_batch_review_parse_multi_game(monkeypatch):
+    """Multiple games in one PGN are parsed."""
+    pgn = (
+        '[Event "Game1"]\n[White "Alice"]\n[Black "Bob"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0\n\n'
+        '[Event "Game2"]\n[White "Bob"]\n[Black "Alice"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 e6 0-1\n\n'
+    )
+    # Mock get_game_summary to avoid engine calls
+    call_count = [0]
+
+    def mock_summary(pgn_str, depth=18, time_limit=None):
+        call_count[0] += 1
+        return {
+            "opening": "Some Opening",
+            "total_moves": 2,
+            "white": {"accuracy_pct": 90},
+            "black": {"accuracy_pct": 85},
+            "worst_moves": [],
+        }
+
+    monkeypatch.setattr(cm, "get_game_summary", mock_summary)
+    result = cm.batch_review(pgn, group_by="eco")
+    assert result["total_games"] == 2
+    assert call_count[0] == 2  # Both games were analyzed
+
+
+def test_batch_review_max_games_cap(monkeypatch):
+    """max_games parameter caps the number of games analyzed."""
+    pgn = (
+        '[Event "Game1"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0\n\n'
+        '[Event "Game2"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 e6 0-1\n\n'
+        '[Event "Game3"]\n[Result "1/2-1/2"]\n\n1. c4 c5 2. Nc3 Nc6 1/2-1/2\n\n'
+    )
+    call_count = [0]
+
+    def mock_summary(pgn_str, depth=18, time_limit=None):
+        call_count[0] += 1
+        return {
+            "opening": None,
+            "total_moves": 2,
+            "white": {"accuracy_pct": 90},
+            "black": {"accuracy_pct": 85},
+            "worst_moves": [],
+        }
+
+    monkeypatch.setattr(cm, "get_game_summary", mock_summary)
+    cm.batch_review(pgn, max_games=2, group_by="eco")
+    assert call_count[0] == 2  # Only 2 games analyzed despite 3 available
