@@ -1923,6 +1923,280 @@ def export_annotated_pgn(
     return {"pgn": game.accept(exporter), "moves_annotated": annotated}
 
 
+# ---------------------------------------------------------------------------
+# #25 — game-history fetch (Lichess / Chess.com) + repertoire cross-reference.
+# Network tools over the shared apiclient (rate-limited, offline-safe). See
+# docs/design/GAMES_API_DESIGN.md. Metadata is parsed uniformly from PGN headers (both
+# platforms emit them), so one code path serves both; full PGN is attached only on request.
+# ---------------------------------------------------------------------------
+
+_LICHESS_GAMES_URL = "https://lichess.org/api/games/user/{user}"
+_CHESSCOM_GAMES_URL = (
+    "https://api.chess.com/pub/player/{user}/games/{year:04d}/{month:02d}"
+)
+MAX_FETCH_GAMES = 100
+
+
+def _lichess_headers() -> dict:
+    """NDJSON accept + optional bearer token (LICHESS_TOKEN unlocks private games / higher limits)."""
+    headers = {"Accept": "application/x-ndjson"}
+    token = os.environ.get("LICHESS_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _int_or_none(s) -> int | None:
+    try:
+        return int(s)
+    except TypeError, ValueError:
+        return None
+
+
+def _user_color(game: chess.pgn.Game, username: str) -> str | None:
+    """The color `username` played, by matching the White/Black headers; None on alias mismatch."""
+    uname = username.lower()
+    if game.headers.get("White", "").lower() == uname:
+        return "white"
+    if game.headers.get("Black", "").lower() == uname:
+        return "black"
+    return None
+
+
+def _user_result(result: str, color: str | None) -> str | None:
+    """Normalize a PGN Result to the user's outcome (win|loss|draw), or None if unknown/ongoing."""
+    if result == "1/2-1/2":
+        return "draw"
+    if color is None or result not in ("1-0", "0-1"):
+        return None
+    white_won = result == "1-0"
+    return "win" if white_won == (color == "white") else "loss"
+
+
+def _game_meta(pgn: str, username: str, include_pgn: bool) -> dict | None:
+    """One game's metadata, parsed uniformly from PGN headers (both platforms emit these)."""
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    if game is None:
+        return None
+    h = game.headers
+    color = _user_color(game, username)
+    white, black = h.get("White", ""), h.get("Black", "")
+    meta = {
+        "id": h.get("Site", "") or h.get("Link", ""),
+        "color": color,
+        "result": _user_result(h.get("Result", "*"), color),
+        "opponent": (black if color == "white" else white) if color else None,
+        "user_elo": _int_or_none(h.get("WhiteElo" if color == "white" else "BlackElo"))
+        if color
+        else None,
+        "opp_elo": _int_or_none(h.get("BlackElo" if color == "white" else "WhiteElo"))
+        if color
+        else None,
+        "time_control": h.get("TimeControl"),
+        "eco": h.get("ECO"),
+        "opening": h.get("Opening"),
+        "n_plies": sum(1 for _ in game.mainline_moves()),
+    }
+    if include_pgn:
+        meta["pgn"] = pgn
+    return meta
+
+
+def _fetch_lichess_pgns(username: str, max_games: int) -> list[str] | None:
+    objs = apiclient.get_ndjson(
+        _LICHESS_GAMES_URL.format(user=username),
+        params={
+            "max": max_games,
+            "pgnInJson": "true",
+            "opening": "true",
+            "clocks": "false",
+            "evals": "false",
+        },
+        headers=_lichess_headers(),
+    )
+    if objs is None:
+        return None
+    return [o["pgn"] for o in objs if isinstance(o, dict) and o.get("pgn")]
+
+
+def _fetch_chesscom_pgns(username: str, year: int, month: int) -> list[str] | None:
+    data = apiclient.get_json(
+        _CHESSCOM_GAMES_URL.format(user=username, year=year, month=month)
+    )
+    if not isinstance(data, dict):
+        return None
+    return [
+        g["pgn"] for g in data.get("games", []) if isinstance(g, dict) and g.get("pgn")
+    ]
+
+
+def _games_result(pgns, platform, username, opening_eco, include_pgn) -> dict:
+    if pgns is None:
+        return {
+            "username": username,
+            "platform": platform,
+            "count": 0,
+            "games": [],
+            "error": "fetch_failed",
+            "reason": "could not fetch games (offline, unknown user, or rate-limited)",
+        }
+    metas = []
+    for p in pgns:
+        m = _game_meta(p, username, include_pgn)
+        if m is None:
+            continue
+        if opening_eco and not (m.get("eco") or "").startswith(opening_eco):
+            continue
+        metas.append(m)
+    kept, truncated = _fit_to_budget(metas)
+    return {
+        "username": username,
+        "platform": platform,
+        "count": len(kept),
+        "games": kept,
+        "truncated": truncated,
+    }
+
+
+@mcp.tool()
+def lichess_games(
+    username: str,
+    max_games: int = 20,
+    opening_eco: str | None = None,
+    include_pgn: bool = False,
+) -> dict:
+    """
+    Recent games for a Lichess user (public, no auth). Returns {username, platform, count,
+    games:[{id, color, result, opponent, user_elo, opp_elo, time_control, eco, opening,
+    n_plies, pgn?}], truncated}. color/result are from the USER's side.
+
+    Metadata only by default — set include_pgn=true to attach each game's PGN (large; the list
+    is byte-budgeted so it may truncate). opening_eco filters by ECO prefix (e.g. "B" Sicilian
+    family, "B20"). max_games caps the fetch. Set LICHESS_TOKEN env for private games. Network
+    needed; offline / unknown user → {error:"fetch_failed"}.
+    """
+    max_games = max(1, min(MAX_FETCH_GAMES, max_games))
+    pgns = _fetch_lichess_pgns(username, max_games)
+    return _games_result(pgns, "lichess", username, opening_eco, include_pgn)
+
+
+@mcp.tool()
+def chesscom_games(
+    username: str,
+    year: int,
+    month: int,
+    opening_eco: str | None = None,
+    include_pgn: bool = False,
+) -> dict:
+    """
+    Games for a Chess.com user in a given month (published-data API, no auth). Same return
+    shape as lichess_games. Chess.com archives are per-month, so year + month are required.
+
+    Metadata only by default; include_pgn=true attaches PGNs (byte-budgeted). opening_eco
+    filters by ECO prefix. Network needed; offline / unknown user → {error:"fetch_failed"}.
+    """
+    pgns = _fetch_chesscom_pgns(username, year, month)
+    return _games_result(pgns, "chesscom", username, opening_eco, include_pgn)
+
+
+@mcp.tool()
+def repertoire_vs_history(
+    repertoire_id: str,
+    username: str,
+    platform: str = "lichess",
+    max_games: int = 30,
+    year: int | None = None,
+    month: int | None = None,
+) -> dict:
+    """
+    Compare a loaded repertoire (a load_repertoire handle) against a user's real games: how
+    often they reach their prep and where they leave it. Only games the user played on the
+    repertoire's color are analyzed; transposition-aware.
+
+    Returns: games_total, games_matched_color, games_reached_prep, coverage_pct
+    (reached/matched), avg_in_book_plies, player_deviations [{fen, prescribed:[san], played,
+    count}] (positions the user most often abandons prep — the drill list), and
+    uncovered_opponent_moves [{fen, played, count}] (what opponents actually play past the prep
+    — real-world gaps complementing find_repertoire_gaps).
+
+    platform "lichess" | "chesscom" (chesscom requires year + month). Network needed; offline →
+    {error:"fetch_failed"}. Unknown repertoire_id → error.
+    """
+    rep = repertoire.get_repertoire(repertoire_id)
+    if rep is None:
+        return _repertoire_not_found()
+    max_games = max(1, min(MAX_FETCH_GAMES, max_games))
+    if platform == "lichess":
+        pgns = _fetch_lichess_pgns(username, max_games)
+    elif platform == "chesscom":
+        if year is None or month is None:
+            return {
+                "error": "missing_arg",
+                "reason": "chesscom requires year and month",
+            }
+        pgns = _fetch_chesscom_pgns(username, year, month)
+    else:
+        return {
+            "error": "invalid_platform",
+            "reason": "platform must be 'lichess' or 'chesscom'",
+        }
+    if pgns is None:
+        return {
+            "username": username,
+            "platform": platform,
+            "error": "fetch_failed",
+            "reason": "could not fetch games (offline, unknown user, or rate-limited)",
+        }
+
+    rep_keys, player_moves = repertoire.player_move_map(rep)
+    color_name = "white" if rep.color == chess.WHITE else "black"
+    total = matched = reached = plies_sum = 0
+    dev_counts: dict = {}
+    unc_counts: dict = {}
+    for p in pgns[:max_games]:
+        game = chess.pgn.read_game(io.StringIO(p))
+        if game is None:
+            continue
+        total += 1
+        if _user_color(game, username) != color_name:
+            continue
+        matched += 1
+        rec = repertoire.cross_reference_game(game, rep.color, rep_keys, player_moves)
+        if rec["in_book_plies"] > 0:
+            reached += 1
+        plies_sum += rec["in_book_plies"]
+        if rec["player_deviation"]:
+            d = rec["player_deviation"]
+            dev_counts.setdefault((d["fen"], d["played"]), {**d, "count": 0})[
+                "count"
+            ] += 1
+        if rec["uncovered_opponent"]:
+            u = rec["uncovered_opponent"]
+            unc_counts.setdefault((u["fen"], u["played"]), {**u, "count": 0})[
+                "count"
+            ] += 1
+
+    devs, dev_trunc = _fit_to_budget(
+        sorted(dev_counts.values(), key=lambda x: -x["count"])
+    )
+    uncs, unc_trunc = _fit_to_budget(
+        sorted(unc_counts.values(), key=lambda x: -x["count"])
+    )
+    return {
+        "username": username,
+        "platform": platform,
+        "color": color_name,
+        "games_total": total,
+        "games_matched_color": matched,
+        "games_reached_prep": reached,
+        "coverage_pct": round(reached / matched, 3) if matched else 0.0,
+        "avg_in_book_plies": round(plies_sum / matched, 2) if matched else 0.0,
+        "player_deviations": devs,
+        "uncovered_opponent_moves": uncs,
+        "truncated": dev_trunc or unc_trunc,
+    }
+
+
 if __name__ == "__main__":
     # Transport: "sse" (default — networked, for the Docker/remote server) or "stdio"
     # (client spawns the server as a subprocess; the low-friction local path, no port).

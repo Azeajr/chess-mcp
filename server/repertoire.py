@@ -881,6 +881,90 @@ def _user_move_nodes(node, color: chess.Color) -> list:
     return [c for c in chain if c.parent.board().turn == color]
 
 
+def player_move_map(rep: _Repertoire) -> tuple[set[str], dict[str, set[str]]]:
+    """Two engine-free maps for repertoire_vs_history (#25), both keyed by _position_key so
+    move-order transpositions collapse to one entry:
+
+      rep_keys     — every position the repertoire reaches ("is this position in the book?").
+      player_moves — {position_key: {uci, ...}} for positions where it is the player's
+                     (rep.color) turn and the line continues — the move(s) the prep prescribes.
+
+    A player-turn position with no entry in player_moves is a prep leaf (the book ends there).
+    """
+    rep_keys: set[str] = set()
+    player_moves: dict[str, set[str]] = {}
+    for node in [rep.game, *iter_nodes(rep.game)]:
+        board = node.board()
+        rep_keys.add(_position_key(board))
+        if board.turn == rep.color and node.variations:
+            player_moves.setdefault(_position_key(board), set()).update(
+                child.move.uci() for child in node.variations
+            )
+    return rep_keys, player_moves
+
+
+def cross_reference_game(
+    game: chess.pgn.Game,
+    color: chess.Color,
+    rep_keys: set[str],
+    player_moves: dict[str, set[str]],
+) -> dict:
+    """Walk one played game's mainline against the repertoire maps (player_move_map). Engine-free
+    and transposition-aware. `color` is the side the user played (== rep.color). Records only the
+    FIRST departure from the book — the point the line left prep.
+
+    Returns {in_book_plies, player_deviation | None, uncovered_opponent | None}:
+      player_deviation     — at a player-to-move book position, the user played a move the prep
+                             does not list ({fen, prescribed: [san], played: san}).
+      uncovered_opponent   — at an opponent-to-move book position, the opponent's move leaves the
+                             book ({fen, played: san}) — what people actually play past the prep,
+                             the real-world counterpart to find_repertoire_gaps.
+    """
+    board = game.board()
+    node = game
+    in_book = 0
+    while node.variations:
+        key = _position_key(board)
+        if key not in rep_keys:
+            break
+        move = node.variations[0].move  # the game's actual next move (played mainline)
+        if board.turn == color:
+            allowed = player_moves.get(key)
+            if allowed is None:
+                break  # prep leaf at the player's turn — book ended, not a deviation
+            if move.uci() not in allowed:
+                prescribed = sorted(board.san(chess.Move.from_uci(u)) for u in allowed)
+                return {
+                    "in_book_plies": in_book,
+                    "player_deviation": {
+                        "fen": board.fen(),
+                        "prescribed": prescribed,
+                        "played": board.san(move),
+                    },
+                    "uncovered_opponent": None,
+                }
+        else:
+            nb = board.copy(stack=False)
+            nb.push(move)
+            if _position_key(nb) not in rep_keys:
+                return {
+                    "in_book_plies": in_book,
+                    "player_deviation": None,
+                    "uncovered_opponent": {
+                        "fen": board.fen(),
+                        "played": board.san(move),
+                    },
+                }
+        board.push(move)
+        node = node.variations[0]
+        in_book += 1
+    return {
+        "in_book_plies": in_book,
+        "player_deviation": None,
+        "uncovered_opponent": None,
+    }
+
+
 def replacement_pivot(rep: _Repertoire, node) -> tuple:
     """The user move suggest_replacement_line should replace in `node`'s line, plus the
     repertoire's dominant bool themes (reused by the caller's PV-theme scoring).

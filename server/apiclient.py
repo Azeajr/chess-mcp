@@ -49,12 +49,14 @@ def _throttle() -> None:
     _last_request = time.monotonic()
 
 
-def get_json(url: str, params: dict | None = None) -> dict | list | None:
+def get_json(
+    url: str, params: dict | None = None, headers: dict | None = None
+) -> dict | list | None:
     """Rate-limited GET → parsed JSON, or None on ANY failure (offline-safe). Never raises."""
     with _lock:
         _throttle()
         try:
-            resp = _get_client().get(url, params=params)
+            resp = _get_client().get(url, params=params, headers=headers)
         except httpx.HTTPError as e:
             log.info("http get failed %s: %s", url, e)
             return None
@@ -68,7 +70,9 @@ def get_json(url: str, params: dict | None = None) -> dict | list | None:
         return None
 
 
-def get_ndjson(url: str, params: dict | None = None) -> list[dict] | None:
+def get_ndjson(
+    url: str, params: dict | None = None, headers: dict | None = None
+) -> list[dict] | None:
     """Rate-limited GET of an NDJSON stream (Lichess game export) → list of objects, or None.
     Provided for #25; unused by #28 but kept here so the one HTTP surface stays in one module."""
     import json
@@ -76,7 +80,7 @@ def get_ndjson(url: str, params: dict | None = None) -> list[dict] | None:
     with _lock:
         _throttle()
         try:
-            resp = _get_client().get(url, params=params)
+            resp = _get_client().get(url, params=params, headers=headers)
         except httpx.HTTPError as e:
             log.info("http get failed %s: %s", url, e)
             return None

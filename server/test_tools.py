@@ -263,7 +263,7 @@ def _fake_client(resp=None, raises=None):
             return resp
 
     class _C:
-        def get(self, url, params=None):
+        def get(self, url, params=None, headers=None):
             if raises is not None:
                 raise raises
             return _R()
@@ -337,6 +337,191 @@ def test_board_image_bad_orientation():
 
 def test_board_image_bad_fen():
     assert cm.board_image("not a fen")["error"] == "invalid_fen"
+
+
+# --- #25 game history + repertoire cross-reference (engine-free) ---
+
+
+def _pgn(moves_san, white="Hero", black="Opp", result="1-0", **headers) -> str:
+    g = chess.pgn.Game()
+    g.headers["White"], g.headers["Black"], g.headers["Result"] = white, black, result
+    for k, v in headers.items():
+        g.headers[k] = str(v)
+    node, b = g, chess.Board()
+    for san in moves_san:
+        mv = b.parse_san(san)
+        node = node.add_variation(mv)
+        b.push(mv)
+    return g.accept(
+        chess.pgn.StringExporter(headers=True, variations=True, comments=True)
+    )
+
+
+def _game_obj(moves_san, **kw):
+    return chess.pgn.read_game(io.StringIO(_pgn(moves_san, **kw)))
+
+
+def test_user_result():
+    assert cm._user_result("1-0", "white") == "win"
+    assert cm._user_result("1-0", "black") == "loss"
+    assert cm._user_result("0-1", "black") == "win"
+    assert cm._user_result("1/2-1/2", "white") == "draw"
+    assert cm._user_result("*", "white") is None
+    assert cm._user_result("1-0", None) is None
+
+
+def test_game_meta():
+    p = _pgn(
+        ["e4", "e5"],
+        white="Hero",
+        black="Foe",
+        result="0-1",
+        ECO="C20",
+        WhiteElo=1500,
+        BlackElo=1600,
+        TimeControl="300+2",
+        Site="url",
+    )
+    m = cm._game_meta(p, "Hero", include_pgn=False)
+    assert m["color"] == "white" and m["result"] == "loss" and m["opponent"] == "Foe"
+    assert m["user_elo"] == 1500 and m["opp_elo"] == 1600 and m["eco"] == "C20"
+    assert m["n_plies"] == 2 and "pgn" not in m
+    assert "pgn" in cm._game_meta(p, "Hero", include_pgn=True)
+    assert cm._game_meta(p, "Nobody", include_pgn=False)["color"] is None
+
+
+def test_player_move_map(rid):
+    rep = repertoire.get_repertoire(rid)
+    keys, pm = repertoire.player_move_map(rep)
+    start = repertoire._position_key(chess.Board())
+    assert pm[start] == {"d2d4"}  # white's only prescribed first move
+    b = chess.Board()
+    for san in ["d4", "d5", "c4", "e6", "Nc3", "Nf6", "cxd5", "exd5"]:
+        b.push_san(san)
+    k = repertoire._position_key(b)
+    assert k in keys and "c1g5" in pm[k]  # Bg5 prescribed here
+
+
+def test_cross_reference_full_follow(rid):
+    rep = repertoire.get_repertoire(rid)
+    keys, pm = repertoire.player_move_map(rep)
+    rec = repertoire.cross_reference_game(_game_obj(CARLSBAD_LEAF), rep.color, keys, pm)
+    assert rec["in_book_plies"] == 10
+    assert rec["player_deviation"] is None and rec["uncovered_opponent"] is None
+
+
+def test_cross_reference_player_deviation(rid):
+    rep = repertoire.get_repertoire(rid)
+    keys, pm = repertoire.player_move_map(rep)
+    rec = repertoire.cross_reference_game(
+        _game_obj(["d4", "d5", "c4", "e6", "e3"]), rep.color, keys, pm
+    )
+    assert rec["in_book_plies"] == 4
+    dev = rec["player_deviation"]
+    assert dev["played"] == "e3" and dev["prescribed"] == ["Nc3"]
+    assert rec["uncovered_opponent"] is None
+
+
+def test_cross_reference_opponent_off_book(rid):
+    rep = repertoire.get_repertoire(rid)
+    keys, pm = repertoire.player_move_map(rep)
+    rec = repertoire.cross_reference_game(
+        _game_obj(["d4", "d5", "c4", "a6"]), rep.color, keys, pm
+    )
+    assert rec["in_book_plies"] == 3
+    assert rec["uncovered_opponent"]["played"] == "a6"
+    assert rec["player_deviation"] is None
+
+
+def test_lichess_games_parse(monkeypatch):
+    p1 = _pgn(
+        ["e4", "e5"],
+        white="Hero",
+        black="Foe",
+        result="1-0",
+        ECO="C20",
+        WhiteElo=1500,
+        BlackElo=1480,
+        Site="https://lichess.org/abc",
+    )
+    monkeypatch.setattr(
+        cm.apiclient, "get_ndjson", lambda url, params=None, headers=None: [{"pgn": p1}]
+    )
+    out = cm.lichess_games("Hero")
+    g = out["games"][0]
+    assert out["count"] == 1 and g["color"] == "white" and g["result"] == "win"
+    assert g["eco"] == "C20" and g["user_elo"] == 1500 and "pgn" not in g
+    assert "pgn" in cm.lichess_games("Hero", include_pgn=True)["games"][0]
+
+
+def test_lichess_games_eco_filter(monkeypatch):
+    p1 = _pgn(["e4", "e5"], white="Hero", ECO="C20")
+    p2 = _pgn(["d4"], white="Hero", ECO="D00")
+    monkeypatch.setattr(
+        cm.apiclient,
+        "get_ndjson",
+        lambda url, params=None, headers=None: [{"pgn": p1}, {"pgn": p2}],
+    )
+    out = cm.lichess_games("Hero", opening_eco="C")
+    assert out["count"] == 1 and out["games"][0]["eco"] == "C20"
+
+
+def test_lichess_games_offline(monkeypatch):
+    monkeypatch.setattr(
+        cm.apiclient, "get_ndjson", lambda url, params=None, headers=None: None
+    )
+    out = cm.lichess_games("Hero")
+    assert out["error"] == "fetch_failed" and out["count"] == 0
+
+
+def test_chesscom_games_parse(monkeypatch):
+    p1 = _pgn(["e4", "c5"], white="Hero", black="Foe", result="1/2-1/2", ECO="B20")
+    monkeypatch.setattr(
+        cm.apiclient,
+        "get_json",
+        lambda url, params=None, headers=None: {"games": [{"pgn": p1}]},
+    )
+    out = cm.chesscom_games("Hero", 2026, 6)
+    assert out["count"] == 1 and out["games"][0]["result"] == "draw"
+    assert out["games"][0]["eco"] == "B20"
+
+
+def test_chesscom_games_offline(monkeypatch):
+    monkeypatch.setattr(
+        cm.apiclient, "get_json", lambda url, params=None, headers=None: None
+    )
+    assert cm.chesscom_games("Hero", 2026, 6)["error"] == "fetch_failed"
+
+
+def test_repertoire_vs_history(rid, monkeypatch):
+    follow = _pgn(CARLSBAD_LEAF, white="Hero")
+    deviate = _pgn(["d4", "d5", "c4", "e6", "e3"], white="Hero")
+    wrong_color = _pgn(CARLSBAD_LEAF, white="Opp", black="Hero")
+    monkeypatch.setattr(
+        cm, "_fetch_lichess_pgns", lambda u, n: [follow, deviate, wrong_color]
+    )
+    out = cm.repertoire_vs_history(rid, "Hero")
+    assert out["games_total"] == 3 and out["games_matched_color"] == 2
+    assert out["games_reached_prep"] == 2 and out["coverage_pct"] == 1.0
+    assert len(out["player_deviations"]) == 1
+    assert out["player_deviations"][0]["played"] == "e3"
+
+
+def test_repertoire_vs_history_offline(rid, monkeypatch):
+    monkeypatch.setattr(cm, "_fetch_lichess_pgns", lambda u, n: None)
+    assert cm.repertoire_vs_history(rid, "Hero")["error"] == "fetch_failed"
+
+
+def test_repertoire_vs_history_arg_guards(rid):
+    assert (
+        cm.repertoire_vs_history(rid, "Hero", platform="chesscom")["error"]
+        == "missing_arg"
+    )
+    assert (
+        cm.repertoire_vs_history(rid, "Hero", platform="x")["error"]
+        == "invalid_platform"
+    )
+    assert "error" in cm.repertoire_vs_history("bogus-id", "Hero")
 
 
 # --- load_repertoire ---
