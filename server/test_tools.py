@@ -339,6 +339,32 @@ def test_board_image_bad_fen():
     assert cm.board_image("not a fen")["error"] == "invalid_fen"
 
 
+def test_board_image_render_correctness():
+    """Orientation truly flips the board, and last_move tints the from/to squares + draws an
+    arrow — verified in the SVG itself, not just echoed in the result dict (#23)."""
+    import re
+
+    plain = _svg(cm.board_image(chess.STARTING_FEN))
+    flipped = _svg(cm.board_image(chess.STARTING_FEN, orientation="black"))
+    assert plain != flipped  # orientation reaches the SVG, not only the dict field
+
+    def king_y(s):  # white king: bottom (large y) in white view, top (small y) in black view
+        i = s.find("#white-king")  # translate sits on the wrapping <g> just before the <use>
+        if i < 0:
+            return None
+        ys = re.findall(r'translate\([\d.]+,\s*([\d.]+)\)', s[max(0, i - 200) : i])
+        return float(ys[-1]) if ys else None
+
+    yw, yb = king_y(plain), king_y(flipped)
+    assert yw is not None and yb is not None and yw > yb  # true 180° flip
+
+    lm = _svg(cm.board_image(chess.STARTING_FEN, last_move="e2e4"))
+    assert lm != plain
+    assert "<line" in lm and "<polygon" in lm  # arrow shaft + head
+    assert "#cdd16a" in lm.lower() and "#cdd16a" not in plain.lower()  # from/to square tint
+    assert lm == _svg(cm.board_image(chess.STARTING_FEN, last_move="e4"))  # SAN == UCI
+
+
 # --- #25 game history + repertoire cross-reference (engine-free) ---
 
 

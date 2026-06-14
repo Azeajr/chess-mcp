@@ -66,7 +66,9 @@ functions driven directly. Not committed — recreate if needed.)
   - `evaluate_position` — cache hit returns identical result to cold; depth subsumption + multipv
     slicing are correct on real searches; mate positions reconstruct correctly (PovScore/`_score_with_type`).
   - `cloud_eval` — live Lichess hit/miss; offline → null.
-  - `board_image` — decode the SVG, check orientation flip + `last_move` arrow render; bad input.
+  - `board_image` — VERIFIED (host), no bug: orientation truly flips (white king bottom↔top),
+    last_move tints the from/to squares (#cdd16a) + draws an arrow (line+polygon), SAN==UCI render,
+    all error paths correct. Render behavior locked by `test_board_image_render_correctness`.
   - `lichess_games` / `chesscom_games` — real usernames; color/result inference from headers; ECO
     filter; `include_pgn`; confirm rate limiting. (URL-injection FIXED + tested — see above; color/
     result + fetch exercised indirectly by batch_review's live run.)
