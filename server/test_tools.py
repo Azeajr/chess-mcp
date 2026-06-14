@@ -561,6 +561,35 @@ def test_repertoire_vs_history_offline(rid, monkeypatch):
     assert cm.repertoire_vs_history(rid, "Hero")["error"] == "fetch_failed"
 
 
+def test_repertoire_vs_history_collapses_transpositions(monkeypatch):
+    """The drill aggregations group by position, not full FEN: move orders that transpose to the
+    same position carry different FEN move-clocks, so the same recurring move must count once with
+    the combined frequency — not split into N count-1 entries (#25, transposition-aware)."""
+    rep_pgn = (
+        '[Event "A"]\n[Result "*"]\n\n1. d4 Nf6 2. c4 g6 3. Nc3 *\n\n'
+        '[Event "B"]\n[Result "*"]\n\n1. d4 g6 2. c4 Nf6 3. Nc3 *\n'
+    )
+
+    def g(w, b, m):
+        return f'[White "{w}"]\n[Black "{b}"]\n[Result "*"]\n\n{m} *\n'
+
+    # Both games reach the post-3.Nc3 position by different orders (halfmove clock 1 vs 2), then
+    # play Bg7 past the prep leaf → one uncovered_opponent entry with count 2.
+    monkeypatch.setattr(
+        cm,
+        "_fetch_lichess_pgns",
+        lambda u, n: [
+            g("Hero", "Opp", "1. d4 Nf6 2. c4 g6 3. Nc3 Bg7"),
+            g("Hero", "Opp", "1. d4 g6 2. c4 Nf6 3. Nc3 Bg7"),
+        ],
+    )
+    rid = cm.load_repertoire(rep_pgn, "white")["repertoire_id"]
+    out = cm.repertoire_vs_history(rid, "Hero")
+    assert out["games_matched_color"] == 2
+    unc = out["uncovered_opponent_moves"]
+    assert len(unc) == 1 and unc[0]["played"] == "Bg7" and unc[0]["count"] == 2
+
+
 def test_repertoire_vs_history_arg_guards(rid):
     assert (
         cm.repertoire_vs_history(rid, "Hero", platform="chesscom")["error"]

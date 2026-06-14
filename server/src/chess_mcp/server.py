@@ -2267,16 +2267,18 @@ def repertoire_vs_history(
         if rec["in_book_plies"] > 0:
             reached += 1
         plies_sum += rec["in_book_plies"]
+        # Group by POSITION, not full FEN: move orders that transpose to the same position
+        # carry different halfmove/fullmove clocks, which would split one recurring deviation
+        # into several. _position_key_from_fen drops the clocks — matching how the in-book walk
+        # identifies positions — so transposed reaches of the same drill collapse into one count.
         if rec["player_deviation"]:
             d = rec["player_deviation"]
-            dev_counts.setdefault((d["fen"], d["played"]), {**d, "count": 0})[
-                "count"
-            ] += 1
+            key = (repertoire._position_key_from_fen(d["fen"]), d["played"])
+            dev_counts.setdefault(key, {**d, "count": 0})["count"] += 1
         if rec["uncovered_opponent"]:
             u = rec["uncovered_opponent"]
-            unc_counts.setdefault((u["fen"], u["played"]), {**u, "count": 0})[
-                "count"
-            ] += 1
+            key = (repertoire._position_key_from_fen(u["fen"]), u["played"])
+            unc_counts.setdefault(key, {**u, "count": 0})["count"] += 1
 
     devs, dev_trunc = _fit_to_budget(
         sorted(dev_counts.values(), key=lambda x: -x["count"])

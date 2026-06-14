@@ -11,7 +11,7 @@ this session's code as needing a real correctness pass before trusting it in pro
 
 Run in Docker (Stockfish + network present); host can't exercise the engine.
 
-### Already fixed this session (404 tests green + ruff clean; engine/network paths live-verified in Docker, 30/30)
+### Already fixed this session (406 tests green + ruff clean; engine/network paths live-verified in Docker, 30/30)
 
 - **`tablebase_lookup` WDL mapping — FIXED.** Old map was internally inconsistent (`cursed-win → 2`
   ignored the 50-move rule while `blessed-loss → 0` respected it) and dumped `maybe-win`/`syzygy-win`/
@@ -42,6 +42,13 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
   **Docker-remaining:** build the lc0 + Maia-weights image (uncomment the Dockerfile layer; verify the
   `Maia_<r>.pb.gz` → `maia-<r>.pb.gz` download naming actually works) and confirm a real maia-1500
   move is plausibly human + stockfish parity.
+- **`repertoire_vs_history` drill-list transposition split — FIXED.** player_deviations and
+  uncovered_opponent_moves were aggregated by full FEN, whose move-clocks differ between move orders
+  that transpose to the same position — so one recurring deviation/gap split into several count-1
+  entries (undercounting the drill list the tool exists to surface, despite the "transposition-aware"
+  claim). Now keyed by `repertoire._position_key_from_fen` (clock-free), matching the in-book walk.
+  Test `test_repertoire_vs_history_collapses_transpositions`. Coverage/avg math + wrong-color drop
+  verified correct against a hand-computed fixture — no other bug.
 
 ### Live-verified in Docker this session (real Stockfish + live Lichess, 30/30 checks)
 
@@ -72,8 +79,9 @@ functions driven directly. Not committed — recreate if needed.)
   - `lichess_games` / `chesscom_games` — real usernames; color/result inference from headers; ECO
     filter; `include_pgn`; confirm rate limiting. (URL-injection FIXED + tested — see above; color/
     result + fetch exercised indirectly by batch_review's live run.)
-  - `repertoire_vs_history` — coverage %/avg-in-book-plies math against a known set of real games;
-    transposition handling; wrong-color games dropped.
+  - `repertoire_vs_history` — VERIFIED (host, hand-computed fixture): coverage=reached/matched, avg
+    over matched, wrong-color dropped — all correct. Drill-list transposition-split bug found + FIXED
+    (see "Already fixed" above). A live run on a real account is still optional.
   - `tablebase_lookup` — more positions (KRK, KBBK, draws); 8-piece gate. WDL mapping already
     fixed to 5-valued Syzygy (see "Already fixed" above) — Docker step is just live-category +
     cursed/blessed spot-checks.

@@ -109,10 +109,17 @@ def san_path(node) -> list[str]:
     return moves
 
 
+def _position_key_from_fen(fen: str) -> str:
+    """Position identity from a FEN string: placement + turn + castling + en passant — the
+    first 4 fields, dropping the halfmove/fullmove clocks (which differ between move orders
+    that transpose to the same position)."""
+    return " ".join(fen.split()[:4])
+
+
 def _position_key(board: chess.Board) -> str:
     """Position identity ignoring move clocks: placement + turn + castling + en passant.
     Two move orders that reach the same position share this key (a transposition)."""
-    return " ".join(board.fen().split()[:4])
+    return _position_key_from_fen(board.fen())
 
 
 def find_transpositions(game: chess.pgn.Game) -> list[dict]:
