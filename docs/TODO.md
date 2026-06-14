@@ -11,7 +11,7 @@ this session's code as needing a real correctness pass before trusting it in pro
 
 Run in Docker (Stockfish + network present); host can't exercise the engine.
 
-### Already fixed this session (403 tests green + ruff clean; engine/network paths live-verified in Docker, 30/30)
+### Already fixed this session (404 tests green + ruff clean; engine/network paths live-verified in Docker, 30/30)
 
 - **`tablebase_lookup` WDL mapping — FIXED.** Old map was internally inconsistent (`cursed-win → 2`
   ignored the 50-move rule while `blessed-loss → 0` respected it) and dumped `maybe-win`/`syzygy-win`/
@@ -35,6 +35,13 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
   retargeted the request to a different Lichess endpoint and `evil?max=...` injected query params
   (confirmed via httpx parsing). Now `quote(username, safe="")` on both builders; host test
   `test_games_username_url_encoded` asserts it. FEN-bearing calls already used httpx `params=` (safe).
+- **`engine_move` Maia at nodes=1 — FIXED (behavioral).** Every backend ran with a *time limit*, so
+  lc0 did multi-node PUCT over the Maia net and drifted toward engine-best (above the target rating).
+  maia-* now uses `chess.engine.Limit(nodes=1)` (raw policy = the human-like move; `time_limit_ms`
+  ignored); stockfish/leela still search by time. Test `test_engine_move_limit_per_backend`.
+  **Docker-remaining:** build the lc0 + Maia-weights image (uncomment the Dockerfile layer; verify the
+  `Maia_<r>.pb.gz` → `maia-<r>.pb.gz` download naming actually works) and confirm a real maia-1500
+  move is plausibly human + stockfish parity.
 
 ### Live-verified in Docker this session (real Stockfish + live Lichess, 30/30 checks)
 
@@ -70,11 +77,8 @@ functions driven directly. Not committed — recreate if needed.)
     cursed/blessed spot-checks.
   - `engine_move` — with lc0 + Maia weights actually installed (uncomment the Dockerfile layer):
     does `maia-1500` return a plausible human move? stockfish parity; time clamping.
-    **Likely bug (host audit, server.py:~2429-2446):** every backend runs with a *time limit*, so
-    lc0 does multi-node PUCT search over the Maia net → strength climbs above the target rating and
-    the move drifts toward engine-best, not the human-predicted move. Maia is human-like only at
-    `go nodes 1`. Add a `nodes=1` path for `maia-*` (and likely cap/ignore time for it) before
-    trusting the human-move use case.
+    **Maia nodes=1 FIXED (host) — see "Already fixed" above;** Docker step is just building the
+    lc0 + Maia-weights image and confirming a real maia-1500 move is human + stockfish parity.
   - `batch_review` — real multi-game Lichess/Chess.com export; `group_by=structure` and `=color`;
     win/draw/loss + avg_cpl correct vs a hand-checked fixture; `max_games` cap; the `_aggregate_games`
     pure function math.

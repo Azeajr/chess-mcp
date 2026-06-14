@@ -2388,7 +2388,8 @@ def engine_move(
     | "leela" (Leela full network).
 
     time_limit_ms: search time in milliseconds; clamped to [100, 60000]. Converted to
-    seconds for the engine. Default 1000ms.
+    seconds for the engine. Default 1000ms. Ignored for maia-* backends — Maia is run at a
+    single node (its raw policy = the human-like move; searching drifts off the target rating).
 
     Returns (on success): {move (SAN), uci, backend, eval_cp (white-POV cp, ±10000 = mate),
     eval_type ("cp"|"mate"), mate_in (signed mate distance or null), depth}.
@@ -2446,10 +2447,14 @@ def engine_move(
                 "reason": "leela backend requested but LEELA_WEIGHTS not set or file missing",
             }
 
-    # Clamp time_limit_ms
-    time_ms = _clamp_engine_time_ms(time_limit_ms)
-    time_s = time_ms / 1000.0
-    limit = chess.engine.Limit(time=time_s)
+    # Maia predicts the human move from its raw policy head — it is human-like only at a
+    # single node. A time/depth search runs PUCT over the Maia net and climbs above the
+    # target rating toward engine-best, so Maia is pinned to nodes=1 and ignores
+    # time_limit_ms. Stockfish and full Leela are real search engines → search by time.
+    if backend.startswith("maia-"):
+        limit = chess.engine.Limit(nodes=1)
+    else:
+        limit = chess.engine.Limit(time=_clamp_engine_time_ms(time_limit_ms) / 1000.0)
 
     # Open engine and run analysis
     try:

@@ -1874,6 +1874,43 @@ def test_engine_move_maia_mocked(monkeypatch, tmp_path):
     assert called_options["options"]["WeightsFile"] == str(weight_file)
 
 
+def test_engine_move_limit_per_backend(monkeypatch, tmp_path):
+    """Maia runs at nodes=1 (human-like raw policy, time ignored); stockfish searches by time."""
+    weight_file = tmp_path / "maia-1500.pb.gz"
+    weight_file.touch()
+    monkeypatch.setenv("MAIA_WEIGHTS_DIR", str(tmp_path))
+    monkeypatch.setenv("LC0_PATH", "/usr/bin/lc0")
+
+    seen = {}
+
+    class FakeEngine:
+        id = {"name": "engine"}
+
+        def analyse(self, board, limit):
+            seen["limit"] = limit
+            return {
+                "score": chess.engine.PovScore(chess.engine.Cp(0), chess.WHITE),
+                "pv": [chess.Move.from_uci("e2e4")],
+                "depth": 1,
+            }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(
+        chess.engine.SimpleEngine, "popen_uci", lambda path, **kw: FakeEngine()
+    )
+
+    cm.engine_move(chess.STARTING_FEN, backend="maia-1500", time_limit_ms=5000)
+    assert seen["limit"].nodes == 1 and seen["limit"].time is None  # Maia: 1 node, time ignored
+
+    cm.engine_move(chess.STARTING_FEN, backend="stockfish", time_limit_ms=2000)
+    assert seen["limit"].time == 2.0 and seen["limit"].nodes is None  # stockfish: by time
+
+
 def test_engine_move_mate_handling(monkeypatch):
     """Mate evals should be returned correctly."""
 
