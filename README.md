@@ -20,6 +20,20 @@ claude
 
 Approve both MCP servers when prompted (one-time). After that, the `SessionStart` hook keeps Docker running automatically on every session open. Then paste a PGN and invoke `/chess-game-review`, give your repertoire PGN + color for `/repertoire-builder`, or hand it a FEN for `/analyze-position`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
 
+## Install from PyPI
+
+Published to PyPI — run the server without cloning (needs Stockfish on the host; the Docker image bundles it):
+
+```bash
+uvx chess-mcp                       # no install — runs the latest release
+# or
+pip install chess-mcp && chess-mcp
+```
+
+Defaults to the SSE server on `:8000` (`MCP_TRANSPORT=stdio` for a stdio client; `STOCKFISH_PATH` to point at the engine). The host-side file proxy is `chess-files`.
+
+> **Migration (v0.3):** the server is now an installable `chess_mcp` package. Launch is `uvx chess-mcp` / `python -m chess_mcp` (was `uv run chess_mcp.py`) and the proxy is `chess-files` (was `chess_files.py`). Update your MCP client config.
+
 ## Problem
 
 AI agents reviewing chess games generate moves from pattern-matching, not board state. They have no legal move generator and no engine — so they invent plausible-looking but illegal or nonsensical lines. This MCP fixes that by giving the agent real tools to check its work before stating anything.

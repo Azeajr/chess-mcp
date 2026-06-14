@@ -1,0 +1,13 @@
+# Smithery deployment config — https://smithery.ai/docs
+#
+# NOTE: the Smithery schema evolves; VERIFY this against the current docs before
+# opening the registry PR. The server is a container (FastMCP + Stockfish) exposing
+# an HTTP/SSE endpoint on :8000 (not a stdio command), so it deploys container-style
+# from the existing Dockerfile rather than via an npm/uvx start command.
+
+runtime: container
+build:
+  dockerfile: Dockerfile
+  dockerBuildPath: server
+startCommand:
+  type: http
