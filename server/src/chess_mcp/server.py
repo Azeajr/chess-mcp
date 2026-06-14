@@ -12,6 +12,7 @@ import json
 import math
 import os
 import time
+from urllib.parse import quote
 
 from chess_mcp import structure
 from chess_mcp import repertoire
@@ -2102,7 +2103,9 @@ def _game_meta(pgn: str, username: str, include_pgn: bool) -> dict | None:
 
 def _fetch_lichess_pgns(username: str, max_games: int) -> list[str] | None:
     objs = apiclient.get_ndjson(
-        _LICHESS_GAMES_URL.format(user=username),
+        # Percent-encode the username — it lands in the URL path, where a raw "/" or "?"
+        # would inject a different endpoint or query params (httpx parses it as structure).
+        _LICHESS_GAMES_URL.format(user=quote(username, safe="")),
         params={
             "max": max_games,
             "pgnInJson": "true",
@@ -2119,7 +2122,8 @@ def _fetch_lichess_pgns(username: str, max_games: int) -> list[str] | None:
 
 def _fetch_chesscom_pgns(username: str, year: int, month: int) -> list[str] | None:
     data = apiclient.get_json(
-        _CHESSCOM_GAMES_URL.format(user=username, year=year, month=month)
+        # Percent-encode the username (URL-path injection guard; see _fetch_lichess_pgns).
+        _CHESSCOM_GAMES_URL.format(user=quote(username, safe=""), year=year, month=month)
     )
     if not isinstance(data, dict):
         return None

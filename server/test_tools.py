@@ -493,6 +493,29 @@ def test_chesscom_games_offline(monkeypatch):
     assert cm.chesscom_games("Hero", 2026, 6)["error"] == "fetch_failed"
 
 
+def test_games_username_url_encoded(monkeypatch):
+    """Usernames are percent-encoded into the URL path — no path/query injection (#25)."""
+    seen = {}
+    monkeypatch.setattr(
+        cm.apiclient,
+        "get_ndjson",
+        lambda url, params=None, headers=None: seen.update(url=url) or None,
+    )
+    cm.lichess_games("../../../account")
+    assert "..%2F..%2F..%2Faccount" in seen["url"]  # slashes encoded → no traversal
+    assert not seen["url"].endswith("/account")
+    cm.lichess_games("evil?max=99999")
+    assert "%3Fmax%3D99999" in seen["url"] and "?" not in seen["url"]  # no query injection
+
+    monkeypatch.setattr(
+        cm.apiclient,
+        "get_json",
+        lambda url, params=None, headers=None: seen.update(url=url) or None,
+    )
+    cm.chesscom_games("a/b?x=1", 2026, 6)
+    assert "/pub/player/a%2Fb%3Fx%3D1/games/" in seen["url"]
+
+
 def test_repertoire_vs_history(rid, monkeypatch):
     follow = _pgn(CARLSBAD_LEAF, white="Hero")
     deviate = _pgn(["d4", "d5", "c4", "e6", "e3"], white="Hero")

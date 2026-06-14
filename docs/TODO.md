@@ -11,7 +11,7 @@ this session's code as needing a real correctness pass before trusting it in pro
 
 Run in Docker (Stockfish + network present); host can't exercise the engine.
 
-### Already fixed this session (host-side logic audit, 402 tests green + ruff clean)
+### Already fixed this session (403 tests green + ruff clean; engine/network paths live-verified in Docker, 30/30)
 
 - **`tablebase_lookup` WDL mapping — FIXED.** Old map was internally inconsistent (`cursed-win → 2`
   ignored the 50-move rule while `blessed-loss → 0` respected it) and dumped `maybe-win`/`syzygy-win`/
@@ -29,8 +29,31 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
 - **`batch_review` win-rate without username — FIXED.** Without a username, decisive games mapped to
   `result=None` → uncounted, so win/loss rates were a misleading 0 that didn't sum to 1. Now
   `_aggregate_games(records, decided=username is not None)` omits win/draw/loss rates + worst/best
-  group when there is no user POV (leaves games + avg_cpl + top_blunders). **Docker-remaining:**
-  win/draw/loss + ACPL vs a hand-checked real-export fixture; `group_by=structure`/`=color`.
+  group when there is no user POV (leaves games + avg_cpl + top_blunders).
+- **`lichess_games`/`chesscom_games` URL injection — FIXED (security).** The username was
+  interpolated into the URL path unencoded (`...format(user=username)`), so `../../../account`
+  retargeted the request to a different Lichess endpoint and `evil?max=...` injected query params
+  (confirmed via httpx parsing). Now `quote(username, safe="")` on both builders; host test
+  `test_games_username_url_encoded` asserts it. FEN-bearing calls already used httpx `params=` (safe).
+
+### Live-verified in Docker this session (real Stockfish + live Lichess, 30/30 checks)
+
+- `evaluate_position`: mate reconstruction (score_type / mate_in / ±10000 / best_move); **eval cache**
+  cold==warm + hit registered; **multipv=3** → 3 candidates; **depth+multipv subsumption** serves a
+  narrower/shallower request from a stored row (top-N matches), and a deeper-than-stored request
+  misses + re-searches; tablebase auto-attach for ≤7 pieces.
+- `tablebase_lookup` (live): KQK→2, KvK→0, lost→-2, 8-piece gate; **category-enum coverage** — every
+  category the live API returned across a spread of endgames is in `_WDL_BY_CATEGORY` (the real risk:
+  an unmapped category → null). Note: cursed-win/blessed-loss did NOT surface in the sampled FENs, so
+  their 1/-1 values stay unit-test-locked, not yet observed live — try a known Troitsky/DTZ>100 FEN
+  next time to close that.
+- `cloud_eval` (live): real hit returns the payload tagged `lichess-cloud`; `CLOUD_EVAL_DISABLED` → null.
+- `batch_review` (live, DrNykterstein 3 games): **avg_cpl sane** (sub-200, not the old top-3 inflation);
+  with username win/draw/loss present and each group's rates sum to 1, worst/best group present; without
+  username the rate fields + worst/best are omitted, avg_cpl kept — fix #2/#3 confirmed on real data.
+
+(Verification harness: `/tmp/chess-verify/verify_live.py`, run in the image with the repo's tool
+functions driven directly. Not committed — recreate if needed.)
 
 - **Per-tool functional + edge cases** (not just import/smoke):
   - `evaluate_position` — cache hit returns identical result to cold; depth subsumption + multipv
@@ -38,7 +61,8 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
   - `cloud_eval` — live Lichess hit/miss; offline → null.
   - `board_image` — decode the SVG, check orientation flip + `last_move` arrow render; bad input.
   - `lichess_games` / `chesscom_games` — real usernames; color/result inference from headers; ECO
-    filter; `include_pgn`; **URL-encode the username** (check for injection) and confirm rate limiting.
+    filter; `include_pgn`; confirm rate limiting. (URL-injection FIXED + tested — see above; color/
+    result + fetch exercised indirectly by batch_review's live run.)
   - `repertoire_vs_history` — coverage %/avg-in-book-plies math against a known set of real games;
     transposition handling; wrong-color games dropped.
   - `tablebase_lookup` — more positions (KRK, KBBK, draws); 8-piece gate. WDL mapping already
