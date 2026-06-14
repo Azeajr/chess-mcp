@@ -58,9 +58,10 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
   misses + re-searches; tablebase auto-attach for ≤7 pieces.
 - `tablebase_lookup` (live): KQK→2, KvK→0, lost→-2, 8-piece gate; **category-enum coverage** — every
   category the live API returned across a spread of endgames is in `_WDL_BY_CATEGORY` (the real risk:
-  an unmapped category → null). Note: cursed-win/blessed-loss did NOT surface in the sampled FENs, so
-  their 1/-1 values stay unit-test-locked, not yet observed live — try a known Troitsky/DTZ>100 FEN
-  next time to close that.
+  an unmapped category → null). **All five WDL categories now confirmed live** (win/draw/loss earlier,
+  plus cursed-win→1 and blessed-loss→-1 from Troitsky KNN-v-KP positions, e.g. cursed-win @
+  `8/8/8/8/p7/N7/8/K1N1k3` and blessed-loss @ `8/8/8/8/p7/N7/N7/K3k3`), each mapping correctly — fix
+  #1 fully verified live.
 - `cloud_eval` (live): real hit returns the payload tagged `lichess-cloud`; `CLOUD_EVAL_DISABLED` → null.
 - `batch_review` (live, DrNykterstein 3 games): **avg_cpl sane** (sub-200, not the old top-3 inflation);
   with username win/draw/loss present and each group's rates sum to 1, worst/best group present; without
@@ -82,9 +83,8 @@ functions driven directly. Not committed — recreate if needed.)
   - `repertoire_vs_history` — VERIFIED (host, hand-computed fixture): coverage=reached/matched, avg
     over matched, wrong-color dropped — all correct. Drill-list transposition-split bug found + FIXED
     (see "Already fixed" above). A live run on a real account is still optional.
-  - `tablebase_lookup` — more positions (KRK, KBBK, draws); 8-piece gate. WDL mapping already
-    fixed to 5-valued Syzygy (see "Already fixed" above) — Docker step is just live-category +
-    cursed/blessed spot-checks.
+  - `tablebase_lookup` — DONE: 5-valued Syzygy mapping fully verified live, all five categories
+    incl. cursed-win→1 / blessed-loss→-1 (see "Live-verified" above); 8-piece gate confirmed.
   - `engine_move` — with lc0 + Maia weights actually installed (uncomment the Dockerfile layer):
     does `maia-1500` return a plausible human move? stockfish parity; time clamping.
     **Maia nodes=1 FIXED (host) — see "Already fixed" above;** Docker step is just building the
