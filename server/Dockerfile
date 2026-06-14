@@ -21,7 +21,7 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv sync --no-dev --no-install-project
 
-COPY chess_mcp.py structure.py repertoire.py openings.py openings.tsv apiclient.py evalcache.py ./
+COPY chess_mcp.py structure.py repertoire.py openings.py openings.tsv apiclient.py evalcache.py boardwidget.py ./
 
 ENV STOCKFISH_PATH=/usr/games/stockfish \
     FASTMCP_HOST=0.0.0.0 \
