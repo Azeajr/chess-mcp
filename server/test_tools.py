@@ -13,10 +13,13 @@ import io
 import chess
 import chess.engine
 import chess.pgn
+import httpx
 import pytest
 
 import chess_mcp as cm
 import repertoire
+import apiclient
+import evalcache
 
 REP_PGN = (
     '[Event "t"]\n[Result "*"]\n\n'
@@ -36,6 +39,259 @@ def _clear_cache():
 @pytest.fixture
 def rid() -> str:
     return cm.load_repertoire(REP_PGN, "white")["repertoire_id"]
+
+
+# --- #28 eval cache (evalcache) + cloud_eval + apiclient (all engine-free) ---
+
+_Cp = chess.engine.Cp
+_Mate = chess.engine.Mate
+_Pov = chess.engine.PovScore
+_W = chess.WHITE
+_Limit = chess.engine.Limit
+
+
+def _ci(score, pv_uci="e2e4", depth=20):
+    return {"score": score, "pv": [chess.Move.from_uci(pv_uci)], "depth": depth}
+
+
+class _Run:
+    """Thunk that records call count, so a cache hit can be proven (run NOT re-invoked)."""
+
+    def __init__(self, infos):
+        self.infos = infos
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.infos
+
+
+@pytest.fixture
+def eval_db(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVAL_CACHE_PATH", str(tmp_path / "eval.db"))
+    monkeypatch.delenv("EVAL_CACHE_DISABLED", raising=False)
+    evalcache.reset()
+    yield
+    evalcache.reset()
+
+
+def test_eval_key_drops_fullmove_only():
+    base = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    same_fullmove = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 9"
+    diff_halfmove = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 5 2"
+    k = lambda f: evalcache._eval_key(chess.Board(f))  # noqa: E731
+    assert k(base) == k(same_fullmove)  # fullmove number is eval-irrelevant
+    assert k(base) != k(diff_halfmove)  # halfmove clock is eval-relevant (50-move rule)
+
+
+def test_eval_key_transposition_shares():
+    b1 = chess.Board()
+    for u in ("g1f3", "g8f6", "b1c3", "b8c6"):
+        b1.push_uci(u)
+    b2 = chess.Board()
+    for u in ("b1c3", "b8c6", "g1f3", "g8f6"):
+        b2.push_uci(u)
+    # Same placement, turn, castling, ep, AND halfmove clock reached two ways → one key.
+    assert evalcache._eval_key(b1) == evalcache._eval_key(b2)
+
+
+def test_cache_miss_then_hit(eval_db):
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Cp(35), _W))])
+    a = evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    b = evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    assert run.calls == 1  # second call served from cache
+    assert (
+        cm._score_with_type(a[0]["score"])
+        == cm._score_with_type(b[0]["score"])
+        == (35, "cp", None)
+    )
+    assert b[0]["pv"][0].uci() == "e2e4" and b[0]["depth"] == 20
+
+
+def test_cache_depth_subsumption(eval_db):
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Cp(10), _W))])  # engine reaches depth 20
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    evalcache.cached_analyse(board, _Limit(depth=12), 1, "SF", run)  # 12 <= 20 -> hit
+    assert run.calls == 1
+    evalcache.cached_analyse(board, _Limit(depth=25), 1, "SF", run)  # 25 > 20 -> miss
+    assert run.calls == 2
+
+
+def test_cache_multipv_subsumption(eval_db):
+    board = chess.Board()
+    three = [
+        _ci(_Pov(_Cp(10), _W), "e2e4"),
+        _ci(_Pov(_Cp(5), _W), "d2d4"),
+        _ci(_Pov(_Cp(0), _W), "c2c4"),
+    ]
+    run = _Run(three)
+    evalcache.cached_analyse(board, _Limit(depth=18), 3, "SF", run)
+    one = evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", run
+    )  # mpv 1 <= 3 -> hit
+    assert run.calls == 1 and len(one) == 1
+    evalcache.cached_analyse(board, _Limit(depth=18), 5, "SF", run)  # mpv 5 > 3 -> miss
+    assert run.calls == 2
+
+
+def test_cache_engine_id_isolates(eval_db):
+    board = chess.Board()
+    run_a = _Run([_ci(_Pov(_Cp(10), _W))])
+    run_b = _Run([_ci(_Pov(_Cp(10), _W))])
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF-16", run_a)
+    evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF-17", run_b
+    )  # other engine -> miss
+    assert run_a.calls == 1 and run_b.calls == 1
+
+
+def test_cache_time_limit_bypasses(eval_db):
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Cp(10), _W))])
+    evalcache.cached_analyse(
+        board, _Limit(time=0.5), 1, "SF", run
+    )  # no depth -> bypass
+    evalcache.cached_analyse(board, _Limit(time=0.5), 1, "SF", run)
+    assert run.calls == 2  # never stored, never read
+    evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", run
+    )  # depth call still a miss
+    assert run.calls == 3
+
+
+def test_cache_disabled_bypasses(eval_db, monkeypatch):
+    monkeypatch.setenv("EVAL_CACHE_DISABLED", "1")
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Cp(10), _W))])
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    assert run.calls == 2
+
+
+def test_cache_mate_roundtrip(eval_db):
+    board = chess.Board()
+    evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Mate(3), _W))])
+    )
+    hit = evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Cp(0), _W))])
+    )
+    assert cm._score_with_type(hit[0]["score"]) == (10000, "mate", 3)
+
+
+def test_cache_negative_mate_roundtrip(eval_db):
+    board = chess.Board()
+    evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Mate(-2), _W))])
+    )
+    hit = evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Cp(0), _W))])
+    )
+    assert cm._score_with_type(hit[0]["score"]) == (-10000, "mate", -2)
+
+
+def test_cache_mate_zero_not_stored(eval_db):
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Mate(0), _W))])  # ambiguous sign -> skip store
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    assert run.calls == 2
+
+
+def test_cache_black_pov_sign(eval_db):
+    board = chess.Board()
+    evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Cp(35), _W))])
+    )
+    hit = evalcache.cached_analyse(
+        board, _Limit(depth=18), 1, "SF", _Run([_ci(_Pov(_Cp(0), _W))])
+    )
+    assert cm._pov_cp(hit[0], chess.BLACK) == -35  # white +35 -> black -35
+
+
+def test_cache_persists_across_reset(eval_db):
+    board = chess.Board()
+    run = _Run([_ci(_Pov(_Cp(42), _W))])
+    evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", run)
+    evalcache.reset()  # drops the connection; SQLite file stays (== a server restart)
+    after = _Run([_ci(_Pov(_Cp(0), _W))])
+    hit = evalcache.cached_analyse(board, _Limit(depth=18), 1, "SF", after)
+    assert after.calls == 0 and cm._score_with_type(hit[0]["score"]) == (42, "cp", None)
+
+
+def test_cloud_eval_hit(monkeypatch):
+    monkeypatch.delenv("CLOUD_EVAL_DISABLED", raising=False)
+    monkeypatch.setattr(
+        apiclient,
+        "get_json",
+        lambda url, params=None: {"depth": 30, "pvs": [{"moves": "e2e4", "cp": 20}]},
+    )
+    out = cm.cloud_eval(chess.STARTING_FEN)
+    assert out["source"] == "lichess-cloud" and out["depth"] == 30
+
+
+def test_cloud_eval_miss(monkeypatch):
+    monkeypatch.delenv("CLOUD_EVAL_DISABLED", raising=False)
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: None)
+    assert cm.cloud_eval(chess.STARTING_FEN) is None
+
+
+def test_cloud_eval_bad_fen():
+    assert cm.cloud_eval("not a fen")["error"] == "invalid_fen"
+
+
+def test_cloud_eval_disabled(monkeypatch):
+    monkeypatch.setenv("CLOUD_EVAL_DISABLED", "1")
+    calls = {"n": 0}
+
+    def boom(url, params=None):
+        calls["n"] += 1
+        return {"depth": 1}
+
+    monkeypatch.setattr(apiclient, "get_json", boom)
+    assert cm.cloud_eval(chess.STARTING_FEN) is None and calls["n"] == 0
+
+
+def _fake_client(resp=None, raises=None):
+    class _R:
+        status_code = 200 if resp is not None else 500
+
+        def json(self):
+            return resp
+
+    class _C:
+        def get(self, url, params=None):
+            if raises is not None:
+                raise raises
+            return _R()
+
+    return _C()
+
+
+def test_apiclient_ok(monkeypatch):
+    monkeypatch.setattr(apiclient, "_MIN_INTERVAL_S", 0)
+    monkeypatch.setattr(
+        apiclient, "_get_client", lambda: _fake_client(resp={"ok": True})
+    )
+    assert apiclient.get_json("http://x") == {"ok": True}
+
+
+def test_apiclient_offline(monkeypatch):
+    monkeypatch.setattr(apiclient, "_MIN_INTERVAL_S", 0)
+    monkeypatch.setattr(
+        apiclient,
+        "_get_client",
+        lambda: _fake_client(raises=httpx.ConnectError("down")),
+    )
+    assert apiclient.get_json("http://x") is None
+
+
+def test_apiclient_non_200(monkeypatch):
+    monkeypatch.setattr(apiclient, "_MIN_INTERVAL_S", 0)
+    monkeypatch.setattr(apiclient, "_get_client", lambda: _fake_client(resp=None))
+    assert apiclient.get_json("http://x") is None
 
 
 # --- load_repertoire ---

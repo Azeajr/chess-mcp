@@ -8,7 +8,13 @@ services:
       FASTMCP_HOST: "0.0.0.0"   # bind all interfaces so the published port is reachable (also the image default; explicit here)
       ANALYSIS_DEPTH: "18"
       STOCKFISH_PATH: /usr/games/stockfish
+      EVAL_CACHE_PATH: /cache/eval-cache.db   # persisted across restarts via the eval-cache volume (#28)
       # GAP_BUDGET_S: "45"   # find_repertoire_gaps wall-clock budget (s); lower to ~25-30 if your MCP client's request timeout is under ~60s
+    volumes:
+      - eval-cache:/cache
     restart: unless-stopped
     # On XU4: uncomment to pin to A15 cores only
     # cpuset: "0-3"
+
+volumes:
+  eval-cache:

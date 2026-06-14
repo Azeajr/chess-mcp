@@ -14,6 +14,8 @@ import time
 import structure
 import repertoire
 import openings
+import apiclient
+import evalcache
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
@@ -268,10 +270,17 @@ def _analyze_tree_nodes(
     """
     board_by_node: dict = {}
     info_by_node: dict = {}
+    engine_id = engine.id.get("name", "unknown")
     for node in [game, *repertoire.iter_nodes(game)]:
         board = node.board()
         board_by_node[node] = board
-        info_by_node[node] = engine.analyse(board, limit, multipv=multipv)
+        info_by_node[node] = evalcache.cached_analyse(
+            board,
+            limit,
+            multipv,
+            engine_id,
+            lambda b=board: engine.analyse(b, limit, multipv=multipv),
+        )
 
     records: dict[tuple[str, ...], dict] = {}
     for node in repertoire.iter_nodes(game):
@@ -600,7 +609,14 @@ def evaluate_position(
     # An explicit multipv kwarg always yields a list (python-chess returns a bare
     # InfoDict only when the kwarg is omitted), so multipv=1 needs no special case.
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        infos = engine.analyse(board, limit, multipv=multipv)
+        engine_id = engine.id.get("name", "unknown")
+        infos = evalcache.cached_analyse(
+            board,
+            limit,
+            multipv,
+            engine_id,
+            lambda: engine.analyse(board, limit, multipv=multipv),
+        )
 
     top = infos[0]
     pv = top.get("pv", [])
@@ -626,6 +642,34 @@ def evaluate_position(
             if info.get("pv")
         ]
     return result
+
+
+@mcp.tool()
+def cloud_eval(fen: str, multi_pv: int = 1) -> dict | None:
+    """
+    Lichess pre-computed cloud evaluation for a position, or null if it isn't in their
+    database. A free, fast lookup (no local engine) for popular positions.
+
+    Returns the Lichess payload (fen, knodes, depth, pvs:[{moves (UCI), cp|mate}]) tagged
+    source:"lichess-cloud". This is an EXTERNAL eval at Lichess's own depth — NOT the
+    reproducible Stockfish result evaluate_position returns, and never substituted for it.
+    Needs network egress; offline or position-not-in-database → null. Invalid FEN →
+    {"error","reason"}.
+    """
+    board, err = _safe_board(fen)
+    if err:
+        return err
+    if os.environ.get("CLOUD_EVAL_DISABLED"):
+        return None
+    multi_pv = max(1, min(MAX_MULTIPV, multi_pv))
+    data = apiclient.get_json(
+        "https://lichess.org/api/cloud-eval",
+        {"fen": board.fen(), "multiPv": multi_pv},
+    )
+    if not isinstance(data, dict):
+        return None
+    data["source"] = "lichess-cloud"
+    return data
 
 
 @mcp.tool()
@@ -1562,7 +1606,16 @@ def find_repertoire_gaps(
                 if time_limit is not None
                 else chess.engine.Limit(depth=depth, time=remaining)
             )
-            infos = engine.analyse(nd["board"], pos_limit, multipv=multipv)
+            # Cache lookup keys on pos_limit's depth; the budget time-cap only bounds a miss.
+            # A budget-truncated search reaches < depth and is stored honestly under that lower
+            # depth (evalcache D2/D6), so it never satisfies a full-depth request later.
+            infos = evalcache.cached_analyse(
+                nd["board"],
+                pos_limit,
+                multipv,
+                engine.id.get("name", "unknown"),
+                lambda nd=nd: engine.analyse(nd["board"], pos_limit, multipv=multipv),
+            )
             scanned += 1
             for entry, mover_cp in _gaps_from_infos(
                 nd["board"], infos, nd["covered"], continued_keys
