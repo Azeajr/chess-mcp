@@ -218,18 +218,19 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
 | validate_pgn | 47 |
 | identify_opening | 24 |
 | export_annotated_pgn | 502 |
-| load_repertoire | 37 |
+| load_repertoire | 43 |
 | get_structural_profile (aggregate) | 111 |
 | get_structural_profile (node) | 214 |
 | analyze_repertoire_congruence | 56 |
 | get_transpositions | 18 |
 | get_repertoire_coverage | 161 |
-| find_repertoire_gaps | 27 |
+| find_repertoire_gaps | 32 |
 | classify_illustrative_lines | 32 |
-| modify_repertoire_line | 62 |
+| modify_repertoire_line | 68 |
 | export_repertoire | 188 |
 | suggest_complementary_lines (low_memorization) | 190 |
 | suggest_complementary_lines (sharp) | 187 |
+| suggest_complementary_lines (gap auto-advance) | 179 |
 
 - Summary fits the ~2k budget with room to spare (167).
 - `verbose` costs 1.7× the lean list (477 vs 276) — earns the flag, not the default.
@@ -250,10 +251,11 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
   by `limit` / `max_positions` AND a byte budget (`_fit_to_budget`, #20) so a deep tree can't blow the
   cap; their `path` fields stay structured because they are drill-down handles (a compact string would
   force the model to re-derive them — see the boundary note above). After the #19 severity-capping,
-  `find_repertoire_gaps` on the sample is small (27 tok); the heaviest *reasoning* primitive is now
+  `find_repertoire_gaps` on the sample is small (32 tok); the heaviest *reasoning* primitive is now
   `get_structural_profile` (node, 214 tok).
-- All 22 tool descriptions total ~4570 tok, re-read on every `tools/list` — why descriptions are
-  kept compressed (they are routing logic, paid every call).
+- All 30 tool descriptions total ~6411 tok, re-read on every `tools/list` — why descriptions are
+  kept compressed (they are routing logic, paid every call). (repertoire-handle outputs embed a
+  random id, so load_repertoire / modify_repertoire_line wobble a few tok between captures.)
 
 Regenerate after any output-shape change; stale numbers are worse than none.
 

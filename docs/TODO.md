@@ -126,9 +126,14 @@ functions driven directly. Not committed — recreate if needed.)
 
 ## 4. Polish / housekeeping
 
-- Regenerate `evals/snapshots/outputs.json` + the `MCP_DESIGN.md` token table — tool count moved
-  19 → 30, the committed snapshot is stale (Docker; `evals/capture.py`, which only covers the
-  original tool set — consider extending it to the new tools).
+- ~~Regenerate `evals/snapshots/outputs.json` + the `MCP_DESIGN.md` token table~~ **DONE** (Docker):
+  descriptions now cover all 30 tools (tools/list ≈ 6411 tok, was ~4570 for 22). capture.py extended
+  to list all 30 for the descriptions total; OUTPUTS deliberately stay the engine-deterministic,
+  non-network subset — cloud_eval / tablebase_lookup / lichess_games / chesscom_games /
+  repertoire_vs_history are non-reproducible (network), engine_move is time-limited, board_image is a
+  large base64 blob — so none belong in a diffable snapshot. MCP_DESIGN token table synced (note:
+  repertoire-handle outputs embed a random id, so load_repertoire/modify_repertoire_line wobble a few
+  tok per capture).
 - `#28` ≥50% warm-cache benchmark on a 100-position repertoire (the AC; Docker).
 - Add a PyPI long-description: `pyproject.readme` was dropped because the Docker build context is
   `server/` and `../README.md` escapes it — either move packaging to repo root or copy the README in.

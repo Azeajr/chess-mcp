@@ -114,6 +114,20 @@ def main():
         cm.suggest_replacement_line,
         cm.modify_repertoire_line,
         cm.export_repertoire,
+        # #23–#32 tools: listed so the descriptions total reflects the real tools/list cost
+        # (all 30 tools' docstrings are loaded on every tools/list). Their live OUTPUTS are
+        # deliberately NOT captured below — network results (cloud_eval / tablebase_lookup /
+        # lichess_games / chesscom_games / repertoire_vs_history) aren't reproducible,
+        # engine_move is time-limited (also non-reproducible), and board_image is a large
+        # base64 SVG blob — none belong in a committed, diffable snapshot.
+        cm.tablebase_lookup,
+        cm.cloud_eval,
+        cm.board_image,
+        cm.engine_move,
+        cm.batch_review,
+        cm.lichess_games,
+        cm.chesscom_games,
+        cm.repertoire_vs_history,
     ]
     snap = {
         "metadata": {
