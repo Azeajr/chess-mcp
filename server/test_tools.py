@@ -1616,3 +1616,247 @@ def test_tablebase_lookup_no_best_move_in_response(monkeypatch):
     r = cm.tablebase_lookup(fen)
     assert r["wdl"] == 2
     assert r["best_move"] is None
+
+
+# --- #24 engine_move tool (multi-backend) ---
+
+
+def test_engine_move_invalid_fen():
+    """Invalid FEN should return error."""
+    assert cm.engine_move("invalid fen")["error"] == "invalid_fen"
+
+
+def test_engine_move_illegal_position_kingless():
+    """Illegal-but-parseable position should return error."""
+    assert cm.engine_move(ILLEGAL_KINGLESS_FEN)["error"] == "invalid_fen"
+
+
+def test_engine_move_unknown_backend():
+    """Unknown backend should return invalid_backend error."""
+    result = cm.engine_move(chess.STARTING_FEN, backend="unknown-engine")
+    assert result["error"] == "invalid_backend"
+    assert "must be" in result["reason"]
+
+
+def test_engine_move_invalid_maia_rating():
+    """Invalid Maia rating (e.g., maia-999) should return error."""
+    result = cm.engine_move(chess.STARTING_FEN, backend="maia-999")
+    assert result["error"] == "invalid_backend"
+    assert "999" in result["reason"]
+
+
+def test_engine_move_maia_invalid_format():
+    """Malformed Maia backend (e.g., maia-abc) should return error."""
+    result = cm.engine_move(chess.STARTING_FEN, backend="maia-abc")
+    assert result["error"] == "invalid_backend"
+
+
+def test_engine_move_time_limit_clamping():
+    """Time limit should be clamped to [100, 60000] ms."""
+    assert cm._clamp_engine_time_ms(50) == cm.MIN_ENGINE_TIME_MS
+    assert cm._clamp_engine_time_ms(1000) == 1000
+    assert cm._clamp_engine_time_ms(70000) == cm.MAX_ENGINE_TIME_MS
+
+
+def test_get_engine_path_stockfish(monkeypatch):
+    """Stockfish backend returns ENGINE_PATH with no weight file."""
+    path, weight = cm._get_engine_path("stockfish")
+    assert path == cm.ENGINE_PATH
+    assert weight is None
+
+
+def test_get_engine_path_invalid_maia_rating():
+    """Invalid Maia rating returns (None, None)."""
+    path, weight = cm._get_engine_path("maia-999")
+    assert path is None and weight is None
+
+
+def test_get_engine_path_maia_missing_weights(monkeypatch, tmp_path):
+    """Maia backend with missing weights returns (None, None)."""
+    # Set MAIA_WEIGHTS_DIR to a dir that doesn't have maia-1500.pb.gz
+    monkeypatch.setenv("MAIA_WEIGHTS_DIR", str(tmp_path))
+    path, weight = cm._get_engine_path("maia-1500")
+    assert path is None and weight is None
+
+
+def test_get_engine_path_maia_found(monkeypatch, tmp_path):
+    """Maia backend with weights present returns lc0 path and weight file."""
+    # Create fake weight file
+    weight_file = tmp_path / "maia-1500.pb.gz"
+    weight_file.touch()
+    monkeypatch.setenv("MAIA_WEIGHTS_DIR", str(tmp_path))
+    monkeypatch.setenv("LC0_PATH", "/usr/bin/lc0")
+
+    path, weight = cm._get_engine_path("maia-1500")
+    assert path == "/usr/bin/lc0"
+    assert weight == str(weight_file)
+
+
+def test_get_engine_path_leela_missing():
+    """Leela backend with unset LEELA_WEIGHTS returns (None, None)."""
+    import os as os_module
+
+    saved_env = os_module.environ.pop("LEELA_WEIGHTS", None)
+    try:
+        path, weight = cm._get_engine_path("leela")
+        assert path is None and weight is None
+    finally:
+        if saved_env is not None:
+            os_module.environ["LEELA_WEIGHTS"] = saved_env
+
+
+def test_engine_move_maia_unavailable_missing_weights(monkeypatch, tmp_path):
+    """Maia backend unavailable should return backend_unavailable error."""
+    # Set empty MAIA_WEIGHTS_DIR so weights don't exist
+    monkeypatch.setenv("MAIA_WEIGHTS_DIR", str(tmp_path))
+    result = cm.engine_move(chess.STARTING_FEN, backend="maia-1500")
+    assert result["error"] == "backend_unavailable"
+    assert "maia-1500" in result["reason"]
+
+
+def test_engine_move_leela_unavailable(monkeypatch):
+    """Leela backend unavailable should return backend_unavailable error."""
+    monkeypatch.delenv("LEELA_WEIGHTS", raising=False)
+    result = cm.engine_move(chess.STARTING_FEN, backend="leela")
+    assert result["error"] == "backend_unavailable"
+    assert "leela" in result["reason"].lower()
+
+
+def test_engine_move_stockfish_mocked(monkeypatch):
+    """Stockfish backend with mocked engine returns move."""
+
+    # Mock popen_uci to return a fake engine
+    class FakeEngine:
+        id = {"name": "Stockfish 16.1"}
+
+        def analyse(self, board, limit):
+            return {
+                "score": chess.engine.PovScore(chess.engine.Cp(30), chess.WHITE),
+                "pv": [chess.Move.from_uci("e2e4")],
+                "depth": 20,
+            }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def mock_popen(engine_path, **kwargs):
+        return FakeEngine()
+
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", mock_popen)
+
+    result = cm.engine_move(chess.STARTING_FEN, backend="stockfish", time_limit_ms=1000)
+    assert result["move"] == "e4"
+    assert result["uci"] == "e2e4"
+    assert result["backend"] == "stockfish"
+    assert result["eval_cp"] == 30
+    assert result["eval_type"] == "cp"
+    assert result["mate_in"] is None
+    assert result["depth"] == 20
+
+
+def test_engine_move_maia_mocked(monkeypatch, tmp_path):
+    """Maia backend with mocked engine returns move."""
+    # Create fake weight file
+    weight_file = tmp_path / "maia-1500.pb.gz"
+    weight_file.touch()
+    monkeypatch.setenv("MAIA_WEIGHTS_DIR", str(tmp_path))
+    monkeypatch.setenv("LC0_PATH", "/usr/bin/lc0")
+
+    call_count = {"count": 0}
+    called_options = {}
+
+    class FakeEngine:
+        id = {"name": "lc0"}
+
+        def analyse(self, board, limit):
+            return {
+                "score": chess.engine.PovScore(chess.engine.Cp(50), chess.WHITE),
+                "pv": [chess.Move.from_uci("d2d4")],
+                "depth": 18,
+            }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def mock_popen(engine_path, **kwargs):
+        call_count["count"] += 1
+        called_options.update(kwargs)
+        return FakeEngine()
+
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", mock_popen)
+
+    result = cm.engine_move(chess.STARTING_FEN, backend="maia-1500", time_limit_ms=2000)
+    assert result["move"] == "d4"
+    assert result["uci"] == "d2d4"
+    assert result["backend"] == "maia-1500"
+    assert result["eval_cp"] == 50
+    assert result["eval_type"] == "cp"
+    assert result["depth"] == 18
+
+    # Verify that popen_uci was called with WeightsFile option
+    assert call_count["count"] == 1
+    assert "options" in called_options
+    assert called_options["options"]["WeightsFile"] == str(weight_file)
+
+
+def test_engine_move_mate_handling(monkeypatch):
+    """Mate evals should be returned correctly."""
+
+    class FakeEngine:
+        id = {"name": "Stockfish 16.1"}
+
+        def analyse(self, board, limit):
+            return {
+                "score": chess.engine.PovScore(chess.engine.Mate(3), chess.WHITE),
+                "pv": [chess.Move.from_uci("e2e4")],
+                "depth": 20,
+            }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def mock_popen(engine_path, **kwargs):
+        return FakeEngine()
+
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", mock_popen)
+
+    result = cm.engine_move(chess.STARTING_FEN, backend="stockfish")
+    assert result["eval_type"] == "mate"
+    assert result["mate_in"] == 3
+    assert result["eval_cp"] == 10000  # White mate
+
+
+def test_engine_move_stockfish_unavailable(monkeypatch):
+    """Engine binary not found should return backend_unavailable error."""
+
+    def mock_popen_error(engine_path, **kwargs):
+        raise FileNotFoundError(f"Engine not found at {engine_path}")
+
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", mock_popen_error)
+
+    result = cm.engine_move(chess.STARTING_FEN, backend="stockfish")
+    assert result["error"] == "backend_unavailable"
+    assert "not found" in result["reason"].lower()
+
+
+def test_engine_move_all_maia_ratings():
+    """All valid Maia ratings are recognized."""
+    for rating in [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900]:
+        path, _ = cm._get_engine_path(f"maia-{rating}")
+        # path will be None (weights don't exist in test), but should pass validation
+        # and not raise an error due to invalid rating
+        result = cm.engine_move(chess.STARTING_FEN, backend=f"maia-{rating}")
+        # Should be backend_unavailable (weights missing), not invalid_backend
+        assert result.get("error") in ("backend_unavailable", "invalid_backend")
+        if result.get("error") == "invalid_backend":
+            # This would mean the rating itself was invalid, which shouldn't happen
+            assert False, f"Maia {rating} should be valid"

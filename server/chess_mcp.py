@@ -2298,6 +2298,186 @@ def get_board_widget() -> str:
     return boardwidget.BOARD_WIDGET_HTML
 
 
+# --- engine_move tool: multi-backend move selection (Stockfish / Maia / Leela) ---
+
+MIN_ENGINE_TIME_MS = 100
+MAX_ENGINE_TIME_MS = 60000
+MAIA_RATINGS = frozenset([1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900])
+
+
+def _clamp_engine_time_ms(time_ms: int) -> int:
+    """Clamp engine time_limit_ms to [100, 60000] milliseconds."""
+    return max(MIN_ENGINE_TIME_MS, min(MAX_ENGINE_TIME_MS, time_ms))
+
+
+def _get_engine_path(backend: str) -> tuple[str | None, str | None]:
+    """Dispatch backend to (engine_path, weight_path).
+
+    Returns (None, None) and caller maps to backend_unavailable / invalid_backend error.
+    - "stockfish" → (ENGINE_PATH, None)
+    - "maia-1500" → (LC0_PATH, weight_file_path) or (None, None) if missing
+    - "leela" → (LC0_PATH, LEELA_WEIGHTS) or (None, None) if missing
+    - unknown → (None, None)
+    """
+    if backend == "stockfish":
+        return ENGINE_PATH, None
+
+    if backend.startswith("maia-"):
+        try:
+            rating = int(backend[5:])
+        except ValueError:
+            return None, None
+
+        # Validate rating is in the Maia set
+        if rating not in MAIA_RATINGS:
+            return None, None
+
+        lc0_path = os.environ.get("LC0_PATH", "/usr/bin/lc0")
+        maia_dir = os.environ.get("MAIA_WEIGHTS_DIR", "/usr/share/chess/maia-weights")
+        weight_file = os.path.join(maia_dir, f"{backend}.pb.gz")
+
+        # Check if weight file exists
+        if not os.path.isfile(weight_file):
+            return None, None
+
+        return lc0_path, weight_file
+
+    if backend == "leela":
+        lc0_path = os.environ.get("LC0_PATH", "/usr/bin/lc0")
+        leela_weights = os.environ.get("LEELA_WEIGHTS")
+        if leela_weights is None or not os.path.isfile(leela_weights):
+            return None, None
+        return lc0_path, leela_weights
+
+    return None, None
+
+
+@mcp.tool()
+def engine_move(
+    fen: str,
+    backend: str = "stockfish",
+    time_limit_ms: int = 1000,
+) -> dict:
+    """
+    Return the best move from a specified engine backend.
+
+    backend: "stockfish" (default) | "maia-1100" through "maia-1900" (Maia weights)
+    | "leela" (Leela full network).
+
+    time_limit_ms: search time in milliseconds; clamped to [100, 60000]. Converted to
+    seconds for the engine. Default 1000ms.
+
+    Returns (on success): {move (SAN), uci, backend, eval_cp (white-POV cp, ±10000 = mate),
+    eval_type ("cp"|"mate"), mate_in (signed mate distance or null), depth}.
+
+    Invalid FEN → {"error":"invalid_fen", "reason": ...}.
+    Unknown backend → {"error":"invalid_backend", "reason": ...}.
+    Backend binary/weights missing → {"error":"backend_unavailable", "reason": ...}.
+    """
+    # Validate FEN
+    board, err = _safe_board(fen)
+    if err:
+        return err
+
+    # Validate and dispatch backend
+    if backend not in ("stockfish",) and not (
+        backend.startswith("maia-") or backend == "leela"
+    ):
+        return {
+            "error": "invalid_backend",
+            "reason": f"invalid backend: {backend}; must be 'stockfish', 'maia-{{1100..1900}}', or 'leela'",
+        }
+
+    # Check Maia rating syntax
+    if backend.startswith("maia-"):
+        try:
+            rating = int(backend[5:])
+            if rating not in MAIA_RATINGS:
+                return {
+                    "error": "invalid_backend",
+                    "reason": f"invalid Maia rating {rating}; must be one of {sorted(MAIA_RATINGS)}",
+                }
+        except ValueError:
+            return {
+                "error": "invalid_backend",
+                "reason": f"invalid Maia backend format: {backend}; expected 'maia-<rating>'",
+            }
+
+    # Get engine path and weight file
+    engine_path, weight_path = _get_engine_path(backend)
+
+    if engine_path is None:
+        if backend == "stockfish":
+            return {
+                "error": "backend_unavailable",
+                "reason": f"Stockfish not found at {ENGINE_PATH}; set STOCKFISH_PATH",
+            }
+        elif backend.startswith("maia-"):
+            return {
+                "error": "backend_unavailable",
+                "reason": f"{backend} weights not found; set LC0_PATH and MAIA_WEIGHTS_DIR",
+            }
+        else:  # leela
+            return {
+                "error": "backend_unavailable",
+                "reason": "leela backend requested but LEELA_WEIGHTS not set or file missing",
+            }
+
+    # Clamp time_limit_ms
+    time_ms = _clamp_engine_time_ms(time_limit_ms)
+    time_s = time_ms / 1000.0
+    limit = chess.engine.Limit(time=time_s)
+
+    # Open engine and run analysis
+    try:
+        if weight_path is not None:
+            # lc0/Maia/Leela — pass WeightsFile option
+            engine = chess.engine.SimpleEngine.popen_uci(
+                engine_path, options={"WeightsFile": weight_path}
+            )
+        else:
+            # Stockfish — no options
+            engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+
+        with engine:
+            info = engine.analyse(board, limit)
+
+        # Extract move and eval
+        pv = info.get("pv", [])
+        if not pv:
+            return {
+                "error": "engine_error",
+                "reason": "engine returned no principal variation",
+            }
+
+        best_move = pv[0]
+        move_san = board.san(best_move)
+        move_uci = best_move.uci()
+
+        cp, score_type, mate_in = _score_with_type(info["score"])
+        depth = info.get("depth", 0)
+
+        return {
+            "move": move_san,
+            "uci": move_uci,
+            "backend": backend,
+            "eval_cp": cp,
+            "eval_type": score_type,
+            "mate_in": mate_in,
+            "depth": depth,
+        }
+    except FileNotFoundError as e:
+        return {
+            "error": "backend_unavailable",
+            "reason": f"{backend} binary not found at {engine_path}: {e}",
+        }
+    except Exception as e:
+        return {
+            "error": "backend_error",
+            "reason": f"engine error with {backend}: {type(e).__name__}: {e}",
+        }
+
+
 if __name__ == "__main__":
     # Transport: "sse" (default — networked, for the Docker/remote server) or "stdio"
     # (client spawns the server as a subprocess; the low-friction local path, no port).
