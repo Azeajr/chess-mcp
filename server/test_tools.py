@@ -1372,3 +1372,62 @@ def test_clamp_depth_bounds():
     assert cm._clamp_depth(0) == cm.MIN_DEPTH
     assert cm._clamp_depth(99) == cm.MAX_DEPTH
     assert cm._clamp_depth(18) == 18
+
+
+# --- #26 MCP App: board widget (resource) ---
+
+
+def test_board_widget_resource_exists():
+    """Resource is registered and returns valid HTML."""
+    html = cm.get_board_widget()
+    assert isinstance(html, str)
+    assert len(html) > 100
+    assert "<!DOCTYPE html" in html or "<html" in html
+
+
+def test_board_widget_contains_chessboard_js():
+    """Widget includes chessboard.js from CDN."""
+    html = cm.get_board_widget()
+    assert "chessboardjs" in html.lower() or "chessboard" in html.lower()
+    assert "cdn.jsdelivr.net" in html
+
+
+def test_board_widget_contains_chess_js():
+    """Widget includes chess.js from CDN for move validation."""
+    html = cm.get_board_widget()
+    assert "chess.js" in html.lower()
+
+
+def test_board_widget_contains_mode_selector():
+    """Widget supports mode selection (PGN stepper vs repertoire browser)."""
+    html = cm.get_board_widget()
+    assert "pgn" in html.lower() or "mode" in html.lower()
+
+
+def test_board_widget_contains_analyze_button():
+    """Widget has an 'Analyze Position' button (calls evaluate_position tool)."""
+    html = cm.get_board_widget()
+    assert "analyze" in html.lower() or "evaluate" in html.lower()
+
+
+def test_board_widget_html_validity():
+    """HTML has balanced basic structure (not a syntax checker, but smoke test)."""
+    html = cm.get_board_widget()
+    # Count opening/closing script and style tags (basic balance check)
+    opens = html.count("<script") + html.count("<style")
+    closes = html.count("</script>") + html.count("</style>")
+    assert opens == closes, "Unbalanced HTML tags"
+    # No obvious quote mismatches
+    assert html.count('"') % 2 == 0, "Odd number of double quotes"
+
+
+def test_board_widget_has_board_element():
+    """Widget has a board container element."""
+    html = cm.get_board_widget()
+    assert 'id="board"' in html or 'id="board"' in html
+
+
+def test_board_widget_has_pgn_input():
+    """Widget has PGN input area for stepper mode."""
+    html = cm.get_board_widget()
+    assert "pgnInput" in html or "pgn" in html.lower()

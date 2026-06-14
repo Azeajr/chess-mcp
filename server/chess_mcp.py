@@ -18,6 +18,7 @@ import repertoire
 import openings
 import apiclient
 import evalcache
+import boardwidget
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
@@ -2195,6 +2196,28 @@ def repertoire_vs_history(
         "uncovered_opponent_moves": uncs,
         "truncated": dev_trunc or unc_trunc,
     }
+
+
+@mcp.resource("resource://apps/board", name="board", mime_type="text/html")
+def get_board_widget() -> str:
+    """
+    Interactive board browser and PGN stepper (issue #26).
+
+    Two modes via query parameters:
+    - mode=pgn: Paste a PGN, step with arrow keys or buttons, analyze positions.
+    - mode=repertoire: Load a repertoire (handle from load_repertoire tool), browse the tree.
+
+    Query parameters:
+    - mode: "pgn" | "repertoire" (required)
+    - pgn: URL-encoded PGN string (for mode=pgn)
+    - repertoire_id: handle from load_repertoire (for mode=repertoire)
+    - depth: eval search depth, default 18 (optional)
+
+    Returns: text/html single-file widget (chessboard.js + chess.js via CDN).
+    No MCP Apps capability yet (spec not standardized in mcp v1.27.2);
+    served as an MCP resource for all clients.
+    """
+    return boardwidget.BOARD_WIDGET_HTML
 
 
 if __name__ == "__main__":
