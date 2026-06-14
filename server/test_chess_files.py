@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-import chess_files as cf
+from chess_mcp import files as cf
 
 REP = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 2. c4 e6 *\n'
 

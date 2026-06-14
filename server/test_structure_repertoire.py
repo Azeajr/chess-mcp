@@ -12,10 +12,10 @@ import chess
 import chess.pgn
 import pytest
 
-import structure
-import repertoire
-import openings
-import chess_mcp as cm
+from chess_mcp import structure
+from chess_mcp import repertoire
+from chess_mcp import openings
+from chess_mcp import server as cm
 
 
 # ---------------------------------------------------------------------------

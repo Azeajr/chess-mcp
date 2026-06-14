@@ -14,8 +14,8 @@ import datetime
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "server"))
-import chess_mcp as cm
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "server" / "src"))
+from chess_mcp import server as cm
 
 ROOT = pathlib.Path(__file__).parent.parent
 PGN = (ROOT / "sample-game.pgn").read_text()
@@ -59,7 +59,7 @@ def main():
     # first leaf path from the repertoire
     import chess.pgn
     import io
-    import repertoire as rp
+    from chess_mcp import repertoire as rp
 
     game = chess.pgn.read_game(io.StringIO(REPERTOIRE_PGN))
     leaf_path = rp.san_path(next(rp.walk_leaves(game)))

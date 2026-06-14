@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/chess-mcp/server
-ExecStart=/usr/bin/env uv run chess_mcp.py
+ExecStart=/usr/bin/env uv run chess-mcp
 Restart=on-failure
 Environment=FASTMCP_HOST=0.0.0.0
 Environment=FASTMCP_PORT=8000

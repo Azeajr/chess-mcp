@@ -48,7 +48,7 @@ uv sync --no-dev
 
 echo
 echo "Install complete."
-echo "Run:  STOCKFISH_PATH=$STOCKFISH_PATH uv run chess_mcp.py   (from $REPO_SERVER)"
+echo "Run:  STOCKFISH_PATH=$STOCKFISH_PATH uv run chess-mcp   (from $REPO_SERVER)"
 
 # 5. Optional systemd --user unit, generated with the real repo + stockfish paths.
 if [ "${1:-}" = "--systemd" ]; then
@@ -66,7 +66,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$REPO_SERVER
-ExecStart=/usr/bin/env uv run chess_mcp.py
+ExecStart=/usr/bin/env uv run chess-mcp
 Restart=on-failure
 Environment=FASTMCP_HOST=0.0.0.0
 Environment=FASTMCP_PORT=8000

@@ -18,10 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY pyproject.toml .
+# Install runtime deps first (cached unless pyproject changes), then the package itself.
+COPY pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
-COPY chess_mcp.py structure.py repertoire.py openings.py openings.tsv apiclient.py evalcache.py boardwidget.py ./
+COPY src ./src
+RUN uv sync --no-dev
 
 ENV STOCKFISH_PATH=/usr/games/stockfish \
     FASTMCP_HOST=0.0.0.0 \
@@ -29,4 +31,4 @@ ENV STOCKFISH_PATH=/usr/games/stockfish \
 
 EXPOSE 8000
 
-CMD ["uv", "run", "python", "chess_mcp.py"]
+CMD ["uv", "run", "chess-mcp"]

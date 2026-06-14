@@ -13,12 +13,12 @@ import math
 import os
 import time
 
-import structure
-import repertoire
-import openings
-import apiclient
-import evalcache
-import boardwidget
+from chess_mcp import structure
+from chess_mcp import repertoire
+from chess_mcp import openings
+from chess_mcp import apiclient
+from chess_mcp import evalcache
+from chess_mcp import boardwidget
 
 ENGINE_PATH = os.environ.get("STOCKFISH_PATH", "/usr/bin/stockfish")
 DEFAULT_DEPTH = int(os.environ.get("ANALYSIS_DEPTH", "18"))
@@ -2748,10 +2748,15 @@ def batch_review(
     return result
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (`chess-mcp` / `python -m chess_mcp`)."""
     # Transport: "sse" (default — networked, for the Docker/remote server) or "stdio"
     # (client spawns the server as a subprocess; the low-friction local path, no port).
     transport = os.environ.get("MCP_TRANSPORT", "sse")
     if transport not in ("sse", "stdio", "streamable-http"):
         transport = "sse"
     mcp.run(transport=transport)
+
+
+if __name__ == "__main__":
+    main()

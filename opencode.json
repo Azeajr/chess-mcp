@@ -7,7 +7,7 @@
     },
     "chess-files": {
       "type": "local",
-      "command": ["uv", "run", "--directory", "server", "chess_files.py"],
+      "command": ["uv", "run", "--directory", "server", "chess-files"],
       "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
     }
   }

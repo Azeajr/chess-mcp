@@ -16,11 +16,11 @@ import collections
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "server"))
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "server" / "src"))
 
 import chess
 
-import structure
+from chess_mcp import structure
 
 # (fen, expected_class). Real positions from canonical lines; the 11 added structures use
 # the MCP-verified canonical FENs from STRUCTURE_CLASSIFIER_DESIGN.md §8 (provenance log).

@@ -7,7 +7,7 @@
     "chess-files": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "server", "chess_files.py"],
+      "args": ["run", "--directory", "server", "chess-files"],
       "env": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
     }
   }

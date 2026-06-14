@@ -208,7 +208,12 @@ async def export_repertoire_to_file(repertoire_id: str, path: str) -> dict:
     }
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (`chess-files`) for the host-side file proxy."""
     # stdio: the MCP client spawns this as a subprocess (it needs the host filesystem). The
     # backend connection is SSE, configured via CHESS_MCP_URL.
     mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()

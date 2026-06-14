@@ -17,10 +17,10 @@ import chess.pgn
 import httpx
 import pytest
 
-import chess_mcp as cm
-import repertoire
-import apiclient
-import evalcache
+from chess_mcp import server as cm
+from chess_mcp import repertoire
+from chess_mcp import apiclient
+from chess_mcp import evalcache
 
 REP_PGN = (
     '[Event "t"]\n[Result "*"]\n\n'

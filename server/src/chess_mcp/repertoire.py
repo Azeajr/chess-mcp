@@ -21,8 +21,8 @@ from dataclasses import dataclass
 import chess
 import chess.pgn
 
-import structure
-import openings
+from chess_mcp import structure
+from chess_mcp import openings
 
 MAX_REPERTOIRES = int(os.environ.get("MAX_REPERTOIRES", "16"))  # LRU cap
 REPERTOIRE_TTL_S = int(
