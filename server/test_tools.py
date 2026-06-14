@@ -1517,8 +1517,8 @@ def test_tablebase_lookup_kqk_white_win(monkeypatch):
     assert r["category"] == "win"
 
 
-def test_tablebase_lookup_cursed_win_maps_to_wdl_2(monkeypatch):
-    """Cursed-win (winning but unreachable in 50 moves) maps to wdl=2."""
+def test_tablebase_lookup_cursed_win_maps_to_wdl_1(monkeypatch):
+    """Cursed-win (won, but the 50-move rule forces a draw) maps to 5-valued wdl=1."""
     fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
     mock_response = {
         "category": "cursed-win",
@@ -1527,8 +1527,8 @@ def test_tablebase_lookup_cursed_win_maps_to_wdl_2(monkeypatch):
     }
     monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
     r = cm.tablebase_lookup(fen)
-    assert r["wdl"] == 2  # still a win
-    assert r["category"] == "cursed-win"  # but verbatim category
+    assert r["wdl"] == 1  # cursed win
+    assert r["category"] == "cursed-win"  # verbatim category
 
 
 def test_tablebase_lookup_draw(monkeypatch):
@@ -1545,17 +1545,17 @@ def test_tablebase_lookup_draw(monkeypatch):
     assert r["category"] == "draw"
 
 
-def test_tablebase_lookup_blessed_loss_maps_to_wdl_0(monkeypatch):
-    """Blessed-loss (losing but drawable by 50-move rule) maps to wdl=0."""
+def test_tablebase_lookup_blessed_loss_maps_to_wdl_minus_1(monkeypatch):
+    """Blessed-loss (lost, but the 50-move rule saves it) maps to 5-valued wdl=-1."""
     fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
     mock_response = {
         "category": "blessed-loss",
-        "dtz": 100,  # can force a draw by avoiding moves for 50 moves
+        "dtz": 100,  # saved by the 50-move rule
         "moves": [{"uci": "a2a3"}],
     }
     monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
     r = cm.tablebase_lookup(fen)
-    assert r["wdl"] == 0  # drawable, so treated as draw
+    assert r["wdl"] == -1  # blessed loss
     assert r["category"] == "blessed-loss"
 
 
@@ -1573,8 +1573,8 @@ def test_tablebase_lookup_loss(monkeypatch):
     assert r["category"] == "loss"
 
 
-def test_tablebase_lookup_maybe_win_maps_to_wdl_0(monkeypatch):
-    """Maybe-win (uncertain result) maps to wdl=0, keeping category verbatim."""
+def test_tablebase_lookup_maybe_win_maps_to_wdl_2(monkeypatch):
+    """Maybe-win (a win; only the DTZ is imprecise near the 50-move boundary) → wdl=2."""
     fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
     mock_response = {
         "category": "maybe-win",
@@ -1583,8 +1583,54 @@ def test_tablebase_lookup_maybe_win_maps_to_wdl_0(monkeypatch):
     }
     monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
     r = cm.tablebase_lookup(fen)
-    assert r["wdl"] == 0  # uncertain, treated as draw
+    assert r["wdl"] == 2  # fundamentally a win
     assert r["category"] == "maybe-win"  # verbatim
+
+
+def test_tablebase_lookup_maybe_loss_maps_to_wdl_minus_2(monkeypatch):
+    """Maybe-loss (a loss; DTZ imprecise) maps to wdl=-2, category verbatim."""
+    fen = "8/8/8/8/8/K7/q7/k7 w - - 0 1"
+    mock_response = {"category": "maybe-loss", "dtz": None, "moves": [{"uci": "a3a2"}]}
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] == -2
+    assert r["category"] == "maybe-loss"
+
+
+def test_tablebase_lookup_syzygy_win_and_loss(monkeypatch):
+    """syzygy-win / syzygy-loss are definite win/loss in WDL terms (→ 2 / -2)."""
+    fen_w = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    monkeypatch.setattr(
+        apiclient,
+        "get_json",
+        lambda url, params=None: {
+            "category": "syzygy-win",
+            "dtz": 5,
+            "moves": [{"uci": "a2a3"}],
+        },
+    )
+    assert cm.tablebase_lookup(fen_w)["wdl"] == 2
+    fen_l = "8/8/8/8/8/K7/q7/k7 w - - 0 1"
+    monkeypatch.setattr(
+        apiclient,
+        "get_json",
+        lambda url, params=None: {
+            "category": "syzygy-loss",
+            "dtz": -5,
+            "moves": [{"uci": "a3a2"}],
+        },
+    )
+    assert cm.tablebase_lookup(fen_l)["wdl"] == -2
+
+
+def test_tablebase_lookup_unknown_category_maps_to_null_wdl(monkeypatch):
+    """An unknown/unrecognized category yields wdl=None (result not known)."""
+    fen = "7k/8/8/8/8/8/Q7/K7 w - - 0 1"
+    mock_response = {"category": "unknown", "dtz": None, "moves": [{"uci": "a2a3"}]}
+    monkeypatch.setattr(apiclient, "get_json", lambda url, params=None: mock_response)
+    r = cm.tablebase_lookup(fen)
+    assert r["wdl"] is None
+    assert r["category"] == "unknown"
 
 
 def test_tablebase_lookup_offline_returns_unavailable(monkeypatch):
@@ -2031,20 +2077,31 @@ def test_batch_review_parse_multi_game(monkeypatch):
         '[Event "Game1"]\n[White "Alice"]\n[Black "Bob"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0\n\n'
         '[Event "Game2"]\n[White "Bob"]\n[Black "Alice"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 e6 0-1\n\n'
     )
-    # Mock get_game_summary to avoid engine calls
+    # Mock analyze_game to avoid engine calls
     call_count = [0]
 
-    def mock_summary(pgn_str, depth=18, time_limit=None):
+    def mock_analyze(pgn_str, depth=18, min_cp_loss=50, verbose=False, time_limit=None):
         call_count[0] += 1
-        return {
-            "opening": "Some Opening",
-            "total_moves": 2,
-            "white": {"accuracy_pct": 90},
-            "black": {"accuracy_pct": 85},
-            "worst_moves": [],
-        }
+        return [
+            {
+                "move_number": 1,
+                "color": "white",
+                "move": "e4",
+                "cp_loss": 10,
+                "classification": "good",
+                "best_move": "e4",
+            },
+            {
+                "move_number": 1,
+                "color": "black",
+                "move": "e5",
+                "cp_loss": 30,
+                "classification": "inaccuracy",
+                "best_move": "c5",
+            },
+        ]
 
-    monkeypatch.setattr(cm, "get_game_summary", mock_summary)
+    monkeypatch.setattr(cm, "analyze_game", mock_analyze)
     result = cm.batch_review(pgn, group_by="eco")
     assert result["total_games"] == 2
     assert call_count[0] == 2  # Both games were analyzed
@@ -2059,16 +2116,19 @@ def test_batch_review_max_games_cap(monkeypatch):
     )
     call_count = [0]
 
-    def mock_summary(pgn_str, depth=18, time_limit=None):
+    def mock_analyze(pgn_str, depth=18, min_cp_loss=50, verbose=False, time_limit=None):
         call_count[0] += 1
-        return {
-            "opening": None,
-            "total_moves": 2,
-            "white": {"accuracy_pct": 90},
-            "black": {"accuracy_pct": 85},
-            "worst_moves": [],
-        }
+        return [
+            {
+                "move_number": 1,
+                "color": "white",
+                "move": "e4",
+                "cp_loss": 10,
+                "classification": "good",
+                "best_move": "e4",
+            },
+        ]
 
-    monkeypatch.setattr(cm, "get_game_summary", mock_summary)
+    monkeypatch.setattr(cm, "analyze_game", mock_analyze)
     cm.batch_review(pgn, max_games=2, group_by="eco")
     assert call_count[0] == 2  # Only 2 games analyzed despite 3 available

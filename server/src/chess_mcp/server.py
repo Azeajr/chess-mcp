@@ -594,14 +594,34 @@ def _count_pieces(fen: str) -> int:
     return count
 
 
+# Lichess tablebase category → 5-valued Syzygy WDL, side-to-move POV (see tablebase_lookup).
+# win/loss are unconditional; cursed-win (1) is won but drawn by the 50-move rule and
+# blessed-loss (-1) its mirror; maybe-/syzygy-win|loss carry imprecise DTZ but a definite
+# win/loss in WDL terms. An unknown/unrecognized category → None (result not known).
+_WDL_BY_CATEGORY = {
+    "win": 2,
+    "syzygy-win": 2,
+    "maybe-win": 2,
+    "cursed-win": 1,
+    "draw": 0,
+    "blessed-loss": -1,
+    "maybe-loss": -2,
+    "syzygy-loss": -2,
+    "loss": -2,
+}
+
+
 @mcp.tool()
 def tablebase_lookup(fen: str) -> dict:
     """
     Query Lichess tablebase for a position with ≤7 pieces.
 
     Positions with 8+ pieces return an error immediately (no network call).
-    Returns: wdl (2=win, 0=draw, -2=loss from side-to-move), dtz (distance to zero,
-    moves until 50-move rule resets), best_move (UCI), category (win|draw|loss|cursed-win|blessed-loss|...).
+    Returns: wdl (5-valued Syzygy, side-to-move POV: 2=win, 1=cursed-win (won but the
+    50-move rule forces a draw), 0=draw, -1=blessed-loss (lost but the 50-move rule saves
+    it to a draw), -2=loss; null when the result is unknown), dtz (distance to zero,
+    moves until 50-move rule resets), best_move (UCI), category (verbatim Lichess category:
+    win|cursed-win|maybe-win|draw|blessed-loss|maybe-loss|loss|...).
     Offline or position-not-in-database → {"error":"unavailable"}.
     Invalid FEN → {"error":"invalid_fen","reason":...}.
     Positions with >7 pieces → {"error":"too_many_pieces","reason":...}.
@@ -630,14 +650,10 @@ def tablebase_lookup(fen: str) -> dict:
             "reason": "tablebase service unreachable or position not in database",
         }
 
-    # Map category to WDL
+    # Map category → 5-valued Syzygy WDL; category stays verbatim below for the exact
+    # nuance, and an unknown/absent category yields wdl=null (result not known).
     category = data.get("category", "unknown")
-    if category in ("win", "cursed-win"):
-        wdl = 2
-    elif category in ("loss",):
-        wdl = -2
-    else:  # "draw", "blessed-loss", "maybe-win", "unknown", or any other
-        wdl = 0
+    wdl = _WDL_BY_CATEGORY.get(category)
 
     # Extract best move (first move in moves list, or null if none)
     best_move = None
@@ -2485,12 +2501,16 @@ def engine_move(
 # ---------------------------------------------------------------------------
 
 
-def _aggregate_games(records: list[dict]) -> dict:
+def _aggregate_games(records: list[dict], decided: bool = True) -> dict:
     """Pure aggregator (engine-free): group per-game records by their group_key and compute
-    win rates, avg CPL, top blunders, and worst/best groups.
+    avg CPL, top blunders, and (when decided) win rates and worst/best groups.
 
-    Each record: {result, group_key, group_name, avg_cpl, blunders: [{move, fen, classification}]}
-    Returns: {total_games, groups: [{key, name, games, win_rate, draw_rate, loss_rate, avg_cpl, top_blunders}], worst_group, best_group}
+    decided=False (no username → no user POV, so win/loss is undefined) omits win_rate/
+    draw_rate/loss_rate and worst_group/best_group, leaving games + avg_cpl + top_blunders.
+
+    Each record: {result, group_key, group_name, avg_cpl, blunders: [{move, classification}]}
+    Returns: {total_games, groups: [{key, name, games, avg_cpl, top_blunders[, win_rate,
+    draw_rate, loss_rate]}], worst_group, best_group}
     """
     if not records:
         return {
@@ -2532,9 +2552,6 @@ def _aggregate_games(records: list[dict]) -> dict:
     groups = []
     for key, g in groups_dict.items():
         total = g["games"]
-        win_rate = g["wins"] / total if total > 0 else 0.0
-        draw_rate = g["draws"] / total if total > 0 else 0.0
-        loss_rate = g["losses"] / total if total > 0 else 0.0
         avg_cpl = g["cpl_sum"] / total if total > 0 else 0.0
 
         # Top blunders by frequency (limit to top 5)
@@ -2543,34 +2560,34 @@ def _aggregate_games(records: list[dict]) -> dict:
             {"move": move, "frequency": freq} for move, freq in top_blunders
         ]
 
-        groups.append(
-            {
-                "key": g["key"],
-                "name": g["name"],
-                "games": g["games"],
-                "win_rate": round(win_rate, 3),
-                "draw_rate": round(draw_rate, 3),
-                "loss_rate": round(loss_rate, 3),
-                "avg_cpl": round(avg_cpl, 1),
-                "top_blunders": top_blunders_list,
-            }
-        )
+        entry = {
+            "key": g["key"],
+            "name": g["name"],
+            "games": g["games"],
+            "avg_cpl": round(avg_cpl, 1),
+            "top_blunders": top_blunders_list,
+        }
+        if decided:
+            entry["win_rate"] = round(g["wins"] / total, 3) if total > 0 else 0.0
+            entry["draw_rate"] = round(g["draws"] / total, 3) if total > 0 else 0.0
+            entry["loss_rate"] = round(g["losses"] / total, 3) if total > 0 else 0.0
+        groups.append(entry)
 
-    # Find worst and best groups
+    # Worst/best by win rate — only meaningful with a user POV (decided).
     worst_group = None
     best_group = None
-    if groups:
-        worst_group = min(groups, key=lambda g: g["win_rate"])
-        best_group = max(groups, key=lambda g: g["win_rate"])
+    if decided and groups:
+        worst = min(groups, key=lambda g: g["win_rate"])
+        best = max(groups, key=lambda g: g["win_rate"])
         worst_group = {
-            "key": worst_group["key"],
-            "name": worst_group["name"],
-            "win_rate": worst_group["win_rate"],
+            "key": worst["key"],
+            "name": worst["name"],
+            "win_rate": worst["win_rate"],
         }
         best_group = {
-            "key": best_group["key"],
-            "name": best_group["name"],
-            "win_rate": best_group["win_rate"],
+            "key": best["key"],
+            "name": best["name"],
+            "win_rate": best["win_rate"],
         }
 
     return {
@@ -2645,17 +2662,19 @@ def batch_review(
     "color" (user's color — requires username).
 
     username: optional, for matching the user's color in White/Black headers. If provided,
-    only games where username played are included; results (win/loss/draw) are from the
-    user's perspective. If omitted, all games analyzed and color-based grouping is
-    unavailable.
+    ONLY games the user played are included (every group_by mode), results (win/loss/draw)
+    are from the user's perspective, and avg_cpl/top_blunders cover the user's own moves.
+    If omitted, all games are analyzed, avg_cpl covers both sides, win/draw/loss is
+    undefined (those fields are omitted), and color-based grouping is unavailable.
 
     max_games: max number of games to analyze (default 100; higher values are slower).
 
     depth, time_limit: engine search parameters (see get_game_summary).
 
-    Returns: {total_games, groups: [{key, name, games, win_rate, draw_rate, loss_rate,
-    avg_cpl, top_blunders: [{move, frequency}]}], worst_group: {key, name, win_rate},
-    best_group: {key, name, win_rate}}. Bad input → {error, reason}.
+    Returns: {total_games, groups: [{key, name, games, avg_cpl (average centipawn loss),
+    top_blunders: [{move, frequency}], and — only with a username — win_rate, draw_rate,
+    loss_rate}], worst_group/best_group: {key, name, win_rate} or null without a username}.
+    Bad input → {error, reason}.
     """
     if err := _pgn_too_large(pgn):
         return err
@@ -2685,12 +2704,15 @@ def batch_review(
 
     # Build per-game records
     records = []
+    exporter = chess.pgn.StringExporter(headers=True, variations=False, comments=False)
     for game in games:
-        # Determine group key and name
+        # The user's side in this game (None when no username). With a username the
+        # docstring scopes the review to the user's games — skip the rest, in every mode.
+        user_color = _user_color(game, username) if username else None
+        if username is not None and user_color is None:
+            continue
+
         if group_by == "color":
-            user_color = _user_color(game, username or "")
-            if user_color is None:
-                continue  # Skip games where user didn't play
             group_key = user_color
             group_name = "White" if user_color == "white" else "Black"
         else:
@@ -2698,42 +2720,26 @@ def batch_review(
             if group_key is None:
                 continue  # Skip games that can't be grouped
 
-        # Get game summary (engine analysis) - export game to PGN string
-        exporter = chess.pgn.StringExporter(
-            headers=True, variations=False, comments=False
-        )
+        # One engine pass over the whole game → every move's cp_loss (min_cp_loss=0).
         pgn_str = game.accept(exporter)
-        summary = get_game_summary(pgn_str, depth, time_limit)
-        if "error" in summary:
-            continue  # Skip games with analysis errors
+        moves = analyze_game(pgn_str, depth, 0, False, time_limit)
+        if isinstance(moves, dict):  # {"error", ...} — skip games that fail to analyze
+            continue
 
-        # Determine result
-        result = _user_result(
-            game.headers.get("Result", "*"), _user_color(game, username or "")
-        )
-
-        # Collect worst moves by classification
-        blunders = []
-        for worst_move in summary.get("worst_moves", []):
-            classification = worst_move.get("classification", "")
-            if classification in ("blunder", "mistake", "inaccuracy"):
-                blunders.append(
-                    {
-                        "move": worst_move.get("move", ""),
-                        "fen": "",  # Not available from summary
-                        "classification": classification,
-                    }
-                )
-
-        # Compute average CPL (centipawn loss) from worst_moves
-        avg_cpl = 0.0
-        if summary.get("worst_moves"):
-            total_loss = sum(m.get("cp_loss", 0) for m in summary["worst_moves"])
-            avg_cpl = total_loss / len(summary["worst_moves"])
+        # Restrict CPL + recurring blunders to the user's own moves (both sides when no
+        # username). The old code drew avg_cpl from get_game_summary's worst_moves — only
+        # the top 3, and both colors — so it was neither an ACPL nor user-relative.
+        side = [m for m in moves if user_color is None or m["color"] == user_color]
+        avg_cpl = sum(m["cp_loss"] for m in side) / len(side) if side else 0.0
+        blunders = [
+            {"move": m["move"], "classification": m["classification"]}
+            for m in side
+            if m["classification"] in ("blunder", "mistake", "inaccuracy")
+        ]
 
         records.append(
             {
-                "result": result,
+                "result": _user_result(game.headers.get("Result", "*"), user_color),
                 "group_key": group_key,
                 "group_name": group_name,
                 "avg_cpl": avg_cpl,
@@ -2741,8 +2747,8 @@ def batch_review(
             }
         )
 
-    # Aggregate
-    result = _aggregate_games(records)
+    # Aggregate. Win/draw/loss is meaningful only with a user POV (username given).
+    result = _aggregate_games(records, decided=username is not None)
     result["username"] = username
     result["group_by"] = group_by
     return result
