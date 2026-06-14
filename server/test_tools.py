@@ -8,6 +8,7 @@ Only the pre-engine guards of suggest are exercised below.
 Run (needs mcp, which is a main dependency):  uv run pytest   (from server/)
 """
 
+import base64
 import io
 
 import chess
@@ -292,6 +293,50 @@ def test_apiclient_non_200(monkeypatch):
     monkeypatch.setattr(apiclient, "_MIN_INTERVAL_S", 0)
     monkeypatch.setattr(apiclient, "_get_client", lambda: _fake_client(resp=None))
     assert apiclient.get_json("http://x") is None
+
+
+# --- #23 board_image (engine-free) ---
+
+
+def _svg(out: dict) -> str:
+    return base64.b64decode(out["data"]).decode()
+
+
+def test_board_image_startpos():
+    out = cm.board_image(chess.STARTING_FEN)
+    assert out["format"] == "svg" and out["encoding"] == "base64"
+    assert "<svg" in _svg(out)
+
+
+def test_board_image_last_move_uci():
+    out = cm.board_image(chess.STARTING_FEN, last_move="e2e4")
+    assert "error" not in out and "<svg" in _svg(out)
+
+
+def test_board_image_last_move_san():
+    out = cm.board_image(chess.STARTING_FEN, last_move="Nf3")
+    assert "error" not in out
+
+
+def test_board_image_illegal_last_move():
+    out = cm.board_image(chess.STARTING_FEN, last_move="e2e5")
+    assert out["error"] == "invalid_move"
+
+
+def test_board_image_orientation_black():
+    out = cm.board_image(chess.STARTING_FEN, orientation="black")
+    assert out["orientation"] == "black" and "<svg" in _svg(out)
+
+
+def test_board_image_bad_orientation():
+    assert (
+        cm.board_image(chess.STARTING_FEN, orientation="purple")["error"]
+        == "invalid_orientation"
+    )
+
+
+def test_board_image_bad_fen():
+    assert cm.board_image("not a fen")["error"] == "invalid_fen"
 
 
 # --- load_repertoire ---

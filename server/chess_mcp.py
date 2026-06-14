@@ -2,9 +2,11 @@
 from mcp.server.fastmcp import FastMCP
 from functools import lru_cache
 from typing import Literal
+import base64
 import chess
 import chess.pgn
 import chess.engine
+import chess.svg
 import io
 import json
 import math
@@ -670,6 +672,51 @@ def cloud_eval(fen: str, multi_pv: int = 1) -> dict | None:
         return None
     data["source"] = "lichess-cloud"
     return data
+
+
+@mcp.tool()
+def board_image(
+    fen: str, last_move: str | None = None, orientation: str = "white"
+) -> dict:
+    """
+    Render a position as an SVG board image (base64-encoded) — a board is far less lossy
+    for a chat client to reason over than a bare FEN.
+
+    Returns: {format:"svg", encoding:"base64", data (base64 SVG), orientation}. Decode
+    `data` to get the SVG text. last_move (UCI like "e2e4", or SAN) tints the from/to
+    squares and draws an arrow. orientation "white"|"black" flips the point of view.
+    Pass a FEN from an MCP result, not one typed from memory. Invalid FEN → {"error","reason"};
+    a last_move illegal in this position → {"error":"invalid_move"}.
+    """
+    if orientation not in ("white", "black"):
+        return {
+            "error": "invalid_orientation",
+            "reason": "orientation must be 'white' or 'black'",
+        }
+    board, err = _safe_board(fen)
+    if err:
+        return err
+
+    lastmove = None
+    arrows: list = []
+    if last_move:
+        mv = _parse_move(board, last_move)
+        if mv is None or mv not in board.legal_moves:
+            return {
+                "error": "invalid_move",
+                "reason": f"{last_move} is not legal in this position",
+            }
+        lastmove = mv
+        arrows = [chess.svg.Arrow(mv.from_square, mv.to_square)]
+
+    orient = chess.WHITE if orientation == "white" else chess.BLACK
+    svg = chess.svg.board(board, orientation=orient, lastmove=lastmove, arrows=arrows)
+    return {
+        "format": "svg",
+        "encoding": "base64",
+        "data": base64.b64encode(svg.encode()).decode(),
+        "orientation": orientation,
+    }
 
 
 @mcp.tool()
