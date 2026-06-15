@@ -2254,3 +2254,240 @@ def test_batch_review_max_games_cap(monkeypatch):
     monkeypatch.setattr(cm, "analyze_game", mock_analyze)
     cm.batch_review(pgn, max_games=2, group_by="eco")
     assert call_count[0] == 2  # Only 2 games analyzed despite 3 available
+
+
+# ---------------------------------------------------------------------------
+# Game session tools: start_game / make_move / get_game_state (#33)
+# ---------------------------------------------------------------------------
+
+# Shared FakeEngine for session tests: always returns e2e4 / d2d4 alternating.
+class _SessionFakeEngine:
+    """Stateless fake that always returns the popen'd engine as a context manager."""
+
+    def __init__(self, move_uci: str = "e2e4"):
+        self._move_uci = move_uci
+        self.configured: dict = {}
+
+    def configure(self, opts: dict) -> None:
+        self.configured.update(opts)
+
+    def analyse(self, board, limit):
+        return {
+            "score": chess.engine.PovScore(chess.engine.Cp(20), chess.WHITE),
+            "pv": [chess.Move.from_uci(self._move_uci)],
+            "depth": 10,
+        }
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _clear_sessions():
+    cm._SESSIONS.clear()
+    yield
+    cm._SESSIONS.clear()
+
+
+def _mock_engine(monkeypatch, move_uci: str = "e2e4"):
+    """Patch popen_uci to return a fake engine that plays move_uci."""
+    fake = _SessionFakeEngine(move_uci)
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", lambda *a, **kw: fake)
+    return fake
+
+
+# --- _rating_to_skill ---
+
+def test_rating_to_skill_anchors():
+    assert cm._rating_to_skill(800) == 0
+    assert cm._rating_to_skill(1200) == 5
+    assert cm._rating_to_skill(1500) == 10
+    assert cm._rating_to_skill(1800) == 15
+    assert cm._rating_to_skill(2000) == 20
+
+
+def test_rating_to_skill_clamps_below():
+    assert cm._rating_to_skill(0) == 0
+    assert cm._rating_to_skill(500) == 0
+
+
+def test_rating_to_skill_clamps_above():
+    assert cm._rating_to_skill(2500) == 20
+    assert cm._rating_to_skill(3000) == 20
+
+
+def test_rating_to_skill_interpolates():
+    # 1000 is midpoint between 800 (0) and 1200 (5)
+    assert cm._rating_to_skill(1000) == round(2.5)
+
+
+# --- start_game ---
+
+def test_start_game_invalid_color():
+    result = cm.start_game(color="purple")
+    assert result["error"] == "invalid_color"
+
+
+def test_start_game_invalid_fen():
+    result = cm.start_game(starting_fen="not a fen")
+    assert result["error"] == "invalid_fen"
+
+
+def test_start_game_white_returns_session(monkeypatch):
+    _mock_engine(monkeypatch)
+    result = cm.start_game(color="white")
+    assert "session_id" in result
+    assert result["color"] == "white"
+    assert result["turn"] == "white"          # engine hasn't moved yet
+    assert result["result"] == "*"
+    assert result["moves"] == []
+
+
+def test_start_game_black_engine_moves_first(monkeypatch):
+    _mock_engine(monkeypatch, "e2e4")
+    result = cm.start_game(color="black")
+    assert result["color"] == "black"
+    assert result["turn"] == "black"          # engine played White's move, now Black to move
+    assert result["moves"] == ["e4"]
+
+
+def test_start_game_custom_fen(monkeypatch):
+    _mock_engine(monkeypatch)
+    # FEN after 1.e4 d5: no en passant ambiguity, fully normalized by python-chess.
+    fen = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    result = cm.start_game(color="white", starting_fen=fen)
+    assert result["fen"] == fen
+    assert result["turn"] == "white"
+
+
+def test_start_game_skill_level_applied(monkeypatch):
+    fake = _mock_engine(monkeypatch, "e2e4")
+    cm.start_game(color="black", opponent_rating=800)
+    assert fake.configured.get("Skill Level") == 0
+
+
+def test_start_game_stores_session(monkeypatch):
+    _mock_engine(monkeypatch)
+    result = cm.start_game(color="white")
+    sid = result["session_id"]
+    assert sid in cm._SESSIONS
+
+
+# --- make_move ---
+
+def test_make_move_session_not_found():
+    result = cm.make_move("nonexistent", "e2e4")
+    assert result["error"] == "session_not_found"
+
+
+def test_make_move_invalid_uci(monkeypatch):
+    _mock_engine(monkeypatch)
+    sid = cm.start_game(color="white")["session_id"]
+    result = cm.make_move(sid, "not-uci")
+    assert result["error"] == "invalid_move"
+
+
+def test_make_move_illegal_move(monkeypatch):
+    _mock_engine(monkeypatch)
+    sid = cm.start_game(color="white")["session_id"]
+    result = cm.make_move(sid, "e2e5")  # illegal: pawn can't jump 3 squares
+    assert result["error"] == "invalid_move"
+
+
+def test_make_move_legal_move(monkeypatch):
+    _mock_engine(monkeypatch, "e7e5")
+    sid = cm.start_game(color="white")["session_id"]
+    result = cm.make_move(sid, "e2e4")
+    assert result["user_move"] == "e4"
+    assert result["engine_move"] == "e5"
+    assert len(result["moves"]) == 2
+    assert result["result"] == "*"
+
+
+def test_make_move_after_game_over(monkeypatch):
+    _mock_engine(monkeypatch)
+    # Fool's Mate: 1.f3 e5 2.g4 Qh4#
+    sid = cm.start_game(color="white")["session_id"]
+    session = cm._SESSIONS[sid]
+    # Force the board to a checkmate position and mark result.
+    board = chess.Board(FOOLS_MATE_FEN)
+    session["board"] = board
+    session["result"] = "0-1"
+    result = cm.make_move(sid, "e1e2")
+    assert result["error"] == "game_over"
+
+
+# --- get_game_state ---
+
+def test_get_game_state_not_found():
+    result = cm.get_game_state("bad-id")
+    assert result["error"] == "session_not_found"
+
+
+def test_get_game_state_returns_state(monkeypatch):
+    _mock_engine(monkeypatch)
+    sid = cm.start_game(color="white")["session_id"]
+    state = cm.get_game_state(sid)
+    assert state["session_id"] == sid
+    assert "fen" in state
+    assert "moves" in state
+    assert "result" in state
+
+
+def test_get_game_state_consistent_with_make_move(monkeypatch):
+    _mock_engine(monkeypatch, "e7e5")
+    sid = cm.start_game(color="white")["session_id"]
+    cm.make_move(sid, "e2e4")
+    state = cm.get_game_state(sid)
+    assert "e4" in state["moves"]
+    assert "e5" in state["moves"]
+
+
+# --- repertoire book moves ---
+
+def test_start_game_repertoire_pgn_book_move(monkeypatch):
+    """Engine should follow the repertoire's first move instead of calling the engine."""
+    rep_pgn = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 *\n'
+    called = [False]
+
+    class NeverCalledEngine:
+        def configure(self, opts):
+            pass
+        def analyse(self, board, limit):
+            called[0] = True
+            return {"score": chess.engine.PovScore(chess.engine.Cp(0), chess.WHITE), "pv": [chess.Move.from_uci("e2e4")], "depth": 1}
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+
+    monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", lambda *a, **kw: NeverCalledEngine())
+
+    # User plays White; engine (Black) should pick d5 from the repertoire.
+    sid = cm.start_game(color="white", repertoire_pgn=rep_pgn)["session_id"]
+    result = cm.make_move(sid, "d2d4")
+    assert result["engine_move"] == "d5"
+    assert not called[0]  # engine subprocess never opened
+
+
+def test_start_game_repertoire_falls_back_after_deviation(monkeypatch):
+    """Once user deviates from the repertoire, engine falls back to engine search."""
+    rep_pgn = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 *\n'
+    _mock_engine(monkeypatch, "c7c5")  # engine returns c5 when called
+
+    sid = cm.start_game(color="white", repertoire_pgn=rep_pgn)["session_id"]
+    # Play 1.e4 — not in the d4 repertoire; engine falls back to engine search.
+    result = cm.make_move(sid, "e2e4")
+    assert result["engine_move"] == "c5"  # came from fake engine, not book
+
+
+def test_start_game_repertoire_disabled_with_custom_fen(monkeypatch):
+    """repertoire_pgn is ignored when starting_fen is also set."""
+    rep_pgn = '[Event "t"]\n[Result "*"]\n\n1. d4 d5 *\n'
+    _mock_engine(monkeypatch, "c7c5")
+
+    fen = chess.STARTING_FEN  # same as start but explicitly set
+    sid = cm.start_game(color="white", starting_fen=fen, repertoire_pgn=rep_pgn)["session_id"]
+    # Book should be disabled; engine should be called normally.
+    assert cm._SESSIONS[sid]["rep_node"] is None
