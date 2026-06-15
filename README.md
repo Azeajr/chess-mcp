@@ -225,6 +225,13 @@ claude mcp get chess-analysis     # health-checks the SSE connection
 
 Or ask Claude to run `get_legal_moves` on the starting position, then paste a PGN and invoke `/chess-game-review`.
 
+### Validate plugin / marketplace
+
+```bash
+claude plugin validate ./plugin   # validate plugin manifest + skills
+claude plugin validate .          # validate marketplace catalog
+```
+
 ### OpenCode
 
 `opencode.json` registers both `chess-analysis` and `chess-files` automatically when running from the repo — approve the prompt, no manual setup needed. Skills in `.claude/skills/` auto-discover.
