@@ -11,7 +11,9 @@ import io
 import json
 import math
 import os
+import threading
 import time
+import uuid
 from urllib.parse import quote
 
 from chess_mcp import structure
@@ -2763,6 +2765,317 @@ def batch_review(
     result["username"] = username
     result["group_by"] = group_by
     return result
+
+
+# ---------------------------------------------------------------------------
+# Game session tools: start_game / make_move / get_game_state (#33)
+# ---------------------------------------------------------------------------
+
+_SESSIONS: dict[str, dict] = {}
+_SESSIONS_LOCK = threading.Lock()
+
+# Piecewise-linear anchor points from the issue: (rating, skill_level 0-20).
+_SKILL_ANCHORS = [(800, 0), (1200, 5), (1500, 10), (1800, 15), (2000, 20)]
+
+
+def _rating_to_skill(rating: int) -> int:
+    """Map an ELO-like opponent_rating to Stockfish Skill Level 0–20."""
+    if rating <= _SKILL_ANCHORS[0][0]:
+        return _SKILL_ANCHORS[0][1]
+    if rating >= _SKILL_ANCHORS[-1][0]:
+        return _SKILL_ANCHORS[-1][1]
+    for (r1, s1), (r2, s2) in zip(_SKILL_ANCHORS, _SKILL_ANCHORS[1:]):
+        if r1 <= rating <= r2:
+            return round(s1 + (s2 - s1) * (rating - r1) / (r2 - r1))
+    return 10
+
+
+def _nearest_maia_backend(rating: int) -> str | None:
+    """Return the nearest available Maia backend name, or None if Maia is not installed."""
+    clamped = max(1100, min(1900, rating))
+    nearest = round(clamped / 100) * 100
+    nearest = max(1100, min(1900, nearest))
+    backend = f"maia-{nearest}"
+    _, weight_path = _get_engine_path(backend)
+    return backend if weight_path is not None else None
+
+
+def _session_backend(opponent_rating: int) -> tuple[str, int]:
+    """Choose (backend, skill_level) for a given opponent_rating.
+
+    Prefers Maia when installed and rating falls in [1100, 1900]; otherwise Stockfish
+    with a skill level derived from the rating. skill_level is only meaningful for
+    Stockfish (Maia ignores it)."""
+    if 1100 <= opponent_rating <= 1900:
+        maia = _nearest_maia_backend(opponent_rating)
+        if maia:
+            return maia, 0
+    return "stockfish", _rating_to_skill(opponent_rating)
+
+
+def _game_result(board: chess.Board) -> str:
+    """PGN result string for a finished board, '*' if the game is ongoing."""
+    if not board.is_game_over():
+        return "*"
+    outcome = board.outcome()
+    if outcome is None:
+        return "*"
+    if outcome.winner is None:
+        return "1/2-1/2"
+    return "1-0" if outcome.winner == chess.WHITE else "0-1"
+
+
+def _engine_move_in_session(
+    board: chess.Board, backend: str, skill_level: int
+) -> chess.Move | None:
+    """Ask the engine for one move. Returns the Move or None on any engine failure.
+
+    Stockfish is configured with Skill Level for human-like play at lower ratings.
+    Maia runs at nodes=1 (its raw policy head; a real search drifts above the target rating).
+    """
+    engine_path, weight_path = _get_engine_path(backend)
+    if engine_path is None:
+        return None
+    try:
+        opts = {"WeightsFile": weight_path} if weight_path else {}
+        with chess.engine.SimpleEngine.popen_uci(engine_path, options=opts) as engine:
+            if backend == "stockfish":
+                engine.configure({"Skill Level": skill_level})
+            limit = (
+                chess.engine.Limit(nodes=1)
+                if backend.startswith("maia-")
+                else chess.engine.Limit(time=0.5)
+            )
+            info = engine.analyse(board, limit)
+        pv = info.get("pv", [])
+        return pv[0] if pv else None
+    except Exception:
+        return None
+
+
+def _rep_advance(node, move: chess.Move) -> "chess.pgn.GameNode | None":
+    """Advance a repertoire node by matching a move. Returns the child node or None."""
+    if node is None:
+        return None
+    for child in node.variations:
+        if child.move == move:
+            return child
+    return None
+
+
+def _session_view(session: dict) -> dict:
+    """Public-facing snapshot of a session (no internal mutable objects)."""
+    board: chess.Board = session["board"]
+    return {
+        "session_id": session["session_id"],
+        "fen": board.fen(),
+        "turn": "white" if board.turn == chess.WHITE else "black",
+        "color": session["color"],
+        "moves": list(session["moves"]),
+        "result": session["result"],
+        "move_count": board.fullmove_number,
+        "backend": session["backend"],
+        "opponent_rating": session["opponent_rating"],
+    }
+
+
+def _do_engine_turn(session: dict) -> dict | None:
+    """Play the engine's move, mutating `session` in place.
+
+    Tries a repertoire move first; falls back to engine search. Returns an
+    {error, reason} dict on failure, or None on success."""
+    board: chess.Board = session["board"]
+    rep_node = session["rep_node"]
+
+    # Repertoire move: pick first variation from the current node (if in book).
+    if rep_node is not None and rep_node.variations:
+        child = rep_node.variations[0]
+        move = child.move
+        session["rep_node"] = child
+    else:
+        session["rep_node"] = None
+        move = _engine_move_in_session(board, session["backend"], session["skill_level"])
+        if move is None:
+            return {"error": "engine_error", "reason": "engine returned no move"}
+
+    san = board.san(move)
+    board.push(move)
+    session["moves"].append(san)
+    session["result"] = _game_result(board)
+    return None
+
+
+def _session_not_found(session_id: str) -> dict:
+    return {"error": "session_not_found", "reason": f"no session '{session_id}'"}
+
+
+@mcp.tool()
+def start_game(
+    color: str = "white",
+    opponent_rating: int = 1500,
+    starting_fen: str | None = None,
+    repertoire_pgn: str | None = None,
+) -> dict:
+    """Start a new interactive game session against Stockfish (or Maia if installed).
+
+    color: "white" or "black" — the side the user plays.
+    opponent_rating: approximate ELO for the engine (800–2200+). Mapped to Stockfish
+      Skill Level 0–20 using the anchor points (800→0, 1200→5, 1500→10, 1800→15, 2000+→20),
+      or to the nearest Maia bucket (1100–1900) when Maia weights are installed.
+    starting_fen: optional FEN to begin from a specific position; default is the
+      standard starting position. Useful for drilling from a specific opening divergence.
+    repertoire_pgn: optional PGN of the user's opening repertoire. When provided, the
+      engine plays the expected opponent responses from the repertoire for as long as the
+      game stays on the prepared lines, then falls back to engine search. Effective for
+      drilling specific variations.
+
+    If color is "black" the engine (White) plays the opening move before returning.
+
+    Returns: {session_id, fen, turn, color, moves, result, move_count, backend,
+    opponent_rating}. Pass session_id to make_move / get_game_state.
+
+    Errors → {error, reason}: invalid_color, invalid_fen, pgn_too_large, invalid_pgn,
+    engine_error (if engine fails on the first move when color="black").
+    """
+    if color not in ("white", "black"):
+        return {"error": "invalid_color", "reason": "color must be 'white' or 'black'"}
+
+    if starting_fen is not None:
+        board, err = _safe_board(starting_fen)
+        if err:
+            return err
+    else:
+        board = chess.Board()
+
+    rep_node = None
+    if repertoire_pgn is not None:
+        if len(repertoire_pgn.encode()) > MAX_PGN_BYTES:
+            return {
+                "error": "pgn_too_large",
+                "reason": f"repertoire_pgn exceeds {MAX_PGN_BYTES} bytes",
+            }
+        try:
+            rep_games = _parse_games(repertoire_pgn)
+        except ValueError as e:
+            return _pgn_analysis_error(e)
+        rep_node = repertoire.merge_games(rep_games)
+        # If starting from a non-standard position we can't reliably match the tree,
+        # so book is disabled when starting_fen is also provided.
+        if starting_fen is not None:
+            rep_node = None
+
+    backend, skill_level = _session_backend(opponent_rating)
+
+    session_id = uuid.uuid4().hex
+    session: dict = {
+        "session_id": session_id,
+        "board": board,
+        "color": color,
+        "backend": backend,
+        "skill_level": skill_level,
+        "opponent_rating": opponent_rating,
+        "moves": [],
+        "result": _game_result(board),
+        "rep_node": rep_node,
+    }
+
+    with _SESSIONS_LOCK:
+        _SESSIONS[session_id] = session
+
+    # If the user plays Black the engine (White) goes first.
+    user_chess_color = chess.WHITE if color == "white" else chess.BLACK
+    if board.turn != user_chess_color and not board.is_game_over():
+        if err := _do_engine_turn(session):
+            with _SESSIONS_LOCK:
+                del _SESSIONS[session_id]
+            return err
+
+    return _session_view(session)
+
+
+@mcp.tool()
+def make_move(session_id: str, move_uci: str) -> dict:
+    """Submit the user's move in an active game session and receive the engine's reply.
+
+    session_id: the id returned by start_game.
+    move_uci: the user's move in UCI notation (e.g. "e2e4", "g1f3", "e7e8q" for promotion).
+
+    The engine replies immediately after a legal user move, unless the game ends first.
+    When the game is over (checkmate, stalemate, draw) no engine move is made and the
+    result field reflects the outcome.
+
+    Returns: {session_id, fen, turn, color, moves, result, move_count, backend,
+    opponent_rating, user_move (SAN), engine_move (SAN or null)}.
+
+    Errors → {error, reason}: session_not_found, game_over (submitted after the game
+    ended), invalid_move (illegal or unparseable UCI), engine_error.
+    """
+    with _SESSIONS_LOCK:
+        session = _SESSIONS.get(session_id)
+    if session is None:
+        return _session_not_found(session_id)
+
+    if session["result"] != "*":
+        return {
+            "error": "game_over",
+            "reason": f"game already finished: {session['result']}",
+        }
+
+    board: chess.Board = session["board"]
+    user_chess_color = chess.WHITE if session["color"] == "white" else chess.BLACK
+    if board.turn != user_chess_color:
+        return {
+            "error": "not_your_turn",
+            "reason": "it is the engine's turn, not yours",
+        }
+
+    # Parse and validate the user's move.
+    try:
+        move = chess.Move.from_uci(move_uci)
+    except ValueError:
+        return {"error": "invalid_move", "reason": f"cannot parse UCI move: {move_uci!r}"}
+    if move not in board.legal_moves:
+        return {
+            "error": "invalid_move",
+            "reason": f"{move_uci!r} is not legal in the current position",
+        }
+
+    # Advance repertoire book node before applying the move.
+    session["rep_node"] = _rep_advance(session["rep_node"], move)
+
+    user_san = board.san(move)
+    board.push(move)
+    session["moves"].append(user_san)
+    session["result"] = _game_result(board)
+
+    engine_san: str | None = None
+    if session["result"] == "*":
+        if err := _do_engine_turn(session):
+            return err
+        engine_san = session["moves"][-1]
+
+    view = _session_view(session)
+    view["user_move"] = user_san
+    view["engine_move"] = engine_san
+    return view
+
+
+@mcp.tool()
+def get_game_state(session_id: str) -> dict:
+    """Return the current state of a game session without making any moves.
+
+    session_id: the id returned by start_game.
+
+    Returns: {session_id, fen, turn, color, moves, result, move_count, backend,
+    opponent_rating}. result is "1-0", "0-1", "1/2-1/2", or "*" (ongoing).
+
+    Error → {error, reason}: session_not_found.
+    """
+    with _SESSIONS_LOCK:
+        session = _SESSIONS.get(session_id)
+    if session is None:
+        return _session_not_found(session_id)
+    return _session_view(session)
 
 
 def main() -> None:
