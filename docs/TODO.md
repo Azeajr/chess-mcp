@@ -35,13 +35,22 @@ Run in Docker (Stockfish + network present); host can't exercise the engine.
   retargeted the request to a different Lichess endpoint and `evil?max=...` injected query params
   (confirmed via httpx parsing). Now `quote(username, safe="")` on both builders; host test
   `test_games_username_url_encoded` asserts it. FEN-bearing calls already used httpx `params=` (safe).
-- **`engine_move` Maia at nodes=1 — FIXED (behavioral).** Every backend ran with a *time limit*, so
-  lc0 did multi-node PUCT over the Maia net and drifted toward engine-best (above the target rating).
-  maia-* now uses `chess.engine.Limit(nodes=1)` (raw policy = the human-like move; `time_limit_ms`
-  ignored); stockfish/leela still search by time. Test `test_engine_move_limit_per_backend`.
-  **Docker-remaining:** build the lc0 + Maia-weights image (uncomment the Dockerfile layer; verify the
-  `Maia_<r>.pb.gz` → `maia-<r>.pb.gz` download naming actually works) and confirm a real maia-1500
-  move is plausibly human + stockfish parity.
+- **`engine_move` Maia — TWO bugs FIXED, verified live.**
+  (1) *nodes=1*: every backend ran with a *time limit*, so lc0 did multi-node PUCT over the Maia net
+  and drifted toward engine-best (above the target rating). maia-* now uses
+  `chess.engine.Limit(nodes=1)` (raw policy = the human-like move; `time_limit_ms` ignored);
+  stockfish/leela still search by time.
+  (2) *WeightsFile*: the backend opened lc0 via `popen_uci(path, options={"WeightsFile": ...})`, but
+  popen_uci has no `options` kwarg — it forwarded to subprocess.Popen and raised TypeError, so Maia
+  AND Leela **never returned a move** (always backend_error). The net is now set via
+  `engine.configure({"WeightsFile": ...})`. The mocked test had enshrined the broken `options` kwarg
+  (mock swallowed it); rewritten to assert configure. Tests: `test_engine_move_limit_per_backend`,
+  `test_engine_move_maia_mocked`.
+  Verified live in a built lc0 image (eigen/CPU + maia-1500 weights): maia-1500 returns legal,
+  human-plausible, deterministic moves — e6 (French) after 1.e4 vs engine e5; Bc4 (Italian) after
+  1.e4 e5 2.Nf3 Nc6 vs engine Bb5. Also fixed the committed Dockerfile's commented Maia layer (lc0
+  isn't apt-installable on trixie → build from source; weight URL `maiachess.com/...` was 404 →
+  CSSLab/maia-chess raw, already named `maia-<r>.pb.gz`).
 - **`repertoire_vs_history` drill-list transposition split — FIXED.** player_deviations and
   uncovered_opponent_moves were aggregated by full FEN, whose move-clocks differ between move orders
   that transpose to the same position — so one recurring deviation/gap split into several count-1
@@ -85,10 +94,9 @@ functions driven directly. Not committed — recreate if needed.)
     (see "Already fixed" above). A live run on a real account is still optional.
   - `tablebase_lookup` — DONE: 5-valued Syzygy mapping fully verified live, all five categories
     incl. cursed-win→1 / blessed-loss→-1 (see "Live-verified" above); 8-piece gate confirmed.
-  - `engine_move` — with lc0 + Maia weights actually installed (uncomment the Dockerfile layer):
-    does `maia-1500` return a plausible human move? stockfish parity; time clamping.
-    **Maia nodes=1 FIXED (host) — see "Already fixed" above;** Docker step is just building the
-    lc0 + Maia-weights image and confirming a real maia-1500 move is human + stockfish parity.
+  - `engine_move` — DONE: two bugs found + fixed (nodes=1 for Maia; WeightsFile via configure, which
+    means Maia/Leela never ran before) and verified live with a built lc0 + maia-1500 image — plausible
+    human moves, deterministic. Dockerfile Maia layer corrected. See "Already fixed" above.
   - `batch_review` — real multi-game Lichess/Chess.com export; `group_by=structure` and `=color`;
     win/draw/loss + avg_cpl correct vs a hand-checked fixture; `max_games` cap; the `_aggregate_games`
     pure function math.

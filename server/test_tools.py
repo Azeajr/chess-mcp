@@ -1890,10 +1890,14 @@ def test_engine_move_maia_mocked(monkeypatch, tmp_path):
     monkeypatch.setenv("LC0_PATH", "/usr/bin/lc0")
 
     call_count = {"count": 0}
-    called_options = {}
+    popen_kwargs = {}
+    configured = {}
 
     class FakeEngine:
         id = {"name": "lc0"}
+
+        def configure(self, options):
+            configured.update(options)
 
         def analyse(self, board, limit):
             return {
@@ -1910,7 +1914,7 @@ def test_engine_move_maia_mocked(monkeypatch, tmp_path):
 
     def mock_popen(engine_path, **kwargs):
         call_count["count"] += 1
-        called_options.update(kwargs)
+        popen_kwargs.update(kwargs)
         return FakeEngine()
 
     monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci", mock_popen)
@@ -1923,10 +1927,10 @@ def test_engine_move_maia_mocked(monkeypatch, tmp_path):
     assert result["eval_type"] == "cp"
     assert result["depth"] == 18
 
-    # Verify that popen_uci was called with WeightsFile option
+    # popen_uci takes no `options` kwarg; the net is loaded via configure(WeightsFile=...).
     assert call_count["count"] == 1
-    assert "options" in called_options
-    assert called_options["options"]["WeightsFile"] == str(weight_file)
+    assert "options" not in popen_kwargs
+    assert configured["WeightsFile"] == str(weight_file)
 
 
 def test_engine_move_limit_per_backend(monkeypatch, tmp_path):
@@ -1940,6 +1944,9 @@ def test_engine_move_limit_per_backend(monkeypatch, tmp_path):
 
     class FakeEngine:
         id = {"name": "engine"}
+
+        def configure(self, options):
+            pass
 
         def analyse(self, board, limit):
             seen["limit"] = limit

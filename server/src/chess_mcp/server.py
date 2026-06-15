@@ -2460,16 +2460,13 @@ def engine_move(
 
     # Open engine and run analysis
     try:
-        if weight_path is not None:
-            # lc0/Maia/Leela — pass WeightsFile option
-            engine = chess.engine.SimpleEngine.popen_uci(
-                engine_path, options={"WeightsFile": weight_path}
-            )
-        else:
-            # Stockfish — no options
-            engine = chess.engine.SimpleEngine.popen_uci(engine_path)
-
+        engine = chess.engine.SimpleEngine.popen_uci(engine_path)
         with engine:
+            if weight_path is not None:
+                # lc0/Maia/Leela read the network from the WeightsFile UCI option. It must be
+                # set via configure() — popen_uci has no `options` kwarg; passing one forwards it
+                # to subprocess.Popen and raises TypeError, so this backend never ran before.
+                engine.configure({"WeightsFile": weight_path})
             info = engine.analyse(board, limit)
 
         # Extract move and eval
