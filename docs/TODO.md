@@ -119,20 +119,7 @@ functions driven directly. Not committed — recreate if needed.)
 - **Regression** — run `evals/capture.py` in Docker and diff the snapshot; confirm the 7 features
   didn't change existing tool outputs.
 
-## 2. PyPI release (maintainer-owned, outward-facing)
-
-- Configure the PyPI project's **trusted publisher**: repo `Azeajr/chess-mcp`, workflow `ci.yml`,
-  environment `pypi`; create the `pypi` GitHub environment.
-- Push tag `v0.3.0` → the `pypi` CI job builds + publishes (OIDC, no token).
-- Confirm `uvx chess-mcp` / `pip install chess-mcp` work from the live release.
-
-## 3. Registry listings (maintainer-owned)
-
-- Verify `smithery.yaml` against the current Smithery spec; submit the Smithery registry PR.
-- Submit to Glama (`https://glama.ai/mcp/servers/submit`) once the release is live.
-- Add Smithery/PyPI badges to the README after listings are live.
-
-## 4. Polish / housekeeping
+## 2. Polish / housekeeping
 
 - ~~Regenerate `evals/snapshots/outputs.json` + the `MCP_DESIGN.md` token table~~ **DONE** (Docker):
   descriptions now cover all 30 tools (tools/list ≈ 6411 tok, was ~4570 for 22). capture.py extended
@@ -143,8 +130,6 @@ functions driven directly. Not committed — recreate if needed.)
   repertoire-handle outputs embed a random id, so load_repertoire/modify_repertoire_line wobble a few
   tok per capture).
 - `#28` ≥50% warm-cache benchmark on a 100-position repertoire (the AC; Docker).
-- Add a PyPI long-description: `pyproject.readme` was dropped because the Docker build context is
-  `server/` and `../README.md` escapes it — either move packaging to repo root or copy the README in.
 - Cache-wiring remaining engine sites: **decided SKIP.** `compare_moves` is unsafe to cache (uses
   `root_moves` → result is candidate-dependent, not position-only); `suggest_*` / `classify` are
   low-traffic one-shots. Documented here so it isn't re-attempted blindly.

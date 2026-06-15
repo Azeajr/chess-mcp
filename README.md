@@ -6,33 +6,27 @@ MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via 
 
 ## Quickstart
 
-**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/), [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`), and [uv](https://docs.astral.sh/uv/getting-started/installation/) (for the `chess-files` host proxy).
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) + [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) + [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Plugin install (no clone)
 
 ```bash
-# Clone and start the server
+claude plugin marketplace add Azeajr/chess-mcp
+/plugin install chess-mcp@chess-mcp
+```
+
+The plugin registers both MCP servers and installs all skills. The `SessionStart` hook starts the Docker container automatically on each session open. Skills are namespaced: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
+
+### Clone install (full access)
+
+```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
 docker compose pull && docker compose up -d
-
-# Open Claude Code — MCP servers and skills register on first open
 claude
 ```
 
-Approve both MCP servers when prompted (one-time). After that, the `SessionStart` hook keeps Docker running automatically on every session open. Then paste a PGN and invoke `/chess-game-review`, give your repertoire PGN + color for `/repertoire-builder`, or hand it a FEN for `/analyze-position`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
-
-## Install from PyPI
-
-Published to PyPI — run the server without cloning (needs Stockfish on the host; the Docker image bundles it):
-
-```bash
-uvx chess-mcp                       # no install — runs the latest release
-# or
-pip install chess-mcp && chess-mcp
-```
-
-Defaults to the SSE server on `:8000` (`MCP_TRANSPORT=stdio` for a stdio client; `STOCKFISH_PATH` to point at the engine). The host-side file proxy is `chess-files`.
-
-> **Migration (v0.3):** the server is now an installable `chess_mcp` package. Launch is `uvx chess-mcp` / `python -m chess_mcp` (was `uv run chess_mcp.py`) and the proxy is `chess-files` (was `chess_files.py`). Update your MCP client config.
+Approve both MCP servers when prompted (one-time). Skills load without namespace prefix: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
 
 ## Problem
 
@@ -302,7 +296,13 @@ chess-mcp/
 ├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
 ├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
 ├── .claude/settings.json    # project settings: SessionStart hook (auto-start Docker) + MCP server approvals
-├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, SSE workflow)
+├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, no namespace prefix)
+├── .claude-plugin/
+│   └── marketplace.json     # Claude Code plugin marketplace catalog (plugin install path)
+├── plugin/                  # distributable Claude Code plugin
+│   ├── .claude-plugin/
+│   │   └── plugin.json      # plugin manifest: MCP servers + SessionStart hook + skills
+│   └── skills/              # plugin skills (namespaced /chess-mcp:<skill> after install)
 ├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
 ├── sample-game.pgn          # anonymized single-game fixture for evals
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
