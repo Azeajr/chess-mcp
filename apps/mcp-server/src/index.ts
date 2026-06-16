@@ -30,8 +30,11 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, type GameRecord } from "@chess-mcp/chess-tools";
-import { makeFen } from "chessops/fen";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, profileStructureShares, classifyStructure, isolatedPawns, doubledPawns, passedPawns, type GameRecord } from "@chess-mcp/chess-tools";
+import { makeFen, parseFen } from "chessops/fen";
+import { Chess } from "chessops/chess";
+import { parseUci } from "chessops/util";
+import { makeSan } from "chessops/san";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -627,6 +630,98 @@ server.tool(
         excludePaths: exclude_paths,
       }),
     );
+  },
+);
+
+// --- suggest complementary lines (engine + structure) ---
+const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
+const pvSan = (fen: string, pv: string[]): string => {
+  const pos = chessFromFen(fen);
+  const out: string[] = [];
+  for (const uci of pv.slice(0, 5)) {
+    const mv = parseUci(uci);
+    if (!mv) break;
+    out.push(makeSan(pos, mv));
+    pos.play(mv);
+  }
+  return out.join(" ");
+};
+const evalWhite = (l: { cp: number | null; mate: number | null }) =>
+  l.mate !== null ? (l.mate > 0 ? 10000 : -10000) : (l.cp ?? 0);
+
+server.tool(
+  "suggest_complementary_lines",
+  "Engine-validated complementary moves from an anchor FEN, ranked to fit the repertoire's structures (low_memorization) or maximise imbalance (sharp). Auto-advances one ply if the opponent is to move.",
+  {
+    repertoire_id: z.string(),
+    fen: z.string(),
+    mode: z.enum(["low_memorization", "sharp"]).optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+    limit: z.number().int().min(1).max(10).optional(),
+  },
+  async ({ repertoire_id, fen, mode, depth, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const m = mode ?? "low_memorization";
+    const setup = parseFen(fen);
+    if (setup.isErr) return ok({ error: "invalid_fen", reason: String(setup.error) });
+    const posCheck = Chess.fromSetup(setup.value);
+    if (posCheck.isErr) return ok({ error: "invalid_fen", reason: String(posCheck.error) });
+    let pos = posCheck.value;
+    const lim = Math.max(1, Math.min(10, limit ?? 5));
+    const pool = Math.min(10, lim + 2);
+
+    let opponentMoveSan: string | null = null;
+    if (pos.turn !== e.color) {
+      const oppRes = await analyseMulti(makeFen(pos.toSetup()), 1, depth ?? 16);
+      const oppUci = oppRes?.[0]?.uci;
+      if (!oppRes) return ok({ error: "engine_unavailable" });
+      if (!oppUci) return ok({ mode: m, anchor_fen: makeFen(pos.toSetup()), suggestions: [] });
+      opponentMoveSan = moveSan(makeFen(pos.toSetup()), oppUci);
+      pos.play(parseUci(oppUci)!);
+    }
+    const anchorFen = makeFen(pos.toSetup());
+    const moverIsWhite = pos.turn === "white";
+    const moverCp = (l: { cp: number | null; mate: number | null }) => (moverIsWhite ? 1 : -1) * evalWhite(l);
+
+    const res = await analyseMulti(anchorFen, pool, depth ?? 16);
+    if (!res) return ok({ error: "engine_unavailable" });
+    const best = res.length ? moverCp(res[0]!) : 0;
+    const shares = profileStructureShares(e.tree.leafPositions().map((p) => p.board));
+
+    const ranked: { entry: Record<string, unknown>; mcp: number }[] = [];
+    for (const l of res) {
+      const mcp = moverCp(l);
+      if (best - mcp > 100) continue; // unsound relative to best
+      const after = chessFromFen(anchorFen);
+      after.play(parseUci(l.uci)!);
+      const resultStruct = classifyStructure(after.board).structure_class;
+      const entry: Record<string, unknown> = {
+        move: moveSan(anchorFen, l.uci),
+        resulting_structure: resultStruct,
+        eval: evalWhite(l),
+        pv: pvSan(anchorFen, l.pv),
+      };
+      if (m === "low_memorization") {
+        entry.profile_match = Math.round((resultStruct === "unknown" ? 0 : (shares[resultStruct] ?? 0)) * 100) / 100;
+      } else {
+        const imbalance = (["white", "black"] as const).reduce(
+          (a, c) => a + isolatedPawns(after.board, c).length + doubledPawns(after.board, c).length + passedPawns(after.board, c).length,
+          0,
+        );
+        const novelty = resultStruct in shares ? 0 : 1;
+        entry.sharpness = Math.round((Math.abs(mcp) / 100 + 0.5 * imbalance + novelty) * 100) / 100;
+      }
+      ranked.push({ entry, mcp });
+    }
+
+    if (m === "low_memorization")
+      ranked.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
+    else ranked.sort((a, b) => (b.entry.sharpness as number) - (a.entry.sharpness as number));
+
+    const result: Record<string, unknown> = { mode: m, anchor_fen: anchorFen, suggestions: ranked.slice(0, lim).map((r) => r.entry) };
+    if (opponentMoveSan) result.opponent_move = opponentMoveSan;
+    return ok(result);
   },
 );
 

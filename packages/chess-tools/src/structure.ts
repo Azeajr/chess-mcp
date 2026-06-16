@@ -377,6 +377,19 @@ export function classifyStructure(board: Board): { structure_class: string; conf
   return { structure_class: best[0], confidence: Math.round(best[1] * 100) / 100 };
 }
 
+/** structure_class → share of leaf boards reaching it (for suggest_* familiarity scoring). */
+export function profileStructureShares(boards: Board[]): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const b of boards) {
+    const sc = classifyStructure(b).structure_class;
+    counts.set(sc, (counts.get(sc) ?? 0) + 1);
+  }
+  const denom = boards.length || 1;
+  const out: Record<string, number> = {};
+  for (const [k, v] of counts) out[k] = v / denom;
+  return out;
+}
+
 /** Classify the named pawn structure directly from a FEN (chessops stays internal). */
 export function classifyStructureFromFen(fen: string): { structure_class: string; confidence: number } {
   return classifyStructure(parseFen(fen).unwrap().board);

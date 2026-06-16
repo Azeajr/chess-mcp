@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 30, "30 tools registered");
+ok(tools.length === 31, "31 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -113,6 +113,14 @@ const congRep = await call(client, "load_repertoire", {
 const cong = await call(client, "analyze_repertoire_congruence", { repertoire_id: congRep.repertoire_id });
 console.log("  congruence:", cong.total_flagged, "flagged, clusters", JSON.stringify(cong.clusters));
 ok(cong.leaves_analyzed === 3 && cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "analyze_repertoire_congruence flags the doubled-pawn outlier");
+
+console.log("suggest_complementary_lines (engine, depth 10)…");
+const sugRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. c4 e6 3. Nc3 Nf6 *", color: "white" });
+const sug = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: START, mode: "low_memorization", depth: 10, limit: 4 });
+console.log("  suggestions:", JSON.stringify(sug.suggestions?.map((s) => `${s.move} ${s.resulting_structure} pm=${s.profile_match}`)));
+ok(Array.isArray(sug.suggestions) && sug.suggestions.length >= 1 && typeof sug.suggestions[0]?.move === "string" && "profile_match" in sug.suggestions[0] && typeof sug.suggestions[0]?.pv === "string", "suggest_complementary_lines returns ranked suggestions");
+const gap = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1", mode: "sharp", depth: 10, limit: 3 });
+ok(typeof gap.opponent_move === "string" && Array.isArray(gap.suggestions), "suggest auto-advances when opponent is to move");
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);

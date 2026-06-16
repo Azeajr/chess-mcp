@@ -19,6 +19,8 @@ export interface MultiLine {
   cp: number | null;
   mate: number | null;
   depth: number;
+  /** full principal variation, UCI moves. */
+  pv: string[];
 }
 
 type Engine = { sendCommand: (cmd: string) => void };
@@ -82,10 +84,12 @@ export function analyseMulti(fen: string, multipv = 1, depth = 16): Promise<Mult
           const d = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
           const cp = line.match(/ score cp (-?\d+)/);
           const mate = line.match(/ score mate (-?\d+)/);
-          const uci = line.match(/ pv (\S+)/)?.[1];
-          if (!idx || !uci) return;
+          const pvStr = line.split(" pv ")[1];
+          const pv = pvStr ? pvStr.trim().split(/\s+/) : [];
+          if (!idx || !pv[0]) return;
           lines.set(idx, {
-            uci,
+            uci: pv[0],
+            pv,
             depth: d,
             cp: cp ? sign * Number(cp[1]) : null,
             mate: mate ? sign * Number(mate[1]) : null,
