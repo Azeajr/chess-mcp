@@ -30,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, profileStructureShares, classifyStructure, isolatedPawns, doubledPawns, passedPawns, type GameRecord } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, replacementPivot, profileStructureShares, classifyStructure, isolatedPawns, doubledPawns, passedPawns, themes, type GameRecord } from "@chess-mcp/chess-tools";
 import { makeFen, parseFen } from "chessops/fen";
 import { Chess } from "chessops/chess";
 import { parseUci } from "chessops/util";
@@ -722,6 +722,92 @@ server.tool(
     const result: Record<string, unknown> = { mode: m, anchor_fen: anchorFen, suggestions: ranked.slice(0, lim).map((r) => r.entry) };
     if (opponentMoveSan) result.opponent_move = opponentMoveSan;
     return ok(result);
+  },
+);
+
+// --- suggest replacement line (pivot resolution + engine + structure) ---
+const BOOL_THEMES = ["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"] as const;
+const PV_THEME_WINDOW = 8;
+
+server.tool(
+  "suggest_replacement_line",
+  "Single-call replacement for an incongruent line. Given an outlier variation_path (from analyze_repertoire_congruence), pivots at the divergence/weakness move, then suggests sound alternatives with engine-validated continuations ranked by structural fit (or eval, mode 'solid').",
+  {
+    repertoire_id: z.string(),
+    outlier_variation_path: z.array(z.string()),
+    mode: z.enum(["structural_fit", "low_memorization", "solid"]).optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+  },
+  async ({ repertoire_id, outlier_variation_path, mode, depth }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const m = mode ?? "structural_fit";
+    const piv = replacementPivot(e.tree, e.color, outlier_variation_path);
+    if ("error" in piv) {
+      const reason =
+        piv.error === "no_user_move"
+          ? "outlier_variation_path contains no user move to replace"
+          : "outlier_variation_path does not match a line in the repertoire";
+      return ok({ error: piv.error, reason });
+    }
+
+    const shares = profileStructureShares(e.tree.leafPositions().map((p) => p.board));
+    const res = await analyseMulti(piv.pivotBeforeFen, 5, depth ?? 16);
+    if (!res) return ok({ error: "engine_unavailable" });
+    const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
+    const moverCp = (l: { cp: number | null; mate: number | null }) => (moverIsWhite ? 1 : -1) * evalWhite(l);
+    const best = res.length ? moverCp(res[0]!) : 0;
+    const domSet = new Set(piv.dominantThemes);
+
+    const suggestions: { entry: Record<string, unknown>; mcp: number }[] = [];
+    for (const l of res) {
+      if (l.uci === piv.outlierUci) continue;
+      const mcp = moverCp(l);
+      if (best - mcp > 100) continue;
+      const after = chessFromFen(piv.pivotBeforeFen);
+      after.play(parseUci(l.uci)!);
+      const resultStruct = classifyStructure(after.board).structure_class;
+
+      let match = 0;
+      if (resultStruct !== "unknown") match = shares[resultStruct] ?? 0;
+      else if (domSet.size) {
+        // Walk the PV (capped window) and score by the best theme-overlap seen.
+        const walk = chessFromFen(makeFen(after.toSetup()));
+        let bestMatch = 0;
+        const seq: (string | null)[] = [...l.pv.slice(1, PV_THEME_WINDOW), null];
+        for (const nxt of seq) {
+          const t = themes(walk.board, e.color);
+          const tags = BOOL_THEMES.filter((k) => t[k]);
+          const plyMatch = [...domSet].filter((d) => tags.includes(d as (typeof BOOL_THEMES)[number])).length / domSet.size;
+          if (plyMatch > bestMatch) bestMatch = plyMatch;
+          if (bestMatch === 1 || nxt === null) break;
+          const mv = parseUci(nxt);
+          if (!mv) break;
+          walk.play(mv);
+        }
+        match = bestMatch;
+      }
+
+      suggestions.push({
+        entry: {
+          pivot_move: moveSan(piv.pivotBeforeFen, l.uci),
+          line: pvSan(piv.pivotBeforeFen, l.pv),
+          eval_cp: evalWhite(l),
+          resulting_structure: resultStruct,
+          profile_match: Math.round(match * 100) / 100,
+        },
+        mcp,
+      });
+    }
+
+    if (m === "solid") suggestions.sort((a, b) => b.mcp - a.mcp);
+    else suggestions.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
+
+    return ok({
+      outlier_move: moveSan(piv.pivotBeforeFen, piv.outlierUci),
+      anchored_to: piv.anchoredTo,
+      suggestions: suggestions.map((s) => s.entry),
+    });
   },
 );
 

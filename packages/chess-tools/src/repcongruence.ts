@@ -8,6 +8,9 @@ import { positionKey, type Color } from "./congruence.js";
 import { type Severity, SEVERITY_RANK } from "./gaps.js";
 import { themes, classifyStructure, isolatedPawns, doubledPawns, centerState } from "./structure.js";
 import { identifyDeepestFromMoves, type OpeningTable } from "./openings.js";
+import { Chess } from "chessops/chess";
+import { parseSan } from "chessops/san";
+import { makeUci } from "chessops/util";
 import { makeFen } from "chessops/fen";
 
 const BOOL_THEMES = ["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"] as const;
@@ -45,6 +48,82 @@ function clusterLabel(table: OpeningTable, sans: string[], sc: string, themeTags
   if (sc !== "unknown") return `structure:${sc}`;
   for (const theme of BOOL_THEMES) if (themeTags.has(theme)) return `theme:${theme}`;
   return sans.length ? `first-move:${sans[0]}` : "first-move:";
+}
+
+// --- replacement-pivot resolution (suggest_replacement_line, port of replacement_pivot) ---
+
+export interface PivotResult {
+  pivotPath: string[];
+  /** FEN of the position the pivot move is played from (the engine search anchor). */
+  pivotBeforeFen: string;
+  /** UCI of the user move being replaced. */
+  outlierUci: string;
+  /** SAN of the opponent move that led to the pivot position, or null. */
+  anchoredTo: string | null;
+  dominantThemes: string[];
+}
+export type PivotError = { error: "variation_not_found" | "no_user_move" };
+
+interface UserMove {
+  beforeKey: string;
+  beforeFen: string;
+  uci: string;
+  afterBoard: Chess["board"];
+  index: number;
+}
+
+/** The user moves along a SAN path, with the position before each (null if the path is illegal). */
+function userMovesAlong(color: Color, sanPath: readonly string[]): UserMove[] | null {
+  const pos = Chess.default();
+  const out: UserMove[] = [];
+  for (let i = 0; i < sanPath.length; i++) {
+    const turn = pos.turn;
+    const beforeFen = makeFen(pos.toSetup());
+    const move = parseSan(pos, sanPath[i]!);
+    if (!move) return null;
+    const uci = makeUci(move);
+    pos.play(move);
+    if (turn === color) out.push({ beforeKey: positionKey(beforeFen), beforeFen, uci, afterBoard: pos.clone().board, index: i });
+  }
+  return out;
+}
+
+/**
+ * The user move suggest_replacement_line should replace, plus the repertoire's dominant themes.
+ * Pivot order: (1) earliest user move not played in any dominant-theme line; (2) else the first
+ * user move that incurs a doubled/isolated pawn; (3) else the last user move.
+ */
+export function replacementPivot(tree: GameTree, color: Color, outlierPath: readonly string[]): PivotResult | PivotError {
+  if (tree.positionAtSanPath(outlierPath) === null) return { error: "variation_not_found" };
+  const leaves = tree.leaves();
+  const tagsByLeaf = leaves.map(({ pos }) => new Set<string>(BOOL_THEMES.filter((t) => themes(pos.board, color)[t])));
+  const themeCounts = new Map<string, number>();
+  for (const tags of tagsByLeaf) for (const t of tags) themeCounts.set(t, (themeCounts.get(t) ?? 0) + 1);
+  const dominantThemes = new Set([...themeCounts.entries()].filter(([, c]) => c / leaves.length >= THEME_DOMINANCE).map(([t]) => t));
+
+  const dominantPairs = new Set<string>();
+  leaves.forEach(({ path }, idx) => {
+    if (![...dominantThemes].some((t) => tagsByLeaf[idx]!.has(t))) return;
+    const um = userMovesAlong(color, path);
+    if (um) for (const u of um) dominantPairs.add(`${u.beforeKey}|${u.uci}`);
+  });
+
+  const userMoves = userMovesAlong(color, outlierPath);
+  if (!userMoves) return { error: "variation_not_found" };
+  if (!userMoves.length) return { error: "no_user_move" };
+
+  let pivot: UserMove | undefined;
+  if (dominantPairs.size) pivot = userMoves.find((u) => !dominantPairs.has(`${u.beforeKey}|${u.uci}`));
+  if (!pivot) pivot = userMoves.find((u) => doubledPawns(u.afterBoard, color).length || isolatedPawns(u.afterBoard, color).length);
+  if (!pivot) pivot = userMoves[userMoves.length - 1]!;
+
+  return {
+    pivotPath: outlierPath.slice(0, pivot.index + 1),
+    pivotBeforeFen: pivot.beforeFen,
+    outlierUci: pivot.uci,
+    anchoredTo: pivot.index >= 1 ? outlierPath[pivot.index - 1]! : null,
+    dominantThemes: [...dominantThemes],
+  };
 }
 
 export interface CongruenceOptions {

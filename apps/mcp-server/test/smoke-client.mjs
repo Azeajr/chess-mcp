@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 31, "31 tools registered");
+ok(tools.length === 32, "32 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -121,6 +121,15 @@ console.log("  suggestions:", JSON.stringify(sug.suggestions?.map((s) => `${s.mo
 ok(Array.isArray(sug.suggestions) && sug.suggestions.length >= 1 && typeof sug.suggestions[0]?.move === "string" && "profile_match" in sug.suggestions[0] && typeof sug.suggestions[0]?.pv === "string", "suggest_complementary_lines returns ranked suggestions");
 const gap = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1", mode: "sharp", depth: 10, limit: 3 });
 ok(typeof gap.opponent_move === "string" && Array.isArray(gap.suggestions), "suggest auto-advances when opponent is to move");
+
+console.log("suggest_replacement_line (engine, depth 10)…");
+const repl = await call(client, "suggest_replacement_line", {
+  repertoire_id: congRep.repertoire_id,
+  outlier_variation_path: ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4", "e3", "Bxc3+", "bxc3", "O-O"],
+  depth: 10,
+});
+console.log("  outlier_move:", repl.outlier_move, "anchored_to:", repl.anchored_to, "suggestions:", repl.suggestions?.length);
+ok(!repl.error && repl.outlier_move === "bxc3" && Array.isArray(repl.suggestions), "suggest_replacement_line pivots at the weakness-incurring move");
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);

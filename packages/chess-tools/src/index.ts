@@ -38,5 +38,5 @@ export type { MainlineMove, MoveClass, GameRecord, GameWalk, RepertoireMoveMap }
 export { boardSvg } from "./boardimage.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
 export type { OpeningTable } from "./openings.js";
-export { analyzeCongruence } from "./repcongruence.js";
-export type { CongruenceOptions } from "./repcongruence.js";
+export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
+export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence.js";
