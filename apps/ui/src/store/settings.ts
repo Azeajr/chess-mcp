@@ -9,16 +9,14 @@ const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
-/** Example OpenRouter slugs offered as clickable chips in Settings. */
-export const MODEL_SUGGESTIONS = [
-  "deepseek/deepseek-v4-flash",
-  "anthropic/claude-sonnet-4.5",
-  "anthropic/claude-opus-4.1",
-  "openai/gpt-5",
-  "google/gemini-2.5-pro",
-  "meta-llama/llama-4-maverick",
-  "x-ai/grok-4",
-  "qwen/qwen3-max",
+/** The selectable models (friendly label → OpenRouter slug), shown as chips in Settings. */
+export const MODEL_SUGGESTIONS: { label: string; slug: string }[] = [
+  { label: "DeepSeek V4 Flash", slug: "deepseek/deepseek-v4-flash" },
+  { label: "DeepSeek V4 Pro", slug: "deepseek/deepseek-v4-pro" },
+  { label: "DeepSeek-R1 (Distill 32B)", slug: "deepseek/deepseek-r1-distill-qwen-32b" },
+  { label: "Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6" },
+  { label: "Llama 4 Scout 17B", slug: "meta-llama/llama-4-scout" },
+  { label: "Qwen3-32B", slug: "qwen/qwen3-32b" },
 ];
 
 const read = (k: string, fallback: string) => localStorage.getItem(k) ?? fallback;

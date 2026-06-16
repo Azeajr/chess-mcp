@@ -35,16 +35,17 @@ export default function SettingsDrawer() {
               value={model()}
               onChange={(e) => setModel(e.currentTarget.value)}
             />
-            <small>Any OpenRouter slug — click a suggestion or type your own. See openrouter.ai/models.</small>
+            <small>Pick a model below, or type any OpenRouter slug. See openrouter.ai/models.</small>
             <div class="model-chips">
               <For each={MODEL_SUGGESTIONS}>
-                {(slug) => (
+                {(m) => (
                   <button
                     type="button"
-                    class={`model-chip${model() === slug ? " active" : ""}`}
-                    onClick={() => setModel(slug)}
+                    class={`model-chip${model() === m.slug ? " active" : ""}`}
+                    title={m.slug}
+                    onClick={() => setModel(m.slug)}
                   >
-                    {slug}
+                    {m.label}
                   </button>
                 )}
               </For>
