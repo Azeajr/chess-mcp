@@ -12,3 +12,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vite/
+
+# copied browser engine (regenerated from node_modules by predev/prebuild)
+apps/ui/public/engine/

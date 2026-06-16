@@ -8,7 +8,9 @@ import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
 import type { Key } from "chessground/types";
+import type { DrawShape } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
+import { engineArrows } from "../store/analysis";
 
 export default function Board() {
   let el!: HTMLDivElement;
@@ -50,6 +52,13 @@ export default function Board() {
         dests: dests() as Map<Key, Key[]>,
       },
     });
+  });
+
+  // Engine arrows: redraw whenever the analysis store updates. setShapes replaces the
+  // overlay, so it co-exists with the lastMove highlight (a board feature, not a shape).
+  createEffect(() => {
+    if (!cg) return;
+    cg.setShapes(engineArrows() as unknown as DrawShape[]);
   });
 
   onCleanup(() => cg?.destroy());

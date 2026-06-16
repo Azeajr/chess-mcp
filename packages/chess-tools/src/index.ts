@@ -7,3 +7,5 @@
  */
 export { GameTree } from "./pgn.js";
 export type { Path, PlayResult } from "./pgn.js";
+export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
+export type { Fit, Weight, Color, MoveFit } from "./congruence.js";

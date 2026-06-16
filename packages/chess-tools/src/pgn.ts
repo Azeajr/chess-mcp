@@ -21,6 +21,7 @@ import {
 } from "chessops/pgn";
 import { chessgroundDests } from "chessops/compat";
 import type { Move, NormalMove } from "chessops/types";
+import { positionKey } from "./congruence.js";
 
 /** Child-index path from the root. `[]` is the starting position. */
 export type Path = number[];
@@ -115,6 +116,31 @@ export class GameTree {
     const child = new ChildNode<PgnNodeData>({ san });
     parent.children.push(child);
     return { path: [...path, parent.children.length - 1], appended: true };
+  }
+
+  /** Known continuations (child SANs) at `path` — the in-book moves from here. */
+  childSansAt(path: Path): string[] {
+    return this.nodeAt(path).children.map((c) => c.data.san);
+  }
+
+  /**
+   * Transposition keys of every position in the tree (for adjacency detection). DFS replays
+   * each line once, carrying the position — O(nodes), no per-node re-walk.
+   */
+  allPositionKeys(): Set<string> {
+    const keys = new Set<string>();
+    const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        keys.add(positionKey(makeFen(next.toSetup())));
+        dfs(child, next);
+      }
+    };
+    dfs(this.game.moves, Chess.default());
+    return keys;
   }
 
   /** SAN of the move that leads to `path` (the last node), or null at the root. */

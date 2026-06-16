@@ -1,6 +1,8 @@
 // Smoke test for the chess-tools GameTree (Phase 1 core). Run: node scripts/smoke-gametree.mjs
-import { GameTree } from "../packages/chess-tools/dist/index.js";
+import { GameTree, classifyUciMove, weightFor } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
+
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 let pass = 0,
   fail = 0;
@@ -38,6 +40,22 @@ ok(rep.game.moves.children.length > 0, "repertoire has moves");
 // dests is keyed by origin square: 8 pawns + 2 knights = 10 movable origins from start.
 ok(rep.destsAt([]).size === 10, "10 movable origin squares from start");
 ok(rep.lastMoveAt([0]) !== null, "lastMove computed");
+
+// 6. congruence: in-book / out / adjacent (transposition)
+const rep2 = GameTree.fromPgn("1. e4 e5 2. Nf3 *");
+const keys2 = rep2.allPositionKeys();
+const bookAtRoot = rep2.childSansAt([]); // ['e4']
+ok(classifyUciMove(START_FEN, "e2e4", bookAtRoot, keys2).fit === "in-book", "e4 is in-book");
+ok(classifyUciMove(START_FEN, "d2d4", bookAtRoot, keys2).fit === "out", "d4 is out of book");
+// Nf3 from start is not the book move (e4) but transposes into a tree position → adjacent.
+const keys3 = GameTree.fromPgn("1. Nf3 *").allPositionKeys();
+ok(classifyUciMove(START_FEN, "g1f3", ["e4"], keys3).fit === "adjacent", "Nf3 adjacent via transposition");
+
+// 7. weight is from YOUR side (white-POV eval flips for black)
+ok(weightFor(60, null, "white") === "thick", "+60 white → thick");
+ok(weightFor(60, null, "black") === "thin", "+60 white-POV is thin for black");
+ok(weightFor(0, null, "white") === "medium", "0 → medium");
+ok(weightFor(null, 2, "white") === "thick", "mate for you → thick");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -166,3 +166,87 @@ body {
   color: var(--muted);
   font-style: italic;
 }
+
+.analysis {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.analysis .panel-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.analysis .spinner {
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.analysis .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.analysis .line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+}
+
+.analysis .san {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+}
+
+.analysis .ev {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.analysis .fit {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.analysis .fit-in-book {
+  background: #2f6b3a;
+  color: #c8f0cf;
+}
+.analysis .fit-adjacent {
+  background: #6b5e2f;
+  color: #f0e7c8;
+}
+.analysis .fit-out {
+  background: #6b2f33;
+  color: #f0c8cb;
+}
+
+.analysis .weight {
+  display: inline-block;
+  width: 22px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.analysis .w-thick {
+  height: 7px;
+}
+.analysis .w-medium {
+  height: 4px;
+}
+.analysis .w-thin {
+  height: 2px;
+}
