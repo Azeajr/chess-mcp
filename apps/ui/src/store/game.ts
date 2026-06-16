@@ -95,6 +95,22 @@ export const actions = {
     if (p.length) setPath(p.slice(0, -1));
   },
 
+  /** Undo the current move: if at a leaf, remove that node and navigate to its parent. */
+  undo() {
+    const p = path();
+    if (!p.length) return;
+    const node = tree().nodeAt(p);
+    if (node.children.length) {
+      setPath(p.slice(0, -1)); // not a leaf — just step back rather than delete a subtree
+      return;
+    }
+    const parent = tree().nodeAt(p.slice(0, -1));
+    parent.children.splice(p[p.length - 1]!, 1);
+    setPath(p.slice(0, -1));
+    setDirty(true);
+    bump();
+  },
+
   forward() {
     const p = path();
     const node = tree().nodeAt(p);

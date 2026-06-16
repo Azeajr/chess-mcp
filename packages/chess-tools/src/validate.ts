@@ -57,6 +57,16 @@ export function validatePgn(pgn: string): { valid: boolean; games?: number; reas
   }
 }
 
+/** Whether a board move (orig→dest squares) is a pawn promotion at `fen`. */
+export function isPromotion(fen: string, orig: string, dest: string): boolean {
+  const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
+  const from = parseSquare(orig);
+  const to = parseSquare(dest);
+  if (from === undefined || to === undefined) return false;
+  const toRank = to >> 3;
+  return pos.board.get(from)?.role === "pawn" && (toRank === 0 || toRank === 7);
+}
+
 /** Legal moves (SAN) at a FEN — pawns to the last rank are listed as queen promotions. */
 export function legalMoves(fen: string): string[] {
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();

@@ -10,8 +10,10 @@ import type { Config } from "chessground/config";
 import type { Key } from "chessground/types";
 import type { DrawShape } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
+import { isPromotion } from "@chess-mcp/chess-tools";
 import { engineArrows } from "../store/analysis";
 import { suggestionArrows } from "../store/suggestions";
+import { pendingPromo, setPendingPromo } from "../store/promotion";
 
 export default function Board() {
   let el!: HTMLDivElement;
@@ -29,8 +31,8 @@ export default function Board() {
         showDests: true,
         events: {
           after: (orig: Key, dest: Key) => {
-            // Promotion defaults to queen in the GameTree; modal deferred past Phase 1.
-            actions.play(orig, dest);
+            if (isPromotion(fen(), orig, dest)) setPendingPromo({ orig, dest, color: turnColor() });
+            else actions.play(orig, dest);
           },
         },
       },
@@ -39,9 +41,11 @@ export default function Board() {
     });
   });
 
-  // Re-sync the board whenever the store position changes.
+  // Re-sync the board whenever the store position changes. Also depends on the pending-promotion
+  // signal so that opening/closing the promotion modal reverts chessground's optimistic piece move.
   createEffect(() => {
     if (!cg) return;
+    pendingPromo();
     const lm = lastMove();
     cg.set({
       fen: fen(),

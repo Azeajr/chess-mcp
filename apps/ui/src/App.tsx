@@ -7,12 +7,24 @@ import AnalysisPanel from "./components/AnalysisPanel";
 import GapsPanel from "./components/GapsPanel";
 import ChatPanel from "./components/ChatPanel";
 import SettingsDrawer from "./components/SettingsDrawer";
+import PromotionModal from "./components/PromotionModal";
 import { actions } from "./store/game";
+import { saveFile } from "./store/files";
 
 export default function App() {
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveFile();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        actions.undo();
+        return;
+      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       if (e.key === "ArrowLeft") actions.back();
       else if (e.key === "ArrowRight") actions.forward();
     };
@@ -36,6 +48,7 @@ export default function App() {
         <ChatPanel />
       </div>
       <SettingsDrawer />
+      <PromotionModal />
     </div>
   );
 }

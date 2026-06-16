@@ -22,6 +22,7 @@ import {
   themes,
   centerState,
   analyzeCongruence,
+  isPromotion,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -206,6 +207,10 @@ ok(cong.leaves_analyzed === 3, `congruence: 3 leaves (${cong.leaves_analyzed})`)
 ok(cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "weakness_inconsistency flagged for the doubled-pawn line");
 // 1-leaf repertoire → nothing to compare → no flags
 ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {}).total_flagged === 0, "single line → no congruence flags");
+
+// 24. isPromotion — pawn to last rank vs normal move
+ok(isPromotion("8/P7/8/8/8/8/8/k6K w - - 0 1", "a7", "a8") === true, "isPromotion true for a7→a8");
+ok(isPromotion(START_FEN, "e2", "e4") === false, "isPromotion false for e2→e4");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
