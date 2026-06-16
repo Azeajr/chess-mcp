@@ -259,6 +259,24 @@ export class GameTree {
     return this.positionAtSan(sans);
   }
 
+  /** Every leaf with its SAN path + position (for per-leaf congruence analysis). */
+  leaves(): { path: string[]; pos: Chess }[] {
+    const out: { path: string[]; pos: Chess }[] = [];
+    const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[]) => {
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        const sp = [...sanPath, child.data.san];
+        if (child.children.length === 0) out.push({ path: sp, pos: next });
+        else dfs(child, next, sp);
+      }
+    };
+    dfs(this.game.moves, Chess.default(), []);
+    return out;
+  }
+
   /** Chess position at every leaf (for aggregate structural analysis). */
   leafPositions(): Chess[] {
     const out: Chess[] = [];

@@ -9,6 +9,25 @@ import { makeFen } from "chessops/fen";
 import { parsePgn } from "chessops/pgn";
 import { positionKey } from "./congruence.js";
 
+/** Like identifyDeepest but over a SAN move list (for addressing a tree leaf by its path). */
+export function identifyDeepestFromMoves(
+  table: OpeningTable,
+  sans: readonly string[],
+): { eco: string; name: string; ply: number } | null {
+  const pos = Chess.default();
+  let best: { eco: string; name: string; ply: number } | null = null;
+  let ply = 0;
+  for (const san of sans) {
+    const move = parseSan(pos, san);
+    if (!move) break;
+    pos.play(move);
+    ply++;
+    const hit = table.get(positionKey(makeFen(pos.toSetup())));
+    if (hit) best = { ...hit, ply };
+  }
+  return best;
+}
+
 export type OpeningTable = Map<string, { eco: string; name: string }>;
 
 /** Parse the generated TSV (positionKey<TAB>eco<TAB>name) into a lookup map. */

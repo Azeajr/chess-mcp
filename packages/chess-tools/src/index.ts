@@ -25,5 +25,7 @@ export type { TablebaseResult } from "./tablebase.js";
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, RepertoireMoveMap } from "./game.js";
 export { boardSvg } from "./boardimage.js";
-export { parseOpeningsTsv, identifyAt, identifyDeepest } from "./openings.js";
+export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
 export type { OpeningTable } from "./openings.js";
+export { analyzeCongruence } from "./repcongruence.js";
+export type { CongruenceOptions } from "./repcongruence.js";

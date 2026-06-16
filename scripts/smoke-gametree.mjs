@@ -21,6 +21,7 @@ import {
   positionProfile,
   themes,
   centerState,
+  analyzeCongruence,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -197,6 +198,14 @@ ok(centerState(GameTree.fromPgn("1. e4 c5 *").positionAtSanPath(["e4", "c5"]).bo
 const dbl = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 *").positionAtSanPath(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6"]);
 const prof = positionProfile(dbl.board, "black", "");
 ok(prof.primitives.doubled.includes("c6") && prof.primitives.doubled.includes("c7"), "doubled c-pawns for black after Bxc6 dxc6");
+
+// 23. congruence — Nimzo cluster where one line accepts doubled c-pawns (weakness minority)
+const nimzo = "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ ( 4... O-O 5. Bd3 d5 6. Nf3 c5 ) ( 4... b6 5. Bd3 Bb7 6. Nf3 O-O ) 5. bxc3 O-O *";
+const cong = analyzeCongruence(GameTree.fromPgn(nimzo), "white", ecoTable, {});
+ok(cong.leaves_analyzed === 3, `congruence: 3 leaves (${cong.leaves_analyzed})`);
+ok(cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "weakness_inconsistency flagged for the doubled-pawn line");
+// 1-leaf repertoire → nothing to compare → no flags
+ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {}).total_flagged === 0, "single line → no congruence flags");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

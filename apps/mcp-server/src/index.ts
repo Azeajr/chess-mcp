@@ -30,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, type GameRecord } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, type GameRecord } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
 import { store, get } from "./handles.js";
 
@@ -603,6 +603,30 @@ server.tool(
       return ok(positionProfile(pos.board, e.color, makeFen(pos.toSetup())));
     }
     return ok({ color: e.color, ...aggregateProfile(e.tree.leafPositions().map((p) => p.board), e.color) });
+  },
+);
+
+server.tool(
+  "analyze_repertoire_congruence",
+  "Flag thematic inconsistencies across a repertoire's lines (engine-free). Clusters leaves by opening system and judges each only against its siblings: structure_outlier, weakness_inconsistency, center_inconsistency.",
+  {
+    repertoire_id: z.string(),
+    min_severity: z.enum(["low", "medium", "high"]).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    acknowledged_weaknesses: z.array(z.array(z.string())).optional(),
+    exclude_paths: z.array(z.array(z.string())).optional(),
+  },
+  ({ repertoire_id, min_severity, limit, acknowledged_weaknesses, exclude_paths }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    return ok(
+      analyzeCongruence(e.tree, e.color, openingsTable, {
+        minSeverity: min_severity,
+        limit,
+        acknowledgedWeaknesses: acknowledged_weaknesses,
+        excludePaths: exclude_paths,
+      }),
+    );
   },
 );
 

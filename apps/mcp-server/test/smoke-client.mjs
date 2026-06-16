@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 29, "29 tools registered");
+ok(tools.length === 30, "30 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -105,6 +105,14 @@ const swRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. e3 Nf6 3
 const sw = await call(client, "get_structural_profile", { repertoire_id: swRep.repertoire_id, variation_path: ["d4", "d5", "e3", "Nf6", "Bd3", "e6", "f4"] });
 console.log("  structure_class:", sw.structure_class, sw.confidence);
 ok(sw.structure_class === "Stonewall", `named-structure classifier → ${sw.structure_class}`);
+
+const congRep = await call(client, "load_repertoire", {
+  pgn: "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ ( 4... O-O 5. Bd3 d5 6. Nf3 c5 ) ( 4... b6 5. Bd3 Bb7 6. Nf3 O-O ) 5. bxc3 O-O *",
+  color: "white",
+});
+const cong = await call(client, "analyze_repertoire_congruence", { repertoire_id: congRep.repertoire_id });
+console.log("  congruence:", cong.total_flagged, "flagged, clusters", JSON.stringify(cong.clusters));
+ok(cong.leaves_analyzed === 3 && cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "analyze_repertoire_congruence flags the doubled-pawn outlier");
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
