@@ -132,5 +132,22 @@ ok(
 );
 ok(moveAccuracy(0) === 1 && Math.abs(moveAccuracy(300) - Math.exp(-1)) < 1e-9, "moveAccuracy curve");
 
+// 16. modify_repertoire_line edits — clone-on-write
+const base = GameTree.fromPgn("1. e4 *");
+const added = base.edit("add", ["e4"], { addMoves: ["e5", "Nf3"] });
+ok(added.tree && added.tree.toPgn().includes("1. e4 e5 2. Nf3"), "edit add grafts the line");
+ok(base.stats().nodes === 1, "source tree unchanged after edit (clone-on-write)");
+ok(added.tree.stats().nodes === 3, "edited tree has 3 nodes");
+const pr = GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("prune", ["e4", "c5"]);
+ok(pr.tree && pr.tree.nodeAt([0]).children.length === 1, "prune removes the c5 variation");
+ok(GameTree.fromPgn("1. e4 *").edit("prune", []).error === "invalid_edit", "prune root → invalid_edit");
+ok(GameTree.fromPgn("1. e4 *").edit("add", ["e4"], { addMoves: ["Qh8"] }).error === "invalid_line", "illegal add → invalid_line");
+ok(GameTree.fromPgn("1. e4 *").edit("add", ["d4"], { addMoves: ["d5"] }).error === "variation_not_found", "bad path → variation_not_found");
+
+// 17. illustrative lines — NAG tier
+const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
+ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");
+ok(il.lines[0].path.at(-1) === "Qh4", "flagged path ends at the bad move");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

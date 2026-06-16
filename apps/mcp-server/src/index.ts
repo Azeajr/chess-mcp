@@ -345,5 +345,53 @@ server.tool(
   },
 );
 
+// --- repertoire edit + illustrative lines ---
+server.tool(
+  "modify_repertoire_line",
+  "Edit one line (prune/add/reorder by SAN path) → a NEW repertoire_id; the source is unchanged.",
+  {
+    repertoire_id: z.string(),
+    action: z.enum(["prune", "add", "reorder"]),
+    path: z.array(z.string()),
+    add_moves: z.array(z.string()).optional(),
+    promote_move: z.string().optional(),
+  },
+  ({ repertoire_id, action, path, add_moves, promote_move }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const { tree, error } = e.tree.edit(action, path, { addMoves: add_moves, promoteMove: promote_move });
+    if (error || !tree) return ok({ error: error ?? "invalid_edit" });
+    const id = store(tree, e.color);
+    const s = tree.stats();
+    const where = path.length ? path.join(" ") : "root";
+    const summary =
+      action === "prune"
+        ? `pruned subtree at '${where}'`
+        : action === "add"
+          ? `added ${add_moves?.length ?? 0} ply under '${where}'`
+          : `promoted '${promote_move}' to mainline at '${where}'`;
+    return ok({ new_repertoire_id: id, action, nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth, summary });
+  },
+);
+
+server.tool(
+  "classify_illustrative_lines",
+  "Flag illustrative side lines marked with a mistake/dubious/blunder NAG ($2/$4/$6) — they inflate leaf/gap counts. NAG tier only (engine tier deferred).",
+  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  ({ repertoire_id, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const { lines, illustrativeLeaves } = e.tree.illustrativeLines();
+    const shown = lines.slice(0, limit ?? 20);
+    return ok({
+      color: e.color,
+      leaves_total: e.tree.stats().leaves,
+      illustrative_leaves: illustrativeLeaves,
+      lines: shown,
+      truncated: shown.length < lines.length,
+    });
+  },
+);
+
 await server.connect(new StdioServerTransport());
 console.error("[chess-mcp] Node MCP server ready (stdio)");

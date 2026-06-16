@@ -8,7 +8,7 @@
  */
 import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
-import { parseSan, makeSanAndPlay } from "chessops/san";
+import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
 import { makeSquare, parseSquare } from "chessops/util";
 import {
   defaultGame,
@@ -227,6 +227,108 @@ export class GameTree {
       maxDepth: plies.length ? Math.max(...plies) : 0,
       shallowestLeafPly: plies.length ? Math.min(...plies) : 0,
     };
+  }
+
+  /** Resolve a SAN variation path to its node + parent (null parent at the root). */
+  private resolveSan(sans: readonly string[]): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
+    let node: Node<PgnNodeData> = this.game.moves;
+    let parent: Node<PgnNodeData> | null = null;
+    for (const san of sans) {
+      const child = node.children.find((c) => c.data.san === san);
+      if (!child) return null;
+      parent = node;
+      node = child;
+    }
+    return { node, parent };
+  }
+
+  /** Position reached by replaying a (already-validated) SAN path. */
+  private positionAtSan(sans: readonly string[]): Chess {
+    const pos = Chess.default();
+    for (const san of sans) {
+      const move = parseSan(pos, san);
+      if (!move) throw new Error(`illegal SAN in path: ${san}`);
+      pos.play(move);
+    }
+    return pos;
+  }
+
+  /**
+   * Clone-on-write edit (port of apply_repertoire_edit). Returns a NEW GameTree with the edit
+   * applied; `this` is untouched. error ∈ variation_not_found / invalid_line / invalid_edit.
+   *   - prune: remove the node at `sanPath` and its subtree (path must be non-empty).
+   *   - add: graft `addMoves` (SAN) under the node, merging into existing children.
+   *   - reorder: make `promoteMove` the first child (mainline) at the node.
+   */
+  edit(
+    action: "prune" | "add" | "reorder",
+    sanPath: readonly string[],
+    opts: { addMoves?: string[]; promoteMove?: string } = {},
+  ): { tree: GameTree | null; error: string | null } {
+    const clone = GameTree.fromPgn(this.toPgn()); // deep copy via round-trip
+    const res = clone.resolveSan(sanPath);
+    if (!res) return { tree: null, error: "variation_not_found" };
+    const { node, parent } = res;
+
+    if (action === "prune") {
+      if (sanPath.length === 0 || !parent) return { tree: null, error: "invalid_edit" };
+      parent.children.splice(parent.children.indexOf(node as ChildNode<PgnNodeData>), 1);
+      return { tree: clone, error: null };
+    }
+
+    if (action === "add") {
+      const moves = opts.addMoves ?? [];
+      if (!moves.length) return { tree: null, error: "invalid_edit" };
+      const pos = clone.positionAtSan(sanPath);
+      let cursor = node;
+      for (const san of moves) {
+        const move = parseSan(pos, san);
+        if (!move) return { tree: null, error: "invalid_line" };
+        const canon = makeSan(pos, move);
+        pos.play(move);
+        const existing = cursor.children.find((c) => c.data.san === canon);
+        if (existing) cursor = existing;
+        else {
+          const child = new ChildNode<PgnNodeData>({ san: canon });
+          cursor.children.push(child);
+          cursor = child;
+        }
+      }
+      return { tree: clone, error: null };
+    }
+
+    // reorder
+    if (!opts.promoteMove) return { tree: null, error: "invalid_edit" };
+    const idx = node.children.findIndex((c) => c.data.san === opts.promoteMove);
+    if (idx < 0) return { tree: null, error: "variation_not_found" };
+    const [child] = node.children.splice(idx, 1);
+    node.children.unshift(child!);
+    return { tree: clone, error: null };
+  }
+
+  /**
+   * NAG-tier illustrative lines (the authoritative engine-free signal from
+   * classify_illustrative_lines): nodes carrying a mistake/dubious/blunder NAG ($2/$4/$6) mark
+   * a side line shown because it is BAD. Returns each flagged node's SAN path + leaves beneath it.
+   */
+  illustrativeLines(): { lines: { path: string[]; reason: "nag" }[]; illustrativeLeaves: number } {
+    const NAG_BAD = new Set([2, 4, 6]);
+    const lines: { path: string[]; reason: "nag" }[] = [];
+    let illustrativeLeaves = 0;
+    const countLeaves = (node: Node<PgnNodeData>): number =>
+      node.children.length === 0 ? 1 : node.children.reduce((a, c) => a + countLeaves(c), 0);
+    const dfs = (node: Node<PgnNodeData>, sanPath: string[]) => {
+      for (const child of node.children) {
+        const sp = [...sanPath, child.data.san];
+        if ((child.data.nags ?? []).some((n) => NAG_BAD.has(n))) {
+          lines.push({ path: sp, reason: "nag" });
+          illustrativeLeaves += countLeaves(child);
+        }
+        dfs(child, sp);
+      }
+    };
+    dfs(this.game.moves, []);
+    return { lines, illustrativeLeaves };
   }
 
   /** SAN of the move that leads to `path` (the last node), or null at the root. */

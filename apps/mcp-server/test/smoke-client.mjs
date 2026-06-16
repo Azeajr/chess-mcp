@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 20, "20 tools registered");
+ok(tools.length === 22, "22 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -81,6 +81,19 @@ ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
 const tb = await call(client, "tablebase_lookup", { fen: "4k3/8/8/8/8/8/8/4K2R w - - 0 1" });
 console.log(`  late tablebase took ${Date.now() - t0}ms →`, JSON.stringify(tb).slice(0, 80));
 ok(tb.category === "win" || tb.moves?.length >= 0, `tablebase_lookup late (${tb.category})`);
+
+// modify_repertoire_line (clone-on-write) + export round-trip
+const repE = await call(client, "load_repertoire", { pgn: "1. e4 *", color: "white" });
+const mod = await call(client, "modify_repertoire_line", { repertoire_id: repE.repertoire_id, action: "add", path: ["e4"], add_moves: ["e5", "Nf3"] });
+ok(typeof mod.new_repertoire_id === "string" && mod.nodes === 3, `modify_repertoire_line add → ${mod.nodes} nodes`);
+const modExport = await call(client, "export_repertoire", { repertoire_id: mod.new_repertoire_id });
+ok(modExport.pgn.includes("e5") && modExport.pgn.includes("Nf3"), "edited tree exports the new line");
+const srcExport = await call(client, "export_repertoire", { repertoire_id: repE.repertoire_id });
+ok(!srcExport.pgn.includes("e5"), "source repertoire unchanged (clone-on-write)");
+
+const ill = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Bc4 Qh4 $4 *", color: "white" });
+const ilr = await call(client, "classify_illustrative_lines", { repertoire_id: ill.repertoire_id });
+ok(ilr.lines.length === 1 && ilr.illustrative_leaves === 1, "classify_illustrative_lines flags the NAG line");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();
