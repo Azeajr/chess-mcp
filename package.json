@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @chess-mcp/ui dev",
     "dev:host": "pnpm --filter @chess-mcp/ui dev:host",
+    "mcp": "node --import tsx apps/mcp-server/src/index.ts",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   },
@@ -13,7 +14,8 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "playwright": "^1.61.0"
+    "playwright": "^1.61.0",
+    "tsx": "^4.19.0"
   },
   "packageManager": "pnpm@11.3.0"
 }

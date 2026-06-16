@@ -3,14 +3,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { existsSync } from "node:fs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = resolve(here, "..");
 const repoRoot = resolve(pkgDir, "..", "..");
-const pkgBin = join(pkgDir, "node_modules", ".bin", "tsx");
-const rootBin = join(repoRoot, "node_modules", ".bin", "tsx");
-const tsxBin = existsSync(pkgBin) ? pkgBin : rootBin;
 const entry = join(pkgDir, "src", "index.ts");
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -21,7 +17,8 @@ let pass = 0,
 const ok = (c, m) => (c ? pass++ : (fail++, console.log("FAIL:", m)));
 const call = async (client, name, args) => JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
 
-const transport = new StdioClientTransport({ command: tsxBin, args: [entry], cwd: repoRoot });
+// Launch exactly as .mcp.json does: `node --import tsx <entry>` from the repo root.
+const transport = new StdioClientTransport({ command: "node", args: ["--import", "tsx", entry], cwd: repoRoot });
 const client = new Client({ name: "smoke", version: "0" }, { capabilities: {} });
 await client.connect(transport);
 

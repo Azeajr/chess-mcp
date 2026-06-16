@@ -1,14 +1,9 @@
 {
   "mcpServers": {
     "chess-analysis": {
-      "type": "sse",
-      "url": "http://localhost:8000/sse"
-    },
-    "chess-files": {
       "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "server", "chess-files"],
-      "env": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
+      "command": "node",
+      "args": ["--import", "tsx", "apps/mcp-server/src/index.ts"]
     }
   }
 }
