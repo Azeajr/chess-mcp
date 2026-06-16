@@ -72,6 +72,32 @@ body {
   overflow: hidden;
 }
 
+/* Tablet: drop to board + side panel; chat wraps to a full-width row below. */
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(260px, 1fr) 320px;
+    grid-auto-rows: min-content;
+    overflow-y: auto;
+  }
+  .chat {
+    grid-column: 1 / -1;
+    height: 360px;
+  }
+}
+
+/* Phone: single column, everything stacks and the page scrolls. */
+@media (max-width: 720px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .board-wrap {
+    width: min(70vh, 94vw);
+  }
+}
+
 .board-panel {
   display: flex;
   gap: 0.6rem;
