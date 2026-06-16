@@ -38,15 +38,20 @@ chess-mcp/
   packages/
     chess-tools/        ← TypeScript tool logic (shared by both apps)
       src/
-        repertoire.ts
+        repertoire.ts   ← handle cache, variation walking, congruence, illustrative-line tiers
+        structure.ts    ← structural classifier, theme tags, open/half-open files
         analysis.ts
         engine.ts       ← StockfishProvider (stockfish.js) + OnnxProvider (onnxruntime)
-        openings.ts
+        evalcache.ts    ← per-position eval cache (IndexedDB in browser / SQLite in Node)
+        apiclient.ts    ← rate-limited, offline-safe HTTP (cloud eval, games, tablebase)
+        openings.ts     ← ECO lookup
+        openings.tsv    ← vendored 3700-entry ECO table (CC0, lichess-org/chess-openings)
         ...
   apps/
-    mcp-server/         ← Node.js MCP server (replaces Python server)
+    mcp-server/         ← Node.js MCP server (replaces BOTH Python servers below)
     ui/                 ← SolidJS PWA
-  server/               ← existing Python server (kept until Node port complete)
+  server/               ← existing Python servers, kept until Node port complete:
+                          chess-analysis (SSE backend) + chess-files (stdio host proxy)
 ```
 
 ---
@@ -119,7 +124,7 @@ App
 │   ├── ContextBadge (current FEN, repertoire loaded, color)
 │   └── InputBar
 └── SettingsDrawer
-    ├── ApiKeyInput (Claude API key → localStorage)
+    ├── ApiKeyInput (Claude API key → localStorage; plaintext, XSS-exposed — see Browser Constraints)
     ├── EngineBackendSelector (stockfish / maia-{elo} / leela)
     ├── OnnxModelsDir (path to folder containing .onnx weight files)
     ├── EngineDepth
@@ -232,11 +237,56 @@ TypeScript rewrite of the existing Python MCP tools. Single source of truth.
 | `python-chess` | `chessops` |
 | `chess.engine` (Stockfish subprocess) | `stockfish.js` (WASM) |
 | `chess.engine` (lc0 subprocess) | `onnxruntime-web` / `onnxruntime-node` |
-| `httpx` (cloud eval, tablebase) | `fetch` |
+| `httpx` + `apiclient.py` (rate-limit, offline-safe) | `fetch` + `apiclient.ts` (same contract) |
+| `evalcache.py` (SQLite) | `evalcache.ts` (IndexedDB browser / SQLite Node) |
 | MCP tool functions | exported TS functions |
 
-Scope: ~40 tools. Estimate 2–3 weeks. Each tool is a thin wrapper over chessops +
-engine providers + fetch — logic is in the libraries, not the tools.
+Scope: **32 tools** — 30 in `chess-analysis` (`server.py`, see `evals/capture.py`) plus 2
+file-path tools in `chess-files` (`files.py`: `load_repertoire_from_file`,
+`export_repertoire_to_file`). The doc previously said "~40"; the real count is 32.
+
+Most tools are thin over chessops + engine + fetch, but **not all logic lives in libraries**.
+Real domain code to port and re-test:
+
+- `structure.ts` — structural classifier, theme tags, open/half-open file detection
+- `repertoire.ts` — variation walking, congruence, transposition keying, illustrative-line
+  NAG tiers, dominance threshold (0.66)
+- `openings.ts` + `openings.tsv` — 3700-entry ECO table, EPD-keyed
+
+Estimate: **4–6 weeks** for chess-tools (was "2–3"). The four cross-cutting subsystems below,
+each needing a parity test, are the bulk of it — not the per-tool wrappers.
+
+### Subsystem port table
+
+Four cross-cutting subsystems carry the real risk. Each must be ported deliberately, with a
+parity test against the Python original:
+
+| Subsystem | Python source | Browser target | Node target | Notes |
+|---|---|---|---|---|
+| Handle cache | `repertoire.py` (LRU, `MAX_REPERTOIRES=16`, `REPERTOIRE_TTL_S=3600`) | in-app store may subsume; keep handle API for chat parity | process-global cache (same as Python) | `load_repertoire` → `repertoire_id`; tools are pure `(id, args)`, not call-order state |
+| Eval cache (#28) | `evalcache.py` (SQLite, engine-signature pinned, depth-reached subsumption) | IndexedDB | better-sqlite3 | signature pinning is the hard part; a stockfish.js build change invalidates rows |
+| HTTP client | `apiclient.py` (1 req/s global limiter, User-Agent, **degrade-to-None never throws**) | `fetch` — but see CORS / forbidden-header risks below | `fetch` / undici | offline-safe contract must survive; Lichess wants 1 req/s + UA |
+| ECO data | `openings.tsv` + `openings.py` (EPD-keyed) | vendored asset | vendored asset | chessops EPD output must byte-match python-chess `board.epd()` for transposition/opening parity |
+
+### Tools obviated by the UI
+
+Some tools are redundant in the SolidJS app (still exported for the MCP server / chat path):
+
+- `board_image` — chessground renders the board; no base64 SVG needed in-UI
+- `get_legal_moves` / `validate_fen` — chessops gives these inline during play
+
+### Parity strategy
+
+"Tool-for-tool parity" (Phase 5) must be split by output type — a single WASM Stockfish build
+will not reproduce native-Stockfish cp values:
+
+- **Structural / SAN / PGN output** — exact parity. Port `evals/capture.py` + `measure.py`;
+  the committed `evals/snapshots/outputs.json` is the oracle.
+- **Engine evals (cp/mate)** — parity **within tolerance**, not exact. stockfish.js ≠ native
+  Stockfish NNUE/version; Maia/Leela via ONNX ≠ lc0. Define a cp tolerance band; assert
+  best-move agreement + sign, not equal centipawns.
+- **Network tools** — non-reproducible (already excluded from snapshots); test the offline-safe
+  degrade-to-None path, not live values.
 
 ### Engine Backends
 
@@ -289,6 +339,12 @@ Two implementations — no environment split:
 Both providers work in browser and Node.js. No `RemoteProvider`, no `Lc0Provider`,
 no fallback server logic.
 
+> **OnnxProvider is not a thin wrapper.** onnxruntime runs the graph, but the provider must
+> supply the full lc0 encoding around it: the 112-plane input tensor (board + history stack +
+> castling + rule50), and policy-head → move decoding. `play-lc0` (referenced above) proves it
+> is doable but it is real code. Size and schedule OnnxProvider separately from the Stockfish
+> path; it is the largest single piece of the engine layer.
+
 Environment differences:
 - File I/O: not in chess-tools; handled at app layer (Node `fs` vs File System Access API)
 - ONNX model loading: `onnxruntime-web` in browser, `onnxruntime-node` in Node.js MCP server
@@ -297,20 +353,38 @@ Environment differences:
 
 ## MCP Server (Node.js)
 
-Replaces the existing Python MCP server. Exposes chess-tools functions via the MCP protocol
-for Claude Code users. Behavior identical to current server from Claude Code's perspective.
+Replaces **both** existing Python servers. Today there are two:
+
+1. **chess-analysis** (`server.py`) — SSE backend, runs in Docker (for Stockfish). 30 tools.
+2. **chess-files** (`files.py`) — stdio host proxy. Exposes `load_repertoire_from_file` /
+   `export_repertoire_to_file`. It exists because (a) it has the host filesystem (the SSE
+   backend in Docker does not) and (b) it loads a PGN by *path* so the file never enters the
+   model's context — truncation-proof and token-cheap.
+
+The single Node MCP server collapses both: it runs on the host (so it has `fs` directly, no
+proxy needed) and bundles stockfish.js (so no Docker needed for the engine). **The two
+file-path tools must be carried forward** — they are the truncation-proof load path and are
+the only tools the repertoire skills rely on for large PGNs.
 
 ```typescript
 // apps/mcp-server/src/index.ts
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { loadRepertoire, analyzeCongruence, ... } from "@chess-mcp/chess-tools"
+import { loadRepertoire, loadRepertoireFromFile, analyzeCongruence, ... } from "@chess-mcp/chess-tools"
 
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" })
 server.tool("load_repertoire", schema, (args) => loadRepertoire(args))
+server.tool("load_repertoire_from_file", schema, (args) => loadRepertoireFromFile(args))
 // ...
 ```
 
-Python server kept on `main` until Node port is complete and validated.
+**Handle-cache state.** `load_repertoire` returns a `repertoire_id` backed by an in-memory LRU
+(`MAX_REPERTOIRES`, `REPERTOIRE_TTL_S`); the other repertoire tools take that handle. The MCP
+contract stays a pure function of `(repertoire_id, args)` — the id is an input key, not
+call-order session state. The Node server keeps a process-global cache, same as Python. In the
+UI, the SolidJS GameTree store is the live tree, but the chat tool_use path still speaks the
+handle contract, so chess-tools exports the handle layer regardless of host.
+
+Both Python servers kept on `main` until the Node port is complete and validated.
 
 ---
 
@@ -332,6 +406,47 @@ Python server kept on `main` until Node port is complete and validated.
 - ONNX model files: loaded on demand, cached in IndexedDB (not service worker cache — too large)
 - Claude API calls: network-only (no offline cache)
 - Install prompt: shown after 2 sessions if not already installed
+- **Cross-origin isolation headers required** — see Browser Constraints below; the service
+  worker and dev server must both send `COOP: same-origin` + `COEP: require-corp`
+
+---
+
+## Browser Constraints & Security
+
+The browser host imposes constraints the Python server never hit. Resolve these before Phase 1.
+
+### Threaded WASM needs cross-origin isolation
+
+Multi-threaded stockfish.js uses `SharedArrayBuffer`, which requires the page to be
+cross-origin isolated: `Cross-Origin-Opener-Policy: same-origin` +
+`Cross-Origin-Embedder-Policy: require-corp`. This must be set by the dev server (Vite plugin)
+**and** the service worker for the installed PWA. Caveat: COEP `require-corp` blocks
+cross-origin assets that don't send CORP/CORS headers — audit any externally loaded resource.
+If isolation proves impractical, fall back to single-threaded stockfish.js (slower).
+
+### Network tools — CORS and forbidden headers (browser only)
+
+`apiclient.py` sets a `User-Agent` and runs at 1 req/s. In the browser:
+
+- **`User-Agent` is a forbidden header** — the browser will not let JS set it. Lichess asks
+  unauthenticated clients to identify via UA; without it, expect tighter rate limiting.
+- **CORS must be allowed by each endpoint.** Verify per API (Lichess cloud-eval / tablebase /
+  games, Chess.com archives). Any that block CORS must run on the Node side only, or behind a
+  proxy — they cannot be called from the PWA directly.
+- The **offline-safe degrade-to-None** contract still holds: a blocked/failed fetch behaves as
+  a cache miss, never throws.
+
+Decision needed: which network tools are browser-capable vs Node-only. Record per tool.
+
+### Claude API key handling
+
+The key lives in `localStorage` (Settings). It is therefore **readable by any injected
+script (XSS)** — a real exfiltration risk for a key that bills the user. Mitigations:
+
+- Anthropic browser calls need `dangerouslyAllowBrowser: true`; confirm CORS support.
+- Prefer session-only in-memory storage, or warn the user the key is stored locally in plaintext.
+- Treat any third-party script (analytics, fonts) as able to read the key — keep the bundle
+  dependency-minimal.
 
 ---
 
@@ -355,9 +470,11 @@ Python server kept on `main` until Node port is complete and validated.
 ### Phase 3 — chess-tools in browser
 
 - chess-tools package integrated into UI
+- Handle cache + eval cache (IndexedDB) ported
+- `apiclient.ts` (rate-limit + offline-safe) ported
 - Congruence score on suggested lines
 - `findRepertoireGaps` surfaced in AnalysisPanel
-- Cloud eval (Lichess API via fetch)
+- Cloud eval (Lichess API via fetch — pending CORS verification)
 
 ### Phase 4 — Claude chat
 
@@ -368,9 +485,11 @@ Python server kept on `main` until Node port is complete and validated.
 
 ### Phase 5 — Node.js MCP server
 
-- Port Python MCP server to Node.js using chess-tools
-- Validate tool-for-tool parity with Python version
-- Retire Python server
+- Port **both** Python servers (chess-analysis + chess-files) to one Node.js server
+- Carry forward the two file-path tools (`load_repertoire_from_file` / `export_repertoire_to_file`)
+- Port `evals/` harness (capture + measure); validate parity per the Parity Strategy
+  (structural exact, evals within tolerance)
+- Retire Python servers
 
 ### Phase 6 — PWA polish
 
@@ -387,3 +506,10 @@ Python server kept on `main` until Node port is complete and validated.
 2. **Annotations** — text comments + NAGs in move tree. Which phase?
 3. **Mobile** — PWA supports it technically. Out of scope for v1 but responsive layout
    decisions should be made before Phase 1 ships.
+4. **Eval parity tolerance** — what cp band counts as "parity" between stockfish.js and native
+   Stockfish (and ONNX vs lc0)? Best-move agreement + sign, or a centipawn threshold? Pin before
+   Phase 5.
+5. **Network-tool placement** — per network tool (cloud_eval, tablebase_lookup, lichess_games,
+   chesscom_games, repertoire_vs_history): browser-capable (CORS OK) or Node-only? Verify each.
+6. **Cross-origin isolation** — can the PWA ship COOP/COEP without breaking any cross-origin
+   asset, or do we fall back to single-threaded stockfish.js? Decide before Phase 1.
