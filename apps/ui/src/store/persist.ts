@@ -1,0 +1,56 @@
+/**
+ * Autosave + restore of the in-memory working repertoire (the GameTree), so a page reload resumes
+ * exactly where you left off — even with no file open and unsaved edits. Serialised to IndexedDB
+ * (PGN + color + current path + filename + dirty flag), debounced. Independent of the FileHandle
+ * persistence in store/files (which re-opens an on-disk file on demand).
+ */
+import { createSignal, createEffect, onCleanup } from "solid-js";
+import { idbGet, idbSet } from "./idb";
+import { currentTree, path, color, fileName, dirty, actions, type Color } from "./game";
+
+const KEY = "workingRepertoire";
+
+interface Saved {
+  pgn: string;
+  color: Color;
+  path: number[];
+  fileName: string | null;
+  dirty: boolean;
+}
+
+// Autosaving begins only after the restore attempt completes, so the initial empty tree never
+// clobbers a saved repertoire.
+const [ready, setReady] = createSignal(false);
+
+/** Create the debounced autosave effect (call from a component body so it has a reactive owner). */
+export function startAutosave() {
+  createEffect(() => {
+    if (!ready()) return;
+    const tree = currentTree();
+    const c = color();
+    const p = path();
+    const fn = fileName();
+    const d = dirty();
+    const t = setTimeout(() => {
+      void idbSet(KEY, { pgn: tree.toPgn(), color: c, path: p, fileName: fn, dirty: d } satisfies Saved);
+    }, 400);
+    onCleanup(() => clearTimeout(t));
+  });
+}
+
+/** Load the last working repertoire (if any), then enable autosave. */
+export async function restoreWorking() {
+  try {
+    const saved = await idbGet<Saved>(KEY);
+    if (saved?.pgn) {
+      actions.loadPgn(saved.pgn, saved.fileName ?? undefined);
+      actions.setColor(saved.color);
+      actions.goto(saved.path);
+      if (saved.dirty) actions.markDirty();
+    }
+  } catch {
+    /* corrupt/empty — start fresh */
+  } finally {
+    setReady(true);
+  }
+}

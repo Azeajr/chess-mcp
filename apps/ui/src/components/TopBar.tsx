@@ -4,7 +4,7 @@
  */
 import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
-import { openFile, saveFile, clearHandle } from "../store/files";
+import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
 import { setSettingsOpen } from "../store/ui";
 
 export default function TopBar() {
@@ -18,6 +18,11 @@ export default function TopBar() {
         <span class="moveno">{fileName()}</span>
       </Show>
       <button onClick={() => void openFile()}>Open PGN</button>
+      <Show when={storedFileName()}>
+        <button title="Re-open your last file" onClick={() => void reopenLast()}>
+          Reopen {storedFileName()}
+        </button>
+      </Show>
       <button onClick={() => void saveFile()}>Save</button>
       <button
         onClick={() => {

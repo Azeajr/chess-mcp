@@ -128,4 +128,8 @@ export const actions = {
   markSaved() {
     setDirty(false);
   },
+
+  markDirty() {
+    setDirty(true);
+  },
 };

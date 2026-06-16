@@ -9,10 +9,17 @@ import ChatPanel from "./components/ChatPanel";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import { actions } from "./store/game";
-import { saveFile } from "./store/files";
+import { saveFile, restoreLastFile } from "./store/files";
+import { startAutosave, restoreWorking } from "./store/persist";
 
 export default function App() {
+  startAutosave();
+
   onMount(() => {
+    void (async () => {
+      await restoreWorking();
+      void restoreLastFile();
+    })();
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
