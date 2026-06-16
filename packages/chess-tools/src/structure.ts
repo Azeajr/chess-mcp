@@ -8,7 +8,8 @@
  * structure class is unknown (Python Decision D2: a wrong label misleads more than "unknown").
  * The named scorers are a later phase.
  */
-import { squareFile, squareRank, makeSquare } from "chessops/util";
+import { squareFile, squareRank, makeSquare, parseSquare } from "chessops/util";
+import { parseFen } from "chessops/fen";
 import type { Board } from "chessops/board";
 import type { Color } from "./congruence.js";
 
@@ -191,9 +192,194 @@ export function centerState(board: Board): "tense" | "locked" | "open" | "semi-o
   return "semi-open";
 }
 
-// --- classify (named scorers deferred → unknown) ---
-export function classifyStructure(_board: Board): { structure_class: string; confidence: number } {
-  return { structure_class: "unknown", confidence: 0 };
+// --- named-structure classifier (port of the 19 _*_confidence scorers + classify_structure) ---
+const nameSet = (board: Board, color: Color): Set<string> => new Set(pawns(board, color).map(makeSquare));
+const fileSet = (board: Board, color: Color): Set<number> => new Set(pawns(board, color).map(squareFile));
+const subset = (a: Iterable<string>, b: Set<string>): boolean => [...a].every((x) => b.has(x));
+const b2n = (x: boolean): number => (x ? 1 : 0);
+
+/** Core+bonus confidence: core gates (false → 0); each bonus square lifts base toward cap. */
+function graded(coreOk: boolean, bonus: number, base: number, cap: number, step = 0.05): number {
+  if (!coreOk) return 0;
+  return Math.round(Math.min(cap, base + step * bonus) * 100) / 100;
+}
+const mirrorName = (n: string): string => makeSquare(parseSquare(n)! ^ 56);
+/** White-relative names, rank-mirrored for Black so one spec serves both orientations. */
+const rel = (color: Color, ...names: string[]): string[] => (color === "white" ? names : names.map(mirrorName));
+
+const BISHOP = (n: string) => parseSquare(n)!;
+
+function iqp(board: Board, color: Color): number {
+  const dPawns = pawns(board, color).filter((sq) => squareFile(sq) === 3);
+  if (dPawns.length !== 1) return 0;
+  const files = fileSet(board, color);
+  if (files.has(2) || files.has(4)) return 0;
+  if (pawns(board, other(color)).some((sq) => squareFile(sq) === 3)) return 0;
+  const r = squareRank(dPawns[0]!);
+  if (color === "white") return r === 3 ? 0.9 : r === 4 || r === 5 ? 0.6 : 0;
+  return r === 4 ? 0.9 : r === 2 || r === 3 ? 0.6 : 0;
+}
+function carlsbad(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  const wf = fileSet(board, "white");
+  const bf = fileSet(board, "black");
+  if (!wn.has("d4") || !bn.has("d5")) return 0;
+  if (!wf.has(2) && bf.has(2) && !bf.has(4)) return 0.85;
+  if (wf.has(2) && !bf.has(2) && !wf.has(4)) return 0.7;
+  return 0;
+}
+function maroczy(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (wn.has("c4") && wn.has("e4") && !fileSet(board, "white").has(3)) return 0.85;
+  if (bn.has("c5") && bn.has("e5") && !fileSet(board, "black").has(3)) return 0.7;
+  return 0;
+}
+function french(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (subset(["d4", "e5"], wn) && subset(["d5", "e6"], bn)) return 0.85;
+  if (subset(["d4", "e3"], wn) && subset(["d5", "e4"], bn)) return 0.6;
+  return 0;
+}
+function stonewall(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  return subset(["d4", "e3", "f4"], wn) || subset(["d5", "e6", "f5"], bn) ? 0.85 : 0;
+}
+function kid(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (subset(["d5", "e4"], wn) && subset(["e5", "d6"], bn)) return graded(true, b2n(wn.has("c4")) + b2n(bn.has("g6")), 0.7, 0.85, 0.075);
+  if (subset(["d4", "e5"], bn) && subset(["e4", "d3"], wn)) return graded(true, b2n(bn.has("c5")) + b2n(wn.has("g3")), 0.45, 0.6, 0.075);
+  return 0;
+}
+function benoni(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (subset(["d5", "e4"], wn) && subset(["c5", "d6"], bn) && !fileSet(board, "black").has(4)) return 0.85;
+  if (subset(["d4", "e5"], bn) && subset(["c4", "d3"], wn) && !fileSet(board, "white").has(4)) return 0.6;
+  return 0;
+}
+function closedSicilian(board: Board, color: Color): number {
+  const own = nameSet(board, color);
+  const opp = nameSet(board, other(color));
+  if (color === "white") return graded(subset(["e4", "f4"], own) && opp.has("c5"), b2n(own.has("d3")) + b2n(opp.has("d6")), 0.6, 0.7);
+  return graded(subset(["e5", "f5"], own) && opp.has("c4"), b2n(own.has("d6")) + b2n(opp.has("d3")), 0.5, 0.65);
+}
+function hangingPawns(board: Board, color: Color): number {
+  const files = fileSet(board, color);
+  const coreOk = files.has(2) && files.has(3) && !files.has(1) && !files.has(4);
+  const half = new Set(halfOpenFiles(board, color));
+  return graded(coreOk, b2n(half.has("b")) + b2n(half.has("e")), 0.7, 0.8);
+}
+function caroKann(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (!(subset(["d4", "e5"], wn) && subset(["c6", "d5"], bn))) return 0;
+  const bishops = new Set(board.pieces("black", "bishop"));
+  const outside = ["f5", "g4", "g6", "h5"].some((n) => bishops.has(BISHOP(n)));
+  return graded(true, b2n(bn.has("e6")) + b2n(outside), 0.78, 0.88);
+}
+function slav(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (!(subset(["c4", "d4"], wn) && subset(["c6", "d5"], bn))) return 0;
+  const bishops = new Set(board.pieces("black", "bishop"));
+  const outside = ["f5", "g4"].some((n) => bishops.has(BISHOP(n)));
+  return graded(true, b2n(bn.has("e6")) + b2n(outside), 0.75, 0.85);
+}
+function grunfeldCenter(board: Board): number {
+  const wn = nameSet(board, "white");
+  const coreOk = wn.has("c3") && !wn.has("c4") && wn.has("d4") && new Set(halfOpenFiles(board, "white")).has("b");
+  return graded(coreOk, b2n(wn.has("e4")), 0.7, 0.82, 0.08);
+}
+function nimzoGrunfeld(board: Board): number {
+  const wn = nameSet(board, "white");
+  const coreOk = subset(["c3", "c4", "d4"], wn) && new Set(halfOpenFiles(board, "white")).has("b");
+  return graded(coreOk, b2n(wn.has("e3")), 0.8, 0.88);
+}
+function hedgehog(board: Board, color: Color): number {
+  const own = nameSet(board, color);
+  const opp = nameSet(board, other(color));
+  if (!(subset(rel(color, "c4", "e4"), own) && subset(rel(color, "d6", "e6"), opp))) return 0;
+  const bonus = rel(color, "a6", "b6").reduce((a, s) => a + b2n(opp.has(s)), 0);
+  return graded(true, bonus, 0.78, 0.9);
+}
+function najdorf(board: Board, color: Color): number {
+  const own = nameSet(board, color);
+  const opp = nameSet(board, other(color));
+  if (!(subset(rel(color, "e4"), own) && !fileSet(board, color).has(3) && subset(rel(color, "d6", "e5"), opp))) return 0;
+  return graded(true, b2n(!fileSet(board, other(color)).has(2)), 0.72, 0.8);
+}
+function scheveningen(board: Board, color: Color): number {
+  const own = nameSet(board, color);
+  const opp = nameSet(board, other(color));
+  if (!(subset(rel(color, "e4"), own) && !fileSet(board, color).has(3) && subset(rel(color, "d6", "e6"), opp))) return 0;
+  return graded(true, b2n(!fileSet(board, other(color)).has(2)), 0.7, 0.78);
+}
+function symmetricBenoni(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (!(subset(["d5", "e4"], wn) && subset(["c5", "d6", "e5"], bn))) return 0;
+  return graded(true, b2n(wn.has("c4")), 0.8, 0.88);
+}
+function lopez(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  if (!(subset(["e4", "d3"], wn) && subset(["e5", "d6"], bn))) return 0;
+  return graded(true, b2n(wn.has("c3")), 0.68, 0.78);
+}
+function benko(board: Board): number {
+  const wn = nameSet(board, "white");
+  const bn = nameSet(board, "black");
+  const half = new Set(halfOpenFiles(board, "black"));
+  if (!(wn.has("d5") && subset(["c5", "d6"], bn) && half.has("a") && half.has("b"))) return 0;
+  return graded(true, b2n(wn.has("a2")) + b2n(wn.has("b2")), 0.72, 0.82);
+}
+
+export function classifyStructure(board: Board): { structure_class: string; confidence: number } {
+  const candidates: [string, number][] = [];
+  for (const color of ["white", "black"] as const) {
+    for (const [name, conf] of [
+      ["IQP", iqp(board, color)],
+      ["Closed Sicilian", closedSicilian(board, color)],
+      ["Hedgehog", hedgehog(board, color)],
+      ["Najdorf", najdorf(board, color)],
+      ["Scheveningen", scheveningen(board, color)],
+    ] as [string, number][])
+      if (conf > 0) candidates.push([name, conf]);
+  }
+  for (const color of ["white", "black"] as const) {
+    const conf = hangingPawns(board, color);
+    if (conf > 0) candidates.push(["Hanging pawns", conf]);
+  }
+  for (const [name, conf] of [
+    ["Carlsbad", carlsbad(board)],
+    ["Maroczy", maroczy(board)],
+    ["French", french(board)],
+    ["Stonewall", stonewall(board)],
+    ["King's Indian", kid(board)],
+    ["Benoni", benoni(board)],
+    ["Caro-Kann", caroKann(board)],
+    ["Slav", slav(board)],
+    ["Grünfeld Centre", grunfeldCenter(board)],
+    ["Nimzo-Grünfeld", nimzoGrunfeld(board)],
+    ["Symmetric Benoni", symmetricBenoni(board)],
+    ["Lopez", lopez(board)],
+    ["Benko", benko(board)],
+  ] as [string, number][])
+    if (conf > 0) candidates.push([name, conf]);
+
+  if (!candidates.length) return { structure_class: "unknown", confidence: 0 };
+  const best = candidates.reduce((a, b) => (b[1] > a[1] ? b : a));
+  return { structure_class: best[0], confidence: Math.round(best[1] * 100) / 100 };
+}
+
+/** Classify the named pawn structure directly from a FEN (chessops stays internal). */
+export function classifyStructureFromFen(fen: string): { structure_class: string; confidence: number } {
+  return classifyStructure(parseFen(fen).unwrap().board);
 }
 
 // --- full profile of one position ---

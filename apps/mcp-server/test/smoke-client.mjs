@@ -101,6 +101,11 @@ ok(spAgg.leaves_analyzed === 1 && spAgg.themes.fianchetto_white === 1, "get_stru
 const spNode = await call(client, "get_structural_profile", { repertoire_id: fiRep.repertoire_id, variation_path: ["g3", "g6", "Bg2", "Bg7"] });
 ok(spNode.themes?.fianchetto_white && spNode.themes?.fianchetto_black && Array.isArray(spNode.primitives?.chains), "get_structural_profile node: themes + primitives");
 
+const swRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. e3 Nf6 3. Bd3 e6 4. f4 *", color: "white" });
+const sw = await call(client, "get_structural_profile", { repertoire_id: swRep.repertoire_id, variation_path: ["d4", "d5", "e3", "Nf6", "Bd3", "e6", "f4"] });
+console.log("  structure_class:", sw.structure_class, sw.confidence);
+ok(sw.structure_class === "Stonewall", `named-structure classifier → ${sw.structure_class}`);
+
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
 
