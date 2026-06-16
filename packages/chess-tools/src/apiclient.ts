@@ -24,19 +24,33 @@ function rateLimit(): Promise<void> {
   return gate;
 }
 
-/** GET `url` as JSON, or `null` on any failure (offline-safe). */
-export async function fetchJson<T>(url: string): Promise<T | null> {
+async function fetchRaw(url: string, headers?: Record<string, string>): Promise<Response | null> {
+  await rateLimit();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    await rateLimit();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (!res.ok) return null; // 404 (e.g. cloud-eval miss), 429, 5xx → treated as a miss
-      return (await res.json()) as T;
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await fetch(url, { signal: ctrl.signal, headers });
+    return res.ok ? res : null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** GET `url` as JSON, or `null` on any failure (offline-safe). */
+export async function fetchJson<T>(url: string, headers?: Record<string, string>): Promise<T | null> {
+  try {
+    const res = await fetchRaw(url, headers);
+    return res ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET `url` as text, or `null` on any failure (offline-safe). */
+export async function fetchText(url: string, headers?: Record<string, string>): Promise<string | null> {
+  try {
+    const res = await fetchRaw(url, headers);
+    return res ? await res.text() : null;
   } catch {
     return null;
   }

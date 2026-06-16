@@ -30,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, type GameRecord } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, type GameRecord } from "@chess-mcp/chess-tools";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -490,6 +490,40 @@ server.tool(
       records.push({ result, group_key, group_name, avg_cpl: Math.round(avg_cpl * 10) / 10, blunders });
     }
     return ok(aggregateGames(records, !!username));
+  },
+);
+
+// --- game history (network) ---
+server.tool(
+  "lichess_games",
+  "Recent games for a Lichess user (metadata by default; include_pgn attaches PGNs). opening_eco filters by ECO prefix.",
+  {
+    username: z.string(),
+    max_games: z.number().int().min(1).max(100).optional(),
+    opening_eco: z.string().optional(),
+    include_pgn: z.boolean().optional(),
+  },
+  async ({ username, max_games, opening_eco, include_pgn }) => {
+    const games = await lichessGames(username, max_games ?? 20, opening_eco, include_pgn ?? false);
+    if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
+    return ok({ platform: "lichess", username, total: games.length, games });
+  },
+);
+
+server.tool(
+  "chesscom_games",
+  "Games for a Chess.com user in a given month (metadata by default; include_pgn attaches PGNs). opening_eco filters by ECO prefix.",
+  {
+    username: z.string(),
+    year: z.number().int(),
+    month: z.number().int().min(1).max(12),
+    opening_eco: z.string().optional(),
+    include_pgn: z.boolean().optional(),
+  },
+  async ({ username, year, month, opening_eco, include_pgn }) => {
+    const games = await chesscomGames(username, year, month, opening_eco, include_pgn ?? false);
+    if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
+    return ok({ platform: "chesscom", username, year, month, total: games.length, games });
   },
 );
 

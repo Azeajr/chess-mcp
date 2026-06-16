@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 25, "25 tools registered");
+ok(tools.length === 27, "27 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -106,6 +106,14 @@ const MULTI = '[Event "G1"]\n[Result "1-0"]\n\n1. e4 c5 2. Nf3 *\n\n[Event "G2"]
 const br = await call(client, "batch_review", { pgn: MULTI, group_by: "eco", depth: 8 });
 console.log("  groups:", JSON.stringify(br.groups?.map((g) => `${g.name}(${g.games})`)));
 ok(br.total_games === 2 && br.groups.length === 2, "batch_review aggregates 2 games into 2 eco groups");
+
+console.log("lichess_games / chesscom_games (live network)…");
+const lg = await call(client, "lichess_games", { username: "german11", max_games: 3 });
+console.log("  lichess:", lg.error ?? `${lg.total} games, e.g. ${lg.games?.[0]?.white} vs ${lg.games?.[0]?.black}`);
+ok(!lg.error && lg.total >= 1 && typeof lg.games?.[0]?.white === "string", "lichess_games returns parsed games");
+const cg = await call(client, "chesscom_games", { username: "hikaru", year: 2024, month: 1 });
+console.log("  chesscom:", cg.error ?? `${cg.total} games, e.g. ${cg.games?.[0]?.white} vs ${cg.games?.[0]?.black}`);
+ok(!cg.error && cg.total >= 1 && typeof cg.games?.[0]?.white === "string", "chesscom_games returns parsed games");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();
