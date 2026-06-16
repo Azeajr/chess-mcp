@@ -18,3 +18,5 @@ export { validateLine, legalMoves, validateFen, validatePgn } from "./validate.j
 export type { LineCheck } from "./validate.js";
 export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
+export { mainline, classifyCpLoss, moveAccuracy } from "./game.js";
+export type { MainlineMove, MoveClass } from "./game.js";

@@ -10,6 +10,9 @@ import {
   legalMoves,
   validateFen,
   validatePgn,
+  mainline,
+  classifyCpLoss,
+  moveAccuracy,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -114,6 +117,20 @@ const covDangling = GameTree.fromPgn("1. d4 d5 2. c4 e6 *").coverage("white");
 ok(covDangling.danglingCount === 1 && covDangling.frontierCount === 0, "QGD white: 1 dangling line");
 const covFrontier = GameTree.fromPgn("1. d4 d5 2. c4 *").coverage("white");
 ok(covFrontier.danglingCount === 0 && covFrontier.frontierCount === 1, "opponent-to-move leaf is a frontier");
+
+// 15. mainline walk + cp-loss classification + accuracy
+const ml = mainline("1. e4 e5 2. Nf3 *");
+ok(ml.length === 3, "mainline 3 moves");
+ok(ml[0].color === "white" && ml[0].san === "e4" && ml[1].color === "black", "mainline colors/SAN");
+ok(ml[0].fenBefore === START_FEN, "mainline first fenBefore = start");
+ok(
+  classifyCpLoss(201) === "blunder" &&
+    classifyCpLoss(101) === "mistake" &&
+    classifyCpLoss(51) === "inaccuracy" &&
+    classifyCpLoss(50) === "good",
+  "classifyCpLoss thresholds",
+);
+ok(moveAccuracy(0) === 1 && Math.abs(moveAccuracy(300) - Math.exp(-1)) < 1e-9, "moveAccuracy curve");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

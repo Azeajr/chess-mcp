@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 17, "17 tools registered");
+ok(tools.length === 20, "20 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -67,6 +67,17 @@ console.log("  gaps:", JSON.stringify(gaps.gaps?.map((g) => `${g.severity} ${g.u
 ok(gaps.gaps?.some((g) => g.uncovered_move === "Qxg2" && g.severity === "high"), "gap scan finds Qxg2 HIGH");
 
 const t0 = Date.now();
+// Game analysis on a game with a clear white blunder (4.Nxe5 hangs a knight).
+const BLUNDER = "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 *";
+console.log("analyze_game / get_game_summary (engine, depth 8)…");
+const ag = await call(client, "analyze_game", { pgn: BLUNDER, depth: 8 });
+ok(ag.total_moves >= 8 && ag.moves.some((m) => m.classification !== "good"), `analyze_game ${ag.total_moves} moves, some flagged`);
+const gs = await call(client, "get_game_summary", { pgn: BLUNDER, depth: 8 });
+console.log("  white:", JSON.stringify(gs.white), "worst:", gs.worst_moves?.[0]?.san, gs.worst_moves?.[0]?.cp_loss);
+ok(gs.white.blunders + gs.white.mistakes >= 1, "get_game_summary flags white's Nxe5");
+const ann = await call(client, "export_annotated_pgn", { pgn: BLUNDER, depth: 8 });
+ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
+
 const tb = await call(client, "tablebase_lookup", { fen: "4k3/8/8/8/8/8/8/4K2R w - - 0 1" });
 console.log(`  late tablebase took ${Date.now() - t0}ms →`, JSON.stringify(tb).slice(0, 80));
 ok(tb.category === "win" || tb.moves?.length >= 0, `tablebase_lookup late (${tb.category})`);

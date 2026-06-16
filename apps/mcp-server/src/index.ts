@@ -25,7 +25,10 @@ import {
   type Color,
   type Severity,
 } from "@chess-mcp/chess-tools";
+import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
+import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
+import { moveAccuracy } from "@chess-mcp/chess-tools";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -260,6 +263,85 @@ server.tool(
     out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
     out.forEach((o, i) => (o.rank = i + 1));
     return ok({ fen, candidates: out });
+  },
+);
+
+// --- game analysis (engine) ---
+const lean = (r: MoveRecord) => ({ ply: r.ply, color: r.color, san: r.san, cp_loss: r.cp_loss, classification: r.classification });
+
+server.tool(
+  "analyze_game",
+  "Per-move engine review of a game's mainline: cp loss + classification (blunder/mistake/inaccuracy/good).",
+  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional(), verbose: z.boolean().optional() },
+  async ({ pgn, depth, verbose }) => {
+    let records: MoveRecord[] | null;
+    try {
+      records = await analyzeMainline(pgn, depth ?? 14);
+    } catch (e) {
+      return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
+    }
+    if (records === null) return ok({ error: "engine_unavailable" });
+    return ok({ total_moves: records.length, moves: verbose ? records : records.map(lean) });
+  },
+);
+
+server.tool(
+  "get_game_summary",
+  "Game review summary: per-side blunder/mistake/inaccuracy counts, accuracy %, and the 3 worst moves.",
+  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  async ({ pgn, depth }) => {
+    let records: MoveRecord[] | null;
+    try {
+      records = await analyzeMainline(pgn, depth ?? 14);
+    } catch (e) {
+      return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
+    }
+    if (records === null) return ok({ error: "engine_unavailable" });
+
+    const side = (color: Color) => {
+      const rs = records!.filter((r) => r.color === color);
+      const count = rs.length;
+      const accSum = rs.reduce((a, r) => a + moveAccuracy(r.cp_loss), 0);
+      return {
+        blunders: rs.filter((r) => r.classification === "blunder").length,
+        mistakes: rs.filter((r) => r.classification === "mistake").length,
+        inaccuracies: rs.filter((r) => r.classification === "inaccuracy").length,
+        good_moves: rs.filter((r) => r.classification === "good").length,
+        accuracy_pct: count ? Math.round((accSum / count) * 1000) / 10 : null,
+      };
+    };
+    const worst = [...records].sort((a, b) => b.cp_loss - a.cp_loss).slice(0, 3).map(lean);
+    return ok({ total_moves: records.length, white: side("white"), black: side("black"), worst_moves: worst });
+  },
+);
+
+const NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
+server.tool(
+  "export_annotated_pgn",
+  "Annotate a game's mainline with move glyphs ($2/$4/$6) and best-move/eval comments.",
+  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  async ({ pgn, depth }) => {
+    let records: MoveRecord[] | null;
+    try {
+      records = await analyzeMainline(pgn, depth ?? 14);
+    } catch (e) {
+      return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
+    }
+    if (records === null) return ok({ error: "engine_unavailable" });
+
+    const game = parsePgn(pgn)[0];
+    if (!game) return ok({ error: "invalid_pgn", reason: "no game" });
+    let node = game.moves;
+    for (let k = 0; node.children.length && k < records.length; k++) {
+      const child = node.children[0]!;
+      const r = records[k]!;
+      if (r.classification !== "good") {
+        child.data.nags = [NAG[r.classification]!];
+        child.data.comments = [`best: ${r.best_move} (${(r.best_eval / 100).toFixed(2)})`];
+      }
+      node = child;
+    }
+    return ok({ annotated_pgn: makePgn(game) });
   },
 );
 
