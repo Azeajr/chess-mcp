@@ -24,8 +24,8 @@
     },
     "chess-files": {
       "type": "stdio",
-      "command": "uvx",
-      "args": ["chess-files"],
+      "command": "sh",
+      "args": ["-c", "MROOT=$(dirname \"$CLAUDE_PLUGIN_ROOT\")/../../../marketplaces/chess-mcp; exec env REPERTOIRE_DIR=\"$MROOT/repertoires\" uv run --directory \"$MROOT/server\" chess-files"],
       "env": {
         "CHESS_MCP_URL": "http://localhost:8000/sse"
       }
