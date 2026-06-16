@@ -5,6 +5,8 @@ import EvalBar from "./components/EvalBar";
 import MoveTree from "./components/MoveTree";
 import AnalysisPanel from "./components/AnalysisPanel";
 import GapsPanel from "./components/GapsPanel";
+import ChatPanel from "./components/ChatPanel";
+import SettingsDrawer from "./components/SettingsDrawer";
 import { actions } from "./store/game";
 
 export default function App() {
@@ -31,7 +33,9 @@ export default function App() {
           <GapsPanel />
           <MoveTree />
         </div>
+        <ChatPanel />
       </div>
+      <SettingsDrawer />
     </div>
   );
 }

@@ -6,6 +6,8 @@ import {
   decisionNodes,
   gapSeverity,
   moveSan,
+  validateLine,
+  legalMoves,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -81,6 +83,17 @@ ok(gapSeverity(90, 80) === "high", "loss 10, edge +80 → high");
 ok(gapSeverity(15, 10) === "low", "near-best but near-equal (+10) → low");
 ok(gapSeverity(90, 40) === "medium", "loss 50 → medium");
 ok(moveSan(START_FEN, "g1f3") === "Nf3", "moveSan g1f3 → Nf3");
+
+// 10. validateLine — legal line canonicalizes + first UCI; illegal rejected at index
+const vGood = validateLine(START_FEN, ["e4", "e5", "Nf3"]);
+ok(vGood.ok && JSON.stringify(vGood.canonical) === '["e4","e5","Nf3"]', "validateLine legal → canonical");
+ok(vGood.firstUci === "e2e4", "validateLine firstUci e2e4");
+const vBad = validateLine(START_FEN, ["e4", "e5", "Qd9"]);
+ok(!vBad.ok && vBad.badIndex === 2, "validateLine illegal flagged at index 2");
+
+// 11. legalMoves from start = 20
+ok(legalMoves(START_FEN).length === 20, "20 legal moves from start");
+ok(legalMoves(START_FEN).includes("Nf3"), "legalMoves includes Nf3");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

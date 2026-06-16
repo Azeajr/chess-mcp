@@ -14,3 +14,5 @@ export type { DecisionNode, Severity } from "./gaps.js";
 export { fetchJson } from "./apiclient.js";
 export { cloudEval } from "./cloudeval.js";
 export type { CloudEval } from "./cloudeval.js";
+export { validateLine, legalMoves } from "./validate.js";
+export type { LineCheck } from "./validate.js";

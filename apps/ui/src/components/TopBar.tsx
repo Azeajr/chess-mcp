@@ -5,6 +5,7 @@
  */
 import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
+import { setSettingsOpen } from "../store/ui";
 
 // File System Access API is not in the default TS lib; narrow what we use.
 type FilePickerHandle = {
@@ -98,6 +99,7 @@ export default function TopBar() {
         <option value="white">White</option>
         <option value="black">Black</option>
       </select>
+      <button onClick={() => setSettingsOpen(true)}>Settings</button>
     </div>
   );
 }

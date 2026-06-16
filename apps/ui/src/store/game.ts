@@ -76,6 +76,20 @@ export const actions = {
     setPath(p);
   },
 
+  /** Append a sequence of canonical SANs from `from`, navigate to the end, mark dirty. */
+  appendLine(from: Path, sans: string[]) {
+    let p = from;
+    let created = false;
+    for (const san of sans) {
+      const r = tree().appendSan(p, san);
+      created = created || r.appended;
+      p = r.path;
+    }
+    setPath(p);
+    if (created) setDirty(true);
+    bump();
+  },
+
   back() {
     const p = path();
     if (p.length) setPath(p.slice(0, -1));

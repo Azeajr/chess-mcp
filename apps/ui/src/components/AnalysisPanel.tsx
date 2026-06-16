@@ -5,6 +5,7 @@
 import { For, Show } from "solid-js";
 import { engineLines, analysing, engineOffline, type EngineLine } from "../store/analysis";
 import { cloud } from "../store/cloud";
+import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
 import type { Fit } from "@chess-mcp/chess-tools";
 
 const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
@@ -52,6 +53,30 @@ export default function AnalysisPanel() {
         <span class="cloud-label">cloud</span>
         <span class="cloud-val">{cloudText()}</span>
       </div>
+
+      <Show when={suggestions().length}>
+        <div class="suggestions">
+          <div class="panel-head">Suggested (from chat)</div>
+          <For each={suggestions()}>
+            {(s) => (
+              <div class="suggestion">
+                <div class="sug-line">{s.sans.join(" ")}</div>
+                <Show when={s.comment}>
+                  <div class="sug-comment">{s.comment}</div>
+                </Show>
+                <div class="sug-actions">
+                  <button class="accept" onClick={() => acceptSuggestion(s.id)}>
+                    Accept
+                  </button>
+                  <button class="reject" onClick={() => rejectSuggestion(s.id)}>
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
     </div>
   );
 }

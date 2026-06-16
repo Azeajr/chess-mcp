@@ -11,6 +11,7 @@ import type { Key } from "chessground/types";
 import type { DrawShape } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
 import { engineArrows } from "../store/analysis";
+import { suggestionArrows } from "../store/suggestions";
 
 export default function Board() {
   let el!: HTMLDivElement;
@@ -58,7 +59,8 @@ export default function Board() {
   // overlay, so it co-exists with the lastMove highlight (a board feature, not a shape).
   createEffect(() => {
     if (!cg) return;
-    cg.setShapes(engineArrows() as unknown as DrawShape[]);
+    const shapes = [...engineArrows(), ...suggestionArrows()];
+    cg.setShapes(shapes as unknown as DrawShape[]);
   });
 
   onCleanup(() => cg?.destroy());
