@@ -4,7 +4,7 @@
 
 Grounded chess analysis for AI agents (Claude Code, etc.) via Stockfish — plus a local repertoire-building PWA. The MCP server runs as a **single Node.js process** (no Docker, no Python); a **SolidJS web app** shares the same TypeScript chess logic. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
 
-> **Note:** The MCP server is now a Node.js/TypeScript implementation (`apps/mcp-server`) with full parity to the original Python server (all 32 tools). `.mcp.json` launches it directly — no container, no port. The Python server under `server/` is kept for reference; the [Setup](#setup) section below documents that legacy deployment.
+> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 32 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
 
 ## Quickstart
 
@@ -43,7 +43,6 @@ packages/chess-tools   shared TypeScript logic (chessops + structure classifier 
                        congruence + gaps + game review + rate-limited HTTP)
 apps/mcp-server        Node MCP server — 32 tools over chess-tools + stockfish (npm wasm)
 apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
-server/                legacy Python server (FastMCP + python-chess), kept for reference
 
 Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
 ```
@@ -148,94 +147,7 @@ Code and keep every move/line engine-grounded:
 | `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
-## Setup (legacy Python/Docker deployment)
-
-> The current default is the Node server (see [Quickstart](#quickstart)) — it needs no Docker, uv,
-> or running container. The deployment below is for the **Python server under `server/`**, kept for
-> reference and parity testing. Skip it unless you specifically want the Python/SSE stack.
-
-### Prerequisites
-
-- **Docker** + **Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install)
-- **Claude Code** (`claude` CLI) or **OpenCode** (`opencode` CLI) — the MCP client
-- **uv** — required for `chess-files` (the host-side file proxy); install via `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-### In-repo (recommended)
-
-Clone, start the server, open Claude Code:
-
-```bash
-git clone https://github.com/Azeajr/chess-mcp
-cd chess-mcp
-docker compose pull && docker compose up -d
-claude
-```
-
-- `.mcp.json` registers `chess-analysis` (SSE) and `chess-files` (stdio proxy) — approve both when prompted (once only).
-- `.claude/skills/` loads automatically — `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn` are immediately available.
-- `.claude/settings.json` includes a `SessionStart` hook that runs `docker compose up -d` automatically on every session open, so you only need to start the server manually the first time.
-
-`restart: unless-stopped` in `compose.yml` keeps the server alive across reboots. After pulling updates: `docker compose pull && docker compose up -d`.
-
-Common commands: `make pull` / `make up` (local build) / `make down` / `make logs` / `make test`.
-
-### User scope (any directory)
-
-Register globally so the engine and skills load in every Claude Code session, not just inside the repo:
-
-```bash
-# from the cloned repo:
-claude mcp add -s user -t sse chess-analysis http://localhost:8000/sse
-claude mcp add -s user chess-files -- uv run --directory "$(pwd)/server" chess_files.py
-mkdir -p ~/.claude/skills && cp -r .claude/skills/* ~/.claude/skills/
-```
-
-The server still needs to be running (`docker compose up -d` from the repo, or add the `SessionStart` hook to your global `~/.claude/settings.json`).
-
-### Remote host
-
-Run the server on another machine, point the client at it:
-
-```bash
-claude mcp add -s user -t sse chess-analysis http://<HOST_IP>:8000/sse
-```
-
-For in-repo use, edit `.mcp.json`:
-
-```json
-{ "mcpServers": { "chess-analysis": { "type": "sse", "url": "http://<HOST_IP>:8000/sse" } } }
-```
-
-`chess-files` always runs on the local host regardless of where `chess-analysis` is — it reads local files and forwards bytes to whatever `CHESS_MCP_URL` points at.
-
-### Quick try (stdio, no server)
-
-No clone, no running server — Claude Code spawns the container on demand:
-
-```bash
-claude mcp add chess-analysis -- docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest
-```
-
-Limitations: no `chess-files` (no shared SSE surface), cold cache per session, ~2 s container startup per session. Use the SSE path for real work.
-
-### Native (non-Docker)
-
-Docker is the supported path. For a host install without containers, `./install.sh` installs Stockfish via the detected package manager (**pacman / apt / brew**) and runtime deps via `uv`, then prints the run command. Add `--systemd` to also install a `systemd --user` unit (Linux only):
-
-```bash
-./install.sh            # install deps, print the run command
-./install.sh --systemd  # also install the systemd unit: systemctl --user enable --now chess-mcp
-```
-
-### Verify
-
-```bash
-claude mcp get chess-analysis     # health-checks the SSE connection
-```
-
-Or ask Claude to run `get_legal_moves` on the starting position, then paste a PGN and invoke `/chess-game-review`.
-
-### Validate plugin / marketplace
+## Validate plugin / marketplace
 
 ```bash
 claude plugin validate ./plugin   # validate plugin manifest + skills
@@ -244,119 +156,60 @@ claude plugin validate .          # validate marketplace catalog
 
 ### OpenCode
 
-`opencode.json` registers both `chess-analysis` and `chess-files` automatically when running from the repo — approve the prompt, no manual setup needed. Skills in `.claude/skills/` auto-discover.
-
-```bash
-docker compose up -d
-opencode
-```
-
-**User-scope:** add to `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "mcp": {
-    "chess-analysis": {
-      "type": "remote",
-      "url": "http://localhost:8000/sse"
-    },
-    "chess-files": {
-      "type": "local",
-      "command": ["uv", "run", "--directory", "/path/to/chess-mcp/server", "chess_files.py"],
-      "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
-    }
-  }
-}
-```
-
-Replace `/path/to/chess-mcp` with the absolute path to your cloned repo. Copy skills:
-
-```bash
-make opencode-setup
-```
+`opencode.json` registers `chess-analysis` (the same stdio Node server as `.mcp.json`) automatically
+when running from the repo — approve the prompt, no manual setup needed. Skills in `.claude/skills/`
+auto-discover. Just run `opencode` from the repo.
 
 ## Configuration
 
-Environment variables (set in `compose.yml`):
+The Node server runs as a local stdio process — no port, no transport setting, no `STOCKFISH_PATH`
+(the `stockfish` wasm is bundled). Environment variables it reads:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_TRANSPORT` | `sse` | Transport: `sse` (networked server) or `stdio` (client spawns the process — no port; the one-command local install) |
-| `FASTMCP_HOST` | `127.0.0.1` | Bind address (SSE only). Docker image/compose set `0.0.0.0` so the published port is reachable |
-| `FASTMCP_PORT` | `8000` | Listen port (SSE only) |
-| `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
-| `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
-| `MAX_ENGINE_TIME_S` | `60` | Ceiling for the optional per-call `time_limit` (seconds; floor 0.01) |
-| `GAP_BUDGET_S` | `45` | `find_repertoire_gaps` total wall-clock budget (seconds): on a large tree it scans shallowest-first until spent, then returns partial results with `budget_exhausted:true`. Lower it if your MCP client's request timeout is under ~60s |
-| `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
-| `MAX_REPERTOIRE_BYTES` | `1000000` | Reject `load_repertoire` PGN larger than this (larger cap for variation trees) |
-| `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
+| `REPERTOIRE_DIR` | repo `repertoires/` | Base dir that `load_repertoire_from_file` / `export_repertoire_to_file` paths are confined to |
 | `MAX_REPERTOIRES` | `16` | Max cached repertoires (LRU eviction beyond this) |
 | `REPERTOIRE_TTL_S` | `3600` | Idle seconds before a cached repertoire expires |
 
-> **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_REPERTOIRE_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without limit.
+Search depth (default 18, clamped 1–30), the per-call `time_limit` ceiling, `find_repertoire_gaps`
+budget, and the input caps (PGN/repertoire bytes, line length, multipv) are compiled-in constants.
 
-### `chess-files` proxy env (set in `.mcp.json` / `opencode.json`, not `compose.yml`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CHESS_MCP_URL` | `http://localhost:8000/sse` | SSE URL of the `chess-analysis` backend the proxy forwards to |
-| `REPERTOIRE_DIR` | repo `repertoires/` | Base dir that `load_repertoire_from_file` / `export_repertoire_to_file` paths are confined to |
+> **Trust boundary.** The server runs Stockfish on caller-supplied PGN/FEN. The input caps and the
+> depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded
+> (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without
+> limit. As a local stdio process it exposes no network surface.
 
 ## Project layout
 
 ```
 chess-mcp/
-├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
-├── Makefile                 # up / pull / down / logs / test / lint / register / install
-├── .mcp.json                # Claude Code MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
-├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
-├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
-├── .claude/settings.json    # project settings: SessionStart hook (auto-start Docker) + MCP server approvals
+├── .mcp.json                # Claude Code MCP config: chess-analysis (stdio Node server)
+├── opencode.json            # OpenCode MCP config: chess-analysis (stdio Node server)
+├── .github/workflows/       # ci.yml — build, typecheck, smoke; tag-gated GitHub release
 ├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, no namespace prefix)
 ├── .claude-plugin/
 │   └── marketplace.json     # Claude Code plugin marketplace catalog (plugin install path)
 ├── plugin/                  # distributable Claude Code plugin
 │   ├── .claude-plugin/
-│   │   └── plugin.json      # plugin manifest: MCP servers + SessionStart hook + skills
+│   │   └── plugin.json      # plugin manifest: stdio Node MCP server + skills
 │   └── skills/              # plugin skills (namespaced /chess-mcp:<skill> after install)
-├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
-├── sample-game.pgn          # anonymized single-game fixture for evals
-├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
-├── MCP_DESIGN.md            # design principles for this server
-├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
-├── PROXY_DESIGN.md          # design spec for the chess-files file-path proxy
-├── FEATURES_DESIGN.md       # design spec for gaps, coverage, compare_moves
-├── ROADMAP_DESIGN.md        # design spec for shipped roadmap items
-├── STRUCTURE_CLASSIFIER_DESIGN.md  # design spec for pawn-structure classifier
-├── ILLUSTRATIVE_LINE_DESIGN.md     # design spec for classify_illustrative_lines
-├── GROUNDING_DESIGN.md      # grounding principles and skill-authoring decisions
-├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
-├── evals/                   # harnesses (engine-free unless noted)
-│   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
-│   ├── measure.py           # tiktoken token count
-│   ├── structure_accuracy.py # structural-classifier precision/recall vs labeled FENs
-│   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
-│   └── snapshots/outputs.json
-└── server/
-    ├── chess_mcp.py         # All 22 MCP tools, FastMCP SSE server
-    ├── chess_files.py       # chess-files proxy: load/export a repertoire by file path (stdio → SSE)
-    ├── structure.py         # engine-free pawn-structure analysis (19 structures + theme tags)
-    ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
-    ├── openings.py          # ECO opening lookup (EPD → name)
-    ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
-    ├── test_structure_repertoire.py  # pytest suite (engine-free): structure + repertoire
-    ├── test_tools.py                  # pytest suite: tool wrappers (validation, errors, caps)
-    ├── test_chess_files.py            # pytest suite: chess-files proxy guards (backend mocked)
-    ├── pyproject.toml       # uv project + dependencies
-    ├── Dockerfile           # uv+Python3.14 base, apt stockfish
-    └── .dockerignore
+├── packages/
+│   └── chess-tools/         # shared TS lib: GameTree, structure classifier, congruence, gaps, ECO, HTTP
+├── apps/
+│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 32 tools + stockfish wasm
+│   └── ui/                  # SolidJS + Vite PWA: board, congruence arrows, gap scan, cloud eval, chat
+├── scripts/                 # engine-free smoke: smoke-gametree.mjs, structure-accuracy.mjs
+├── docs/design/             # design specs (repertoire, structure classifier, node migration, UI bridge, …)
+├── sample-game.pgn          # anonymized single-game fixture
+├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree
+└── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ```
 
 ## Dependencies
 
-- [`mcp[cli]`](https://github.com/modelcontextprotocol/python-sdk) — FastMCP server + SSE transport
-- [`chess`](https://github.com/niklasf/python-chess) — board state, PGN/FEN parsing, legal move generation, Stockfish subprocess wrapper
+- [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) — MCP server + stdio transport
+- [`chessops`](https://github.com/niklasf/chessops) — board state, PGN/FEN parsing, legal move generation
+- [`stockfish`](https://www.npmjs.com/package/stockfish) — bundled Stockfish wasm engine (no host install)
 
 ## Roadmap
 
@@ -366,7 +219,7 @@ chess-mcp/
 - [x] **`time_limit` param** — every engine tool takes an optional `time_limit` (seconds) → `Limit(time=N)` instead of depth; clamped to `[0.01, MAX_ENGINE_TIME_S]`. Depth stays the reproducible default.
 - [x] **Variation-aware game analysis** — the cached engine pass now walks the whole game tree (mainline + variations) once, keyed by SAN path. The mainline game tools project the mainline unchanged; side lines are analyzed in the same pass.
 - [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.
-- [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `evals/structure_accuracy.py` harness-validated pattern (candidates: French Exchange, Hedgehog).
+- [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `scripts/structure-accuracy.mjs` harness-validated pattern (candidates: French Exchange, Hedgehog).
 - [x] **Repertoire completeness + move comparison** — `find_repertoire_gaps` (engine scan for strong uncovered opponent replies), `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), and `compare_moves` (rank your own candidate moves from a FEN). 16 tools; closed error set unchanged.
 - [x] **Single-session edit loop** — `modify_repertoire_line` (clone-on-write prune/add/reorder → new `repertoire_id`; source id unchanged, so branch/compare) + `export_repertoire` (tree → PGN string for the agent to Write). Load → mutate → re-analyze the new id → … → export, all in one session, no re-download. New error codes `invalid_line`, `invalid_edit`. See REPERTOIRE_DESIGN.md §9.
 - [x] **Thematic-cluster congruence** — `analyze_repertoire_congruence` now clusters lines by move-order-robust opening SYSTEM (not the opponent's first move), so a system reached via several first moves is judged as one and distinct systems under one first move stay separate. Surfaces per-system inconsistencies a Black repertoire previously washed out. See REPERTOIRE_DESIGN.md §10.

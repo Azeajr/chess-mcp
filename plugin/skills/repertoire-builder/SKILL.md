@@ -51,11 +51,11 @@ Everything engine-grounded; nothing asserted from memory.
 of the PGN — don't re-send the PGN. The handle lives in the server's cache; if a later call returns
 `repertoire_not_found` (idle expiry), just call `load_repertoire` again.
 
-**Loading from a file? Use `load_repertoire_from_file(path, color)`** (the `chess-files` server) —
+**Loading from a file? Use `load_repertoire_from_file(path, color)`** —
 never read the file yourself (grounding rule 5). It reads the file on the server host in full — no
 client-side truncation, and the PGN never enters your context — and returns the same `repertoire_id`
 + stats. `path` is confined to the configured repertoire dir. `load_repertoire(pgn, color)` is only
-for a PGN the user pasted into the chat (or if the `chess-files` server isn't available). Caveat:
+for a PGN the user pasted into the chat (or if file access isn't available). Caveat:
 loading from a file, you can't pre-`validate_pgn` (you never hold the PGN) — rely on the loader's
 error if the file won't parse as a repertoire.
 
@@ -114,8 +114,8 @@ same session — no hand-editing, no re-download, no fresh session:
 3. **Re-analyze on the new id.** Run `analyze_repertoire_congruence` / `find_repertoire_gaps` /
    `get_structural_profile` / `get_repertoire_coverage` on the returned id to confirm the edit did what
    you intended (and didn't introduce a new gap). Iterate id → id → id; keep earlier ids to compare.
-4. **Export + save once done:** prefer `export_repertoire_to_file(final_id, path)` (the `chess-files`
-   server) — it writes the PGN to disk server-side and returns only `{path, bytes, leaves}`, so the
+4. **Export + save once done:** prefer `export_repertoire_to_file(final_id, path)` — it writes the
+   PGN to disk server-side and returns only `{path, bytes, leaves}`, so the
    large PGN never enters your context (`path` is confined to the configured repertoire dir).
    Otherwise `export_repertoire(final_id)` returns the `pgn` string — Write it to disk yourself;
    **do NOT print it into the conversation** (large artifact, not something to read aloud).

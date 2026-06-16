@@ -33,46 +33,33 @@ pnpm mcp                                          # run the MCP server directly
 - Verify with the smoke clients above + headless playwright-core against the dev server
   (`executablePath: /usr/bin/chromium`).
 
-## Legacy: Python server (`server/`)
-
-Kept for reference and parity testing — no longer the active MCP. The sections below describe it.
-
-### Python commands
-
-```sh
-cd server && uv run pytest                                   # engine-free tests
-uv run --with ruff ruff check server evals                   # lint
-docker compose up -d --build                                 # build + start (SSE on :8000)
-```
-
-- **Entrypoint**: `server/chess_mcp.py` — all tools + FastMCP SSE server.
-- **Engine path**: `STOCKFISH_PATH` — `/usr/games/stockfish` (set in `compose.yml`/`Dockerfile`).
-
 ## Testing
 
 | Suite | Command | Needs Engine |
 |-------|---------|-------------|
-| `server/test_structure_repertoire.py` | `uv run pytest` | No |
-| `server/test_tools.py` | `uv run pytest` | No |
-| Engine-backed paths (`compare_moves`, `find_repertoire_gaps`, `suggest_complementary_lines` ranking, `evals/capture.py`) | Docker only | Yes |
+| `scripts/smoke-gametree.mjs` | `node scripts/smoke-gametree.mjs` | No |
+| `scripts/structure-accuracy.mjs` | `node scripts/structure-accuracy.mjs` | No |
+| `apps/mcp-server/test/smoke-client.mjs` | `node apps/mcp-server/test/smoke-client.mjs` | Yes (bundled wasm) — hits live Lichess/Chess.com, excluded from CI |
 
-Engine-backed tools are NOT in CI. CI runs only engine-free tests.
+CI runs the two engine-free smoke suites + typecheck.
 
 ## Release
 
-1. Bump version in `server/pyproject.toml`
-2. Commit, then `git tag v0.x.y && git push origin v0.x.y` — the tag triggers GHCR publish + GitHub release.
+Commit, then `git tag v0.x.y && git push origin v0.x.y` — the tag triggers a GitHub release. The
+plugin ships from the repo (`plugin/` + `.claude-plugin/marketplace.json`); bump the `version` in
+both manifests when the tool surface changes.
 
 ## CI workflow
 
-`.github/workflows/ci.yml`: `test` (engine-free pytest) → `docker` (build + boot, catches runtime ImportError) → `publish` (tag-gated, `needs: [test,docker]`) → `release` (tag-gated, `needs: publish`).
+`.github/workflows/ci.yml`: `node` (build chess-tools, typecheck, engine-free smoke) and a tag-gated
+`release` (GitHub release on `v*`, gated on `node`).
 
 ## Key design facts
 
 - **Game review workflow**: `get_game_summary` (overview) → `analyze_game` (mistake list) → `get_position` (drill-down, returns FEN) → `evaluate_position`/`validate_line`/`get_legal_moves`.
 - **Repertoire workflow**: `load_repertoire(PGN, color)` → handle → read tools (`get_structural_profile`, `analyze_repertoire_congruence`, `find_repertoire_gaps`, etc.) → `modify_repertoire_line` (clone-on-write, returns NEW id) → repeat → `export_repertoire` (PGN artifact).
-- **Engine cache**: `_analyse_tree` is `@lru_cache(maxsize=32)` keyed on `(pgn, depth, multipv, time_limit)`. All game tools pass `DEFAULT_MULTIPV=3` so one pass feeds all.
-- **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). Thread-safe via `threading.Lock`. `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars.
+- **Engine cache**: the game-tree analysis pass is memoized per `(pgn, depth, multipv, time_limit)`; all game tools request `multipv=3` so one pass feeds all.
+- **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars (`src/handles.ts`).
 - **Gap tool depth**: `_GAP_DEFAULT_DEPTH = 20` (higher than the default 18 — depth 18 diverges ~26 cp at gap-critical positions).
 - **`compare_moves`**: returns `illegal` list, NOT an error, for unrecognized moves.
 - **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`.
@@ -80,10 +67,9 @@ Engine-backed tools are NOT in CI. CI runs only engine-free tests.
 
 ## Style / conventions
 
-- No Ruff config file — lint is ad-hoc via `uv run --with ruff ruff check server evals`.
 - No `Co-Authored-By` in commits.
 - Skills: canonical copy is `.claude/skills/` — edit directly.
-- Tool contract: docstrings in `chess_mcp.py` are the single source of truth. README has the summary table. Design docs: `REPERTOIRE_DESIGN.md`, `STRUCTURE_CLASSIFIER_DESIGN.md`, `FEATURES_DESIGN.md`, `MCP_DESIGN.md`, `ILLUSTRATIVE_LINE_DESIGN.md`.
+- Tool contract: the tool definitions in `apps/mcp-server/src` are the single source of truth. README has the summary table. Design docs live in `docs/design/`.
 - `validate_fen` also rejects illegal-but-parseable positions (two kings, side-not-to-move in check) via `board.status()` — not just syntax.
 - `suggest_complementary_lines`: `multipv = MAX_MULTIPV, limit + 2` for soundness slack; engine's best vs mover difference > 100cp → candidate skipped.
 - Multi-game PGNs (repertoire exports) are merged by `repertoire.merge_games()` in `load_repertoire`.

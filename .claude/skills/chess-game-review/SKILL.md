@@ -29,7 +29,7 @@ every claim grounded.
 
 ## Before you start
 
-These tools must be connected (MCP server `chess-analysis`, default `http://localhost:8000/sse`):
+These tools must be connected (the `chess-analysis` MCP server — a local stdio Node process):
 
 - `mcp__chess-analysis__get_game_summary`
 - `mcp__chess-analysis__analyze_game`
@@ -40,8 +40,9 @@ These tools must be connected (MCP server `chess-analysis`, default `http://loca
 - `mcp__chess-analysis__validate_pgn`
 - `mcp__chess-analysis__validate_fen`
 
-If they're absent, tell the user to start the server (`docker compose up -d` in the chess-mcp repo)
-— do **not** fall back to analyzing the game from memory. The whole point is to not guess.
+If they're absent, tell the user the `chess-analysis` MCP server isn't connected (install the plugin
+or run from the chess-mcp repo) — do **not** fall back to analyzing the game from memory. The whole
+point is to not guess.
 
 ## The loop
 

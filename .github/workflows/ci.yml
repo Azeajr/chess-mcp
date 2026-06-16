@@ -31,18 +31,6 @@ jobs:
           node scripts/smoke-gametree.mjs
           node scripts/structure-accuracy.mjs
 
-  test:
-    name: Engine-free test suite (legacy Python server)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8.2.0  # no moving v8 major tag; pin exact
-        with:
-          cache-dependency-glob: server/pyproject.toml
-      - name: Run pytest (branch coverage via addopts)
-        working-directory: server
-        run: uv run pytest
-
   release:
     name: GitHub release
     needs: node                          # plugin ships from the repo; gate on the product build

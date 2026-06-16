@@ -2,7 +2,7 @@
   "name": "chess-mcp-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Chess repertoire UI + Node MCP server (TypeScript). Python servers live in server/.",
+  "description": "Chess repertoire UI + Node MCP server (TypeScript).",
   "scripts": {
     "dev": "pnpm --filter @chess-mcp/ui dev",
     "dev:host": "pnpm --filter @chess-mcp/ui dev:host",
