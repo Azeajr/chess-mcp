@@ -1,5 +1,12 @@
 // Smoke test for the chess-tools GameTree (Phase 1 core). Run: node scripts/smoke-gametree.mjs
-import { GameTree, classifyUciMove, weightFor } from "../packages/chess-tools/dist/index.js";
+import {
+  GameTree,
+  classifyUciMove,
+  weightFor,
+  decisionNodes,
+  gapSeverity,
+  moveSan,
+} from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -56,6 +63,24 @@ ok(weightFor(60, null, "white") === "thick", "+60 white → thick");
 ok(weightFor(60, null, "black") === "thin", "+60 white-POV is thin for black");
 ok(weightFor(0, null, "white") === "medium", "0 → medium");
 ok(weightFor(null, 2, "white") === "thick", "mate for you → thick");
+
+// 8. decision nodes — white repertoire: opponent (black) to move, ≥1 prepared reply
+const wRep = GameTree.fromPgn("1. d4 d5 2. c4 e6 *");
+const wNodes = decisionNodes(wRep, "white");
+ok(wNodes.length === 2, "white rep: 2 decision nodes");
+ok(JSON.stringify(wNodes[0].covered) === '["d5"]', "after d4 covered=[d5]");
+ok(JSON.stringify(wNodes[1].covered) === '["e6"]', "after d4 d5 c4 covered=[e6]");
+
+// black repertoire: root counts (White moves first → opponent-to-move with a prepared reply)
+const bNodes = decisionNodes(GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *"), "black");
+ok(bNodes[0].path.length === 0, "black rep: root is a decision node");
+ok(JSON.stringify(bNodes[0].covered) === '["e4"]', "root covered=[e4] for black");
+
+// 9. gap severity (opponent-POV cp): loss vs best, capped by absolute edge
+ok(gapSeverity(90, 80) === "high", "loss 10, edge +80 → high");
+ok(gapSeverity(15, 10) === "low", "near-best but near-equal (+10) → low");
+ok(gapSeverity(90, 40) === "medium", "loss 50 → medium");
+ok(moveSan(START_FEN, "g1f3") === "Nf3", "moveSan g1f3 → Nf3");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

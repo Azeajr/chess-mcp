@@ -250,3 +250,112 @@ body {
 .analysis .w-thin {
   height: 2px;
 }
+
+.analysis .cloud-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.analysis .cloud-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: #2f4a6b;
+  color: #c8dcf0;
+}
+.analysis .cloud-val {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaps {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.gaps .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.gaps .scan-btn {
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.gaps .scan-btn:hover {
+  border-color: var(--accent);
+}
+
+.gaps .scan-progress {
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.gaps .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.gaps .gap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.gaps .gap:hover {
+  background: #3a3a42;
+}
+
+.gaps .san {
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.gaps .ev {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaps .sev {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.gaps .sev-high {
+  background: #6b2f33;
+  color: #f0c8cb;
+}
+.gaps .sev-medium {
+  background: #6b5e2f;
+  color: #f0e7c8;
+}
+.gaps .sev-low {
+  background: #3a3a42;
+  color: var(--muted);
+}

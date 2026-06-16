@@ -4,6 +4,7 @@ import Board from "./components/Board";
 import EvalBar from "./components/EvalBar";
 import MoveTree from "./components/MoveTree";
 import AnalysisPanel from "./components/AnalysisPanel";
+import GapsPanel from "./components/GapsPanel";
 import { actions } from "./store/game";
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
         </div>
         <div class="side-panel">
           <AnalysisPanel />
+          <GapsPanel />
           <MoveTree />
         </div>
       </div>

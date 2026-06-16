@@ -9,3 +9,8 @@ export { GameTree } from "./pgn.js";
 export type { Path, PlayResult } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
+export { decisionNodes, gapSeverity, moveSan, SEVERITY_RANK } from "./gaps.js";
+export type { DecisionNode, Severity } from "./gaps.js";
+export { fetchJson } from "./apiclient.js";
+export { cloudEval } from "./cloudeval.js";
+export type { CloudEval } from "./cloudeval.js";

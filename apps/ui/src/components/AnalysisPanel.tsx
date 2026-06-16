@@ -4,6 +4,7 @@
  */
 import { For, Show } from "solid-js";
 import { engineLines, analysing, engineOffline, type EngineLine } from "../store/analysis";
+import { cloud } from "../store/cloud";
 import type { Fit } from "@chess-mcp/chess-tools";
 
 const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
@@ -12,6 +13,13 @@ function evalText(l: EngineLine): string {
   if (l.mate !== null) return `M${Math.abs(l.mate)}`;
   const cp = l.cp ?? 0;
   return (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
+}
+
+function cloudText(): string {
+  const c = cloud();
+  if (!c) return "—";
+  const score = c.mate !== null ? `M${Math.abs(c.mate)}` : (c.cp! >= 0 ? "+" : "") + (c.cp! / 100).toFixed(2);
+  return `${score}  ·  depth ${c.depth}`;
 }
 
 export default function AnalysisPanel() {
@@ -40,6 +48,10 @@ export default function AnalysisPanel() {
           </For>
         </Show>
       </Show>
+      <div class="cloud-row" title="Lichess cloud eval (white POV)">
+        <span class="cloud-label">cloud</span>
+        <span class="cloud-val">{cloudText()}</span>
+      </div>
     </div>
   );
 }

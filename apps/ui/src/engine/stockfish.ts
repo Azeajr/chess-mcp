@@ -113,7 +113,7 @@ export function analyse(fen: string): Promise<Eval | null> {
  * Top-`multipv` lines for `fen` to a fixed depth. Each line carries its first move (UCI) and
  * the white-POV score. Resolves null if the engine is unavailable.
  */
-export function analyseMulti(fen: string, multipv: number): Promise<MultiLine[] | null> {
+export function analyseMulti(fen: string, multipv: number, depth = DEPTH): Promise<MultiLine[] | null> {
   return serial(async () => {
     const engine = await getEngine();
     if (!engine) return null;
@@ -148,7 +148,7 @@ export function analyseMulti(fen: string, multipv: number): Promise<MultiLine[] 
       engine.postMessage("ucinewgame");
       engine.postMessage(`setoption name MultiPV value ${multipv}`);
       engine.postMessage(`position fen ${fen}`);
-      engine.postMessage(`go depth ${DEPTH}`);
+      engine.postMessage(`go depth ${depth}`);
     });
   });
 }
