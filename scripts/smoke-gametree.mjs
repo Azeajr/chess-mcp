@@ -105,5 +105,15 @@ ok(!validatePgn("").valid, "validatePgn empty invalid");
 const st = GameTree.fromPgn("1. d4 d5 2. c4 e6 ( 2... c6 ) *").stats();
 ok(st.nodes === 5 && st.leaves === 2 && st.maxDepth === 4, "stats nodes/leaves/maxDepth");
 
+// 13. transpositions — two move orders reaching the same position
+const tr = GameTree.fromPgn("1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *").transpositions();
+ok(tr.length === 1 && tr[0].paths.length === 2, "transposition found with 2 converging paths");
+
+// 14. coverage — your-turn leaf = dangling; opponent-to-move leaf = frontier
+const covDangling = GameTree.fromPgn("1. d4 d5 2. c4 e6 *").coverage("white");
+ok(covDangling.danglingCount === 1 && covDangling.frontierCount === 0, "QGD white: 1 dangling line");
+const covFrontier = GameTree.fromPgn("1. d4 d5 2. c4 *").coverage("white");
+ok(covFrontier.danglingCount === 0 && covFrontier.frontierCount === 1, "opponent-to-move leaf is a frontier");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

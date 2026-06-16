@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 14, "14 tools registered");
+ok(tools.length === 17, "17 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -48,6 +48,18 @@ ok(typeof em.san === "string", `engine_move best = ${em.san} (${em.cp})`);
 
 const rep = await call(client, "load_repertoire", { pgn: TRAP, color: "white" });
 ok(typeof rep.repertoire_id === "string" && rep.nodes > 0, `load_repertoire id + ${rep.nodes} nodes`);
+
+const cov = await call(client, "get_repertoire_coverage", { repertoire_id: rep.repertoire_id });
+ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.dangling_count} dangling / ${cov.leaves} leaves`);
+
+const transRep = await call(client, "load_repertoire", { pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *", color: "white" });
+const trans = await call(client, "get_transpositions", { repertoire_id: transRep.repertoire_id });
+ok(trans.total === 1 && trans.transpositions[0].paths.length === 2, "get_transpositions finds the converging position");
+
+console.log("compare_moves (engine, depth 12)…");
+const cmp = await call(client, "compare_moves", { fen: START, moves: ["e4", "d4", "a3"], depth: 12 });
+console.log("  ranked:", JSON.stringify(cmp.candidates.map((c) => `${c.rank}.${c.san} ${c.mover_cp}`)));
+ok(cmp.candidates[0].rank === 1 && cmp.candidates.find((c) => c.san === "a3").rank === 3, "compare_moves ranks a3 last");
 
 console.log("find_repertoire_gaps (engine scan)…");
 const gaps = await call(client, "find_repertoire_gaps", { repertoire_id: rep.repertoire_id, depth: 12, min_severity: "high" });

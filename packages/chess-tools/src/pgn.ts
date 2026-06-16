@@ -21,7 +21,7 @@ import {
 } from "chessops/pgn";
 import { chessgroundDests } from "chessops/compat";
 import type { Move, NormalMove } from "chessops/types";
-import { positionKey } from "./congruence.js";
+import { positionKey, type Color } from "./congruence.js";
 
 /** Child-index path from the root. `[]` is the starting position. */
 export type Path = number[];
@@ -158,6 +158,75 @@ export class GameTree {
     };
     dfs(this.game.moves, Chess.default());
     return keys;
+  }
+
+  /**
+   * Positions the tree reaches by more than one move order (port of find_transpositions).
+   * Groups nodes by transposition key; returns converging positions (>1 path), largest first.
+   */
+  transpositions(): { fen: string; paths: string[][] }[] {
+    const groups = new Map<string, { fen: string; paths: string[][] }>();
+    const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[]) => {
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        const fen = makeFen(next.toSetup());
+        const key = positionKey(fen);
+        const sp = [...sanPath, child.data.san];
+        const g = groups.get(key) ?? { fen, paths: [] };
+        g.paths.push(sp);
+        groups.set(key, g);
+        dfs(child, next, sp);
+      }
+    };
+    dfs(this.game.moves, Chess.default(), []);
+    return [...groups.values()].filter((g) => g.paths.length > 1).sort((a, b) => b.paths.length - a.paths.length);
+  }
+
+  /**
+   * Tree-shape hygiene (port of coverage_report). Dangling = leaves where it is YOUR turn and
+   * the position is not continued elsewhere by transposition (a real hole). Frontier = the rest
+   * (opponent-to-move leaves, or your-turn leaves covered by another move order).
+   */
+  coverage(color: Color): {
+    leaves: number;
+    danglingCount: number;
+    danglingLines: { path: string[]; ply: number }[];
+    frontierCount: number;
+    maxDepth: number;
+    shallowestLeafPly: number;
+  } {
+    const interior = new Set<string>();
+    const leaves: { path: string[]; ply: number; turn: Color; key: string }[] = [];
+    const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[]) => {
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        const key = positionKey(makeFen(next.toSetup()));
+        const sp = [...sanPath, child.data.san];
+        if (child.children.length) {
+          interior.add(key);
+          dfs(child, next, sp);
+        } else {
+          leaves.push({ path: sp, ply: sp.length, turn: next.turn, key });
+        }
+      }
+    };
+    dfs(this.game.moves, Chess.default(), []);
+    const dangling = leaves.filter((l) => l.turn === color && !interior.has(l.key));
+    const plies = leaves.map((l) => l.ply);
+    return {
+      leaves: leaves.length,
+      danglingCount: dangling.length,
+      danglingLines: dangling.map((l) => ({ path: l.path, ply: l.ply })),
+      frontierCount: leaves.length - dangling.length,
+      maxDepth: plies.length ? Math.max(...plies) : 0,
+      shallowestLeafPly: plies.length ? Math.min(...plies) : 0,
+    };
   }
 
   /** SAN of the move that leads to `path` (the last node), or null at the root. */

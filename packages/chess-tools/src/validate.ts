@@ -17,6 +17,8 @@ export interface LineCheck {
   canonical: string[];
   /** UCI of the first move, for a board arrow. */
   firstUci?: string;
+  /** FEN after the whole line (when ok). */
+  finalFen?: string;
   /** index of the first illegal SAN, when !ok. */
   badIndex?: number;
 }
@@ -32,7 +34,7 @@ export function validateLine(fen: string, sans: readonly string[]): LineCheck {
     canonical.push(makeSan(pos, move));
     pos.play(move);
   }
-  return { ok: true, canonical, firstUci };
+  return { ok: true, canonical, firstUci, finalFen: makeFen(pos.toSetup()) };
 }
 
 /** Validate a FEN. Returns the normalised FEN when legal. */

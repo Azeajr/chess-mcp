@@ -202,5 +202,66 @@ server.tool(
   },
 );
 
+server.tool(
+  "get_transpositions",
+  "Positions the repertoire reaches by more than one move order, largest groups first.",
+  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  ({ repertoire_id, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const groups = e.tree.transpositions();
+    const shown = groups.slice(0, limit ?? 20);
+    return ok({ total: groups.length, returned: shown.length, transpositions: shown });
+  },
+);
+
+server.tool(
+  "get_repertoire_coverage",
+  "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers.",
+  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  ({ repertoire_id, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const c = e.tree.coverage(e.color);
+    return ok({
+      color: e.color,
+      leaves: c.leaves,
+      dangling_count: c.danglingCount,
+      dangling_lines: c.danglingLines.slice(0, limit ?? 20),
+      frontier_count: c.frontierCount,
+      max_depth: c.maxDepth,
+      shallowest_leaf_ply: c.shallowestLeafPly,
+    });
+  },
+);
+
+server.tool(
+  "compare_moves",
+  "Rank candidate moves at a FEN by local Stockfish (mover POV). Illegal moves are flagged.",
+  { fen: z.string(), moves: z.array(z.string()), depth: z.number().int().min(1).max(30).optional() },
+  async ({ fen, moves, depth }) => {
+    const moverIsWhite = fen.split(" ")[1] === "w";
+    const out: Record<string, unknown>[] = [];
+    for (const san of moves) {
+      const chk = validateLine(fen, [san]);
+      if (!chk.ok || !chk.finalFen) {
+        out.push({ san, error: "illegal_move" });
+        continue;
+      }
+      const res = await analyseMulti(chk.finalFen, 1, depth ?? 14);
+      const line = res?.[0];
+      if (!line) {
+        out.push({ san: chk.canonical[0], error: "engine_unavailable" });
+        continue;
+      }
+      const whiteCp = line.mate !== null ? (line.mate > 0 ? MATE_CP : -MATE_CP) : (line.cp ?? 0);
+      out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverIsWhite ? whiteCp : -whiteCp });
+    }
+    out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
+    out.forEach((o, i) => (o.rank = i + 1));
+    return ok({ fen, candidates: out });
+  },
+);
+
 await server.connect(new StdioServerTransport());
 console.error("[chess-mcp] Node MCP server ready (stdio)");
