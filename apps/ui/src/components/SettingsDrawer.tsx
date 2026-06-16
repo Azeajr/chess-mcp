@@ -31,11 +31,26 @@ export default function SettingsDrawer() {
             <span>Model</span>
             <input
               type="text"
+              list="model-slugs"
               placeholder="anthropic/claude-sonnet-4.5"
               value={model()}
               onChange={(e) => setModel(e.currentTarget.value)}
             />
-            <small>Any OpenRouter model slug.</small>
+            <datalist id="model-slugs">
+              <option value="anthropic/claude-sonnet-4.5" />
+              <option value="anthropic/claude-opus-4.1" />
+              <option value="openai/gpt-5" />
+              <option value="google/gemini-2.5-pro" />
+              <option value="deepseek/deepseek-v4-flash" />
+              <option value="meta-llama/llama-4-maverick" />
+              <option value="x-ai/grok-4" />
+              <option value="qwen/qwen3-max" />
+            </datalist>
+            <small>
+              Any OpenRouter model slug, e.g. <code>anthropic/claude-sonnet-4.5</code>,{" "}
+              <code>openai/gpt-5</code>, <code>google/gemini-2.5-pro</code>,{" "}
+              <code>deepseek/deepseek-v4-flash</code>. See openrouter.ai/models.
+            </small>
           </label>
         </div>
       </div>
