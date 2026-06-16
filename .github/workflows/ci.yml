@@ -11,8 +11,30 @@ permissions:
   contents: read
 
 jobs:
+  node:
+    name: Node — build, typecheck, smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build chess-tools (dist used by the smoke scripts)
+        run: pnpm --filter @chess-mcp/chess-tools build
+      - name: Typecheck all packages
+        run: pnpm -r typecheck
+      - name: Deterministic smoke suites (engine-free, no network)
+        run: |
+          node scripts/smoke-gametree.mjs
+          node scripts/structure-accuracy.mjs
+
   test:
-    name: Engine-free test suite
+    name: Engine-free test suite (legacy Python server)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

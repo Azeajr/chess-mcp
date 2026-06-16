@@ -2,31 +2,31 @@
 
 [![CI](https://github.com/Azeajr/chess-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Azeajr/chess-mcp/actions/workflows/ci.yml)
 
-MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via Stockfish. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
+Grounded chess analysis for AI agents (Claude Code, etc.) via Stockfish — plus a local repertoire-building PWA. The MCP server runs as a **single Node.js process** (no Docker, no Python); a **SolidJS web app** shares the same TypeScript chess logic. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
+
+> **Note:** The MCP server is now a Node.js/TypeScript implementation (`apps/mcp-server`) with full parity to the original Python server (all 32 tools). `.mcp.json` launches it directly — no container, no port. The Python server under `server/` is kept for reference; the [Setup](#setup) section below documents that legacy deployment.
 
 ## Quickstart
 
-**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) + [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) + [uv](https://docs.astral.sh/uv/getting-started/installation/).
-
-### Plugin install (no clone)
-
-```bash
-claude plugin marketplace add Azeajr/chess-mcp
-/plugin install chess-mcp@chess-mcp
-```
-
-The plugin registers both MCP servers and installs all skills. The `SessionStart` hook starts the Docker container automatically on each session open. Skills are namespaced: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
-
-### Clone install (full access)
+**Prerequisites:** [Node.js](https://nodejs.org/) ≥ 20 + [pnpm](https://pnpm.io/) + [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
 
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-docker compose pull && docker compose up -d
-claude
+pnpm install
+claude   # approve the `chess-analysis` server when prompted (one-time)
 ```
 
-Approve both MCP servers when prompted (one-time). Skills load without namespace prefix: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
+`.mcp.json` registers one stdio server, `chess-analysis`, launched as `node --import tsx apps/mcp-server/src/index.ts` — Stockfish (the `stockfish` npm wasm), `chessops`, and the ECO/structure data all bundled. The former `chess-files` proxy is gone: its file-path tools (`load_repertoire_from_file` / `export_repertoire_to_file`) are part of the one server now. Skills in `.claude/skills/` load automatically: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`.
+
+### Web app (repertoire builder PWA)
+
+```bash
+pnpm dev          # http://localhost:5173  (pnpm dev:host to expose on your LAN)
+pnpm --filter @chess-mcp/ui build   # production PWA (installable, offline)
+```
+
+A SolidJS board UI for building/studying repertoires: play moves into a variation tree, engine-eval arrows colored by repertoire congruence, on-demand gap scan, Lichess cloud eval, and an in-app chat (OpenRouter — set your key + model in Settings). Working repertoire autosaves to IndexedDB; open/save PGN via the File System Access API.
 
 ## Problem
 
@@ -34,12 +34,17 @@ AI agents reviewing chess games generate moves from pattern-matching, not board 
 
 ## Architecture
 
-```
-Claude Code
-└── MCP client ──(SSE/HTTP)──► chess-mcp container (FastMCP + python-chess + Stockfish)
-```
+pnpm monorepo, one shared chess library serving both the MCP server and the web app:
 
-Runs in Docker on the same machine as Claude Code, or any reachable host over LAN. No relay or proxy needed.
+```
+packages/chess-tools   shared TypeScript logic (chessops + structure classifier + ECO +
+                       congruence + gaps + game review + rate-limited HTTP)
+apps/mcp-server        Node MCP server — 32 tools over chess-tools + stockfish (npm wasm)
+apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
+server/                legacy Python server (FastMCP + python-chess), kept for reference
+
+Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
+```
 
 ## Tools
 
@@ -79,13 +84,12 @@ Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `e
 
 Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
 
-### Repertoire file I/O (`chess-files`, host-side)
+### Repertoire file I/O
 
-A companion MCP server — `chess-files` — loads a repertoire (and writes an export) by **file path**,
-so a large PGN is read on the host and never piped through the model's context: no client-side
-truncation, no per-load token cost. It runs over stdio (the client spawns it) and forwards to the
-`chess-analysis` server over SSE; the returned `repertoire_id` resolves across both because they
-share the one backend process. See `PROXY_DESIGN.md`.
+Load a repertoire (and write an export) by **file path**, so a large PGN is read off disk and never
+piped through the model's context: no client-side truncation, no per-load token cost. In the Node
+server these are ordinary tools (the host-side `chess-files` proxy the Python deployment needed is
+gone — the one stdio process has the host filesystem directly).
 
 | Tool | Input | Output |
 |------|-------|--------|
@@ -142,7 +146,11 @@ Code and keep every move/line engine-grounded:
 | `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
-## Setup
+## Setup (legacy Python/Docker deployment)
+
+> The current default is the Node server (see [Quickstart](#quickstart)) — it needs no Docker, uv,
+> or running container. The deployment below is for the **Python server under `server/`**, kept for
+> reference and parity testing. Skip it unless you specifically want the Python/SSE stack.
 
 ### Prerequisites
 
