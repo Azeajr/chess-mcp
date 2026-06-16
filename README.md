@@ -213,6 +213,9 @@ chess-mcp/
 
 ## Roadmap
 
+Forward-looking plan (distribution, engineering, and feature backlog) lives in
+[`ROADMAP.md`](ROADMAP.md). Shipped to date:
+
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
 - [x] **`classify_structure` expansion** — now **19 source-traced structures** (added Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, Benko) with graduated core+bonus confidence and bidirectional open-Sicilian scoring, plus always-on **theme tags** (A) rolled up in the aggregate profile. Each scorer is validated against an engine-verified canonical FEN; see `STRUCTURE_CLASSIFIER_DESIGN.md`.
@@ -223,8 +226,6 @@ chess-mcp/
 - [x] **Repertoire completeness + move comparison** — `find_repertoire_gaps` (engine scan for strong uncovered opponent replies), `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), and `compare_moves` (rank your own candidate moves from a FEN). 16 tools; closed error set unchanged.
 - [x] **Single-session edit loop** — `modify_repertoire_line` (clone-on-write prune/add/reorder → new `repertoire_id`; source id unchanged, so branch/compare) + `export_repertoire` (tree → PGN string for the agent to Write). Load → mutate → re-analyze the new id → … → export, all in one session, no re-download. New error codes `invalid_line`, `invalid_edit`. See REPERTOIRE_DESIGN.md §9.
 - [x] **Thematic-cluster congruence** — `analyze_repertoire_congruence` now clusters lines by move-order-robust opening SYSTEM (not the opponent's first move), so a system reached via several first moves is judged as one and distinct systems under one first move stay separate. Surfaces per-system inconsistencies a Black repertoire previously washed out. See REPERTOIRE_DESIGN.md §10.
-- [ ] **Opponent-popularity weighting for gaps** — rank `find_repertoire_gaps` output by how often opponents actually play each uncovered move (a moves-frequency dataset), so triage fixes the holes you'll hit, not just the engine-strong ones. Pairs the engine-criticality signal with a real-world frequency signal.
-- [ ] **`compare_repertoires(id_a, id_b)`** — structural + coverage diff between two loaded repertoire handles (shared themes, divergent lines, relative dangling/gap counts) to support evolving or merging a repertoire.
 
 ## License
 
