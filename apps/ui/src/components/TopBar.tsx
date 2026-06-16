@@ -7,6 +7,7 @@ import { actions, color, dirty, fileName } from "../store/game";
 import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
 import { setSettingsOpen } from "../store/ui";
 import { evalEnabled, setEvalEnabled } from "../store/analysis";
+import { bridgeReady } from "../store/chat";
 
 export default function TopBar() {
   return (
@@ -47,6 +48,9 @@ export default function TopBar() {
         Eval {evalEnabled() ? "On" : "Off"}
       </button>
       <button onClick={() => setSettingsOpen(true)}>Settings</button>
+      <span class="moveno" title={bridgeReady() ? "MCP repertoire tools available" : "Browser-native tools only (no MCP bridge)"}>
+        MCP {bridgeReady() ? "on" : "off"}
+      </span>
     </div>
   );
 }

@@ -10,6 +10,30 @@ import { analyseMulti } from "../engine/stockfish";
 import { cloudEval, legalMoves, moveSan } from "@chess-mcp/chess-tools";
 import { addSuggestion } from "../store/suggestions";
 
+/**
+ * Curated MCP tools the bridge exposes to the chat (UI_MCP_BRIDGE_DESIGN.md, D1): the
+ * repertoire-structure tools the browser has no local equivalent for. Overlapping tools
+ * (get_position, get_legal_moves, evaluate_position) stay browser-native — bridging them would
+ * split the eval/source-of-truth. Host-filesystem variants (*_from_file, *_to_file) are excluded;
+ * the browser has no path. The set is intersected with what the server actually advertises, so
+ * unknown names here are harmless.
+ */
+export const BRIDGED_TOOLS = new Set<string>([
+  "load_repertoire",
+  "find_repertoire_gaps",
+  "get_structural_profile",
+  "analyze_repertoire_congruence",
+  "get_repertoire_coverage",
+  "get_transpositions",
+  "batch_review",
+  "suggest_complementary_lines",
+  "suggest_replacement_line",
+  "modify_repertoire_line",
+  "repertoire_vs_history",
+  "classify_illustrative_lines",
+  "validate_line",
+]);
+
 export const toolSchemas: ToolSchema[] = [
   {
     type: "function",

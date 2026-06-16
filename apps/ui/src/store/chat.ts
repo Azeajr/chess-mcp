@@ -6,8 +6,15 @@
  * repertoire (propose_line only stages suggestions).
  */
 import { createSignal } from "solid-js";
-import { streamChat, type ChatMessage } from "../llm/openrouter";
-import { toolSchemas, runTool } from "../llm/tools";
+import { streamChat, type ChatMessage, type ToolSchema } from "../llm/openrouter";
+import { toolSchemas, runTool, BRIDGED_TOOLS } from "../llm/tools";
+import {
+  initBridge,
+  listTools,
+  callTool,
+  bridgedSchema,
+  takesRepertoireId,
+} from "../llm/mcp-client";
 import { apiKey, model, hasApiKey } from "./settings";
 import { fen, color, actions } from "./game";
 
@@ -26,11 +33,77 @@ const [streamingText, setStreamingText] = createSignal("");
 const [busy, setBusy] = createSignal(false);
 const [error, setError] = createSignal<string | null>(null);
 
-export { history, streamingText, busy, error };
+// Dev-only MCP bridge (UI_MCP_BRIDGE_DESIGN.md). When reachable, the curated repertoire tools
+// are merged into the model's tool surface; otherwise the chat runs with browser-native tools.
+const [bridgeReady, setBridgeReady] = createSignal(false);
+const [bridgedSchemas, setBridgedSchemas] = createSignal<ToolSchema[]>([]);
+const [repertoireId, setRepertoireId] = createSignal<string | null>(null);
+
+export { history, streamingText, busy, error, bridgeReady };
+
+// Probe once at startup. Failure (deployed PWA / bridge off) leaves bridgeReady false → degrade.
+void (async () => {
+  if (!(await initBridge())) return;
+  try {
+    const defs = await listTools();
+    const schemas: ToolSchema[] = [];
+    for (const [name, def] of defs) if (BRIDGED_TOOLS.has(name)) schemas.push(bridgedSchema(def));
+    setBridgedSchemas(schemas);
+    setBridgeReady(true);
+  } catch {
+    /* leave degraded */
+  }
+})();
 
 export function clearChat() {
   setHistory([]);
   setError(null);
+}
+
+/** Capture the repertoire_id from a load_repertoire result; returns it (or null). */
+function captureId(text: string): string | null {
+  try {
+    const o = JSON.parse(text) as { repertoire_id?: string };
+    if (o.repertoire_id) {
+      setRepertoireId(o.repertoire_id);
+      return o.repertoire_id;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return null;
+}
+
+/** Load (or re-load) the current working PGN into the MCP server; caches the handle (D2). */
+export async function loadRepertoireForCurrent(): Promise<string | null> {
+  if (!bridgeReady()) return null;
+  try {
+    return captureId(await callTool("load_repertoire", { pgn: actions.toPgn(), color: color() }));
+  } catch {
+    return null;
+  }
+}
+
+/** Run a tool: browser-native via runTool, or a curated MCP tool over the bridge. */
+async function execTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  if (!(bridgeReady() && BRIDGED_TOOLS.has(name))) return runTool(name, args);
+
+  const call = (a: Record<string, unknown>) => callTool(name, a);
+  const a = { ...args };
+  if (takesRepertoireId(name) && !a.repertoire_id && repertoireId()) a.repertoire_id = repertoireId();
+
+  try {
+    const text = await call(a);
+    if (name === "load_repertoire") captureId(text);
+    return text;
+  } catch (e) {
+    // Stale handle → re-load from the current PGN once and retry (D2).
+    if (takesRepertoireId(name) && /not[_ ]found/i.test(String(e))) {
+      const id = await loadRepertoireForCurrent();
+      if (id) return call({ ...a, repertoire_id: id });
+    }
+    throw e;
+  }
 }
 
 function systemMessage(): ChatMessage {
@@ -57,7 +130,7 @@ export async function send(userText: string) {
         apiKey: apiKey(),
         model: model(),
         messages,
-        tools: toolSchemas,
+        tools: [...toolSchemas, ...bridgedSchemas()],
         onText: (d) => setStreamingText((t) => t + d),
       });
       setStreamingText("");
@@ -70,11 +143,13 @@ export async function send(userText: string) {
       for (const tc of toolCalls) {
         let result: unknown;
         try {
-          result = await runTool(tc.function.name, JSON.parse(tc.function.arguments || "{}"));
+          result = await execTool(tc.function.name, JSON.parse(tc.function.arguments || "{}"));
         } catch (e) {
           result = { error: String(e) };
         }
-        setHistory((h) => [...h, { role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) }]);
+        // Bridged tools already return a string payload; native tools return an object.
+        const content = typeof result === "string" ? result : JSON.stringify(result);
+        setHistory((h) => [...h, { role: "tool", tool_call_id: tc.id, content }]);
       }
     }
   } catch (e) {

@@ -5,8 +5,10 @@ Claude Code harness can call. Closes retro issue #6 (`docs/retro-2026-06-16.md`)
 of #3 and #5. Companion to `MCP_DESIGN.md` (tool-surface discipline), `UI_DESIGN.md` (browser
 constraints), and `NODE_MIGRATION_DESIGN.md` (the Node MCP server this bridges to).
 
-Status: **proposed** — no code yet. This doc is the contract; implementation follows it, and if
-reality forces a change, the doc changes in the same commit.
+Status: **implemented** — Vite dev plugin + browser MCP client + curated tool merge + handle
+management + graceful degradation, smoke-tested end-to-end (`load_repertoire` → handle →
+`find_repertoire_gaps`). This doc is the contract; if reality forces a change, the doc changes in
+the same commit.
 
 ---
 

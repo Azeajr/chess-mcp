@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import { VitePWA } from "vite-plugin-pwa";
+import { mcpBridge } from "./vite-plugin-mcp-bridge";
 
 // Cross-origin isolation (COOP/COEP) is required for SharedArrayBuffer, which threaded
 // stockfish.js WASM needs. Set from day one (UI_DESIGN.md "Browser Constraints"). If a
@@ -21,6 +22,7 @@ export default defineConfig({
   plugins: [
     solid(),
     crossOriginIsolation,
+    mcpBridge(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
