@@ -23,6 +23,32 @@ export interface MultiLine {
   pv: string[];
 }
 
+/**
+ * In-process eval cache (per Claude Code session — the engine lives in-process, so does this).
+ * Key is `${fen}|${multipv}` (full FEN incl. clock — Stockfish sees the clock at engine.ts'
+ * `position fen`, and it matters near the 50-move rule). Depth is a *compared value*, not part of
+ * the key: a result computed to depth >= the request satisfies that request, so we serve it. FIFO
+ * eviction (Map preserves insertion order) at MAX_CACHE; eviction rarely fires within one session.
+ * Exported for direct unit testing (hit / depth-miss / eviction) without touching the engine.
+ */
+const MAX_CACHE = 1000;
+export const evalCache = {
+  store: new Map<string, { depth: number; lines: MultiLine[] }>(),
+  key: (fen: string, multipv: number) => `${fen}|${multipv}`,
+  /** Stored lines iff present and computed to >= depth; else null (miss). */
+  get(fen: string, multipv: number, depth: number): MultiLine[] | null {
+    const hit = this.store.get(this.key(fen, multipv));
+    return hit && hit.depth >= depth ? hit.lines : null;
+  },
+  put(fen: string, multipv: number, depth: number, lines: MultiLine[]): void {
+    this.store.set(this.key(fen, multipv), { depth, lines });
+    if (this.store.size > MAX_CACHE) this.store.delete(this.store.keys().next().value!);
+  },
+  clear(): void {
+    this.store.clear();
+  },
+};
+
 type Engine = { sendCommand: (cmd: string) => void };
 
 let enginePromise: Promise<Engine | null> | null = null;
@@ -71,6 +97,8 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Top-`multipv` lines for `fen` to `depth`. White-POV cp/mate. null if engine unavailable. */
 export function analyseMulti(fen: string, multipv = 1, depth = 16): Promise<MultiLine[] | null> {
+  const cached = evalCache.get(fen, multipv, depth);
+  if (cached) return Promise.resolve(cached);
   return serial(async () => {
     const engine = await getEngine();
     if (!engine) return null;
@@ -96,7 +124,9 @@ export function analyseMulti(fen: string, multipv = 1, depth = 16): Promise<Mult
           });
         } else if (line.startsWith("bestmove")) {
           clearTimeout(wd);
-          resolve([...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v));
+          const result = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+          evalCache.put(fen, multipv, depth, result);
+          resolve(result);
         }
       };
       engine.sendCommand("ucinewgame");

@@ -1,9 +1,9 @@
 /**
- * Node MCP server (Phase 5a) — exposes chess-tools + the Node Stockfish engine over MCP. This
- * is the start of replacing the Python chess-analysis + chess-files servers with one Node process
- * (host fs directly, bundled engine, no Docker). Tool-for-tool parity with Python is incremental;
- * the heavy domain ports (structure classifier, ECO, illustrative lines, suggest, batch_review)
- * are still in the Python server, which stays until parity (see docs/design/UI_DESIGN.md).
+ * Node MCP server — exposes chess-tools + the Node Stockfish engine over MCP, replacing the Python
+ * chess-analysis + chess-files servers with one Node process (host fs directly, bundled engine, no
+ * Docker). Tool-for-tool parity with Python is complete (structure classifier, ECO, illustrative
+ * lines, suggest, batch_review all ported); the Python server remains only as the dev/eval
+ * reference (see docs/design/NODE_MIGRATION_DESIGN.md).
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -595,7 +595,7 @@ server.tool(
 // --- structure (descriptive; named-structure scorers deferred) ---
 server.tool(
   "get_structural_profile",
-  "Static pawn-structure profile of a repertoire. variation_path (SAN list) → one position's profile (center, primitives, files, themes). Omit it → aggregate fingerprint over all leaves. structure_class is currently 'unknown' (named-structure scorers not yet ported); the themes carry the structural signal.",
+  "Static pawn-structure profile of a repertoire. variation_path (SAN list) → one position's profile: the classified named structure_class (with confidence), center, primitives, files, themes. Omit it → an aggregate structure fingerprint (distribution of named structures) over all leaves.",
   { repertoire_id: z.string(), variation_path: z.array(z.string()).optional() },
   ({ repertoire_id, variation_path }) => {
     const e = get(repertoire_id);
