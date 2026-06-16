@@ -8,6 +8,8 @@ import {
   moveSan,
   validateLine,
   legalMoves,
+  validateFen,
+  validatePgn,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -94,6 +96,14 @@ ok(!vBad.ok && vBad.badIndex === 2, "validateLine illegal flagged at index 2");
 // 11. legalMoves from start = 20
 ok(legalMoves(START_FEN).length === 20, "20 legal moves from start");
 ok(legalMoves(START_FEN).includes("Nf3"), "legalMoves includes Nf3");
+
+// 12. validateFen / validatePgn / stats
+ok(validateFen(START_FEN).valid, "validateFen start valid");
+ok(!validateFen("not a fen").valid, "validateFen garbage invalid");
+ok(validatePgn("1. e4 e5 *").valid, "validatePgn legal");
+ok(!validatePgn("").valid, "validatePgn empty invalid");
+const st = GameTree.fromPgn("1. d4 d5 2. c4 e6 ( 2... c6 ) *").stats();
+ok(st.nodes === 5 && st.leaves === 2 && st.maxDepth === 4, "stats nodes/leaves/maxDepth");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

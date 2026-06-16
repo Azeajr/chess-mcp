@@ -4,10 +4,11 @@
  * illegal move must never be grafted in (it would later throw on replay).
  */
 import { Chess } from "chessops/chess";
-import { parseFen } from "chessops/fen";
+import { parseFen, makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
 import { makeSquare, parseSquare } from "chessops/util";
 import { chessgroundDests } from "chessops/compat";
+import { parsePgn } from "chessops/pgn";
 import type { NormalMove } from "chessops/types";
 
 export interface LineCheck {
@@ -32,6 +33,26 @@ export function validateLine(fen: string, sans: readonly string[]): LineCheck {
     pos.play(move);
   }
   return { ok: true, canonical, firstUci };
+}
+
+/** Validate a FEN. Returns the normalised FEN when legal. */
+export function validateFen(fen: string): { valid: boolean; fen?: string; reason?: string } {
+  const setup = parseFen(fen);
+  if (setup.isErr) return { valid: false, reason: String(setup.error) };
+  const pos = Chess.fromSetup(setup.value);
+  if (pos.isErr) return { valid: false, reason: String(pos.error) };
+  return { valid: true, fen: makeFen(pos.value.toSetup()) };
+}
+
+/** Validate a PGN. Returns the game count when parseable. */
+export function validatePgn(pgn: string): { valid: boolean; games?: number; reason?: string } {
+  try {
+    const games = parsePgn(pgn);
+    if (!games.length) return { valid: false, reason: "no game found" };
+    return { valid: true, games: games.length };
+  } catch (e) {
+    return { valid: false, reason: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Legal moves (SAN) at a FEN — pawns to the last rank are listed as queen promotions. */

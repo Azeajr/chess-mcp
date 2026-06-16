@@ -118,6 +118,23 @@ export class GameTree {
     return { path: [...path, parent.children.length - 1], appended: true };
   }
 
+  /** (nodes, leaves, maxDepthPlies) over the whole tree — for the load_repertoire summary. */
+  stats(): { nodes: number; leaves: number; maxDepth: number } {
+    let nodes = 0;
+    let leaves = 0;
+    let maxDepth = 0;
+    const dfs = (node: Node<PgnNodeData>, depth: number) => {
+      for (const child of node.children) {
+        nodes++;
+        if (child.children.length === 0) leaves++;
+        if (depth + 1 > maxDepth) maxDepth = depth + 1;
+        dfs(child, depth + 1);
+      }
+    };
+    dfs(this.game.moves, 0);
+    return { nodes, leaves, maxDepth };
+  }
+
   /** Known continuations (child SANs) at `path` — the in-book moves from here. */
   childSansAt(path: Path): string[] {
     return this.nodeAt(path).children.map((c) => c.data.san);
