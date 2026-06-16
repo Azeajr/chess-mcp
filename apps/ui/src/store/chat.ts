@@ -12,12 +12,14 @@ import { apiKey, model, hasApiKey } from "./settings";
 import { fen, color, actions } from "./game";
 
 const SYSTEM_PROMPT = `You are a chess opening-repertoire assistant embedded in a board UI.
-Always ground claims by calling tools (evaluate_position, cloud_eval, get_legal_moves) — never
+Always ground claims by calling tools (evaluate_position, get_legal_moves) — never
 invent evaluations or assume a position. When you recommend a concrete continuation, call
 propose_line so the user sees it on the board and can accept it; do not claim a line was added.
 Be concise.`;
 
-const MAX_ROUNDS = 6;
+// One tool round ≈ one position checked; repertoire trees have many branches, so 6 was too low
+// (retro #5). Still bounded to keep API cost predictable on a runaway loop.
+const MAX_ROUNDS = 12;
 
 const [history, setHistory] = createSignal<ChatMessage[]>([]);
 const [streamingText, setStreamingText] = createSignal("");

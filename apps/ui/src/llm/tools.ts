@@ -46,17 +46,22 @@ export const toolSchemas: ToolSchema[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "cloud_eval",
-      description: "Lichess community cloud evaluation for a position (white-POV), if available.",
-      parameters: {
-        type: "object",
-        properties: { fen: { type: "string", description: "FEN; defaults to the current position" } },
-      },
-    },
-  },
+  // DISABLED (retro #3): cloud_eval doubled tool calls — the model called it before
+  // evaluate_position on every position, and Lichess's cloud DB 404s on obscure repertoire
+  // branches (surfaced as { available: false }). evaluate_position (local Stockfish) is
+  // authoritative and covers everything. The runTool case + cloudEval import are kept so we can
+  // re-enable it (e.g. as a fast mainline cache) once the doubling/404 noise is solved.
+  // {
+  //   type: "function",
+  //   function: {
+  //     name: "cloud_eval",
+  //     description: "Lichess community cloud evaluation for a position (white-POV), if available.",
+  //     parameters: {
+  //       type: "object",
+  //       properties: { fen: { type: "string", description: "FEN; defaults to the current position" } },
+  //     },
+  //   },
+  // },
   {
     type: "function",
     function: {
