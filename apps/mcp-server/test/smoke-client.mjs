@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 22, "22 tools registered");
+ok(tools.length === 23, "23 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -94,6 +94,9 @@ ok(!srcExport.pgn.includes("e5"), "source repertoire unchanged (clone-on-write)"
 const ill = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Bc4 Qh4 $4 *", color: "white" });
 const ilr = await call(client, "classify_illustrative_lines", { repertoire_id: ill.repertoire_id });
 ok(ilr.lines.length === 1 && ilr.illustrative_leaves === 1, "classify_illustrative_lines flags the NAG line");
+
+const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
+ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();

@@ -9,7 +9,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve as pathResolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve as pathResolve, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   GameTree,
   validateFen,
@@ -28,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest } from "@chess-mcp/chess-tools";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -390,6 +392,20 @@ server.tool(
       lines: shown,
       truncated: shown.length < lines.length,
     });
+  },
+);
+
+// --- ECO opening lookup ---
+const openingsTable = parseOpeningsTsv(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "data", "openings.tsv"), "utf8"),
+);
+server.tool(
+  "identify_opening",
+  "Name the deepest ECO opening a game's mainline reaches (eco, name, ply), or null.",
+  { pgn: z.string() },
+  ({ pgn }) => {
+    const hit = identifyDeepest(openingsTable, pgn);
+    return ok(hit ?? { opening: null });
   },
 );
 

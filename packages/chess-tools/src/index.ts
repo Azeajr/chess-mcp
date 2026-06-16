@@ -20,3 +20,5 @@ export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
 export { mainline, classifyCpLoss, moveAccuracy } from "./game.js";
 export type { MainlineMove, MoveClass } from "./game.js";
+export { parseOpeningsTsv, identifyAt, identifyDeepest } from "./openings.js";
+export type { OpeningTable } from "./openings.js";

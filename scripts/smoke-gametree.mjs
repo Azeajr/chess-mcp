@@ -13,6 +13,8 @@ import {
   mainline,
   classifyCpLoss,
   moveAccuracy,
+  parseOpeningsTsv,
+  identifyDeepest,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -148,6 +150,14 @@ ok(GameTree.fromPgn("1. e4 *").edit("add", ["d4"], { addMoves: ["d5"] }).error =
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");
 ok(il.lines[0].path.at(-1) === "Qh4", "flagged path ends at the bad move");
+
+// 18. ECO opening lookup (real table, chessops-keyed)
+const ecoTable = parseOpeningsTsv(readFileSync("./apps/mcp-server/data/openings.tsv", "utf8"));
+ok(ecoTable.size > 3000, `ECO table loaded (${ecoTable.size} entries)`);
+const sicilian = identifyDeepest(ecoTable, "1. e4 c5 *");
+ok(sicilian && sicilian.name.includes("Sicilian"), `1.e4 c5 → ${sicilian?.name} (${sicilian?.eco})`);
+const qg = identifyDeepest(ecoTable, "1. d4 d5 2. c4 *");
+ok(qg && qg.name.includes("Queen's Gambit"), `1.d4 d5 2.c4 → ${qg?.name} (${qg?.eco})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
