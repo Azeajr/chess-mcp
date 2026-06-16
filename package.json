@@ -5,6 +5,7 @@
   "description": "Chess repertoire UI + Node MCP server (TypeScript). Python servers live in server/.",
   "scripts": {
     "dev": "pnpm --filter @chess-mcp/ui dev",
+    "dev:host": "pnpm --filter @chess-mcp/ui dev:host",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   },

@@ -18,6 +18,7 @@ const crossOriginIsolation = {
 
 export default defineConfig({
   plugins: [solid(), crossOriginIsolation],
+  // Default bind is localhost. For LAN access run `pnpm dev:host` (vite --host).
   // stockfish ships its own worker/wasm; let it be served as-is, not pre-bundled.
   optimizeDeps: { exclude: ["stockfish"] },
   worker: { format: "es" },

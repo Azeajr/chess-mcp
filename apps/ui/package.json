@@ -6,6 +6,8 @@
   "scripts": {
     "predev": "node scripts/copy-engine.mjs",
     "dev": "vite",
+    "predev:host": "node scripts/copy-engine.mjs",
+    "dev:host": "vite --host",
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
     "preview": "vite preview",
