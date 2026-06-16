@@ -7,7 +7,19 @@ import { createSignal } from "solid-js";
 
 const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
+const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+
+/** Example OpenRouter slugs offered as clickable chips in Settings. */
+export const MODEL_SUGGESTIONS = [
+  "deepseek/deepseek-v4-flash",
+  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-opus-4.1",
+  "openai/gpt-5",
+  "google/gemini-2.5-pro",
+  "meta-llama/llama-4-maverick",
+  "x-ai/grok-4",
+  "qwen/qwen3-max",
+];
 
 const read = (k: string, fallback: string) => localStorage.getItem(k) ?? fallback;
 

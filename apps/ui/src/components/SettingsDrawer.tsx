@@ -2,9 +2,9 @@
  * Settings drawer: OpenRouter API key + model slug (persisted to localStorage by the settings
  * store). The key is stored in plaintext — noted to the user.
  */
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
-import { apiKey, model, setApiKey, setModel } from "../store/settings";
+import { apiKey, model, setApiKey, setModel, MODEL_SUGGESTIONS } from "../store/settings";
 
 export default function SettingsDrawer() {
   return (
@@ -31,26 +31,24 @@ export default function SettingsDrawer() {
             <span>Model</span>
             <input
               type="text"
-              list="model-slugs"
-              placeholder="anthropic/claude-sonnet-4.5"
+              placeholder="deepseek/deepseek-v4-flash"
               value={model()}
               onChange={(e) => setModel(e.currentTarget.value)}
             />
-            <datalist id="model-slugs">
-              <option value="anthropic/claude-sonnet-4.5" />
-              <option value="anthropic/claude-opus-4.1" />
-              <option value="openai/gpt-5" />
-              <option value="google/gemini-2.5-pro" />
-              <option value="deepseek/deepseek-v4-flash" />
-              <option value="meta-llama/llama-4-maverick" />
-              <option value="x-ai/grok-4" />
-              <option value="qwen/qwen3-max" />
-            </datalist>
-            <small>
-              Any OpenRouter model slug, e.g. <code>anthropic/claude-sonnet-4.5</code>,{" "}
-              <code>openai/gpt-5</code>, <code>google/gemini-2.5-pro</code>,{" "}
-              <code>deepseek/deepseek-v4-flash</code>. See openrouter.ai/models.
-            </small>
+            <small>Any OpenRouter slug — click a suggestion or type your own. See openrouter.ai/models.</small>
+            <div class="model-chips">
+              <For each={MODEL_SUGGESTIONS}>
+                {(slug) => (
+                  <button
+                    type="button"
+                    class={`model-chip${model() === slug ? " active" : ""}`}
+                    onClick={() => setModel(slug)}
+                  >
+                    {slug}
+                  </button>
+                )}
+              </For>
+            </div>
           </label>
         </div>
       </div>
