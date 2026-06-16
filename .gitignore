@@ -15,3 +15,7 @@ dist/
 
 # copied browser engine (regenerated from node_modules by predev/prebuild)
 apps/ui/public/engine/
+
+# personal repertoire working data — not repo material. A clean smoke fixture
+# lives in apps/mcp-server/test/fixtures/repertoires/ instead.
+/repertoires/
