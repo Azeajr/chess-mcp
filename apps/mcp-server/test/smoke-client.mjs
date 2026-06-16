@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 23, "23 tools registered");
+ok(tools.length === 25, "25 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -97,6 +97,15 @@ ok(ilr.lines.length === 1 && ilr.illustrative_leaves === 1, "classify_illustrati
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
+
+const img = await call(client, "board_image", { fen: START });
+ok(img.format === "svg" && img.svg.startsWith("<svg"), "board_image returns SVG");
+
+console.log("batch_review (engine, depth 8, 2 games)…");
+const MULTI = '[Event "G1"]\n[Result "1-0"]\n\n1. e4 c5 2. Nf3 *\n\n[Event "G2"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 *';
+const br = await call(client, "batch_review", { pgn: MULTI, group_by: "eco", depth: 8 });
+console.log("  groups:", JSON.stringify(br.groups?.map((g) => `${g.name}(${g.games})`)));
+ok(br.total_games === 2 && br.groups.length === 2, "batch_review aggregates 2 games into 2 eco groups");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();

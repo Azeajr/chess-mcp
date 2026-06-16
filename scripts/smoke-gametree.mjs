@@ -15,6 +15,8 @@ import {
   moveAccuracy,
   parseOpeningsTsv,
   identifyDeepest,
+  boardSvg,
+  aggregateGames,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -158,6 +160,20 @@ const sicilian = identifyDeepest(ecoTable, "1. e4 c5 *");
 ok(sicilian && sicilian.name.includes("Sicilian"), `1.e4 c5 → ${sicilian?.name} (${sicilian?.eco})`);
 const qg = identifyDeepest(ecoTable, "1. d4 d5 2. c4 *");
 ok(qg && qg.name.includes("Queen's Gambit"), `1.d4 d5 2.c4 → ${qg?.name} (${qg?.eco})`);
+
+// 19. boardSvg render
+const svg = boardSvg(START_FEN);
+ok(svg.startsWith("<svg") && svg.includes("♜") && svg.includes("♙"), "boardSvg renders pieces");
+ok((svg.match(/<rect/g) || []).length === 64, "boardSvg has 64 squares");
+
+// 20. aggregateGames (Python test parity: e5 blunder x3 in one group)
+const aggRecs = [
+  { result: "loss", group_key: "eco_e4", group_name: "Open Game", avg_cpl: 50, blunders: [{ move: "e5", classification: "blunder" }, { move: "d4", classification: "mistake" }, { move: "e5", classification: "blunder" }] },
+  { result: "loss", group_key: "eco_e4", group_name: "Open Game", avg_cpl: 70, blunders: [{ move: "e5", classification: "blunder" }, { move: "g5", classification: "inaccuracy" }] },
+];
+const agg = aggregateGames(aggRecs, true);
+ok(agg.total_games === 2 && agg.groups[0].top_blunders[0].move === "e5" && agg.groups[0].top_blunders[0].frequency === 3, "aggregateGames top blunder e5 x3");
+ok(agg.groups[0].loss_rate === 1, "aggregateGames loss_rate 1.0");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

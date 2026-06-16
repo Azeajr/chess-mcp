@@ -18,7 +18,8 @@ export { validateLine, legalMoves, validateFen, validatePgn } from "./validate.j
 export type { LineCheck } from "./validate.js";
 export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
-export { mainline, classifyCpLoss, moveAccuracy } from "./game.js";
-export type { MainlineMove, MoveClass } from "./game.js";
+export { mainline, classifyCpLoss, moveAccuracy, aggregateGames } from "./game.js";
+export type { MainlineMove, MoveClass, GameRecord } from "./game.js";
+export { boardSvg } from "./boardimage.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest } from "./openings.js";
 export type { OpeningTable } from "./openings.js";

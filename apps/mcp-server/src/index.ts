@@ -30,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, type GameRecord } from "@chess-mcp/chess-tools";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -406,6 +406,90 @@ server.tool(
   ({ pgn }) => {
     const hit = identifyDeepest(openingsTable, pgn);
     return ok(hit ?? { opening: null });
+  },
+);
+
+// --- board image (SVG) ---
+server.tool(
+  "board_image",
+  "Render a position as an SVG (unicode piece glyphs).",
+  {
+    fen: z.string(),
+    orientation: z.enum(["white", "black"]).optional(),
+    size: z.number().int().min(120).max(1024).optional(),
+  },
+  ({ fen, orientation, size }) => {
+    const v = validateFen(fen);
+    if (!v.valid) return ok(v);
+    return ok({ format: "svg", svg: boardSvg(v.fen!, { orientation, size }) });
+  },
+);
+
+// --- batch review (engine, multi-game) ---
+server.tool(
+  "batch_review",
+  "Analyze multiple games, aggregated by opening (eco) or the user's color (needs username). With a username, only that user's games are included and results are from their POV.",
+  {
+    pgn: z.string(),
+    group_by: z.enum(["eco", "color"]).optional(),
+    username: z.string().optional(),
+    max_games: z.number().int().min(1).max(100).optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+  },
+  async ({ pgn, group_by, username, max_games, depth }) => {
+    const mode = group_by ?? "eco";
+    if (mode === "color" && !username) return ok({ error: "missing_username", reason: "color grouping requires username" });
+    let games;
+    try {
+      games = parsePgn(pgn);
+    } catch (e) {
+      return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
+    }
+    if (!games.length) return ok({ error: "invalid_pgn", reason: "no games" });
+    games = games.slice(0, max_games ?? 100);
+
+    const records: GameRecord[] = [];
+    for (const game of games) {
+      let userColor: Color | null = null;
+      if (username) {
+        const u = username.toLowerCase();
+        const white = (game.headers.get("White") ?? "").toLowerCase();
+        const black = (game.headers.get("Black") ?? "").toLowerCase();
+        if (white === u) userColor = "white";
+        else if (black === u) userColor = "black";
+        else continue; // username given but didn't play this game
+      }
+      const gamePgn = makePgn(game);
+      const recs = await analyzeMainline(gamePgn, depth ?? 12);
+      if (recs === null) return ok({ error: "engine_unavailable" });
+
+      const relevant = userColor ? recs.filter((r) => r.color === userColor) : recs;
+      const avg_cpl = relevant.length ? relevant.reduce((a, r) => a + r.cp_loss, 0) / relevant.length : 0;
+      const blunders = relevant
+        .filter((r) => r.classification !== "good")
+        .map((r) => ({ move: r.san, classification: r.classification }));
+
+      let group_key: string;
+      let group_name: string;
+      if (mode === "color") {
+        group_key = userColor!;
+        group_name = userColor!;
+      } else {
+        const op = identifyDeepest(openingsTable, gamePgn);
+        group_key = op?.eco ?? "unknown";
+        group_name = op?.name ?? "Unknown";
+      }
+
+      let result: GameRecord["result"] = null;
+      if (username) {
+        const rh = game.headers.get("Result") ?? "*";
+        if (rh === "1/2-1/2") result = "draw";
+        else if (rh === "1-0") result = userColor === "white" ? "win" : "loss";
+        else if (rh === "0-1") result = userColor === "black" ? "win" : "loss";
+      }
+      records.push({ result, group_key, group_name, avg_cpl: Math.round(avg_cpl * 10) / 10, blunders });
+    }
+    return ok(aggregateGames(records, !!username));
   },
 );
 

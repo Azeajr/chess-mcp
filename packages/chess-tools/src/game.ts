@@ -55,3 +55,65 @@ export function classifyCpLoss(cpLoss: number): MoveClass {
 export function moveAccuracy(cpLoss: number): number {
   return Math.exp(-Math.max(0, cpLoss) / 300);
 }
+
+export interface GameRecord {
+  result: "win" | "loss" | "draw" | null;
+  group_key: string;
+  group_name: string;
+  avg_cpl: number;
+  blunders: { move: string; classification: MoveClass }[];
+}
+
+/**
+ * Aggregate per-game records by group (port of _aggregate_games). Computes avg CPL, top blunders
+ * by frequency, and — when `decided` (a user POV exists) — win/draw/loss rates + worst/best group.
+ */
+export function aggregateGames(records: GameRecord[], decided: boolean) {
+  if (!records.length) return { total_games: 0, groups: [], worst_group: null, best_group: null };
+
+  interface Acc {
+    key: string;
+    name: string;
+    games: number;
+    cplSum: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    bc: Map<string, number>;
+  }
+  const groups = new Map<string, Acc>();
+  for (const r of records) {
+    let g = groups.get(r.group_key);
+    if (!g) {
+      g = { key: r.group_key, name: r.group_name, games: 0, cplSum: 0, wins: 0, draws: 0, losses: 0, bc: new Map() };
+      groups.set(r.group_key, g);
+    }
+    g.games++;
+    g.cplSum += r.avg_cpl;
+    if (decided && r.result === "win") g.wins++;
+    else if (decided && r.result === "draw") g.draws++;
+    else if (decided && r.result === "loss") g.losses++;
+    for (const b of r.blunders) g.bc.set(b.move, (g.bc.get(b.move) ?? 0) + 1);
+  }
+
+  const out = [...groups.values()]
+    .map((g) => {
+      const top_blunders = [...g.bc.entries()].sort((a, b) => b[1] - a[1]).map(([move, frequency]) => ({ move, frequency }));
+      const base = { key: g.key, name: g.name, games: g.games, avg_cpl: Math.round((g.cplSum / g.games) * 10) / 10, top_blunders };
+      return decided ? { ...base, win_rate: g.wins / g.games, draw_rate: g.draws / g.games, loss_rate: g.losses / g.games } : base;
+    })
+    .sort((a, b) => b.games - a.games);
+
+  let worst_group = null;
+  let best_group = null;
+  if (decided) {
+    const byWin = ([...out] as Array<{ key: string; name: string; win_rate: number }>).sort(
+      (a, b) => a.win_rate - b.win_rate,
+    );
+    const lo = byWin[0];
+    const hi = byWin[byWin.length - 1];
+    if (lo) worst_group = { key: lo.key, name: lo.name, win_rate: lo.win_rate };
+    if (hi) best_group = { key: hi.key, name: hi.name, win_rate: hi.win_rate };
+  }
+  return { total_games: records.length, groups: out, worst_group, best_group };
+}
