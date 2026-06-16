@@ -30,7 +30,7 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, type GameRecord } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, type GameRecord } from "@chess-mcp/chess-tools";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -524,6 +524,67 @@ server.tool(
     const games = await chesscomGames(username, year, month, opening_eco, include_pgn ?? false);
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
     return ok({ platform: "chesscom", username, year, month, total: games.length, games });
+  },
+);
+
+// --- repertoire vs played games (network + handle) ---
+server.tool(
+  "repertoire_vs_history",
+  "Compare a repertoire against a user's real games: how often they reach prep, where they leave it (player_deviations — the drill list), and what opponents play past it (uncovered_opponent_moves). Only games on the repertoire's color count.",
+  {
+    repertoire_id: z.string(),
+    username: z.string(),
+    platform: z.enum(["lichess", "chesscom"]).optional(),
+    max_games: z.number().int().min(1).max(100).optional(),
+    year: z.number().int().optional(),
+    month: z.number().int().min(1).max(12).optional(),
+  },
+  async ({ repertoire_id, username, platform, max_games, year, month }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const plat = platform ?? "lichess";
+    let games;
+    if (plat === "chesscom") {
+      if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
+      games = await chesscomGames(username, year, month, undefined, true);
+    } else {
+      games = await lichessGames(username, max_games ?? 30, undefined, true);
+    }
+    if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
+
+    const matched = games.filter((g) => g.user_color === e.color && g.pgn);
+    const map = e.tree.moveMap();
+    let reached = 0;
+    let plySum = 0;
+    const dev = new Map<string, { fen: string; prescribed: string[]; played: string; count: number }>();
+    const unc = new Map<string, { fen: string; played: string; count: number }>();
+    for (const g of matched) {
+      const w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      if (w.in_book_plies >= 1) reached++;
+      plySum += w.in_book_plies;
+      if (w.player_deviation) {
+        const k = `${w.player_deviation.fen}|${w.player_deviation.played}`;
+        const cur = dev.get(k) ?? { ...w.player_deviation, count: 0 };
+        cur.count++;
+        dev.set(k, cur);
+      }
+      if (w.uncovered_opponent) {
+        const k = `${w.uncovered_opponent.fen}|${w.uncovered_opponent.played}`;
+        const cur = unc.get(k) ?? { ...w.uncovered_opponent, count: 0 };
+        cur.count++;
+        unc.set(k, cur);
+      }
+    }
+    const byCount = <T extends { count: number }>(m: Map<string, T>) => [...m.values()].sort((a, b) => b.count - a.count);
+    return ok({
+      games_total: games.length,
+      games_matched_color: matched.length,
+      games_reached_prep: reached,
+      coverage_pct: matched.length ? Math.round((reached / matched.length) * 1000) / 10 : null,
+      avg_in_book_plies: matched.length ? Math.round((plySum / matched.length) * 10) / 10 : null,
+      player_deviations: byCount(dev).slice(0, 20),
+      uncovered_opponent_moves: byCount(unc).slice(0, 20),
+    });
   },
 );
 

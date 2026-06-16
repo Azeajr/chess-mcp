@@ -8,7 +8,7 @@ import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
 import { parsePgn } from "chessops/pgn";
-import type { Color } from "./congruence.js";
+import { positionKey, type Color } from "./congruence.js";
 
 export interface MainlineMove {
   ply: number;
@@ -54,6 +54,41 @@ export function classifyCpLoss(cpLoss: number): MoveClass {
 /** Per-move accuracy in [0,1] from cp loss: exp(-loss/300). Averaged → accuracy_pct. */
 export function moveAccuracy(cpLoss: number): number {
   return Math.exp(-Math.max(0, cpLoss) / 300);
+}
+
+export type RepertoireMoveMap = Map<string, { sans: string[]; turn: Color }>;
+
+export interface GameWalk {
+  /** plies the game stayed in the repertoire before its first departure. */
+  in_book_plies: number;
+  /** where the user (repertoire side) left their own prep, if they did. */
+  player_deviation: { fen: string; prescribed: string[]; played: string } | null;
+  /** where the opponent played a move the prep doesn't cover, if they did. */
+  uncovered_opponent: { fen: string; played: string } | null;
+}
+
+/**
+ * Walk a played game's mainline against a repertoire move-map (port of walk_game_vs_repertoire).
+ * Records only the FIRST departure from book. `repColor` is the side the repertoire is for.
+ */
+export function walkGameVsRepertoire(map: RepertoireMoveMap, repColor: Color, pgn: string): GameWalk {
+  const moves = mainline(pgn);
+  let inBook = 0;
+  for (const m of moves) {
+    const entry = map.get(positionKey(m.fenBefore));
+    if (!entry) break; // position not in the prep
+    if (m.color === repColor) {
+      // player to move: did they follow their own prep?
+      if (!entry.sans.includes(m.san))
+        return { in_book_plies: inBook, player_deviation: { fen: m.fenBefore, prescribed: entry.sans, played: m.san }, uncovered_opponent: null };
+    } else {
+      // opponent to move: is their move covered?
+      if (!entry.sans.includes(m.san))
+        return { in_book_plies: inBook, player_deviation: null, uncovered_opponent: { fen: m.fenBefore, played: m.san } };
+    }
+    inBook++;
+  }
+  return { in_book_plies: inBook, player_deviation: null, uncovered_opponent: null };
 }
 
 export interface GameRecord {

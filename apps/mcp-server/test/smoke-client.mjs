@@ -27,7 +27,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 27, "27 tools registered");
+ok(tools.length === 28, "28 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -114,6 +114,12 @@ ok(!lg.error && lg.total >= 1 && typeof lg.games?.[0]?.white === "string", "lich
 const cg = await call(client, "chesscom_games", { username: "hikaru", year: 2024, month: 1 });
 console.log("  chesscom:", cg.error ?? `${cg.total} games, e.g. ${cg.games?.[0]?.white} vs ${cg.games?.[0]?.black}`);
 ok(!cg.error && cg.total >= 1 && typeof cg.games?.[0]?.white === "string", "chesscom_games returns parsed games");
+
+console.log("repertoire_vs_history (live)…");
+const rvhRep = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 *", color: "white" });
+const rvh = await call(client, "repertoire_vs_history", { repertoire_id: rvhRep.repertoire_id, username: "german11", platform: "lichess", max_games: 15 });
+console.log("  rvh:", rvh.error ?? `total ${rvh.games_total}, matched ${rvh.games_matched_color}, coverage ${rvh.coverage_pct}%`);
+ok(!rvh.error && typeof rvh.games_total === "number" && Array.isArray(rvh.player_deviations), "repertoire_vs_history runs over real games");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();

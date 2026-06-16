@@ -17,6 +17,7 @@ import {
   identifyDeepest,
   boardSvg,
   aggregateGames,
+  walkGameVsRepertoire,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -174,6 +175,15 @@ const aggRecs = [
 const agg = aggregateGames(aggRecs, true);
 ok(agg.total_games === 2 && agg.groups[0].top_blunders[0].move === "e5" && agg.groups[0].top_blunders[0].frequency === 3, "aggregateGames top blunder e5 x3");
 ok(agg.groups[0].loss_rate === 1, "aggregateGames loss_rate 1.0");
+
+// 21. walkGameVsRepertoire — followed / opponent-departed / player-departed
+const mapH = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *").moveMap();
+const followed = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+ok(followed.in_book_plies === 4 && !followed.player_deviation && !followed.uncovered_opponent, "followed prep: 4 in-book plies");
+const oppDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. Nf3 d6 *");
+ok(oppDev.in_book_plies === 3 && oppDev.uncovered_opponent?.played === "d6", "opponent left book at d6");
+const playerDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. d4 *");
+ok(playerDev.in_book_plies === 2 && playerDev.player_deviation?.played === "d4", "player left prep at d4");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

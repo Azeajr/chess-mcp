@@ -229,6 +229,30 @@ export class GameTree {
     };
   }
 
+  /**
+   * Position-keyed map of the moves the repertoire prescribes (port of player_move_map). For
+   * every position with ≥1 continuation: the child SANs + side to move. Transposition-aware (one
+   * entry per position). Used to walk a played game against the prep (repertoire_vs_history).
+   */
+  moveMap(): Map<string, { sans: string[]; turn: Color }> {
+    const map = new Map<string, { sans: string[]; turn: Color }>();
+    const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
+      if (node.children.length) {
+        const key = positionKey(makeFen(pos.toSetup()));
+        if (!map.has(key)) map.set(key, { sans: node.children.map((c) => c.data.san), turn: pos.turn });
+      }
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        dfs(child, next);
+      }
+    };
+    dfs(this.game.moves, Chess.default());
+    return map;
+  }
+
   /** Resolve a SAN variation path to its node + parent (null parent at the root). */
   private resolveSan(sans: readonly string[]): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
     let node: Node<PgnNodeData> = this.game.moves;
