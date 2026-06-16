@@ -6,3 +6,9 @@ uv.lock
 .coverage
 htmlcov/
 logs/
+
+# node / pnpm
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
