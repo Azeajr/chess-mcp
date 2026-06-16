@@ -18,6 +18,9 @@ import {
   boardSvg,
   aggregateGames,
   walkGameVsRepertoire,
+  positionProfile,
+  themes,
+  centerState,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -184,6 +187,16 @@ const oppDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. Nf3 d6 *");
 ok(oppDev.in_book_plies === 3 && oppDev.uncovered_opponent?.played === "d6", "opponent left book at d6");
 const playerDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. d4 *");
 ok(playerDev.in_book_plies === 2 && playerDev.player_deviation?.played === "d4", "player left prep at d4");
+
+// 22. structure — themes, center state, primitives
+const fianchetto = GameTree.fromPgn("1. g3 g6 2. Bg2 Bg7 *").positionAtSanPath(["g3", "g6", "Bg2", "Bg7"]);
+const th = themes(fianchetto.board, "white");
+ok(th.fianchetto_white && th.fianchetto_black, "fianchetto themes detected (both sides)");
+ok(centerState(GameTree.fromPgn("1. e4 e5 *").positionAtSanPath(["e4", "e5"]).board) === "locked", "1.e4 e5 → locked center");
+ok(centerState(GameTree.fromPgn("1. e4 c5 *").positionAtSanPath(["e4", "c5"]).board) === "semi-open", "1.e4 c5 → semi-open (home d-pawns still central)");
+const dbl = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 *").positionAtSanPath(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6"]);
+const prof = positionProfile(dbl.board, "black", "");
+ok(prof.primitives.doubled.includes("c6") && prof.primitives.doubled.includes("c7"), "doubled c-pawns for black after Bxc6 dxc6");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

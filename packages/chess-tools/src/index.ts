@@ -11,6 +11,8 @@ export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
 export { decisionNodes, gapSeverity, moveSan, SEVERITY_RANK } from "./gaps.js";
 export type { DecisionNode, Severity } from "./gaps.js";
+export { positionProfile, aggregateProfile, themes, centerState, classifyStructure } from "./structure.js";
+export type { Themes } from "./structure.js";
 export { fetchJson, fetchText } from "./apiclient.js";
 export { lichessGames, chesscomGames } from "./games.js";
 export type { GameMeta } from "./games.js";

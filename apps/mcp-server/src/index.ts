@@ -30,7 +30,8 @@ import {
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, type GameRecord } from "@chess-mcp/chess-tools";
+import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, type GameRecord } from "@chess-mcp/chess-tools";
+import { makeFen } from "chessops/fen";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -585,6 +586,23 @@ server.tool(
       player_deviations: byCount(dev).slice(0, 20),
       uncovered_opponent_moves: byCount(unc).slice(0, 20),
     });
+  },
+);
+
+// --- structure (descriptive; named-structure scorers deferred) ---
+server.tool(
+  "get_structural_profile",
+  "Static pawn-structure profile of a repertoire. variation_path (SAN list) → one position's profile (center, primitives, files, themes). Omit it → aggregate fingerprint over all leaves. structure_class is currently 'unknown' (named-structure scorers not yet ported); the themes carry the structural signal.",
+  { repertoire_id: z.string(), variation_path: z.array(z.string()).optional() },
+  ({ repertoire_id, variation_path }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    if (variation_path && variation_path.length) {
+      const pos = e.tree.positionAtSanPath(variation_path);
+      if (!pos) return ok({ error: "variation_not_found", reason: "path does not match a line in the repertoire" });
+      return ok(positionProfile(pos.board, e.color, makeFen(pos.toSetup())));
+    }
+    return ok({ color: e.color, ...aggregateProfile(e.tree.leafPositions().map((p) => p.board), e.color) });
   },
 );
 

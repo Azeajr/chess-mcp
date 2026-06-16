@@ -253,6 +253,29 @@ export class GameTree {
     return map;
   }
 
+  /** Chess position at a SAN variation path, or null if the path doesn't match the tree. */
+  positionAtSanPath(sans: readonly string[]): Chess | null {
+    if (!this.resolveSan(sans)) return null;
+    return this.positionAtSan(sans);
+  }
+
+  /** Chess position at every leaf (for aggregate structural analysis). */
+  leafPositions(): Chess[] {
+    const out: Chess[] = [];
+    const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        if (child.children.length === 0) out.push(next);
+        else dfs(child, next);
+      }
+    };
+    dfs(this.game.moves, Chess.default());
+    return out;
+  }
+
   /** Resolve a SAN variation path to its node + parent (null parent at the root). */
   private resolveSan(sans: readonly string[]): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
     let node: Node<PgnNodeData> = this.game.moves;
