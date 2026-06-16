@@ -3,13 +3,36 @@
  * tools it called as chips, surfaces errors. Position context is injected automatically by the
  * chat store. Proposed lines land in the AnalysisPanel (Suggestions) + as blue board arrows.
  */
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { history, streamingText, busy, error, send, clearChat } from "../store/chat";
 import { hasApiKey } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
+import type { ChatMessage } from "../llm/openrouter";
+
+function buildToolNameMap(msgs: ChatMessage[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of msgs) {
+    if (m.role === "assistant" && m.tool_calls) {
+      for (const tc of m.tool_calls) map.set(tc.id, tc.function.name);
+    }
+  }
+  return map;
+}
+
+function isErrorResult(content: string | null): boolean {
+  if (!content) return false;
+  try {
+    const v = JSON.parse(content) as unknown;
+    return typeof v === "object" && v !== null && "error" in v;
+  } catch {
+    return false;
+  }
+}
 
 export default function ChatPanel() {
   const [input, setInput] = createSignal("");
+
+  const toolNames = createMemo(() => buildToolNameMap(history()));
 
   const submit = () => {
     const text = input();
@@ -41,6 +64,15 @@ export default function ChatPanel() {
                 <div class="tool-chips">
                   <For each={m.tool_calls}>{(tc) => <span class="chip">⚙ {tc.function.name}</span>}</For>
                 </div>
+              </Show>
+              <Show when={m.role === "tool" && m.tool_call_id}>
+                <details class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
+                  <summary>
+                    {toolNames().get(m.tool_call_id!) ?? "tool"} result
+                    {isErrorResult(m.content) ? " ⚠" : ""}
+                  </summary>
+                  <pre>{m.content}</pre>
+                </details>
               </Show>
             </>
           )}

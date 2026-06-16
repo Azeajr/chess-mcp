@@ -35,8 +35,9 @@ const [engineLines, setLines] = createSignal<EngineLine[]>([]);
 const [engineArrows, setArrows] = createSignal<Arrow[]>([]);
 const [analysing, setAnalysing] = createSignal(false);
 const [engineOffline, setEngineOffline] = createSignal(false);
+const [evalEnabled, setEvalEnabled] = createSignal(true);
 
-export { engineLines, engineArrows, analysing, engineOffline };
+export { engineLines, engineArrows, analysing, engineOffline, evalEnabled, setEvalEnabled };
 
 function toArrow(l: EngineLine): Arrow {
   return {
@@ -53,6 +54,14 @@ createEffect(() => {
   const tree = currentTree();
   const path = currentPath();
   const col = color();
+  const enabled = evalEnabled();
+
+  if (!enabled) {
+    setAnalysing(false);
+    setLines([]);
+    setArrows([]);
+    return;
+  }
 
   let cancelled = false;
   const t = setTimeout(() => {

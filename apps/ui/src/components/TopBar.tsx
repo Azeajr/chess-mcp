@@ -6,6 +6,7 @@ import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
 import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
 import { setSettingsOpen } from "../store/ui";
+import { evalEnabled, setEvalEnabled } from "../store/analysis";
 
 export default function TopBar() {
   return (
@@ -39,6 +40,12 @@ export default function TopBar() {
         <option value="white">White</option>
         <option value="black">Black</option>
       </select>
+      <button
+        title={evalEnabled() ? "Disable board engine eval" : "Enable board engine eval"}
+        onClick={() => setEvalEnabled((v) => !v)}
+      >
+        Eval {evalEnabled() ? "On" : "Off"}
+      </button>
       <button onClick={() => setSettingsOpen(true)}>Settings</button>
     </div>
   );

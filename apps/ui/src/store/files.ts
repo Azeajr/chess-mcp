@@ -7,6 +7,7 @@
 import { createSignal } from "solid-js";
 import { actions, fileName } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
+import { send } from "./chat";
 
 type Perm = "granted" | "denied" | "prompt";
 type FilePickerHandle = {
@@ -41,8 +42,14 @@ export function clearHandle() {
   void idbDel(HANDLE_KEY);
 }
 
+const AUTO_ANALYZE_PROMPT =
+  "Repertoire loaded. Give me an overview: what opening system is this, which color plays it, " +
+  "and are there any questionable moves in the main line? Use get_position to see the PGN, " +
+  "then evaluate_position on at most 2–3 critical positions.";
+
 async function loadFromHandle(h: FilePickerHandle) {
   actions.loadPgn(await (await h.getFile()).text(), h.name);
+  void send(AUTO_ANALYZE_PROMPT);
 }
 
 export async function openFile() {
@@ -59,7 +66,10 @@ export async function openFile() {
   input.accept = ".pgn";
   input.onchange = async () => {
     const f = input.files?.[0];
-    if (f) actions.loadPgn(await f.text(), f.name);
+    if (f) {
+      actions.loadPgn(await f.text(), f.name);
+      void send(AUTO_ANALYZE_PROMPT);
+    }
   };
   input.click();
 }
