@@ -1,34 +1,16 @@
 {
   "name": "chess-mcp",
-  "description": "Grounded chess analysis — Stockfish + Maia via Docker. Skills: game review, repertoire builder, position analysis, annotated PGN.",
-  "version": "0.3.0",
+  "description": "Grounded chess analysis — local Stockfish over a Node MCP server (no Docker). Skills: game review, repertoire builder, position analysis, annotated PGN.",
+  "version": "1.0.0",
   "author": {
     "name": "Antonio Zea"
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "docker start chess-mcp-server 2>/dev/null || docker run -d --name chess-mcp-server -p 8000:8000 -e FASTMCP_HOST=0.0.0.0 -e ANALYSIS_DEPTH=18 -e STOCKFISH_PATH=/usr/games/stockfish -e EVAL_CACHE_PATH=/cache/eval-cache.db -v chess-mcp-eval-cache:/cache --restart unless-stopped ghcr.io/azeajr/chess-mcp:latest && timeout 15 bash -c 'until curl -s -o /dev/null http://localhost:8000/ 2>/dev/null; do sleep 0.5; done'"
-          }
-        ]
-      }
-    ]
-  },
   "mcpServers": {
     "chess-analysis": {
-      "type": "sse",
-      "url": "http://localhost:8000/sse"
-    },
-    "chess-files": {
       "type": "stdio",
       "command": "sh",
-      "args": ["-c", "MROOT=$(dirname \"$CLAUDE_PLUGIN_ROOT\")/../../../marketplaces/chess-mcp; exec env REPERTOIRE_DIR=\"$MROOT/repertoires\" uv run --directory \"$MROOT/server\" chess-files"],
-      "env": {
-        "CHESS_MCP_URL": "http://localhost:8000/sse"
-      }
+      "args": ["-c", "MROOT=$(dirname \"$CLAUDE_PLUGIN_ROOT\")/../../../marketplaces/chess-mcp; REPDIR=\"$CLAUDE_PLUGIN_DATA/repertoires\"; mkdir -p \"$REPDIR\"; exec env REPERTOIRE_DIR=\"$REPDIR\" node --import tsx \"$MROOT/apps/mcp-server/src/index.ts\""],
+      "env": {}
     }
   }
 }
