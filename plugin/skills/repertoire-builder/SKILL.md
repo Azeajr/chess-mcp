@@ -26,9 +26,9 @@ Everything engine-grounded; nothing asserted from memory.
    `validate_pgn`. On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the
    **normalized** `fen` the validator returns as the position from here on.
 2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
-   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
-   `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
-   `validate_line` and continue from the `final_fen` it returns.
+   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` (its
+   ranked `lines`) or `get_legal_moves`. To explore a line, pass the moves to `validate_line` and
+   continue from the `finalFen` it returns.
 3. **FENs come only from the MCP.** Use the `fen` a tool returned; the one FEN you may type is the
    standard start position.
 4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never
@@ -66,8 +66,8 @@ comparing handles, with no re-download. See "Edit loop" below.
 
 ## Workflow
 
-0. `validate_pgn(pgn)` — confirm the repertoire PGN parses (expect `has_variations:true` for a real
-   tree). On `valid:false`, stop and report; never load unvalidated input.
+0. `validate_pgn(pgn)` — confirm the repertoire PGN parses (returns `{valid, games}`). On
+   `valid:false`, stop and report; never load unvalidated input.
 1. `load_repertoire(pgn, color)` → `repertoire_id` — or `load_repertoire_from_file(path, color)`
    when the repertoire is a file on disk (same handle, read server-side; see above). Note `leaves`
    (how many distinct lines) and `max_depth`.
@@ -82,11 +82,12 @@ comparing handles, with no re-download. See "Edit loop" below.
    (SAN `variation_path`s) + its `cluster` label; the result's `clusters` shows the system partition.
 4. **Drill a flagged line** (or any leaf): `get_structural_profile(repertoire_id, variation_path)` →
    that node's `fen`, `structure_class`, `center`, pawn `primitives`, files.
-5. **Soundness + opponent prep** at that node: `evaluate_position(fen, multipv=3)` → ranked
-   `candidates`. The top line is the user's best option (compare to what they actually play — a played
-   move that isn't near the top and drops eval is **weak**). The candidates at an *opponent* node are
-   the critical tries the repertoire must answer; an unanswered strong one is a **gap**. Ground any
-   line with `validate_line(fen, [...])` before stating it.
+5. **Soundness + opponent prep** at that node: `evaluate_position(fen, lines=3)` → `{fen, lines}`
+   ranked best-first. `lines[0]` is the user's best option (compare to what they actually play — a
+   played move that isn't near the top and drops eval is **weak**). The lines at an *opponent* node
+   are the critical tries the repertoire must answer; an unanswered strong one is a **gap** (or use
+   `find_repertoire_gaps` to scan for them). Ground any line with `validate_line(fen, [...])` before
+   stating it.
 6. **Extend or diversify** from any position: `suggest_complementary_lines(repertoire_id, fen, mode)`.
    - `mode="low_memorization"` → continuations whose resulting structure the user **already plays**
      elsewhere (high `profile_match`) — least new theory.
@@ -103,7 +104,7 @@ Once analysis surfaces a change to make, apply it through the MCP and re-analyze
 same session — no hand-editing, no re-download, no fresh session:
 
 1. **Decide the edit from a tool result.** A prune target is a flagged `path`; an `add` continuation
-   comes from `suggest_complementary_lines` / `evaluate_position` candidates (confirm with
+   comes from `suggest_complementary_lines` / `evaluate_position` `lines` (confirm with
    `validate_line`); a `reorder` promotes an existing child move. You only ever pass back paths + SAN
    the MCP already surfaced.
 2. **Apply it:** `modify_repertoire_line(repertoire_id, path, action, …)` →

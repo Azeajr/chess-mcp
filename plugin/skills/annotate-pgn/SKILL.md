@@ -16,9 +16,9 @@ Turns the ephemeral review into a durable, importable artifact.
    On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the **normalized**
    `fen` the validator returns as the position from here on.
 2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
-   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
-   `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
-   `validate_line` and continue from the `final_fen` it returns.
+   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` (its
+   ranked `lines`) or `get_legal_moves`. To explore a line, pass the moves to `validate_line` and
+   continue from the `finalFen` it returns.
 3. **FENs come only from the MCP.** Use the `fen` a tool returned; the one FEN you may type is the
    standard start position.
 4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never

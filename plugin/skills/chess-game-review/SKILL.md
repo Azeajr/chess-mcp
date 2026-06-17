@@ -19,9 +19,9 @@ every claim grounded.
    On `valid:false`, stop and report — never analyze, guess, or "fix" it. Use the **normalized**
    `fen` the validator returns as the position from here on.
 2. **Never author a move, line, FEN, or PGN from memory.** Every move/eval you state comes from a
-   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` /
-   `get_legal_moves` / `alternatives` / `candidates`. To explore a line, pass the moves to
-   `validate_line` and continue from the `final_fen` it returns.
+   tool result; every line passes `validate_line`. Name a move only from `evaluate_position` (its
+   ranked `lines`) or `get_legal_moves`. To explore a line, pass the moves to `validate_line` and
+   continue from the `finalFen` it returns.
 3. **FENs come only from the MCP.** Use the `fen` a tool returned; the one FEN you may type is the
    standard start position.
 4. **Tools down → stop.** If the `chess-analysis` tools are unavailable, say so and stop — never
@@ -46,9 +46,10 @@ point is to not guess.
 
 ## The loop
 
-0. **Validate the PGN.** `validate_pgn(pgn)` first — confirm it parses; if `has_variations` is true
-   it's a tree (repertoire work → use the repertoire-builder skill). On `valid:false`, stop and
-   report; never analyze unvalidated input.
+0. **Validate the PGN.** `validate_pgn(pgn)` first — confirm it parses (returns `{valid, games}`).
+   On `valid:false`, stop and report; never analyze unvalidated input. If the PGN is a branching
+   tree (variations) rather than a single game, that's repertoire work → use the repertoire-builder
+   skill.
 1. **Overview first.** `get_game_summary(pgn)` → opening, per-side counts, accuracy %, and the
    top-3 `worst_moves`. Lead your reply with this verdict. One call, small output.
 2. **Mistake list.** `analyze_game(pgn)` → every move with lean fields (`ply`, `color`, `san`,
@@ -57,14 +58,14 @@ point is to not guess.
 3. **Drill the ones that matter.** Call `analyze_game(pgn, verbose=true)` so each move record carries
    `best_move`, `eval_cp` (white-POV after the move), and `best_eval` — enough to explain most
    mistakes directly. To get a specific position's **FEN**, `validate_line(startpos, [the mainline
-   SANs up to that move])` → its `final_fen` (`get_position(fen)` then normalises / lists legal
+   SANs up to that move])` → its `finalFen` (`get_position(fen)` then normalises / lists legal
    moves). Don't drill every move — only what you'll speak to.
-4. **Ground anything you add.** The `final_fen` from step 3 is the bridge — pass it straight to:
+4. **Ground anything you add.** The `finalFen` from step 3 is the bridge — pass it straight to:
    - `evaluate_position(fen)` — eval a what-if position.
    - `validate_line(fen, [...])` — **before stating any line or "they should have played…"**,
      validate it. If it comes back `valid:false`, do not state it.
-   - `get_legal_moves(fen)` — when you need to name a move and aren't quoting `best_move` /
-     `alternatives`, pick from here. Never invent a move.
+   - `get_legal_moves(fen)` — when you need to name a move and aren't quoting `best_move`, pick from
+     here. Never invent a move.
 
 ## Grounding rules (non-negotiable)
 
