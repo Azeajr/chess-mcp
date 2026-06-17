@@ -5,9 +5,10 @@
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { history, streamingText, busy, error, send, clearChat } from "../store/chat";
-import { hasApiKey } from "../store/settings";
+import { hasApiKey, chatMode, setChatMode } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import type { ChatMessage } from "../llm/openrouter";
+import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 
 function buildToolNameMap(msgs: ChatMessage[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -45,6 +46,14 @@ export default function ChatPanel() {
     <div class="chat">
       <div class="panel-head">
         <span>Chat</span>
+        <select
+          class="chat-mode"
+          title="Workflow: tells the assistant which tools to use, in what order, for this kind of task"
+          value={chatMode()}
+          onChange={(e) => setChatMode(e.currentTarget.value as ChatMode)}
+        >
+          <For each={CHAT_MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
+        </select>
         <button class="scan-btn" onClick={clearChat}>
           Clear
         </button>

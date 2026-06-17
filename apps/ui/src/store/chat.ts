@@ -10,14 +10,12 @@
 import { createSignal } from "solid-js";
 import { streamChat, type ChatMessage } from "../llm/openrouter";
 import { toolSchemas, runTool } from "../llm/tools";
-import { apiKey, model, hasApiKey } from "./settings";
+import { workflowPrompt } from "../llm/workflows";
+import { apiKey, model, hasApiKey, chatMode } from "./settings";
 import { fen, color, actions } from "./game";
 
-const SYSTEM_PROMPT = `You are a chess opening-repertoire assistant embedded in a board UI.
-Always ground claims by calling tools (evaluate_position, get_legal_moves, find_repertoire_gaps,
-…) — never invent evaluations or assume a position. When you recommend a concrete continuation,
-call propose_line so the user sees it on the board and can accept it; do not claim a line was added.
-Be concise.`;
+const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Every tool runs locally
+against the board, the chess engine, and the chess library — use them; never guess. Be concise.`;
 
 // One tool round ≈ one position checked; repertoire trees have many branches, so 6 was too low
 // (retro #5). Still bounded to keep API cost predictable on a runaway loop.
@@ -37,7 +35,7 @@ export function clearChat() {
 
 function systemMessage(): ChatMessage {
   const ctx = `Current FEN: ${fen()}\nRepertoire color: ${color()}\nWorking PGN:\n${actions.toPgn()}`;
-  return { role: "system", content: `${SYSTEM_PROMPT}\n\n${ctx}` };
+  return { role: "system", content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${ctx}` };
 }
 
 export async function send(userText: string) {

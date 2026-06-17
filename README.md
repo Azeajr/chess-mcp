@@ -30,6 +30,8 @@ A SolidJS board UI for building/studying repertoires: play moves into a variatio
 
 **In-app chat tools (client-side).** The chat's tools run entirely in the browser against the shared `chess-tools` logic + the local Stockfish wasm — the same repertoire toolset the MCP server exposes (`find_repertoire_gaps`, `get_structural_profile`, `analyze_repertoire_congruence`, `suggest_*`, game review, gaps, …), reimplemented with no backend. So the chat is fully featured in `pnpm dev` **and** in the deployed/built PWA (e.g. on a static host like Cloudflare Pages — no Node process required). The engine-dependent orchestration is the shared implementation the Node server uses too (`packages/chess-tools/src/enginetools.ts`), so server and PWA stay in lockstep. Only the host-filesystem tools (`*_from_file`/`*_to_file`) are MCP-only — the PWA uses the File System Access picker instead.
 
+A **workflow mode** selector in the chat panel (General / Repertoire / Game review / Position / Annotate) injects the matching playbook into the system prompt — the PWA counterpart of the Claude Code skills (`apps/ui/src/llm/workflows.ts`), telling the assistant which tools to call in what order plus the grounding rules. The skills under `.claude/skills/` remain the Claude Code version (handle-based); the PWA prompts are adapted to its handle-free, current-tree tools.
+
 ## Problem
 
 AI agents reviewing chess games generate moves from pattern-matching, not board state. They have no legal move generator and no engine — so they invent plausible-looking but illegal or nonsensical lines. This MCP fixes that by giving the agent real tools to check its work before stating anything.

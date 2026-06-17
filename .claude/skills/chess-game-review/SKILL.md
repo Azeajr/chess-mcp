@@ -51,14 +51,15 @@ point is to not guess.
    report; never analyze unvalidated input.
 1. **Overview first.** `get_game_summary(pgn)` → opening, per-side counts, accuracy %, and the
    top-3 `worst_moves`. Lead your reply with this verdict. One call, small output.
-2. **Mistake list.** `analyze_game(pgn, min_cp_loss=50)` → every inaccuracy-or-worse (lean fields).
-   Use `min_cp_loss=0` only if the user wants every move. Add `verbose=true` only when you actually
-   need `eval_after` / `best_pv` for the moves you'll discuss.
-3. **Drill the ones that matter.** For each move you'll explain (start with `worst_moves`, plus
-   anything the user asked about): `get_position(pgn, move_number, color)` → `fen`, `eval_cp`,
-   `move_played`, `best_move`, `best_pv`, `alternatives`. Don't drill every move — only what you'll
-   speak to.
-4. **Ground anything you add.** The `fen` from step 3 is the bridge — pass it straight to:
+2. **Mistake list.** `analyze_game(pgn)` → every move with lean fields (`ply`, `color`, `san`,
+   `cp_loss`, `classification`); focus on the inaccuracy-or-worse ones. Add `verbose=true` when you
+   want `eval_cp` / `best_move` / `best_eval` on each move for the ones you'll discuss.
+3. **Drill the ones that matter.** Call `analyze_game(pgn, verbose=true)` so each move record carries
+   `best_move`, `eval_cp` (white-POV after the move), and `best_eval` — enough to explain most
+   mistakes directly. To get a specific position's **FEN**, `validate_line(startpos, [the mainline
+   SANs up to that move])` → its `final_fen` (`get_position(fen)` then normalises / lists legal
+   moves). Don't drill every move — only what you'll speak to.
+4. **Ground anything you add.** The `final_fen` from step 3 is the bridge — pass it straight to:
    - `evaluate_position(fen)` — eval a what-if position.
    - `validate_line(fen, [...])` — **before stating any line or "they should have played…"**,
      validate it. If it comes back `valid:false`, do not state it.

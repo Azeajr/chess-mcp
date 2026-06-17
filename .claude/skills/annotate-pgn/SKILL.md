@@ -26,25 +26,24 @@ Turns the ephemeral review into a durable, importable artifact.
 
 ## Primary path: `export_annotated_pgn`
 
-The server builds the annotated PGN for you — grounded, across the mainline **and** every variation,
-in one engine pass. Prefer it; **do not hand-assemble a PGN string yourself** (that is a
-model-authored PGN — exactly what the contract forbids).
+The server builds the annotated PGN for you — grounded, in one engine pass over the game's mainline.
+Prefer it; **do not hand-assemble a PGN string yourself** (that is a model-authored PGN — exactly
+what the contract forbids).
 
 1. `validate_pgn(pgn)` — stop on `valid:false`.
-2. `export_annotated_pgn(pgn, min_cp_loss=50)` → `{pgn (annotated string), moves_annotated}`.
-   Glyphs (`?!` / `?` / `??`) + inline white-POV eval comments land on flagged moves; good moves
-   stay clean. Lower `min_cp_loss` to annotate more moves; `depth` / `time_limit` tune the pass
-   exactly as in `analyze_game`.
-3. Emit the returned `pgn` in a fenced ```pgn block and offer to save it to `<name>-annotated.pgn`.
+2. `export_annotated_pgn(pgn)` → `{annotated_pgn}`. Glyphs (`?!` / `?` / `??`) + inline white-POV
+   best-move/eval comments land on the flagged (non-good) moves; good moves stay clean. `depth`
+   tunes the pass exactly as in `analyze_game`.
+3. Emit the returned `annotated_pgn` in a fenced ```pgn block and offer to save it to
+   `<name>-annotated.pgn`.
 
 ## Fallback: manual assembly (only if a custom format is needed)
 
 If the user needs something `export_annotated_pgn` can't produce, assemble by hand — but every
 token must still come from a tool result, never from memory:
 
-- `analyze_game(pgn, min_cp_loss=0)` → per-move `classification` + `cp_loss`.
-- `get_position(pgn, move_number, color)` → `best_move` / `best_pv` / `eval_cp` for the moves you
-  annotate.
+- `analyze_game(pgn, verbose=true)` → per-move `classification`, `cp_loss`, `best_move`, `eval_cp`
+  for the moves you annotate.
 - Validate any suggested line with `validate_line` before writing it into a comment.
 
 | classification | glyph | NAG  |

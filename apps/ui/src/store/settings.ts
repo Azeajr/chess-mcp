@@ -4,9 +4,11 @@
  * Constraints & Security". Keep the bundle dependency-minimal.
  */
 import { createSignal } from "solid-js";
+import type { ChatMode } from "../llm/workflows";
 
 const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
+const KEY_MODE = "chess.chat.mode";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
 /** The selectable models (friendly label → OpenRouter slug), shown as chips in Settings. */
@@ -36,6 +38,13 @@ export function setModel(v: string) {
   const m = v.trim() || DEFAULT_MODEL;
   setModelRaw(m);
   localStorage.setItem(KEY_MODEL, m);
+}
+
+const [chatMode, setChatModeRaw] = createSignal<ChatMode>((read(KEY_MODE, "general") as ChatMode) || "general");
+export { chatMode };
+export function setChatMode(m: ChatMode) {
+  setChatModeRaw(m);
+  localStorage.setItem(KEY_MODE, m);
 }
 
 export const hasApiKey = () => apiKey().length > 0;
