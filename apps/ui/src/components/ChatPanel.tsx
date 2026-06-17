@@ -47,7 +47,7 @@ export default function ChatPanel() {
       <div class="panel-head">
         <span>Chat</span>
         <select
-          class="chat-mode"
+          class={`chat-mode${chatMode() ? "" : " needs-mode"}`}
           title="Workflow: tells the assistant which tools to use, in what order, for this kind of task"
           value={chatMode()}
           onChange={(e) => setChatMode(e.currentTarget.value as ChatMode)}
@@ -68,6 +68,12 @@ export default function ChatPanel() {
               </Show>
               <Show when={m.role === "assistant" && m.content}>
                 <div class="msg assistant">{m.content}</div>
+              </Show>
+              <Show when={m.role === "assistant" && m.raw_response}>
+                <details class="raw-response">
+                  <summary>raw assistant response</summary>
+                  <pre>{m.raw_response}</pre>
+                </details>
               </Show>
               <Show when={m.role === "assistant" && m.tool_calls}>
                 <div class="tool-chips">
@@ -105,11 +111,14 @@ export default function ChatPanel() {
           </a>
         </div>
       </Show>
+      <Show when={hasApiKey() && !chatMode()}>
+        <div class="chat-hint">Select a mode before sending.</div>
+      </Show>
 
       <div class="chat-input">
         <textarea
           rows="2"
-          placeholder="Ask about the position…"
+          placeholder={chatMode() ? "Ask about the position…" : "Select a mode first…"}
           value={input()}
           disabled={busy()}
           onInput={(e) => setInput(e.currentTarget.value)}

@@ -40,7 +40,7 @@ export function setModel(v: string) {
   localStorage.setItem(KEY_MODEL, m);
 }
 
-const [chatMode, setChatModeRaw] = createSignal<ChatMode>((read(KEY_MODE, "general") as ChatMode) || "general");
+const [chatMode, setChatModeRaw] = createSignal<ChatMode>(read(KEY_MODE, "") as ChatMode);
 export { chatMode };
 export function setChatMode(m: ChatMode) {
   setChatModeRaw(m);

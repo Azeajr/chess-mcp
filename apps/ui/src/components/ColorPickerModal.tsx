@@ -19,13 +19,13 @@ export default function ColorPickerModal() {
                   class={`color-btn${sel() === "white" ? " active" : ""}`}
                   onClick={() => setSel("white")}
                 >
-                  ♔ White
+                  <span class="color-piece color-piece-white" aria-hidden="true">♔</span> White
                 </button>
                 <button
                   class={`color-btn${sel() === "black" ? " active" : ""}`}
                   onClick={() => setSel("black")}
                 >
-                  ♚ Black
+                  <span class="color-piece" aria-hidden="true">♚</span> Black
                 </button>
               </div>
               <Show when={p().detectedColor}>

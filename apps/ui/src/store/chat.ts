@@ -45,6 +45,10 @@ export async function send(userText: string) {
     setError("Set your OpenRouter API key in Settings.");
     return;
   }
+  if (!chatMode()) {
+    setError("Select a chat mode first.");
+    return;
+  }
   setError(null);
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
@@ -53,7 +57,7 @@ export async function send(userText: string) {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       setStreamingText("");
       const messages = [systemMessage(), ...history()];
-      const { content, toolCalls } = await streamChat({
+      const { content, toolCalls, rawResponse } = await streamChat({
         apiKey: apiKey(),
         model: model(),
         messages,
@@ -63,7 +67,7 @@ export async function send(userText: string) {
       setStreamingText("");
       setHistory((h) => [
         ...h,
-        { role: "assistant", content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined },
+        { role: "assistant", content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined, raw_response: rawResponse },
       ]);
 
       if (!toolCalls.length) break;

@@ -70,7 +70,7 @@ const NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
 export const toolSchemas: ToolSchema[] = [
   fn("get_position", "Current board state: FEN, the repertoire color the user plays, and the full working PGN (with variations). Call this to ground yourself before analysing.", {}),
   fn("get_legal_moves", "Legal moves (SAN) at a position.", { fen: { type: "string", description: "FEN; defaults to the current position" } }),
-  fn("evaluate_position", "Local Stockfish multi-line analysis. Returns top moves with white-POV evaluation (cp, or mate). Use this for any 'what's best / how good is' question.", {
+  fn("evaluate_position", "Local Stockfish multi-line analysis. Returns top moves with white-POV evaluation (cp, or mate): positive favors White, negative favors Black. Use this for any 'what's best / how good is' question.", {
     fen: { type: "string", description: "FEN; defaults to the current position" },
     lines: { type: "integer", description: "number of top lines (default 3)" },
   }),
@@ -199,14 +199,14 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       const lines = typeof args.lines === "number" ? Math.max(1, Math.min(5, args.lines)) : 3;
       const res = await analyse(atFen, lines, depth ?? 14);
       if (!res) return { error: "engine offline" };
-      return { fen: atFen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(atFen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) };
+      return { fen: atFen, eval_pov: "white", eval_sign: "positive favors White; negative favors Black", lines: res.map((l) => ({ uci: l.uci, san: moveSan(atFen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) };
     }
 
     case "engine_move": {
       const res = await analyse(atFen, 1, depth ?? 16);
       const best = res?.[0];
       if (!best) return { error: "engine offline" };
-      return { uci: best.uci, san: moveSan(atFen, best.uci), cp: best.cp, mate: best.mate, depth: best.depth };
+      return { uci: best.uci, san: moveSan(atFen, best.uci), eval_pov: "white", eval_sign: "positive favors White; negative favors Black", cp: best.cp, mate: best.mate, depth: best.depth };
     }
 
     case "compare_moves":

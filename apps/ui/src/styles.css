@@ -454,6 +454,10 @@ body {
   font-size: 0.72rem;
   padding: 0.1rem 0.3rem;
 }
+.chat-mode.needs-mode {
+  border-color: #f0c674;
+  box-shadow: 0 0 0 1px rgba(240, 198, 116, 0.45);
+}
 .chat-log {
   flex: 1;
   overflow-y: auto;
@@ -517,9 +521,34 @@ body {
   max-height: 8rem;
   overflow-y: auto;
 }
+.raw-response {
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  margin: 0.1rem 0;
+}
+.raw-response summary {
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.raw-response pre {
+  margin: 0.3rem 0 0.1rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.68rem;
+  max-height: 8rem;
+  overflow-y: auto;
+}
 .tool-result-error {
   border-color: #6b2f33;
   color: #f0a8ac;
+}
+.chat-hint {
+  color: #f0c674;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
 }
 .chat-error {
   color: #f0a8ac;
@@ -715,6 +744,15 @@ body {
   font-size: 1rem;
   cursor: pointer;
   font-family: inherit;
+}
+.color-piece {
+  display: inline-block;
+  min-width: 1.1em;
+  text-align: center;
+}
+.color-piece-white {
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 2px #000;
 }
 .color-btn:hover {
   border-color: var(--accent);

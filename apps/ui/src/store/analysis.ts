@@ -35,7 +35,7 @@ const [engineLines, setLines] = createSignal<EngineLine[]>([]);
 const [engineArrows, setArrows] = createSignal<Arrow[]>([]);
 const [analysing, setAnalysing] = createSignal(false);
 const [engineOffline, setEngineOffline] = createSignal(false);
-const [evalEnabled, setEvalEnabled] = createSignal(true);
+const [evalEnabled, setEvalEnabled] = createSignal(false);
 
 export { engineLines, engineArrows, analysing, engineOffline, evalEnabled, setEvalEnabled };
 

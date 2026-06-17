@@ -6,9 +6,10 @@
  * modify_repertoire_line only previews. The user picks a mode in the chat panel; the selected
  * workflow is appended to the system prompt for that turn.
  */
-export type ChatMode = "general" | "repertoire" | "review" | "position" | "annotate";
+export type ChatMode = "" | "general" | "repertoire" | "review" | "position" | "annotate";
 
 export const CHAT_MODES: { id: ChatMode; label: string }[] = [
+  { id: "", label: "Select mode..." },
   { id: "general", label: "General" },
   { id: "repertoire", label: "Repertoire" },
   { id: "review", label: "Game review" },
@@ -17,9 +18,9 @@ export const CHAT_MODES: { id: ChatMode; label: string }[] = [
 ];
 
 // Applies to every mode. The non-negotiable grounding contract from the skills.
-const GROUNDING = `Grounding (always): ground every claim in a tool result — never state a move, line, eval, or FEN from memory. Validate pasted input first (validate_fen for a FEN, validate_pgn for a PGN); on valid:false, stop and report, never "fix" it. FENs come from tool results — get_position returns the current board FEN; the only FEN you may type is the start position. Before you state any line or "they should have played X", pass it through validate_line. Evals are white-POV centipawns (±10000 = mate); translate to words (±50 ≈ equal, ±200 clearly better, ±500+ winning) and say which side it favors — for a Black repertoire "good for me" is a NEGATIVE number, say so plainly. If the engine is offline, say so and stop. Don't dump raw JSON; summarise. To suggest a concrete continuation, call propose_line so it shows as a board arrow the user can accept (it does not add the line until they do).`;
+const GROUNDING = `Grounding (always): ground every claim in a tool result — never state a move, line, eval, or FEN from memory. Validate pasted input first (validate_fen for a FEN, validate_pgn for a PGN); on valid:false, stop and report, never "fix" it. FENs come from tool results — get_position returns the current board FEN; the only FEN you may type is the start position. Before you state any line or "they should have played X", pass it through validate_line. Evals are white-POV centipawns (±10000 = mate): positive favors White, negative favors Black. Translate to words (±50 ≈ equal, ±200 clearly better, ±500+ winning) and always say which side the eval favors; for a Black repertoire, a negative eval is good for Black/the user and a positive eval is good for White/the opponent. If the engine is offline, say so and stop. Don't dump raw JSON; summarise. To suggest a concrete continuation, call propose_line so it shows as a board arrow the user can accept (it does not add the line until they do).`;
 
-const MODE_BODY: Record<ChatMode, string> = {
+const MODE_BODY: Record<Exclude<ChatMode, "">, string> = {
   general: `Pick the approach that fits the request: a branching repertoire tree → the repertoire tools; a whole game → get_game_summary then analyze_game; a single position → evaluate_position. Call get_position first to ground yourself on the current board.`,
 
   repertoire: `Repertoire work. The variation tree the user opened on the board IS the repertoire — the repertoire tools act on it directly (no load step, no id). Method:
@@ -51,5 +52,6 @@ Present: verdict up top (accuracy per side, the 1–3 turning points), then per 
 };
 
 export function workflowPrompt(mode: ChatMode): string {
+  if (!mode) return GROUNDING;
   return `${GROUNDING}\n\n${MODE_BODY[mode]}`;
 }
