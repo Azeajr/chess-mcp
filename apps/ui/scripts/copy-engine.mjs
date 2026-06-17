@@ -10,8 +10,9 @@ import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+const here = dirname(fileURLToPath(import.meta.url));
 const binDir = join(dirname(require.resolve("stockfish/package.json")), "bin");
-const outDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "engine");
+const outDir = join(here, "..", "public", "engine");
 
 const FILES = ["stockfish-18-lite-single.js", "stockfish-18-lite-single.wasm"];
 
@@ -25,4 +26,15 @@ for (const f of FILES) {
   }
   copyFileSync(src, dst);
 }
-console.log(`[copy-engine] copied ${FILES.length} files → public/engine/`);
+
+// ECO openings table — the chat's identify_opening / congruence / batch_review parse it client-side.
+// Served as a static asset (fetched once at runtime), same file the Node server reads.
+const publicDir = join(here, "..", "public");
+const openingsSrc = join(here, "..", "..", "mcp-server", "data", "openings.tsv");
+if (existsSync(openingsSrc)) {
+  copyFileSync(openingsSrc, join(publicDir, "openings.tsv"));
+  console.log(`[copy-engine] copied ${FILES.length} engine files + openings.tsv → public/`);
+} else {
+  console.warn(`[copy-engine] openings.tsv not found at ${openingsSrc} — identify_opening will degrade`);
+  console.log(`[copy-engine] copied ${FILES.length} engine files → public/engine/`);
+}

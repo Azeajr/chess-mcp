@@ -17,6 +17,8 @@ export interface Eval {
 export interface MultiLine extends Eval {
   /** First move of the line, UCI. */
   uci: string;
+  /** full principal variation, UCI moves. */
+  pv: string[];
 }
 
 type EngineLike = { postMessage: (cmd: string) => void };
@@ -132,10 +134,13 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH): Promi
         const depth = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
         const cpM = line.match(/ score cp (-?\d+)/);
         const mateM = line.match(/ score mate (-?\d+)/);
-        const firstMove = line.match(/ pv (\S+)/)?.[1];
+        const pvStr = line.split(" pv ")[1];
+        const pv = pvStr ? pvStr.trim().split(/\s+/) : [];
+        const firstMove = pv[0];
         if (!pvIdx || !firstMove) return;
         lines.set(pvIdx, {
           uci: firstMove,
+          pv,
           depth,
           cp: cpM ? sign * Number(cpM[1]) : null,
           mate: mateM ? sign * Number(mateM[1]) : null,

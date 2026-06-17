@@ -7,7 +7,7 @@
 import { createSignal } from "solid-js";
 import { actions, fileName } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
-import { send, loadRepertoireForCurrent } from "./chat";
+import { send } from "./chat";
 
 type Perm = "granted" | "denied" | "prompt";
 type FilePickerHandle = {
@@ -49,7 +49,6 @@ const AUTO_ANALYZE_PROMPT =
 
 async function loadFromHandle(h: FilePickerHandle) {
   actions.loadPgn(await (await h.getFile()).text(), h.name);
-  void loadRepertoireForCurrent();
   void send(AUTO_ANALYZE_PROMPT);
 }
 
@@ -69,7 +68,6 @@ export async function openFile() {
     const f = input.files?.[0];
     if (f) {
       actions.loadPgn(await f.text(), f.name);
-      void loadRepertoireForCurrent();
       void send(AUTO_ANALYZE_PROMPT);
     }
   };

@@ -40,3 +40,20 @@ export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves
 export type { OpeningTable } from "./openings.js";
 export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
 export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence.js";
+export {
+  analyzeMainline,
+  findRepertoireGaps,
+  compareMoves,
+  suggestComplementaryLines,
+  suggestReplacementLine,
+} from "./enginetools.js";
+export type {
+  Analyse,
+  EngineLine,
+  MoveRecord,
+  GapsOptions,
+  Gap,
+  GapsResult,
+  SuggestComplementaryOptions,
+  SuggestReplacementOptions,
+} from "./enginetools.js";

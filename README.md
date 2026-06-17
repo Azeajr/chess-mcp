@@ -28,7 +28,7 @@ pnpm --filter @chess-mcp/ui build   # production PWA (installable, offline)
 
 A SolidJS board UI for building/studying repertoires: play moves into a variation tree, engine-eval arrows colored by repertoire congruence, on-demand gap scan, Lichess cloud eval, and an in-app chat (OpenRouter — set your key + model in Settings). Working repertoire autosaves to IndexedDB; open/save PGN via the File System Access API.
 
-**MCP bridge (dev only).** Under `pnpm dev`, a Vite plugin spawns the stdio MCP server and relays it through a same-origin `/__mcp` endpoint, so the in-app chat gains the curated repertoire tools (`find_repertoire_gaps`, `get_structural_profile`, `analyze_repertoire_congruence`, …) — the "MCP on" badge in the top bar shows when it's connected. The deployed/built PWA has no Node process, so it degrades to the browser-native tools (the chat still works, just without the structure tools). Deep repertoire analysis there belongs to the Claude Code plugin. See `docs/design/UI_MCP_BRIDGE_DESIGN.md`.
+**In-app chat tools (client-side).** The chat's tools run entirely in the browser against the shared `chess-tools` logic + the local Stockfish wasm — the same repertoire toolset the MCP server exposes (`find_repertoire_gaps`, `get_structural_profile`, `analyze_repertoire_congruence`, `suggest_*`, game review, gaps, …), reimplemented with no backend. So the chat is fully featured in `pnpm dev` **and** in the deployed/built PWA (e.g. on a static host like Cloudflare Pages — no Node process required). The engine-dependent orchestration is the shared implementation the Node server uses too (`packages/chess-tools/src/enginetools.ts`), so server and PWA stay in lockstep. Only the host-filesystem tools (`*_from_file`/`*_to_file`) are MCP-only — the PWA uses the File System Access picker instead.
 
 ## Problem
 
@@ -199,7 +199,7 @@ chess-mcp/
 │   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 32 tools + stockfish wasm
 │   └── ui/                  # SolidJS + Vite PWA: board, congruence arrows, gap scan, cloud eval, chat
 ├── scripts/                 # engine-free smoke: smoke-gametree.mjs, structure-accuracy.mjs
-├── docs/design/             # design specs (repertoire, structure classifier, node migration, UI bridge, …)
+├── docs/design/             # design specs (repertoire, structure classifier, node migration, …)
 ├── sample-game.pgn          # anonymized single-game fixture
 ├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree
 └── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts

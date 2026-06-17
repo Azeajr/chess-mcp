@@ -32,7 +32,9 @@ engine-grounded.
 - **Claude Code plugin** — `plugin/` + `.claude-plugin/marketplace.json`, v1.0.0, Node stdio, no
   Docker hook. Installable via `claude plugin marketplace add Azeajr/chess-mcp`.
 - **PWA** — board, engine-congruence arrows, on-demand gap scan, Lichess cloud eval, OpenRouter chat,
-  IndexedDB autosave + File System Access PGN I/O, dev-only UI↔MCP bridge.
+  IndexedDB autosave + File System Access PGN I/O. The chat's full repertoire toolset runs
+  client-side (shared `chess-tools` + local wasm engine) — no backend — so it works the same in dev
+  and as a static deploy (Cloudflare Pages). The dev-only MCP bridge was removed.
 
 ## Near-term: distribution
 
@@ -47,6 +49,9 @@ server installable as a self-contained artifact.
 - [ ] **npm-publish the server** (e.g. `@chess-mcp/server` with a `bin`) so the plugin can point at
       `npx -y @chess-mcp/server` instead of the checkout, and so non-plugin MCP clients can install it
       directly. Replace/extend the tag-gated CI `release` job to publish on `v*`.
+- [ ] **Host the PWA on Cloudflare Pages.** Now unblocked — the chat is fully client-side. Build
+      `apps/ui` (root dir = repo, output `apps/ui/dist`, `NODE_VERSION=22`); network tools degrade if
+      an API blocks CORS. Optional: a CF Pages Function proxy if a blocked API is wanted.
 - [ ] **Official Anthropic plugin marketplace submission** — once the install path no longer needs the
       source checkout.
 

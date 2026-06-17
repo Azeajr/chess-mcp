@@ -21,20 +21,29 @@ import {
   cloudEval,
   tablebaseLookup,
   moveSan,
-  decisionNodes,
-  gapSeverity,
-  SEVERITY_RANK,
+  analyzeMainline,
+  findRepertoireGaps,
+  compareMoves,
+  suggestComplementaryLines,
+  suggestReplacementLine,
+  moveAccuracy,
+  parseOpeningsTsv,
+  identifyDeepest,
+  boardSvg,
+  aggregateGames,
+  lichessGames,
+  chesscomGames,
+  walkGameVsRepertoire,
+  positionProfile,
+  aggregateProfile,
+  analyzeCongruence,
   type Color,
-  type Severity,
+  type MoveRecord,
+  type GameRecord,
 } from "@chess-mcp/chess-tools";
 import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
-import { analyzeMainline, type MoveRecord } from "./gameanalysis.js";
-import { moveAccuracy, parseOpeningsTsv, identifyDeepest, boardSvg, aggregateGames, lichessGames, chesscomGames, walkGameVsRepertoire, positionProfile, aggregateProfile, analyzeCongruence, replacementPivot, profileStructureShares, classifyStructure, isolatedPawns, doubledPawns, passedPawns, themes, type GameRecord } from "@chess-mcp/chess-tools";
-import { makeFen, parseFen } from "chessops/fen";
-import { Chess } from "chessops/chess";
-import { parseUci } from "chessops/util";
-import { makeSan } from "chessops/san";
+import { makeFen } from "chessops/fen";
 import { store, get } from "./handles.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -171,7 +180,6 @@ server.tool(
 );
 
 // --- gaps (engine scan) ---
-const MATE_CP = 100000;
 server.tool(
   "find_repertoire_gaps",
   "Scan decision nodes for uncovered strong opponent replies, ranked by severity.",
@@ -185,29 +193,14 @@ server.tool(
   async ({ repertoire_id, depth, min_severity, max_positions, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const minSev: Severity = min_severity ?? "medium";
-    const nodes = decisionNodes(e.tree, e.color).slice(0, max_positions ?? 20);
-    const found: { path: number[]; fen: string; uncovered_move: string; eval: number | null; mate: number | null; severity: Severity }[] = [];
-    for (const node of nodes) {
-      const res = await analyseMulti(node.fen, 4, depth ?? 14);
-      if (!res) return ok({ error: "engine_unavailable" });
-      const moverIsWhite = node.fen.split(" ")[1] === "w";
-      const moverCp = (l: (typeof res)[number]) => {
-        const w = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-        return moverIsWhite ? w : -w;
-      };
-      const best = res.length ? moverCp(res[0]!) : 0;
-      for (const l of res) {
-        const san = moveSan(node.fen, l.uci);
-        if (node.covered.includes(san)) continue;
-        found.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
-      }
-    }
-    const gaps = found
-      .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
-      .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
-      .slice(0, limit ?? 10);
-    return ok({ color: e.color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps });
+    return ok(
+      await findRepertoireGaps(
+        e.tree,
+        e.color,
+        { depth, minSeverity: min_severity, maxPositions: max_positions, limit },
+        analyseMulti,
+      ),
+    );
   },
 );
 
@@ -248,28 +241,7 @@ server.tool(
   "compare_moves",
   "Rank candidate moves at a FEN by local Stockfish (mover POV). Illegal moves are flagged.",
   { fen: z.string(), moves: z.array(z.string()), depth: z.number().int().min(1).max(30).optional() },
-  async ({ fen, moves, depth }) => {
-    const moverIsWhite = fen.split(" ")[1] === "w";
-    const out: Record<string, unknown>[] = [];
-    for (const san of moves) {
-      const chk = validateLine(fen, [san]);
-      if (!chk.ok || !chk.finalFen) {
-        out.push({ san, error: "illegal_move" });
-        continue;
-      }
-      const res = await analyseMulti(chk.finalFen, 1, depth ?? 14);
-      const line = res?.[0];
-      if (!line) {
-        out.push({ san: chk.canonical[0], error: "engine_unavailable" });
-        continue;
-      }
-      const whiteCp = line.mate !== null ? (line.mate > 0 ? MATE_CP : -MATE_CP) : (line.cp ?? 0);
-      out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverIsWhite ? whiteCp : -whiteCp });
-    }
-    out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
-    out.forEach((o, i) => (o.rank = i + 1));
-    return ok({ fen, candidates: out });
-  },
+  async ({ fen, moves, depth }) => ok(await compareMoves(fen, moves, depth ?? 14, analyseMulti)),
 );
 
 // --- game analysis (engine) ---
@@ -282,7 +254,7 @@ server.tool(
   async ({ pgn, depth, verbose }) => {
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14);
+      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -298,7 +270,7 @@ server.tool(
   async ({ pgn, depth }) => {
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14);
+      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -329,7 +301,7 @@ server.tool(
   async ({ pgn, depth }) => {
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14);
+      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -464,7 +436,7 @@ server.tool(
         else continue; // username given but didn't play this game
       }
       const gamePgn = makePgn(game);
-      const recs = await analyzeMainline(gamePgn, depth ?? 12);
+      const recs = await analyzeMainline(gamePgn, depth ?? 12, analyseMulti);
       if (recs === null) return ok({ error: "engine_unavailable" });
 
       const relevant = userColor ? recs.filter((r) => r.color === userColor) : recs;
@@ -634,21 +606,6 @@ server.tool(
 );
 
 // --- suggest complementary lines (engine + structure) ---
-const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
-const pvSan = (fen: string, pv: string[]): string => {
-  const pos = chessFromFen(fen);
-  const out: string[] = [];
-  for (const uci of pv.slice(0, 5)) {
-    const mv = parseUci(uci);
-    if (!mv) break;
-    out.push(makeSan(pos, mv));
-    pos.play(mv);
-  }
-  return out.join(" ");
-};
-const evalWhite = (l: { cp: number | null; mate: number | null }) =>
-  l.mate !== null ? (l.mate > 0 ? 10000 : -10000) : (l.cp ?? 0);
-
 server.tool(
   "suggest_complementary_lines",
   "Engine-validated complementary moves from an anchor FEN, ranked to fit the repertoire's structures (low_memorization) or maximise imbalance (sharp). Auto-advances one ply if the opponent is to move.",
@@ -662,73 +619,11 @@ server.tool(
   async ({ repertoire_id, fen, mode, depth, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const m = mode ?? "low_memorization";
-    const setup = parseFen(fen);
-    if (setup.isErr) return ok({ error: "invalid_fen", reason: String(setup.error) });
-    const posCheck = Chess.fromSetup(setup.value);
-    if (posCheck.isErr) return ok({ error: "invalid_fen", reason: String(posCheck.error) });
-    let pos = posCheck.value;
-    const lim = Math.max(1, Math.min(10, limit ?? 5));
-    const pool = Math.min(10, lim + 2);
-
-    let opponentMoveSan: string | null = null;
-    if (pos.turn !== e.color) {
-      const oppRes = await analyseMulti(makeFen(pos.toSetup()), 1, depth ?? 16);
-      const oppUci = oppRes?.[0]?.uci;
-      if (!oppRes) return ok({ error: "engine_unavailable" });
-      if (!oppUci) return ok({ mode: m, anchor_fen: makeFen(pos.toSetup()), suggestions: [] });
-      opponentMoveSan = moveSan(makeFen(pos.toSetup()), oppUci);
-      pos.play(parseUci(oppUci)!);
-    }
-    const anchorFen = makeFen(pos.toSetup());
-    const moverIsWhite = pos.turn === "white";
-    const moverCp = (l: { cp: number | null; mate: number | null }) => (moverIsWhite ? 1 : -1) * evalWhite(l);
-
-    const res = await analyseMulti(anchorFen, pool, depth ?? 16);
-    if (!res) return ok({ error: "engine_unavailable" });
-    const best = res.length ? moverCp(res[0]!) : 0;
-    const shares = profileStructureShares(e.tree.leafPositions().map((p) => p.board));
-
-    const ranked: { entry: Record<string, unknown>; mcp: number }[] = [];
-    for (const l of res) {
-      const mcp = moverCp(l);
-      if (best - mcp > 100) continue; // unsound relative to best
-      const after = chessFromFen(anchorFen);
-      after.play(parseUci(l.uci)!);
-      const resultStruct = classifyStructure(after.board).structure_class;
-      const entry: Record<string, unknown> = {
-        move: moveSan(anchorFen, l.uci),
-        resulting_structure: resultStruct,
-        eval: evalWhite(l),
-        pv: pvSan(anchorFen, l.pv),
-      };
-      if (m === "low_memorization") {
-        entry.profile_match = Math.round((resultStruct === "unknown" ? 0 : (shares[resultStruct] ?? 0)) * 100) / 100;
-      } else {
-        const imbalance = (["white", "black"] as const).reduce(
-          (a, c) => a + isolatedPawns(after.board, c).length + doubledPawns(after.board, c).length + passedPawns(after.board, c).length,
-          0,
-        );
-        const novelty = resultStruct in shares ? 0 : 1;
-        entry.sharpness = Math.round((Math.abs(mcp) / 100 + 0.5 * imbalance + novelty) * 100) / 100;
-      }
-      ranked.push({ entry, mcp });
-    }
-
-    if (m === "low_memorization")
-      ranked.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
-    else ranked.sort((a, b) => (b.entry.sharpness as number) - (a.entry.sharpness as number));
-
-    const result: Record<string, unknown> = { mode: m, anchor_fen: anchorFen, suggestions: ranked.slice(0, lim).map((r) => r.entry) };
-    if (opponentMoveSan) result.opponent_move = opponentMoveSan;
-    return ok(result);
+    return ok(await suggestComplementaryLines(e.tree, e.color, fen, { mode, depth, limit }, analyseMulti));
   },
 );
 
 // --- suggest replacement line (pivot resolution + engine + structure) ---
-const BOOL_THEMES = ["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"] as const;
-const PV_THEME_WINDOW = 8;
-
 server.tool(
   "suggest_replacement_line",
   "Single-call replacement for an incongruent line. Given an outlier variation_path (from analyze_repertoire_congruence), pivots at the divergence/weakness move, then suggests sound alternatives with engine-validated continuations ranked by structural fit (or eval, mode 'solid').",
@@ -741,73 +636,7 @@ server.tool(
   async ({ repertoire_id, outlier_variation_path, mode, depth }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const m = mode ?? "structural_fit";
-    const piv = replacementPivot(e.tree, e.color, outlier_variation_path);
-    if ("error" in piv) {
-      const reason =
-        piv.error === "no_user_move"
-          ? "outlier_variation_path contains no user move to replace"
-          : "outlier_variation_path does not match a line in the repertoire";
-      return ok({ error: piv.error, reason });
-    }
-
-    const shares = profileStructureShares(e.tree.leafPositions().map((p) => p.board));
-    const res = await analyseMulti(piv.pivotBeforeFen, 5, depth ?? 16);
-    if (!res) return ok({ error: "engine_unavailable" });
-    const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
-    const moverCp = (l: { cp: number | null; mate: number | null }) => (moverIsWhite ? 1 : -1) * evalWhite(l);
-    const best = res.length ? moverCp(res[0]!) : 0;
-    const domSet = new Set(piv.dominantThemes);
-
-    const suggestions: { entry: Record<string, unknown>; mcp: number }[] = [];
-    for (const l of res) {
-      if (l.uci === piv.outlierUci) continue;
-      const mcp = moverCp(l);
-      if (best - mcp > 100) continue;
-      const after = chessFromFen(piv.pivotBeforeFen);
-      after.play(parseUci(l.uci)!);
-      const resultStruct = classifyStructure(after.board).structure_class;
-
-      let match = 0;
-      if (resultStruct !== "unknown") match = shares[resultStruct] ?? 0;
-      else if (domSet.size) {
-        // Walk the PV (capped window) and score by the best theme-overlap seen.
-        const walk = chessFromFen(makeFen(after.toSetup()));
-        let bestMatch = 0;
-        const seq: (string | null)[] = [...l.pv.slice(1, PV_THEME_WINDOW), null];
-        for (const nxt of seq) {
-          const t = themes(walk.board, e.color);
-          const tags = BOOL_THEMES.filter((k) => t[k]);
-          const plyMatch = [...domSet].filter((d) => tags.includes(d as (typeof BOOL_THEMES)[number])).length / domSet.size;
-          if (plyMatch > bestMatch) bestMatch = plyMatch;
-          if (bestMatch === 1 || nxt === null) break;
-          const mv = parseUci(nxt);
-          if (!mv) break;
-          walk.play(mv);
-        }
-        match = bestMatch;
-      }
-
-      suggestions.push({
-        entry: {
-          pivot_move: moveSan(piv.pivotBeforeFen, l.uci),
-          line: pvSan(piv.pivotBeforeFen, l.pv),
-          eval_cp: evalWhite(l),
-          resulting_structure: resultStruct,
-          profile_match: Math.round(match * 100) / 100,
-        },
-        mcp,
-      });
-    }
-
-    if (m === "solid") suggestions.sort((a, b) => b.mcp - a.mcp);
-    else suggestions.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
-
-    return ok({
-      outlier_move: moveSan(piv.pivotBeforeFen, piv.outlierUci),
-      anchored_to: piv.anchoredTo,
-      suggestions: suggestions.map((s) => s.entry),
-    });
+    return ok(await suggestReplacementLine(e.tree, e.color, outlier_variation_path, { mode, depth }, analyseMulti));
   },
 );
 
