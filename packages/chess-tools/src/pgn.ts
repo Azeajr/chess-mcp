@@ -39,12 +39,34 @@ export class GameTree {
     this.game = game ?? defaultGame();
   }
 
-  /** Parse the first game of a PGN. Throws if no game is present. */
+  /** Parse a PGN into a single tree. Multiple games are merged (used when repertoire tools
+   *  export each line as a separate game). Throws if no game is present. */
   static fromPgn(pgn: string): GameTree {
     const games = parsePgn(pgn);
     const first = games[0];
     if (!first) throw new Error("no game found in PGN");
-    return new GameTree(first);
+    const tree = new GameTree(first);
+    for (let i = 1; i < games.length; i++) {
+      GameTree._mergeNodes(tree, games[i]!.moves, []);
+    }
+    return tree;
+  }
+
+  /** Detect the repertoire color from PGN headers (ChessTempo: ChesstempoRepertoireColour). */
+  static detectColorFromPgn(pgn: string): "white" | "black" | null {
+    const game = parsePgn(pgn)[0];
+    if (!game) return null;
+    const ct = game.headers.get("ChesstempoRepertoireColour");
+    if (ct?.toLowerCase() === "white") return "white";
+    if (ct?.toLowerCase() === "black") return "black";
+    return null;
+  }
+
+  private static _mergeNodes(tree: GameTree, node: Node<PgnNodeData>, path: Path): void {
+    for (const child of node.children as ChildNode<PgnNodeData>[]) {
+      const result = tree.appendSan(path, child.data.san);
+      GameTree._mergeNodes(tree, child, result.path);
+    }
   }
 
   toPgn(): string {

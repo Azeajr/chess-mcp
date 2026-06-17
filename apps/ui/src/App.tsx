@@ -8,6 +8,7 @@ import GapsPanel from "./components/GapsPanel";
 import ChatPanel from "./components/ChatPanel";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
+import ColorPickerModal from "./components/ColorPickerModal";
 import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
@@ -56,6 +57,7 @@ export default function App() {
       </div>
       <SettingsDrawer />
       <PromotionModal />
+      <ColorPickerModal />
     </div>
   );
 }

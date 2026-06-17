@@ -6,8 +6,9 @@
  */
 import { createSignal } from "solid-js";
 import { actions, fileName } from "./game";
+import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
-import { send } from "./chat";
+import { GameTree } from "@chess-mcp/chess-tools";
 
 type Perm = "granted" | "denied" | "prompt";
 type FilePickerHandle = {
@@ -30,6 +31,23 @@ const PGN_TYPES = [{ description: "PGN", accept: { "application/x-chess-pgn": ["
 const [storedFileName, setStoredFileName] = createSignal<string | null>(null);
 export { storedFileName };
 
+// Pending PGN load waiting for color selection.
+type PendingLoad = { pgn: string; name?: string; detectedColor: Color | null };
+const [pendingLoad, setPendingLoad] = createSignal<PendingLoad | null>(null);
+export { pendingLoad };
+
+export function resolvePendingLoad(color: Color) {
+  const p = pendingLoad();
+  if (!p) return;
+  actions.loadPgn(p.pgn, p.name);
+  actions.setColor(color);
+  setPendingLoad(null);
+}
+
+export function cancelPendingLoad() {
+  setPendingLoad(null);
+}
+
 function remember(h: FilePickerHandle) {
   handle = h;
   void idbSet(HANDLE_KEY, h);
@@ -42,14 +60,9 @@ export function clearHandle() {
   void idbDel(HANDLE_KEY);
 }
 
-const AUTO_ANALYZE_PROMPT =
-  "Repertoire loaded. Give me an overview: what opening system is this, which color plays it, " +
-  "and are there any questionable moves in the main line? Use get_position to see the PGN, " +
-  "then evaluate_position on at most 2–3 critical positions.";
-
 async function loadFromHandle(h: FilePickerHandle) {
-  actions.loadPgn(await (await h.getFile()).text(), h.name);
-  void send(AUTO_ANALYZE_PROMPT);
+  const pgn = await (await h.getFile()).text();
+  setPendingLoad({ pgn, name: h.name, detectedColor: GameTree.detectColorFromPgn(pgn) });
 }
 
 export async function openFile() {
@@ -67,8 +80,8 @@ export async function openFile() {
   input.onchange = async () => {
     const f = input.files?.[0];
     if (f) {
-      actions.loadPgn(await f.text(), f.name);
-      void send(AUTO_ANALYZE_PROMPT);
+      const pgn = await f.text();
+      setPendingLoad({ pgn, name: f.name, detectedColor: GameTree.detectColorFromPgn(pgn) });
     }
   };
   input.click();
