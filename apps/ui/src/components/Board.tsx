@@ -11,7 +11,7 @@ import type { Key } from "chessground/types";
 import type { DrawShape } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
 import { isPromotion } from "@chess-mcp/chess-tools";
-import { engineArrows } from "../store/analysis";
+import { engineArrows, repertoireArrows, type Arrow } from "../store/analysis";
 import { suggestionArrows } from "../store/suggestions";
 import { pendingPromo, setPendingPromo } from "../store/promotion";
 
@@ -59,11 +59,15 @@ export default function Board() {
     });
   });
 
-  // Engine arrows: redraw whenever the analysis store updates. setShapes replaces the
+  const arrowKey = (a: Arrow) => `${a.orig}${a.dest}`;
+
+  // Repertoire, engine, and suggestion arrows: redraw whenever their stores update. setShapes replaces the
   // overlay, so it co-exists with the lastMove highlight (a board feature, not a shape).
   createEffect(() => {
     if (!cg) return;
-    const shapes = [...engineArrows(), ...suggestionArrows()];
+    const book = repertoireArrows();
+    const bookKeys = new Set(book.map(arrowKey));
+    const shapes = [...book, ...engineArrows().filter((a) => !bookKeys.has(arrowKey(a))), ...suggestionArrows()];
     cg.setShapes(shapes as unknown as DrawShape[]);
   });
 

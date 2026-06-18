@@ -69,12 +69,6 @@ export default function ChatPanel() {
               <Show when={m.role === "assistant" && m.content}>
                 <div class="msg assistant">{m.content}</div>
               </Show>
-              <Show when={m.role === "assistant" && m.raw_response}>
-                <details class="raw-response">
-                  <summary>raw assistant response</summary>
-                  <pre>{m.raw_response}</pre>
-                </details>
-              </Show>
               <Show when={m.role === "assistant" && m.tool_calls}>
                 <div class="tool-chips">
                   <For each={m.tool_calls}>{(tc) => <span class="chip">⚙ {tc.function.name}</span>}</For>

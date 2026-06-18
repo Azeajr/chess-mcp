@@ -42,6 +42,7 @@ ok(t.sanAt(r.path) === "e5", "play e5");
 r = t.playMove(r.path, "g1", "f3");
 ok(t.sanAt(r.path) === "Nf3", "play Nf3");
 ok(t.toPgn().includes("1. e4 e5 2. Nf3"), "pgn serializes mainline");
+ok(t.childMovesAt([0, 0]).some((m) => m.san === "Nf3" && m.orig === "g1" && m.dest === "f3"), "childMovesAt returns repertoire arrows");
 
 // 2. replay-into-existing = navigate, not duplicate
 const before = t.nodeAt([]).children.length;
@@ -152,7 +153,9 @@ const pr = GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("prune", ["e4", "c5"]
 ok(pr.tree && pr.tree.nodeAt([0]).children.length === 1, "prune removes the c5 variation");
 ok(GameTree.fromPgn("1. e4 *").edit("prune", []).error === "invalid_edit", "prune root → invalid_edit");
 ok(GameTree.fromPgn("1. e4 *").edit("add", ["e4"], { addMoves: ["Qh8"] }).error === "invalid_line", "illegal add → invalid_line");
-ok(GameTree.fromPgn("1. e4 *").edit("add", ["d4"], { addMoves: ["d5"] }).error === "variation_not_found", "bad path → variation_not_found");
+ok(GameTree.fromPgn("1. e4 *").edit("prune", ["d4"]).error === "variation_not_found", "bad path → variation_not_found");
+const tolerantAdd = GameTree.fromPgn("1. e4 c6 2. c3 d5 3. e5 *").edit("add", ["e4", "c6", "c3", "d5", "exd5"], { addMoves: ["cxd5", "d4"] });
+ok(!tolerantAdd.error && tolerantAdd.tree?.toPgn().includes("3. exd5 cxd5 4. d4"), "add tolerates path ending in new moves");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();

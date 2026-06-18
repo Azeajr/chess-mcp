@@ -162,6 +162,16 @@ export class GameTree {
     return this.nodeAt(path).children.map((c) => c.data.san);
   }
 
+  /** Known continuations with origin/destination squares, for drawing repertoire arrows. */
+  childMovesAt(path: Path): { san: string; orig: string; dest: string }[] {
+    const pos = this.positionAt(path);
+    return this.nodeAt(path).children.flatMap((c) => {
+      const move = parseSan(pos, c.data.san);
+      if (!move || !("from" in move)) return [];
+      return [{ san: c.data.san, orig: makeSquare(move.from), dest: makeSquare(move.to) }];
+    });
+  }
+
   /**
    * Transposition keys of every position in the tree (for adjacency detection). DFS replays
    * each line once, carrying the position — O(nodes), no per-node re-walk.
@@ -353,7 +363,23 @@ export class GameTree {
     opts: { addMoves?: string[]; promoteMove?: string } = {},
   ): { tree: GameTree | null; error: string | null } {
     const clone = GameTree.fromPgn(this.toPgn()); // deep copy via round-trip
-    const res = clone.resolveSan(sanPath);
+    let effectiveSanPath = [...sanPath];
+    let effectiveAddMoves = opts.addMoves ?? [];
+    let res = clone.resolveSan(effectiveSanPath);
+
+    if (!res && action === "add") {
+      for (let split = sanPath.length - 1; split >= 0; split--) {
+        const prefix = sanPath.slice(0, split);
+        const prefixRes = clone.resolveSan(prefix);
+        if (prefixRes) {
+          effectiveSanPath = [...prefix];
+          effectiveAddMoves = [...sanPath.slice(split), ...effectiveAddMoves];
+          res = prefixRes;
+          break;
+        }
+      }
+    }
+
     if (!res) return { tree: null, error: "variation_not_found" };
     const { node, parent } = res;
 
@@ -364,9 +390,9 @@ export class GameTree {
     }
 
     if (action === "add") {
-      const moves = opts.addMoves ?? [];
+      const moves = effectiveAddMoves;
       if (!moves.length) return { tree: null, error: "invalid_edit" };
-      const pos = clone.positionAtSan(sanPath);
+      const pos = clone.positionAtSan(effectiveSanPath);
       let cursor = node;
       for (const san of moves) {
         const move = parseSan(pos, san);

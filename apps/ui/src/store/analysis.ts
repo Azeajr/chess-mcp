@@ -39,6 +39,14 @@ const [evalEnabled, setEvalEnabled] = createSignal(false);
 
 export { engineLines, engineArrows, analysing, engineOffline, evalEnabled, setEvalEnabled };
 
+export const repertoireArrows = (): Arrow[] =>
+  currentTree().childMovesAt(currentPath()).map((m) => ({
+    orig: m.orig,
+    dest: m.dest,
+    brush: "green",
+    modifiers: { lineWidth: 7 },
+  }));
+
 function toArrow(l: EngineLine): Arrow {
   return {
     orig: l.uci.slice(0, 2),

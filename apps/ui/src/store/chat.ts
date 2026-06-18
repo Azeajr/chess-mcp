@@ -57,7 +57,7 @@ export async function send(userText: string) {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       setStreamingText("");
       const messages = [systemMessage(), ...history()];
-      const { content, toolCalls, rawResponse } = await streamChat({
+      const { content, toolCalls } = await streamChat({
         apiKey: apiKey(),
         model: model(),
         messages,
@@ -67,7 +67,7 @@ export async function send(userText: string) {
       setStreamingText("");
       setHistory((h) => [
         ...h,
-        { role: "assistant", content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined, raw_response: rawResponse },
+        { role: "assistant", content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined },
       ]);
 
       if (!toolCalls.length) break;

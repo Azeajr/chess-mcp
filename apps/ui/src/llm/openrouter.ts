@@ -15,7 +15,6 @@ export interface ChatMessage {
   content: string | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
-  raw_response?: string;
 }
 
 export interface ToolSchema {
@@ -30,7 +29,6 @@ export interface ToolSchema {
 export interface RoundResult {
   content: string;
   toolCalls: ToolCall[];
-  rawResponse: string;
 }
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -83,7 +81,6 @@ export async function streamChat(opts: {
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
-  const rawEvents: string[] = [];
   // Tool calls stream as fragments keyed by index; reassemble here.
   const toolByIndex = new Map<number, ToolCall>();
 
@@ -98,7 +95,6 @@ export async function streamChat(opts: {
       if (!line) continue;
       const data = line.slice(5).trim();
       if (data === "[DONE]") continue;
-      rawEvents.push(data);
       let json: any;
       try {
         json = JSON.parse(data);
@@ -124,5 +120,5 @@ export async function streamChat(opts: {
   }
 
   const toolCalls = [...toolByIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-  return { content, toolCalls, rawResponse: rawEvents.join("\n") };
+  return { content, toolCalls };
 }
