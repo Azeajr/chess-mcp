@@ -19,7 +19,8 @@ export default function ColorPickerModal() {
                   class={`color-btn${sel() === "white" ? " active" : ""}`}
                   onClick={() => setSel("white")}
                 >
-                  <span class="color-piece color-piece-white" aria-hidden="true">♔</span> White
+                  {/* solid glyph for both (outline ♔ tofus in some fonts); CSS tints this white */}
+                  <span class="color-piece color-piece-white" aria-hidden="true">♚</span> White
                 </button>
                 <button
                   class={`color-btn${sel() === "black" ? " active" : ""}`}
