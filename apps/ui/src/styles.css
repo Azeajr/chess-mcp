@@ -64,22 +64,63 @@ body {
   font-size: 0.8rem;
 }
 
+/* Wide: flex row — board grows, side + chat are fixed widths the dividers drag. */
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) 300px 360px;
-  gap: 1rem;
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
   padding: 1rem;
   overflow: hidden;
 }
+.board-panel {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.side-panel {
+  flex: 0 0 auto; /* width set inline from the layout store */
+}
+.chat-wrap {
+  flex: 0 0 auto; /* width set inline from the layout store */
+  display: flex;
+  min-height: 0;
+}
+.chat-wrap > .chat {
+  flex: 1;
+  min-width: 0;
+}
 
-/* Tablet: drop to board + side panel; chat wraps to a full-width row below. */
+.divider {
+  width: 5px;
+  flex: 0 0 auto;
+  cursor: col-resize;
+  background: transparent;
+  border-radius: 3px;
+  touch-action: none;
+  transition: background 0.15s;
+}
+.divider:hover,
+.divider:active {
+  background: var(--accent);
+}
+
+/* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
+   inline panel widths are neutralised so the grid columns take over. */
 @media (max-width: 1100px) {
   .workspace {
+    display: grid;
     grid-template-columns: minmax(260px, 1fr) 320px;
     grid-auto-rows: min-content;
+    overflow: visible;
     overflow-y: auto;
   }
-  .chat {
+  .divider {
+    display: none;
+  }
+  .side-panel,
+  .chat-wrap {
+    width: auto !important;
+  }
+  .chat-wrap {
     grid-column: 1 / -1;
     height: 360px;
   }

@@ -6,12 +6,14 @@ import MoveTree from "./components/MoveTree";
 import AnalysisPanel from "./components/AnalysisPanel";
 import GapsPanel from "./components/GapsPanel";
 import ChatPanel from "./components/ChatPanel";
+import Divider from "./components/Divider";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
+import { sideWidth, chatWidth, setSideWidth, setChatWidth, persistLayout } from "./store/layout";
 
 export default function App() {
   startAutosave();
@@ -48,12 +50,17 @@ export default function App() {
           <EvalBar />
           <Board />
         </div>
-        <div class="side-panel">
+        <Divider onResize={(d) => setSideWidth(sideWidth() + d)} onEnd={persistLayout} />
+        <div class="side-panel" style={{ width: `${sideWidth()}px` }}>
           <AnalysisPanel />
           <GapsPanel />
           <MoveTree />
         </div>
-        <ChatPanel />
+        {/* dragging this divider right grows the side panel and steals from chat → negate */}
+        <Divider onResize={(d) => setChatWidth(chatWidth() - d)} onEnd={persistLayout} />
+        <div class="chat-wrap" style={{ width: `${chatWidth()}px` }}>
+          <ChatPanel />
+        </div>
       </div>
       <SettingsDrawer />
       <PromotionModal />
