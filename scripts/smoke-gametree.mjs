@@ -156,6 +156,22 @@ ok(GameTree.fromPgn("1. e4 *").edit("add", ["e4"], { addMoves: ["Qh8"] }).error 
 ok(GameTree.fromPgn("1. e4 *").edit("prune", ["d4"]).error === "variation_not_found", "bad path → variation_not_found");
 const tolerantAdd = GameTree.fromPgn("1. e4 c6 2. c3 d5 3. e5 *").edit("add", ["e4", "c6", "c3", "d5", "exd5"], { addMoves: ["cxd5", "d4"] });
 ok(!tolerantAdd.error && tolerantAdd.tree?.toPgn().includes("3. exd5 cxd5 4. d4"), "add tolerates path ending in new moves");
+// add echoes where the graft actually anchored after the path was re-split (retro #3 legibility)
+ok(
+  tolerantAdd.added &&
+    tolerantAdd.added.from.join(" ") === "e4 c6 c3 d5" &&
+    tolerantAdd.added.moves.join(" ") === "exd5 cxd5 d4",
+  `add reports anchor + grafted moves (${tolerantAdd.added?.from.join(" ")} + ${tolerantAdd.added?.moves.join(" ")})`,
+);
+
+// 16b. sanPathAt — index path → SAN list (inverse of resolveSan)
+const spTree = GameTree.fromPgn("1. e4 e5 ( 1... c5 2. Nf3 ) 2. Nf3 *");
+ok(spTree.sanPathAt([]).length === 0, "sanPathAt([]) → []");
+ok(spTree.sanPathAt([0, 0]).join(" ") === "e4 e5", "sanPathAt mainline → e4 e5");
+ok(spTree.sanPathAt([0, 1]).join(" ") === "e4 c5", "sanPathAt variation → e4 c5");
+let spThrew = false;
+try { spTree.sanPathAt([9]); } catch { spThrew = true; }
+ok(spThrew, "sanPathAt throws on invalid index");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();

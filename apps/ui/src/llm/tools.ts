@@ -293,13 +293,23 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
     }
 
     case "modify_repertoire_line": {
-      const { tree: edited, error } = tree.edit(args.action as never, (args.path as string[]) ?? [], {
+      const { tree: edited, error, added } = tree.edit(args.action as never, (args.path as string[]) ?? [], {
         addMoves: args.add_moves as string[] | undefined,
         promoteMove: args.promote_move as string | undefined,
       });
       if (error || !edited) return { error: error ?? "invalid_edit" };
       const s = edited.stats();
-      return { action: args.action, nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth, pgn: edited.toPgn(), note: "preview only — apply via the board to keep it" };
+      return {
+        action: args.action,
+        nodes: s.nodes,
+        leaves: s.leaves,
+        max_depth: s.maxDepth,
+        pgn: edited.toPgn(),
+        // For an add, echo where the graft actually anchored + the moves grafted — the path may
+        // have been re-split when it ran past the existing tree (so the model can see it worked).
+        ...(added ? { added_from: added.from, added_moves: added.moves } : {}),
+        note: "preview only — apply via the board to keep it",
+      };
     }
 
     case "suggest_complementary_lines":

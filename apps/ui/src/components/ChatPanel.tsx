@@ -66,7 +66,7 @@ export default function ChatPanel() {
               <Show when={m.role === "user"}>
                 <div class="msg user">{m.content}</div>
               </Show>
-              <Show when={m.role === "assistant" && m.content}>
+              <Show when={m.role === "assistant" && m.content?.trim()}>
                 <div class="msg assistant">{m.content}</div>
               </Show>
               <Show when={m.role === "assistant" && m.tool_calls}>

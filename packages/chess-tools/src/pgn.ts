@@ -361,7 +361,7 @@ export class GameTree {
     action: "prune" | "add" | "reorder",
     sanPath: readonly string[],
     opts: { addMoves?: string[]; promoteMove?: string } = {},
-  ): { tree: GameTree | null; error: string | null } {
+  ): { tree: GameTree | null; error: string | null; added?: { from: string[]; moves: string[] } } {
     const clone = GameTree.fromPgn(this.toPgn()); // deep copy via round-trip
     let effectiveSanPath = [...sanPath];
     let effectiveAddMoves = opts.addMoves ?? [];
@@ -407,7 +407,9 @@ export class GameTree {
           cursor = child;
         }
       }
-      return { tree: clone, error: null };
+      // Report what actually anchored the graft — when the caller's path ran past the tree,
+      // the fallback above re-split it, so `effectiveSanPath`/`moves` differ from the input.
+      return { tree: clone, error: null, added: { from: effectiveSanPath, moves } };
     }
 
     // reorder
@@ -448,6 +450,19 @@ export class GameTree {
   sanAt(path: Path): string | null {
     if (path.length === 0) return null;
     return (this.nodeAt(path) as ChildNode<PgnNodeData>).data.san;
+  }
+
+  /** SAN list along an index path (root→node) — the inverse of `resolveSan`. `[]` → `[]`. */
+  sanPathAt(path: Path): string[] {
+    const out: string[] = [];
+    let node: Node<PgnNodeData> = this.game.moves;
+    for (const idx of path) {
+      const child = node.children[idx];
+      if (!child) throw new Error(`invalid path at index ${idx}`);
+      out.push(child.data.san);
+      node = child;
+    }
+    return out;
   }
 
   /** UCI of the last move on `path`, for chessground lastMove highlight. */

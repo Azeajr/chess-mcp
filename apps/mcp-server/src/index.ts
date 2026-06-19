@@ -337,16 +337,19 @@ server.tool(
   ({ repertoire_id, action, path, add_moves, promote_move }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const { tree, error } = e.tree.edit(action, path, { addMoves: add_moves, promoteMove: promote_move });
+    const { tree, error, added } = e.tree.edit(action, path, { addMoves: add_moves, promoteMove: promote_move });
     if (error || !tree) return ok({ error: error ?? "invalid_edit" });
     const id = store(tree, e.color);
     const s = tree.stats();
     const where = path.length ? path.join(" ") : "root";
+    // For add, report the prefix the graft actually anchored to (the path may have been
+    // re-split when it ran past the tree), not the raw input path.
+    const addWhere = added?.from.length ? added.from.join(" ") : "root";
     const summary =
       action === "prune"
         ? `pruned subtree at '${where}'`
         : action === "add"
-          ? `added ${add_moves?.length ?? 0} ply under '${where}'`
+          ? `added ${added?.moves.length ?? 0} ply under '${addWhere}'`
           : `promoted '${promote_move}' to mainline at '${where}'`;
     return ok({ new_repertoire_id: id, action, nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth, summary });
   },
