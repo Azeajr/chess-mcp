@@ -17,9 +17,14 @@ import {
   scanComplementary,
   replacements,
   fixFlag,
+  bridges,
+  bridgeScanning,
+  bridgeError,
+  scanBridges,
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
+import type { TranspositionBridge } from "@chess-mcp/chess-tools";
 import { stagePreviewLine } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 
@@ -45,6 +50,16 @@ export default function RepertoirePanel() {
     actions.goto(fromPath); // jump there so the gold preview arrow is visible immediately
     stagePreviewLine(fromPath, [pivotMove]);
   };
+
+  const onBridge = (b: TranspositionBridge) => {
+    const fromIdx = currentTree().indexPathOfSan(b.fromPath);
+    if (!fromIdx) return;
+    actions.goto(fromIdx);
+    // Links are actionable (stage the bridging move → Accept grafts it); confirmed is info-only.
+    if (b.kind !== "coverage_confirmed") stagePreviewLine(fromIdx, [b.move]);
+  };
+  const bridgeIcon = (k: TranspositionBridge["kind"]) =>
+    k === "frontier_link" ? "🔗" : k === "move_order_merge" ? "↪" : "✓";
 
   return (
     <div class="rep-panel">
@@ -112,6 +127,27 @@ export default function RepertoirePanel() {
               </div>
             );
           }}
+        </For>
+      </details>
+
+      {/* Tier A: transposition bridges (engine-free) */}
+      <details class="rep-section">
+        <summary>
+          <span>Bridges</span>
+          <Show when={bridgeScanning()} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanBridges())}>Scan</button>}>
+            <span class="scan-progress">…</span>
+          </Show>
+        </summary>
+        <Show when={bridgeError()}><div class="empty">{bridgeError()}</div></Show>
+        <Show when={bridges() && bridges()!.length === 0}><div class="empty">No new transposition links.</div></Show>
+        <For each={bridges() ?? []}>
+          {(b: TranspositionBridge) => (
+            <div class="rep-row" onClick={() => onBridge(b)} title={`${b.fromPath.join(" ")} → ${b.move}  joins  ${b.joinsPath.join(" ")}`}>
+              <span class="bridge-icon">{bridgeIcon(b.kind)}</span>
+              <span class="san">{b.fromPath.join(" ")} → {b.move}</span>
+              <span class="fit">joins {b.joinsPath.at(-1)}</span>
+            </div>
+          )}
         </For>
       </details>
 

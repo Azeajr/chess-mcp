@@ -480,6 +480,12 @@ body {
   color: var(--muted);
   white-space: nowrap;
 }
+.rep-row .bridge-icon {
+  font-size: 0.78rem;
+  width: 1.1em;
+  text-align: center;
+  flex: 0 0 auto;
+}
 .rep-row .ev,
 .rep-row .fit {
   margin-left: auto;

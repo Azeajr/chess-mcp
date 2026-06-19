@@ -5,6 +5,7 @@
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
+import type { TranspositionBridge } from "@chess-mcp/chess-tools";
 import { runTool } from "../llm/tools";
 
 // --- Tier A: congruence (engine-free) ---
@@ -40,6 +41,34 @@ export async function scanCongruence() {
     setCongError(e instanceof Error ? e.message : String(e));
   } finally {
     setCongScanning(false);
+  }
+}
+
+// --- Tier A: transposition bridges (engine-free, instant) ---
+
+const [bridges, setBridges] = createSignal<TranspositionBridge[] | null>(null);
+const [bridgeScanning, setBridgeScanning] = createSignal(false);
+const [bridgeError, setBridgeError] = createSignal<string | null>(null);
+export { bridges, bridgeScanning, bridgeError };
+
+export async function scanBridges() {
+  setBridgeError(null);
+  setBridgeScanning(true);
+  try {
+    const r = (await runTool("find_transposition_opportunities", {})) as {
+      opportunities?: TranspositionBridge[];
+      error?: string;
+    };
+    if (r.error) {
+      setBridgeError(r.error);
+      setBridges(null);
+    } else {
+      setBridges(r.opportunities ?? []);
+    }
+  } catch (e) {
+    setBridgeError(e instanceof Error ? e.message : String(e));
+  } finally {
+    setBridgeScanning(false);
   }
 }
 

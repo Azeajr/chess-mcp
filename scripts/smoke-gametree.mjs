@@ -177,6 +177,17 @@ ok(spTree.indexPathOfSan(["e4", "c5"]).join(",") === "0,1", "indexPathOfSan vari
 ok(spTree.indexPathOfSan(["e4", "e5"]).join(",") === "0,0", "indexPathOfSan mainline → 0,0");
 ok(spTree.indexPathOfSan(["e4", "d4"]) === null, "indexPathOfSan unknown line → null");
 
+// 16c. transpositionBridges — move-order interlinking
+// Two orders to the same English position; the c5-first branch stops a ply short of ...e6.
+const brTree = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *");
+const bridges = brTree.transpositionBridges("black");
+const frontier = bridges.find((b) => b.kind === "frontier_link");
+ok(frontier && frontier.move === "e6", `frontier_link bridges via ...e6 (${frontier?.move})`);
+ok(frontier && frontier.fromPath.join(" ") === "c4 c5 Nc3", "frontier_link departs from 1.c4 c5 2.Nc3");
+ok(frontier && frontier.joinsPath.join(" ") === "c4 e6 Nc3 c5", "frontier_link joins the c4 e6 Nc3 c5 line");
+// A linear line has no bridges; the natural continuation is never reported.
+ok(GameTree.fromPgn("1. e4 e5 2. Nf3 *").transpositionBridges("white").length === 0, "linear line → no bridges");
+
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");

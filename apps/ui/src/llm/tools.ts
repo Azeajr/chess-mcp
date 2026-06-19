@@ -101,6 +101,7 @@ export const toolSchemas: ToolSchema[] = [
     limit: { type: "integer" },
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
+  fn("find_transposition_opportunities", "Engine-free. Move-order bridges that would interlink the current repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition.", { limit: { type: "integer" }, kinds: { type: "array", items: { type: "string" } } }),
   fn("get_repertoire_coverage", "Tree-shape hygiene for the current repertoire: dangling lines (your-turn leaves owed a move) vs natural frontiers.", { limit: { type: "integer" } }),
   fn("get_structural_profile", "Static pawn-structure profile of the current repertoire. With variation_path (SAN list): one position's classified structure, center, primitives, themes. Without it: an aggregate structure fingerprint over all leaves.", {
     variation_path: { type: "array", items: { type: "string" }, description: "SAN path to one line; omit for the aggregate" },
@@ -254,6 +255,14 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       const groups = tree.transpositions();
       const shown = groups.slice(0, (args.limit as number) ?? 20);
       return { total: groups.length, returned: shown.length, transpositions: shown };
+    }
+
+    case "find_transposition_opportunities": {
+      const all = tree.transpositionBridges(col);
+      const wanted = args.kinds as string[] | undefined;
+      const filtered = wanted?.length ? all.filter((b) => wanted.includes(b.kind)) : all;
+      const shown = filtered.slice(0, (args.limit as number) ?? 20);
+      return { total: filtered.length, returned: shown.length, opportunities: shown };
     }
 
     case "get_repertoire_coverage": {

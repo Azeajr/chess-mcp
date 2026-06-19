@@ -218,6 +218,24 @@ server.tool(
 );
 
 server.tool(
+  "find_transposition_opportunities",
+  "Engine-free. Move-order bridges that would interlink the repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition.",
+  {
+    repertoire_id: z.string(),
+    limit: z.number().int().min(1).max(100).optional(),
+    kinds: z.array(z.enum(["frontier_link", "coverage_confirmed", "move_order_merge"])).optional(),
+  },
+  ({ repertoire_id, limit, kinds }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const all = e.tree.transpositionBridges(e.color);
+    const filtered = kinds?.length ? all.filter((b) => kinds.includes(b.kind)) : all;
+    const shown = filtered.slice(0, limit ?? 20);
+    return ok({ total: filtered.length, returned: shown.length, opportunities: shown });
+  },
+);
+
+server.tool(
   "get_repertoire_coverage",
   "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers.",
   { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
