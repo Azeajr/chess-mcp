@@ -46,6 +46,7 @@ Repo shape the prompts assume:
 | [2. Security Mitigation](#2-security-mitigation) | Concrete, local hardening against this server's real threat model — not security theater. |
 | [3. High-Signal Testing](#3-high-signal-testing) | Smoke coverage is thin or vanity; you want behavior checks that make refactoring safe. |
 | [4. Repertoire Analysis Loop](#4-repertoire-analysis-loop) | Run the full analysis flow against `repertoires/<name>/repertoire.pgn`, document findings, capture retro friction, implement bounded fixes, ship. Repeat to iterate the MCP. |
+| [5. Performance](#5-performance) | The engine-free analysis feels slow on big trees; hunt super-linear tree walks, redundant re-walks, and repeated pure computation — output must stay byte-identical. |
 
 Verification commands referenced by every pass (this repo):
 
@@ -258,5 +259,37 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 1. Build + typecheck: `pnpm --filter @chess-mcp/chess-tools build && pnpm -r typecheck`.
 2. Smoke: `node scripts/smoke-gametree.mjs && node scripts/structure-accuracy.mjs`. If new assertions fail or break existing ones, debug and fix the CHECK — unless you uncovered a real bug in chess-tools/the server, in which case fix the source and note it in the commit.
 3. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
+4. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
+```
+
+---
+
+## 5. Performance
+
+```text
+Act as a pragmatic, performance-minded TypeScript engineer on chess-mcp (a Node MCP server + a SolidJS PWA, both driving the same packages/chess-tools). Hunt down and remove ALGORITHMIC inefficiency in the ENGINE-FREE layer (packages/chess-tools/src — pgn.ts/GameTree, gaps.ts, repcongruence.ts, congruence.ts, structure.ts, openings.ts) without changing a single output. This is a perf pass, not a refactor: identical results are the whole point.
+
+WHERE THE TIME IS (target the right thing):
+- The stockfish wasm engine dominates the wall-clock of every engine tool. suggest_complementary_lines, suggest_replacement_line, find_repertoire_gaps, evaluate_position, analyze_game are bounded by analyse() (wasm/cloud) — optimizing their pure slices is fine but will NOT move their latency, so do not claim it does. The real, optimizable cost is the pure tree analysis the engine-free tools run, plus the engine-free PRE-PASS that engine tools run before they ever call analyse (decisionNodes, leaf enumeration, structural classification).
+
+HUNT FOR (highest-yield first):
+1. Super-linear tree walks. The house pattern is a DFS that CARRIES the chessops position down (O(nodes)). The trap: calling tree.positionAt(path) / fenAt(path) / childSansAt(path) / childMovesAt(path) inside a per-node loop — each replays SANs from the root (O(depth)), turning the scan into O(nodes·depth). Thread the position (and any per-node key) through ONE DFS instead. (decisionNodes — the find_repertoire_gaps pre-pass — was exactly this: O(n·d) → O(n).)
+2. Redundant repeated walks. A function that walks the tree several times (e.g. tree.leaves() then tree.moveMap() then a per-leaf identifyDeepestFromMoves(table, leafSans)) usually folds into ONE DFS carrying everything it needs: the position, a running deepest-ECO match (so the per-leaf O(depth) line replay → O(1) incremental), and the interior-key set (so moveMap()'s separate walk + its unused {sans,turn} allocations disappear). Per-leaf full-line replays are the classic O(leaves·depth) smell.
+3. Repeated pure computation across calls. classifyStructure runs ~20 board scorers and is invoked once per leaf by analyze_repertoire_congruence, both suggest_* (profileStructureShares), and the aggregate get_structural_profile — the same positions recur across a workflow. A DETERMINISTIC pure function keyed by a stable value (board PLACEMENT via makeBoardFen — structure depends only on placement, so the entry never goes stale, no invalidation) can be MEMOIZED. BOUND the cache (FIFO/size cap) so memory stays flat over the server's lifetime.
+4. Wasteful work in hot loops: building value objects when you only consume the keys; cloning + parseSan-ing a child twice per node (once to key it, once to recurse) when one play suffices; recomputing a FEN/key you already have one frame up — thread it down instead.
+
+NON-NEGOTIABLE RULES:
+- IDENTICAL OUTPUT. Never change a tool's result, its ordering, or the closed error set. Preserve the pre-order DFS visit so first-seen / shallowest-path tie-breaks stay byte-identical. LOCK equivalence: keep a smoke visit on the path AND add a focused assertion pinning the exact thing the optimization must preserve — a cluster label (the real ECO name), a merged transposition decision node (transpositionPaths length), a same-object-on-repeat cache hit. If you cannot pin it, you cannot claim the rewrite is safe.
+- ENGINE OFF-LIMITS as a target. Do not try to make analyse() faster or restructure the multipv/depth flow; that is behavior + out of scope.
+- structure.ts scorer heuristics (confidence thresholds, theme cutoffs) are validated canon (scripts/structure-accuracy.mjs). Memoize/restructure AROUND them; never re-weigh them — that is a behavior change.
+- Both surfaces share packages/chess-tools: every win lands in apps/mcp-server AND apps/ui. Keep both typechecks green.
+- Prove the win, don't assume it: reason in terms of n (nodes), d (depth), and #leaves; name the before→after complexity. If a saving is ambiguous or might be dwarfed by something else (e.g. the engine, or a makeFen you didn't remove), measure before claiming it — and report honestly when a memo/opt does NOT move a given tool's latency.
+
+SCOPE GUARD: pure engine-free layer only. No tool signature/output change, no new tool, no change to the closed error-code set. A new PURE helper method on GameTree is allowed if it carries the optimization (e.g. an index↔SAN path helper, a single-pass walker).
+
+EXECUTION WORKFLOW (run in order; do not stop until green):
+1. Build + typecheck: `pnpm --filter @chess-mcp/chess-tools build && pnpm -r typecheck`.
+2. Smoke: `node scripts/smoke-gametree.mjs && node scripts/structure-accuracy.mjs` — they MUST stay green (identical output is the point), and ADD the equivalence assertion that locks your optimization. For an engine/network pre-pass you touched, also sanity-run `node apps/mcp-server/test/smoke-client.mjs` locally.
+3. Commit: the message states the before→after complexity and WHY the output is identical (e.g. "decisionNodes O(n·d) → O(n) by threading the position; same pre-order visit ⇒ identical merges/sort"). No Co-Authored-By trailer.
 4. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
 ```
