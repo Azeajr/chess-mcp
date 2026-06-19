@@ -24,7 +24,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 32, "32 tools registered");
+ok(tools.length === 33, "33 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -52,6 +52,15 @@ ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.d
 const transRep = await call(client, "load_repertoire", { pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *", color: "white" });
 const trans = await call(client, "get_transpositions", { repertoire_id: transRep.repertoire_id });
 ok(trans.total === 1 && trans.transpositions[0].paths.length === 2, "get_transpositions finds the converging position");
+
+// find_transposition_opportunities: the c5-first line stops a ply short of ...e6, which bridges
+// into the e6-first line (engine-free).
+const bridgeRep = await call(client, "load_repertoire", { pgn: "1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *", color: "black" });
+const bridges = await call(client, "find_transposition_opportunities", { repertoire_id: bridgeRep.repertoire_id });
+ok(
+  bridges.opportunities.some((b) => b.kind === "frontier_link" && b.move === "e6" && b.fromPath.join(" ") === "c4 c5 Nc3"),
+  "find_transposition_opportunities finds the ...e6 frontier link",
+);
 
 console.log("compare_moves (engine, depth 12)…");
 const cmp = await call(client, "compare_moves", { fen: START, moves: ["e4", "d4", "a3"], depth: 12 });
