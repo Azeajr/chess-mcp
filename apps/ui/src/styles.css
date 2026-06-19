@@ -220,6 +220,12 @@ body {
   color: #10131a;
 }
 
+/* Feature 1: moves on the active preview line that already exist in the tree. */
+.move-tree .move.move-preview {
+  box-shadow: 0 0 0 1px #e3b341 inset;
+  background: rgba(227, 179, 65, 0.15);
+}
+
 .move-tree .moveno {
   color: var(--muted);
 }
@@ -528,6 +534,59 @@ body {
 }
 .msg.streaming {
   opacity: 0.85;
+}
+/* Feature 2: tree-click context marker — muted, monospace, clickable to revisit the line. */
+.msg.focus-injection {
+  align-self: stretch;
+  background: #232329;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+.msg.focus-injection:hover {
+  border-color: var(--accent);
+}
+
+/* Feature 1: preview chip under a propose_line result. */
+.preview-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.3rem;
+  font-size: 0.8rem;
+}
+.preview-chip .pc-line {
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  color: #dceaff;
+}
+.preview-chip.active .pc-line {
+  background: rgba(227, 179, 65, 0.18);
+  border-color: #e3b341;
+}
+.preview-chip .pc-badge {
+  font-size: 0.68rem;
+  color: #e3b341;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.preview-chip .pc-accept,
+.preview-chip .pc-reject {
+  font-size: 0.72rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  background: #33333a;
+  color: var(--text);
+}
+.preview-chip .pc-accept {
+  border-color: #3c7a4b;
 }
 .tool-chips {
   display: flex;

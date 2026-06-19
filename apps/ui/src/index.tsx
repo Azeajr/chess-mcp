@@ -2,7 +2,7 @@
 import { render } from "solid-js/web";
 import App from "./App";
 import { actions } from "./store/game";
-import { addSuggestion, acceptSuggestion, suggestions } from "./store/suggestions";
+import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, acceptPreview, clearPreview } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import "./styles.css";
 
@@ -18,6 +18,10 @@ if (import.meta.env.DEV) {
     addSuggestion,
     acceptSuggestion,
     suggestions,
+    preview,
+    stagePreview,
+    acceptPreview,
+    clearPreview,
     runTool,
   };
 }

@@ -6,6 +6,8 @@
 import { createMemo, Show, type JSX } from "solid-js";
 import type { Node, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
+import { previewedKeys } from "../store/suggestions";
+import { focusLine } from "../store/chat";
 import type { Path } from "@chess-mcp/chess-tools";
 
 const pathEq = (a: Path, b: Path) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -28,12 +30,18 @@ export default function MoveTree() {
   const render = createMemo(() => {
     const tree = currentTree();
     const cur = currentPath();
+    const previewed = previewedKeys();
+
+    const onMoveClick = (path: Path) => {
+      actions.goto(path);
+      focusLine(path); // Feature 2: drop a context marker into chat
+    };
 
     const moveSpan = (node: ChildNode<PgnNodeData>, path: Path, blackDots: boolean): JSX.Element => (
       <>
         <span
-          class={`move${pathEq(path, cur) ? " current" : ""}`}
-          onClick={() => actions.goto(path)}
+          class={`move${pathEq(path, cur) ? " current" : ""}${previewed.has(path.join(",")) ? " move-preview" : ""}`}
+          onClick={() => onMoveClick(path)}
         >
           {moveLabel(node.data.san, path.length, blackDots)}
         </span>{" "}

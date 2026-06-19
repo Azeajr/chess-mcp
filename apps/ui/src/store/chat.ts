@@ -12,7 +12,8 @@ import { streamChat, type ChatMessage } from "../llm/openrouter";
 import { toolSchemas, runTool } from "../llm/tools";
 import { workflowPrompt } from "../llm/workflows";
 import { apiKey, model, hasApiKey, chatMode } from "./settings";
-import { fen, color, actions } from "./game";
+import { fen, color, actions, currentTree } from "./game";
+import type { Path } from "@chess-mcp/chess-tools";
 
 const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Every tool runs locally
 against the board, the chess engine, and the chess library — use them; never guess. Be concise.`;
@@ -31,6 +32,28 @@ export { history, streamingText, busy, error };
 export function clearChat() {
   setHistory([]);
   setError(null);
+}
+
+/**
+ * Feature 2: tree click → context marker. Appends a UI-only "focus" row naming the clicked
+ * line + its FEN. It is shown in the log but filtered out of the model payload (the next send
+ * already re-grounds the position via systemMessage), so it never re-inflates the API context.
+ */
+export function focusLine(path: Path) {
+  const tree = currentTree();
+  let san: string[];
+  let lineFen: string;
+  try {
+    san = tree.sanPathAt(path);
+    lineFen = tree.fenAt(path);
+  } catch {
+    return; // stale/invalid path
+  }
+  if (!san.length) return;
+  setHistory((h) => [
+    ...h,
+    { role: "focus", content: `Focused: ${san.at(-1)} — ${san.join(" ")}  (${lineFen})`, focusPath: path },
+  ]);
 }
 
 function systemMessage(): ChatMessage {
@@ -56,7 +79,8 @@ export async function send(userText: string) {
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       setStreamingText("");
-      const messages = [systemMessage(), ...history()];
+      // Drop UI-only "focus" markers — they are display context, never sent to the model.
+      const messages = [systemMessage(), ...history().filter((m) => m.role !== "focus")];
       const { content, toolCalls } = await streamChat({
         apiKey: apiKey(),
         model: model(),

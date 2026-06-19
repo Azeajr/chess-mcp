@@ -11,10 +11,14 @@ export interface ToolCall {
 }
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant" | "tool";
+  // "focus" is a UI-only marker (a tree-click context note); it is never sent to the model —
+  // store/chat.ts filters it out before each request.
+  role: "system" | "user" | "assistant" | "tool" | "focus";
   content: string | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
+  /** UI-only: the index path a "focus" marker points at, for click-to-revisit. Not wired. */
+  focusPath?: number[];
 }
 
 export interface ToolSchema {

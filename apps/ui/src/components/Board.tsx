@@ -8,11 +8,11 @@ import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
 import type { Key } from "chessground/types";
-import type { DrawShape } from "chessground/draw";
+import type { DrawShape, DrawBrush } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
 import { isPromotion } from "@chess-mcp/chess-tools";
 import { engineArrows, repertoireArrows, type Arrow } from "../store/analysis";
-import { suggestionArrows } from "../store/suggestions";
+import { suggestionArrows, previewArrow } from "../store/suggestions";
 import { pendingPromo, setPendingPromo } from "../store/promotion";
 
 export default function Board() {
@@ -39,6 +39,14 @@ export default function Board() {
       animation: { enabled: true, duration: 120 },
       highlight: { lastMove: true, check: true },
     });
+    // "gold" is the Feature 1 preview brush — added to the default set (green/red/blue/yellow)
+    // after init so we don't have to re-declare the built-ins the Config type demands.
+    (cg.state.drawable.brushes as Record<string, DrawBrush>).gold = {
+      key: "gold",
+      color: "#e3b341",
+      opacity: 0.95,
+      lineWidth: 10,
+    };
   });
 
   // Re-sync the board whenever the store position changes. Also depends on the pending-promotion
@@ -66,8 +74,15 @@ export default function Board() {
   createEffect(() => {
     if (!cg) return;
     const book = repertoireArrows();
-    const bookKeys = new Set(book.map(arrowKey));
-    const shapes = [...book, ...engineArrows().filter((a) => !bookKeys.has(arrowKey(a))), ...suggestionArrows()];
+    const preview = previewArrow();
+    // Gold preview wins its square: drop any book/engine arrow sharing the same orig→dest.
+    const taken = new Set([...book, ...preview].map(arrowKey));
+    const shapes = [
+      ...book.filter((a) => !preview.some((p) => arrowKey(p) === arrowKey(a))),
+      ...engineArrows().filter((a) => !taken.has(arrowKey(a))),
+      ...suggestionArrows(),
+      ...preview,
+    ];
     cg.setShapes(shapes as unknown as DrawShape[]);
   });
 
