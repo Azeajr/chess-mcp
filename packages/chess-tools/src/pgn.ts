@@ -465,6 +465,19 @@ export class GameTree {
     return out;
   }
 
+  /** Index path for a SAN variation path, or null if it doesn't match a line (inverse of sanPathAt). */
+  indexPathOfSan(sans: readonly string[]): Path | null {
+    const out: Path = [];
+    let node: Node<PgnNodeData> = this.game.moves;
+    for (const san of sans) {
+      const ci = node.children.findIndex((c) => c.data.san === san);
+      if (ci < 0) return null;
+      out.push(ci);
+      node = node.children[ci]!;
+    }
+    return out;
+  }
+
   /** UCI of the last move on `path`, for chessground lastMove highlight. */
   lastMoveAt(path: Path): [string, string] | null {
     if (path.length === 0) return null;

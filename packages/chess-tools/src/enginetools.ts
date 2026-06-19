@@ -345,6 +345,9 @@ export async function suggestReplacementLine(
   return {
     outlier_move: moveSan(piv.pivotBeforeFen, piv.outlierUci),
     anchored_to: piv.anchoredTo,
+    // SAN path up to and including the move being replaced — the UI strips the last entry to get
+    // the anchor position (pivotBeforeFen) for staging a replacement preview.
+    pivot_path: piv.pivotPath,
     suggestions: suggestions.map((s) => s.entry),
   };
 }

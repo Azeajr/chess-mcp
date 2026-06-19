@@ -4,7 +4,7 @@ import Board from "./components/Board";
 import EvalBar from "./components/EvalBar";
 import MoveTree from "./components/MoveTree";
 import AnalysisPanel from "./components/AnalysisPanel";
-import GapsPanel from "./components/GapsPanel";
+import RepertoirePanel from "./components/RepertoirePanel";
 import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
 import SettingsDrawer from "./components/SettingsDrawer";
@@ -53,7 +53,7 @@ export default function App() {
         <Divider onResize={(d) => setSideWidth(sideWidth() + d)} onEnd={persistLayout} />
         <div class="side-panel" style={{ width: `${sideWidth()}px` }}>
           <AnalysisPanel />
-          <GapsPanel />
+          <RepertoirePanel />
           <MoveTree />
         </div>
         {/* dragging this divider right grows the side panel and steals from chat → negate */}

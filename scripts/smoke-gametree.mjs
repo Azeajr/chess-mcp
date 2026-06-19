@@ -172,6 +172,10 @@ ok(spTree.sanPathAt([0, 1]).join(" ") === "e4 c5", "sanPathAt variation → e4 c
 let spThrew = false;
 try { spTree.sanPathAt([9]); } catch { spThrew = true; }
 ok(spThrew, "sanPathAt throws on invalid index");
+// indexPathOfSan — inverse of sanPathAt
+ok(spTree.indexPathOfSan(["e4", "c5"]).join(",") === "0,1", "indexPathOfSan variation → 0,1");
+ok(spTree.indexPathOfSan(["e4", "e5"]).join(",") === "0,0", "indexPathOfSan mainline → 0,0");
+ok(spTree.indexPathOfSan(["e4", "d4"]) === null, "indexPathOfSan unknown line → null");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();

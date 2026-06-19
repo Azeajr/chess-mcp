@@ -89,12 +89,26 @@ export function clearPreview() {
   setPreview(null);
 }
 
-/** Accept the active preview: graft it into the tree (resolving fromPath afresh) and clear. */
+/**
+ * Stage a preview directly from a path + SAN line (no chat Suggestion needed). Used by the
+ * repertoire panel's Tier B actions (extend / fix). Validates against the position at fromPath;
+ * returns {ok:false} if the line is illegal there.
+ */
+export function stagePreviewLine(fromPath: Path, sans: string[]) {
+  const startFen = currentTree().fenAt(fromPath);
+  const chk = validateLine(startFen, sans);
+  if (!chk.ok) return { ok: false as const };
+  setPreview({ id: `t${nextId++}`, fromPath, sans: chk.canonical, firstUci: chk.firstUci });
+  return { ok: true as const };
+}
+
+/** Accept the active preview: graft it into the tree and clear (also drops a matching suggestion). */
 export function acceptPreview() {
   const p = preview();
   if (!p) return;
   setPreview(null);
-  acceptSuggestion(p.id); // appendLine(fromPath, sans) + removes the suggestion
+  actions.appendLine(p.fromPath, p.sans);
+  setSuggestions((prev) => prev.filter((x) => x.id !== p.id));
 }
 
 /** Gold arrow for the active preview's first move, only while the board is at its fromPath. */

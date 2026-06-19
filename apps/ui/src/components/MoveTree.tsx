@@ -3,7 +3,7 @@
  * move navigates to its node; the current node is highlighted. Reads the store's tree +
  * path signals so it re-renders on play/navigate.
  */
-import { createMemo, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, Show, type JSX } from "solid-js";
 import type { Node, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
 import { previewedKeys } from "../store/suggestions";
@@ -11,6 +11,7 @@ import { focusLine } from "../store/chat";
 import type { Path } from "@chess-mcp/chess-tools";
 
 const pathEq = (a: Path, b: Path) => a.length === b.length && a.every((v, i) => v === b[i]);
+const isPrefix = (prefix: Path, of: Path) => prefix.length <= of.length && prefix.every((v, i) => of[i] === v);
 
 function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Element {
   const moveNo = Math.floor((ply - 1) / 2) + 1;
@@ -27,10 +28,20 @@ function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Eleme
 }
 
 export default function MoveTree() {
+  // Feature 3: per-branch collapse state, session-only (keyed by the parent's index path).
+  const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
   const render = createMemo(() => {
     const tree = currentTree();
     const cur = currentPath();
     const previewed = previewedKeys();
+    const collapsedSet = collapsed();
 
     const onMoveClick = (path: Path) => {
       actions.goto(path);
@@ -60,15 +71,38 @@ export default function MoveTree() {
         const mainPath = [...path, 0];
         parts.push(moveSpan(main, mainPath, dots));
 
-        for (let i = 1; i < cursor.children.length; i++) {
-          const v = cursor.children[i] as ChildNode<PgnNodeData>;
-          const vPath = [...path, i];
+        // A branch point: ≥2 children. Offer a collapse toggle. Never collapse when the current
+        // position descends into one of the (non-mainline) variations here — keep it visible.
+        const branch = cursor.children.length > 1;
+        if (branch) {
+          const key = path.length ? path.join(",") : "root";
+          const curInVariation = cur.length > path.length && isPrefix(path, cur) && cur[path.length]! >= 1;
+          const isCollapsed = collapsedSet.has(key) && !curInVariation;
+          const hidden = cursor.children.length - 1;
           parts.push(
-            <div class="variation">
-              ({moveSpan(v, vPath, true)}
-              {renderLine(v, vPath, false)})
-            </div>,
+            <button
+              class="collapse-toggle"
+              title={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleGroup(key);
+              }}
+            >
+              {isCollapsed ? `+${hidden}` : "–"}
+            </button>,
           );
+          if (!isCollapsed) {
+            for (let i = 1; i < cursor.children.length; i++) {
+              const v = cursor.children[i] as ChildNode<PgnNodeData>;
+              const vPath = [...path, i];
+              parts.push(
+                <div class="variation">
+                  ({moveSpan(v, vPath, true)}
+                  {renderLine(v, vPath, false)})
+                </div>,
+              );
+            }
+          }
         }
 
         dots = false;

@@ -230,6 +230,30 @@ body {
   color: var(--muted);
 }
 
+/* Feature 3: per-branch collapse toggle. */
+.move-tree .collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  margin: 0 0.25rem;
+  font-size: 0.66rem;
+  line-height: 1;
+  color: var(--muted);
+  background: #2b2b32;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.55;
+  vertical-align: middle;
+}
+.move-tree .collapse-toggle:hover {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
 .move-tree .variation {
   margin-left: 1rem;
   color: var(--muted);
@@ -347,26 +371,50 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.gaps {
+/* Feature 6: repertoire backbone panel — collapsible Tier A / Tier B sections. */
+.rep-panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: 0.4rem 0.6rem;
   font-size: 0.9rem;
 }
-
-.gaps .panel-head {
+.rep-section {
+  border-bottom: 1px solid var(--border);
+}
+.rep-section:last-child {
+  border-bottom: none;
+}
+.rep-section > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.45rem 0;
   color: var(--muted);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 0.5rem;
+}
+.rep-section > summary::-webkit-details-marker {
+  display: none;
+}
+.rep-section > summary > span:first-child::before {
+  content: "▸ ";
+}
+.rep-section[open] > summary > span:first-child::before {
+  content: "▾ ";
+}
+.rep-section > summary .scan-btn,
+.rep-section > summary .rep-mode {
+  margin-left: auto;
+}
+.rep-section > summary .rep-mode + .scan-btn {
+  margin-left: 0.4rem;
 }
 
-.gaps .scan-btn {
+.rep-panel .scan-btn {
   background: #33333a;
   color: var(--text);
   border: 1px solid var(--border);
@@ -377,58 +425,103 @@ body {
   text-transform: none;
   letter-spacing: 0;
 }
-.gaps .scan-btn:hover {
+.rep-panel .scan-btn:hover:not(:disabled) {
   border-color: var(--accent);
 }
-
-.gaps .scan-progress {
+.rep-panel .scan-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rep-mode {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rep-panel .scan-progress {
   color: var(--accent);
   font-size: 0.8rem;
+  padding: 0.15rem 0;
 }
-
-.gaps .empty {
+.rep-panel .empty {
   color: var(--muted);
   font-style: italic;
+  padding: 0.15rem 0;
 }
 
-.gaps .gap {
+.rep-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   padding: 0.25rem 0;
   cursor: pointer;
   border-radius: 4px;
+  font-size: 0.82rem;
 }
-.gaps .gap:hover {
+.rep-row:hover {
   background: #3a3a42;
 }
-
-.gaps .san {
-  min-width: 3.5rem;
-  font-variant-numeric: tabular-nums;
+.rep-row.indent {
+  padding-left: 0.9rem;
+  color: #dceaff;
 }
-.gaps .ev {
+.rep-row .san {
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rep-row .ctype {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.rep-row .ev,
+.rep-row .fit {
   margin-left: auto;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rep-row .fit {
+  margin-left: 0.5rem;
 }
 
-.gaps .sev {
+.rep-flag {
+  padding: 0.15rem 0;
+}
+.fix-btn {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0 0 0.1rem;
+}
+.fix-btn:hover {
+  text-decoration: underline;
+}
+
+.rep-panel .sev {
   font-size: 0.68rem;
   font-weight: 600;
   padding: 0.05rem 0.35rem;
   border-radius: 4px;
   text-transform: uppercase;
 }
-.gaps .sev-high {
+.rep-panel .sev-high {
   background: #6b2f33;
   color: #f0c8cb;
 }
-.gaps .sev-medium {
+.rep-panel .sev-medium {
   background: #6b5e2f;
   color: #f0e7c8;
 }
-.gaps .sev-low {
+.rep-panel .sev-low {
   background: #3a3a42;
   color: var(--muted);
 }
