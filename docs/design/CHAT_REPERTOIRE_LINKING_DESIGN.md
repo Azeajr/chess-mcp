@@ -1,6 +1,6 @@
 # Chat–Repertoire Linking Design
 
-Status: **accepted**.
+Status: **implemented**.
 
 Extends the chat tree linking proposal (`CHAT_TREE_LINKS_DESIGN.md`) with six capabilities
 that close the loop between chat analysis and the repertoire tree: (1) clickable tool-result
