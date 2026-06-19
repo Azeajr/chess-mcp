@@ -248,6 +248,8 @@ const nimzo = "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ ( 4... O-O 5. Bd3 d5 6.
 const cong = analyzeCongruence(GameTree.fromPgn(nimzo), "white", ecoTable, {});
 ok(cong.leaves_analyzed === 3, `congruence: 3 leaves (${cong.leaves_analyzed})`);
 ok(cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "weakness_inconsistency flagged for the doubled-pawn line");
+// ECO clustering still resolves the real opening name (locks the incremental-ECO rewrite)
+ok(Object.keys(cong.clusters).some((k) => /Nimzo/i.test(k)), `clusters carry the ECO name (${Object.keys(cong.clusters).join(", ")})`);
 // 1-leaf repertoire → nothing to compare → no flags
 ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {}).total_flagged === 0, "single line → no congruence flags");
 

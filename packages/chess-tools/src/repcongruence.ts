@@ -7,8 +7,9 @@ import { GameTree } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { type Severity, SEVERITY_RANK } from "./gaps.js";
 import { themes, classifyStructure, isolatedPawns, doubledPawns, centerState } from "./structure.js";
-import { identifyDeepestFromMoves, type OpeningTable } from "./openings.js";
+import { type OpeningTable } from "./openings.js";
 import { Chess } from "chessops/chess";
+import type { Node, PgnNodeData } from "chessops/pgn";
 import { parseSan } from "chessops/san";
 import { makeUci } from "chessops/util";
 import { makeFen } from "chessops/fen";
@@ -42,12 +43,13 @@ const pathPrefix = (path: string[], excl: string[][]) =>
 
 const pathEq = (a: string[], b: string[]) => a.length === b.length && a.every((s, i) => s === b[i]);
 
-function clusterLabel(table: OpeningTable, sans: string[], sc: string, themeTags: Set<string>): string {
-  const op = identifyDeepestFromMoves(table, sans);
-  if (op) return op.name.split(":")[0]!.trim();
+// ecoName = the deepest ECO opening name along the line (computed incrementally during the tree
+// walk, not re-replayed per leaf). null → fall back to structure / theme / first move.
+function clusterLabel(ecoName: string | null, sc: string, themeTags: Set<string>, firstSan: string | undefined): string {
+  if (ecoName) return ecoName.split(":")[0]!.trim();
   if (sc !== "unknown") return `structure:${sc}`;
   for (const theme of BOOL_THEMES) if (themeTags.has(theme)) return `theme:${theme}`;
-  return sans.length ? `first-move:${sans[0]}` : "first-move:";
+  return firstSan ? `first-move:${firstSan}` : "first-move:";
 }
 
 // --- replacement-pivot resolution (suggest_replacement_line, port of replacement_pivot) ---
@@ -139,26 +141,44 @@ export function analyzeCongruence(tree: GameTree, color: Color, table: OpeningTa
   const ackSet = opts.acknowledgedWeaknesses ?? [];
   const excl = opts.excludePaths ?? [];
 
+  // One DFS carrying the position, the running deepest-ECO name, and each node's already-computed
+  // key. Replaces a per-leaf identifyDeepestFromMoves (which re-replayed the whole line → O(leaves·d))
+  // and a separate tree.moveMap() walk for the interior keys → both fold into this single O(nodes) pass.
   const data: LeafData[] = [];
-  for (const { path, pos } of tree.leaves()) {
-    if (excl.length && pathPrefix(path, excl)) continue;
+  const transpositionKeys = new Set<string>(); // interior position keys (positions with a continuation)
+  const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[], ecoName: string | null, selfKey: string) => {
+    if (node.children.length) {
+      transpositionKeys.add(selfKey);
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        const childKey = positionKey(makeFen(next.toSetup()));
+        const hit = table.get(childKey);
+        dfs(child, next, [...sanPath, child.data.san], hit ? hit.name : ecoName, childKey);
+      }
+      return;
+    }
+    if (excl.length && pathPrefix(sanPath, excl)) return; // excluded leaf
     const board = pos.board;
     const t = themes(board, color);
     const sc = classifyStructure(board).structure_class;
     const themeTags = new Set(BOOL_THEMES.filter((k) => t[k]));
     data.push({
-      path,
-      posKey: positionKey(makeFen(pos.toSetup())),
+      path: sanPath,
+      posKey: selfKey,
       structure: sc,
-      cluster: clusterLabel(table, path, sc, themeTags),
+      cluster: clusterLabel(ecoName, sc, themeTags, sanPath[0]),
       isolated: isolatedPawns(board, color),
       doubled: doubledPawns(board, color),
       center: centerState(board),
       themeTags,
     });
-  }
+  };
+  const start = Chess.default();
+  dfs(tree.game.moves, start, [], null, positionKey(makeFen(start.toSetup())));
   const n = data.length;
-  const transpositionKeys = new Set(tree.moveMap().keys());
 
   const checksFor = (group: LeafData[]): Flag[] => {
     const gn = group.length;
