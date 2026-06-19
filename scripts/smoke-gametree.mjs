@@ -94,6 +94,15 @@ const bNodes = decisionNodes(GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *"), "black")
 ok(bNodes[0].path.length === 0, "black rep: root is a decision node");
 ok(JSON.stringify(bNodes[0].covered) === '["e4"]', "root covered=[e4] for black");
 
+// 8b. transposition merge: one black-to-move position reached by two move orders → a single
+// decision node carrying both paths (locks the O(n) position-threaded rewrite's merge logic).
+const tNodes = decisionNodes(
+  GameTree.fromPgn("1. d4 d5 2. Nf3 Nf6 3. c4 e6 *\n\n1. Nf3 Nf6 2. d4 d5 3. c4 e6 *"),
+  "white",
+);
+const merged = tNodes.find((n) => n.transpositionPaths.length > 1);
+ok(merged && merged.transpositionPaths.length === 2 && JSON.stringify(merged.covered) === '["e6"]', "decision node merges 2 move orders (transpositionPaths=2, covered=[e6])");
+
 // 9. gap severity (opponent-POV cp): loss vs best, capped by absolute edge
 ok(gapSeverity(90, 80) === "high", "loss 10, edge +80 → high");
 ok(gapSeverity(15, 10) === "low", "near-best but near-equal (+10) → low");

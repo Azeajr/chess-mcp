@@ -265,14 +265,16 @@ export class GameTree {
 
     // 2. At every node, probe legal moves that aren't already tree edges.
     const probe = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
-      const childKeys = new Set<string>();
-      for (const child of node.children) {
+      // Play each child once; reuse for both the child-key set and the recursion below.
+      const childPos = node.children.map((child) => {
         const c = pos.clone();
         const mv = parseSan(c, child.data.san);
-        if (!mv) continue;
+        if (!mv) return null;
         c.play(mv);
-        childKeys.add(positionKey(makeFen(c.toSetup())));
-      }
+        return c;
+      });
+      const childKeys = new Set<string>();
+      for (const c of childPos) if (c) childKeys.add(positionKey(makeFen(c.toSetup())));
       const isLeaf = node.children.length === 0;
       for (const [orig, dests] of chessgroundDests(pos)) {
         const from = parseSquare(orig)!;
@@ -298,10 +300,8 @@ export class GameTree {
         }
       }
       node.children.forEach((child, i) => {
-        const next = pos.clone();
-        const mv = parseSan(next, child.data.san);
-        if (!mv) return;
-        next.play(mv);
+        const next = childPos[i];
+        if (!next) return;
         probe(child, next, [...path, i], [...sanPath, child.data.san]);
       });
     };

@@ -5,10 +5,11 @@
  * pass (running a search at each decision node) is the caller's — see the UI's store/gaps.ts.
  */
 import { makeFen } from "chessops/fen";
-import { makeSan } from "chessops/san";
+import { makeSan, parseSan } from "chessops/san";
 import { parseUci } from "chessops/util";
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
+import type { Node, PgnNodeData } from "chessops/pgn";
 import { GameTree, type Path } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 
@@ -35,36 +36,32 @@ export function decisionNodes(tree: GameTree, color: Color): DecisionNode[] {
   const opponent: Color = color === "white" ? "black" : "white";
   const byKey = new Map<string, DecisionNode>();
 
-  const consider = (path: Path) => {
-    const pos = tree.positionAt(path);
-    if (pos.turn !== opponent) return;
-    const covered = tree.childSansAt(path);
-    if (covered.length === 0) return;
-    const key = positionKey(makeFen(pos.toSetup()));
-    const existing = byKey.get(key);
-    if (existing) {
-      for (const s of covered) if (!existing.covered.includes(s)) existing.covered.push(s);
-      existing.transpositionPaths.push(path);
-      if (path.length < existing.path.length) existing.path = path;
-    } else {
-      byKey.set(key, {
-        path,
-        fen: makeFen(pos.toSetup()),
-        covered: [...covered],
-        transpositionPaths: [path],
-      });
+  // One DFS carrying the chess position (O(nodes)). The previous shape re-derived each node's
+  // position with positionAt(path) + childSansAt(path) — both replay from the root, so the whole
+  // scan was O(nodes·depth). Same pre-order visit ⇒ identical "first-seen path" / merge / sort.
+  const consider = (node: Node<PgnNodeData>, pos: Chess, path: Path) => {
+    if (pos.turn === opponent && node.children.length) {
+      const covered = node.children.map((c) => c.data.san);
+      const fen = makeFen(pos.toSetup());
+      const key = positionKey(fen);
+      const existing = byKey.get(key);
+      if (existing) {
+        for (const s of covered) if (!existing.covered.includes(s)) existing.covered.push(s);
+        existing.transpositionPaths.push(path);
+        if (path.length < existing.path.length) existing.path = path;
+      } else {
+        byKey.set(key, { path, fen, covered: [...covered], transpositionPaths: [path] });
+      }
     }
-  };
-
-  consider([]); // root: a Black repertoire must answer White's first moves
-  const dfs = (node: { children: { children: unknown[] }[] }, path: Path) => {
     node.children.forEach((child, i) => {
-      const p = [...path, i];
-      consider(p);
-      dfs(child as never, p);
+      const next = pos.clone();
+      const move = parseSan(next, child.data.san);
+      if (!move) return;
+      next.play(move);
+      consider(child, next, [...path, i]);
     });
   };
-  dfs(tree.game.moves as never, []);
+  consider(tree.game.moves, Chess.default(), []); // root: a Black repertoire must answer White's first moves
 
   return [...byKey.values()].sort((a, b) => a.path.length - b.path.length);
 }
