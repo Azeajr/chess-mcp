@@ -14,13 +14,25 @@ Repo shape the prompts assume:
   `(pgn, depth, multipv, time_limit)`).
 - `apps/mcp-server/src/handles.ts` — the in-memory repertoire handle cache (LRU + idle TTL).
 - `packages/chess-tools/src/` — the pure, engine-free chess logic (chessops, not python-chess):
-  `structure.ts` (pawn-structure classifier + theme tags), `game.ts` (GameTree walker + edits),
-  `repcongruence.ts` (system-clustered congruence), `gaps.ts` (gaps + coverage), `congruence.ts`
-  (eval congruence), `openings.ts` (ECO lookup), `pgn.ts`/`validate.ts` (PGN/FEN parsing + validation),
-  `apiclient.ts`/`games.ts`/`cloudeval.ts`/`tablebase.ts` (rate-limited, offline-safe HTTP),
-  `boardimage.ts` (board SVG/PNG).
+  `pgn.ts` (the **GameTree** variation tree: walk/edit, `transpositions()` + the
+  `transpositionBridges()` opportunity finder, index↔SAN path helpers), `structure.ts`
+  (pawn-structure classifier + theme tags), `repcongruence.ts` (system-clustered congruence +
+  replacement-pivot), `gaps.ts` (gaps + coverage), `congruence.ts` (eval congruence + position keys),
+  `enginetools.ts` (the engine-ORCHESTRATED half — gaps scan, game review,
+  suggest_complementary/replacement — takes an `analyse` callback so it stays engine-agnostic),
+  `game.ts` (single-line mainline walker + cp-loss classes), `openings.ts` (ECO lookup), `validate.ts`
+  (PGN/FEN/line validation), `apiclient.ts`/`games.ts`/`cloudeval.ts`/`tablebase.ts` (rate-limited,
+  offline-safe HTTP), `boardimage.ts` (board SVG/PNG).
+- `apps/ui/` — a SolidJS browser PWA (the deployed app) that **re-implements the full tool surface
+  client-side** in `apps/ui/src/llm/tools.ts` against the SAME `packages/chess-tools` + a browser
+  stockfish wasm Worker, plus `workflows.ts` (chat-mode method prompts) and stores/components
+  (`RepertoirePanel`, `MoveTree`, chat preview chips). Consequence for these passes: a change to
+  `chess-tools` semantics or a tool's args/return shape must stay in sync across BOTH surfaces —
+  `apps/mcp-server/src/index.ts` (stateful, `repertoire_id` handles) and `apps/ui/src/llm/tools.ts`
+  (stateless, operating on the one loaded GameTree). The UI has no engine-free CI smoke; gate it with
+  `pnpm --filter @chess-mcp/ui typecheck && pnpm --filter @chess-mcp/ui build`.
 - `scripts/smoke-gametree.mjs` + `scripts/structure-accuracy.mjs` — the deterministic engine-free smoke
-  suites that gate CI. `apps/mcp-server/test/smoke-client.mjs` exercises all 32 tools end-to-end
+  suites that gate CI. `apps/mcp-server/test/smoke-client.mjs` exercises all 33 tools end-to-end
   through the bundled engine (hits live Lichess/Chess.com, so it's excluded from CI);
   `apps/mcp-server/test/cache.mjs` covers the engine cache.
 - Design constraints live in `docs/design/MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract,
@@ -49,11 +61,15 @@ node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 
 # Engine + network end-to-end (the wasm engine is bundled — runs locally, no Docker):
-node apps/mcp-server/test/smoke-client.mjs    # spawns the server, exercises 32 tools; hits live Lichess/Chess.com
+node apps/mcp-server/test/smoke-client.mjs    # spawns the server, exercises 33 tools; hits live Lichess/Chess.com
 node apps/mcp-server/test/cache.mjs           # engine cache behavior
 
 # Run the server directly (stdio):
 pnpm mcp                                       # node --import tsx apps/mcp-server/src/index.ts
+
+# Browser PWA (apps/ui) gate — no engine-free CI smoke of its own; typecheck is covered by
+# `pnpm -r typecheck` above, plus a production build:
+pnpm --filter @chess-mcp/ui build              # also: pnpm --filter @chess-mcp/ui dev to drive it live
 
 # Commit + push — Conventional Commits, NO Co-Authored-By trailer (project preference); trunk-based.
 git commit -m "..." && git push origin main
