@@ -9,7 +9,7 @@
  * The named scorers are a later phase.
  */
 import { squareFile, squareRank, makeSquare, parseSquare } from "chessops/util";
-import { parseFen } from "chessops/fen";
+import { parseFen, makeBoardFen } from "chessops/fen";
 import type { Board } from "chessops/board";
 import type { Color } from "./congruence.js";
 
@@ -339,7 +339,28 @@ function benko(board: Board): number {
   return graded(true, b2n(wn.has("a2")) + b2n(wn.has("b2")), 0.72, 0.82);
 }
 
+/**
+ * Memo for classifyStructure. It runs ~20 board scorers per call and is invoked once per leaf by
+ * congruence, both suggest_* (profileStructureShares), and the aggregate profile — the same
+ * positions recur across those tools within one repertoire workflow. Keyed by board PLACEMENT
+ * (makeBoardFen): the classification depends only on piece placement, so it's deterministic and
+ * the entry never goes stale — no edit invalidation needed. FIFO-bounded so memory stays flat
+ * over the server's lifetime; a repertoire with < CAP distinct positions never evicts mid-run.
+ */
+const STRUCT_CACHE = new Map<string, { structure_class: string; confidence: number }>();
+const STRUCT_CACHE_CAP = 4096;
+
 export function classifyStructure(board: Board): { structure_class: string; confidence: number } {
+  const key = makeBoardFen(board);
+  const cached = STRUCT_CACHE.get(key);
+  if (cached) return cached;
+  const result = classifyStructureUncached(board);
+  if (STRUCT_CACHE.size >= STRUCT_CACHE_CAP) STRUCT_CACHE.delete(STRUCT_CACHE.keys().next().value!);
+  STRUCT_CACHE.set(key, result);
+  return result;
+}
+
+function classifyStructureUncached(board: Board): { structure_class: string; confidence: number } {
   const candidates: [string, number][] = [];
   for (const color of ["white", "black"] as const) {
     for (const [name, conf] of [

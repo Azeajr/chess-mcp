@@ -41,4 +41,12 @@ for (const [fen, expected] of FIXTURES) {
 }
 console.log(`structure accuracy: ${pass}/${FIXTURES.length}`);
 for (const m of mismatches) console.log("  MISMATCH:", m);
-process.exit(mismatches.length ? 1 : 0);
+
+// Memo check: classifying the same position twice returns the SAME cached object (proves the
+// classifyStructure memo hits) and the unchanged label — the cache must never alter a result.
+const a = classifyStructureFromFen(FIXTURES[0][0]);
+const b = classifyStructureFromFen(FIXTURES[0][0]);
+const memoOk = a === b && a.structure_class === FIXTURES[0][1];
+console.log(`structure memo (same object on repeat): ${memoOk ? "ok" : "FAIL"}`);
+
+process.exit(mismatches.length || !memoOk ? 1 : 0);
