@@ -257,5 +257,34 @@ ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {
 ok(isPromotion("8/P7/8/8/8/8/8/k6K w - - 0 1", "a7", "a8") === true, "isPromotion true for a7→a8");
 ok(isPromotion(START_FEN, "e2", "e4") === false, "isPromotion false for e2→e4");
 
+// 25. transpositionBridges — the other two kinds + classification by side-to-move.
+// Same frontier fixture analysed AS WHITE: the ...e6 bridge is now an OPPONENT (black) move at a
+// leaf → coverage_confirmed (you're already covered), not frontier_link.
+const confirmed = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *").transpositionBridges("white");
+ok(confirmed.some((b) => b.kind === "coverage_confirmed" && b.move === "e6"), "opponent move into prep → coverage_confirmed");
+ok(!confirmed.some((b) => b.kind === "frontier_link"), "white view: no frontier_link (the leaf move is the opponent's)");
+// An INTERIOR node (it has a g6 child) where the unplayed ...e6 transposes into the e6-first line.
+const mergeBr = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 g6 *").transpositionBridges("black");
+const merge = mergeBr.find((b) => b.kind === "move_order_merge" && b.move === "e6");
+ok(merge && merge.fromPath.join(" ") === "c4 c5 Nc3" && merge.joinsPath.join(" ") === "c4 e6 Nc3 c5", "alt move order at a branch → move_order_merge");
+
+// 26. edit("reorder") — promote a variation to the mainline (the one edit action with no coverage).
+const ro = GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("reorder", ["e4"], { promoteMove: "c5" });
+ok(ro.tree && ro.tree.nodeAt([0]).children[0].data.san === "c5" && ro.tree.toPgn().includes("1. e4 c5"), "reorder promotes c5 to mainline");
+ok(GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("reorder", ["e4"], { promoteMove: "d4" }).error === "variation_not_found", "reorder unknown move → variation_not_found");
+ok(GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("reorder", ["e4"], {}).error === "invalid_edit", "reorder without promote_move → invalid_edit");
+// add with no moves → invalid_edit (distinct from an illegal move → invalid_line)
+ok(GameTree.fromPgn("1. e4 *").edit("add", ["e4"], { addMoves: [] }).error === "invalid_edit", "add with empty moves → invalid_edit");
+
+// 27. illustrativeLines — only the BAD NAG tiers ($2 dubious / $4 blunder / $6) flag; a good NAG does not.
+ok(GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $2 *").illustrativeLines().lines.length === 1, "$2 (dubious) flags an illustrative line");
+ok(GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $6 *").illustrativeLines().lines.length === 1, "$6 flags an illustrative line");
+ok(GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $1 *").illustrativeLines().lines.length === 0, "$1 (good move) is NOT illustrative");
+
+// 28. positionAtSanPath — null on a path that doesn't match a line (the get_structural_profile
+// variation_not_found guard); a real line resolves.
+ok(spTree.positionAtSanPath(["e4", "d4"]) === null, "positionAtSanPath null on an off-tree path");
+ok(spTree.positionAtSanPath(["e4", "e5"]) !== null, "positionAtSanPath resolves a real line");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
