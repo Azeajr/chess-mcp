@@ -1,6 +1,6 @@
 # Find Transposition Opportunities — Design
 
-Status: **proposed**.
+Status: **implemented**.
 
 A new repertoire tool that finds where two parts of your repertoire could be **bridged** by a
 move order but aren't linked yet — the *prescriptive* counterpart to the existing
