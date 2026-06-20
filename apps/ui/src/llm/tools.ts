@@ -102,6 +102,7 @@ export const toolSchemas: ToolSchema[] = [
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
   fn("find_transposition_opportunities", "Move-order bridges that interlink the current repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. opportunities (engine-free, instant): frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition. extensions (when max_depth>1, engine-backed): a stopped line continued by the color's engine-best moves until it rejoins prep several plies on — the bridging moves are good, not merely legal.", { limit: { type: "integer" }, kinds: { type: "array", items: { type: "string" } }, max_depth: { type: "integer", description: "1 (default) = instant 1-ply only; 2-6 = also run the engine-guided multi-ply extension" } }),
+  fn("find_pruning_transpositions", "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first; among the top engine moves within a near-best window of #1 (cp_threshold — never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies + the eval trade (evalStay vs evalTranspose). One earliest re-route per line, ranked by tail saved.", { limit: { type: "integer" }, multipv: { type: "integer" }, cp_threshold: { type: "integer" }, max_loss_cp: { type: "integer" } }),
   fn("get_repertoire_coverage", "Tree-shape hygiene for the current repertoire: dangling lines (your-turn leaves owed a move) vs natural frontiers.", { limit: { type: "integer" } }),
   fn("get_structural_profile", "Static pawn-structure profile of the current repertoire. With variation_path (SAN list): one position's classified structure, center, primitives, themes. Without it: an aggregate structure fingerprint over all leaves.", {
     variation_path: { type: "array", items: { type: "string" }, description: "SAN path to one line; omit for the aggregate" },
@@ -281,6 +282,20 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
         extensions = ext.filter((b) => b.moves.length > 1).slice(0, limit);
       }
       return { total: filtered.length, returned: shown.length, opportunities: shown, extensions };
+    }
+
+    case "find_pruning_transpositions": {
+      const suggestions = await tree.pruneTranspositions(
+        col,
+        {
+          multipv: (args.multipv as number) ?? 4,
+          cpThreshold: (args.cp_threshold as number) ?? 50,
+          maxLossCp: args.max_loss_cp as number | undefined,
+        },
+        (f, mpv) => analyseMulti(f, mpv, 14),
+      );
+      const shown = suggestions.slice(0, (args.limit as number) ?? 20);
+      return { total: suggestions.length, returned: shown.length, suggestions: shown };
     }
 
     case "get_repertoire_coverage": {

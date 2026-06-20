@@ -22,10 +22,14 @@ import {
   bridgeScanning,
   bridgeError,
   scanBridges,
+  pruneSuggestions,
+  pruneScanning,
+  pruneError,
+  scanPrune,
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
-import type { TranspositionBridge, ExtendedBridge } from "@chess-mcp/chess-tools";
+import type { TranspositionBridge, ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { stagePreviewLine } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 
@@ -69,6 +73,15 @@ export default function RepertoirePanel() {
     actions.goto(fromIdx);
     stagePreviewLine(fromIdx, b.moves);
   };
+
+  // Prune: jump to the re-route node and stage the transposing move so the merge is visible.
+  const onPrune = (p: PruneSuggestion) => {
+    const atIdx = currentTree().indexPathOfSan(p.atPath);
+    if (!atIdx) return;
+    actions.goto(atIdx);
+    stagePreviewLine(atIdx, [p.rerouteMove]);
+  };
+  const cpDelta = (d: number | null) => (d == null ? "" : ` Δ${d <= 0 ? "+" : "−"}${(Math.abs(d) / 100).toFixed(2)}`);
 
   return (
     <div class="rep-panel">
@@ -167,6 +180,31 @@ export default function RepertoirePanel() {
               <span class="bridge-icon">⛓</span>
               <span class="san">{b.fromPath.join(" ")} → {b.moves.join(" ")}</span>
               <span class="fit">joins {b.joinsPath.at(-1)}</span>
+            </div>
+          )}
+        </For>
+      </details>
+
+      {/* Tier A: shorten a line via an engine-vetted transposition (find_pruning_transpositions) */}
+      <details class="rep-section">
+        <summary>
+          <span>Shorten</span>
+          <Show when={pruneScanning()} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanPrune())}>Scan</button>}>
+            <span class="scan-progress">…</span>
+          </Show>
+        </summary>
+        <Show when={pruneError()}><div class="empty">{pruneError()}</div></Show>
+        <Show when={pruneSuggestions() && pruneSuggestions()!.length === 0}><div class="empty">No shortenable lines.</div></Show>
+        <For each={pruneSuggestions() ?? []}>
+          {(p: PruneSuggestion) => (
+            <div
+              class="rep-row"
+              onClick={() => onPrune(p)}
+              title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})`}
+            >
+              <span class="bridge-icon">✂</span>
+              <span class="san">{p.atPath.join(" ")} → {p.rerouteMove}</span>
+              <span class="fit">−{p.savedPlies}ply{cpDelta(p.evalDelta)}</span>
             </div>
           )}
         </For>

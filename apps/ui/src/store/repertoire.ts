@@ -5,7 +5,7 @@
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
-import type { TranspositionBridge, ExtendedBridge } from "@chess-mcp/chess-tools";
+import type { TranspositionBridge, ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { runTool } from "../llm/tools";
 import { currentTree, color } from "./game";
 import { analyseMulti } from "../engine/stockfish";
@@ -108,6 +108,36 @@ export async function scanBridges() {
     setBridgeError(e instanceof Error ? e.message : String(e));
   } finally {
     if (token === bridgeToken) setBridgeScanning(false);
+  }
+}
+
+// --- Tier A: prune (shorten a line via an engine-vetted transposition) ---
+
+const [pruneSuggestions, setPruneSuggestions] = createSignal<PruneSuggestion[] | null>(null);
+const [pruneScanning, setPruneScanning] = createSignal(false);
+const [pruneError, setPruneError] = createSignal<string | null>(null);
+export { pruneSuggestions, pruneScanning, pruneError };
+
+let pruneToken = 0;
+
+export async function scanPrune() {
+  const token = ++pruneToken;
+  setPruneError(null);
+  setPruneSuggestions(null);
+  setPruneScanning(true);
+  try {
+    const res = await currentTree().pruneTranspositions(
+      color(),
+      { multipv: MULTIPV, cpThreshold: CP_THRESHOLD },
+      (fen, mpv) => analyseMulti(fen, mpv, SCAN_DEPTH),
+    );
+    if (token !== pruneToken) return;
+    setPruneSuggestions(res);
+  } catch (e) {
+    if (token !== pruneToken) return;
+    setPruneError(e instanceof Error ? e.message : String(e));
+  } finally {
+    if (token === pruneToken) setPruneScanning(false);
   }
 }
 

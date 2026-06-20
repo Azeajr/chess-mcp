@@ -9,7 +9,7 @@
 import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
-import { makeSquare, parseSquare, makeUci } from "chessops/util";
+import { makeSquare, parseSquare, makeUci, parseUci } from "chessops/util";
 import {
   defaultGame,
   parsePgn,
@@ -64,6 +64,41 @@ export interface ExtendedBridge {
   joinsPath: string[];
   /** Ply depth of joinsPath. */
   joinsPly: number;
+}
+
+/** One engine line for the prune scan (white-POV cp/mate). Matches the Node/browser MultiLine. */
+export interface PruneEngineLine {
+  uci: string;
+  cp: number | null;
+  mate: number | null;
+}
+
+/**
+ * A way to SHORTEN a line: at an early node where it is your turn, an engine-best move re-routes
+ * the line into a position already prepared on a DIFFERENT line, making the original tail
+ * redundant (find_pruning_transpositions).
+ */
+export interface PruneSuggestion {
+  /** SAN path to the leaf line that can be shortened. */
+  linePath: string[];
+  /** SAN path to the re-route node (a prefix of linePath). */
+  atPath: string[];
+  /** Ply index of atPath (== atPath.length). */
+  atPly: number;
+  /** Engine SAN that transposes (≠ the line's own next move, within the near-best window). */
+  rerouteMove: string;
+  /** Shallowest SAN path on a DIFFERENT line the re-route reaches. */
+  joinsPath: string[];
+  /** linePath.length − atPly: the redundant tail removed by re-routing here. */
+  savedPlies: number;
+  /** cp (mover POV) of the engine's #1 move at the node. */
+  evalBest: number;
+  /** cp (mover POV) of the line's own next move (null if it was outside the top-k). */
+  evalStay: number | null;
+  /** cp (mover POV) of the re-route move (passed the near-best gate). */
+  evalTranspose: number;
+  /** evalStay − evalTranspose: cp given up by transposing vs staying (null if evalStay unknown). */
+  evalDelta: number | null;
 }
 
 export class GameTree {
@@ -455,6 +490,134 @@ export class GameTree {
 
     return out.sort(
       (a, b) => a.fromPath.length - b.fromPath.length || b.joinsPly - a.joinsPly || a.moves.length - b.moves.length,
+    );
+  }
+
+  /**
+   * Line shortening via engine-vetted transposition (find_pruning_transpositions). For each leaf
+   * line, walk your-turn nodes EARLIEST first; run multipv; among the candidate moves WITHIN
+   * `cpThreshold` of the engine's #1 (the near-best gate — multipv can return blunders, so "top-k"
+   * is not "good enough to play"), find one that transposes into a DIFFERENT line. The earliest such
+   * node per line is reported (most tail pruned). Reports evalStay vs evalTranspose so the caller can
+   * weigh the trade. Engine injected via `analyse`; `chess-tools` stays engine-free.
+   */
+  async pruneTranspositions(
+    color: Color,
+    opts: { multipv?: number; cpThreshold?: number; maxLossCp?: number },
+    analyse: (fen: string, multipv: number) => Promise<PruneEngineLine[] | null>,
+  ): Promise<PruneSuggestion[]> {
+    const multipv = opts.multipv ?? 4;
+    const cpThreshold = opts.cpThreshold ?? 50;
+    const maxLossCp = opts.maxLossCp;
+    const MATE = 100000;
+
+    // positionKey -> shallowest occurrence (all nodes), same indexing as the bridge tools.
+    const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
+    const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
+      node.children.forEach((child, i) => {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) return;
+        next.play(move);
+        const p = [...path, i];
+        const sp = [...sanPath, child.data.san];
+        const key = positionKey(makeFen(next.toSetup()));
+        const prev = keyMap.get(key);
+        if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
+        indexAll(child, next, p, sp);
+      });
+    };
+    indexAll(this.game.moves, Chess.default(), [], []);
+
+    const isPrefix = (a: Path, b: Path) => a.length <= b.length && a.every((v, i) => b[i] === v);
+    const moverCp = (fen: string, l: PruneEngineLine) => {
+      const white = l.mate !== null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
+      return fen.split(" ")[1] === "w" ? white : -white;
+    };
+
+    // Every leaf's index path.
+    const leaves: Path[] = [];
+    const collect = (node: Node<PgnNodeData>, path: Path) => {
+      if (node.children.length === 0) {
+        if (path.length) leaves.push(path);
+        return;
+      }
+      node.children.forEach((c, i) => collect(c, [...path, i]));
+    };
+    collect(this.game.moves, []);
+
+    const out: PruneSuggestion[] = [];
+
+    for (const leaf of leaves) {
+      // Replay the leaf once: capture the position at each node + the full SAN path.
+      const leafSan: string[] = [];
+      const steps: { pos: Chess; ply: number }[] = [];
+      {
+        const pos = Chess.default();
+        let node: Node<PgnNodeData> = this.game.moves;
+        for (let depth = 0; depth < leaf.length; depth++) {
+          steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
+          const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
+          const move = parseSan(pos, child.data.san);
+          if (!move) break;
+          pos.play(move);
+          leafSan.push(child.data.san);
+          node = child;
+        }
+      }
+
+      // Walk your-turn nodes earliest first; the first viable re-route prunes the longest tail.
+      let emitted = false;
+      for (const s of steps) {
+        if (emitted) break;
+        if (s.pos.turn !== color) continue;
+        const fen = makeFen(s.pos.toSetup());
+        const lines = await analyse(fen, multipv);
+        if (!lines || !lines.length) continue;
+        const stayMove = leafSan[s.ply]!; // the line's own next move at this node
+        const enriched = lines
+          .map((l) => {
+            const mv = parseUci(l.uci);
+            return mv ? { mv, san: makeSan(s.pos, mv), cp: moverCp(fen, l) } : null;
+          })
+          .filter((e): e is { mv: Move; san: string; cp: number } => e !== null);
+        if (!enriched.length) continue;
+
+        const evalBest = Math.max(...enriched.map((e) => e.cp));
+        const stay = enriched.find((e) => e.san === stayMove);
+        const evalStay = stay ? stay.cp : null;
+
+        for (const e of enriched) {
+          if (e.san === stayMove) continue; // staying, not a re-route
+          if (evalBest - e.cp > cpThreshold) continue; // near-best gate (drops blunders in top-k)
+          if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
+          const after = s.pos.clone();
+          after.play(e.mv);
+          const tgt = keyMap.get(positionKey(makeFen(after.toSetup())));
+          if (!tgt) continue; // leaves the repertoire
+          // Skip targets ON this same line (the line's own continuation), not a cross-line merge.
+          // Compare against the FULL leaf — a shared early ancestor must NOT count as same-line.
+          if (isPrefix(leaf, tgt.path) || isPrefix(tgt.path, leaf)) continue;
+          out.push({
+            linePath: leafSan.slice(),
+            atPath: leafSan.slice(0, s.ply),
+            atPly: s.ply,
+            rerouteMove: e.san,
+            joinsPath: tgt.sanPath,
+            savedPlies: leaf.length - s.ply,
+            evalBest,
+            evalStay,
+            evalTranspose: e.cp,
+            evalDelta: evalStay == null ? null : evalStay - e.cp,
+          });
+          emitted = true;
+          break;
+        }
+      }
+    }
+
+    return out.sort(
+      (a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly,
     );
   }
 

@@ -224,6 +224,28 @@ const pickD5 = async (fen) => (fen.split(" ")[1] === "b" ? ["d7d5"] : []);
 const dupExt = await dupTree.extendedBridges("black", { maxDepth: 3, nodeBudget: 60 }, pickD5);
 ok(dupExt.length === 0, "extendedBridges: a leaf that already transposes yields no extension");
 
+// 16f. pruneTranspositions — shorten a line via an engine-vetted transposition. A London-ish line
+// (Nf3/Bf4) can re-route at move 2 by playing c4, transposing into a QID line that continues.
+// analyse is a deterministic stub (no real engine); the "after 1.d4 Nf6" FEN carries the candidates.
+const prTree = GameTree.fromPgn("1. d4 Nf6 2. Nf3 e6 3. Bf4 *\n\n1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. g3 *");
+const afterD4Nf6 = (fen) => fen.includes("5n2/8/3P4");
+const linesGood = [{ uci: "c2c4", cp: 30, mate: null }, { uci: "g1f3", cp: 20, mate: null }];
+const analyseGood = async (fen) => (afterD4Nf6(fen) ? linesGood : []);
+const prune = await prTree.pruneTranspositions("white", {}, analyseGood);
+const aCut = prune.find((p) => p.rerouteMove === "c4");
+ok(aCut && aCut.linePath.join(" ") === "d4 Nf6 Nf3 e6 Bf4", "pruneTranspositions: flags the shortenable London line");
+ok(aCut && aCut.atPly === 2 && aCut.savedPlies === 3, "pruneTranspositions: re-route @ply2 prunes the 3-ply tail");
+ok(aCut && aCut.joinsPath.join(" ") === "d4 Nf6 c4", "pruneTranspositions: joins the c4 (QID) line");
+ok(aCut && aCut.evalStay === 20 && aCut.evalTranspose === 30 && aCut.evalDelta === -10, "pruneTranspositions: reports the eval trade");
+// Near-best gate: a transposing move in the top-k but far below #1 (a blunder) is excluded.
+const linesBlunder = [{ uci: "c1f4", cp: 100, mate: null }, { uci: "c2c4", cp: 20, mate: null }];
+const gated = await prTree.pruneTranspositions("white", {}, async (fen) => (afterD4Nf6(fen) ? linesBlunder : []));
+ok(!gated.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: near-best gate drops a top-k blunder re-route");
+// maxLossCp: re-route that loses more than the cap vs staying is filtered (the gaining one stays).
+const capped = await prTree.pruneTranspositions("white", { maxLossCp: 5 }, analyseGood);
+ok(capped.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
+ok(!capped.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
+
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");
