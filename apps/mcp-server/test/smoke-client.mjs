@@ -40,8 +40,6 @@ const ev = await call(client, "evaluate_position", { fen: START, depth: 12, line
 ok(Array.isArray(ev.lines) && ev.lines.length >= 1, "evaluate_position returns lines");
 console.log("  best:", ev.lines?.[0]);
 
-const em = await call(client, "engine_move", { fen: START, depth: 12 });
-ok(typeof em.san === "string", `engine_move best = ${em.san} (${em.cp})`);
 
 const rep = await call(client, "load_repertoire", { pgn: TRAP, color: "white" });
 ok(typeof rep.repertoire_id === "string" && rep.nodes > 0, `load_repertoire id + ${rep.nodes} nodes`);
@@ -52,15 +50,6 @@ ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.d
 const transRep = await call(client, "load_repertoire", { pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *", color: "white" });
 const trans = await call(client, "get_transpositions", { repertoire_id: transRep.repertoire_id });
 ok(trans.total === 1 && trans.transpositions[0].paths.length === 2, "get_transpositions finds the converging position");
-
-// find_transposition_opportunities: the c5-first line stops a ply short of ...e6, which bridges
-// into the e6-first line (engine-free).
-const bridgeRep = await call(client, "load_repertoire", { pgn: "1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *", color: "black" });
-const bridges = await call(client, "find_transposition_opportunities", { repertoire_id: bridgeRep.repertoire_id });
-ok(
-  bridges.opportunities.some((b) => b.kind === "frontier_link" && b.move === "e6" && b.fromPath.join(" ") === "c4 c5 Nc3"),
-  "find_transposition_opportunities finds the ...e6 frontier link",
-);
 
 console.log("compare_moves (engine, depth 12)…");
 const cmp = await call(client, "compare_moves", { fen: START, moves: ["e4", "d4", "a3"], depth: 12 });
@@ -139,9 +128,6 @@ ok(!repl.error && repl.outlier_move === "bxc3" && Array.isArray(repl.suggestions
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
-
-const img = await call(client, "board_image", { fen: START });
-ok(img.format === "svg" && img.svg.startsWith("<svg"), "board_image returns SVG");
 
 console.log("batch_review (engine, depth 8, 2 games)…");
 const MULTI = '[Event "G1"]\n[Result "1-0"]\n\n1. e4 c5 2. Nf3 *\n\n[Event "G2"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 *';

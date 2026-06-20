@@ -4,6 +4,8 @@ import {
   classifyUciMove,
   weightFor,
   decisionNodes,
+  findRepertoireGaps,
+  resolveDanglingStubs,
   gapSeverity,
   moveSan,
   validateLine,
@@ -15,7 +17,6 @@ import {
   moveAccuracy,
   parseOpeningsTsv,
   identifyDeepest,
-  boardSvg,
   aggregateGames,
   walkGameVsRepertoire,
   positionProfile,
@@ -186,17 +187,6 @@ ok(spTree.indexPathOfSan(["e4", "c5"]).join(",") === "0,1", "indexPathOfSan vari
 ok(spTree.indexPathOfSan(["e4", "e5"]).join(",") === "0,0", "indexPathOfSan mainline → 0,0");
 ok(spTree.indexPathOfSan(["e4", "d4"]) === null, "indexPathOfSan unknown line → null");
 
-// 16c. transpositionBridges — move-order interlinking
-// Two orders to the same English position; the c5-first branch stops a ply short of ...e6.
-const brTree = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *");
-const bridges = brTree.transpositionBridges("black");
-const frontier = bridges.find((b) => b.kind === "frontier_link");
-ok(frontier && frontier.move === "e6", `frontier_link bridges via ...e6 (${frontier?.move})`);
-ok(frontier && frontier.fromPath.join(" ") === "c4 c5 Nc3", "frontier_link departs from 1.c4 c5 2.Nc3");
-ok(frontier && frontier.joinsPath.join(" ") === "c4 e6 Nc3 c5", "frontier_link joins the c4 e6 Nc3 c5 line");
-// A linear line has no bridges; the natural continuation is never reported.
-ok(GameTree.fromPgn("1. e4 e5 2. Nf3 *").transpositionBridges("white").length === 0, "linear line → no bridges");
-
 // 16d. extendedBridges — engine-guided multi-ply extension (retro 2a/2b). Injected pickMoves
 // stands in for the engine (deterministic). White stub "1.c4 c5 *" rejoins the prepared
 // 1.c4 e6 2.Nc3 c5 line TWO plies on: white Nc3, then black ...e6 transposes into prep.
@@ -214,12 +204,22 @@ ok(!shallow.some((b) => b.moves.join(" ") === "Nc3 e6"), "extendedBridges: maxDe
 const noExt = await GameTree.fromPgn("1. e4 e5 2. Nf3 *").extendedBridges("white", { maxDepth: 4, nodeBudget: 40 }, pickNc3);
 ok(noExt.length === 0, "extendedBridges: linear line → none");
 
+// 16d-bis. resolveDanglingStubs — wires extendedBridges into coverage: does each dangling stub
+// bridge back into prep? extTree's "1.c4 c5" leaf (white to move) rejoins c4 e6 Nc3 c5 via Nc3+...e6.
+const stubAnalyse = async (fen) =>
+  fen.split(" ")[1] === "w"
+    ? [{ uci: "b1c3", cp: 0, mate: null, depth: 12, pv: ["b1c3"] }]
+    : [{ uci: "e7e6", cp: 0, mate: null, depth: 12, pv: ["e7e6"] }];
+const stubs = await resolveDanglingStubs(extTree, "white", {}, stubAnalyse);
+ok(!stubs.error && stubs.resolved >= 1, "resolveDanglingStubs: at least one dangling stub resolves");
+const connected = stubs.error ? null : stubs.dangling.find((d) => d.path.join(" ") === "c4 c5");
+ok(connected && connected.connects_via?.join(" ") === "Nc3 e6", "resolveDanglingStubs: c4 c5 connects via Nc3 e6");
+ok(connected && connected.joins_path?.join(" ") === "c4 e6 Nc3 c5", "resolveDanglingStubs: rejoins the c4 e6 Nc3 c5 line");
+
 // 16e. Bridges omit lines that ALREADY transpose. Game 1's "...3.Nc3" leaf is the same position
 // as game 2's 3.Nc3 node (reached by the Nf6/e6 move-order swap) → an existing transposition.
 // That leaf must not be reported as a bridge departure (transpositions() already links it).
 const dupTree = GameTree.fromPgn("1. d4 Nf6 2. c4 e6 3. Nc3 *\n\n1. d4 e6 2. c4 Nf6 3. Nc3 d5 *");
-const dupTb = dupTree.transpositionBridges("black");
-ok(!dupTb.some((b) => b.fromPath.join(" ") === "d4 Nf6 c4 e6 Nc3"), "transpositionBridges: no bridge from a leaf that already transposes");
 const pickD5 = async (fen) => (fen.split(" ")[1] === "b" ? ["d7d5"] : []);
 const dupExt = await dupTree.extendedBridges("black", { maxDepth: 3, nodeBudget: 60 }, pickD5);
 ok(dupExt.length === 0, "extendedBridges: a leaf that already transposes yields no extension");
@@ -246,6 +246,18 @@ const capped = await prTree.pruneTranspositions("white", { maxLossCp: 5 }, analy
 ok(capped.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
 ok(!capped.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
 
+// 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
+// 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into
+// the 1.d4 d5 2.c4 e6 3.Nc3 Nf6 leaf — a false gap, recorded as covered rather than counted.
+const gapTree = GameTree.fromPgn("1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 *\n\n1. d4 d5 2. c4 e6 3. Nc3 Nf6 *");
+const atGapNode = (fen) => fen.includes("4pn2/8/2PP4/2N5/") && fen.split(" ")[1] === "b";
+const gapStub = async (fen) => (atGapNode(fen) ? [{ uci: "d7d5", cp: -40, mate: null, depth: 10, pv: ["d7d5"] }] : []);
+const gr = await findRepertoireGaps(gapTree, "white", { minSeverity: "low" }, gapStub);
+ok(!gr.error && gr.covered_by_transposition.length === 1, "findRepertoireGaps: a transposing uncovered reply is covered, not a gap");
+ok(gr.covered_by_transposition?.[0]?.uncovered_move === "d5", "covered_by_transposition records the transposing reply ...d5");
+ok(gr.covered_by_transposition?.[0]?.joins_path.join(" ") === "d4 d5 c4 e6 Nc3 Nf6", "covered_by_transposition names the prep line joined");
+ok(!gr.error && !gr.gaps.some((g) => g.uncovered_move === "d5"), "findRepertoireGaps: the transposing reply is excluded from gaps");
+
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");
@@ -258,11 +270,6 @@ const sicilian = identifyDeepest(ecoTable, "1. e4 c5 *");
 ok(sicilian && sicilian.name.includes("Sicilian"), `1.e4 c5 → ${sicilian?.name} (${sicilian?.eco})`);
 const qg = identifyDeepest(ecoTable, "1. d4 d5 2. c4 *");
 ok(qg && qg.name.includes("Queen's Gambit"), `1.d4 d5 2.c4 → ${qg?.name} (${qg?.eco})`);
-
-// 19. boardSvg render
-const svg = boardSvg(START_FEN);
-ok(svg.startsWith("<svg") && svg.includes("♜") && svg.includes("♙"), "boardSvg renders pieces");
-ok((svg.match(/<rect/g) || []).length === 64, "boardSvg has 64 squares");
 
 // 20. aggregateGames (Python test parity: e5 blunder x3 in one group)
 const aggRecs = [
@@ -305,17 +312,6 @@ ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {
 // 24. isPromotion — pawn to last rank vs normal move
 ok(isPromotion("8/P7/8/8/8/8/8/k6K w - - 0 1", "a7", "a8") === true, "isPromotion true for a7→a8");
 ok(isPromotion(START_FEN, "e2", "e4") === false, "isPromotion false for e2→e4");
-
-// 25. transpositionBridges — the other two kinds + classification by side-to-move.
-// Same frontier fixture analysed AS WHITE: the ...e6 bridge is now an OPPONENT (black) move at a
-// leaf → coverage_confirmed (you're already covered), not frontier_link.
-const confirmed = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 *").transpositionBridges("white");
-ok(confirmed.some((b) => b.kind === "coverage_confirmed" && b.move === "e6"), "opponent move into prep → coverage_confirmed");
-ok(!confirmed.some((b) => b.kind === "frontier_link"), "white view: no frontier_link (the leaf move is the opponent's)");
-// An INTERIOR node (it has a g6 child) where the unplayed ...e6 transposes into the e6-first line.
-const mergeBr = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 2. Nc3 g6 *").transpositionBridges("black");
-const merge = mergeBr.find((b) => b.kind === "move_order_merge" && b.move === "e6");
-ok(merge && merge.fromPath.join(" ") === "c4 c5 Nc3" && merge.joinsPath.join(" ") === "c4 e6 Nc3 c5", "alt move order at a branch → move_order_merge");
 
 // 26. edit("reorder") — promote a variation to the mainline (the one edit action with no coverage).
 const ro = GameTree.fromPgn("1. e4 e5 ( 1... c5 ) *").edit("reorder", ["e4"], { promoteMove: "c5" });

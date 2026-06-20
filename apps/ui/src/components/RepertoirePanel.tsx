@@ -5,7 +5,7 @@
  * Everything runs on the local engine / pure tree math; chat is the interpretive layer on top.
  */
 import { For, Show, createSignal } from "solid-js";
-import { gaps, scanning, progress, scanError, scanGaps, cancelScan, type Gap } from "../store/gaps";
+import { gaps, covered, scanning, progress, scanError, scanGaps, cancelScan, type Gap, type CoveredGap } from "../store/gaps";
 import {
   congruence,
   congScanning,
@@ -17,7 +17,6 @@ import {
   scanComplementary,
   replacements,
   fixFlag,
-  bridges,
   extBridges,
   bridgeScanning,
   bridgeError,
@@ -29,7 +28,7 @@ import {
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
-import type { TranspositionBridge, ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
+import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { stagePreviewLine } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 
@@ -56,17 +55,7 @@ export default function RepertoirePanel() {
     stagePreviewLine(fromPath, [pivotMove]);
   };
 
-  const onBridge = (b: TranspositionBridge) => {
-    const fromIdx = currentTree().indexPathOfSan(b.fromPath);
-    if (!fromIdx) return;
-    actions.goto(fromIdx);
-    // Links are actionable (stage the bridging move → Accept grafts it); confirmed is info-only.
-    if (b.kind !== "coverage_confirmed") stagePreviewLine(fromIdx, [b.move]);
-  };
-  const bridgeIcon = (k: TranspositionBridge["kind"]) =>
-    k === "frontier_link" ? "🔗" : k === "move_order_merge" ? "↪" : "✓";
-
-  // Multi-ply extension: stage the whole engine-vetted sequence that rejoins prep.
+  // Stub connector: stage the whole engine-vetted sequence that rejoins prep.
   const onExtBridge = (b: ExtendedBridge) => {
     const fromIdx = currentTree().indexPathOfSan(b.fromPath);
     if (!fromIdx) return;
@@ -104,6 +93,16 @@ export default function RepertoirePanel() {
               <span class={`sev sev-${g.severity}`}>{g.severity}</span>
               <span class="san">{g.uncoveredMove}</span>
               <span class="ev">{gapEval(g)}</span>
+            </div>
+          )}
+        </For>
+        {/* Replies that look uncovered but transpose into prep — false gaps, shown muted. */}
+        <For each={covered()}>
+          {(c: CoveredGap) => (
+            <div class="rep-row covered" onClick={() => actions.goto(c.path)} title={`${c.uncoveredMove} transposes into ${c.joinsPath.join(" ")}`}>
+              <span class="sev">✓</span>
+              <span class="san">{c.uncoveredMove}</span>
+              <span class="fit">covered → {c.joinsPath.at(-1)}</span>
             </div>
           )}
         </For>
@@ -152,32 +151,23 @@ export default function RepertoirePanel() {
         </For>
       </details>
 
-      {/* Tier A: transposition bridges (engine-free) */}
+      {/* Tier A: connect dangling stubs into prep (engine-vetted) */}
       <details class="rep-section">
         <summary>
-          <span>Bridges</span>
+          <span>Connect</span>
           <Show when={bridgeScanning()} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanBridges())}>Scan</button>}>
             <span class="scan-progress">…</span>
           </Show>
         </summary>
         <Show when={bridgeError()}><div class="empty">{bridgeError()}</div></Show>
-        <Show when={bridges() && bridges()!.length === 0 && (extBridges()?.length ?? 0) === 0}>
-          <div class="empty">No new transposition links.</div>
+        <Show when={extBridges() && extBridges()!.length === 0}>
+          <div class="empty">No stubs that rejoin prep.</div>
         </Show>
-        <For each={bridges() ?? []}>
-          {(b: TranspositionBridge) => (
-            <div class="rep-row" onClick={() => onBridge(b)} title={`${b.fromPath.join(" ")} → ${b.move}  joins  ${b.joinsPath.join(" ")}`}>
-              <span class="bridge-icon">{bridgeIcon(b.kind)}</span>
-              <span class="san">{b.fromPath.join(" ")} → {b.move}</span>
-              <span class="fit">joins {b.joinsPath.at(-1)}</span>
-            </div>
-          )}
-        </For>
-        {/* Multi-ply, engine-vetted extensions (retro 2a/2b): a stopped line rejoins prep N moves on. */}
+        {/* A stopped line continued by the color's engine-best moves until it rejoins existing prep. */}
         <For each={extBridges() ?? []}>
           {(b: ExtendedBridge) => (
             <div class="rep-row" onClick={() => onExtBridge(b)} title={`${b.fromPath.join(" ")} → ${b.moves.join(" ")}  joins  ${b.joinsPath.join(" ")}`}>
-              <span class="bridge-icon">⛓</span>
+              <span class="bridge-icon">🔗</span>
               <span class="san">{b.fromPath.join(" ")} → {b.moves.join(" ")}</span>
               <span class="fit">joins {b.joinsPath.at(-1)}</span>
             </div>

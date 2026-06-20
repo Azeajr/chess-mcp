@@ -11,7 +11,7 @@ import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { makeSan } from "chessops/san";
-import { GameTree, type Path } from "./pgn.js";
+import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
 import { decisionNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
@@ -122,9 +122,23 @@ export interface Gap {
   mate: number | null;
   severity: Severity;
 }
+export interface CoveredGap {
+  path: Path;
+  fen: string;
+  uncovered_move: string;
+  /** the prepared line this reply transposes into (shallowest SAN path). */
+  joins_path: string[];
+}
 export type GapsResult =
   | { error: "engine_unavailable" }
-  | { color: Color; positions_scanned: number; total_gaps: number; gaps: Gap[] };
+  | {
+      color: Color;
+      positions_scanned: number;
+      total_gaps: number;
+      gaps: Gap[];
+      /** strong replies that look uncovered but transpose into prep — false gaps, not counted. */
+      covered_by_transposition: CoveredGap[];
+    };
 
 export async function findRepertoireGaps(
   tree: GameTree,
@@ -134,7 +148,9 @@ export async function findRepertoireGaps(
 ): Promise<GapsResult> {
   const minSev: Severity = opts.minSeverity ?? "medium";
   const nodes = decisionNodes(tree, color).slice(0, opts.maxPositions ?? 20);
+  const { keyMap } = buildKeyIndex(tree.game.moves);
   const found: Gap[] = [];
+  const covered: CoveredGap[] = [];
   for (const node of nodes) {
     const res = await analyse(node.fen, 4, opts.depth ?? 14);
     if (!res) return { error: "engine_unavailable" };
@@ -147,6 +163,16 @@ export async function findRepertoireGaps(
     for (const l of res) {
       const san = moveSan(node.fen, l.uci);
       if (node.covered.includes(san)) continue;
+      // Transposition-first: a strong uncovered reply that walks into prep on a DIFFERENT line is
+      // not a real gap. Record it as covered-by-transposition instead of inflating the gap list —
+      // engine-free, on results the scan already computed.
+      const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
+      after.play(parseUci(l.uci)!);
+      const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
+      if (tgt) {
+        covered.push({ path: node.path, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
+        continue;
+      }
       found.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
     }
   }
@@ -154,7 +180,84 @@ export async function findRepertoireGaps(
     .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
     .slice(0, opts.limit ?? 10);
-  return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps };
+  return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps, covered_by_transposition: covered };
+}
+
+// --- resolve_dangling_stubs (engine-vetted: does a dangling stub rejoin prep?) ---
+
+export interface StubResolution {
+  /** SAN path to the dangling leaf (your-turn, owed a continuation). */
+  path: string[];
+  ply: number;
+  /** Engine-best SAN sequence that bridges the stub back into prep (present only when it does). */
+  connects_via?: string[];
+  /** Prep line the bridge rejoins. */
+  joins_path?: string[];
+  joins_ply?: number;
+}
+export type CoverageResolution =
+  | { error: "engine_unavailable" }
+  | { resolved: number; dangling: StubResolution[] };
+
+const STUB_MAX_DEPTH = 4;
+const STUB_NODE_BUDGET = 40;
+const STUB_CP_THRESHOLD = 50;
+
+/**
+ * For each dangling stub (your-turn leaf owed a move), check whether the color's engine-best moves
+ * bridge it back into existing prep within a few plies (GameTree.extendedBridges). The dangling set
+ * IS extendedBridges' frontier set, so they match by departure path. This is frontier_link / stub
+ * resolution for the MCP + chat surfaces. Engine injected (chess-tools stays engine-free).
+ */
+export async function resolveDanglingStubs(
+  tree: GameTree,
+  color: Color,
+  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number },
+  analyse: Analyse,
+): Promise<CoverageResolution> {
+  const dangling = tree.coverage(color).danglingLines.slice(0, opts.limit ?? 20);
+  if (!dangling.length) return { resolved: 0, dangling: [] };
+
+  const cpThreshold = opts.cpThreshold ?? STUB_CP_THRESHOLD;
+  let engineOk = true;
+  const pickMoves = async (fen: string): Promise<string[]> => {
+    const res = await analyse(fen, 3, 12);
+    if (!res) {
+      engineOk = false;
+      return [];
+    }
+    if (!res.length) return [];
+    const moverIsWhite = fen.split(" ")[1] === "w";
+    const moverCp = (l: EngineLine) => {
+      const w = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
+      return moverIsWhite ? w : -w;
+    };
+    const best = moverCp(res[0]!);
+    return res.filter((l) => best - moverCp(l) <= cpThreshold).map((l) => l.uci);
+  };
+
+  const ext = await tree.extendedBridges(
+    color,
+    { maxDepth: opts.maxDepth ?? STUB_MAX_DEPTH, nodeBudget: opts.nodeBudget ?? STUB_NODE_BUDGET },
+    pickMoves,
+  );
+  if (!engineOk) return { error: "engine_unavailable" };
+
+  // extendedBridges ranks best-first; keep the first (best) extension per departure path.
+  const byPath = new Map<string, (typeof ext)[number]>();
+  for (const e of ext) {
+    const k = e.fromPath.join(" ");
+    if (!byPath.has(k)) byPath.set(k, e);
+  }
+
+  let resolved = 0;
+  const out: StubResolution[] = dangling.map((d) => {
+    const e = byPath.get(d.path.join(" "));
+    if (!e) return { path: d.path, ply: d.ply };
+    resolved++;
+    return { path: d.path, ply: d.ply, connects_via: e.moves, joins_path: e.joinsPath, joins_ply: e.joinsPly };
+  });
+  return { resolved, dangling: out };
 }
 
 // --- compare_moves (rank caller-supplied SANs by engine, mover POV) ---

@@ -23,13 +23,13 @@ import {
   moveSan,
   analyzeMainline,
   findRepertoireGaps,
+  resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
   moveAccuracy,
   parseOpeningsTsv,
   identifyDeepest,
-  boardSvg,
   aggregateGames,
   lichessGames,
   chesscomGames,
@@ -100,17 +100,6 @@ server.tool(
     const res = await analyseMulti(fen, lines ?? 3, depth ?? 16);
     if (!res) return ok({ error: "engine_unavailable" });
     return ok({ fen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(fen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) });
-  },
-);
-server.tool(
-  "engine_move",
-  "Best move from local Stockfish.",
-  { fen: z.string(), depth: z.number().int().min(1).max(30).optional() },
-  async ({ fen, depth }) => {
-    const res = await analyseMulti(fen, 1, depth ?? 16);
-    const best = res?.[0];
-    if (!best) return ok({ error: "engine_unavailable" });
-    return ok({ uci: best.uci, san: moveSan(fen, best.uci), cp: best.cp, mate: best.mate, depth: best.depth });
   },
 );
 
@@ -218,44 +207,6 @@ server.tool(
 );
 
 server.tool(
-  "find_transposition_opportunities",
-  "Move-order bridges that interlink the repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. opportunities (engine-free, instant): frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition. extensions (when max_depth>1, engine-backed): a stopped line continued by the color's engine-best moves until it rejoins prep several plies on — so the bridging moves are good, not merely legal.",
-  {
-    repertoire_id: z.string(),
-    limit: z.number().int().min(1).max(100).optional(),
-    kinds: z.array(z.enum(["frontier_link", "coverage_confirmed", "move_order_merge"])).optional(),
-    max_depth: z.number().int().min(1).max(6).optional(),
-  },
-  async ({ repertoire_id, limit, kinds, max_depth }) => {
-    const e = get(repertoire_id);
-    if (!e) return notFound();
-    const all = e.tree.transpositionBridges(e.color);
-    const filtered = kinds?.length ? all.filter((b) => kinds.includes(b.kind)) : all;
-    const shown = filtered.slice(0, limit ?? 20);
-
-    // Multi-ply, engine-guided extension of frontier links (opt-in via max_depth > 1).
-    let extensions: Awaited<ReturnType<typeof e.tree.extendedBridges>> = [];
-    if ((max_depth ?? 1) > 1) {
-      const pickMoves = async (fen: string): Promise<string[]> => {
-        const res = await analyseMulti(fen, 3, 12);
-        if (!res || !res.length) return [];
-        const moverIsWhite = fen.split(" ")[1] === "w";
-        const moverCp = (l: (typeof res)[number]) => {
-          const white = l.mate !== null ? (l.mate > 0 ? 100000 : -100000) : (l.cp ?? 0);
-          return moverIsWhite ? white : -white;
-        };
-        const best = moverCp(res[0]!);
-        return res.filter((l) => best - moverCp(l) <= 50).map((l) => l.uci);
-      };
-      const ext = await e.tree.extendedBridges(e.color, { maxDepth: max_depth!, nodeBudget: 40 }, pickMoves);
-      extensions = ext.filter((b) => b.moves.length > 1).slice(0, limit ?? 20);
-    }
-
-    return ok({ total: filtered.length, returned: shown.length, opportunities: shown, extensions });
-  },
-);
-
-server.tool(
   "find_pruning_transpositions",
   "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved.",
   {
@@ -280,21 +231,24 @@ server.tool(
 
 server.tool(
   "get_repertoire_coverage",
-  "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers.",
-  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
-  ({ repertoire_id, limit }) => {
+  "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers. Pass connect_stubs=true to engine-check whether each dangling stub bridges back into existing prep — resolved stubs report connects_via (the engine-best SAN sequence) + joins_path, so you wire them with no new theory.",
+  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional() },
+  async ({ repertoire_id, limit, connect_stubs }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const c = e.tree.coverage(e.color);
-    return ok({
+    const base = {
       color: e.color,
       leaves: c.leaves,
       dangling_count: c.danglingCount,
-      dangling_lines: c.danglingLines.slice(0, limit ?? 20),
       frontier_count: c.frontierCount,
       max_depth: c.maxDepth,
       shallowest_leaf_ply: c.shallowestLeafPly,
-    });
+    };
+    if (!connect_stubs) return ok({ ...base, dangling_lines: c.danglingLines.slice(0, limit ?? 20) });
+    const r = await resolveDanglingStubs(e.tree, e.color, { limit }, analyseMulti);
+    if ("error" in r) return ok({ ...base, error: r.error });
+    return ok({ ...base, stubs_resolved: r.resolved, dangling_lines: r.dangling });
   },
 );
 
@@ -446,22 +400,6 @@ server.tool(
   ({ pgn }) => {
     const hit = identifyDeepest(openingsTable, pgn);
     return ok(hit ?? { opening: null });
-  },
-);
-
-// --- board image (SVG) ---
-server.tool(
-  "board_image",
-  "Render a position as an SVG (unicode piece glyphs).",
-  {
-    fen: z.string(),
-    orientation: z.enum(["white", "black"]).optional(),
-    size: z.number().int().min(120).max(1024).optional(),
-  },
-  ({ fen, orientation, size }) => {
-    const v = validateFen(fen);
-    if (!v.valid) return ok(v);
-    return ok({ format: "svg", svg: boardSvg(v.fen!, { orientation, size }) });
   },
 );
 

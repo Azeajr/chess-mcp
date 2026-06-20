@@ -1,7 +1,10 @@
 # Find Transposition Opportunities — Design
 
-Status: **implemented** (v1, engine-free 1-ply). **v2 addendum below** — engine-guided
-multi-ply extension + the `retro.md` follow-ups. See [§ v2](#v2-engine-guided-multi-ply-bridges).
+Status: **superseded (2026-06-20)** by `GAP_RESOLUTION_DESIGN.md`. The
+`find_transposition_opportunities` tool is removed: `move_order_merge` dropped, `coverage_confirmed`
+folded into `find_repertoire_gaps` (transposition-first `covered_by_transposition`), and
+`frontier_link` lives on as the engine-vetted `extendedBridges` stub connector (UI "Connect" panel).
+The 1-ply `transpositionBridges` method is deleted. Kept below for history.
 
 A new repertoire tool that finds where two parts of your repertoire could be **bridged** by a
 move order but aren't linked yet — the *prescriptive* counterpart to the existing

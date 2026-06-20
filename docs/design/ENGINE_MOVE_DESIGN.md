@@ -1,5 +1,11 @@
 # Engine Move Tool Design
 
+> **Superseded (2026-06-20).** The shipped `engine_move` tool was only "best move from local
+> Stockfish" — a strict subset of `evaluate_position(lines: 1)` — and is removed per
+> `TOOL_CONSOLIDATION_DESIGN.md` (Plan A). The broader aspiration below (human-like Maia/Leela
+> backends for strength-aware gap analysis) was never built and remains an orthogonal future idea,
+> not tied to the removed tool.
+
 Goal: add human-like engine backends (Maia, Leela) alongside Stockfish for repertoire study.
 Without human-like engines, gap analysis shows what's theoretically wrong but not what
 opponent classes actually punish. The `engine_move` tool returns the best move from a

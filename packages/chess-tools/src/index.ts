@@ -5,8 +5,8 @@
  * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
  * TypeScript port of the Python servers (see docs/design/UI_DESIGN.md).
  */
-export { GameTree } from "./pgn.js";
-export type { Path, PlayResult, TranspositionBridge, ExtendedBridge, PruneSuggestion, PruneEngineLine } from "./pgn.js";
+export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal } from "./pgn.js";
+export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneEngineLine } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
 export { decisionNodes, gapSeverity, moveSan, SEVERITY_RANK } from "./gaps.js";
@@ -35,7 +35,6 @@ export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, RepertoireMoveMap } from "./game.js";
-export { boardSvg } from "./boardimage.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
 export type { OpeningTable } from "./openings.js";
 export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
@@ -43,6 +42,7 @@ export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence
 export {
   analyzeMainline,
   findRepertoireGaps,
+  resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
@@ -54,6 +54,9 @@ export type {
   GapsOptions,
   Gap,
   GapsResult,
+  CoveredGap,
+  StubResolution,
+  CoverageResolution,
   SuggestComplementaryOptions,
   SuggestReplacementOptions,
 } from "./enginetools.js";

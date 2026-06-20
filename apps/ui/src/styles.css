@@ -494,6 +494,10 @@ body {
   text-align: center;
   flex: 0 0 auto;
 }
+/* Covered-by-transposition rows under Gaps: a false gap, shown muted. */
+.rep-row.covered {
+  opacity: 0.6;
+}
 .rep-row .ev,
 .rep-row .fit {
   margin-left: auto;

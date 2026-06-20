@@ -23,7 +23,6 @@ import {
   validateLine,
   identifyDeepest,
   parseOpeningsTsv,
-  boardSvg,
   aggregateGames,
   lichessGames,
   chesscomGames,
@@ -33,6 +32,7 @@ import {
   analyzeCongruence,
   analyzeMainline,
   findRepertoireGaps,
+  resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
@@ -74,7 +74,6 @@ export const toolSchemas: ToolSchema[] = [
     fen: { type: "string", description: "FEN; defaults to the current position" },
     lines: { type: "integer", description: "number of top lines (default 3)" },
   }),
-  fn("engine_move", "Best move from local Stockfish at a position.", { fen: { type: "string", description: "FEN; defaults to the current position" }, depth: { type: "integer" } }),
   fn("compare_moves", "Rank candidate SAN moves at a position by local Stockfish (mover POV). Illegal moves are flagged.", {
     moves: { type: "array", items: { type: "string" }, description: "candidate SAN moves" },
     fen: { type: "string", description: "FEN; defaults to the current position" },
@@ -89,10 +88,6 @@ export const toolSchemas: ToolSchema[] = [
   fn("cloud_eval", "Lichess community cloud evaluation for a position (white-POV), if available.", { fen: { type: "string", description: "FEN; defaults to the current position" } }),
   fn("tablebase_lookup", "Lichess tablebase result for a ≤7-piece endgame position (win/draw/loss, DTZ), or unavailable.", { fen: { type: "string", description: "FEN; defaults to the current position" } }),
   fn("identify_opening", "Name the deepest ECO opening the current line (or a given PGN) reaches.", { pgn: { type: "string", description: "PGN; defaults to the current working line" } }),
-  fn("board_image", "Render a position as an SVG (unicode piece glyphs).", {
-    fen: { type: "string", description: "FEN; defaults to the current position" },
-    orientation: { type: "string", enum: ["white", "black"] },
-  }),
   // --- repertoire tools (operate on the current working repertoire tree) ---
   fn("find_repertoire_gaps", "Scan the current repertoire's decision nodes for uncovered strong opponent replies, ranked by severity.", {
     depth: { type: "integer" },
@@ -101,9 +96,8 @@ export const toolSchemas: ToolSchema[] = [
     limit: { type: "integer" },
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
-  fn("find_transposition_opportunities", "Move-order bridges that interlink the current repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. opportunities (engine-free, instant): frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition. extensions (when max_depth>1, engine-backed): a stopped line continued by the color's engine-best moves until it rejoins prep several plies on — the bridging moves are good, not merely legal.", { limit: { type: "integer" }, kinds: { type: "array", items: { type: "string" } }, max_depth: { type: "integer", description: "1 (default) = instant 1-ply only; 2-6 = also run the engine-guided multi-ply extension" } }),
   fn("find_pruning_transpositions", "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first; among the top engine moves within a near-best window of #1 (cp_threshold — never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies + the eval trade (evalStay vs evalTranspose). One earliest re-route per line, ranked by tail saved.", { limit: { type: "integer" }, multipv: { type: "integer" }, cp_threshold: { type: "integer" }, max_loss_cp: { type: "integer" } }),
-  fn("get_repertoire_coverage", "Tree-shape hygiene for the current repertoire: dangling lines (your-turn leaves owed a move) vs natural frontiers.", { limit: { type: "integer" } }),
+  fn("get_repertoire_coverage", "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers. Pass connect_stubs=true to engine-check whether each dangling stub bridges back into prep — resolved stubs report connects_via + joins_path.", { limit: { type: "integer" }, connect_stubs: { type: "boolean" } }),
   fn("get_structural_profile", "Static pawn-structure profile of the current repertoire. With variation_path (SAN list): one position's classified structure, center, primitives, themes. Without it: an aggregate structure fingerprint over all leaves.", {
     variation_path: { type: "array", items: { type: "string" }, description: "SAN path to one line; omit for the aggregate" },
   }),
@@ -204,13 +198,6 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       return { fen: atFen, eval_pov: "white", eval_sign: "positive favors White; negative favors Black", lines: res.map((l) => ({ uci: l.uci, san: moveSan(atFen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) };
     }
 
-    case "engine_move": {
-      const res = await analyse(atFen, 1, depth ?? 16);
-      const best = res?.[0];
-      if (!best) return { error: "engine offline" };
-      return { uci: best.uci, san: moveSan(atFen, best.uci), eval_pov: "white", eval_sign: "positive favors White; negative favors Black", cp: best.cp, mate: best.mate, depth: best.depth };
-    }
-
     case "compare_moves":
       return compareMoves(atFen, (args.moves as string[]) ?? [], depth ?? 14, analyse);
 
@@ -238,12 +225,6 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       return hit ?? { opening: null };
     }
 
-    case "board_image": {
-      const v = validateFen(atFen);
-      if (!v.valid) return v;
-      return { format: "svg", svg: boardSvg(v.fen!, { orientation: args.orientation as "white" | "black" | undefined }) };
-    }
-
     case "find_repertoire_gaps":
       return findRepertoireGaps(
         tree,
@@ -256,32 +237,6 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       const groups = tree.transpositions();
       const shown = groups.slice(0, (args.limit as number) ?? 20);
       return { total: groups.length, returned: shown.length, transpositions: shown };
-    }
-
-    case "find_transposition_opportunities": {
-      const all = tree.transpositionBridges(col);
-      const wanted = args.kinds as string[] | undefined;
-      const filtered = wanted?.length ? all.filter((b) => wanted.includes(b.kind)) : all;
-      const limit = (args.limit as number) ?? 20;
-      const shown = filtered.slice(0, limit);
-      const maxDepth = (args.max_depth as number) ?? 1;
-      let extensions: Awaited<ReturnType<typeof tree.extendedBridges>> = [];
-      if (maxDepth > 1) {
-        const pickMoves = async (f: string): Promise<string[]> => {
-          const res = await analyseMulti(f, 3, 12);
-          if (!res || !res.length) return [];
-          const moverIsWhite = f.split(" ")[1] === "w";
-          const moverCp = (l: (typeof res)[number]) => {
-            const white = l.mate !== null ? (l.mate > 0 ? 100000 : -100000) : (l.cp ?? 0);
-            return moverIsWhite ? white : -white;
-          };
-          const best = moverCp(res[0]!);
-          return res.filter((l) => best - moverCp(l) <= 50).map((l) => l.uci);
-        };
-        const ext = await tree.extendedBridges(col, { maxDepth, nodeBudget: 40 }, pickMoves);
-        extensions = ext.filter((b) => b.moves.length > 1).slice(0, limit);
-      }
-      return { total: filtered.length, returned: shown.length, opportunities: shown, extensions };
     }
 
     case "find_pruning_transpositions": {
@@ -300,15 +255,18 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
 
     case "get_repertoire_coverage": {
       const c = tree.coverage(col);
-      return {
+      const base = {
         color: col,
         leaves: c.leaves,
         dangling_count: c.danglingCount,
-        dangling_lines: c.danglingLines.slice(0, (args.limit as number) ?? 20),
         frontier_count: c.frontierCount,
         max_depth: c.maxDepth,
         shallowest_leaf_ply: c.shallowestLeafPly,
       };
+      if (!args.connect_stubs) return { ...base, dangling_lines: c.danglingLines.slice(0, (args.limit as number) ?? 20) };
+      const r = await resolveDanglingStubs(tree, col, { limit: args.limit as number }, analyse);
+      if ("error" in r) return { ...base, error: r.error };
+      return { ...base, stubs_resolved: r.resolved, dangling_lines: r.dangling };
     }
 
     case "get_structural_profile": {

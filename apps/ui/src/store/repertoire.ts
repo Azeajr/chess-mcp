@@ -5,7 +5,7 @@
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
-import type { TranspositionBridge, ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
+import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { runTool } from "../llm/tools";
 import { currentTree, color } from "./game";
 import { analyseMulti } from "../engine/stockfish";
@@ -46,10 +46,11 @@ export async function scanCongruence() {
   }
 }
 
-// --- Tier A: transposition bridges ---
-// Two passes: the instant engine-free 1-ply scan (find_transposition_opportunities), then an
-// engine-guided multi-ply extension that continues stopped lines with the color's best moves
-// until they rejoin existing prep (GameTree.extendedBridges — retro 2a/2b).
+// --- Tier A: connect dangling stubs into prep (engine-vetted) ---
+// A stopped line (frontier leaf, your turn) continued by the color's engine-best moves until it
+// rejoins existing prep (GameTree.extendedBridges). This is frontier_link / stub resolution — the
+// surviving, useful half of the old bridges tool. move_order_merge is dropped; coverage_confirmed
+// now surfaces inside the Gaps scan as covered-by-transposition.
 
 const MULTIPV = 3;
 const SCAN_DEPTH = 12;
@@ -58,11 +59,10 @@ const MATE_CP = 100000;
 const MAX_DEPTH = 4;
 const NODE_BUDGET = 40;
 
-const [bridges, setBridges] = createSignal<TranspositionBridge[] | null>(null);
 const [extBridges, setExtBridges] = createSignal<ExtendedBridge[] | null>(null);
 const [bridgeScanning, setBridgeScanning] = createSignal(false);
 const [bridgeError, setBridgeError] = createSignal<string | null>(null);
-export { bridges, extBridges, bridgeScanning, bridgeError };
+export { extBridges, bridgeScanning, bridgeError };
 
 let bridgeToken = 0;
 
@@ -85,24 +85,11 @@ export async function scanBridges() {
   setExtBridges(null);
   setBridgeScanning(true);
   try {
-    // Pass 1: instant engine-free 1-ply bridges.
-    const r = (await runTool("find_transposition_opportunities", {})) as {
-      opportunities?: TranspositionBridge[];
-      error?: string;
-    };
-    if (token !== bridgeToken) return;
-    if (r.error) {
-      setBridgeError(r.error);
-      setBridges(null);
-      return;
-    }
-    setBridges(r.opportunities ?? []);
-
-    // Pass 2: engine-guided multi-ply extension (frontier leaves only). Engine offline → skip.
+    // Engine-guided: continue each frontier stub with the color's best moves until it rejoins prep.
+    // Includes 1-ply links (the old engine-free pass-1 is gone; these are now engine-vetted instead).
     const ext = await currentTree().extendedBridges(color(), { maxDepth: MAX_DEPTH, nodeBudget: NODE_BUDGET }, pickColorMoves);
     if (token !== bridgeToken) return;
-    // Drop trivial 1-move extensions already reported by pass 1.
-    setExtBridges(ext.filter((b) => b.moves.length > 1));
+    setExtBridges(ext);
   } catch (e) {
     if (token !== bridgeToken) return;
     setBridgeError(e instanceof Error ? e.message : String(e));

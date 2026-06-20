@@ -32,26 +32,11 @@ export interface PlayResult {
   appended: boolean;
 }
 
-/** A move-order bridge that would interlink the repertoire (find_transposition_opportunities). */
-export interface TranspositionBridge {
-  /** SAN path to the node the bridge departs from. */
-  fromPath: string[];
-  /** SAN of the bridging move (not currently a child of fromPath). */
-  move: string;
-  /** Side to move at fromPath. */
-  sideToMove: Color;
-  /** Shallowest SAN path that already reaches the position the bridge lands on. */
-  joinsPath: string[];
-  /** Ply depth of joinsPath (prefer landing in deeper, more-developed prep). */
-  joinsPly: number;
-  kind: "frontier_link" | "coverage_confirmed" | "move_order_merge";
-}
-
 /**
- * A multi-ply, engine-guided extension of a frontier_link (find_transposition_opportunities v2).
- * A stopped line (frontier leaf, `color` to move) continued by `moves` lands back in prep at
- * `joinsPath`. The color's moves in `moves` are the engine's picks (good by construction);
- * opponent replies are enumerated.
+ * An engine-guided stub→prep connection (extendedBridges) — the surviving stub-resolution half of
+ * the old bridges tool. A stopped line (frontier leaf, `color` to move) continued by `moves` lands
+ * back in prep at `joinsPath`. The color's moves in `moves` are the engine's picks (good by
+ * construction); opponent replies are enumerated.
  */
 export interface ExtendedBridge {
   /** SAN path to the frontier leaf the extension departs from. */
@@ -99,6 +84,78 @@ export interface PruneSuggestion {
   evalTranspose: number;
   /** evalStay − evalTranspose: cp given up by transposing vs staying (null if evalStay unknown). */
   evalDelta: number | null;
+}
+
+// --- shared transposition primitives (gap resolution · stub resolution · shorten) ---
+
+/** Path `a` is an ancestor-or-equal of `b` (same line). */
+export function isPrefix(a: Path, b: Path): boolean {
+  return a.length <= b.length && a.every((v, i) => b[i] === v);
+}
+
+export interface KeyIndex {
+  /** positionKey → shallowest occurrence among all child nodes. */
+  keyMap: Map<string, { path: Path; sanPath: string[]; ply: number }>;
+  /** positionKey → number of nodes carrying it (≥2 ⇒ an existing transposition). */
+  keyCount: Map<string, number>;
+}
+
+/** Index every child node by positionKey: shallowest path per key + occurrence counts. */
+export function buildKeyIndex(root: Node<PgnNodeData>): KeyIndex {
+  const keyMap: KeyIndex["keyMap"] = new Map();
+  const keyCount: KeyIndex["keyCount"] = new Map();
+  const walk = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
+    node.children.forEach((child, i) => {
+      const next = pos.clone();
+      const move = parseSan(next, child.data.san);
+      if (!move) return;
+      next.play(move);
+      const p = [...path, i];
+      const sp = [...sanPath, child.data.san];
+      const key = positionKey(makeFen(next.toSetup()));
+      keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
+      const prev = keyMap.get(key);
+      if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
+      walk(child, next, p, sp);
+    });
+  };
+  walk(root, Chess.default(), [], []);
+  return { keyMap, keyCount };
+}
+
+/**
+ * Does playing into `afterPos` land in a DIFFERENT prepared line? Returns the shallowest target
+ * (sanPath + ply) when yes, else null. `ownPath` is the source node's index path; an
+ * ancestor/descendant target is the line's own continuation, not a cross-branch transposition.
+ */
+export function landsInCrossBranchPrep(
+  keyMap: KeyIndex["keyMap"],
+  afterPos: Chess,
+  ownPath: Path,
+): { sanPath: string[]; ply: number } | null {
+  const tgt = keyMap.get(positionKey(makeFen(afterPos.toSetup())));
+  if (!tgt) return null;
+  if (isPrefix(ownPath, tgt.path) || isPrefix(tgt.path, ownPath)) return null;
+  return { sanPath: tgt.sanPath, ply: tgt.ply };
+}
+
+/** Legal moves at `pos` as { move, after } — pawns to the last rank as queen promotions only. */
+export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[] {
+  const out: { move: NormalMove; after: Chess }[] = [];
+  for (const [orig, dests] of chessgroundDests(pos)) {
+    const from = parseSquare(orig)!;
+    for (const dest of dests) {
+      const to = parseSquare(dest)!;
+      const piece = pos.board.get(from);
+      const toRank = to >> 3;
+      const move: NormalMove =
+        piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
+      const after = pos.clone();
+      after.play(move);
+      out.push({ move, after });
+    }
+  }
+  return out;
 }
 
 export class GameTree {
@@ -287,96 +344,6 @@ export class GameTree {
   }
 
   /**
-   * Move-order bridges that would interlink the repertoire (find_transposition_opportunities).
-   * For every node, a legal move NOT already a child whose resulting position already exists on a
-   * DIFFERENT branch is a bridge into existing prep — sound by construction. Engine-free.
-   *   - frontier_link: a stopped line (leaf), your move → extend 1 ply into known prep.
-   *   - coverage_confirmed: a leaf, opponent move → an opponent try already covered by transposition.
-   *   - move_order_merge: an interior node → an alternate move order also lands in prep.
-   */
-  transpositionBridges(color: Color): TranspositionBridge[] {
-    // 1. positionKey -> shallowest occurrence (over child nodes; the root is never a target).
-    const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
-    // Occurrences per position key. A key on ≥2 nodes is an existing transposition (what
-    // transpositions()/get_transpositions surfaces) — a line sitting on one already converges, so
-    // it is not a real bridge candidate.
-    const keyCount = new Map<string, number>();
-    const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
-      node.children.forEach((child, i) => {
-        const next = pos.clone();
-        const move = parseSan(next, child.data.san);
-        if (!move) return;
-        next.play(move);
-        const p = [...path, i];
-        const sp = [...sanPath, child.data.san];
-        const key = positionKey(makeFen(next.toSetup()));
-        keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
-        const prev = keyMap.get(key);
-        if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
-        indexAll(child, next, p, sp);
-      });
-    };
-    indexAll(this.game.moves, Chess.default(), [], []);
-
-    const isPrefix = (a: Path, b: Path) => a.length <= b.length && a.every((v, i) => b[i] === v);
-    const out: TranspositionBridge[] = [];
-    const seen = new Set<string>();
-
-    // 2. At every node, probe legal moves that aren't already tree edges.
-    const probe = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
-      // Play each child once; reuse for both the child-key set and the recursion below.
-      const childPos = node.children.map((child) => {
-        const c = pos.clone();
-        const mv = parseSan(c, child.data.san);
-        if (!mv) return null;
-        c.play(mv);
-        return c;
-      });
-      const childKeys = new Set<string>();
-      for (const c of childPos) if (c) childKeys.add(positionKey(makeFen(c.toSetup())));
-      const isLeaf = node.children.length === 0;
-      // A leaf that already transposes elsewhere (its position appears on another branch) isn't a
-      // dangling stub — get_transpositions already reports the link, so don't bridge from it.
-      const leafTransposes = isLeaf && (keyCount.get(positionKey(makeFen(pos.toSetup()))) ?? 0) > 1;
-      if (!leafTransposes)
-      for (const [orig, dests] of chessgroundDests(pos)) {
-        const from = parseSquare(orig)!;
-        for (const dest of dests) {
-          const to = parseSquare(dest)!;
-          const piece = pos.board.get(from);
-          const toRank = to >> 3;
-          const move: NormalMove =
-            piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
-          const after = pos.clone();
-          after.play(move);
-          const key = positionKey(makeFen(after.toSetup()));
-          if (childKeys.has(key)) continue; // already a tree edge
-          const target = keyMap.get(key);
-          if (!target) continue; // leaves the repertoire
-          if (isPrefix(path, target.path) || isPrefix(target.path, path)) continue; // same line, not a bridge
-          const san = makeSan(pos, move);
-          const dedup = `${path.join(",")}|${san}`;
-          if (seen.has(dedup)) continue;
-          seen.add(dedup);
-          const kind = !isLeaf ? "move_order_merge" : pos.turn === color ? "frontier_link" : "coverage_confirmed";
-          out.push({ fromPath: [...sanPath], move: san, sideToMove: pos.turn, joinsPath: target.sanPath, joinsPly: target.ply, kind });
-        }
-      }
-      node.children.forEach((child, i) => {
-        const next = childPos[i];
-        if (!next) return;
-        probe(child, next, [...path, i], [...sanPath, child.data.san]);
-      });
-    };
-    probe(this.game.moves, Chess.default(), [], []);
-
-    const RANK: Record<TranspositionBridge["kind"], number> = { frontier_link: 0, move_order_merge: 1, coverage_confirmed: 2 };
-    return out.sort(
-      (a, b) => RANK[a.kind] - RANK[b.kind] || a.fromPath.length - b.fromPath.length || b.joinsPly - a.joinsPly,
-    );
-  }
-
-  /**
    * Engine-guided multi-ply extension of frontier_link bridges (retro 2a/2b). For each frontier
    * leaf where `color` is to move, search forward up to `maxDepth` plies — the color's moves are
    * chosen by the injected engine (`pickMoves` returns the best UCIs ± a cp threshold, so they are
@@ -393,49 +360,11 @@ export class GameTree {
     const maxDepth = opts.maxDepth ?? 4;
     let budget = opts.nodeBudget ?? 40;
 
-    // positionKey -> shallowest occurrence (same indexing as transpositionBridges).
-    const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
-    // Occurrences per position key. A key on ≥2 nodes is an existing transposition (what
-    // transpositions()/get_transpositions surfaces) — a line sitting on one already converges, so
-    // it is not a real bridge candidate.
-    const keyCount = new Map<string, number>();
-    const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
-      node.children.forEach((child, i) => {
-        const next = pos.clone();
-        const move = parseSan(next, child.data.san);
-        if (!move) return;
-        next.play(move);
-        const p = [...path, i];
-        const sp = [...sanPath, child.data.san];
-        const key = positionKey(makeFen(next.toSetup()));
-        keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
-        const prev = keyMap.get(key);
-        if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
-        indexAll(child, next, p, sp);
-      });
-    };
-    indexAll(this.game.moves, Chess.default(), [], []);
+    const { keyMap, keyCount } = buildKeyIndex(this.game.moves);
 
-    const isPrefix = (a: Path, b: Path) => a.length <= b.length && a.every((v, i) => b[i] === v);
-
-    // Legal moves at pos, materialised as { move, san, after, uci }.
-    const legalMoves = (pos: Chess) => {
-      const moves: { san: string; after: Chess; uci: string }[] = [];
-      for (const [orig, dests] of chessgroundDests(pos)) {
-        const from = parseSquare(orig)!;
-        for (const dest of dests) {
-          const to = parseSquare(dest)!;
-          const piece = pos.board.get(from);
-          const toRank = to >> 3;
-          const move: NormalMove =
-            piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
-          const after = pos.clone();
-          after.play(move);
-          moves.push({ san: makeSan(pos, move), after, uci: makeUci(move) });
-        }
-      }
-      return moves;
-    };
+    // Legal moves at pos as { san, after, uci } (queen-promo only), via the shared enumerator.
+    const legalMoves = (pos: Chess) =>
+      enumerateLegal(pos).map(({ move, after }) => ({ san: makeSan(pos, move), after, uci: makeUci(move) }));
 
     // Frontier leaves (no children) where `color` is to move; shallowest first (highest impact).
     const frontiers: { path: Path; pos: Chess; sanPath: string[] }[] = [];
@@ -473,8 +402,8 @@ export class GameTree {
         }
         for (const c of candidates) {
           const accNext = [...acc, c.san];
-          const tgt = keyMap.get(positionKey(makeFen(c.after.toSetup())));
-          if (tgt && !(isPrefix(f.path, tgt.path) || isPrefix(tgt.path, f.path))) {
+          const tgt = landsInCrossBranchPrep(keyMap, c.after, f.path);
+          if (tgt) {
             const dedup = `${f.sanPath.join(",")}|${accNext.join(",")}`;
             if (!seen.has(dedup)) {
               seen.add(dedup);
@@ -511,25 +440,8 @@ export class GameTree {
     const maxLossCp = opts.maxLossCp;
     const MATE = 100000;
 
-    // positionKey -> shallowest occurrence (all nodes), same indexing as the bridge tools.
-    const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
-    const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
-      node.children.forEach((child, i) => {
-        const next = pos.clone();
-        const move = parseSan(next, child.data.san);
-        if (!move) return;
-        next.play(move);
-        const p = [...path, i];
-        const sp = [...sanPath, child.data.san];
-        const key = positionKey(makeFen(next.toSetup()));
-        const prev = keyMap.get(key);
-        if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
-        indexAll(child, next, p, sp);
-      });
-    };
-    indexAll(this.game.moves, Chess.default(), [], []);
+    const { keyMap } = buildKeyIndex(this.game.moves);
 
-    const isPrefix = (a: Path, b: Path) => a.length <= b.length && a.every((v, i) => b[i] === v);
     const moverCp = (fen: string, l: PruneEngineLine) => {
       const white = l.mate !== null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
       return fen.split(" ")[1] === "w" ? white : -white;
@@ -593,11 +505,10 @@ export class GameTree {
           if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
           const after = s.pos.clone();
           after.play(e.mv);
-          const tgt = keyMap.get(positionKey(makeFen(after.toSetup())));
-          if (!tgt) continue; // leaves the repertoire
-          // Skip targets ON this same line (the line's own continuation), not a cross-line merge.
-          // Compare against the FULL leaf — a shared early ancestor must NOT count as same-line.
-          if (isPrefix(leaf, tgt.path) || isPrefix(tgt.path, leaf)) continue;
+          // Re-route must land in a DIFFERENT prepared line. Compare against the FULL leaf — a
+          // shared early ancestor must NOT count as same-line.
+          const tgt = landsInCrossBranchPrep(keyMap, after, leaf);
+          if (!tgt) continue;
           out.push({
             linePath: leafSan.slice(),
             atPath: leafSan.slice(0, s.ply),
