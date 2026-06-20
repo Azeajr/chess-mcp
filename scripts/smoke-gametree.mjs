@@ -214,6 +214,16 @@ ok(!shallow.some((b) => b.moves.join(" ") === "Nc3 e6"), "extendedBridges: maxDe
 const noExt = await GameTree.fromPgn("1. e4 e5 2. Nf3 *").extendedBridges("white", { maxDepth: 4, nodeBudget: 40 }, pickNc3);
 ok(noExt.length === 0, "extendedBridges: linear line → none");
 
+// 16e. Bridges omit lines that ALREADY transpose. Game 1's "...3.Nc3" leaf is the same position
+// as game 2's 3.Nc3 node (reached by the Nf6/e6 move-order swap) → an existing transposition.
+// That leaf must not be reported as a bridge departure (transpositions() already links it).
+const dupTree = GameTree.fromPgn("1. d4 Nf6 2. c4 e6 3. Nc3 *\n\n1. d4 e6 2. c4 Nf6 3. Nc3 d5 *");
+const dupTb = dupTree.transpositionBridges("black");
+ok(!dupTb.some((b) => b.fromPath.join(" ") === "d4 Nf6 c4 e6 Nc3"), "transpositionBridges: no bridge from a leaf that already transposes");
+const pickD5 = async (fen) => (fen.split(" ")[1] === "b" ? ["d7d5"] : []);
+const dupExt = await dupTree.extendedBridges("black", { maxDepth: 3, nodeBudget: 60 }, pickD5);
+ok(dupExt.length === 0, "extendedBridges: a leaf that already transposes yields no extension");
+
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");

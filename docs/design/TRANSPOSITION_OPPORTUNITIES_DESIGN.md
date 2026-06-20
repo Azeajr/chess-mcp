@@ -321,6 +321,13 @@ dfs(pos, acc /*SAN[]*/, ply):
 skip, child-edge skip. v1's pure 1-ply `transpositionBridges` stays for the instant engine-free
 `move_order_merge` / `coverage_confirmed`; `extendedBridges` augments `frontier_link` only.
 
+**Already-transposing leaves are skipped.** Both methods build a `keyCount` (positionKey →
+occurrences). A leaf whose own position appears on ≥2 nodes is already a transposition — the line
+already rejoins prep, so `get_transpositions` (`transpositions()`) already surfaces the link.
+Bridging from it would be redundant noise, so it is omitted: `transpositionBridges` skips emitting
+at such a leaf; `extendedBridges` skips it as a frontier. True dangling stubs (position seen once)
+are unaffected — they are exactly the lines a bridge should connect.
+
 ### UI / tool integration
 
 - `store/repertoire.ts`: `scanBridges()` keeps the instant v1 call, then runs an engine pass —

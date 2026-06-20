@@ -262,6 +262,10 @@ export class GameTree {
   transpositionBridges(color: Color): TranspositionBridge[] {
     // 1. positionKey -> shallowest occurrence (over child nodes; the root is never a target).
     const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
+    // Occurrences per position key. A key on ≥2 nodes is an existing transposition (what
+    // transpositions()/get_transpositions surfaces) — a line sitting on one already converges, so
+    // it is not a real bridge candidate.
+    const keyCount = new Map<string, number>();
     const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
       node.children.forEach((child, i) => {
         const next = pos.clone();
@@ -271,6 +275,7 @@ export class GameTree {
         const p = [...path, i];
         const sp = [...sanPath, child.data.san];
         const key = positionKey(makeFen(next.toSetup()));
+        keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
         const prev = keyMap.get(key);
         if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
         indexAll(child, next, p, sp);
@@ -295,6 +300,10 @@ export class GameTree {
       const childKeys = new Set<string>();
       for (const c of childPos) if (c) childKeys.add(positionKey(makeFen(c.toSetup())));
       const isLeaf = node.children.length === 0;
+      // A leaf that already transposes elsewhere (its position appears on another branch) isn't a
+      // dangling stub — get_transpositions already reports the link, so don't bridge from it.
+      const leafTransposes = isLeaf && (keyCount.get(positionKey(makeFen(pos.toSetup()))) ?? 0) > 1;
+      if (!leafTransposes)
       for (const [orig, dests] of chessgroundDests(pos)) {
         const from = parseSquare(orig)!;
         for (const dest of dests) {
@@ -351,6 +360,10 @@ export class GameTree {
 
     // positionKey -> shallowest occurrence (same indexing as transpositionBridges).
     const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
+    // Occurrences per position key. A key on ≥2 nodes is an existing transposition (what
+    // transpositions()/get_transpositions surfaces) — a line sitting on one already converges, so
+    // it is not a real bridge candidate.
+    const keyCount = new Map<string, number>();
     const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
       node.children.forEach((child, i) => {
         const next = pos.clone();
@@ -360,6 +373,7 @@ export class GameTree {
         const p = [...path, i];
         const sp = [...sanPath, child.data.san];
         const key = positionKey(makeFen(next.toSetup()));
+        keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
         const prev = keyMap.get(key);
         if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
         indexAll(child, next, p, sp);
@@ -392,7 +406,11 @@ export class GameTree {
     const frontiers: { path: Path; pos: Chess; sanPath: string[] }[] = [];
     const findFrontiers = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
       if (node.children.length === 0) {
-        if (pos.turn === color) frontiers.push({ path, pos, sanPath });
+        // Skip a leaf whose position already transposes elsewhere (keyCount > 1): it already
+        // rejoins prep, so it is not a real dangling stub (transpositions() already reports it).
+        if (pos.turn === color && (keyCount.get(positionKey(makeFen(pos.toSetup()))) ?? 0) <= 1) {
+          frontiers.push({ path, pos, sanPath });
+        }
         return;
       }
       node.children.forEach((child, i) => {
