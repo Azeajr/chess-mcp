@@ -1,6 +1,6 @@
 # Suggest Prune — Line Shortening via Engine-Vetted Transposition
 
-Status: **planned**.
+Status: **implemented**. Effort dial (movetime + budget) added 2026-06-20 — see the addendum at the end.
 
 The prescriptive counterpart to the bridge tools, aimed at **memorization reduction**. Bridges
 *extend* a stopped line into prep; this *shortens* a complete line by finding an early move order
@@ -158,3 +158,30 @@ routes line A into line B.
   residual cost of the ones that qualify.
 - **Multi-line cluster merges** (collapsing 3+ lines to one trunk at once) — v1 is per-line to the
   single best target; clustering is a later refinement.
+
+---
+
+## Addendum: effort dial — movetime + budget (2026-06-20, implemented)
+
+Retro thread 3: shorten was hardcoded to `analyseMulti(fen, mpv, 14)` — no way to spend more effort,
+and depth is a poor dial (depth→wallclock is nonlinear and position-dependent on WASM Stockfish).
+
+Two knobs on `find_pruning_transpositions` (MCP + PWA); defaults preserve the old behaviour:
+
+- **`movetime_ms`** (50–10000) — per-position time budget. When set, the engine wrapper issues
+  `go movetime` instead of `go depth`. A movetime result is cached at the depth it actually reached,
+  so a later depth request reuses it; a movetime request serves any cached eval (a soft target).
+  `depth` (default 14) still applies when `movetime_ms` is omitted. movetime is the better dial for
+  sharp positions where a fixed depth is unpredictably slow.
+- **`budget`** (1–500) — total cap on engine calls across the whole walk, in `pruneTranspositions`
+  (mirrors `extendedBridges`' `nodeBudget`). Without it, cost = Σ(your-early-nodes per leaf) ×
+  movetime, unbounded by tree size; with it, worst case ≈ `budget × movetime_ms`. The walk stops
+  best-effort (earliest leaves first) when the budget is spent.
+
+Engine wrappers (`apps/mcp-server/src/engine.ts`, `apps/ui/src/engine/stockfish.ts`) gained an
+optional `movetime` arg; `movetime_ms` is capped under the 20 s browser watchdog. Validated
+end-to-end: a 300 ms movetime search reached depth 15 and its result satisfied a later depth-14
+request from cache (0 ms).
+
+**Deferred:** a cache hit still counts against `budget` like a real search (budget is a call-count —
+a safe upper bound, not engine-time-aware). Fine for v1.

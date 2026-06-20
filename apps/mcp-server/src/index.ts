@@ -208,21 +208,24 @@ server.tool(
 
 server.tool(
   "find_pruning_transpositions",
-  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved.",
+  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions); budget caps total positions analysed so a large tree can't blow up.",
   {
     repertoire_id: z.string(),
     limit: z.number().int().min(1).max(100).optional(),
     multipv: z.number().int().min(1).max(8).optional(),
     cp_threshold: z.number().int().min(0).max(500).optional(),
     max_loss_cp: z.number().int().min(0).max(1000).optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+    movetime_ms: z.number().int().min(50).max(10000).optional(),
+    budget: z.number().int().min(1).max(500).optional(),
   },
-  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp }) => {
+  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const suggestions = await e.tree.pruneTranspositions(
       e.color,
-      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp },
-      (fen, mpv) => analyseMulti(fen, mpv, 14),
+      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget },
+      (fen, mpv) => analyseMulti(fen, mpv, depth ?? 14, movetime_ms),
     );
     const shown = suggestions.slice(0, limit ?? 20);
     return ok({ total: suggestions.length, returned: shown.length, suggestions: shown });

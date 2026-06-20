@@ -245,6 +245,10 @@ ok(!gated.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: near-best g
 const capped = await prTree.pruneTranspositions("white", { maxLossCp: 5 }, analyseGood);
 ok(capped.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
 ok(!capped.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
+// budget caps total engine analyses: 1 analysis is spent on the start position (returns nothing),
+// so the re-route node (after 1.d4 Nf6) is never reached → no suggestion.
+const budgeted = await prTree.pruneTranspositions("white", { budget: 1 }, analyseGood);
+ok(budgeted.length === 0, "pruneTranspositions: budget caps the walk before the re-route node");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into

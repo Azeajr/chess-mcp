@@ -96,8 +96,11 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /** Top-`multipv` lines for `fen` to `depth`. White-POV cp/mate. null if engine unavailable. */
-export function analyseMulti(fen: string, multipv = 1, depth = 16): Promise<MultiLine[] | null> {
-  const cached = evalCache.get(fen, multipv, depth);
+export function analyseMulti(fen: string, multipv = 1, depth = 16, movetime?: number): Promise<MultiLine[] | null> {
+  // movetime is a soft effort target (time, not depth-deterministic) — any cached eval for this
+  // position is acceptable (get at depth 0); we store the depth actually reached so depth requests
+  // can still reuse it.
+  const cached = evalCache.get(fen, multipv, movetime != null ? 0 : depth);
   if (cached) return Promise.resolve(cached);
   return serial(async () => {
     const engine = await getEngine();
@@ -125,14 +128,15 @@ export function analyseMulti(fen: string, multipv = 1, depth = 16): Promise<Mult
         } else if (line.startsWith("bestmove")) {
           clearTimeout(wd);
           const result = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-          evalCache.put(fen, multipv, depth, result);
+          const reached = movetime != null ? result.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
+          evalCache.put(fen, multipv, reached, result);
           resolve(result);
         }
       };
       engine.sendCommand("ucinewgame");
       engine.sendCommand(`setoption name MultiPV value ${multipv}`);
       engine.sendCommand(`position fen ${fen}`);
-      engine.sendCommand(`go depth ${depth}`);
+      engine.sendCommand(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);
     });
   });
 }

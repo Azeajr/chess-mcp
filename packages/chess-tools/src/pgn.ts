@@ -432,12 +432,13 @@ export class GameTree {
    */
   async pruneTranspositions(
     color: Color,
-    opts: { multipv?: number; cpThreshold?: number; maxLossCp?: number },
+    opts: { multipv?: number; cpThreshold?: number; maxLossCp?: number; budget?: number },
     analyse: (fen: string, multipv: number) => Promise<PruneEngineLine[] | null>,
   ): Promise<PruneSuggestion[]> {
     const multipv = opts.multipv ?? 4;
     const cpThreshold = opts.cpThreshold ?? 50;
     const maxLossCp = opts.maxLossCp;
+    const budget = opts.budget; // max engine analyses over the whole walk (undefined = unlimited)
     const MATE = 100000;
 
     const { keyMap } = buildKeyIndex(this.game.moves);
@@ -459,8 +460,11 @@ export class GameTree {
     collect(this.game.moves, []);
 
     const out: PruneSuggestion[] = [];
+    let analyses = 0;
+    let budgetSpent = false;
 
     for (const leaf of leaves) {
+      if (budgetSpent) break;
       // Replay the leaf once: capture the position at each node + the full SAN path.
       const leafSan: string[] = [];
       const steps: { pos: Chess; ply: number }[] = [];
@@ -483,8 +487,10 @@ export class GameTree {
       for (const s of steps) {
         if (emitted) break;
         if (s.pos.turn !== color) continue;
+        if (budget != null && analyses >= budget) { budgetSpent = true; break; }
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyse(fen, multipv);
+        analyses++;
         if (!lines || !lines.length) continue;
         const stayMove = leafSan[s.ply]!; // the line's own next move at this node
         const enriched = lines
