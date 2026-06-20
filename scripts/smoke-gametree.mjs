@@ -197,6 +197,23 @@ ok(frontier && frontier.joinsPath.join(" ") === "c4 e6 Nc3 c5", "frontier_link j
 // A linear line has no bridges; the natural continuation is never reported.
 ok(GameTree.fromPgn("1. e4 e5 2. Nf3 *").transpositionBridges("white").length === 0, "linear line → no bridges");
 
+// 16d. extendedBridges — engine-guided multi-ply extension (retro 2a/2b). Injected pickMoves
+// stands in for the engine (deterministic). White stub "1.c4 c5 *" rejoins the prepared
+// 1.c4 e6 2.Nc3 c5 line TWO plies on: white Nc3, then black ...e6 transposes into prep.
+const extTree = GameTree.fromPgn("1. c4 e6 2. Nc3 c5 *\n\n1. c4 c5 *");
+const pickNc3 = async (fen) => (fen.split(" ")[1] === "w" ? ["b1c3"] : []);
+const ext = await extTree.extendedBridges("white", { maxDepth: 3, nodeBudget: 60 }, pickNc3);
+const twoPly = ext.find((b) => b.moves.join(" ") === "Nc3 e6");
+ok(twoPly && twoPly.fromPath.join(" ") === "c4 c5", "extendedBridges: 2-ply extension departs from 1.c4 c5");
+ok(twoPly && twoPly.joinsPath.join(" ") === "c4 e6 Nc3 c5", "extendedBridges: joins the c4 e6 Nc3 c5 line");
+ok(twoPly && twoPly.moves.length === 2, "extendedBridges: rejoin takes 2 plies");
+// Depth cap: maxDepth 1 cannot reach a 2-ply rejoin.
+const shallow = await extTree.extendedBridges("white", { maxDepth: 1, nodeBudget: 60 }, pickNc3);
+ok(!shallow.some((b) => b.moves.join(" ") === "Nc3 e6"), "extendedBridges: maxDepth 1 misses the 2-ply rejoin");
+// Linear line → no extensions (no frontier leaf where the color is to move).
+const noExt = await GameTree.fromPgn("1. e4 e5 2. Nf3 *").extendedBridges("white", { maxDepth: 4, nodeBudget: 40 }, pickNc3);
+ok(noExt.length === 0, "extendedBridges: linear line → none");
+
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");

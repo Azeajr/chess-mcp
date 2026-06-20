@@ -9,7 +9,7 @@
 import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
-import { makeSquare, parseSquare } from "chessops/util";
+import { makeSquare, parseSquare, makeUci } from "chessops/util";
 import {
   defaultGame,
   parsePgn,
@@ -45,6 +45,25 @@ export interface TranspositionBridge {
   /** Ply depth of joinsPath (prefer landing in deeper, more-developed prep). */
   joinsPly: number;
   kind: "frontier_link" | "coverage_confirmed" | "move_order_merge";
+}
+
+/**
+ * A multi-ply, engine-guided extension of a frontier_link (find_transposition_opportunities v2).
+ * A stopped line (frontier leaf, `color` to move) continued by `moves` lands back in prep at
+ * `joinsPath`. The color's moves in `moves` are the engine's picks (good by construction);
+ * opponent replies are enumerated.
+ */
+export interface ExtendedBridge {
+  /** SAN path to the frontier leaf the extension departs from. */
+  fromPath: string[];
+  /** SAN sequence (length ≥ 1) that bridges the leaf into existing prep. */
+  moves: string[];
+  /** The repertoire color (to move at fromPath). */
+  sideToMove: Color;
+  /** Shallowest SAN path that already reaches the position the extension lands on. */
+  joinsPath: string[];
+  /** Ply depth of joinsPath. */
+  joinsPly: number;
 }
 
 export class GameTree {
@@ -310,6 +329,114 @@ export class GameTree {
     const RANK: Record<TranspositionBridge["kind"], number> = { frontier_link: 0, move_order_merge: 1, coverage_confirmed: 2 };
     return out.sort(
       (a, b) => RANK[a.kind] - RANK[b.kind] || a.fromPath.length - b.fromPath.length || b.joinsPly - a.joinsPly,
+    );
+  }
+
+  /**
+   * Engine-guided multi-ply extension of frontier_link bridges (retro 2a/2b). For each frontier
+   * leaf where `color` is to move, search forward up to `maxDepth` plies — the color's moves are
+   * chosen by the injected engine (`pickMoves` returns the best UCIs ± a cp threshold, so they are
+   * good by construction); opponent replies are enumerated — until the position transposes into
+   * prep already in the tree. `pickMoves` runs only at color-to-move nodes; the search is bounded
+   * by `nodeBudget` total expansions to cap the combinatorial fan-out. Returns the bridging
+   * sequences, shallowest leaf first.
+   */
+  async extendedBridges(
+    color: Color,
+    opts: { maxDepth?: number; nodeBudget?: number },
+    pickMoves: (fen: string) => Promise<string[]>,
+  ): Promise<ExtendedBridge[]> {
+    const maxDepth = opts.maxDepth ?? 4;
+    let budget = opts.nodeBudget ?? 40;
+
+    // positionKey -> shallowest occurrence (same indexing as transpositionBridges).
+    const keyMap = new Map<string, { path: Path; sanPath: string[]; ply: number }>();
+    const indexAll = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
+      node.children.forEach((child, i) => {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) return;
+        next.play(move);
+        const p = [...path, i];
+        const sp = [...sanPath, child.data.san];
+        const key = positionKey(makeFen(next.toSetup()));
+        const prev = keyMap.get(key);
+        if (!prev || sp.length < prev.ply) keyMap.set(key, { path: p, sanPath: sp, ply: sp.length });
+        indexAll(child, next, p, sp);
+      });
+    };
+    indexAll(this.game.moves, Chess.default(), [], []);
+
+    const isPrefix = (a: Path, b: Path) => a.length <= b.length && a.every((v, i) => b[i] === v);
+
+    // Legal moves at pos, materialised as { move, san, after, uci }.
+    const legalMoves = (pos: Chess) => {
+      const moves: { san: string; after: Chess; uci: string }[] = [];
+      for (const [orig, dests] of chessgroundDests(pos)) {
+        const from = parseSquare(orig)!;
+        for (const dest of dests) {
+          const to = parseSquare(dest)!;
+          const piece = pos.board.get(from);
+          const toRank = to >> 3;
+          const move: NormalMove =
+            piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
+          const after = pos.clone();
+          after.play(move);
+          moves.push({ san: makeSan(pos, move), after, uci: makeUci(move) });
+        }
+      }
+      return moves;
+    };
+
+    // Frontier leaves (no children) where `color` is to move; shallowest first (highest impact).
+    const frontiers: { path: Path; pos: Chess; sanPath: string[] }[] = [];
+    const findFrontiers = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
+      if (node.children.length === 0) {
+        if (pos.turn === color) frontiers.push({ path, pos, sanPath });
+        return;
+      }
+      node.children.forEach((child, i) => {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) return;
+        next.play(move);
+        findFrontiers(child, next, [...path, i], [...sanPath, child.data.san]);
+      });
+    };
+    findFrontiers(this.game.moves, Chess.default(), [], []);
+    frontiers.sort((a, b) => a.sanPath.length - b.sanPath.length);
+
+    const out: ExtendedBridge[] = [];
+    const seen = new Set<string>();
+
+    for (const f of frontiers) {
+      const dfs = async (pos: Chess, acc: string[], ply: number): Promise<void> => {
+        if (ply > maxDepth || budget <= 0) return;
+        budget--;
+        let candidates = legalMoves(pos);
+        if (pos.turn === color) {
+          const ucis = new Set(await pickMoves(makeFen(pos.toSetup())));
+          candidates = candidates.filter((c) => ucis.has(c.uci));
+        }
+        for (const c of candidates) {
+          const accNext = [...acc, c.san];
+          const tgt = keyMap.get(positionKey(makeFen(c.after.toSetup())));
+          if (tgt && !(isPrefix(f.path, tgt.path) || isPrefix(tgt.path, f.path))) {
+            const dedup = `${f.sanPath.join(",")}|${accNext.join(",")}`;
+            if (!seen.has(dedup)) {
+              seen.add(dedup);
+              out.push({ fromPath: [...f.sanPath], moves: accNext, sideToMove: color, joinsPath: tgt.sanPath, joinsPly: tgt.ply });
+            }
+            continue; // reached prep — stop deepening this branch
+          }
+          await dfs(c.after, accNext, ply + 1);
+        }
+      };
+      await dfs(f.pos, [], 1);
+    }
+
+    return out.sort(
+      (a, b) => a.fromPath.length - b.fromPath.length || b.joinsPly - a.joinsPly || a.moves.length - b.moves.length,
     );
   }
 

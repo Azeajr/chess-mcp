@@ -1,6 +1,7 @@
 # Find Transposition Opportunities — Design
 
-Status: **implemented**.
+Status: **implemented** (v1, engine-free 1-ply). **v2 addendum below** — engine-guided
+multi-ply extension + the `retro.md` follow-ups. See [§ v2](#v2-engine-guided-multi-ply-bridges).
 
 A new repertoire tool that finds where two parts of your repertoire could be **bridged** by a
 move order but aren't linked yet — the *prescriptive* counterpart to the existing
@@ -219,11 +220,11 @@ Engine-free, so fully covered by the smoke suite:
 ## Non-Goals
 
 - **Multi-ply bridges** (your move + forced reply, k ≥ 2). Combinatorial blow-up; v1 is 1 ply.
-  Note as a future `depth` parameter (bounded, your-move-then-forced-only).
+  Note as a future `depth` parameter (bounded, your-move-then-forced-only). **→ lifted in v2.**
 - **`suggest_prune`** (whole redundant sub-lines that transpose into another) — a sibling tool
   derivable from `transpositions()`; out of scope here, cross-referenced.
 - **Soundness ranking** — bridges land in *your* prep, so they're sound by construction; no
-  engine pass.
+  engine pass. **→ v2 adds an engine pass: color's bridging moves are engine-best (2a).**
 - **Auto-linking** — every bridge is staged as a preview the user Accepts; nothing auto-grafts.
 
 ---
@@ -237,4 +238,114 @@ Engine-free, so fully covered by the smoke suite:
    but rank; the `limit` param bounds the list.
 3. Include `move_order_merge` by default, or behind a flag? They're noisier than `frontier_link`.
    Recommendation: include all, ranked; the UI section is collapsible so noise is cheap.
+
+---
+
+## v2: Engine-guided multi-ply bridges
+
+Status: **planned**. Lifts two of v1's Non-Goals (multi-ply, soundness) per `retro.md`.
+
+### Motivation (from retro)
+
+The user's repertoire PGN contains lines that **already transpose** into other prepared lines,
+but the PGN never copied the continuation — so a fully-covered line *looks* like an unfinished
+stub. v1's 1-ply `frontier_link` only catches stubs exactly one move short of rejoining. Real
+repertoires rejoin two or three moves later, through the obvious continuation. Three asks:
+
+- **2a — soundness.** Confirm the *analyzed color's* bridging moves are engine-good, not merely
+  legal. (Decision: validate the **bridging move(s) only**; the joined prep is trusted.)
+- **2b — reach past 1 ply.** Extend a stub several plies until it rejoins prep. (Decision:
+  bounded DFS, **color moves picked by the engine**, opponent replies enumerated.)
+- **2c — framing.** This is "where does my repo already transpose." (Decision: staging grafts
+  **just the discovered linking move(s)** — *not* the joined line's full subtree.)
+
+2a falls out of 2b for free: if every color move in the extension is the engine's best (within a
+cp threshold), the bridging moves are good *by construction*.
+
+### Algorithm — `extendedBridges`
+
+New **async** method on `GameTree`, engine injected as a callback (keeps `chess-tools` engine-free,
+mirroring `decisionNodes` → UI `store/gaps.ts`):
+
+```ts
+export interface ExtendedBridge {
+  fromPath: string[];   // SAN path to the frontier leaf the extension departs from
+  moves: string[];      // SAN sequence (len ≥ 1) bridging the leaf into prep
+  sideToMove: Color;    // at fromPath (== color: a frontier leaf, color to move)
+  joinsPath: string[];  // shallowest prep path the extension lands on
+  joinsPly: number;
+}
+
+// pickMoves(fen) → UCIs the COLOR should consider here: engine best, plus ties within
+// `cpThreshold`. Returns [] only on engine error. Called once per color-to-move node visited.
+extendedBridges(
+  color: Color,
+  opts: { maxDepth: number; nodeBudget: number },
+  pickMoves: (fen: string) => Promise<string[]>,
+): Promise<ExtendedBridge[]>
+```
+
+```
+keyMap = positionKey → shallowest { path, sanPath, ply }   // reuse v1's indexAll
+budget = opts.nodeBudget
+
+for each frontier leaf L (no children, color to move), path P, pos:
+  dfs(pos, [], 1)
+
+dfs(pos, acc /*SAN[]*/, ply):
+  if ply > maxDepth or budget <= 0: return
+  candidates =
+    pos.turn === color ? await pickMoves(fen(pos))   // engine: best ± cpThreshold
+                       : legalMoves(pos)              // enumerate (opponent)
+  budget--                                            // one expansion
+  for m in candidates:
+    posʹ = pos.play(m);  keyʹ = positionKey(posʹ);  san = makeSan(pos, m)
+    accʹ = [...acc, san]
+    tgt = keyMap.get(keyʹ)
+    if tgt and not (isPrefix(P, tgt.path) or isPrefix(tgt.path, P)):
+      emit { fromPath: sanPath(P), moves: accʹ, sideToMove: color, joinsPath: tgt.sanPath, joinsPly: tgt.ply }
+      continue            // reached prep — stop deepening this branch
+    await dfs(posʹ, accʹ, ply+1)
+```
+
+**Bounds** (the combinatorial guard v1 flagged):
+- `maxDepth = 4` plies default.
+- Engine runs **only at color-to-move nodes** → cost ≈ color-nodes visited, not 30^d.
+- `nodeBudget` (default ~40) caps total expansions per scan; opponent fan-out enumerates but the
+  budget + depth cap + "stop on prep" keep it instant on opening trees.
+- Frontier leaves scanned capped (shallowest first, like `gaps.ts` `MAX_POSITIONS`).
+- De-dupe identical `(fromPath, moves)`; rank shallower `fromPath`, then deeper `joinsPly`, then
+  shorter `moves`.
+
+**Correctness reuses v1 guards**: `positionKey` (placement+turn+castling+ep), ancestor/descendant
+skip, child-edge skip. v1's pure 1-ply `transpositionBridges` stays for the instant engine-free
+`move_order_merge` / `coverage_confirmed`; `extendedBridges` augments `frontier_link` only.
+
+### UI / tool integration
+
+- `store/repertoire.ts`: `scanBridges()` keeps the instant v1 call, then runs an engine pass —
+  `extendedBridges(color, …, fen => analyseMulti(fen, MULTIPV, DEPTH).then(top-within-threshold))`
+  — same cancellable/progress shape as `scanGaps()`. Multi-ply rows merged in, ranked.
+- Row staging: `stagePreviewLine(indexPathOfSan(fromPath), moves)` — the **whole sequence**
+  (decision 2c: linking moves only, no joined subtree). Existing Accept-grafts flow unchanged.
+- MCP server: `find_transposition_opportunities` gains optional `max_depth`; multi-ply needs an
+  engine, so the stateful server runs its own `analyseMulti` equivalent as `pickMoves`.
+- `apps/ui/src/llm/tools.ts` + `workflows.ts`: note multi-ply + engine-vetted color moves.
+
+### Testing (smoke-gametree.mjs)
+
+`extendedBridges` takes an injected `pickMoves`, so the smoke test passes a **deterministic stub**
+(returns the SAN-best for the fixture) — no real engine needed:
+- 2-ply frontier: stub `1.e4 c6 2.d4 *` rejoining a Caro main two plies on; assert one
+  `ExtendedBridge` with `moves.length === 2`, correct `joinsPath`.
+- depth cap: a stub that only rejoins at ply 5 yields nothing at `maxDepth: 4`.
+- budget cap honored; no ancestor/descendant false positive; linear line → none.
+
+### Retro item 1 (unrelated UI): MoveTree collapse toggle → left gutter
+
+`MoveTree.tsx` currently pushes the `collapse-toggle` **inline after** the branch move. Move it to
+a **left gutter beside the variation block**: wrap each branch's variations in a flex row
+`[toggle][variations]`. Collapsed state shows `+N` in the gutter; expanded shows `–`. CSS: drop
+`vertical-align` inline styling for a flex `.variation-group { display:flex }` with a fixed-width
+toggle column. Pure presentation — no tree/logic change.
 ```

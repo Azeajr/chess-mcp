@@ -101,7 +101,7 @@ export const toolSchemas: ToolSchema[] = [
     limit: { type: "integer" },
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
-  fn("find_transposition_opportunities", "Engine-free. Move-order bridges that would interlink the current repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition.", { limit: { type: "integer" }, kinds: { type: "array", items: { type: "string" } } }),
+  fn("find_transposition_opportunities", "Move-order bridges that interlink the current repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. opportunities (engine-free, instant): frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition. extensions (when max_depth>1, engine-backed): a stopped line continued by the color's engine-best moves until it rejoins prep several plies on — the bridging moves are good, not merely legal.", { limit: { type: "integer" }, kinds: { type: "array", items: { type: "string" } }, max_depth: { type: "integer", description: "1 (default) = instant 1-ply only; 2-6 = also run the engine-guided multi-ply extension" } }),
   fn("get_repertoire_coverage", "Tree-shape hygiene for the current repertoire: dangling lines (your-turn leaves owed a move) vs natural frontiers.", { limit: { type: "integer" } }),
   fn("get_structural_profile", "Static pawn-structure profile of the current repertoire. With variation_path (SAN list): one position's classified structure, center, primitives, themes. Without it: an aggregate structure fingerprint over all leaves.", {
     variation_path: { type: "array", items: { type: "string" }, description: "SAN path to one line; omit for the aggregate" },
@@ -261,8 +261,26 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       const all = tree.transpositionBridges(col);
       const wanted = args.kinds as string[] | undefined;
       const filtered = wanted?.length ? all.filter((b) => wanted.includes(b.kind)) : all;
-      const shown = filtered.slice(0, (args.limit as number) ?? 20);
-      return { total: filtered.length, returned: shown.length, opportunities: shown };
+      const limit = (args.limit as number) ?? 20;
+      const shown = filtered.slice(0, limit);
+      const maxDepth = (args.max_depth as number) ?? 1;
+      let extensions: Awaited<ReturnType<typeof tree.extendedBridges>> = [];
+      if (maxDepth > 1) {
+        const pickMoves = async (f: string): Promise<string[]> => {
+          const res = await analyseMulti(f, 3, 12);
+          if (!res || !res.length) return [];
+          const moverIsWhite = f.split(" ")[1] === "w";
+          const moverCp = (l: (typeof res)[number]) => {
+            const white = l.mate !== null ? (l.mate > 0 ? 100000 : -100000) : (l.cp ?? 0);
+            return moverIsWhite ? white : -white;
+          };
+          const best = moverCp(res[0]!);
+          return res.filter((l) => best - moverCp(l) <= 50).map((l) => l.uci);
+        };
+        const ext = await tree.extendedBridges(col, { maxDepth, nodeBudget: 40 }, pickMoves);
+        extensions = ext.filter((b) => b.moves.length > 1).slice(0, limit);
+      }
+      return { total: filtered.length, returned: shown.length, opportunities: shown, extensions };
     }
 
     case "get_repertoire_coverage": {

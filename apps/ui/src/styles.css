@@ -230,15 +230,25 @@ body {
   color: var(--muted);
 }
 
-/* Feature 3: per-branch collapse toggle. */
+/* Feature 3: per-branch collapse toggle, in a left gutter beside the variation block. */
+.move-tree .variation-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+.move-tree .variations {
+  flex: 1;
+  min-width: 0;
+}
 .move-tree .collapse-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   min-width: 1.1rem;
   height: 1.1rem;
+  margin-top: 0.15rem;
   padding: 0 0.25rem;
-  margin: 0 0.25rem;
   font-size: 0.66rem;
   line-height: 1;
   color: var(--muted);
@@ -247,7 +257,6 @@ body {
   border-radius: 999px;
   cursor: pointer;
   opacity: 0.55;
-  vertical-align: middle;
 }
 .move-tree .collapse-toggle:hover {
   opacity: 1;
@@ -255,7 +264,6 @@ body {
 }
 
 .move-tree .variation {
-  margin-left: 1rem;
   color: var(--muted);
 }
 

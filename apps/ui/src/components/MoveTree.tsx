@@ -79,7 +79,7 @@ export default function MoveTree() {
           const curInVariation = cur.length > path.length && isPrefix(path, cur) && cur[path.length]! >= 1;
           const isCollapsed = collapsedSet.has(key) && !curInVariation;
           const hidden = cursor.children.length - 1;
-          parts.push(
+          const toggle = (
             <button
               class="collapse-toggle"
               title={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
@@ -89,19 +89,29 @@ export default function MoveTree() {
               }}
             >
               {isCollapsed ? `+${hidden}` : "–"}
-            </button>,
+            </button>
           );
-          if (!isCollapsed) {
+          // Toggle sits in a left gutter beside the variation block, not inline after the move.
+          if (isCollapsed) {
+            parts.push(<div class="variation-group collapsed">{toggle}</div>);
+          } else {
+            const vs: JSX.Element[] = [];
             for (let i = 1; i < cursor.children.length; i++) {
               const v = cursor.children[i] as ChildNode<PgnNodeData>;
               const vPath = [...path, i];
-              parts.push(
+              vs.push(
                 <div class="variation">
                   ({moveSpan(v, vPath, true)}
                   {renderLine(v, vPath, false)})
                 </div>,
               );
             }
+            parts.push(
+              <div class="variation-group">
+                {toggle}
+                <div class="variations">{vs}</div>
+              </div>,
+            );
           }
         }
 

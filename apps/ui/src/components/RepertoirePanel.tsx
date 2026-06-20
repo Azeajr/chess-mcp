@@ -18,13 +18,14 @@ import {
   replacements,
   fixFlag,
   bridges,
+  extBridges,
   bridgeScanning,
   bridgeError,
   scanBridges,
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
-import type { TranspositionBridge } from "@chess-mcp/chess-tools";
+import type { TranspositionBridge, ExtendedBridge } from "@chess-mcp/chess-tools";
 import { stagePreviewLine } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 
@@ -60,6 +61,14 @@ export default function RepertoirePanel() {
   };
   const bridgeIcon = (k: TranspositionBridge["kind"]) =>
     k === "frontier_link" ? "🔗" : k === "move_order_merge" ? "↪" : "✓";
+
+  // Multi-ply extension: stage the whole engine-vetted sequence that rejoins prep.
+  const onExtBridge = (b: ExtendedBridge) => {
+    const fromIdx = currentTree().indexPathOfSan(b.fromPath);
+    if (!fromIdx) return;
+    actions.goto(fromIdx);
+    stagePreviewLine(fromIdx, b.moves);
+  };
 
   return (
     <div class="rep-panel">
@@ -139,12 +148,24 @@ export default function RepertoirePanel() {
           </Show>
         </summary>
         <Show when={bridgeError()}><div class="empty">{bridgeError()}</div></Show>
-        <Show when={bridges() && bridges()!.length === 0}><div class="empty">No new transposition links.</div></Show>
+        <Show when={bridges() && bridges()!.length === 0 && (extBridges()?.length ?? 0) === 0}>
+          <div class="empty">No new transposition links.</div>
+        </Show>
         <For each={bridges() ?? []}>
           {(b: TranspositionBridge) => (
             <div class="rep-row" onClick={() => onBridge(b)} title={`${b.fromPath.join(" ")} → ${b.move}  joins  ${b.joinsPath.join(" ")}`}>
               <span class="bridge-icon">{bridgeIcon(b.kind)}</span>
               <span class="san">{b.fromPath.join(" ")} → {b.move}</span>
+              <span class="fit">joins {b.joinsPath.at(-1)}</span>
+            </div>
+          )}
+        </For>
+        {/* Multi-ply, engine-vetted extensions (retro 2a/2b): a stopped line rejoins prep N moves on. */}
+        <For each={extBridges() ?? []}>
+          {(b: ExtendedBridge) => (
+            <div class="rep-row" onClick={() => onExtBridge(b)} title={`${b.fromPath.join(" ")} → ${b.moves.join(" ")}  joins  ${b.joinsPath.join(" ")}`}>
+              <span class="bridge-icon">⛓</span>
+              <span class="san">{b.fromPath.join(" ")} → {b.moves.join(" ")}</span>
               <span class="fit">joins {b.joinsPath.at(-1)}</span>
             </div>
           )}

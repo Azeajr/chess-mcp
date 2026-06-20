@@ -219,19 +219,39 @@ server.tool(
 
 server.tool(
   "find_transposition_opportunities",
-  "Engine-free. Move-order bridges that would interlink the repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition.",
+  "Move-order bridges that interlink the repertoire: legal moves not yet in the tree that transpose one line into a position already prepared elsewhere. opportunities (engine-free, instant): frontier_link = extend a stopped line 1 ply into known prep; move_order_merge = an alternate order at a branch; coverage_confirmed = an opponent try already covered by transposition. extensions (when max_depth>1, engine-backed): a stopped line continued by the color's engine-best moves until it rejoins prep several plies on — so the bridging moves are good, not merely legal.",
   {
     repertoire_id: z.string(),
     limit: z.number().int().min(1).max(100).optional(),
     kinds: z.array(z.enum(["frontier_link", "coverage_confirmed", "move_order_merge"])).optional(),
+    max_depth: z.number().int().min(1).max(6).optional(),
   },
-  ({ repertoire_id, limit, kinds }) => {
+  async ({ repertoire_id, limit, kinds, max_depth }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const all = e.tree.transpositionBridges(e.color);
     const filtered = kinds?.length ? all.filter((b) => kinds.includes(b.kind)) : all;
     const shown = filtered.slice(0, limit ?? 20);
-    return ok({ total: filtered.length, returned: shown.length, opportunities: shown });
+
+    // Multi-ply, engine-guided extension of frontier links (opt-in via max_depth > 1).
+    let extensions: Awaited<ReturnType<typeof e.tree.extendedBridges>> = [];
+    if ((max_depth ?? 1) > 1) {
+      const pickMoves = async (fen: string): Promise<string[]> => {
+        const res = await analyseMulti(fen, 3, 12);
+        if (!res || !res.length) return [];
+        const moverIsWhite = fen.split(" ")[1] === "w";
+        const moverCp = (l: (typeof res)[number]) => {
+          const white = l.mate !== null ? (l.mate > 0 ? 100000 : -100000) : (l.cp ?? 0);
+          return moverIsWhite ? white : -white;
+        };
+        const best = moverCp(res[0]!);
+        return res.filter((l) => best - moverCp(l) <= 50).map((l) => l.uci);
+      };
+      const ext = await e.tree.extendedBridges(e.color, { maxDepth: max_depth!, nodeBudget: 40 }, pickMoves);
+      extensions = ext.filter((b) => b.moves.length > 1).slice(0, limit ?? 20);
+    }
+
+    return ok({ total: filtered.length, returned: shown.length, opportunities: shown, extensions });
   },
 );
 

@@ -5,8 +5,10 @@
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
-import type { TranspositionBridge } from "@chess-mcp/chess-tools";
+import type { TranspositionBridge, ExtendedBridge } from "@chess-mcp/chess-tools";
 import { runTool } from "../llm/tools";
+import { currentTree, color } from "./game";
+import { analyseMulti } from "../engine/stockfish";
 
 // --- Tier A: congruence (engine-free) ---
 
@@ -44,31 +46,68 @@ export async function scanCongruence() {
   }
 }
 
-// --- Tier A: transposition bridges (engine-free, instant) ---
+// --- Tier A: transposition bridges ---
+// Two passes: the instant engine-free 1-ply scan (find_transposition_opportunities), then an
+// engine-guided multi-ply extension that continues stopped lines with the color's best moves
+// until they rejoin existing prep (GameTree.extendedBridges — retro 2a/2b).
+
+const MULTIPV = 3;
+const SCAN_DEPTH = 12;
+const CP_THRESHOLD = 50; // a color move within 0.5 of best counts as "good"
+const MATE_CP = 100000;
+const MAX_DEPTH = 4;
+const NODE_BUDGET = 40;
 
 const [bridges, setBridges] = createSignal<TranspositionBridge[] | null>(null);
+const [extBridges, setExtBridges] = createSignal<ExtendedBridge[] | null>(null);
 const [bridgeScanning, setBridgeScanning] = createSignal(false);
 const [bridgeError, setBridgeError] = createSignal<string | null>(null);
-export { bridges, bridgeScanning, bridgeError };
+export { bridges, extBridges, bridgeScanning, bridgeError };
+
+let bridgeToken = 0;
+
+/** The color's engine-best moves (UCI) at a position, within CP_THRESHOLD of best. [] on error. */
+async function pickColorMoves(fen: string): Promise<string[]> {
+  const res = await analyseMulti(fen, MULTIPV, SCAN_DEPTH);
+  if (!res || !res.length) return [];
+  const moverIsWhite = fen.split(" ")[1] === "w";
+  const moverCp = (l: (typeof res)[number]) => {
+    const white = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
+    return moverIsWhite ? white : -white;
+  };
+  const best = moverCp(res[0]!);
+  return res.filter((l) => best - moverCp(l) <= CP_THRESHOLD).map((l) => l.uci);
+}
 
 export async function scanBridges() {
+  const token = ++bridgeToken;
   setBridgeError(null);
+  setExtBridges(null);
   setBridgeScanning(true);
   try {
+    // Pass 1: instant engine-free 1-ply bridges.
     const r = (await runTool("find_transposition_opportunities", {})) as {
       opportunities?: TranspositionBridge[];
       error?: string;
     };
+    if (token !== bridgeToken) return;
     if (r.error) {
       setBridgeError(r.error);
       setBridges(null);
-    } else {
-      setBridges(r.opportunities ?? []);
+      return;
     }
+    setBridges(r.opportunities ?? []);
+
+    // Pass 2: engine-guided multi-ply extension (frontier leaves only). Engine offline → skip.
+    const ext = await currentTree().extendedBridges(color(), { maxDepth: MAX_DEPTH, nodeBudget: NODE_BUDGET }, pickColorMoves);
+    if (token !== bridgeToken) return;
+    // Drop trivial 1-move extensions already reported by pass 1.
+    setExtBridges(ext.filter((b) => b.moves.length > 1));
   } catch (e) {
+    if (token !== bridgeToken) return;
     setBridgeError(e instanceof Error ? e.message : String(e));
   } finally {
-    setBridgeScanning(false);
+    if (token === bridgeToken) setBridgeScanning(false);
   }
 }
 
