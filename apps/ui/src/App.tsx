@@ -7,13 +7,15 @@ import AnalysisPanel from "./components/AnalysisPanel";
 import RepertoirePanel from "./components/RepertoirePanel";
 import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
+import MobileTabs from "./components/MobileTabs";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
-import { sideWidth, chatWidth, setSideWidth, setChatWidth, persistLayout } from "./store/layout";
+import { mobileTab } from "./store/ui";
+import { sideWidth, chatWidth, setSideWidth, setChatWidth, effSideWidth, effChatWidth, persistLayout } from "./store/layout";
 
 export default function App() {
   startAutosave();
@@ -45,20 +47,22 @@ export default function App() {
   return (
     <div class="app">
       <TopBar />
-      <div class="workspace">
+      <div class="workspace" data-mtab={mobileTab()}>
         <div class="board-panel">
           <EvalBar />
           <Board />
         </div>
+        {/* Phone-only panel switcher; hidden above 720px. */}
+        <MobileTabs />
         <Divider onResize={(d) => setSideWidth(sideWidth() + d)} onEnd={persistLayout} />
-        <div class="side-panel" style={{ width: `${sideWidth()}px` }}>
+        <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
           <AnalysisPanel />
           <RepertoirePanel />
           <MoveTree />
         </div>
         {/* dragging this divider right grows the side panel and steals from chat → negate */}
         <Divider onResize={(d) => setChatWidth(chatWidth() - d)} onEnd={persistLayout} />
-        <div class="chat-wrap" style={{ width: `${chatWidth()}px` }}>
+        <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
           <ChatPanel />
         </div>
       </div>

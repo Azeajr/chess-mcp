@@ -22,12 +22,15 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
+  /* Stop pull-to-refresh / scroll-chaining while panning the board or scrolling chat. */
+  overscroll-behavior: none;
 }
 
 .app {
   display: grid;
   grid-template-rows: auto 1fr;
-  height: 100vh;
+  height: 100vh; /* fallback */
+  height: 100dvh; /* dynamic viewport — tracks the mobile URL bar show/hide */
 }
 
 .topbar {
@@ -35,6 +38,10 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
+  /* Clear the notch / rounded corners in the installed standalone app (env → 0 elsewhere). */
+  padding-top: calc(0.6rem + env(safe-area-inset-top));
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
@@ -70,6 +77,9 @@ body {
   flex-direction: row;
   gap: 0.75rem;
   padding: 1rem;
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   overflow: hidden;
 }
 .board-panel {
@@ -103,6 +113,28 @@ body {
   background: var(--accent);
 }
 
+/* Phone panel switcher — hidden until the ≤720px breakpoint flips it to flex. */
+.mobile-tabs {
+  display: none;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.mobile-tabs button {
+  flex: 1;
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.mobile-tabs button.active {
+  background: var(--accent);
+  color: #10131a;
+  border-color: var(--accent);
+}
+
 /* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
    inline panel widths are neutralised so the grid columns take over. */
 @media (max-width: 1100px) {
@@ -126,16 +158,70 @@ body {
   }
 }
 
-/* Phone: single column, everything stacks and the page scrolls. */
+/* Phone: pinned board + tab bar. Flex column; only the active panel scrolls, the page does not.
+   The tab bar sets .workspace[data-mtab]; the rules below toggle each panel's display so panels
+   stay mounted (chessground never re-inits, chat keeps its log). */
 @media (max-width: 720px) {
   .workspace {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    padding-left: calc(0.5rem + env(safe-area-inset-left));
+    padding-right: calc(0.5rem + env(safe-area-inset-right));
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .board-panel {
+    flex: 0 0 auto;
+  }
+  .mobile-tabs {
+    display: flex;
+  }
+  .side-panel {
+    flex: 1 1 0;
+    min-height: 0;
+    width: auto !important;
+    overflow: auto;
+  }
+  .chat-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto; /* drop the 360px the tablet rule set */
+    width: auto !important;
+    overflow: hidden; /* chat scrolls its own .chat-log */
+  }
+  /* Show exactly one panel for the active tab. */
+  .workspace[data-mtab="analysis"] .move-tree,
+  .workspace[data-mtab="analysis"] .chat-wrap {
+    display: none;
+  }
+  .workspace[data-mtab="moves"] .analysis,
+  .workspace[data-mtab="moves"] .rep-panel,
+  .workspace[data-mtab="moves"] .chat-wrap {
+    display: none;
+  }
+  .workspace[data-mtab="chat"] .side-panel {
+    display: none;
   }
   .topbar {
     flex-wrap: wrap;
   }
-  .board-wrap {
-    width: min(70vh, 94vw);
+  /* 16px floor stops iOS Safari auto-zooming when these gain focus. */
+  .chat-input textarea,
+  .field input {
+    font-size: 16px;
+  }
+}
+
+/* Touch devices: meet the 44px tap-target minimum without bloating mouse density. */
+@media (pointer: coarse) {
+  .topbar button,
+  .topbar select,
+  .chat-input button,
+  .mobile-tabs button,
+  .rep-panel .scan-btn {
+    min-height: 44px;
   }
 }
 
@@ -148,8 +234,11 @@ body {
 }
 
 .board-wrap {
-  width: min(70vh, 100%);
+  /* 26px reserves the eval-bar (16px) + gap (~10px) sitting beside it, so the row can't
+     exceed its container and trigger horizontal scroll on narrow screens. */
+  width: min(70vh, calc(100% - 26px));
   aspect-ratio: 1;
+  overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
 }
 
 /* chessground sizes to its container */
