@@ -10,19 +10,19 @@ Repo shape the prompts assume:
   tools confined to `REPERTOIRE_DIR`. The MCP surface and its validation/error shaping.
 - `apps/mcp-server/src/engine.ts` — the only engine I/O boundary (the `stockfish` wasm; UCI driven via
   `sendCommand`, output captured through a `console.log` override so it never corrupts stdout JSON-RPC).
-- `apps/mcp-server/src/gameanalysis.ts` — the cached game-tree analysis pass (memoized per
-  `(pgn, depth, multipv, time_limit)`).
+  Also holds the in-process eval cache (keyed `${fen}|${multipv}`, depth-reuse, FIFO). The mainline
+  game-review analysis is `analyzeMainline` in `packages/chess-tools/src/enginetools.ts`.
 - `apps/mcp-server/src/handles.ts` — the in-memory repertoire handle cache (LRU + idle TTL).
 - `packages/chess-tools/src/` — the pure, engine-free chess logic (chessops, not python-chess):
-  `pgn.ts` (the **GameTree** variation tree: walk/edit, `transpositions()` + the
-  `transpositionBridges()` opportunity finder, index↔SAN path helpers), `structure.ts`
+  `pgn.ts` (the **GameTree** variation tree: walk/edit, `transpositions()` + `pruneTranspositions()`
+  (line-shortening) + `extendedBridges()` (stub connector), index↔SAN path helpers), `structure.ts`
   (pawn-structure classifier + theme tags), `repcongruence.ts` (system-clustered congruence +
   replacement-pivot), `gaps.ts` (gaps + coverage), `congruence.ts` (eval congruence + position keys),
   `enginetools.ts` (the engine-ORCHESTRATED half — gaps scan, game review,
   suggest_complementary/replacement — takes an `analyse` callback so it stays engine-agnostic),
   `game.ts` (single-line mainline walker + cp-loss classes), `openings.ts` (ECO lookup), `validate.ts`
   (PGN/FEN/line validation), `apiclient.ts`/`games.ts`/`cloudeval.ts`/`tablebase.ts` (rate-limited,
-  offline-safe HTTP), `boardimage.ts` (board SVG/PNG).
+  offline-safe HTTP).
 - `apps/ui/` — a SolidJS browser PWA (the deployed app) that **re-implements the full tool surface
   client-side** in `apps/ui/src/llm/tools.ts` against the SAME `packages/chess-tools` + a browser
   stockfish wasm Worker, plus `workflows.ts` (chat-mode method prompts) and stores/components
@@ -32,7 +32,7 @@ Repo shape the prompts assume:
   (stateless, operating on the one loaded GameTree). The UI has no engine-free CI smoke; gate it with
   `pnpm --filter @chess-mcp/ui typecheck && pnpm --filter @chess-mcp/ui build`.
 - `scripts/smoke-gametree.mjs` + `scripts/structure-accuracy.mjs` — the deterministic engine-free smoke
-  suites that gate CI. `apps/mcp-server/test/smoke-client.mjs` exercises all 33 tools end-to-end
+  suites that gate CI. `apps/mcp-server/test/smoke-client.mjs` exercises the tools end-to-end
   through the bundled engine (hits live Lichess/Chess.com, so it's excluded from CI);
   `apps/mcp-server/test/cache.mjs` covers the engine cache.
 - Design constraints live in `docs/design/MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract,
@@ -62,7 +62,7 @@ node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 
 # Engine + network end-to-end (the wasm engine is bundled — runs locally, no Docker):
-node apps/mcp-server/test/smoke-client.mjs    # spawns the server, exercises 33 tools; hits live Lichess/Chess.com
+node apps/mcp-server/test/smoke-client.mjs    # spawns the server, exercises the tools; hits live Lichess/Chess.com
 node apps/mcp-server/test/cache.mjs           # engine cache behavior
 
 # Run the server directly (stdio):
@@ -85,7 +85,7 @@ gh run watch "$(gh run list -L1 --json databaseId -q '.[0].databaseId')" --exit-
 ## 1. Structural Refactoring
 
 ```text
-Act as a pragmatic, veteran TypeScript engineer working on chess-mcp, a Node MCP server (@modelcontextprotocol/sdk + chessops + a bundled stockfish wasm). Perform a deep code review of apps/mcp-server/src/ (index.ts, engine.ts, gameanalysis.ts, handles.ts) and the pure logic in packages/chess-tools/src/ (structure.ts, game.ts, repcongruence.ts, gaps.ts, congruence.ts). Your dual mandate is to (1) hunt down and fix hidden bugs, logic errors, and edge-case failures, and (2) immediately implement structural changes that maximize maintainability, testability, and immediate obviousness.
+Act as a pragmatic, veteran TypeScript engineer working on chess-mcp, a Node MCP server (@modelcontextprotocol/sdk + chessops + a bundled stockfish wasm). Perform a deep code review of apps/mcp-server/src/ (index.ts, engine.ts, handles.ts) and the pure logic in packages/chess-tools/src/ (structure.ts, game.ts, repcongruence.ts, gaps.ts, congruence.ts, enginetools.ts). Your dual mandate is to (1) hunt down and fix hidden bugs, logic errors, and edge-case failures, and (2) immediately implement structural changes that maximize maintainability, testability, and immediate obviousness.
 
 Ruthlessly remove "clever" code, premature abstractions, and over-engineering. Do not change tool behavior, output shapes, or the closed error-code set.
 
@@ -121,7 +121,7 @@ Act as a pragmatic, veteran security architect reviewing chess-mcp: a local stdi
 
 Focus your implementation on:
 1. Untrusted PGN/FEN input: enforce the input caps (max PGN bytes, max repertoire bytes, max line moves, depth clamped to [1,30], multipv cap) and SEMANTIC validation (chessops rejects illegal-but-parseable positions; reject zero-move / garbage PGN). Return only structured closed-set errors. No raw exceptions or stack traces reach the caller.
-2. Denial of service via input/state: bound per-call engine work (depth clamp, multipv ceiling, the time_limit ceiling) and bound the handle cache (MAX_REPERTOIRES LRU + REPERTOIRE_TTL_S idle expiry in handles.ts). Confirm a flood of load_repertoire calls cannot grow memory without bound.
+2. Denial of service via input/state: bound per-call engine work (depth clamp [1,30], multipv ceiling, the find_pruning_transpositions movetime_ms + budget caps) and bound the handle cache (MAX_REPERTOIRES LRU + REPERTOIRE_TTL_S idle expiry in handles.ts). Confirm a flood of load_repertoire calls cannot grow memory without bound.
 3. Engine subprocess safety: confirm the engine is the bundled wasm (no caller-controlled binary path, no shell), and that no caller-controlled UCI options are passed. Fix anything that lets caller input reach the engine config.
 4. File-path tool safety (index.ts REPERTOIRE_DIR guard): every caller path must resolve-then-prove inside REPERTOIRE_DIR (symlinks resolved BEFORE the containment check); size caps must hold on the bytes actually read, not just a pre-read stat (TOCTOU); exports must never write outside the base dir or follow a caller-controlled parent that doesn't exist. Cover any new guard with traversal (`../`), absolute-path, and symlink-escape cases in a smoke assertion.
 5. Internal interpolation / injection surfaces: audit any template-string or interpolation that builds something executed or path-like (FENs, engine args, file paths); add allowlists or explicit inline justification.

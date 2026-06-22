@@ -1,8 +1,8 @@
 # AGENTS.md — chess-mcp
 
-pnpm monorepo. The **active MCP server is Node.js/TypeScript** (`apps/mcp-server`, 32 tools, full
-parity with the legacy Python server). Shared chess logic in `packages/chess-tools`; a SolidJS PWA
-in `apps/ui`. `.mcp.json` launches the Node server directly (`node --import tsx apps/mcp-server/src/index.ts`).
+pnpm monorepo. The **active MCP server is Node.js/TypeScript** (`apps/mcp-server`, 31 tools). Shared
+chess logic in `packages/chess-tools`; a SolidJS PWA in `apps/ui`. `.mcp.json` launches the Node
+server directly (`node --import tsx apps/mcp-server/src/index.ts`).
 
 ## Commands (current)
 
@@ -11,7 +11,7 @@ pnpm install
 pnpm --filter @chess-mcp/chess-tools build      # build the shared lib (dist used by the smoke tests)
 node scripts/smoke-gametree.mjs                  # chess-tools unit smoke
 node scripts/structure-accuracy.mjs              # structure classifier vs canonical FENs (27/27)
-node apps/mcp-server/test/smoke-client.mjs       # MCP stdio smoke — spawns the server, exercises 32 tools
+node apps/mcp-server/test/smoke-client.mjs       # MCP stdio smoke — spawns the server, exercises the tools end-to-end
 pnpm -r typecheck                                # typecheck all packages
 pnpm dev                                         # SolidJS UI on :5173 (pnpm dev:host to expose on LAN)
 pnpm mcp                                          # run the MCP server directly
@@ -56,14 +56,14 @@ both manifests when the tool surface changes.
 
 ## Key design facts
 
-- **Game review workflow**: `get_game_summary` (overview) → `analyze_game` (mistake list) → `get_position` (drill-down, returns FEN) → `evaluate_position`/`validate_line`/`get_legal_moves`.
+- **Game review workflow**: `get_game_summary` (overview) → `analyze_game` (mistake list) → `validate_line` from the start FEN to a target ply (its `finalFen`) → `evaluate_position`/`get_legal_moves`. Game review is mainline-only (`analyzeMainline` → `mainline(pgn)`).
 - **Repertoire workflow**: `load_repertoire(PGN, color)` → handle → read tools (`get_structural_profile`, `analyze_repertoire_congruence`, `find_repertoire_gaps`, etc.) → `modify_repertoire_line` (clone-on-write, returns NEW id) → repeat → `export_repertoire` (PGN artifact).
-- **Engine cache**: the game-tree analysis pass is memoized per `(pgn, depth, multipv, time_limit)`; all game tools request `multipv=3` so one pass feeds all.
+- **Engine cache** (`src/engine.ts`): keyed `${fen}|${multipv}`, depth-reuse (a deeper cached search satisfies a shallower request), 1000-entry FIFO, per session. Game review searches `multipv=1`.
 - **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars (`src/handles.ts`).
-- **Gap tool depth**: `_GAP_DEFAULT_DEPTH = 20` (higher than the default 18 — depth 18 diverges ~26 cp at gap-critical positions).
+- **Gap scan defaults**: `find_repertoire_gaps` searches `depth ?? 14`, `multipv=4`; transposition-first (a strong uncovered reply that rejoins prep on another line is reported under `covered_by_transposition`, not counted).
 - **`compare_moves`**: returns `illegal` list, NOT an error, for unrecognized moves.
 - **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`.
-- **Input caps**: `MAX_PGN_BYTES=100000`, `MAX_REPERTOIRE_BYTES=1000000`, `MAX_LINE_MOVES=500`, depth `[1,30]`, time `[0.01, 60]`, `MAX_MULTIPV=10`.
+- **Engine knobs**: `depth` clamped `[1,30]` (per-tool default 12–16); `evaluate_position` `lines` ≤5; `find_pruning_transpositions` `multipv` ≤8 + `movetime_ms` + `budget`.
 
 ## Style / conventions
 
@@ -71,5 +71,5 @@ both manifests when the tool surface changes.
 - Skills: canonical copy is `.claude/skills/` — edit directly.
 - Tool contract: the tool definitions in `apps/mcp-server/src` are the single source of truth. README has the summary table. Design docs live in `docs/design/`.
 - `validate_fen` also rejects illegal-but-parseable positions (two kings, side-not-to-move in check) via `board.status()` — not just syntax.
-- `suggest_complementary_lines`: `multipv = MAX_MULTIPV, limit + 2` for soundness slack; engine's best vs mover difference > 100cp → candidate skipped.
-- Multi-game PGNs (repertoire exports) are merged by `repertoire.merge_games()` in `load_repertoire`.
+- `suggest_complementary_lines`: searches a wider candidate set than `limit` for soundness slack, then drops moves the engine judges materially worse than its best.
+- Multi-game PGNs (repertoire exports, one line per `[Event]`) are merged into one tree by `GameTree.fromPgn` in `load_repertoire`.

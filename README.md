@@ -4,7 +4,7 @@
 
 Grounded chess analysis for AI agents (Claude Code, etc.) via Stockfish — plus a local repertoire-building PWA. The MCP server runs as a **single Node.js process** (no Docker, no Python); a **SolidJS web app** shares the same TypeScript chess logic. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
 
-> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 32 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
+> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 31 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
 
 ## Quickstart
 
@@ -43,7 +43,7 @@ pnpm monorepo, one shared chess library serving both the MCP server and the web 
 ```
 packages/chess-tools   shared TypeScript logic (chessops + structure classifier + ECO +
                        congruence + gaps + game review + rate-limited HTTP)
-apps/mcp-server        Node MCP server — 32 tools over chess-tools + stockfish (npm wasm)
+apps/mcp-server        Node MCP server — 31 tools over chess-tools + stockfish (npm wasm)
 apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
 
 Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
@@ -56,16 +56,26 @@ Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Dock
 | Tool | Input | Output |
 |------|-------|--------|
 | `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
-| `analyze_game` | PGN, depth, min_cp_loss, verbose | Mistake list (cp_loss ≥ min_cp_loss): move, cp_loss, classification, best_move. `verbose=true` adds eval_after + best_pv |
-| `get_position` | PGN, move_number, color, depth | One move's detail: FEN, eval, best_move, best_pv, alternatives — drill-down from summary/analyze |
-| `evaluate_position` | FEN, depth, multipv | Centipawn score, best move, top line; `multipv>1` adds ranked `candidates` (top-N moves) |
+| `analyze_game` | PGN, depth, verbose | Per-move cp_loss + classification (blunder/mistake/inaccuracy/good). `verbose=true` adds eval_cp + best_move + best_eval |
+| `get_position` | FEN | Normalized FEN, side to move, and legal moves — convenience wrapper for `validate_fen` + `get_legal_moves` |
+| `evaluate_position` | FEN, depth, lines | Local Stockfish analysis (white-POV): top `lines` moves (default 3), each with SAN, cp, mate, depth |
 | `compare_moves` | FEN, moves[], depth | Ranks YOUR candidate moves (best→worst): each move, eval, cp_loss vs best, pv; unrecognized inputs returned in `illegal`. Scores the exact moves you pass — even ones the engine wouldn't pick |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
-| `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
+| `get_legal_moves` | FEN | Legal moves in SAN at the given position |
 | `validate_fen` | FEN | Valid bool + **normalized** FEN, side to move, game-over flag; rejects illegal-but-parseable positions. Run on a user-supplied FEN before analysis |
 | `validate_pgn` | PGN | Valid bool + mainline ply count, has-variations flag, headers. Run on a user-supplied PGN before analysis |
 | `identify_opening` | PGN | ECO code + opening name (deepest named position); 3700-opening table |
-| `export_annotated_pgn` | PGN, depth, min_cp_loss | Annotated PGN string: NAG glyphs (?!/?/??) + eval & best-move comments on flagged moves, mainline **and** variations, plus `moves_annotated` count |
+| `export_annotated_pgn` | PGN, depth | Annotated PGN string: NAG glyphs ($2/$4/$6) + best-move/eval comments on flagged moves |
+| `cloud_eval` | FEN | Lichess cloud eval (white-POV cp + best move), or `available: false` if uncached/offline |
+| `tablebase_lookup` | FEN | Lichess tablebase result for ≤7-piece FEN, or `available: false` |
+| `batch_review` | PGN (multi-game), group_by, username?, max_games, depth | Aggregate review grouped by ECO or player color: avg cp-loss + blunder list per group (color grouping needs `username`) |
+
+### Game history
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `lichess_games` | username, max_games, opening_eco?, include_pgn | Recent Lichess games — metadata or full PGN; filter by ECO prefix |
+| `chesscom_games` | username, year, month, opening_eco?, include_pgn | Chess.com games for a calendar month — metadata or full PGN |
 
 ### Repertoire analysis
 
@@ -73,17 +83,21 @@ Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Dock
 |------|-------|--------|
 | `load_repertoire` | PGN (variation tree), color | Handle (`repertoire_id`) + tree stats — call this first; avoids re-sending the full PGN on every call |
 | `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, theme tags, open files. `variation_path=null` → aggregate fingerprint (structures + theme rollup) over all leaves |
-| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies, judged WITHIN each opening system (lines clustered by move-order-robust system, not first move): structure outliers, weakness mismatches, center-handling splits — each with its `cluster` label + drill-down path; plus a `clusters` partition |
+| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit, acknowledged_weaknesses?, exclude_paths? | Flags thematic inconsistencies, judged WITHIN each opening system (lines clustered by move-order-robust system, not first move): structure outliers, weakness mismatches, center-handling splits — each with its `cluster` label + drill-down path; plus a `clusters` partition |
 | `find_repertoire_gaps` | repertoire_id, depth, min_severity, limit, max_positions | Engine scan for completeness: at every opponent-to-move node you already answer, flags strong opponent replies the tree doesn't cover, each with drill-down path + severity |
-| `get_repertoire_coverage` | repertoire_id, limit | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers, plus depth hints |
+| `get_repertoire_coverage` | repertoire_id, limit, connect_stubs? | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers. `connect_stubs=true` engine-checks whether each stub bridges to existing prep — resolved stubs report `connects_via` + `joins_path` |
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
 | `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
 | `modify_repertoire_line` | repertoire_id, path, action (`prune`/`add`/`reorder`), add_moves?, promote_move? | **Action** — edit one line and get a NEW `repertoire_id` (clone-on-write; the source id is unchanged, so you branch/compare). Drives the single-session edit loop: every read tool works on the new id immediately |
 | `export_repertoire` | repertoire_id | The edit loop's escape hatch — serialize the current tree back to a PGN string (one `[Event]`) for you to Write to disk; round-trips through `load_repertoire` |
+| `find_pruning_transpositions` | repertoire_id, limit, depth/movetime_ms, budget, cp_threshold | Shorten lines by routing earlier to existing prep via transposition; each suggestion reports `savedPlies`, eval trade (`evalStay` vs `evalTranspose`), and the transposing move |
+| `suggest_replacement_line` | repertoire_id, outlier_variation_path, mode, depth | Single-call fix for a congruence outlier: pivots at the weakness move, suggests engine-validated alternatives ranked by structural fit or eval (`structural_fit` / `low_memorization` / `solid`) |
+| `classify_illustrative_lines` | repertoire_id, limit | Flag side lines marked with NAG glyphs ($2/$4/$6) — these inflate leaf/gap counts and should be excluded from coverage scans |
+| `repertoire_vs_history` | repertoire_id, username, platform, max_games, year?, month? | Compare prep against real games: coverage %, player deviations (your off-book moves), uncovered opponent moves |
 
 Structural analysis recognizes **19 canonical pawn structures** — IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, and Benko — each gated on a core skeleton with graduated confidence (a position missing a peripheral pawn still classifies), the open-Sicilian family scored bidirectionally (reversed-English positions included), else `unknown`. The canon is traced to Flores Rios *Chess Structures* and Soltis *Pawn Structure Chess*; every scorer is validated against an engine-verified canonical FEN (see `STRUCTURE_CLASSIFIER_DESIGN.md`). Beyond the named class, every position also carries always-on **theme tags** (fianchetto, space, wing-majority, minority-attack, flank-vs-centre, colour-complex) — these stay informative even when the class is `unknown` (e.g. fianchetto systems), and the aggregate profile rolls them up across all leaves. Opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
 
-Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `evaluate_position`, `compare_moves`, `suggest_complementary_lines`, `find_repertoire_gaps`, `export_annotated_pgn`) also accepts an optional `time_limit` (seconds): when set, the engine searches by wall-clock instead of `depth` — useful on slow hardware or for fast iteration. Depth stays the default and the reproducible path.
+Engine-backed tools accept `depth` (integer, clamped 1–30; per-tool default 12–16). `find_pruning_transpositions` additionally accepts `movetime_ms` (ms per position) as a time-based alternative — a tighter knob for sharp positions or slower hardware.
 
 Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
 
@@ -108,8 +122,8 @@ Paths are confined to `REPERTOIRE_DIR` (default the repo's `repertoires/`). Erro
 **Game review:**
 
 1. Call `get_game_summary` — small output, gives counts and worst moves.
-2. Call `analyze_game` — filtered to moves at or above `min_cp_loss` (default 50).
-3. Call `get_position(pgn, move_number, color)` to drill into a specific move. Returns that position's **FEN** for `evaluate_position` / `validate_line` / `get_legal_moves`.
+2. Call `analyze_game` — per-move cp_loss and classification; add `verbose=true` for eval + best_move per move.
+3. Call `validate_line` from the start FEN with the game's SAN moves up to the target ply — `finalFen` in the response is the position FEN. Then call `evaluate_position` or `get_legal_moves` on it.
 
 **Repertoire analysis:**
 
@@ -173,8 +187,9 @@ The Node server runs as a local stdio process — no port, no transport setting,
 | `MAX_REPERTOIRES` | `16` | Max cached repertoires (LRU eviction beyond this) |
 | `REPERTOIRE_TTL_S` | `3600` | Idle seconds before a cached repertoire expires |
 
-Search depth (default 18, clamped 1–30), the per-call `time_limit` ceiling, `find_repertoire_gaps`
-budget, and the input caps (PGN/repertoire bytes, line length, multipv) are compiled-in constants.
+Search depth is per-tool (default 12–16, clamped 1–30); `find_pruning_transpositions` also takes a
+`movetime_ms` knob and a `budget` cap. The `find_repertoire_gaps` budget and the input caps
+(PGN/repertoire bytes, line length, candidate-line count) are compiled-in constants.
 
 > **Trust boundary.** The server runs Stockfish on caller-supplied PGN/FEN. The input caps and the
 > depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded
@@ -198,7 +213,7 @@ chess-mcp/
 ├── packages/
 │   └── chess-tools/         # shared TS lib: GameTree, structure classifier, congruence, gaps, ECO, HTTP
 ├── apps/
-│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 32 tools + stockfish wasm
+│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 31 tools + stockfish wasm
 │   └── ui/                  # SolidJS + Vite PWA: board, congruence arrows, gap scan, cloud eval, chat
 ├── scripts/                 # engine-free smoke: smoke-gametree.mjs, structure-accuracy.mjs
 ├── docs/design/             # design specs (repertoire, structure classifier, node migration, …)
@@ -221,9 +236,9 @@ Forward-looking plan (distribution, engineering, and feature backlog) lives in
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
 - [x] **`classify_structure` expansion** — now **19 source-traced structures** (added Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, Benko) with graduated core+bonus confidence and bidirectional open-Sicilian scoring, plus always-on **theme tags** (A) rolled up in the aggregate profile. Each scorer is validated against an engine-verified canonical FEN; see `STRUCTURE_CLASSIFIER_DESIGN.md`.
-- [x] **`time_limit` param** — every engine tool takes an optional `time_limit` (seconds) → `Limit(time=N)` instead of depth; clamped to `[0.01, MAX_ENGINE_TIME_S]`. Depth stays the reproducible default.
-- [x] **Variation-aware game analysis** — the cached engine pass now walks the whole game tree (mainline + variations) once, keyed by SAN path. The mainline game tools project the mainline unchanged; side lines are analyzed in the same pass.
-- [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.
+- [x] **Time-based engine budget** — `find_pruning_transpositions` takes a `movetime_ms` knob (ms per position) instead of depth, plus a `budget` cap on total positions analysed. Depth stays the reproducible default elsewhere.
+- [x] **Cached single-pass game analysis** — `analyze_game` / `get_game_summary` / `export_annotated_pgn` share one engine pass over the game's mainline (one eval per position, cp_loss from consecutive white evals), keyed and cached so the summary and per-move tools don't re-search.
+- [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged mainline moves); the grounded, importable counterpart to the `annotate-pgn` skill.
 - [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `scripts/structure-accuracy.mjs` harness-validated pattern (candidates: French Exchange, Hedgehog).
 - [x] **Repertoire completeness + move comparison** — `find_repertoire_gaps` (engine scan for strong uncovered opponent replies), `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), and `compare_moves` (rank your own candidate moves from a FEN). 16 tools; closed error set unchanged.
 - [x] **Single-session edit loop** — `modify_repertoire_line` (clone-on-write prune/add/reorder → new `repertoire_id`; source id unchanged, so branch/compare) + `export_repertoire` (tree → PGN string for the agent to Write). Load → mutate → re-analyze the new id → … → export, all in one session, no re-download. New error codes `invalid_line`, `invalid_edit`. See REPERTOIRE_DESIGN.md §9.

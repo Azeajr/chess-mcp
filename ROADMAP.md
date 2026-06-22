@@ -9,7 +9,7 @@ Grounded chess analysis for AI agents. The agent never guesses a move, FEN, or e
 position is validated and every line is engine-checked through the MCP tools. Two surfaces share one
 TypeScript chess core (`packages/chess-tools`):
 
-1. **The MCP server** (`apps/mcp-server`) — 32 tools for game review and repertoire work, used from
+1. **The MCP server** (`apps/mcp-server`) — 31 tools for game review and repertoire work, used from
    Claude Code (and any MCP client).
 2. **The PWA** (`apps/ui`) — a local-first SolidJS board for building and studying repertoires.
 
@@ -20,12 +20,13 @@ engine-grounded.
 
 ## Where it is now (shipped)
 
-- **Node MCP server** — 32 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
+- **Node MCP server** — 31 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
   Docker, no port, no host engine install.
 - **In-process eval cache** (`apps/mcp-server/src/engine.ts`) — `${fen}|${multipv}` keyed, depth-reuse,
   1000-entry FIFO. Per session.
-- **Variation-aware analysis** — the cached engine pass walks the whole game/repertoire tree once,
-  keyed by SAN path (no longer mainline-only).
+- **Variation-aware repertoire tools** — `GameTree` addresses every position by SAN path, so the
+  structural/congruence/gap/transposition tools walk the whole variation tree. (Game review —
+  `analyze_game`/`get_game_summary`/`export_annotated_pgn` — is mainline-only.)
 - **Repertoire tool suite** — load (incl. by file path), structural profile, system-clustered
   congruence, coverage, engine gap scan, transpositions, complementary/replacement line suggestion,
   illustrative-line classification, the clone-on-write edit loop, and PGN export.
@@ -57,13 +58,11 @@ server installable as a self-contained artifact.
 
 ## Engineering backlog
 
-- [ ] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` exercises all 32 tools through the
+- [ ] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` exercises the tools through the
       engine but hits live Lichess/Chess.com, so it's excluded from CI. Gate the network assertions
       behind an env flag so the engine + non-network paths run in CI.
 - [ ] **Manual test: File System Access re-open flow** (PWA). Native picker + handle permission
       re-grant can't run headless — open a PGN, reload, click "Reopen <name>".
-- [ ] **`board_image` `last_move` highlight** (deferred, `NODE_MIGRATION_DESIGN.md` D2). No caller
-      today; build only when a skill or the PWA needs it.
 
 ## Feature backlog (product)
 
