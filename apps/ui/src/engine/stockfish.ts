@@ -62,6 +62,15 @@ async function getEngine(): Promise<EngineLike | null> {
 
 const DEPTH = 14;
 
+// P3 — in-session eval cache for analyseMulti (the heavy, repeated work: gaps / shorten / bridges /
+// complementary scans). Mirrors the MCP engine cache. Key is `${fen}|${multipv}`; depth is a compared
+// value (a result computed to >= the request satisfies it). movetime requests compare at depth 0 (time-
+// based, non-deterministic — any prior result for that key serves). The single-PV live `analyse` is
+// intentionally NOT cached: the eval bar wants a fresh streaming search. FIFO eviction at MAX_CACHE.
+const MAX_CACHE = 1000;
+const multiCache = new Map<string, { depth: number; lines: MultiLine[] }>();
+const cacheKey = (fen: string, multipv: number) => `${fen}|${multipv}`;
+
 // One engine, one search at a time. Every search runs through this chain so two consumers
 // (eval bar, analysis panel) never drive overlapping `go` commands at the shared Worker —
 // which traps the wasm. Latest-wins debouncing happens above; this just serialises.
@@ -116,6 +125,9 @@ export function analyse(fen: string): Promise<Eval | null> {
  * the white-POV score. Resolves null if the engine is unavailable.
  */
 export function analyseMulti(fen: string, multipv: number, depth = DEPTH, movetime?: number): Promise<MultiLine[] | null> {
+  const cmpDepth = movetime != null ? 0 : depth;
+  const hit = multiCache.get(cacheKey(fen, multipv));
+  if (hit && hit.depth >= cmpDepth) return Promise.resolve(hit.lines);
   return serial(async () => {
     const engine = await getEngine();
     if (!engine) return null;
@@ -147,7 +159,12 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
         });
       } else if (line.startsWith("bestmove")) {
         clearTimeout(wd);
-        resolve([...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v));
+        const result = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+        if (result.length) {
+          multiCache.set(cacheKey(fen, multipv), { depth: cmpDepth, lines: result });
+          if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+        }
+        resolve(result);
       }
     };
       engine.postMessage("ucinewgame");

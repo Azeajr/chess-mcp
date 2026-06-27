@@ -37,15 +37,19 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
   `linePath` truncated to `atPly+1`, encoding the don't-prune-`atPath` footgun. (Full one-call
   apply-+-rescan MCP tool still open — see W-series.)
 
-## Tier 1b — the cache change (design once, then implement together)
+## Tier 1b — the cache change — DONE
 
-P1/P2/P3/P4 all touch the same loop / the same cache concept. Treat as **one** change:
-- [ ] **P3** Add a PWA eval cache (session `Map`) like the MCP's — PWA has none today.
-- [ ] **P2** Clock-insensitive cache key (FEN first-4-fields) for the prune walk, so true
-  transpositions reached via different move-orders share a cached eval. Negligible opening-phase
-  accuracy loss; keep the clock-sensitive cache for the 50-move-rule-relevant general path.
-- [ ] **P4** (optional, if still needed after P1+P3) Dedupe distinct decision positions across leaves,
-  eval each once, then assemble suggestions in a cheap tree walk. O(Σ leaf-length) → O(distinct nodes).
+- [x] **P2** Scan-local memo in `pruneTranspositions`, keyed by transposition-stable `positionKey`
+  (4-field FEN) + multipv. A position reached by several leaves or move-orders is analysed once; only
+  a cache miss counts toward `analyses`/`onProgress`. Lives in the shared core, so both surfaces get
+  it. No global-cache 50-move risk (the clock-insensitivity is local to one scan). Smoke: a shared
+  candidate position is analysed once (`positionsAnalysed === 1`).
+- [x] **P3** PWA `analyseMulti` eval cache (`stockfish.ts`), mirroring the MCP engine cache:
+  `${fen}|${multipv}` key, depth-aware (serve if cached depth ≥ request), movetime compares at depth 0,
+  FIFO eviction. Helps every PWA scan (gaps / shorten / bridges / complementary), not just shorten. The
+  live single-PV `analyse` stays uncached (the eval bar wants a fresh streaming search).
+- [~] **P4** Dedupe distinct decision positions across leaves — **not needed**: P1 (pre-filter) + P2
+  (scan memo) already collapse the work. Revisit only if profiling a huge tree shows otherwise.
 
 ## Tier 2 — needs a design doc + user judgment first (semantic / strategic risk)
 

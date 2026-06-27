@@ -258,6 +258,8 @@ ok(chunk.totalLeaves === 2 && chunk.leafStart === 1 && chunk.nextLeaf === null, 
 const noTrans = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
 const nt = await noTrans.pruneTranspositions("white", {}, async () => [{ uci: "g1f3", cp: 10, mate: null }]);
 ok(nt.totalPositionsEstimate === 0 && nt.positionsAnalysed === 0 && nt.suggestions.length === 0, "pruneTranspositions: P1 skips nodes with no cross-branch transposer");
+// P2: both leaves share the d4Nf6 candidate position; the scan memo analyses it once, not per leaf.
+ok(prune.positionsAnalysed === 1, "pruneTranspositions: P2 memo analyses a shared position once");
 // onProgress fires; pruneTailPath gives the apply path (the original line's node at the re-route ply).
 let progressCalls = 0;
 await prTree.pruneTranspositions("white", {}, analyseGood, () => progressCalls++);

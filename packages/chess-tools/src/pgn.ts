@@ -555,6 +555,20 @@ export class GameTree {
     let leavesScanned = 0;
     let budgetSpent = false;
 
+    // P2: memoise engine results within the scan, keyed by transposition-stable positionKey (4-field
+    // FEN, clock dropped) + multipv. A position reached by several leaves or move-orders is analysed
+    // once. Only a real engine call (cache miss) counts toward analyses / onProgress.
+    const evalMemo = new Map<string, PruneEngineLine[] | null>();
+    const analyseCached = async (fen: string, mpv: number): Promise<PruneEngineLine[] | null> => {
+      const k = `${positionKey(fen)}|${mpv}`;
+      if (evalMemo.has(k)) return evalMemo.get(k) ?? null;
+      const r = await analyse(fen, mpv);
+      evalMemo.set(k, r);
+      analyses++;
+      onProgress?.(analyses, sliceEstimate);
+      return r;
+    };
+
     // mover-POV cp of the line's own move when it fell outside the engine's top-k (C2): single-PV eval
     // of the position AFTER the move, negated to the mover, so the eval trade is never reported null.
     const evalAfterMove = async (pos: Chess, san: string): Promise<number | null> => {
@@ -563,9 +577,7 @@ export class GameTree {
       if (!mv) return null;
       after.play(mv);
       const fen = makeFen(after.toSetup());
-      const sl = await analyse(fen, 1);
-      analyses++;
-      onProgress?.(analyses, sliceEstimate);
+      const sl = await analyseCached(fen, 1);
       return sl && sl.length ? -moverCp(fen, sl[0]!) : null; // sl is opponent-POV; negate for the mover
     };
 
@@ -579,9 +591,7 @@ export class GameTree {
         if (budget != null && analyses >= budget) { budgetSpent = true; break; }
         const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
-        const lines = await analyse(fen, multipv);
-        analyses++;
-        onProgress?.(analyses, sliceEstimate);
+        const lines = await analyseCached(fen, multipv);
         if (!lines || !lines.length) continue;
         const stayMove = leafSan[s.ply]!; // the line's own next move at this node
         const enriched = lines
