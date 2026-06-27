@@ -96,7 +96,7 @@ export const toolSchemas: ToolSchema[] = [
     limit: { type: "integer" },
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
-  fn("find_pruning_transpositions", "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first; among the top engine moves within a near-best window of #1 (cp_threshold — never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies + the eval trade (evalStay vs evalTranspose). One earliest re-route per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based, a better dial than depth for sharp positions); budget caps total positions analysed.", { limit: { type: "integer" }, multipv: { type: "integer" }, cp_threshold: { type: "integer" }, max_loss_cp: { type: "integer" }, depth: { type: "integer" }, movetime_ms: { type: "integer", description: "ms per position (overrides depth)" }, budget: { type: "integer", description: "max positions analysed (caps total time)" } }),
+  fn("find_pruning_transpositions", "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first; among the top engine moves within a near-best window of #1 (cp_threshold — never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies + the eval trade (evalStay vs evalTranspose). One earliest re-route per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based, a better dial than depth for sharp positions). Leave budget UNSET for full coverage (it is spent in tree order, so a low cap silently misses transposable lines that sort last). For a long scan, page with leaf_start/leaf_count and report the returned next_leaf / total_leaves between calls.", { limit: { type: "integer" }, multipv: { type: "integer" }, cp_threshold: { type: "integer" }, max_loss_cp: { type: "integer" }, depth: { type: "integer" }, movetime_ms: { type: "integer", description: "ms per position (overrides depth)" }, budget: { type: "integer", description: "max positions analysed; leave unset for full coverage" }, leaf_start: { type: "integer", description: "cursor: first leaf to scan (default 0)" }, leaf_count: { type: "integer", description: "cursor: leaves to scan from leaf_start (default: all)" } }),
   fn("get_repertoire_coverage", "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers. Pass connect_stubs=true to engine-check whether each dangling stub bridges back into prep — resolved stubs report connects_via + joins_path.", { limit: { type: "integer" }, connect_stubs: { type: "boolean" } }),
   fn("get_structural_profile", "Static pawn-structure profile of the current repertoire. With variation_path (SAN list): one position's classified structure, center, primitives, themes. Without it: an aggregate structure fingerprint over all leaves.", {
     variation_path: { type: "array", items: { type: "string" }, description: "SAN path to one line; omit for the aggregate" },
@@ -240,18 +240,30 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
     }
 
     case "find_pruning_transpositions": {
-      const suggestions = await tree.pruneTranspositions(
+      const res = await tree.pruneTranspositions(
         col,
         {
           multipv: (args.multipv as number) ?? 4,
           cpThreshold: (args.cp_threshold as number) ?? 50,
           maxLossCp: args.max_loss_cp as number | undefined,
           budget: args.budget as number | undefined,
+          leafStart: args.leaf_start as number | undefined,
+          leafCount: args.leaf_count as number | undefined,
         },
         (f, mpv) => analyseMulti(f, mpv, (args.depth as number) ?? 14, args.movetime_ms as number | undefined),
       );
-      const shown = suggestions.slice(0, (args.limit as number) ?? 20);
-      return { total: suggestions.length, returned: shown.length, suggestions: shown };
+      const shown = res.suggestions.slice(0, (args.limit as number) ?? 20);
+      return {
+        total: res.suggestions.length,
+        returned: shown.length,
+        suggestions: shown,
+        total_leaves: res.totalLeaves,
+        leaf_start: res.leafStart,
+        leaves_scanned: res.leavesScanned,
+        next_leaf: res.nextLeaf,
+        positions_analysed: res.positionsAnalysed,
+        total_positions_estimate: res.totalPositionsEstimate,
+      };
     }
 
     case "get_repertoire_coverage": {

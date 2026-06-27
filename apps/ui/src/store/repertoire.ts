@@ -103,7 +103,10 @@ export async function scanBridges() {
 const [pruneSuggestions, setPruneSuggestions] = createSignal<PruneSuggestion[] | null>(null);
 const [pruneScanning, setPruneScanning] = createSignal(false);
 const [pruneError, setPruneError] = createSignal<string | null>(null);
-export { pruneSuggestions, pruneScanning, pruneError };
+// Determinate progress for the (possibly multi-minute) scan: positions analysed / upper-bound total.
+const [pruneDone, setPruneDone] = createSignal(0);
+const [pruneTotal, setPruneTotal] = createSignal(0);
+export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
 let pruneToken = 0;
 
@@ -111,15 +114,23 @@ export async function scanPrune() {
   const token = ++pruneToken;
   setPruneError(null);
   setPruneSuggestions(null);
+  setPruneDone(0);
+  setPruneTotal(0);
   setPruneScanning(true);
   try {
     const res = await currentTree().pruneTranspositions(
       color(),
       { multipv: MULTIPV, cpThreshold: CP_THRESHOLD },
       (fen, mpv) => analyseMulti(fen, mpv, SCAN_DEPTH),
+      (done, total) => {
+        if (token !== pruneToken) return;
+        setPruneDone(done);
+        setPruneTotal(total);
+      },
     );
     if (token !== pruneToken) return;
-    setPruneSuggestions(res);
+    setPruneSuggestions(res.suggestions);
+    setPruneDone(pruneTotal()); // fill the bar — leaves that emit early leave the estimate short
   } catch (e) {
     if (token !== pruneToken) return;
     setPruneError(e instanceof Error ? e.message : String(e));

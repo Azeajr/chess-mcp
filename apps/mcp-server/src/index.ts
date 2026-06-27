@@ -208,7 +208,7 @@ server.tool(
 
 server.tool(
   "find_pruning_transpositions",
-  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions); budget caps total positions analysed so a large tree can't blow up.",
+  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions). COVERAGE: by default the whole tree is scanned — leave budget UNSET for full coverage (the transposable lines are often last in the PGN, and budget is spent in tree order, so a low cap silently misses them). For a long scan you can show progress to the user: drive it in chunks with leaf_start/leaf_count and report the returned next_leaf / total_leaves between calls (total_positions_estimate gives a rough ETA). Returns total_leaves, leaves_scanned, next_leaf (cursor; null = done), positions_analysed, total_positions_estimate.",
   {
     repertoire_id: z.string(),
     limit: z.number().int().min(1).max(100).optional(),
@@ -218,17 +218,29 @@ server.tool(
     depth: z.number().int().min(1).max(30).optional(),
     movetime_ms: z.number().int().min(50).max(10000).optional(),
     budget: z.number().int().min(1).max(500).optional(),
+    leaf_start: z.number().int().min(0).optional(),
+    leaf_count: z.number().int().min(1).max(200).optional(),
   },
-  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget }) => {
+  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget, leaf_start, leaf_count }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const suggestions = await e.tree.pruneTranspositions(
+    const res = await e.tree.pruneTranspositions(
       e.color,
-      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget },
+      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count },
       (fen, mpv) => analyseMulti(fen, mpv, depth ?? 14, movetime_ms),
     );
-    const shown = suggestions.slice(0, limit ?? 20);
-    return ok({ total: suggestions.length, returned: shown.length, suggestions: shown });
+    const shown = res.suggestions.slice(0, limit ?? 20);
+    return ok({
+      total: res.suggestions.length,
+      returned: shown.length,
+      suggestions: shown,
+      total_leaves: res.totalLeaves,
+      leaf_start: res.leafStart,
+      leaves_scanned: res.leavesScanned,
+      next_leaf: res.nextLeaf,
+      positions_analysed: res.positionsAnalysed,
+      total_positions_estimate: res.totalPositionsEstimate,
+    });
   },
 );
 

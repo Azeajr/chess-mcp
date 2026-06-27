@@ -543,6 +543,23 @@ body {
   color: var(--accent);
   font-size: 0.8rem;
   padding: 0.15rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.rep-panel .scan-bar {
+  display: inline-block;
+  width: 48px;
+  height: 6px;
+  background: #33333a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rep-panel .scan-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
 }
 .rep-panel .empty {
   color: var(--muted);

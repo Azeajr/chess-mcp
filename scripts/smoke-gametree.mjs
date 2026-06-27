@@ -232,7 +232,7 @@ const afterD4Nf6 = (fen) => fen.includes("5n2/8/3P4");
 const linesGood = [{ uci: "c2c4", cp: 30, mate: null }, { uci: "g1f3", cp: 20, mate: null }];
 const analyseGood = async (fen) => (afterD4Nf6(fen) ? linesGood : []);
 const prune = await prTree.pruneTranspositions("white", {}, analyseGood);
-const aCut = prune.find((p) => p.rerouteMove === "c4");
+const aCut = prune.suggestions.find((p) => p.rerouteMove === "c4");
 ok(aCut && aCut.linePath.join(" ") === "d4 Nf6 Nf3 e6 Bf4", "pruneTranspositions: flags the shortenable London line");
 ok(aCut && aCut.atPly === 2 && aCut.savedPlies === 3, "pruneTranspositions: re-route @ply2 prunes the 3-ply tail");
 ok(aCut && aCut.joinsPath.join(" ") === "d4 Nf6 c4", "pruneTranspositions: joins the c4 (QID) line");
@@ -240,15 +240,19 @@ ok(aCut && aCut.evalStay === 20 && aCut.evalTranspose === 30 && aCut.evalDelta =
 // Near-best gate: a transposing move in the top-k but far below #1 (a blunder) is excluded.
 const linesBlunder = [{ uci: "c1f4", cp: 100, mate: null }, { uci: "c2c4", cp: 20, mate: null }];
 const gated = await prTree.pruneTranspositions("white", {}, async (fen) => (afterD4Nf6(fen) ? linesBlunder : []));
-ok(!gated.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: near-best gate drops a top-k blunder re-route");
+ok(!gated.suggestions.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: near-best gate drops a top-k blunder re-route");
 // maxLossCp: re-route that loses more than the cap vs staying is filtered (the gaining one stays).
 const capped = await prTree.pruneTranspositions("white", { maxLossCp: 5 }, analyseGood);
-ok(capped.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
-ok(!capped.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
+ok(capped.suggestions.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
+ok(!capped.suggestions.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
 // budget caps total engine analyses: 1 analysis is spent on the start position (returns nothing),
 // so the re-route node (after 1.d4 Nf6) is never reached → no suggestion.
 const budgeted = await prTree.pruneTranspositions("white", { budget: 1 }, analyseGood);
-ok(budgeted.length === 0, "pruneTranspositions: budget caps the walk before the re-route node");
+ok(budgeted.suggestions.length === 0, "pruneTranspositions: budget caps the walk before the re-route node");
+// cursor pagination: scanning only the 2nd leaf (the QID line, no shortening) yields nothing, and the
+// metadata reports the cursor advancing to the end (next_leaf null = done).
+const chunk = await prTree.pruneTranspositions("white", { leafStart: 1, leafCount: 1 }, analyseGood);
+ok(chunk.totalLeaves === 2 && chunk.leafStart === 1 && chunk.nextLeaf === null, "pruneTranspositions: leaf cursor reports totals and exhausts");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into

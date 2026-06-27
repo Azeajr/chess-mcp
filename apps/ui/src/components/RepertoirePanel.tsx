@@ -24,6 +24,8 @@ import {
   pruneSuggestions,
   pruneScanning,
   pruneError,
+  pruneDone,
+  pruneTotal,
   scanPrune,
   type CongruenceFlag,
   type ReplacementResult,
@@ -180,7 +182,12 @@ export default function RepertoirePanel() {
         <summary>
           <span>Shorten</span>
           <Show when={pruneScanning()} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanPrune())}>Scan</button>}>
-            <span class="scan-progress">…</span>
+            <span class="scan-progress" title="positions analysed / estimated total">
+              <span class="scan-bar">
+                <span class="scan-bar-fill" style={{ width: `${pruneTotal() ? Math.min(100, Math.round((pruneDone() / pruneTotal()) * 100)) : 0}%` }} />
+              </span>
+              {pruneTotal() ? `${Math.min(pruneDone(), pruneTotal())}/${pruneTotal()}` : "…"}
+            </span>
           </Show>
         </summary>
         <Show when={pruneError()}><div class="empty">{pruneError()}</div></Show>

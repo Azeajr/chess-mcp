@@ -86,6 +86,28 @@ export interface PruneSuggestion {
   evalDelta: number | null;
 }
 
+/**
+ * Result of one `pruneTranspositions` call. The scan walks leaves in tree order; a call may cover the
+ * whole tree or a cursor-bounded slice (leafStart/leafCount) so a long scan can be driven in chunks
+ * with visible progress between calls. `nextLeaf` is the cursor for the following chunk (null = done).
+ */
+export interface PruneScanResult {
+  /** Shortening suggestions found in the leaves scanned by THIS call (sorted, longest tail first). */
+  suggestions: PruneSuggestion[];
+  /** Total leaves in the tree (the cursor's upper bound). */
+  totalLeaves: number;
+  /** First leaf index this call scanned. */
+  leafStart: number;
+  /** How many leaves this call fully scanned (≤ leafCount). */
+  leavesScanned: number;
+  /** Cursor for the next chunk (leafStart + leavesScanned), or null when the tree is exhausted. */
+  nextLeaf: number | null;
+  /** Engine analyses actually spent in this call. */
+  positionsAnalysed: number;
+  /** Upper-bound engine analyses to scan the WHOLE tree (your-turn nodes over all leaves) — for ETA. */
+  totalPositionsEstimate: number;
+}
+
 // --- shared transposition primitives (gap resolution · stub resolution · shorten) ---
 
 /** Path `a` is an ancestor-or-equal of `b` (same line). */
@@ -432,9 +454,20 @@ export class GameTree {
    */
   async pruneTranspositions(
     color: Color,
-    opts: { multipv?: number; cpThreshold?: number; maxLossCp?: number; budget?: number },
+    opts: {
+      multipv?: number;
+      cpThreshold?: number;
+      maxLossCp?: number;
+      budget?: number;
+      /** Cursor: first leaf index to scan (default 0). Pair with leafCount to drive a long scan in chunks. */
+      leafStart?: number;
+      /** Cursor: how many leaves to scan from leafStart (default: to the end). */
+      leafCount?: number;
+    },
     analyse: (fen: string, multipv: number) => Promise<PruneEngineLine[] | null>,
-  ): Promise<PruneSuggestion[]> {
+    /** Fires after each engine analysis with (analysesDone, sliceEstimate) — for a determinate progress bar. */
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<PruneScanResult> {
     const multipv = opts.multipv ?? 4;
     const cpThreshold = opts.cpThreshold ?? 50;
     const maxLossCp = opts.maxLossCp;
@@ -459,11 +492,25 @@ export class GameTree {
     };
     collect(this.game.moves, []);
 
+    // Cursor slice: scan leaves [leafStart, leafStart+leafCount). Default = the whole tree.
+    const totalLeaves = leaves.length;
+    const leafStart = Math.min(Math.max(opts.leafStart ?? 0, 0), totalLeaves);
+    const leafCount = opts.leafCount ?? totalLeaves - leafStart;
+    const slice = leaves.slice(leafStart, leafStart + leafCount);
+
+    // Upper-bound engine analyses (your-turn nodes), no engine: white-to-move at even plies, so a
+    // black leaf has floor(L/2) of its own moves, a white leaf ceil(L/2). Actual ≤ estimate (a leaf
+    // stops early once it emits), so a progress bar built on it may finish before 100% — that's fine.
+    const yourTurnNodes = (len: number) => (color === "black" ? Math.floor(len / 2) : Math.ceil(len / 2));
+    const totalPositionsEstimate = leaves.reduce((a, l) => a + yourTurnNodes(l.length), 0);
+    const sliceEstimate = slice.reduce((a, l) => a + yourTurnNodes(l.length), 0);
+
     const out: PruneSuggestion[] = [];
     let analyses = 0;
+    let leavesScanned = 0;
     let budgetSpent = false;
 
-    for (const leaf of leaves) {
+    for (const leaf of slice) {
       if (budgetSpent) break;
       // Replay the leaf once: capture the position at each node + the full SAN path.
       const leafSan: string[] = [];
@@ -491,6 +538,7 @@ export class GameTree {
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyse(fen, multipv);
         analyses++;
+        onProgress?.(analyses, sliceEstimate);
         if (!lines || !lines.length) continue;
         const stayMove = leafSan[s.ply]!; // the line's own next move at this node
         const enriched = lines
@@ -531,11 +579,20 @@ export class GameTree {
           break;
         }
       }
+      if (!budgetSpent) leavesScanned++; // a leaf cut short by budget is left for the next cursor chunk
     }
 
-    return out.sort(
-      (a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly,
-    );
+    out.sort((a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly);
+    const scannedEnd = leafStart + leavesScanned;
+    return {
+      suggestions: out,
+      totalLeaves,
+      leafStart,
+      leavesScanned,
+      nextLeaf: scannedEnd < totalLeaves ? scannedEnd : null,
+      positionsAnalysed: analyses,
+      totalPositionsEstimate,
+    };
   }
 
   /**

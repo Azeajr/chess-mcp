@@ -2,10 +2,11 @@
 name: repertoire-builder
 description: >-
   Help develop and pressure-test a chess opening repertoire — check soundness, find gaps, prepare
-  the opponent's critical replies, extend lines, and analyze the structural themes and thematic
-  consistency across the whole variation tree. Use when the user gives a repertoire PGN (a branching
-  tree is fine) and the color they play. Drives the chess-analysis MCP — `load_repertoire` handle +
-  structural tools — so every assessment is engine-grounded, never from memory.
+  the opponent's critical replies, extend lines, shorten lines to cut memorization, and analyze the
+  structural themes and thematic consistency across the whole variation tree. Use when the user gives
+  a repertoire PGN (a branching tree is fine) and the color they play. Drives the chess-analysis MCP
+  — `load_repertoire` handle + structural tools — so every assessment is engine-grounded, never from
+  memory.
 ---
 
 # Repertoire builder
@@ -94,17 +95,42 @@ comparing handles, with no re-download. See "Edit loop" below.
    - `mode="sharp"` → maximally unbalanced / novel structures (high `sharpness`) — for breaking out of
      the comfort zone on purpose.
    Confirm a chosen suggestion with `validate_line` before recommending it.
-7. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
+7. **Shorten lines to cut memorization** (`find_pruning_transpositions`) — for each leaf it walks
+   YOUR moves earliest-first; the earliest move within a near-best window of #1 that re-routes into a
+   DIFFERENT already-prepared line makes the original tail redundant. Each suggestion returns
+   `linePath`, `atPath`, `atPly`, `rerouteMove`, `joinsPath`, `savedPlies` (tail dropped), and the
+   eval trade `evalStay` vs `evalTranspose` (`evalDelta` = stay − transpose). Tuning:
+   - **Leave `budget` unset.** It is NOT a neutral "scan fewer positions" knob — it is spent
+     leaf-by-leaf in tree order, so a low cap silently stops the walk before it reaches the *later*
+     leaves and returns fewer or even ZERO suggestions **with no error**. The transposable lines are
+     often last in the PGN, so a cap hides exactly what you want. Full coverage = omit `budget`. The
+     user accepts a long scan (up to ~10 min) for this — do not cap it to save time.
+   - Effort per position: `movetime_ms` (a better dial than `depth` for the sharp positions a
+     re-route lands in) or `depth` (default 14). To match the PWA's coverage use `multipv:3`,
+     `cp_threshold:50` (the near-best gate — keeps the re-route from ever being a blunder), no budget.
+   - **Show progress on a long scan.** A full scan can run minutes; Claude Code does NOT surface MCP
+     server progress notifications, so drive it in chunks instead: call with `leaf_start`/`leaf_count`
+     (e.g. 10 leaves at a time) and report the returned `next_leaf` / `total_leaves` to the user
+     between calls (`total_positions_estimate` gives a rough ETA up front). Loop until `next_leaf` is
+     null, accumulating `suggestions`. This also avoids the `budget` silent-truncation trap entirely.
+   - **Black caveat:** `evalDelta` is white-POV cp. `evalDelta ≤ 0` means the shorter line costs you
+     nothing (or gains); a positive `evalDelta` is the eval you trade away for fewer moves — weigh it.
+   Apply a chosen suggestion in the Edit loop: prune the **redundant tail at the original line's own
+   node** — `modify_repertoire_line(prune)` at `linePath` truncated to `atPly+1` moves (one ply
+   deeper than `atPath`). That drops the long tail and leaves the `joinsPath` branch as the surviving
+   prep. Do NOT prune at `atPath` itself — that would also delete the transposition target.
+8. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
    user moves with the engine fix (step 5) / uncovered opponent tries = gaps (step 5) / suggested
-   extensions (step 6).
+   extensions (step 6) / shortenable lines with plies saved + eval trade (step 7).
 
 ## Edit loop (single session — fix the repertoire without leaving)
 
 Once analysis surfaces a change to make, apply it through the MCP and re-analyze the result in the
 same session — no hand-editing, no re-download, no fresh session:
 
-1. **Decide the edit from a tool result.** A prune target is a flagged `path`; an `add` continuation
-   comes from `suggest_complementary_lines` / `evaluate_position` `lines` (confirm with
+1. **Decide the edit from a tool result.** A prune target is a flagged `path`, or a shorten target
+   from `find_pruning_transpositions` (prune the redundant tail — see Workflow step 7); an `add`
+   continuation comes from `suggest_complementary_lines` / `evaluate_position` `lines` (confirm with
    `validate_line`); a `reorder` promotes an existing child move. You only ever pass back paths + SAN
    the MCP already surfaced.
 2. **Apply it:** `modify_repertoire_line(repertoire_id, path, action, …)` →
