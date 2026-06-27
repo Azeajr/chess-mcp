@@ -18,22 +18,24 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
 - The perf items past the cache are **premature until profiled** — P1+P3 may already be enough.
 - The PWA-UX items can't be verified by typecheck; they need the running app (`/run` + eyeball).
 
-## Tier 1 — do now (cheap, safe, contained; verifiable without the running app)
+## Tier 1 — DONE (commit follows this doc update)
 
-- [ ] **H1** Export `PruneScanResult` from `packages/chess-tools/src/index.ts` (today unexported;
-  consumers rely on inference).
-- [ ] **H2** Smoke coverage: assert `onProgress` fires; cover the `evalStay`-null path. Both untested.
-- [ ] **H3** Guard the position-estimate parity formula for a black-to-move root (assumes white root).
-- [ ] **P1** Pre-filter nodes that can't transpose: cheaply gen each legal move's 4-field FEN key,
-  check `keyMap` for a cross-branch hit, and **only call the engine on nodes with a transposing move**.
-  Biggest structural win, both paths.
-- [ ] **C2** Fill `evalStay` when the line's own move is outside the top-k (one targeted single-move
-  eval) so `evalDelta` is never null (today the QGD `Bb4+` suggestion has a blind eval trade).
-- [ ] **U1** Return an actual/estimate ratio so the agent's ETA self-corrects after chunk 1
-  (`total_positions_estimate` is a loose upper bound).
-- [ ] **W1** One-shot apply helper: take a `PruneSuggestion` → prune the redundant tail (`linePath`
-  truncated to `atPly+1`) → return the new handle. Removes manual path math; avoids the mis-prune
-  footgun (pruning at `atPath` deletes the join target).
+- [x] **H1** Export `PruneScanResult` from `packages/chess-tools/src/index.ts`. Also exported
+  `pruneTailPath`.
+- [x] **H2** Smoke coverage: `onProgress` fires, the `evalStay`-null/C2 path, P1 zero-work, and
+  `pruneTailPath`. 119 pass.
+- [x] **H3** Resolved by the P1 rewrite — the parity formula is gone; the estimate now counts real
+  candidate nodes via a per-node `s.pos.turn` check, so it's color/root-agnostic by construction.
+- [x] **P1** Pre-filter (engine-free): replay each leaf, keep only your-turn nodes whose legal moves
+  include a cross-branch transposer; the engine is called on those alone. Doubles as a TIGHT progress
+  denominator (real engine work, not a parity bound). `pruneTranspositions` core, both surfaces.
+- [x] **C2** `evalStay` resolved via a single-PV eval of the position after the line's own move
+  (negated to the mover) when that move is outside the engine's top-k → `evalDelta` never null.
+- [x] **U1** Added `estimatedPositionsRemaining` (from this call's actual positions-per-leaf) +
+  surfaced as `estimated_positions_remaining` on both tool returns.
+- [x] **W1** `pruneTailPath(suggestion)` helper (exported, tested) returns the apply path =
+  `linePath` truncated to `atPly+1`, encoding the don't-prune-`atPath` footgun. (Full one-call
+  apply-+-rescan MCP tool still open — see W-series.)
 
 ## Tier 1b — the cache change (design once, then implement together)
 

@@ -5,8 +5,8 @@
  * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
  * TypeScript port of the Python servers (see docs/design/UI_DESIGN.md).
  */
-export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal } from "./pgn.js";
-export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneEngineLine } from "./pgn.js";
+export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal, pruneTailPath } from "./pgn.js";
+export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
 export { decisionNodes, gapSeverity, moveSan, SEVERITY_RANK } from "./gaps.js";

@@ -104,11 +104,24 @@ export interface PruneScanResult {
   nextLeaf: number | null;
   /** Engine analyses actually spent in this call. */
   positionsAnalysed: number;
-  /** Upper-bound engine analyses to scan the WHOLE tree (your-turn nodes over all leaves) — for ETA. */
+  /** Engine analyses to scan the WHOLE tree: your-turn nodes that have a cross-branch transposer (the
+   *  pre-filtered work), summed over all leaves. A tight upper bound (a leaf stops early once it emits). */
   totalPositionsEstimate: number;
+  /** Self-correcting ETA: positions left to scan, from THIS call's actual cost-per-leaf (null if none scanned). */
+  estimatedPositionsRemaining: number | null;
 }
 
 // --- shared transposition primitives (gap resolution · stub resolution · shorten) ---
+
+/**
+ * Apply a shorten suggestion (W1): the SAN path to prune is the original line's OWN node at the
+ * re-route ply — `linePath` truncated to `atPly + 1`. Pruning this drops the now-redundant tail and
+ * leaves the `joinsPath` branch as the surviving prep. Do NOT prune at `atPath` (one ply shallower):
+ * that also deletes the transposition target the re-route depends on.
+ */
+export function pruneTailPath(s: Pick<PruneSuggestion, "linePath" | "atPly">): string[] {
+  return s.linePath.slice(0, s.atPly + 1);
+}
 
 /** Path `a` is an ancestor-or-equal of `b` (same line). */
 export function isPrefix(a: Path, b: Path): boolean {
@@ -498,43 +511,73 @@ export class GameTree {
     const leafCount = opts.leafCount ?? totalLeaves - leafStart;
     const slice = leaves.slice(leafStart, leafStart + leafCount);
 
-    // Upper-bound engine analyses (your-turn nodes), no engine: white-to-move at even plies, so a
-    // black leaf has floor(L/2) of its own moves, a white leaf ceil(L/2). Actual ≤ estimate (a leaf
-    // stops early once it emits), so a progress bar built on it may finish before 100% — that's fine.
-    const yourTurnNodes = (len: number) => (color === "black" ? Math.floor(len / 2) : Math.ceil(len / 2));
-    const totalPositionsEstimate = leaves.reduce((a, l) => a + yourTurnNodes(l.length), 0);
-    const sliceEstimate = slice.reduce((a, l) => a + yourTurnNodes(l.length), 0);
+    // Pre-pass (engine-free, P1): replay each leaf and find the your-turn nodes that actually have a
+    // legal move transposing into a DIFFERENT prepared line — the ONLY nodes worth an engine call.
+    // Skipping the rest is the main speed-up, and the candidate count is a TIGHT progress denominator
+    // (real engine work, not a loose parity bound).
+    interface LeafWork {
+      leaf: Path;
+      leafSan: string[];
+      steps: { pos: Chess; ply: number }[];
+      candidates: number[]; // indices into steps: your-turn nodes with a cross-branch transposer
+    }
+    const replayLeaf = (leaf: Path): LeafWork => {
+      const leafSan: string[] = [];
+      const steps: { pos: Chess; ply: number }[] = [];
+      const pos = Chess.default();
+      let node: Node<PgnNodeData> = this.game.moves;
+      for (let depth = 0; depth < leaf.length; depth++) {
+        steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
+        const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
+        const move = parseSan(pos, child.data.san);
+        if (!move) break;
+        pos.play(move);
+        leafSan.push(child.data.san);
+        node = child;
+      }
+      const candidates: number[] = [];
+      steps.forEach((s, idx) => {
+        if (s.pos.turn !== color) return;
+        if (enumerateLegal(s.pos).some((m) => landsInCrossBranchPrep(keyMap, m.after, leaf) != null)) {
+          candidates.push(idx);
+        }
+      });
+      return { leaf, leafSan, steps, candidates };
+    };
+
+    const allWork = leaves.map(replayLeaf);
+    const sliceWork = allWork.slice(leafStart, leafStart + leafCount);
+    const totalPositionsEstimate = allWork.reduce((a, w) => a + w.candidates.length, 0);
+    const sliceEstimate = sliceWork.reduce((a, w) => a + w.candidates.length, 0);
 
     const out: PruneSuggestion[] = [];
     let analyses = 0;
     let leavesScanned = 0;
     let budgetSpent = false;
 
-    for (const leaf of slice) {
-      if (budgetSpent) break;
-      // Replay the leaf once: capture the position at each node + the full SAN path.
-      const leafSan: string[] = [];
-      const steps: { pos: Chess; ply: number }[] = [];
-      {
-        const pos = Chess.default();
-        let node: Node<PgnNodeData> = this.game.moves;
-        for (let depth = 0; depth < leaf.length; depth++) {
-          steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
-          const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
-          const move = parseSan(pos, child.data.san);
-          if (!move) break;
-          pos.play(move);
-          leafSan.push(child.data.san);
-          node = child;
-        }
-      }
+    // mover-POV cp of the line's own move when it fell outside the engine's top-k (C2): single-PV eval
+    // of the position AFTER the move, negated to the mover, so the eval trade is never reported null.
+    const evalAfterMove = async (pos: Chess, san: string): Promise<number | null> => {
+      const after = pos.clone();
+      const mv = parseSan(after, san);
+      if (!mv) return null;
+      after.play(mv);
+      const fen = makeFen(after.toSetup());
+      const sl = await analyse(fen, 1);
+      analyses++;
+      onProgress?.(analyses, sliceEstimate);
+      return sl && sl.length ? -moverCp(fen, sl[0]!) : null; // sl is opponent-POV; negate for the mover
+    };
 
-      // Walk your-turn nodes earliest first; the first viable re-route prunes the longest tail.
+    for (const work of sliceWork) {
+      if (budgetSpent) break;
+      const { leaf, leafSan, steps, candidates } = work;
+      // Walk candidate nodes earliest first; the first viable re-route prunes the longest tail.
       let emitted = false;
-      for (const s of steps) {
+      for (const idx of candidates) {
         if (emitted) break;
-        if (s.pos.turn !== color) continue;
         if (budget != null && analyses >= budget) { budgetSpent = true; break; }
+        const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyse(fen, multipv);
         analyses++;
@@ -550,19 +593,24 @@ export class GameTree {
         if (!enriched.length) continue;
 
         const evalBest = Math.max(...enriched.map((e) => e.cp));
-        const stay = enriched.find((e) => e.san === stayMove);
-        const evalStay = stay ? stay.cp : null;
+        const stayInList = enriched.find((e) => e.san === stayMove);
+        let evalStay = stayInList ? stayInList.cp : null;
+        let evalStayResolved = stayInList != null; // don't re-eval the stay move per candidate
 
         for (const e of enriched) {
           if (e.san === stayMove) continue; // staying, not a re-route
           if (evalBest - e.cp > cpThreshold) continue; // near-best gate (drops blunders in top-k)
-          if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
           const after = s.pos.clone();
           after.play(e.mv);
           // Re-route must land in a DIFFERENT prepared line. Compare against the FULL leaf — a
           // shared early ancestor must NOT count as same-line.
           const tgt = landsInCrossBranchPrep(keyMap, after, leaf);
           if (!tgt) continue;
+          if (!evalStayResolved) {
+            evalStay = await evalAfterMove(s.pos, stayMove); // C2: fill the trade for an out-of-top-k stay
+            evalStayResolved = true;
+          }
+          if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
           out.push({
             linePath: leafSan.slice(),
             atPath: leafSan.slice(0, s.ply),
@@ -584,6 +632,11 @@ export class GameTree {
 
     out.sort((a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly);
     const scannedEnd = leafStart + leavesScanned;
+    // U1: a self-correcting remaining estimate from THIS call's actual cost-per-leaf (the agent's ETA
+    // tightens after the first chunk instead of trusting the loose upper bound).
+    const remainingLeaves = totalLeaves - scannedEnd;
+    const estimatedPositionsRemaining =
+      leavesScanned > 0 ? Math.round((analyses / leavesScanned) * remainingLeaves) : null;
     return {
       suggestions: out,
       totalLeaves,
@@ -592,6 +645,7 @@ export class GameTree {
       nextLeaf: scannedEnd < totalLeaves ? scannedEnd : null,
       positionsAnalysed: analyses,
       totalPositionsEstimate,
+      estimatedPositionsRemaining,
     };
   }
 

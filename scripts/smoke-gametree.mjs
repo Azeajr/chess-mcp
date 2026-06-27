@@ -1,6 +1,7 @@
 // Smoke test for the chess-tools GameTree (Phase 1 core). Run: node scripts/smoke-gametree.mjs
 import {
   GameTree,
+  pruneTailPath,
   classifyUciMove,
   weightFor,
   decisionNodes,
@@ -245,14 +246,32 @@ ok(!gated.suggestions.some((p) => p.rerouteMove === "c4"), "pruneTranspositions:
 const capped = await prTree.pruneTranspositions("white", { maxLossCp: 5 }, analyseGood);
 ok(capped.suggestions.some((p) => p.rerouteMove === "c4"), "pruneTranspositions: keeps a re-route that gains eval");
 ok(!capped.suggestions.some((p) => p.rerouteMove === "Nf3"), "pruneTranspositions: maxLossCp filters a re-route that loses >5cp");
-// budget caps total engine analyses: 1 analysis is spent on the start position (returns nothing),
-// so the re-route node (after 1.d4 Nf6) is never reached → no suggestion.
+// budget caps engine analyses (now spent only on pre-filtered candidate nodes, P1, not every node).
 const budgeted = await prTree.pruneTranspositions("white", { budget: 1 }, analyseGood);
-ok(budgeted.suggestions.length === 0, "pruneTranspositions: budget caps the walk before the re-route node");
+ok(budgeted.positionsAnalysed <= 1, "pruneTranspositions: budget caps analyses spent");
 // cursor pagination: scanning only the 2nd leaf (the QID line, no shortening) yields nothing, and the
 // metadata reports the cursor advancing to the end (next_leaf null = done).
 const chunk = await prTree.pruneTranspositions("white", { leafStart: 1, leafCount: 1 }, analyseGood);
 ok(chunk.totalLeaves === 2 && chunk.leafStart === 1 && chunk.nextLeaf === null, "pruneTranspositions: leaf cursor reports totals and exhausts");
+// P1 pre-filter: a single line with no branches has no cross-branch transposer, so the scan spends
+// ZERO engine calls and the estimate is 0 (the engine is never consulted on dead nodes).
+const noTrans = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+const nt = await noTrans.pruneTranspositions("white", {}, async () => [{ uci: "g1f3", cp: 10, mate: null }]);
+ok(nt.totalPositionsEstimate === 0 && nt.positionsAnalysed === 0 && nt.suggestions.length === 0, "pruneTranspositions: P1 skips nodes with no cross-branch transposer");
+// onProgress fires; pruneTailPath gives the apply path (the original line's node at the re-route ply).
+let progressCalls = 0;
+await prTree.pruneTranspositions("white", {}, analyseGood, () => progressCalls++);
+ok(progressCalls > 0, "pruneTranspositions: onProgress fires during the scan");
+ok(JSON.stringify(pruneTailPath(aCut)) === JSON.stringify(["d4", "Nf6", "Nf3"]), "pruneTailPath: prunes the original line's tail at the re-route ply");
+// C2: when the line's own move (Nf3) is outside the engine's top-k, evalStay is resolved from a
+// single-PV eval of the position after that move (here 15cp) — the trade is never reported null.
+const c2only = async (fen) =>
+  fen.includes("PPP1PPPP/RNBQKBNR") ? [{ uci: "c2c4", cp: 30, mate: null }] // d4 Nf6: g1 knight still home
+  : fen.includes("5N2/PPP1PPPP/RNBQKB1R") ? [{ uci: "e7e6", cp: 15, mate: null }] // after Nf3
+  : [];
+const c2res = await prTree.pruneTranspositions("white", {}, c2only);
+const c2cut = c2res.suggestions.find((p) => p.rerouteMove === "c4");
+ok(c2cut && c2cut.evalStay === 15 && c2cut.evalDelta === -15, "pruneTranspositions: C2 resolves evalStay for an out-of-top-k stay move");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into

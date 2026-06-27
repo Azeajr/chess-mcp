@@ -240,6 +240,7 @@ server.tool(
       next_leaf: res.nextLeaf,
       positions_analysed: res.positionsAnalysed,
       total_positions_estimate: res.totalPositionsEstimate,
+      estimated_positions_remaining: res.estimatedPositionsRemaining,
     });
   },
 );
