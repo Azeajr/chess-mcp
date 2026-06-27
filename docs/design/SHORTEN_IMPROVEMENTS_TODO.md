@@ -9,6 +9,18 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
 (PWA scan), `apps/ui/src/llm/tools.ts` (PWA chat tool). Engine: `apps/mcp-server/src/engine.ts`
 (has a `fen|multipv` eval cache), `apps/ui/src/engine/stockfish.ts` (no cache).
 
+## Verification log
+
+- **P1 (MCP, live):** full scan of the real repertoire dropped from **385 → 16** engine analyses,
+  same 6 suggestions. C2 filled the previously-null QGD `Bb4+` trade (`evalStay:-26`). U1 estimate
+  tight (`total_positions_estimate:16`, == actual).
+- **P3 (PWA, in-app, headless Chromium + Playwright):** loaded a synthetic repertoire with a
+  cross-branch transposition, drove the real Shorten **Scan** button twice. Scan #1: 1 engine search,
+  cache `0→1`, 2 suggestions. Scan #2 (identical): **0 new searches**, cache unchanged, same 2
+  suggestions → cache hits serve the whole repeat. (Scan #2 wall-time was a polling artifact, not real
+  cost — the search counter is the evidence.) Incidentally also confirmed P2 live: 1 search → 2
+  suggestions from the shared node. Temp instrumentation reverted; tree clean.
+
 ## Why not just do all at once
 
 - 20+ items in one branch = unreviewable diff. Land in logical commits.
