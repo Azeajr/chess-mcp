@@ -63,20 +63,24 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
 - [~] **P4** Dedupe distinct decision positions across leaves — **not needed**: P1 (pre-filter) + P2
   (scan memo) already collapse the work. Revisit only if profiling a huge tree shows otherwise.
 
-## Tier 2 — needs a design doc + user judgment first (semantic / strategic risk)
+## Tier 2 — BUILT (see `SHORTEN_SEMANTICS_DESIGN.md` for the signed-off design)
 
-- [ ] **C1** Report multiple re-routes per leaf, not just the earliest — depth-vs-cut choice.
-- [ ] **C3** When two lines converge, compare eval/length and recommend keeping the **stronger** line;
-  today the join target is whatever already exists (possibly the worse line).
-- [ ] **C4** Opponent-deviation check: flag suggestions where the opponent can sidestep before the
-  joined position (the saved tail may still be needed). Effectively its own feature.
-- [ ] **C5** Optional looser identity (ignore castling-rights/ep when matching). **Risk: manufactures
-  false transpositions** — castling/ep genuinely change the position. Not a safe default.
-- [ ] **C6** Optional tool-side global ranking across chunks (so the agent doesn't re-sort).
-- [ ] **E1** Adaptive depth: shallow triage pass, deep re-check only on candidate re-route nodes.
-- [ ] **E2** Reconcile PWA vs MCP engine settings/builds at the near-best margin — may be "document the
-  divergence" rather than "fix" (two different wasm builds).
-- [ ] **E3** Auto-pick `movetime` for sharp nodes (high eval swing) vs `depth` for quiet ones.
+- [x] **C1** All re-routes per line, tagged `bestSavings` (earliest/biggest cut) + `bestEval` (best
+  resulting eval) — the user trades memorization vs quality.
+- [x] **E1** `confirm_depth` deep-confirms each line's bestEval pick (`evalConfirmed`).
+- [x] **C3** `compare_shortcut_lines` tool: adopt (transpose) vs abandon (stay) on EVAL at the fork +
+  structural FIT (subtree distribution vs aggregate) with mainline-leaf labels; recommends eval unless
+  ≤ tiebreak then fit; flags eval/fit disagreement. The quality axis vs `savedPlies`.
+- [x] **C4** `check_shortcut_coverage` tool: prune the tail on a copy, re-run the gap scan, return new
+  gaps — the shortcut's coverage cost.
+- [x] **C6** Tool owns ranking: full (no-cursor) call is the authoritative global sort (`partial:false`);
+  cursor chunks are progress-only (`partial:true`) and must never be merged by the LLM.
+- [~] **C5** NOT built (already correct): identity is strict (placement+turn+castling+legal-ep); chessops
+  normalizes phantom ep via `legalEpSquare`. Loosening would create false shortcuts.
+- [~] **E2** DOCUMENT only — two wasm builds differ at the margin; MCP is the soundness reference.
+- [~] **E3** NOT built — `movetime_ms` is already a manual dial.
+
+Live verification of the two new tools (C3/C4) + the C1/E1/C6 changes is pending an MCP reconnect.
 
 ## Tier 3 — defer until profiled (premature optimization)
 
