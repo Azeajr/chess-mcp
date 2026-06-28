@@ -3,7 +3,7 @@
  * move navigates to its node; the current node is highlighted. Reads the store's tree +
  * path signals so it re-renders on play/navigate.
  */
-import { createMemo, createSignal, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 import type { Node, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
 import { previewedKeys } from "../store/suggestions";
@@ -36,6 +36,22 @@ export default function MoveTree() {
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+
+  // The line from the root to the current node, in plain sequence — the header strip so the user
+  // can read which moves got them here without tracing the tree. Each move navigates to its node.
+  const currentLine = createMemo(() => {
+    const tree = currentTree();
+    const cur = currentPath();
+    const out: { san: string; ply: number; path: Path }[] = [];
+    let node: Node<PgnNodeData> = tree.game.moves;
+    for (let i = 0; i < cur.length; i++) {
+      const child = node.children[cur[i]!] as ChildNode<PgnNodeData> | undefined;
+      if (!child) break;
+      out.push({ san: child.data.san, ply: i + 1, path: cur.slice(0, i + 1) });
+      node = child;
+    }
+    return out;
+  });
 
   const render = createMemo(() => {
     const tree = currentTree();
@@ -127,12 +143,31 @@ export default function MoveTree() {
 
   return (
     <div class="move-tree">
-      <Show
-        when={render().length}
-        fallback={<div class="empty">No moves yet — play on the board.</div>}
-      >
-        {render()}
-      </Show>
+      <div class="current-line" title="Current line">
+        <Show when={currentLine().length} fallback={<span class="moveno">Start position</span>}>
+          <For each={currentLine()}>
+            {(m) => (
+              <span
+                class={`move${pathEq(m.path, currentPath()) ? " current" : ""}`}
+                onClick={() => {
+                  actions.goto(m.path);
+                  focusLine(m.path);
+                }}
+              >
+                {moveLabel(m.san, m.ply, false)}
+              </span>
+            )}
+          </For>
+        </Show>
+      </div>
+      <div class="tree-body">
+        <Show
+          when={render().length}
+          fallback={<div class="empty">No moves yet — play on the board.</div>}
+        >
+          {render()}
+        </Show>
+      </div>
     </div>
   );
 }

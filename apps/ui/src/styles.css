@@ -113,6 +113,31 @@ body {
   background: var(--accent);
 }
 
+/* Horizontal board resizer — only shown in the phone column layout (see ≤720px). A visible grip
+   so it's discoverable as a drag handle. */
+.divider-h {
+  display: none;
+  width: 100%;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: row-resize;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+}
+.divider-h::after {
+  content: "";
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.divider-h:hover::after,
+.divider-h:active::after {
+  background: var(--accent);
+}
+
 /* Phone panel switcher — hidden until the ≤720px breakpoint flips it to flex. */
 .mobile-tabs {
   display: none;
@@ -174,6 +199,15 @@ body {
   }
   .board-panel {
     flex: 0 0 auto;
+  }
+  .divider-h {
+    display: flex;
+  }
+  /* Honour the dragged board size, capped to the container width so it can't overflow. Falls
+     back to the responsive default until the user drags. Extra `.workspace` specificity so this
+     beats the base `.board-wrap` rule, which sits later in the source. */
+  .workspace .board-wrap {
+    width: min(var(--board-size, min(70vh, calc(100% - 26px))), calc(100% - 26px));
   }
   .mobile-tabs {
     display: flex;
@@ -288,8 +322,29 @@ body {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Plain sequence of the line that reached the current node — clickable, scrolls horizontally
+   if long so it never grows the panel vertically. */
+.move-tree .current-line {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.move-tree .tree-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  padding: 0.75rem;
   line-height: 1.7;
   font-size: 0.9rem;
 }

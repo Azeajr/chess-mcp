@@ -15,7 +15,7 @@ import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
 import { mobileTab } from "./store/ui";
-import { sideWidth, chatWidth, setSideWidth, setChatWidth, effSideWidth, effChatWidth, persistLayout } from "./store/layout";
+import { resizeSide, resizeSideChat, effSideWidth, effChatWidth, persistLayout, boardSize, setBoardSize, persistBoard } from "./store/layout";
 
 export default function App() {
   startAutosave();
@@ -47,21 +47,37 @@ export default function App() {
   return (
     <div class="app">
       <TopBar />
-      <div class="workspace" data-mtab={mobileTab()}>
+      <div
+        class="workspace"
+        data-mtab={mobileTab()}
+        style={boardSize() ? { "--board-size": `${boardSize()}px` } : undefined}
+      >
         <div class="board-panel">
           <EvalBar />
           <Board />
         </div>
+        {/* Phone-only: drag to resize the pinned board (hidden above 720px). Seed from the
+            rendered square on the first drag so it picks up where the CSS default left off. */}
+        <Divider
+          axis="y"
+          onResize={(d) => {
+            const base = boardSize() || (document.querySelector(".board-wrap") as HTMLElement | null)?.clientWidth || 320;
+            setBoardSize(base + d);
+          }}
+          onEnd={persistBoard}
+        />
         {/* Phone-only panel switcher; hidden above 720px. */}
         <MobileTabs />
-        <Divider onResize={(d) => setSideWidth(sideWidth() + d)} onEnd={persistLayout} />
+        {/* board│side boundary: drag right shrinks side so the board grows — the divider follows
+            the cursor (board is flex:1 and absorbs the slack). */}
+        <Divider onResize={(d) => resizeSide(-d)} onEnd={persistLayout} />
         <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
           <AnalysisPanel />
           <RepertoirePanel />
           <MoveTree />
         </div>
-        {/* dragging this divider right grows the side panel and steals from chat → negate */}
-        <Divider onResize={(d) => setChatWidth(chatWidth() - d)} onEnd={persistLayout} />
+        {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
+        <Divider onResize={(d) => resizeSideChat(d)} onEnd={persistLayout} />
         <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
           <ChatPanel />
         </div>
