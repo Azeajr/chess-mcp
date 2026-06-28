@@ -94,12 +94,19 @@ All five (C1/E1/C3/C4/C6) verified live on the real repertoire — see the Verif
 
 ## Tier 4 — PWA UX, batch behind a `/run` verify pass (typecheck won't catch regressions)
 
-- [ ] **U2** Stream suggestions into the PWA as found (push partials via `onProgress`).
-- [ ] **U3** PWA cancel button (the `pruneToken` cancel logic already exists; expose it).
-- [ ] **U4** Tighter PWA bar estimate (upper bound makes it fill late then jump) — smooth, or subtract
-  expected early-emits.
-- [ ] **U5** Suggest a chunk size from `total_positions_estimate` to hit a target per-call latency.
-- [ ] **W3** Before/after leaf-count preview for a chosen prune.
+- [x] **C1 badges** Shorten rows show per-line ↓ (bestSavings) + ★ (bestEval) badges (★ notes
+  deep-confirmed). Verified in-app — the C1 two-axis picks are visible at a glance.
+- [x] **U3** PWA cancel button (✕) on the in-flight scan — `cancelPrune` discards in-flight results.
+- [~] **U4** Tighter bar — **now low-value**: P1's estimate is already tight (live: est 16 vs actual 14),
+  so the bar tracks well. Skip unless a real over/undershoot shows up.
+- [~] **U5** Chunk-size suggestion — **low-value**: P1 made full scans cheap, so chunking is rarely
+  needed. Skip.
+- [ ] **U2** Stream suggestions as found (push partials via `onProgress`) — marginal now (scans are
+  sub-second/-few-seconds); a nice-to-have, not needed.
+- [ ] **W3** Before/after leaf-count preview for a chosen prune — nice-to-have; pairs with a future
+  in-UI apply button.
+- [ ] **PWA C3/C4** surface `compare_shortcut_lines` / `check_shortcut_coverage` in the Shorten UI
+  (currently MCP/chat only) — a real follow-up if the PWA shorten flow should be self-serve.
 
 ## Tier 5 — footgun, needs a guardrail
 
