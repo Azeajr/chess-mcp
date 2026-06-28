@@ -126,6 +126,12 @@ comparing handles, with no re-download. See "Edit loop" below.
      For the ranked result, make one full call.
    - **Black caveat:** `evalDelta` is white-POV cp. `evalDelta ≤ 0` means the shorter line costs you
      nothing (or gains); a positive `evalDelta` is the eval you trade away for fewer moves — weigh it.
+   - **Quality of the shortcut (C3).** A shortcut makes you abandon the line (`line_path`) and play the
+     one you transpose into (`joins_path`). `compare_shortcut_lines(repertoire_id, line_path, at_ply,
+     joins_path)` judges the two on EVAL at the fork (evalStay vs evalTranspose) and structural FIT with
+     the repertoire (fitStay/fitTranspose + readable `structure*` labels), and `recommend`s one (eval
+     unless the gap is ≤ ~30cp, then fit). This is the QUALITY axis — weigh `recommend` against the
+     suggestion's `savedPlies` (the memorization win); a slightly-worse line can still be worth the cut.
    - **Coverage-safety before applying (C4).** A shortcut deletes the line's tail; that tail may have
      been the only cover for some opponent reply (e.g. by transposition for another line). Run
      `check_shortcut_coverage(repertoire_id, line_path, at_ply)` first — it prunes on a copy, re-runs

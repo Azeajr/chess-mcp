@@ -302,6 +302,13 @@ const e1 = await prTree.pruneTranspositions("white", { confirmDepth: 20 }, e1Stu
 const e1ev = e1.suggestions.find((s) => s.linePath.join(" ") === "d4 Nf6 Nf3 e6 Bf4" && s.bestEval);
 ok(e1ev && e1ev.evalConfirmed === true && e1ev.evalTranspose === 99, "E1: best-eval re-route is deep-confirmed");
 ok(e1.suggestions.some((s) => s.bestSavings && !s.evalConfirmed), "E1: only the best-eval pick is deep-confirmed");
+// C3 building blocks: subtree leaves (what a branch commits to), mainline leaf (its representative
+// line), and fen-at-path. d4Nf6 has 2 leaves under it (the Bf4 line + the g3 line); a leaf has 1.
+ok(prTree.subtreeLeafBoards(["d4", "Nf6"]).length === 2, "C3: subtreeLeafBoards collects the branch's leaves");
+ok(prTree.subtreeLeafBoards(["d4", "Nf6", "Nf3", "e6", "Bf4"]).length === 1, "C3: a leaf node yields one board");
+ok(prTree.subtreeLeafBoards(["d4", "Qh5"]) === null, "C3: subtreeLeafBoards returns null for an absent path");
+ok(prTree.mainlineLeafBoard(["d4", "Nf6"]) !== null, "C3: mainlineLeafBoard follows first-children to a leaf");
+ok(typeof prTree.fenAtSanPath(["d4", "Nf6"]) === "string" && prTree.fenAtSanPath(["d4", "Qh5"]) === null, "C3: fenAtSanPath resolves a path / null when absent");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into

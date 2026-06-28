@@ -7,6 +7,7 @@
  * is recomputed by replaying SANs along the path — cheap for opening-depth trees.
  */
 import { Chess } from "chessops/chess";
+import type { Board } from "chessops/board";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
 import { makeSquare, parseSquare, makeUci, parseUci } from "chessops/util";
@@ -825,6 +826,51 @@ export class GameTree {
     };
     dfs(this.game.moves, Chess.default());
     return out;
+  }
+
+  /** FEN at a SAN variation path, or null if the path doesn't match the tree. */
+  fenAtSanPath(sans: readonly string[]): string | null {
+    const pos = this.positionAtSanPath(sans);
+    return pos ? makeFen(pos.toSetup()) : null;
+  }
+
+  /** Leaf boards in the subtree rooted at `sans` (the node itself if it's a leaf), or null if absent.
+   *  For C3: the structures a branch commits you to (vs the aggregate). */
+  subtreeLeafBoards(sans: readonly string[]): Board[] | null {
+    const res = this.resolveSan(sans);
+    if (!res) return null;
+    const out: Board[] = [];
+    const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
+      if (node.children.length === 0) {
+        out.push(pos.board);
+        return;
+      }
+      for (const child of node.children) {
+        const next = pos.clone();
+        const move = parseSan(next, child.data.san);
+        if (!move) continue;
+        next.play(move);
+        dfs(child, next);
+      }
+    };
+    dfs(res.node, this.positionAtSan(sans));
+    return out;
+  }
+
+  /** Board at the mainline (first-child) leaf under `sans`, or null. The branch's representative line. */
+  mainlineLeafBoard(sans: readonly string[]): Board | null {
+    const res = this.resolveSan(sans);
+    if (!res) return null;
+    let node: Node<PgnNodeData> = res.node;
+    const pos = this.positionAtSan(sans);
+    while (node.children.length) {
+      const child = node.children[0]!;
+      const move = parseSan(pos, child.data.san);
+      if (!move) break;
+      pos.play(move);
+      node = child;
+    }
+    return pos.board;
   }
 
   /** Resolve a SAN variation path to its node + parent (null parent at the root). */

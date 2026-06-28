@@ -9,7 +9,7 @@ Grounded chess analysis for AI agents. The agent never guesses a move, FEN, or e
 position is validated and every line is engine-checked through the MCP tools. Two surfaces share one
 TypeScript chess core (`packages/chess-tools`):
 
-1. **The MCP server** (`apps/mcp-server`) — 32 tools for game review and repertoire work, used from
+1. **The MCP server** (`apps/mcp-server`) — 33 tools for game review and repertoire work, used from
    Claude Code (and any MCP client).
 2. **The PWA** (`apps/ui`) — a local-first SolidJS board for building and studying repertoires.
 
@@ -20,7 +20,7 @@ engine-grounded.
 
 ## Where it is now (shipped)
 
-- **Node MCP server** — 32 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
+- **Node MCP server** — 33 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
   Docker, no port, no host engine install.
 - **In-process eval cache** (`apps/mcp-server/src/engine.ts`) — `${fen}|${multipv}` keyed, depth-reuse,
   1000-entry FIFO. Per session.
