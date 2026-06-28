@@ -14,6 +14,38 @@ compares the position after your single re-route move against `keyMap`); `joinsP
 occurrence of that position. Identity = `positionKey` = FEN first 4 fields (placement, turn, castling,
 en-passant).
 
+> **Plain framing (the one to keep in mind).** A shortcut = "in Line A, at move X, play a different
+> good move that jumps you into Line B; then delete Line A's now-redundant tail." C3 asks *is Line B as
+> good as the Line A you're abandoning?* (eval + thematic fit). C4 asks *does deleting Line A's tail
+> leave anything uncovered?* (re-run the gap scan).
+
+## Resolution (signed off — supersedes the per-item recommendations below)
+
+- **C1 — BUILD, default ALL re-routes per line.** Not all transpositions are equivalent, so surface
+  every viable one, tagged on two axes: **max-savings** (earliest re-route, biggest tail cut) and
+  **best-eval** (highest `evalTranspose` for your side — possibly a deeper node saving fewer plies).
+  The user picks memorization-vs-quality.
+- **C3 — BUILD, judge on eval AND thematic fit.** Recommend the surviving line (Line B) vs the
+  abandoned line (Line A) using engine eval *and* structural/thematic fit with the repertoire (reuse
+  `get_structural_profile` / `profile_match`). Score the **paths** (intermediate structures), since
+  the lines differ on the way in. Surface both metrics + a recommendation; never auto-prune.
+- **C4 — BUILD, gap re-check.** After a shortcut prunes Line A's tail, re-run the gap scan on the
+  result; flag any newly-uncovered opponent reply. Cheap, reuses existing machinery.
+- **C5 — NO BUILD (already correct).** Identity is already strict (placement+turn+castling+legal-ep);
+  verified in chessops 0.14.2: `play()` sets ep on any double-push but `toSetup()`→`legalEpSquare`
+  keeps it only when a capture is legal, so our `makeFen(toSetup())` FENs carry no phantom ep. Strict
+  identity prevents false shortcuts AND misses none from phantom ep. Loosening (the original C5 idea)
+  would *create* false shortcuts → rejected by correctness.
+- **C6 — BUILD (contract).** The tool owns the final ranking; the LLM must never merge/sort suggestions
+  across pages for correctness (engine+library are the arbiters). Paginated scans accumulate
+  server-side and return the globally-sorted set; the single-call path already honors this.
+- **E1 — TBD.** Decision: is a depth-12 eval trustworthy enough to rank the C1 "best-eval" pick, or do
+  we deep-confirm the one(s) the user will act on?
+- **E2 — DOCUMENT only.** Two wasm builds can differ at the margin; MCP is the soundness reference.
+- **E3 — NO BUILD.** `movetime_ms` is already a manual dial; auto-detecting "sharp" isn't worth a probe pass.
+
+Build target: **C1 + C3 + C4 + C6** (+ E1 pending). The sections below are the original analysis.
+
 ---
 
 ## C1 — multiple re-routes per leaf
