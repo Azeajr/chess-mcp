@@ -258,8 +258,9 @@ ok(chunk.totalLeaves === 2 && chunk.leafStart === 1 && chunk.nextLeaf === null, 
 const noTrans = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
 const nt = await noTrans.pruneTranspositions("white", {}, async () => [{ uci: "g1f3", cp: 10, mate: null }]);
 ok(nt.totalPositionsEstimate === 0 && nt.positionsAnalysed === 0 && nt.suggestions.length === 0, "pruneTranspositions: P1 skips nodes with no cross-branch transposer");
-// P2: both leaves share the d4Nf6 candidate position; the scan memo analyses it once, not per leaf.
-ok(prune.positionsAnalysed === 1, "pruneTranspositions: P2 memo analyses a shared position once");
+// P2: both leaves' d4Nf6 candidate is the same position — analysed once (memo), so the walk spends 2
+// engine calls (d4Nf6 + the deeper d4Nf6Nf3e6 candidate on line 1), not 3.
+ok(prune.positionsAnalysed === 2, "pruneTranspositions: P2 memo analyses a shared position once");
 // onProgress fires; pruneTailPath gives the apply path (the original line's node at the re-route ply).
 let progressCalls = 0;
 await prTree.pruneTranspositions("white", {}, analyseGood, () => progressCalls++);
@@ -269,11 +270,35 @@ ok(JSON.stringify(pruneTailPath(aCut)) === JSON.stringify(["d4", "Nf6", "Nf3"]),
 // single-PV eval of the position after that move (here 15cp) — the trade is never reported null.
 const c2only = async (fen) =>
   fen.includes("PPP1PPPP/RNBQKBNR") ? [{ uci: "c2c4", cp: 30, mate: null }] // d4 Nf6: g1 knight still home
-  : fen.includes("5N2/PPP1PPPP/RNBQKB1R") ? [{ uci: "e7e6", cp: 15, mate: null }] // after Nf3
+  : fen.includes("RNBQKB1R b") ? [{ uci: "e7e6", cp: 15, mate: null }] // after Nf3 (black to move)
   : [];
 const c2res = await prTree.pruneTranspositions("white", {}, c2only);
 const c2cut = c2res.suggestions.find((p) => p.rerouteMove === "c4");
 ok(c2cut && c2cut.evalStay === 15 && c2cut.evalDelta === -15, "pruneTranspositions: C2 resolves evalStay for an out-of-top-k stay move");
+// C1: a line can have several re-routes; the early (move 2) one cuts the most tail but evals low, a
+// deeper (move 4) one cuts less but evals high — bestSavings and bestEval tag the two distinct picks.
+const twoStub = async (fen) =>
+  fen.includes("5n2/8/3P4") ? [{ uci: "c2c4", cp: 10, mate: null }, { uci: "g1f3", cp: 20, mate: null }] // move 2: c4 eval 10
+  : fen.includes("4pn2/8/3P4") ? [{ uci: "c2c4", cp: 40, mate: null }, { uci: "c1f4", cp: 20, mate: null }] // move 4: c4 eval 40
+  : [];
+const two = await prTree.pruneTranspositions("white", {}, twoStub);
+const l1 = two.suggestions.filter((s) => s.linePath.join(" ") === "d4 Nf6 Nf3 e6 Bf4");
+const sav = l1.find((s) => s.bestSavings);
+const ev = l1.find((s) => s.bestEval);
+ok(l1.length === 2, "C1: all re-routes for a line are returned, not just the earliest");
+ok(sav && sav.atPly === 2 && sav.savedPlies === 3 && sav.bestEval === false, "C1: bestSavings = earliest / biggest tail cut");
+ok(ev && ev.atPly === 4 && ev.evalTranspose === 40 && ev.bestSavings === false, "C1: bestEval = best resulting eval, a distinct pick");
+// E1: with confirmDepth set, the best-eval pick is re-searched (here the deep stub returns 99cp) and
+// flagged evalConfirmed; the cheaper picks are not.
+const e1Stub = async (fen, _mpv, depth) =>
+  depth != null ? [{ uci: "a7a6", cp: 99, mate: null }] // deep-confirm call (any position) → force a value
+  : fen.includes("5n2/8/3P4") ? [{ uci: "c2c4", cp: 10, mate: null }, { uci: "g1f3", cp: 20, mate: null }]
+  : fen.includes("4pn2/8/3P4") ? [{ uci: "c2c4", cp: 40, mate: null }, { uci: "c1f4", cp: 20, mate: null }]
+  : [];
+const e1 = await prTree.pruneTranspositions("white", { confirmDepth: 20 }, e1Stub);
+const e1ev = e1.suggestions.find((s) => s.linePath.join(" ") === "d4 Nf6 Nf3 e6 Bf4" && s.bestEval);
+ok(e1ev && e1ev.evalConfirmed === true && e1ev.evalTranspose === 99, "E1: best-eval re-route is deep-confirmed");
+ok(e1.suggestions.some((s) => s.bestSavings && !s.evalConfirmed), "E1: only the best-eval pick is deep-confirmed");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into

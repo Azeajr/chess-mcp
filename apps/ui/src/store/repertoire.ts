@@ -54,6 +54,7 @@ export async function scanCongruence() {
 
 const MULTIPV = 3;
 const SCAN_DEPTH = 12;
+const CONFIRM_DEPTH = 18; // E1: deeper re-check of each line's best-eval re-route
 const CP_THRESHOLD = 50; // a color move within 0.5 of best counts as "good"
 const MATE_CP = 100000;
 const MAX_DEPTH = 4;
@@ -120,8 +121,8 @@ export async function scanPrune() {
   try {
     const res = await currentTree().pruneTranspositions(
       color(),
-      { multipv: MULTIPV, cpThreshold: CP_THRESHOLD },
-      (fen, mpv) => analyseMulti(fen, mpv, SCAN_DEPTH),
+      { multipv: MULTIPV, cpThreshold: CP_THRESHOLD, confirmDepth: CONFIRM_DEPTH },
+      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? SCAN_DEPTH),
       (done, total) => {
         if (token !== pruneToken) return;
         setPruneDone(done);

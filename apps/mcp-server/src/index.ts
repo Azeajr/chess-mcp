@@ -208,7 +208,7 @@ server.tool(
 
 server.tool(
   "find_pruning_transpositions",
-  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). One (earliest) per line, ranked by tail saved. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions). COVERAGE: by default the whole tree is scanned — leave budget UNSET for full coverage (the transposable lines are often last in the PGN, and budget is spent in tree order, so a low cap silently misses them). For a long scan you can show progress to the user: drive it in chunks with leaf_start/leaf_count and report the returned next_leaf / total_leaves between calls (total_positions_estimate gives a rough ETA). Returns total_leaves, leaves_scanned, next_leaf (cursor; null = done), positions_analysed, total_positions_estimate.",
+  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). ALL viable re-routes per line are returned (not just the earliest) — each line's two picks are tagged bestSavings (biggest tail cut) and bestEval (best resulting eval); they may differ, so the user trades memorization vs quality. confirm_depth deep-confirms each line's bestEval pick (evalConfirmed=true) so the eval you act on is trustworthy. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions). COVERAGE: by default the whole tree is scanned — leave budget UNSET for full coverage (the transposable lines are often last in the PGN, and budget is spent in tree order, so a low cap silently misses them). For a long scan you can show progress to the user: drive it in chunks with leaf_start/leaf_count and report the returned next_leaf / total_leaves between calls (total_positions_estimate gives a rough ETA). Returns total_leaves, leaves_scanned, next_leaf (cursor; null = done), positions_analysed, total_positions_estimate.",
   {
     repertoire_id: z.string(),
     limit: z.number().int().min(1).max(100).optional(),
@@ -220,14 +220,16 @@ server.tool(
     budget: z.number().int().min(1).max(500).optional(),
     leaf_start: z.number().int().min(0).optional(),
     leaf_count: z.number().int().min(1).max(200).optional(),
+    confirm_depth: z.number().int().min(1).max(30).optional(),
   },
-  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget, leaf_start, leaf_count }) => {
+  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget, leaf_start, leaf_count, confirm_depth }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const res = await e.tree.pruneTranspositions(
       e.color,
-      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count },
-      (fen, mpv) => analyseMulti(fen, mpv, depth ?? 14, movetime_ms),
+      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count, confirmDepth: confirm_depth },
+      // depth override d (E1 deep confirm) uses fixed depth and bypasses movetime; else the scan effort.
+      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? 14, d != null ? undefined : movetime_ms),
     );
     const shown = res.suggestions.slice(0, limit ?? 20);
     return ok({

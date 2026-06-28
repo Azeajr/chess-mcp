@@ -84,6 +84,12 @@ export interface PruneSuggestion {
   evalTranspose: number;
   /** evalStay − evalTranspose: cp given up by transposing vs staying (null if evalStay unknown). */
   evalDelta: number | null;
+  /** C1: this is the biggest-tail-cut re-route for its line (earliest node; ties → better eval). */
+  bestSavings: boolean;
+  /** C1: this is the best-eval re-route for its line (highest evalTranspose; ties → more saved). */
+  bestEval: boolean;
+  /** E1: evalTranspose was deep-confirmed (re-searched at confirmDepth). Only the bestEval pick is. */
+  evalConfirmed: boolean;
 }
 
 /**
@@ -476,8 +482,11 @@ export class GameTree {
       leafStart?: number;
       /** Cursor: how many leaves to scan from leafStart (default: to the end). */
       leafCount?: number;
+      /** E1: deep-confirm depth. When set, each line's best-eval re-route is re-searched at this depth
+       *  (vs the cheaper scan effort) so the eval you act on is trustworthy. Unset = no deep confirm. */
+      confirmDepth?: number;
     },
-    analyse: (fen: string, multipv: number) => Promise<PruneEngineLine[] | null>,
+    analyse: (fen: string, multipv: number, depth?: number) => Promise<PruneEngineLine[] | null>,
     /** Fires after each engine analysis with (analysesDone, sliceEstimate) — for a determinate progress bar. */
     onProgress?: (done: number, total: number) => void,
   ): Promise<PruneScanResult> {
@@ -485,6 +494,7 @@ export class GameTree {
     const cpThreshold = opts.cpThreshold ?? 50;
     const maxLossCp = opts.maxLossCp;
     const budget = opts.budget; // max engine analyses over the whole walk (undefined = unlimited)
+    const confirmDepth = opts.confirmDepth; // E1: deep-confirm depth for each line's best-eval pick
     const MATE = 100000;
 
     const { keyMap } = buildKeyIndex(this.game.moves);
@@ -559,35 +569,47 @@ export class GameTree {
     // FEN, clock dropped) + multipv. A position reached by several leaves or move-orders is analysed
     // once. Only a real engine call (cache miss) counts toward analyses / onProgress.
     const evalMemo = new Map<string, PruneEngineLine[] | null>();
-    const analyseCached = async (fen: string, mpv: number): Promise<PruneEngineLine[] | null> => {
-      const k = `${positionKey(fen)}|${mpv}`;
+    const analyseCached = async (fen: string, mpv: number, depth?: number): Promise<PruneEngineLine[] | null> => {
+      const k = `${positionKey(fen)}|${mpv}|${depth ?? 0}`;
       if (evalMemo.has(k)) return evalMemo.get(k) ?? null;
-      const r = await analyse(fen, mpv);
+      const r = await analyse(fen, mpv, depth);
       evalMemo.set(k, r);
       analyses++;
       onProgress?.(analyses, sliceEstimate);
       return r;
     };
 
-    // mover-POV cp of the line's own move when it fell outside the engine's top-k (C2): single-PV eval
-    // of the position AFTER the move, negated to the mover, so the eval trade is never reported null.
-    const evalAfterMove = async (pos: Chess, san: string): Promise<number | null> => {
+    // mover-POV cp of the position AFTER the move (single-PV, negated to the mover). Used to fill an
+    // out-of-top-k stay move (C2) and to deep-confirm a re-route's eval (E1, via the depth override).
+    const evalAfterMove = async (pos: Chess, san: string, depth?: number): Promise<number | null> => {
       const after = pos.clone();
       const mv = parseSan(after, san);
       if (!mv) return null;
       after.play(mv);
       const fen = makeFen(after.toSetup());
-      const sl = await analyseCached(fen, 1);
+      const sl = await analyseCached(fen, 1, depth);
       return sl && sl.length ? -moverCp(fen, sl[0]!) : null; // sl is opponent-POV; negate for the mover
     };
+
+    // A re-route collected for the current line (pos kept for E1's deep re-eval; not emitted).
+    interface Reroute {
+      pos: Chess;
+      atPly: number;
+      rerouteMove: string;
+      joinsPath: string[];
+      savedPlies: number;
+      evalBest: number;
+      evalStay: number | null;
+      evalTranspose: number;
+    }
 
     for (const work of sliceWork) {
       if (budgetSpent) break;
       const { leaf, leafSan, steps, candidates } = work;
-      // Walk candidate nodes earliest first; the first viable re-route prunes the longest tail.
-      let emitted = false;
+      // C1: collect EVERY viable re-route for this line (not just the earliest) — a shallow one saves
+      // more plies, a deeper one may keep a better eval; the caller chooses the trade.
+      const reroutes: Reroute[] = [];
       for (const idx of candidates) {
-        if (emitted) break;
         if (budget != null && analyses >= budget) { budgetSpent = true; break; }
         const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
@@ -621,23 +643,55 @@ export class GameTree {
             evalStayResolved = true;
           }
           if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
-          out.push({
-            linePath: leafSan.slice(),
-            atPath: leafSan.slice(0, s.ply),
-            atPly: s.ply,
-            rerouteMove: e.san,
-            joinsPath: tgt.sanPath,
-            savedPlies: leaf.length - s.ply,
-            evalBest,
-            evalStay,
-            evalTranspose: e.cp,
-            evalDelta: evalStay == null ? null : evalStay - e.cp,
+          reroutes.push({
+            pos: s.pos, atPly: s.ply, rerouteMove: e.san, joinsPath: tgt.sanPath,
+            savedPlies: leaf.length - s.ply, evalBest, evalStay, evalTranspose: e.cp,
           });
-          emitted = true;
-          break;
         }
       }
       if (!budgetSpent) leavesScanned++; // a leaf cut short by budget is left for the next cursor chunk
+      if (!reroutes.length) continue;
+
+      // Tag the per-line winners on each axis: max-savings (earliest; tie → better eval) and
+      // best-eval (highest evalTranspose; tie → more saved).
+      let savIdx = 0;
+      let evIdx = 0;
+      reroutes.forEach((r, i) => {
+        const sav = reroutes[savIdx]!;
+        if (r.savedPlies > sav.savedPlies || (r.savedPlies === sav.savedPlies && r.evalTranspose > sav.evalTranspose)) savIdx = i;
+        const ev = reroutes[evIdx]!;
+        if (r.evalTranspose > ev.evalTranspose || (r.evalTranspose === ev.evalTranspose && r.savedPlies > ev.savedPlies)) evIdx = i;
+      });
+
+      // E1: deep-confirm the best-eval pick so the number the user acts on is trustworthy (selection
+      // itself stays on the cheaper scan eval; only the reported eval is upgraded).
+      let confirmedIdx = -1;
+      if (confirmDepth != null) {
+        const best = reroutes[evIdx]!;
+        const deep = await evalAfterMove(best.pos, best.rerouteMove, confirmDepth);
+        if (deep != null) {
+          best.evalTranspose = deep;
+          confirmedIdx = evIdx;
+        }
+      }
+
+      reroutes.forEach((r, i) => {
+        out.push({
+          linePath: leafSan.slice(),
+          atPath: leafSan.slice(0, r.atPly),
+          atPly: r.atPly,
+          rerouteMove: r.rerouteMove,
+          joinsPath: r.joinsPath,
+          savedPlies: r.savedPlies,
+          evalBest: r.evalBest,
+          evalStay: r.evalStay,
+          evalTranspose: r.evalTranspose,
+          evalDelta: r.evalStay == null ? null : r.evalStay - r.evalTranspose,
+          bestSavings: i === savIdx,
+          bestEval: i === evIdx,
+          evalConfirmed: i === confirmedIdx,
+        });
+      });
     }
 
     out.sort((a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly);
