@@ -253,6 +253,9 @@ ok(budgeted.positionsAnalysed <= 1, "pruneTranspositions: budget caps analyses s
 // metadata reports the cursor advancing to the end (next_leaf null = done).
 const chunk = await prTree.pruneTranspositions("white", { leafStart: 1, leafCount: 1 }, analyseGood);
 ok(chunk.totalLeaves === 2 && chunk.leafStart === 1 && chunk.nextLeaf === null, "pruneTranspositions: leaf cursor reports totals and exhausts");
+// C6: a full (no-cursor) call is the authoritative global ranking (partial:false); a cursor chunk is
+// progress-only (partial:true) and must not be merged by the caller.
+ok(prune.partial === false && chunk.partial === true, "C6: full call is authoritative, cursor chunk is partial");
 // P1 pre-filter: a single line with no branches has no cross-branch transposer, so the scan spends
 // ZERO engine calls and the estimate is 0 (the engine is never consulted on dead nodes).
 const noTrans = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");

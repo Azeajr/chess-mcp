@@ -115,6 +115,10 @@ export interface PruneScanResult {
   totalPositionsEstimate: number;
   /** Self-correcting ETA: positions left to scan, from THIS call's actual cost-per-leaf (null if none scanned). */
   estimatedPositionsRemaining: number | null;
+  /** C6: true when this call did NOT cover the whole tree (a cursor chunk). A partial result's sort is
+   *  chunk-local — it is NOT the global ranking. Only a full (partial:false) call is authoritative; the
+   *  caller must never merge/re-sort partial chunks itself (the tool owns the ranking). */
+  partial: boolean;
 }
 
 // --- shared transposition primitives (gap resolution · stub resolution · shorten) ---
@@ -710,6 +714,7 @@ export class GameTree {
       positionsAnalysed: analyses,
       totalPositionsEstimate,
       estimatedPositionsRemaining,
+      partial: leafStart !== 0 || scannedEnd < totalLeaves,
     };
   }
 

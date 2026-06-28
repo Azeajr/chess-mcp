@@ -99,7 +99,14 @@ comparing handles, with no re-download. See "Edit loop" below.
    YOUR moves earliest-first; the earliest move within a near-best window of #1 that re-routes into a
    DIFFERENT already-prepared line makes the original tail redundant. Each suggestion returns
    `linePath`, `atPath`, `atPly`, `rerouteMove`, `joinsPath`, `savedPlies` (tail dropped), and the
-   eval trade `evalStay` vs `evalTranspose` (`evalDelta` = stay − transpose). Tuning:
+   eval trade `evalStay` vs `evalTranspose` (`evalDelta` = stay − transpose).
+   - **Multiple re-routes per line (C1).** EVERY viable re-route is returned, not just the earliest.
+     Per line, two are tagged: `bestSavings` (earliest node, biggest tail cut) and `bestEval` (best
+     resulting eval) — they often differ, so present BOTH to the user as a memorization-vs-quality
+     choice rather than picking one for them.
+   - **Trustworthy eval (E1).** Pass `confirm_depth` to deep-confirm each line's `bestEval` pick (it
+     comes back `evalConfirmed:true` with the deeper eval). Worth it when the user will act on the eval.
+   Tuning:
    - **Leave `budget` unset.** It is NOT a neutral "scan fewer positions" knob — it is spent
      leaf-by-leaf in tree order, so a low cap silently stops the walk before it reaches the *later*
      leaves and returns fewer or even ZERO suggestions **with no error**. The transposable lines are
@@ -108,11 +115,15 @@ comparing handles, with no re-download. See "Edit loop" below.
    - Effort per position: `movetime_ms` (a better dial than `depth` for the sharp positions a
      re-route lands in) or `depth` (default 14). To match the PWA's coverage use `multipv:3`,
      `cp_threshold:50` (the near-best gate — keeps the re-route from ever being a blunder), no budget.
-   - **Show progress on a long scan.** A full scan can run minutes; Claude Code does NOT surface MCP
-     server progress notifications, so drive it in chunks instead: call with `leaf_start`/`leaf_count`
-     (e.g. 10 leaves at a time) and report the returned `next_leaf` / `total_leaves` to the user
-     between calls (`total_positions_estimate` gives a rough ETA up front). Loop until `next_leaf` is
-     null, accumulating `suggestions`. This also avoids the `budget` silent-truncation trap entirely.
+   - **Ranking is the tool's job, not yours (C6).** A full (no-cursor) call returns ALL suggestions
+     globally sorted (`partial:false`) — that is the authoritative ranking, use it directly. P1 keeps
+     the full scan cheap, so prefer it.
+   - **Progress on a long scan.** Claude Code does NOT surface MCP progress notifications, so for a
+     genuinely long scan drive it in chunks: `leaf_start`/`leaf_count`, reporting `next_leaf` /
+     `total_leaves` between calls (`total_positions_estimate` / `estimated_positions_remaining` for an
+     ETA). But chunk returns are `partial:true` and **chunk-local sorted** — do NOT merge or re-sort
+     them yourself for a final ranking (that would put you, not the engine, in charge of correctness).
+     For the ranked result, make one full call.
    - **Black caveat:** `evalDelta` is white-POV cp. `evalDelta ≤ 0` means the shorter line costs you
      nothing (or gains); a positive `evalDelta` is the eval you trade away for fewer moves — weigh it.
    Apply a chosen suggestion in the Edit loop: prune the **redundant tail at the original line's own
