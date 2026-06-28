@@ -111,6 +111,13 @@ export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
 let pruneToken = 0;
 
+/** U3: abort an in-flight shorten scan. Bumps the token so in-flight engine results are discarded
+ *  (the callback + finally guard on `token === pruneToken` go stale) and clears the scanning flag. */
+export function cancelPrune() {
+  pruneToken++;
+  setPruneScanning(false);
+}
+
 export async function scanPrune() {
   const token = ++pruneToken;
   setPruneError(null);

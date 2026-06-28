@@ -27,6 +27,7 @@ import {
   pruneDone,
   pruneTotal,
   scanPrune,
+  cancelPrune,
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
@@ -187,6 +188,7 @@ export default function RepertoirePanel() {
                 <span class="scan-bar-fill" style={{ width: `${pruneTotal() ? Math.min(100, Math.round((pruneDone() / pruneTotal()) * 100)) : 0}%` }} />
               </span>
               {pruneTotal() ? `${Math.min(pruneDone(), pruneTotal())}/${pruneTotal()}` : "…"}
+              <button class="scan-btn scan-cancel" title="Cancel scan" onClick={(e) => (e.preventDefault(), cancelPrune())}>✕</button>
             </span>
           </Show>
         </summary>
@@ -197,10 +199,12 @@ export default function RepertoirePanel() {
             <div
               class="rep-row"
               onClick={() => onPrune(p)}
-              title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})`}
+              title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
             >
               <span class="bridge-icon">✂</span>
               <span class="san">{p.atPath.join(" ")} → {p.rerouteMove}</span>
+              <Show when={p.bestSavings}><span class="pick-badge sav" title="most moves saved on this line">↓</span></Show>
+              <Show when={p.bestEval}><span class="pick-badge eval" title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}>★</span></Show>
               <span class="fit">−{p.savedPlies}ply{cpDelta(p.evalDelta)}</span>
             </div>
           )}

@@ -561,6 +561,20 @@ body {
   background: var(--accent);
   transition: width 0.15s ease;
 }
+.rep-panel .scan-cancel {
+  padding: 0 0.35rem;
+  line-height: 1;
+}
+.rep-panel .pick-badge {
+  font-size: 0.72rem;
+  padding: 0 0.15rem;
+}
+.rep-panel .pick-badge.sav {
+  color: #6aa84f;
+}
+.rep-panel .pick-badge.eval {
+  color: #e0b341;
+}
 .rep-panel .empty {
   color: var(--muted);
   font-style: italic;
