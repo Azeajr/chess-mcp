@@ -105,8 +105,10 @@ All five (C1/E1/C3/C4/C6) verified live on the real repertoire — see the Verif
   sub-second/-few-seconds); a nice-to-have, not needed.
 - [ ] **W3** Before/after leaf-count preview for a chosen prune — nice-to-have; pairs with a future
   in-UI apply button.
-- [ ] **PWA C3/C4** surface `compare_shortcut_lines` / `check_shortcut_coverage` in the Shorten UI
-  (currently MCP/chat only) — a real follow-up if the PWA shorten flow should be self-serve.
+- [x] **PWA C3/C4** Shorten rows have a "?" inspect button → inline verdict (quality recommend + eval
+  delta + fit + structure labels + fit-weak flag + coverage-safe/⚠). C3/C4 extracted to chess-tools
+  core (`compareShortcutLines`/`checkShortcutCoverage`) so MCP + PWA share one implementation. Verified
+  in-app.
 
 ## Tier 5 — footgun, needs a guardrail
 
