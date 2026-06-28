@@ -249,6 +249,43 @@ server.tool(
 );
 
 server.tool(
+  "check_shortcut_coverage",
+  "C4 — before applying a shorten suggestion, check the prune doesn't open a NEW gap. Prunes the line's redundant tail (line_path truncated to at_ply+1 — the same node pruneTailPath gives) on a COPY, re-runs the gap scan, and returns gaps present AFTER the prune but not before: uncovered opponent replies the pruned tail had been covering (e.g. by transposition for another line). introduces_gap=false ⇒ the shortcut is coverage-safe. Engine-backed — run it for the one suggestion you're about to apply, not every suggestion.",
+  {
+    repertoire_id: z.string(),
+    line_path: z.array(z.string()),
+    at_ply: z.number().int().min(0),
+    depth: z.number().int().min(1).max(30).optional(),
+    min_severity: z.enum(["low", "medium", "high"]).optional(),
+    max_positions: z.number().int().min(1).max(60).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  },
+  async ({ repertoire_id, line_path, at_ply, depth, min_severity, max_positions, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const prunes = line_path.slice(0, at_ply + 1);
+    if (!prunes.length) return ok({ error: "invalid_prune", reason: "at_ply must leave a non-empty prune path" });
+    const edited = e.tree.edit("prune", prunes);
+    if (!edited.tree) return ok({ error: edited.error });
+    const gapsOpts = { depth, minSeverity: min_severity, maxPositions: max_positions, limit };
+    const before = await findRepertoireGaps(e.tree, e.color, gapsOpts, analyseMulti);
+    if ("error" in before) return ok(before);
+    const after = await findRepertoireGaps(edited.tree, e.color, gapsOpts, analyseMulti);
+    if ("error" in after) return ok(after);
+    const key = (g: { fen: string; uncovered_move: string }) => `${g.fen}|${g.uncovered_move}`;
+    const beforeSet = new Set(before.gaps.map(key));
+    const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));
+    return ok({
+      prunes,
+      introduces_gap: new_gaps.length > 0,
+      new_gaps,
+      before_total: before.total_gaps,
+      after_total: after.total_gaps,
+    });
+  },
+);
+
+server.tool(
   "get_repertoire_coverage",
   "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers. Pass connect_stubs=true to engine-check whether each dangling stub bridges back into existing prep — resolved stubs report connects_via (the engine-best SAN sequence) + joins_path, so you wire them with no new theory.",
   { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional() },

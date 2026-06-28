@@ -126,6 +126,11 @@ comparing handles, with no re-download. See "Edit loop" below.
      For the ranked result, make one full call.
    - **Black caveat:** `evalDelta` is white-POV cp. `evalDelta ≤ 0` means the shorter line costs you
      nothing (or gains); a positive `evalDelta` is the eval you trade away for fewer moves — weigh it.
+   - **Coverage-safety before applying (C4).** A shortcut deletes the line's tail; that tail may have
+     been the only cover for some opponent reply (e.g. by transposition for another line). Run
+     `check_shortcut_coverage(repertoire_id, line_path, at_ply)` first — it prunes on a copy, re-runs
+     the gap scan, and returns `introduces_gap` + the `new_gaps`. If it opens a gap, weigh it or pick a
+     different re-route. Run it only for the suggestion you're about to apply (it's engine-backed).
    Apply a chosen suggestion in the Edit loop: prune the **redundant tail at the original line's own
    node** — `modify_repertoire_line(prune)` at `linePath` truncated to `atPly+1` moves (one ply
    deeper than `atPath`). That drops the long tail and leaves the `joinsPath` branch as the surviving

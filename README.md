@@ -4,7 +4,7 @@
 
 Grounded chess analysis for AI agents (Claude Code, etc.) via Stockfish — plus a local repertoire-building PWA. The MCP server runs as a **single Node.js process** (no Docker, no Python); a **SolidJS web app** shares the same TypeScript chess logic. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
 
-> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 31 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
+> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 32 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
 
 ## Quickstart
 
@@ -43,7 +43,7 @@ pnpm monorepo, one shared chess library serving both the MCP server and the web 
 ```
 packages/chess-tools   shared TypeScript logic (chessops + structure classifier + ECO +
                        congruence + gaps + game review + rate-limited HTTP)
-apps/mcp-server        Node MCP server — 31 tools over chess-tools + stockfish (npm wasm)
+apps/mcp-server        Node MCP server — 32 tools over chess-tools + stockfish (npm wasm)
 apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
 
 Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
@@ -213,7 +213,7 @@ chess-mcp/
 ├── packages/
 │   └── chess-tools/         # shared TS lib: GameTree, structure classifier, congruence, gaps, ECO, HTTP
 ├── apps/
-│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 31 tools + stockfish wasm
+│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 32 tools + stockfish wasm
 │   └── ui/                  # SolidJS + Vite PWA: board, congruence arrows, gap scan, cloud eval, chat
 ├── scripts/                 # engine-free smoke: smoke-gametree.mjs, structure-accuracy.mjs
 ├── docs/design/             # design specs (repertoire, structure classifier, node migration, …)
