@@ -183,6 +183,124 @@ export async function findRepertoireGaps(
   return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps, covered_by_transposition: covered };
 }
 
+// --- shorten suggestion vetting (shared by the MCP tools and the PWA Shorten UI) ---
+
+/** C3 — quality of a shortcut: the line you'd ADOPT (transpose into joinsPath) vs the one you'd
+ *  ABANDON (stay on linePath past atPly), on eval (at the fork) + structural fit (subtree distribution
+ *  vs the repertoire aggregate). Recommends eval unless |evalDelta| ≤ tiebreak, then fit. */
+export interface ShortcutComparison {
+  recommend: "stay" | "transpose";
+  basis: "eval" | "fit" | "fit_eval_unavailable";
+  eval_disagrees_with_fit: boolean;
+  evalStay: number | null;
+  evalTranspose: number | null;
+  evalDelta: number | null;
+  fitStay: number;
+  fitTranspose: number;
+  structureStay: string;
+  structureTranspose: string;
+  unknownShareStay: number;
+  unknownShareTranspose: number;
+}
+
+export async function compareShortcutLines(
+  tree: GameTree,
+  opts: { linePath: string[]; atPly: number; joinsPath: string[]; depth?: number; evalTiebreakCp?: number },
+  analyse: Analyse,
+): Promise<ShortcutComparison | { error: string }> {
+  const stayPath = opts.linePath.slice(0, opts.atPly + 1);
+  const stayFen = tree.fenAtSanPath(stayPath);
+  const joinFen = tree.fenAtSanPath(opts.joinsPath);
+  const subA = tree.subtreeLeafBoards(stayPath);
+  const subB = tree.subtreeLeafBoards(opts.joinsPath);
+  if (!stayFen || !joinFen || !subA || !subB) return { error: "path_not_found" };
+
+  const MATE = 100000;
+  const yourEval = async (fen: string): Promise<number | null> => {
+    const r = await analyse(fen, 1, opts.depth ?? 16);
+    if (!r || !r.length) return null;
+    const l = r[0]!;
+    const white = l.mate != null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
+    const moverWhite = fen.split(" ")[1] === "w";
+    return -(moverWhite ? white : -white); // turn is the OPPONENT (after your move); negate to your POV
+  };
+  const evalStay = await yourEval(stayFen);
+  const evalTranspose = await yourEval(joinFen);
+  const evalDelta = evalStay != null && evalTranspose != null ? evalStay - evalTranspose : null;
+
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const aggregate = profileStructureShares(tree.leafPositions().map((p) => p.board));
+  const fitOf = (boards: Parameters<typeof profileStructureShares>[0]) => {
+    const dist = profileStructureShares(boards);
+    const fit = Object.entries(dist).reduce((s, [k, v]) => (k === "unknown" ? s : s + v * (aggregate[k] ?? 0)), 0);
+    return { fit: r2(fit), unknown: r2(dist.unknown ?? 0) };
+  };
+  const fa = fitOf(subA);
+  const fb = fitOf(subB);
+  const labelOf = (sans: string[]) => {
+    const b = tree.mainlineLeafBoard(sans);
+    return b ? classifyStructure(b).structure_class : "unknown";
+  };
+
+  const tb = opts.evalTiebreakCp ?? 30;
+  const fitPref = fb.fit >= fa.fit ? "transpose" : "stay";
+  let recommend: "stay" | "transpose";
+  let basis: "eval" | "fit" | "fit_eval_unavailable";
+  if (evalDelta != null && Math.abs(evalDelta) > tb) {
+    recommend = evalDelta < 0 ? "transpose" : "stay";
+    basis = "eval";
+  } else {
+    recommend = fitPref;
+    basis = evalDelta == null ? "fit_eval_unavailable" : "fit";
+  }
+  const evalPref = evalDelta == null ? null : evalDelta < 0 ? "transpose" : "stay";
+  return {
+    recommend,
+    basis,
+    eval_disagrees_with_fit: evalPref != null && evalPref !== fitPref,
+    evalStay,
+    evalTranspose,
+    evalDelta,
+    fitStay: fa.fit,
+    fitTranspose: fb.fit,
+    structureStay: labelOf(stayPath),
+    structureTranspose: labelOf(opts.joinsPath),
+    unknownShareStay: fa.unknown,
+    unknownShareTranspose: fb.unknown,
+  };
+}
+
+/** C4 — coverage safety: prune the line's tail (linePath truncated to atPly+1) on a COPY, re-run the
+ *  gap scan, and return gaps present after but not before (replies the pruned tail had been covering). */
+export interface ShortcutCoverage {
+  prunes: string[];
+  introduces_gap: boolean;
+  new_gaps: Gap[];
+  before_total: number;
+  after_total: number;
+}
+
+export async function checkShortcutCoverage(
+  tree: GameTree,
+  color: Color,
+  opts: { linePath: string[]; atPly: number; depth?: number; minSeverity?: Severity; maxPositions?: number; limit?: number },
+  analyse: Analyse,
+): Promise<ShortcutCoverage | { error: string }> {
+  const prunes = opts.linePath.slice(0, opts.atPly + 1);
+  if (!prunes.length) return { error: "invalid_prune" };
+  const edited = tree.edit("prune", prunes);
+  if (!edited.tree) return { error: edited.error ?? "invalid_edit" };
+  const gapsOpts = { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: opts.limit };
+  const before = await findRepertoireGaps(tree, color, gapsOpts, analyse);
+  if ("error" in before) return { error: before.error };
+  const after = await findRepertoireGaps(edited.tree, color, gapsOpts, analyse);
+  if ("error" in after) return { error: after.error };
+  const key = (g: Gap) => `${g.fen}|${g.uncovered_move}`;
+  const beforeSet = new Set(before.gaps.map(key));
+  const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));
+  return { prunes, introduces_gap: new_gaps.length > 0, new_gaps, before_total: before.total_gaps, after_total: after.total_gaps };
+}
+
 // --- resolve_dangling_stubs (engine-vetted: does a dangling stub rejoin prep?) ---
 
 export interface StubResolution {

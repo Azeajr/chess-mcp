@@ -575,6 +575,39 @@ body {
 .rep-panel .pick-badge.eval {
   color: #e0b341;
 }
+.rep-panel .inspect-btn {
+  margin-left: 0.3rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+}
+.rep-panel .inspect-btn:hover,
+.rep-panel .inspect-btn.on {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.rep-panel .shortcut-detail {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.2rem 0.4rem 1.6rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.rep-panel .shortcut-detail .muted {
+  color: var(--muted);
+}
+.rep-panel .shortcut-detail .warn {
+  color: #e08b41;
+}
+.rep-panel .shortcut-detail .safe {
+  color: #6aa84f;
+}
 .rep-panel .empty {
   color: var(--muted);
   font-style: italic;

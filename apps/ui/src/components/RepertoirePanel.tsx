@@ -28,6 +28,13 @@ import {
   pruneTotal,
   scanPrune,
   cancelPrune,
+  inspectShortcut,
+  inspectKey,
+  shortcutKey,
+  comparison,
+  coverage,
+  inspecting,
+  inspectError,
   type CongruenceFlag,
   type ReplacementResult,
 } from "../store/repertoire";
@@ -196,17 +203,53 @@ export default function RepertoirePanel() {
         <Show when={pruneSuggestions() && pruneSuggestions()!.length === 0}><div class="empty">No shortenable lines.</div></Show>
         <For each={pruneSuggestions() ?? []}>
           {(p: PruneSuggestion) => (
-            <div
-              class="rep-row"
-              onClick={() => onPrune(p)}
-              title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
-            >
-              <span class="bridge-icon">✂</span>
-              <span class="san">{p.atPath.join(" ")} → {p.rerouteMove}</span>
-              <Show when={p.bestSavings}><span class="pick-badge sav" title="most moves saved on this line">↓</span></Show>
-              <Show when={p.bestEval}><span class="pick-badge eval" title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}>★</span></Show>
-              <span class="fit">−{p.savedPlies}ply{cpDelta(p.evalDelta)}</span>
-            </div>
+            <>
+              <div
+                class="rep-row"
+                onClick={() => onPrune(p)}
+                title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
+              >
+                <span class="bridge-icon">✂</span>
+                <span class="san">{p.atPath.join(" ")} → {p.rerouteMove}</span>
+                <Show when={p.bestSavings}><span class="pick-badge sav" title="most moves saved on this line">↓</span></Show>
+                <Show when={p.bestEval}><span class="pick-badge eval" title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}>★</span></Show>
+                <span class="fit">−{p.savedPlies}ply{cpDelta(p.evalDelta)}</span>
+                <button
+                  class={`inspect-btn${inspectKey() === shortcutKey(p) ? " on" : ""}`}
+                  title="Inspect: quality (eval + fit) and coverage safety"
+                  onClick={(e) => (e.stopPropagation(), void inspectShortcut(p))}
+                >?</button>
+              </div>
+              <Show when={inspectKey() === shortcutKey(p)}>
+                <div class="shortcut-detail">
+                  <Show when={inspecting()}><span class="empty">checking…</span></Show>
+                  <Show when={inspectError()}><span class="empty">{inspectError()}</span></Show>
+                  <Show when={comparison()}>
+                    {(c) => (
+                      <div>
+                        <div>
+                          quality: <b>{c().recommend === "transpose" ? "take shortcut" : "keep line"}</b>{" "}
+                          <span class="muted">({c().basis}{c().eval_disagrees_with_fit ? ", eval/fit disagree" : ""})</span>
+                        </div>
+                        <div class="muted">
+                          evalΔ {c().evalDelta == null ? "?" : (c().evalDelta! / 100).toFixed(2)} · fit {c().fitStay}→{c().fitTranspose} · {c().structureStay}→{c().structureTranspose}
+                        </div>
+                        <Show when={Math.max(c().unknownShareStay, c().unknownShareTranspose) >= 0.5}>
+                          <div class="warn">fit weak — {Math.round(c().unknownShareStay * 100)}% / {Math.round(c().unknownShareTranspose * 100)}% unclassified</div>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
+                  <Show when={coverage()}>
+                    {(cov) => (
+                      <div class={cov().introduces_gap ? "warn" : "safe"}>
+                        {cov().introduces_gap ? `⚠ opens ${cov().new_gaps.length} new gap${cov().new_gaps.length === 1 ? "" : "s"}` : "✓ coverage-safe"}
+                      </div>
+                    )}
+                  </Show>
+                </div>
+              </Show>
+            </>
           )}
         </For>
       </details>

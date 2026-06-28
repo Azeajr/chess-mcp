@@ -5,7 +5,14 @@
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
-import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
+import {
+  compareShortcutLines,
+  checkShortcutCoverage,
+  type ExtendedBridge,
+  type PruneSuggestion,
+  type ShortcutComparison,
+  type ShortcutCoverage,
+} from "@chess-mcp/chess-tools";
 import { runTool } from "../llm/tools";
 import { currentTree, color } from "./game";
 import { analyseMulti } from "../engine/stockfish";
@@ -144,6 +151,58 @@ export async function scanPrune() {
     setPruneError(e instanceof Error ? e.message : String(e));
   } finally {
     if (token === pruneToken) setPruneScanning(false);
+  }
+}
+
+// --- C3/C4: inspect a chosen shortcut (quality + coverage safety), via the shared chess-tools core ---
+
+const INSPECT_DEPTH = 12;
+const INSPECT_MAX_POSITIONS = 12; // gap-scan decision nodes per side (before/after) — keep the UI snappy
+
+const [inspectKey, setInspectKey] = createSignal<string | null>(null);
+const [comparison, setComparison] = createSignal<ShortcutComparison | null>(null);
+const [coverage, setCoverage] = createSignal<ShortcutCoverage | null>(null);
+const [inspecting, setInspecting] = createSignal(false);
+const [inspectError, setInspectError] = createSignal<string | null>(null);
+export { inspectKey, comparison, coverage, inspecting, inspectError };
+
+/** Stable identity for a suggestion row (a line can now have several re-routes). */
+export function shortcutKey(p: PruneSuggestion): string {
+  return `${p.linePath.join(",")}|${p.atPly}|${p.rerouteMove}`;
+}
+
+let inspectToken = 0;
+
+export async function inspectShortcut(p: PruneSuggestion) {
+  const key = shortcutKey(p);
+  if (inspectKey() === key && !inspecting()) {
+    // toggle the open inspection closed
+    setInspectKey(null);
+    setComparison(null);
+    setCoverage(null);
+    return;
+  }
+  const token = ++inspectToken;
+  setInspectKey(key);
+  setComparison(null);
+  setCoverage(null);
+  setInspectError(null);
+  setInspecting(true);
+  const analyse = (fen: string, mpv: number, depth?: number) => analyseMulti(fen, mpv, depth ?? INSPECT_DEPTH);
+  try {
+    const tree = currentTree();
+    const cmp = await compareShortcutLines(tree, { linePath: p.linePath, atPly: p.atPly, joinsPath: p.joinsPath, depth: INSPECT_DEPTH }, analyse);
+    const cov = await checkShortcutCoverage(tree, color(), { linePath: p.linePath, atPly: p.atPly, depth: INSPECT_DEPTH, maxPositions: INSPECT_MAX_POSITIONS }, analyse);
+    if (token !== inspectToken) return;
+    setComparison("error" in cmp ? null : cmp);
+    setCoverage("error" in cov ? null : cov);
+    const err = ("error" in cmp && cmp.error) || ("error" in cov && cov.error) || null;
+    if (err) setInspectError(err === "engine_unavailable" ? "engine offline" : err);
+  } catch (e) {
+    if (token !== inspectToken) return;
+    setInspectError(e instanceof Error ? e.message : String(e));
+  } finally {
+    if (token === inspectToken) setInspecting(false);
   }
 }
 

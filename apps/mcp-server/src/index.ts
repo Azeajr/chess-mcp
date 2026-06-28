@@ -36,8 +36,8 @@ import {
   walkGameVsRepertoire,
   positionProfile,
   aggregateProfile,
-  profileStructureShares,
-  classifyStructure,
+  compareShortcutLines,
+  checkShortcutCoverage,
   analyzeCongruence,
   type Color,
   type MoveRecord,
@@ -265,25 +265,14 @@ server.tool(
   async ({ repertoire_id, line_path, at_ply, depth, min_severity, max_positions, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const prunes = line_path.slice(0, at_ply + 1);
-    if (!prunes.length) return ok({ error: "invalid_prune", reason: "at_ply must leave a non-empty prune path" });
-    const edited = e.tree.edit("prune", prunes);
-    if (!edited.tree) return ok({ error: edited.error });
-    const gapsOpts = { depth, minSeverity: min_severity, maxPositions: max_positions, limit };
-    const before = await findRepertoireGaps(e.tree, e.color, gapsOpts, analyseMulti);
-    if ("error" in before) return ok(before);
-    const after = await findRepertoireGaps(edited.tree, e.color, gapsOpts, analyseMulti);
-    if ("error" in after) return ok(after);
-    const key = (g: { fen: string; uncovered_move: string }) => `${g.fen}|${g.uncovered_move}`;
-    const beforeSet = new Set(before.gaps.map(key));
-    const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));
-    return ok({
-      prunes,
-      introduces_gap: new_gaps.length > 0,
-      new_gaps,
-      before_total: before.total_gaps,
-      after_total: after.total_gaps,
-    });
+    return ok(
+      await checkShortcutCoverage(
+        e.tree,
+        e.color,
+        { linePath: line_path, atPly: at_ply, depth, minSeverity: min_severity, maxPositions: max_positions, limit },
+        analyseMulti,
+      ),
+    );
   },
 );
 
@@ -301,67 +290,13 @@ server.tool(
   async ({ repertoire_id, line_path, at_ply, joins_path, depth, eval_tiebreak_cp }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const tree = e.tree;
-    const stayPath = line_path.slice(0, at_ply + 1);
-    const stayFen = tree.fenAtSanPath(stayPath);
-    const joinFen = tree.fenAtSanPath(joins_path);
-    const subA = tree.subtreeLeafBoards(stayPath);
-    const subB = tree.subtreeLeafBoards(joins_path);
-    if (!stayFen || !joinFen || !subA || !subB) return ok({ error: "path_not_found" });
-
-    const MATE = 100000;
-    const yourEval = async (fen: string): Promise<number | null> => {
-      const r = await analyseMulti(fen, 1, depth ?? 16);
-      if (!r || !r.length) return null;
-      const l = r[0]!;
-      const white = l.mate != null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
-      const moverWhite = fen.split(" ")[1] === "w";
-      return -(moverWhite ? white : -white); // turn is the OPPONENT (after your move); negate to your POV
-    };
-    const evalStay = await yourEval(stayFen);
-    const evalTranspose = await yourEval(joinFen);
-    const evalDelta = evalStay != null && evalTranspose != null ? evalStay - evalTranspose : null;
-
-    const r2 = (x: number) => Math.round(x * 100) / 100;
-    const aggregate = profileStructureShares(tree.leafPositions().map((p) => p.board));
-    const fitOf = (boards: Parameters<typeof profileStructureShares>[0]) => {
-      const dist = profileStructureShares(boards);
-      const fit = Object.entries(dist).reduce((s, [k, v]) => (k === "unknown" ? s : s + v * (aggregate[k] ?? 0)), 0);
-      return { fit: r2(fit), unknown: r2(dist.unknown ?? 0) };
-    };
-    const fa = fitOf(subA);
-    const fb = fitOf(subB);
-    const labelOf = (sans: string[]) => {
-      const b = tree.mainlineLeafBoard(sans);
-      return b ? classifyStructure(b).structure_class : "unknown";
-    };
-
-    const tb = eval_tiebreak_cp ?? 30;
-    const fitPref = fb.fit >= fa.fit ? "transpose" : "stay";
-    let recommend: string;
-    let basis: string;
-    if (evalDelta != null && Math.abs(evalDelta) > tb) {
-      recommend = evalDelta < 0 ? "transpose" : "stay";
-      basis = "eval";
-    } else {
-      recommend = fitPref;
-      basis = evalDelta == null ? "fit_eval_unavailable" : "fit";
-    }
-    const evalPref = evalDelta == null ? null : evalDelta < 0 ? "transpose" : "stay";
-    return ok({
-      recommend,
-      basis,
-      eval_disagrees_with_fit: evalPref != null && evalPref !== fitPref,
-      evalStay,
-      evalTranspose,
-      evalDelta,
-      fitStay: fa.fit,
-      fitTranspose: fb.fit,
-      structureStay: labelOf(stayPath),
-      structureTranspose: labelOf(joins_path),
-      unknownShareStay: fa.unknown,
-      unknownShareTranspose: fb.unknown,
-    });
+    return ok(
+      await compareShortcutLines(
+        e.tree,
+        { linePath: line_path, atPly: at_ply, joinsPath: joins_path, depth, evalTiebreakCp: eval_tiebreak_cp },
+        analyseMulti,
+      ),
+    );
   },
 );
 

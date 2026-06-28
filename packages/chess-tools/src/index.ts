@@ -46,6 +46,8 @@ export {
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
+  compareShortcutLines,
+  checkShortcutCoverage,
 } from "./enginetools.js";
 export type {
   Analyse,
@@ -59,4 +61,6 @@ export type {
   CoverageResolution,
   SuggestComplementaryOptions,
   SuggestReplacementOptions,
+  ShortcutComparison,
+  ShortcutCoverage,
 } from "./enginetools.js";

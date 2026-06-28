@@ -2,6 +2,8 @@
 import {
   GameTree,
   pruneTailPath,
+  compareShortcutLines,
+  checkShortcutCoverage,
   classifyUciMove,
   weightFor,
   decisionNodes,
@@ -309,6 +311,21 @@ ok(prTree.subtreeLeafBoards(["d4", "Nf6", "Nf3", "e6", "Bf4"]).length === 1, "C3
 ok(prTree.subtreeLeafBoards(["d4", "Qh5"]) === null, "C3: subtreeLeafBoards returns null for an absent path");
 ok(prTree.mainlineLeafBoard(["d4", "Nf6"]) !== null, "C3: mainlineLeafBoard follows first-children to a leaf");
 ok(typeof prTree.fenAtSanPath(["d4", "Nf6"]) === "string" && prTree.fenAtSanPath(["d4", "Qh5"]) === null, "C3: fenAtSanPath resolves a path / null when absent");
+// C3 core (compareShortcutLines): constant-eval stub → evalDelta 0 → fit breaks the tie; both branches
+// of prTree are short/unclassifiable so structures are "unknown".
+const flat = async () => [{ uci: "a2a3", cp: 0, mate: null }];
+const cmp = await compareShortcutLines(prTree, { linePath: ["d4", "Nf6", "Nf3", "e6", "Bf4"], atPly: 2, joinsPath: ["d4", "Nf6", "c4"] }, flat);
+ok(!("error" in cmp) && cmp.basis === "fit" && cmp.evalDelta === 0, "C3: compareShortcutLines falls back to fit when eval is a wash");
+ok(typeof cmp.fitStay === "number" && (cmp.recommend === "stay" || cmp.recommend === "transpose"), "C3: returns fit scores + a recommendation");
+const cmpBad = await compareShortcutLines(prTree, { linePath: ["d4", "Nf6"], atPly: 1, joinsPath: ["d4", "Qh5"] }, flat);
+ok("error" in cmpBad && cmpBad.error === "path_not_found", "C3: bad joins_path → path_not_found");
+// C4 core (checkShortcutCoverage): [] stub means the gap scan finds nothing, so pruning the tail opens
+// no new gap; the prune path is line_path truncated to at_ply+1.
+const empty = async () => [];
+const cov = await checkShortcutCoverage(prTree, "white", { linePath: ["d4", "Nf6", "Nf3", "e6", "Bf4"], atPly: 2 }, empty);
+ok(!("error" in cov) && cov.introduces_gap === false && cov.prunes.join(" ") === "d4 Nf6 Nf3", "C4: checkShortcutCoverage prunes the tail and reports coverage-safe");
+const covErr = await checkShortcutCoverage(prTree, "white", { linePath: ["d4", "Nf6", "Nf3", "e6", "Bf4"], atPly: 2 }, async () => null);
+ok("error" in covErr && covErr.error === "engine_unavailable", "C4: propagates engine_unavailable");
 
 // 16g. findRepertoireGaps — transposition-first resolution. At the decision node after
 // 1.d4 Nf6 2.c4 e6 3.Nc3 (black to move, prep = ...Bb4), the uncovered reply ...d5 transposes into
