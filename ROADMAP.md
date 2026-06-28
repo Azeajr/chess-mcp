@@ -29,7 +29,10 @@ engine-grounded.
   `analyze_game`/`get_game_summary`/`export_annotated_pgn` — is mainline-only.)
 - **Repertoire tool suite** — load (incl. by file path), structural profile, system-clustered
   congruence, coverage, engine gap scan, transpositions, complementary/replacement line suggestion,
-  illustrative-line classification, the clone-on-write edit loop, and PGN export.
+  illustrative-line classification, the clone-on-write edit loop, and PGN export. **Shorten** is a
+  pipeline: `find_pruning_transpositions` (all re-routes per line, `bestSavings`/`bestEval`, deep
+  confirm, leaf-cursor paging) → `compare_shortcut_lines` (quality: eval + structural fit) →
+  `check_shortcut_coverage` (does the prune open a gap), shared with the PWA's Shorten inspect UI.
 - **Claude Code plugin** — `plugin/` + `.claude-plugin/marketplace.json`, v1.0.0, Node stdio, no
   Docker hook. Installable via `claude plugin marketplace add Azeajr/chess-mcp`.
 - **PWA** — board, engine-congruence arrows, on-demand gap scan, Lichess cloud eval, OpenRouter chat,

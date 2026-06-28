@@ -62,8 +62,9 @@ both manifests when the tool surface changes.
 - **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars (`src/handles.ts`).
 - **Gap scan defaults**: `find_repertoire_gaps` searches `depth ?? 14`, `multipv=4`; transposition-first (a strong uncovered reply that rejoins prep on another line is reported under `covered_by_transposition`, not counted).
 - **`compare_moves`**: returns `illegal` list, NOT an error, for unrecognized moves.
-- **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`.
-- **Engine knobs**: `depth` clamped `[1,30]` (per-tool default 12–16); `evaluate_position` `lines` ≤5; `find_pruning_transpositions` `multipv` ≤8 + `movetime_ms` + `budget`.
+- **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`, `path_not_found`, `invalid_prune`.
+- **Engine knobs**: `depth` clamped `[1,30]` (per-tool default 12–16); `evaluate_position` `lines` ≤5; `find_pruning_transpositions` `multipv` ≤8 + `movetime_ms` + `confirm_depth` (deep-confirm bestEval) + `leaf_start`/`leaf_count` (progress-only cursor; full call owns the ranking) + `budget`.
+- **Shorten vetting**: `find_pruning_transpositions` returns all re-routes per line tagged `bestSavings`/`bestEval`; `compare_shortcut_lines` (quality: eval + structural fit) and `check_shortcut_coverage` (does the prune open a gap) share one chess-tools core (`compareShortcutLines`/`checkShortcutCoverage`) with the PWA.
 
 ## Style / conventions
 

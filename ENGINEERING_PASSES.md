@@ -15,11 +15,14 @@ Repo shape the prompts assume:
 - `apps/mcp-server/src/handles.ts` — the in-memory repertoire handle cache (LRU + idle TTL).
 - `packages/chess-tools/src/` — the pure, engine-free chess logic (chessops, not python-chess):
   `pgn.ts` (the **GameTree** variation tree: walk/edit, `transpositions()` + `pruneTranspositions()`
-  (line-shortening) + `extendedBridges()` (stub connector), index↔SAN path helpers), `structure.ts`
+  (line-shortening: candidate-node pre-filter, transposition-keyed scan memo, all re-routes per line
+  tagged bestSavings/bestEval, deep-confirm, leaf-cursor paging) + `extendedBridges()` (stub
+  connector), subtree/mainline-leaf + index↔SAN path helpers), `structure.ts`
   (pawn-structure classifier + theme tags), `repcongruence.ts` (system-clustered congruence +
   replacement-pivot), `gaps.ts` (gaps + coverage), `congruence.ts` (eval congruence + position keys),
   `enginetools.ts` (the engine-ORCHESTRATED half — gaps scan, game review,
-  suggest_complementary/replacement — takes an `analyse` callback so it stays engine-agnostic),
+  suggest_complementary/replacement, `compareShortcutLines`/`checkShortcutCoverage` (shorten vetting,
+  shared by MCP + PWA) — takes an `analyse` callback so it stays engine-agnostic),
   `game.ts` (single-line mainline walker + cp-loss classes), `openings.ts` (ECO lookup), `validate.ts`
   (PGN/FEN/line validation), `apiclient.ts`/`games.ts`/`cloudeval.ts`/`tablebase.ts` (rate-limited,
   offline-safe HTTP).
