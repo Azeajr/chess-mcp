@@ -20,6 +20,12 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
   suggestions → cache hits serve the whole repeat. (Scan #2 wall-time was a polling artifact, not real
   cost — the search counter is the evidence.) Incidentally also confirmed P2 live: 1 search → 2
   suggestions from the shared node. Temp instrumentation reverted; tree clean.
+- **Tier 2 (MCP, live):** C1 — the real repertoire went 6 → 12 suggestions (multiple re-routes/line),
+  tagged `bestSavings`/`bestEval`. E1 — `confirm_depth:18` moved a pick's `evalTranspose` 25 → 16
+  (delta 3 → 12), `evalConfirmed:true` only on bestEval picks. C6 — full call `partial:false`. C3 —
+  on the `1.b4 e5` shortcut: `recommend:stay basis:fit`, `evalDelta 16`, `fitStay 0.03 > fitTranspose 0`,
+  and `unknownShareTranspose:1.0` correctly flags the join branch as too-short-to-classify. C4 —
+  `introduces_gap:false`, coverage-safe. All five behave as designed.
 
 ## Why not just do all at once
 
@@ -80,7 +86,7 @@ Core lives in `packages/chess-tools/src/pgn.ts` (`pruneTranspositions` → `Prun
 - [~] **E2** DOCUMENT only — two wasm builds differ at the margin; MCP is the soundness reference.
 - [~] **E3** NOT built — `movetime_ms` is already a manual dial.
 
-Live verification of the two new tools (C3/C4) + the C1/E1/C6 changes is pending an MCP reconnect.
+All five (C1/E1/C3/C4/C6) verified live on the real repertoire — see the Verification log above.
 
 ## Tier 3 — defer until profiled (premature optimization)
 
