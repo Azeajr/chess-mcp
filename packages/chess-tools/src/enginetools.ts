@@ -43,14 +43,20 @@ export interface EngineLine {
 export type Analyse = (fen: string, multipv: number, depth: number) => Promise<EngineLine[] | null>;
 
 const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
-// Mate-sentinel NOTE: this file deliberately carries TWO magnitudes, and unifying them would change
-// tool output (out of scope for a structural pass). evalWhite maps mate → ±10000 — suggest_complementary
-// /suggest_replacement surface this in their `eval`/`eval_cp` — while the inline `MATE_CP` (100000)
-// feeds analyze_game (eval_cp), find_repertoire_gaps (severity) and compare_moves (mover_cp). Each only
-// needs an internally-consistent "decisive" sentinel, so keep them separate rather than silently shifting
-// a published eval number.
-const evalWhite = (l: { cp: number | null; mate: number | null }) =>
-  l.mate !== null ? (l.mate > 0 ? 10000 : -10000) : (l.cp ?? 0);
+
+// Mate-sentinel NOTE: this file deliberately carries TWO magnitudes, and unifying them WOULD change tool
+// output (out of scope). The magnitude is therefore an explicit argument to whitePov, so each call site
+// states which it wants instead of hiding the choice in a hand-inlined copy (and a future sign fix can't
+// miss a stray copy): 100000 for internal decisive/severity math (analyze_game eval_cp, find_repertoire_gaps
+// severity, compare_moves mover_cp) vs 10000 for the published `eval`/`eval_cp` of suggest_* (via evalWhite).
+type ScoreLine = { cp: number | null; mate: number | null };
+/** White-POV centipawns; a mate maps to ±mateCp (the caller picks the sentinel magnitude). */
+const whitePov = (l: ScoreLine, mateCp: number): number =>
+  l.mate !== null ? (l.mate > 0 ? mateCp : -mateCp) : (l.cp ?? 0);
+/** whitePov flipped to the side to move (the mover). */
+const moverPov = (l: ScoreLine, moverIsWhite: boolean, mateCp: number): number =>
+  (moverIsWhite ? 1 : -1) * whitePov(l, mateCp);
+const evalWhite = (l: ScoreLine) => whitePov(l, 10000);
 const pvSan = (fen: string, pv: string[]): string => {
   const pos = chessFromFen(fen);
   const out: string[] = [];
@@ -100,8 +106,7 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
       evals.push({ whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0, bestUci: "" });
       continue;
     }
-    const whiteCp = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-    evals.push({ whiteCp, bestUci: l.uci });
+    evals.push({ whiteCp: whitePov(l, MATE_CP), bestUci: l.uci });
   }
 
   return moves.map((m, k) => {
@@ -171,10 +176,7 @@ export async function findRepertoireGaps(
     const res = await analyse(node.fen, 4, opts.depth ?? 14);
     if (!res) return { error: "engine_unavailable" };
     const moverIsWhite = node.fen.split(" ")[1] === "w";
-    const moverCp = (l: EngineLine) => {
-      const w = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-      return moverIsWhite ? w : -w;
-    };
+    const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
     const best = res.length ? moverCp(res[0]!) : 0;
     for (const l of res) {
       const san = moveSan(node.fen, l.uci);
@@ -232,14 +234,11 @@ export async function compareShortcutLines(
   const subB = tree.subtreeLeafBoards(opts.joinsPath);
   if (!stayFen || !joinFen || !subA || !subB) return { error: "path_not_found" };
 
-  const MATE = 100000;
   const yourEval = async (fen: string): Promise<number | null> => {
     const r = await analyse(fen, 1, opts.depth ?? 16);
     if (!r || !r.length) return null;
-    const l = r[0]!;
-    const white = l.mate != null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
-    const moverWhite = fen.split(" ")[1] === "w";
-    return -(moverWhite ? white : -white); // turn is the OPPONENT (after your move); negate to your POV
+    // After your move the side to move is the OPPONENT; moverPov gives their POV, so negate to yours.
+    return -moverPov(r[0]!, fen.split(" ")[1] === "w", MATE_CP);
   };
   const evalStay = await yourEval(stayFen);
   const evalTranspose = await yourEval(joinFen);
@@ -365,10 +364,7 @@ export async function resolveDanglingStubs(
     }
     if (!res.length) return [];
     const moverIsWhite = fen.split(" ")[1] === "w";
-    const moverCp = (l: EngineLine) => {
-      const w = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-      return moverIsWhite ? w : -w;
-    };
+    const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
     const best = moverCp(res[0]!);
     return res.filter((l) => best - moverCp(l) <= cpThreshold).map((l) => l.uci);
   };
@@ -414,13 +410,21 @@ export async function compareMoves(
       continue;
     }
     const res = await analyse(chk.finalFen, 1, depth);
-    const line = res?.[0];
-    if (!line) {
+    if (res === null) {
       out.push({ san: chk.canonical[0], error: "engine_unavailable" });
       continue;
     }
-    const whiteCp = line.mate !== null ? (line.mate > 0 ? MATE_CP : -MATE_CP) : (line.cp ?? 0);
-    out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverIsWhite ? whiteCp : -whiteCp });
+    const line = res[0];
+    if (!line) {
+      // The move ENDS the game: finalFen is terminal (no legal replies), so the engine returns [] (not
+      // null). Distinguishing that from engine-unavailable (null) is the fix — otherwise a mating candidate
+      // was reported engine_unavailable (the same class as the analyzeMainline terminal bug). Checkmate ⇒
+      // this move wins for the mover (decisive +MATE_CP); stalemate / insufficient material ⇒ a draw (0).
+      const moverWins = chessFromFen(chk.finalFen).isCheckmate();
+      out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: null, mate: null, mover_cp: moverWins ? MATE_CP : 0 });
+      continue;
+    }
+    out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) });
   }
   out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
   out.forEach((o, i) => (o.rank = i + 1));

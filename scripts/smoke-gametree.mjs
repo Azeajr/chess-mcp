@@ -9,6 +9,7 @@ import {
   decisionNodes,
   findRepertoireGaps,
   resolveDanglingStubs,
+  compareMoves,
   gapSeverity,
   moveSan,
   validateLine,
@@ -372,6 +373,24 @@ ok(!gr.error && gr.covered_by_transposition.length === 1, "findRepertoireGaps: a
 ok(gr.covered_by_transposition?.[0]?.uncovered_move === "d5", "covered_by_transposition records the transposing reply ...d5");
 ok(gr.covered_by_transposition?.[0]?.joins_path.join(" ") === "d4 d5 c4 e6 Nc3 Nf6", "covered_by_transposition names the prep line joined");
 ok(!gr.error && !gr.gaps.some((g) => g.uncovered_move === "d5"), "findRepertoireGaps: the transposing reply is excluded from gaps");
+
+// 16h. compareMoves — rank caller SANs by engine, mover POV. Stubs stand in for the engine (the
+// real one is exercised by smoke-client). From the start (White to move) e4 (white-POV +20) outranks
+// a3 (−5); mover_cp is reported from your POV.
+const cmStub = async (fen) =>
+  fen.includes("4P3") ? [{ uci: "e7e5", cp: 20, mate: null, depth: 10, pv: [] }] // after 1.e4 (Black to move)
+  : [{ uci: "a7a6", cp: -5, mate: null, depth: 10, pv: [] }]; // after 1.a3
+const cmRanked = await compareMoves(START_FEN, ["a3", "e4"], 10, cmStub);
+ok(cmRanked.candidates[0].san === "e4" && cmRanked.candidates[0].rank === 1, "compareMoves ranks the stronger move first");
+ok(cmRanked.candidates[0].mover_cp === 20 && cmRanked.candidates[1].mover_cp === -5, "compareMoves reports mover-POV cp");
+ok((await compareMoves(START_FEN, ["Qz9"], 10, cmStub)).candidates[0].error === "illegal_move", "compareMoves flags an illegal candidate");
+ok((await compareMoves(START_FEN, ["e4"], 10, async () => null)).candidates[0].error === "engine_unavailable", "compareMoves: null engine → engine_unavailable");
+// Terminal-after-move (Ra8#): the engine returns [] (no legal replies), NOT null. The mating move must be
+// decisive (mover_cp = +MATE_CP 100000), never mislabeled engine_unavailable (the conflation bug fixed here).
+const cmMateFen = "6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1";
+const cmMateStub = async (fen) => (legalMoves(fen).length ? [{ uci: "a1a2", cp: 0, mate: null, depth: 10, pv: [] }] : []);
+const cmMate = await compareMoves(cmMateFen, ["Ra8"], 10, cmMateStub);
+ok(!cmMate.candidates[0].error && cmMate.candidates[0].mover_cp === 100000, "compareMoves: a mating move is decisive, not engine_unavailable");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
