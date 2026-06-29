@@ -10,7 +10,7 @@ import { parseUci } from "chessops/util";
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import type { Node, PgnNodeData } from "chessops/pgn";
-import { GameTree, type Path } from "./pgn.js";
+import { GameTree, buildKeyIndex, type Path } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 
 export type Severity = "low" | "medium" | "high";
@@ -80,6 +80,25 @@ export function gapSeverity(bestMoverCp: number, moverCp: number): Severity {
   if (moverCp < GAP_EDGE_LOW) sev = "low";
   else if (moverCp < GAP_EDGE_MED && sev === "high") sev = "medium";
   return sev;
+}
+
+/**
+ * Filtered median of the repertoire's leaf line-lengths (plies) — the "typical depth" a gap-fill
+ * should reach. Leaves whose final position also occurs elsewhere in the tree (keyCount > 1, a
+ * transposition endpoint) are excluded: those lines are short on purpose (the author stopped because
+ * the rest is covered by another order), so counting them would drag the median down. Same
+ * transposition-leaf skip used by extendedBridges (pgn.ts). Returns 0 for an empty tree.
+ */
+export function medianLineLength(tree: GameTree): number {
+  const { keyCount } = buildKeyIndex(tree.game.moves);
+  const depths = tree
+    .leaves()
+    .filter((l) => (keyCount.get(positionKey(makeFen(l.pos.toSetup()))) ?? 0) <= 1)
+    .map((l) => l.path.length)
+    .sort((a, b) => a - b);
+  if (!depths.length) return 0;
+  const mid = Math.floor(depths.length / 2);
+  return depths.length % 2 ? depths[mid]! : Math.round((depths[mid - 1]! + depths[mid]!) / 2);
 }
 
 /** SAN of a UCI move at `fen` (for comparing engine moves to the covered SAN set). */

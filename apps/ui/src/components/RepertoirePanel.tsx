@@ -5,7 +5,22 @@
  * Everything runs on the local engine / pure tree math; chat is the interpretive layer on top.
  */
 import { For, Show, createSignal } from "solid-js";
-import { gaps, covered, scanning, progress, scanError, scanGaps, cancelScan, type Gap, type CoveredGap } from "../store/gaps";
+import {
+  gaps,
+  covered,
+  scanning,
+  progress,
+  scanError,
+  scanGaps,
+  cancelScan,
+  fills,
+  fillGap,
+  gapKey,
+  type Gap,
+  type CoveredGap,
+  type FillOption,
+  type GapFill,
+} from "../store/gaps";
 import {
   congruence,
   congScanning,
@@ -48,6 +63,18 @@ function gapEval(g: Gap): string {
   return (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
 }
 const cp2 = (cp: number) => (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
+/** SAN list → numbered notation continuing from `startPly` half-moves: "1. e4 c6 2. Nf3 d5". */
+function numbered(sans: string[], startPly = 0): string {
+  const out: string[] = [];
+  for (let i = 0; i < sans.length; i++) {
+    const ply = startPly + i;
+    const no = Math.floor(ply / 2) + 1;
+    if (ply % 2 === 0) out.push(`${no}. ${sans[i]}`);
+    else if (i === 0) out.push(`${no}... ${sans[i]}`);
+    else out.push(sans[i]!);
+  }
+  return out.join(" ");
+}
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
 
 export default function RepertoirePanel() {
@@ -82,6 +109,29 @@ export default function RepertoirePanel() {
   };
   const cpDelta = (d: number | null) => (d == null ? "" : ` Δ${d <= 0 ? "+" : "−"}${(Math.abs(d) / 100).toFixed(2)}`);
 
+  // Click a fill option → stage [uncoveredMove, reply, …PV] from the gap node. Length tracks the
+  // repertoire's typical depth (filtered median), so the new line is as deep as the rest; ≥2 plies so
+  // the gap is always actually closed. Accept (gold-arrow UI) grafts in memory; Save persists.
+  const onFill = (g: Gap, opt: FillOption) => {
+    actions.goto(g.path); // so the gold preview arrow is visible immediately
+    stagePreviewLine(g.path, opt.line); // the staged length is decided in the store (median-deep)
+  };
+  const gapLine = (g: Gap) => {
+    try {
+      return numbered(currentTree().sanPathAt(g.path));
+    } catch {
+      return "";
+    }
+  };
+  // The whole prospective line is shown inline (numbered, continuing from the gap depth) — no hover.
+  const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
+    <div class="rep-row indent fill-row" onClick={() => onFill(props.g, props.opt)}>
+      <span class="san">{numbered(props.opt.line, props.g.path.length)}</span>
+      <span class="ev">{props.opt.evalCp == null ? "—" : cp2(props.opt.evalCp)}</span>
+      <span class="fit">{props.label} · fit {props.opt.fit.toFixed(2)}</span>
+    </div>
+  );
+
   return (
     <div class="rep-panel">
       {/* Tier A: gaps */}
@@ -98,13 +148,29 @@ export default function RepertoirePanel() {
           <div class="empty">No scan yet — or no gaps.</div>
         </Show>
         <For each={gaps()}>
-          {(g) => (
-            <div class="rep-row" onClick={() => actions.goto(g.path)}>
-              <span class={`sev sev-${g.severity}`}>{g.severity}</span>
-              <span class="san">{g.uncoveredMove}</span>
-              <span class="ev">{gapEval(g)}</span>
-            </div>
-          )}
+          {(g) => {
+            const state = () => fills()[gapKey(g)];
+            return (
+              <div class="rep-flag">
+                <div class="rep-row" onClick={() => actions.goto(g.path)} title={`${gapLine(g)} — uncovered: ${g.uncoveredMove}`}>
+                  <span class={`sev sev-${g.severity}`}>{g.severity}</span>
+                  <span class="san"><span class="muted">{gapLine(g)}</span> · {g.uncoveredMove}</span>
+                  <span class="ev">{gapEval(g)}</span>
+                </div>
+                <button class="fix-btn fill-btn" onClick={() => void fillGap(g)}>Fill this</button>
+                <Show when={state() === "loading"}><div class="scan-progress fill-progress">finding fills…</div></Show>
+                <Show when={state() && typeof state() === "object" && "error" in (state() as object)}>
+                  <div class="empty">{(state() as { error: string }).error}</div>
+                </Show>
+                <Show when={state() && typeof state() === "object" && "bestEval" in (state() as object)}>
+                  <FillRow g={g} opt={(state() as GapFill).bestEval} label="best eval" />
+                  <Show when={(state() as GapFill).bestFit}>
+                    {(bf) => <FillRow g={g} opt={bf()} label={bf().fit > (state() as GapFill).bestEval.fit ? "best fit" : "alt"} />}
+                  </Show>
+                </Show>
+              </div>
+            );
+          }}
         </For>
         {/* Replies that look uncovered but transpose into prep — false gaps, shown muted. */}
         <For each={covered()}>

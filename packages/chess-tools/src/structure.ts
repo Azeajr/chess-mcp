@@ -416,6 +416,61 @@ export function classifyStructureFromFen(fen: string): { structure_class: string
   return classifyStructure(parseFen(fen).unwrap().board);
 }
 
+// --- structural-fit profile (named structure + center + themes) ---
+
+/**
+ * Coarse categorical signals of a position: the center state, the active themes (fianchetto, minority
+ * attack, flank-vs-center, wing majorities, color complex) and — when classified — the named pawn
+ * structure. Used to score how well a candidate middlegame fits a repertoire's typical positions:
+ * far coarser than a single named-structure match, so it still discriminates when `structure_class`
+ * is "unknown" (the center + themes still locate the position relative to the repertoire).
+ */
+function structuralSignals(board: Board, color: Color): string[] {
+  const th = themes(board, color);
+  const tok: string[] = [`center:${centerState(board)}`];
+  if (th.fianchetto_white) tok.push("fianchetto_white");
+  if (th.fianchetto_black) tok.push("fianchetto_black");
+  if (th.minority_attack_white) tok.push("minority_white");
+  if (th.minority_attack_black) tok.push("minority_black");
+  if (th.flank_vs_center) tok.push("flank_vs_center");
+  if (th.wing_majority_white) tok.push(`wmaj_w:${th.wing_majority_white}`);
+  if (th.wing_majority_black) tok.push(`wmaj_b:${th.wing_majority_black}`);
+  if (th.color_complex) tok.push(`cc:${th.color_complex}`);
+  const sc = classifyStructure(board).structure_class;
+  if (sc !== "unknown") tok.push(`struct:${sc}`);
+  return tok;
+}
+
+export interface FitProfile {
+  /** structural signal token → share of repertoire leaves carrying it (0..1). */
+  freq: Map<string, number>;
+}
+
+/** Build a structural-familiarity profile from a repertoire's leaf boards (color = the side played). */
+export function buildFitProfile(boards: Board[], color: Color): FitProfile {
+  const counts = new Map<string, number>();
+  for (const b of boards) {
+    for (const t of new Set(structuralSignals(b, color))) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  const denom = boards.length || 1;
+  const freq = new Map<string, number>();
+  for (const [k, v] of counts) freq.set(k, v / denom);
+  return { freq };
+}
+
+/**
+ * Structural fit of `board` with the repertoire: the mean familiarity (profile share) of its signals,
+ * in [0,1]. Blends named structure + center + themes, so it rarely collapses to 0 the way a lone
+ * named-structure match does, and it ranks candidates by overall resemblance to the repertoire.
+ */
+export function fitScore(profile: FitProfile, board: Board, color: Color): number {
+  const toks = structuralSignals(board, color);
+  if (!toks.length) return 0;
+  let s = 0;
+  for (const t of toks) s += profile.freq.get(t) ?? 0;
+  return Math.round((s / toks.length) * 100) / 100;
+}
+
 // --- full profile of one position ---
 export function positionProfile(board: Board, color: Color, fen: string) {
   const cls = classifyStructure(board);

@@ -9,7 +9,7 @@ export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLeg
 export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
-export { decisionNodes, gapSeverity, moveSan, SEVERITY_RANK } from "./gaps.js";
+export { decisionNodes, gapSeverity, moveSan, medianLineLength, SEVERITY_RANK } from "./gaps.js";
 export type { DecisionNode, Severity } from "./gaps.js";
 export {
   positionProfile,
@@ -19,11 +19,13 @@ export {
   classifyStructure,
   classifyStructureFromFen,
   profileStructureShares,
+  buildFitProfile,
+  fitScore,
   isolatedPawns,
   doubledPawns,
   passedPawns,
 } from "./structure.js";
-export type { Themes } from "./structure.js";
+export type { Themes, FitProfile } from "./structure.js";
 export { fetchJson, fetchText } from "./apiclient.js";
 export { lichessGames, chesscomGames } from "./games.js";
 export type { GameMeta } from "./games.js";

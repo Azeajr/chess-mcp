@@ -27,6 +27,9 @@ import {
   centerState,
   analyzeCongruence,
   isPromotion,
+  medianLineLength,
+  buildFitProfile,
+  fitScore,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -411,6 +414,27 @@ ok(GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $1 *").illustrativeLines().lines.length
 // variation_not_found guard); a real line resolves.
 ok(spTree.positionAtSanPath(["e4", "d4"]) === null, "positionAtSanPath null on an off-tree path");
 ok(spTree.positionAtSanPath(["e4", "e5"]) !== null, "positionAtSanPath resolves a real line");
+
+// 29. medianLineLength — filtered median leaf depth (gap-fill "typical depth"). Transposition-endpoint
+// leaves (position recurs elsewhere, keyCount > 1) are excluded so deliberately-short lines don't
+// drag it down.
+let mlt = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+mlt = mlt.edit("add", ["e4", "e5"], { addMoves: ["Bc4", "Bc5"] }).tree; // depth-4 leaf
+mlt = mlt.edit("add", ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6"], { addMoves: ["Ba4", "Nf6"] }).tree; // depth-8 leaf
+ok(medianLineLength(mlt) === 6, "medianLineLength → median of genuine leaves {4,8} = 6");
+// add 1...Nc6 2.Nf3 e5 3.Bb5 → a depth-5 leaf that transposes into the mainline after 3.Bb5
+const mltT = mlt.edit("add", ["e4"], { addMoves: ["Nc6", "Nf3", "e5", "Bb5"] }).tree;
+ok(medianLineLength(mltT) === 6, "medianLineLength excludes the depth-5 transposition leaf (plain median would be 5)");
+ok(medianLineLength(new GameTree()) === 0, "medianLineLength → 0 for an empty tree");
+
+// 30. buildFitProfile / fitScore — blended structural fit (named structure + center + themes). A leaf
+// scores > 0 against its own repertoire's profile (the lone-named-structure metric often gave 0).
+const fitRep = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 *");
+const fitBoards = fitRep.leafPositions().map((p) => p.board);
+const fitProfile = buildFitProfile(fitBoards, "white");
+ok(fitProfile.freq.size > 0, "buildFitProfile → non-empty signal profile");
+const selfFit = fitScore(fitProfile, fitBoards[0], "white");
+ok(selfFit > 0 && selfFit <= 1, "fitScore: a repertoire leaf scores in (0,1] against its own profile");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

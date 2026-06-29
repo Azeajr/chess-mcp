@@ -713,6 +713,19 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Fill suggestions: show the whole prospective line inline (wrap, no ellipsis, no hover needed). */
+.rep-row.fill-row {
+  align-items: flex-start;
+}
+.rep-row.fill-row .san {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+.rep-row.fill-row .fit {
+  flex: 0 0 auto;
+}
 .rep-row .fit {
   margin-left: 0.5rem;
 }
@@ -730,6 +743,14 @@ body {
 }
 .fix-btn:hover {
   text-decoration: underline;
+}
+/* Gaps "Fill this": its own line, indented, with a gap before the loading text / option rows. */
+.fill-btn {
+  display: block;
+  margin: 0.1rem 0 0.25rem 0.4rem;
+}
+.rep-panel .scan-progress.fill-progress {
+  padding-left: 0.9rem;
 }
 
 .rep-panel .sev {
