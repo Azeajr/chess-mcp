@@ -99,6 +99,10 @@ server.tool(
   "Local Stockfish multi-line analysis (white-POV cp/mate).",
   { fen: z.string(), depth: z.number().int().min(1).max(30).optional(), lines: z.number().int().min(1).max(5).optional() },
   async ({ fen, depth, lines }) => {
+    // Reject an illegal-but-parseable FEN up front (the same gate get_position/suggest_* apply):
+    // without it, moveSan below throws (chessops rejects the setup) instead of a closed-set error.
+    const v = validateFen(fen);
+    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     const res = await analyseMulti(fen, lines ?? 3, depth ?? 16);
     if (!res) return ok({ error: "engine_unavailable" });
     return ok({ fen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(fen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) });

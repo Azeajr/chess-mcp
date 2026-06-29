@@ -43,6 +43,12 @@ export interface EngineLine {
 export type Analyse = (fen: string, multipv: number, depth: number) => Promise<EngineLine[] | null>;
 
 const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
+// Mate-sentinel NOTE: this file deliberately carries TWO magnitudes, and unifying them would change
+// tool output (out of scope for a structural pass). evalWhite maps mate → ±10000 — suggest_complementary
+// /suggest_replacement surface this in their `eval`/`eval_cp` — while the inline `MATE_CP` (100000)
+// feeds analyze_game (eval_cp), find_repertoire_gaps (severity) and compare_moves (mover_cp). Each only
+// needs an internally-consistent "decisive" sentinel, so keep them separate rather than silently shifting
+// a published eval number.
 const evalWhite = (l: { cp: number | null; mate: number | null }) =>
   l.mate !== null ? (l.mate > 0 ? 10000 : -10000) : (l.cp ?? 0);
 const pvSan = (fen: string, pv: string[]): string => {

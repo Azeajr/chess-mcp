@@ -121,6 +121,10 @@ ok(moveSan(START_FEN, "g1f3") === "Nf3", "moveSan g1f3 → Nf3");
 const vGood = validateLine(START_FEN, ["e4", "e5", "Nf3"]);
 ok(vGood.ok && JSON.stringify(vGood.canonical) === '["e4","e5","Nf3"]', "validateLine legal → canonical");
 ok(vGood.firstUci === "e2e4", "validateLine firstUci e2e4");
+// firstUci is the move's UCI via makeUci, so a promotion keeps its suffix (a4-char from+to concat
+// dropped it). compare_moves returns this as a candidate's `uci`; the UI arrow slices [0:2]/[2:4], so
+// the extra char is harmless there but the suffix is now correct for any UCI consumer.
+ok(validateLine("8/P7/8/8/8/8/8/k6K w - - 0 1", ["a8=Q"]).firstUci === "a7a8q", "validateLine firstUci keeps the promotion suffix (a7a8q)");
 const vBad = validateLine(START_FEN, ["e4", "e5", "Qd9"]);
 ok(!vBad.ok && vBad.badIndex === 2, "validateLine illegal flagged at index 2");
 

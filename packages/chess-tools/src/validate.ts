@@ -6,7 +6,7 @@
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
-import { makeSquare, parseSquare } from "chessops/util";
+import { makeUci, parseSquare } from "chessops/util";
 import { chessgroundDests } from "chessops/compat";
 import { parsePgn } from "chessops/pgn";
 import type { NormalMove } from "chessops/types";
@@ -15,7 +15,7 @@ export interface LineCheck {
   ok: boolean;
   /** canonical SANs up to the first illegal move (all of them when ok). */
   canonical: string[];
-  /** UCI of the first move, for a board arrow. */
+  /** UCI of the first move (incl. any promotion suffix), for a board arrow. */
   firstUci?: string;
   /** FEN after the whole line (when ok). */
   finalFen?: string;
@@ -30,7 +30,7 @@ export function validateLine(fen: string, sans: readonly string[]): LineCheck {
   for (let i = 0; i < sans.length; i++) {
     const move = parseSan(pos, sans[i]!);
     if (!move) return { ok: false, canonical, badIndex: i };
-    if (i === 0 && "from" in move) firstUci = makeSquare(move.from) + makeSquare(move.to);
+    if (i === 0 && "from" in move) firstUci = makeUci(move); // makeUci keeps a promotion suffix; a from+to concat dropped it
     canonical.push(makeSan(pos, move));
     pos.play(move);
   }
