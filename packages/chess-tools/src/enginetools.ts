@@ -19,11 +19,12 @@ import { validateLine } from "./validate.js";
 import { replacementPivot } from "./repcongruence.js";
 import {
   profileStructureShares,
+  buildFitProfile,
+  fitScore,
   classifyStructure,
   isolatedPawns,
   doubledPawns,
   passedPawns,
-  themes,
 } from "./structure.js";
 
 const MATE_CP = 100000;
@@ -214,6 +215,7 @@ export interface ShortcutComparison {
 
 export async function compareShortcutLines(
   tree: GameTree,
+  color: Color,
   opts: { linePath: string[]; atPly: number; joinsPath: string[]; depth?: number; evalTiebreakCp?: number },
   analyse: Analyse,
 ): Promise<ShortcutComparison | { error: string }> {
@@ -238,11 +240,13 @@ export async function compareShortcutLines(
   const evalDelta = evalStay != null && evalTranspose != null ? evalStay - evalTranspose : null;
 
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  const aggregate = profileStructureShares(tree.leafPositions().map((p) => p.board));
-  const fitOf = (boards: Parameters<typeof profileStructureShares>[0]) => {
-    const dist = profileStructureShares(boards);
-    const fit = Object.entries(dist).reduce((s, [k, v]) => (k === "unknown" ? s : s + v * (aggregate[k] ?? 0)), 0);
-    return { fit: r2(fit), unknown: r2(dist.unknown ?? 0) };
+  // Blended structural fit (named structure + center + themes) — robust to unclassified positions, the
+  // same signal gap-fill uses. A branch's fit = mean fitScore over its leaf boards; unknownShare (the
+  // named-structure-unclassified share) stays informational but no longer forces the fit to 0.
+  const profile = buildFitProfile(tree.leafPositions().map((p) => p.board), color);
+  const fitOf = (boards: Parameters<typeof buildFitProfile>[0]) => {
+    const fit = boards.length ? boards.reduce((s, b) => s + fitScore(profile, b, color), 0) / boards.length : 0;
+    return { fit: r2(fit), unknown: r2(profileStructureShares(boards).unknown ?? 0) };
   };
   const fa = fitOf(subA);
   const fb = fitOf(subB);
@@ -457,7 +461,9 @@ export async function suggestComplementaryLines(
   const res = await analyse(anchorFen, pool, opts.depth ?? 16);
   if (!res) return { error: "engine_unavailable" };
   const best = res.length ? moverCp(res[0]!) : 0;
-  const shares = profileStructureShares(tree.leafPositions().map((p) => p.board));
+  const leafBoards = tree.leafPositions().map((p) => p.board);
+  const profile = buildFitProfile(leafBoards, color); // low_memorization: blended structural fit
+  const shares = profileStructureShares(leafBoards); // sharp: structure novelty (not a fit axis)
 
   const ranked: { entry: Record<string, unknown>; mcp: number }[] = [];
   for (const l of res) {
@@ -473,7 +479,7 @@ export async function suggestComplementaryLines(
       pv: pvSan(anchorFen, l.pv),
     };
     if (m === "low_memorization") {
-      entry.profile_match = Math.round((resultStruct === "unknown" ? 0 : (shares[resultStruct] ?? 0)) * 100) / 100;
+      entry.profile_match = fitScore(profile, after.board, color);
     } else {
       const imbalance = (["white", "black"] as const).reduce(
         (a, c) => a + isolatedPawns(after.board, c).length + doubledPawns(after.board, c).length + passedPawns(after.board, c).length,
@@ -495,9 +501,6 @@ export async function suggestComplementaryLines(
 }
 
 // --- suggest_replacement_line (pivot resolution + engine + structure) ---
-
-const BOOL_THEMES = ["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"] as const;
-const PV_THEME_WINDOW = 8;
 
 export interface SuggestReplacementOptions {
   mode?: "structural_fit" | "low_memorization" | "solid";
@@ -521,13 +524,12 @@ export async function suggestReplacementLine(
     return { error: piv.error, reason };
   }
 
-  const shares = profileStructureShares(tree.leafPositions().map((p) => p.board));
+  const profile = buildFitProfile(tree.leafPositions().map((p) => p.board), color);
   const res = await analyse(piv.pivotBeforeFen, 5, opts.depth ?? 16);
   if (!res) return { error: "engine_unavailable" };
   const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
   const moverCp = (l: EngineLine) => (moverIsWhite ? 1 : -1) * evalWhite(l);
   const best = res.length ? moverCp(res[0]!) : 0;
-  const domSet = new Set(piv.dominantThemes);
 
   const suggestions: { entry: Record<string, unknown>; mcp: number }[] = [];
   for (const l of res) {
@@ -537,25 +539,9 @@ export async function suggestReplacementLine(
     const after = chessFromFen(piv.pivotBeforeFen);
     after.play(parseUci(l.uci)!);
     const resultStruct = classifyStructure(after.board).structure_class;
-
-    let match = 0;
-    if (resultStruct !== "unknown") match = shares[resultStruct] ?? 0;
-    else if (domSet.size) {
-      const walk = chessFromFen(makeFen(after.toSetup()));
-      let bestMatch = 0;
-      const seq: (string | null)[] = [...l.pv.slice(1, PV_THEME_WINDOW), null];
-      for (const nxt of seq) {
-        const t = themes(walk.board, color);
-        const tags = BOOL_THEMES.filter((k) => t[k]);
-        const plyMatch = [...domSet].filter((d) => tags.includes(d as (typeof BOOL_THEMES)[number])).length / domSet.size;
-        if (plyMatch > bestMatch) bestMatch = plyMatch;
-        if (bestMatch === 1 || nxt === null) break;
-        const mv = parseUci(nxt);
-        if (!mv) break;
-        walk.play(mv);
-      }
-      match = bestMatch;
-    }
+    // Blended structural fit (named structure + center + themes) — robust when resultStruct is
+    // "unknown", so the hand-rolled PV-theme fallback this replaced is no longer needed.
+    const match = fitScore(profile, after.board, color);
 
     suggestions.push({
       entry: {
@@ -563,7 +549,7 @@ export async function suggestReplacementLine(
         line: pvSan(piv.pivotBeforeFen, l.pv),
         eval_cp: evalWhite(l),
         resulting_structure: resultStruct,
-        profile_match: Math.round(match * 100) / 100,
+        profile_match: match,
       },
       mcp,
     });
