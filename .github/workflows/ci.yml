@@ -22,6 +22,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Plugin skills in sync with dev skills (no drift)
+        run: pnpm check:skills   # fix with `pnpm sync:skills` (.claude/skills → plugin/skills)
       - name: Build chess-tools (dist used by the smoke scripts)
         run: pnpm --filter @chess-mcp/chess-tools build
       - name: Typecheck all packages
