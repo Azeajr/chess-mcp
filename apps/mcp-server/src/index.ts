@@ -278,7 +278,7 @@ server.tool(
 
 server.tool(
   "compare_shortcut_lines",
-  "C3 — for a shorten suggestion, judge the line you'd ADOPT (transpose into joins_path = Line B) vs the one you'd ABANDON (stay on line_path past at_ply = Line A), on two axes. EVAL at the fork: your-POV cp after the stay move (evalStay) vs after the re-route into the join node (evalTranspose); evalDelta = evalStay − evalTranspose (>0 ⇒ staying better, <0 ⇒ transposing better). FIT: each branch's subtree structure distribution scored against the repertoire aggregate (fitStay/fitTranspose, 0..1, higher = more on-theme); structureStay/structureTranspose are each branch's mainline-leaf structure_class (readable label); unknownShare* = how much of a branch is too short to classify. RECOMMEND: eval decides unless |evalDelta| ≤ eval_tiebreak_cp (default 30), then fit breaks the tie; eval_disagrees_with_fit flags opposite pulls. This is the QUALITY axis — weigh against the suggestion's savedPlies (memorization).",
+  "C3 — for a shorten suggestion, judge the line you'd ADOPT (transpose into joins_path = Line B) vs the one you'd ABANDON (stay on line_path past at_ply = Line A), on two axes. EVAL at the fork: your-POV cp after the stay move (evalStay) vs after the re-route into the join node (evalTranspose); evalDelta = evalStay − evalTranspose (>0 ⇒ staying better, <0 ⇒ transposing better). FIT: each branch's blended structural fit — named structure + center + themes — scored against the repertoire (fitStay/fitTranspose, 0..1, higher = more on-theme); structureStay/structureTranspose are each branch's mainline-leaf structure_class (readable label); unknownShare* = how much of a branch can't be NAMED (informational — center/themes still score it, so unknown no longer forces fit to 0). RECOMMEND: eval decides unless |evalDelta| ≤ eval_tiebreak_cp (default 30), then fit breaks the tie; eval_disagrees_with_fit flags opposite pulls. This is the QUALITY axis — weigh against the suggestion's savedPlies (memorization).",
   {
     repertoire_id: z.string(),
     line_path: z.array(z.string()),
@@ -293,6 +293,7 @@ server.tool(
     return ok(
       await compareShortcutLines(
         e.tree,
+        e.color,
         { linePath: line_path, atPly: at_ply, joinsPath: joins_path, depth, evalTiebreakCp: eval_tiebreak_cp },
         analyseMulti,
       ),

@@ -343,10 +343,11 @@ ok(typeof prTree.fenAtSanPath(["d4", "Nf6"]) === "string" && prTree.fenAtSanPath
 // C3 core (compareShortcutLines): constant-eval stub → evalDelta 0 → fit breaks the tie; both branches
 // of prTree are short/unclassifiable so structures are "unknown".
 const flat = async () => [{ uci: "a2a3", cp: 0, mate: null }];
-const cmp = await compareShortcutLines(prTree, { linePath: ["d4", "Nf6", "Nf3", "e6", "Bf4"], atPly: 2, joinsPath: ["d4", "Nf6", "c4"] }, flat);
+const cmp = await compareShortcutLines(prTree, "white", { linePath: ["d4", "Nf6", "Nf3", "e6", "Bf4"], atPly: 2, joinsPath: ["d4", "Nf6", "c4"] }, flat);
 ok(!("error" in cmp) && cmp.basis === "fit" && cmp.evalDelta === 0, "C3: compareShortcutLines falls back to fit when eval is a wash");
 ok(typeof cmp.fitStay === "number" && (cmp.recommend === "stay" || cmp.recommend === "transpose"), "C3: returns fit scores + a recommendation");
-const cmpBad = await compareShortcutLines(prTree, { linePath: ["d4", "Nf6"], atPly: 1, joinsPath: ["d4", "Qh5"] }, flat);
+ok(!("error" in cmp) && cmp.fitStay > 0 && cmp.fitTranspose > 0, "C3: blended fit scores short/unclassified branches > 0 (no unknown→0 collapse)");
+const cmpBad = await compareShortcutLines(prTree, "white", { linePath: ["d4", "Nf6"], atPly: 1, joinsPath: ["d4", "Qh5"] }, flat);
 ok("error" in cmpBad && cmpBad.error === "path_not_found", "C3: bad joins_path → path_not_found");
 // C4 core (checkShortcutCoverage): [] stub means the gap scan finds nothing, so pruning the tail opens
 // no new gap; the prune path is line_path truncated to at_ply+1.
@@ -461,6 +462,13 @@ const fitProfile = buildFitProfile(fitBoards, "white");
 ok(fitProfile.freq.size > 0, "buildFitProfile → non-empty signal profile");
 const selfFit = fitScore(fitProfile, fitBoards[0], "white");
 ok(selfFit > 0 && selfFit <= 1, "fitScore: a repertoire leaf scores in (0,1] against its own profile");
+
+// 30b. fitScore gives an unclassified-but-thematic position real signal — the fix for shorten/suggest
+// fit collapsing to 0 on "unknown". A double-fianchetto line classifies "unknown" (no named scorer)
+// yet scores > 0 via its center + theme signals (the blended fit now shared by shorten + suggest).
+const fianBoards = GameTree.fromPgn("1. g3 g6 2. Bg2 Bg7 3. Nf3 Nf6 *").leafPositions().map((p) => p.board);
+ok(positionProfile(fianBoards[0], "white", "").structure_class === "unknown", "fianchetto leaf classifies unknown");
+ok(fitScore(buildFitProfile(fianBoards, "white"), fianBoards[0], "white") > 0, "fitScore: unknown-but-thematic position scores > 0 (themes/center carry it)");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

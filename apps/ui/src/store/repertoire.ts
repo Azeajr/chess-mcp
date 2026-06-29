@@ -191,7 +191,7 @@ export async function inspectShortcut(p: PruneSuggestion) {
   const analyse = (fen: string, mpv: number, depth?: number) => analyseMulti(fen, mpv, depth ?? INSPECT_DEPTH);
   try {
     const tree = currentTree();
-    const cmp = await compareShortcutLines(tree, { linePath: p.linePath, atPly: p.atPly, joinsPath: p.joinsPath, depth: INSPECT_DEPTH }, analyse);
+    const cmp = await compareShortcutLines(tree, color(), { linePath: p.linePath, atPly: p.atPly, joinsPath: p.joinsPath, depth: INSPECT_DEPTH }, analyse);
     const cov = await checkShortcutCoverage(tree, color(), { linePath: p.linePath, atPly: p.atPly, depth: INSPECT_DEPTH, maxPositions: INSPECT_MAX_POSITIONS }, analyse);
     if (token !== inspectToken) return;
     setComparison("error" in cmp ? null : cmp);
