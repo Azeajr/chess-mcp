@@ -4,11 +4,10 @@
  * completeness scan cares about and ranks an uncovered opponent move by severity. The engine
  * pass (running a search at each decision node) is the caller's — see the UI's store/gaps.ts.
  */
-import { makeFen } from "chessops/fen";
+import { makeFen, parseFen } from "chessops/fen";
 import { makeSan, parseSan } from "chessops/san";
 import { parseUci } from "chessops/util";
 import { Chess } from "chessops/chess";
-import { parseFen } from "chessops/fen";
 import type { Node, PgnNodeData } from "chessops/pgn";
 import { GameTree, buildKeyIndex, type Path } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";

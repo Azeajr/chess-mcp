@@ -466,7 +466,7 @@ export async function suggestComplementaryLines(
   }
   const anchorFen = makeFen(pos.toSetup());
   const moverIsWhite = pos.turn === "white";
-  const moverCp = (l: EngineLine) => (moverIsWhite ? 1 : -1) * evalWhite(l);
+  const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, 10000);
 
   const res = await analyse(anchorFen, pool, opts.depth ?? 16);
   if (!res) return { error: "engine_unavailable" };
@@ -538,7 +538,7 @@ export async function suggestReplacementLine(
   const res = await analyse(piv.pivotBeforeFen, 5, opts.depth ?? 16);
   if (!res) return { error: "engine_unavailable" };
   const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
-  const moverCp = (l: EngineLine) => (moverIsWhite ? 1 : -1) * evalWhite(l);
+  const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, 10000);
   const best = res.length ? moverCp(res[0]!) : 0;
 
   const suggestions: { entry: Record<string, unknown>; mcp: number }[] = [];
