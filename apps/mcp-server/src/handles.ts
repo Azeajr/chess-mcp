@@ -30,9 +30,10 @@ function evict() {
 }
 
 export function store(tree: GameTree, color: Color): string {
-  evict();
   const id = randomUUID();
   map.set(id, { tree, color, ts: Date.now() });
+  evict(); // after insert: evict-before-insert capped at MAX+1 (size checked pre-add); the new
+  // entry has the newest ts, so the LRU sweep never evicts what we just stored.
   return id;
 }
 
