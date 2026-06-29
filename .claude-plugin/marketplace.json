@@ -3,13 +3,13 @@
   "owner": {
     "name": "Antonio Zea"
   },
-  "description": "Grounded chess analysis for Claude Code — Stockfish + Maia, game review, repertoire tools, position analysis.",
+  "description": "Grounded chess analysis for Claude Code — local Stockfish, game review, repertoire tools, position analysis.",
   "plugins": [
     {
       "name": "chess-mcp",
       "source": "./plugin",
-      "description": "MCP servers + skills for grounded chess analysis: game review, repertoire builder, position deep-dive, annotated PGN. Requires Docker + uv.",
-      "version": "0.3.0",
+      "description": "MCP server + skills for grounded chess analysis: game review, repertoire builder, position deep-dive, annotated PGN. Runs on Node (local Stockfish), no Docker.",
+      "version": "1.0.0",
       "author": {
         "name": "Antonio Zea"
       },

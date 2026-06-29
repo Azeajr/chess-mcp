@@ -1,0 +1,1211 @@
+/* chessground board + piece theme (shipped in the package's assets/) */
+@import "chessground/assets/chessground.base.css";
+@import "chessground/assets/chessground.brown.css";
+@import "chessground/assets/chessground.cburnett.css";
+
+:root {
+  --bg: #1e1e21;
+  --panel: #26262b;
+  --border: #3a3a42;
+  --text: #e6e6e6;
+  --muted: #9a9aa3;
+  --accent: #6ea8fe;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  /* Stop pull-to-refresh / scroll-chaining while panning the board or scrolling chat. */
+  overscroll-behavior: none;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh; /* fallback */
+  height: 100dvh; /* dynamic viewport — tracks the mobile URL bar show/hide */
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  /* Clear the notch / rounded corners in the installed standalone app (env → 0 elsewhere). */
+  padding-top: calc(0.6rem + env(safe-area-inset-top));
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar .title {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.topbar button,
+.topbar select {
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.topbar button:hover {
+  border-color: var(--accent);
+}
+
+.topbar .dirty {
+  color: #f0c674;
+  font-size: 0.8rem;
+}
+
+/* Wide: flex row — board grows, side + chat are fixed widths the dividers drag. */
+.workspace {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  padding: 1rem;
+  padding-left: calc(1rem + env(safe-area-inset-left));
+  padding-right: calc(1rem + env(safe-area-inset-right));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+.board-panel {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.side-panel {
+  flex: 0 0 auto; /* width set inline from the layout store */
+}
+.chat-wrap {
+  flex: 0 0 auto; /* width set inline from the layout store */
+  display: flex;
+  min-height: 0;
+}
+.chat-wrap > .chat {
+  flex: 1;
+  min-width: 0;
+}
+
+.divider {
+  width: 5px;
+  flex: 0 0 auto;
+  cursor: col-resize;
+  background: transparent;
+  border-radius: 3px;
+  touch-action: none;
+  transition: background 0.15s;
+}
+.divider:hover,
+.divider:active {
+  background: var(--accent);
+}
+
+/* Horizontal board resizer — only shown in the phone column layout (see ≤720px). A visible grip
+   so it's discoverable as a drag handle. */
+.divider-h {
+  display: none;
+  width: 100%;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: row-resize;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+}
+.divider-h::after {
+  content: "";
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.divider-h:hover::after,
+.divider-h:active::after {
+  background: var(--accent);
+}
+
+/* Phone panel switcher — hidden until the ≤720px breakpoint flips it to flex. */
+.mobile-tabs {
+  display: none;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+.mobile-tabs button {
+  flex: 1;
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.mobile-tabs button.active {
+  background: var(--accent);
+  color: #10131a;
+  border-color: var(--accent);
+}
+
+/* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
+   inline panel widths are neutralised so the grid columns take over. */
+@media (max-width: 1100px) {
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 320px;
+    grid-auto-rows: min-content;
+    overflow: visible;
+    overflow-y: auto;
+  }
+  .divider {
+    display: none;
+  }
+  .side-panel,
+  .chat-wrap {
+    width: auto !important;
+  }
+  .chat-wrap {
+    grid-column: 1 / -1;
+    height: 360px;
+  }
+}
+
+/* Phone: pinned board + tab bar. Flex column; only the active panel scrolls, the page does not.
+   The tab bar sets .workspace[data-mtab]; the rules below toggle each panel's display so panels
+   stay mounted (chessground never re-inits, chat keeps its log). */
+@media (max-width: 720px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    padding-left: calc(0.5rem + env(safe-area-inset-left));
+    padding-right: calc(0.5rem + env(safe-area-inset-right));
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .board-panel {
+    flex: 0 0 auto;
+  }
+  .divider-h {
+    display: flex;
+  }
+  /* Honour the dragged board size, capped to the container width so it can't overflow. Falls
+     back to the responsive default until the user drags. Extra `.workspace` specificity so this
+     beats the base `.board-wrap` rule, which sits later in the source. */
+  .workspace .board-wrap {
+    width: min(var(--board-size, min(70vh, calc(100% - 26px))), calc(100% - 26px));
+  }
+  .mobile-tabs {
+    display: flex;
+  }
+  .side-panel {
+    flex: 1 1 0;
+    min-height: 0;
+    width: auto !important;
+    overflow: auto;
+  }
+  .chat-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto; /* drop the 360px the tablet rule set */
+    width: auto !important;
+    overflow: hidden; /* chat scrolls its own .chat-log */
+  }
+  /* Show exactly one panel for the active tab. */
+  .workspace[data-mtab="analysis"] .move-tree,
+  .workspace[data-mtab="analysis"] .chat-wrap {
+    display: none;
+  }
+  .workspace[data-mtab="moves"] .analysis,
+  .workspace[data-mtab="moves"] .rep-panel,
+  .workspace[data-mtab="moves"] .chat-wrap {
+    display: none;
+  }
+  .workspace[data-mtab="chat"] .side-panel {
+    display: none;
+  }
+  .topbar {
+    flex-wrap: wrap;
+  }
+  /* 16px floor stops iOS Safari auto-zooming when these gain focus. */
+  .chat-input textarea,
+  .field input {
+    font-size: 16px;
+  }
+}
+
+/* Touch devices: meet the 44px tap-target minimum without bloating mouse density. */
+@media (pointer: coarse) {
+  .topbar button,
+  .topbar select,
+  .chat-input button,
+  .mobile-tabs button,
+  .rep-panel .scan-btn {
+    min-height: 44px;
+  }
+}
+
+.board-panel {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 0;
+}
+
+.board-wrap {
+  /* 26px reserves the eval-bar (16px) + gap (~10px) sitting beside it, so the row can't
+     exceed its container and trigger horizontal scroll on narrow screens. */
+  width: min(70vh, calc(100% - 26px));
+  aspect-ratio: 1;
+  overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
+}
+
+/* chessground sizes to its container */
+.cg-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.eval-bar {
+  width: 16px;
+  height: min(70vh, 100%);
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.eval-bar .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #e6e6e6;
+  transition: height 0.2s ease;
+}
+
+.eval-bar .score {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.6rem;
+  color: #111;
+  mix-blend-mode: difference;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.move-tree {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Plain sequence of the line that reached the current node — clickable, scrolls horizontally
+   if long so it never grows the panel vertically. */
+.move-tree .current-line {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.move-tree .tree-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  line-height: 1.7;
+  font-size: 0.9rem;
+}
+
+.move-tree .move {
+  cursor: pointer;
+  padding: 0 0.2rem;
+  border-radius: 4px;
+}
+
+.move-tree .move:hover {
+  background: #3a3a42;
+}
+
+.move-tree .move.current {
+  background: var(--accent);
+  color: #10131a;
+}
+
+/* Feature 1: moves on the active preview line that already exist in the tree. */
+.move-tree .move.move-preview {
+  box-shadow: 0 0 0 1px #e3b341 inset;
+  background: rgba(227, 179, 65, 0.15);
+}
+
+.move-tree .moveno {
+  color: var(--muted);
+}
+
+/* Feature 3: per-branch collapse toggle, in a left gutter beside the variation block. */
+.move-tree .variation-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+.move-tree .variations {
+  flex: 1;
+  min-width: 0;
+}
+.move-tree .collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.15rem;
+  padding: 0 0.25rem;
+  font-size: 0.66rem;
+  line-height: 1;
+  color: var(--muted);
+  background: #2b2b32;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.move-tree .collapse-toggle:hover {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.move-tree .variation {
+  color: var(--muted);
+}
+
+.move-tree .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.analysis {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.analysis .panel-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.analysis .spinner {
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.analysis .empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.analysis .line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+}
+
+.analysis .san {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+}
+
+.analysis .ev {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.analysis .fit {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.analysis .fit-in-book {
+  background: #2f6b3a;
+  color: #c8f0cf;
+}
+.analysis .fit-adjacent {
+  background: #6b5e2f;
+  color: #f0e7c8;
+}
+.analysis .fit-out {
+  background: #6b2f33;
+  color: #f0c8cb;
+}
+
+.analysis .weight {
+  display: inline-block;
+  width: 22px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.analysis .w-thick {
+  height: 7px;
+}
+.analysis .w-medium {
+  height: 4px;
+}
+.analysis .w-thin {
+  height: 2px;
+}
+
+.analysis .cloud-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.analysis .cloud-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: #2f4a6b;
+  color: #c8dcf0;
+}
+.analysis .cloud-val {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Feature 6: repertoire backbone panel — collapsible Tier A / Tier B sections. */
+.rep-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+.rep-section {
+  border-bottom: 1px solid var(--border);
+}
+.rep-section:last-child {
+  border-bottom: none;
+}
+.rep-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.45rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rep-section > summary::-webkit-details-marker {
+  display: none;
+}
+.rep-section > summary > span:first-child::before {
+  content: "▸ ";
+}
+.rep-section[open] > summary > span:first-child::before {
+  content: "▾ ";
+}
+.rep-section > summary .scan-btn,
+.rep-section > summary .rep-mode {
+  margin-left: auto;
+}
+.rep-section > summary .rep-mode + .scan-btn {
+  margin-left: 0.4rem;
+}
+
+.rep-panel .scan-btn {
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rep-panel .scan-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.rep-panel .scan-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rep-mode {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rep-panel .scan-progress {
+  color: var(--accent);
+  font-size: 0.8rem;
+  padding: 0.15rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.rep-panel .scan-bar {
+  display: inline-block;
+  width: 48px;
+  height: 6px;
+  background: #33333a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rep-panel .scan-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+.rep-panel .scan-cancel {
+  padding: 0 0.35rem;
+  line-height: 1;
+}
+.rep-panel .pick-badge {
+  font-size: 0.72rem;
+  padding: 0 0.15rem;
+}
+.rep-panel .pick-badge.sav {
+  color: #6aa84f;
+}
+.rep-panel .pick-badge.eval {
+  color: #e0b341;
+}
+.rep-panel .inspect-btn {
+  margin-left: 0.3rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+}
+.rep-panel .inspect-btn:hover,
+.rep-panel .inspect-btn.on {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.rep-panel .shortcut-detail {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.2rem 0.4rem 1.6rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.rep-panel .shortcut-detail .muted {
+  color: var(--muted);
+}
+.rep-panel .shortcut-detail .warn {
+  color: #e08b41;
+}
+.rep-panel .shortcut-detail .safe {
+  color: #6aa84f;
+}
+.rep-panel .empty {
+  color: var(--muted);
+  font-style: italic;
+  padding: 0.15rem 0;
+}
+
+.rep-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+.rep-row:hover {
+  background: #3a3a42;
+}
+.rep-row.indent {
+  padding-left: 0.9rem;
+  color: #dceaff;
+}
+.rep-row .san {
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rep-row .ctype {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.rep-row .bridge-icon {
+  font-size: 0.78rem;
+  width: 1.1em;
+  text-align: center;
+  flex: 0 0 auto;
+}
+/* Covered-by-transposition rows under Gaps: a false gap, shown muted. */
+.rep-row.covered {
+  opacity: 0.6;
+}
+.rep-row .ev,
+.rep-row .fit {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Fill suggestions: show the whole prospective line inline (wrap, no ellipsis, no hover needed). */
+.rep-row.fill-row {
+  align-items: flex-start;
+}
+.rep-row.fill-row .san {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+.rep-row.fill-row .fit {
+  flex: 0 0 auto;
+}
+.rep-row .fit {
+  margin-left: 0.5rem;
+}
+
+.rep-flag {
+  padding: 0.15rem 0;
+}
+.fix-btn {
+  background: transparent;
+  color: var(--accent);
+  border: none;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0 0 0.1rem;
+}
+.fix-btn:hover {
+  text-decoration: underline;
+}
+/* Gaps "Fill this": its own line, indented, with a gap before the loading text / option rows. */
+.fill-btn {
+  display: block;
+  margin: 0.1rem 0 0.25rem 0.4rem;
+}
+.rep-panel .scan-progress.fill-progress {
+  padding-left: 0.9rem;
+}
+
+.rep-panel .sev {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.rep-panel .sev-high {
+  background: #6b2f33;
+  color: #f0c8cb;
+}
+.rep-panel .sev-medium {
+  background: #6b5e2f;
+  color: #f0e7c8;
+}
+.rep-panel .sev-low {
+  background: #3a3a42;
+  color: var(--muted);
+}
+
+/* Suggestions (chat proposals) */
+.suggestions {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.suggestion {
+  padding: 0.4rem 0;
+}
+.suggestion .sug-line {
+  font-variant-numeric: tabular-nums;
+}
+.suggestion .sug-comment {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.15rem 0;
+}
+.suggestion .sug-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+.suggestion button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  background: #33333a;
+  color: var(--text);
+}
+.suggestion .accept:hover {
+  border-color: #2f6b3a;
+}
+.suggestion .reject:hover {
+  border-color: #6b2f33;
+}
+
+/* Chat */
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.chat .panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+.chat-mode {
+  margin-left: auto;
+  margin-right: 0.4rem;
+  background: var(--panel, #26262b);
+  color: var(--fg, #ddd);
+  border: 1px solid var(--border, #3a3a40);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.3rem;
+}
+.chat-mode.needs-mode {
+  border-color: #f0c674;
+  box-shadow: 0 0 0 1px rgba(240, 198, 116, 0.45);
+}
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+.msg {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user {
+  background: #2f4a6b;
+  color: #dceaff;
+  align-self: flex-end;
+  max-width: 90%;
+}
+.msg.assistant {
+  background: #2c2c32;
+  align-self: flex-start;
+  max-width: 95%;
+}
+.msg.streaming {
+  opacity: 0.85;
+}
+/* Feature 2: tree-click context marker — muted, monospace, clickable to revisit the line. */
+.msg.focus-injection {
+  align-self: stretch;
+  background: #232329;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+.msg.focus-injection:hover {
+  border-color: var(--accent);
+}
+
+/* Feature 1: preview chip under a propose_line result. */
+.preview-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.3rem;
+  font-size: 0.8rem;
+}
+.preview-chip .pc-line {
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  color: #dceaff;
+}
+.preview-chip.active .pc-line {
+  background: rgba(227, 179, 65, 0.18);
+  border-color: #e3b341;
+}
+.preview-chip .pc-badge {
+  font-size: 0.68rem;
+  color: #e3b341;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.preview-chip .pc-accept,
+.preview-chip .pc-reject {
+  font-size: 0.72rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  background: #33333a;
+  color: var(--text);
+}
+.preview-chip .pc-accept {
+  border-color: #3c7a4b;
+}
+.tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.chip {
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: #26262b;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.05rem 0.5rem;
+}
+.tool-result {
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  margin: 0.1rem 0;
+}
+.tool-result summary {
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.tool-result pre {
+  margin: 0.3rem 0 0.1rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.68rem;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+.tool-result-error {
+  border-color: #6b2f33;
+  color: #f0a8ac;
+}
+.chat-hint {
+  color: #f0c674;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+.chat-error {
+  color: #f0a8ac;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+.chat-error a {
+  color: var(--accent);
+}
+.chat-input {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  background: #1c1c20;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+.chat-input button {
+  background: #33333a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 0.8rem;
+  cursor: pointer;
+}
+.chat-input button:hover {
+  border-color: var(--accent);
+}
+
+/* Settings drawer */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 50;
+}
+.drawer {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.drawer-head button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+.field input {
+  background: #1c1c20;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.5rem;
+  font-family: inherit;
+}
+.field small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Promotion picker */
+.promo-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.promo {
+  display: flex;
+  gap: 0.4rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+.promo-piece {
+  width: 64px;
+  height: 64px;
+  font-size: 2.4rem;
+  line-height: 1;
+  background: #1c1c20;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.promo-piece:hover {
+  border-color: var(--accent);
+  background: #2a2a31;
+}
+.field small code {
+  color: var(--text);
+}
+
+.model-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.model-chip {
+  background: #1c1c20;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.model-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.model-chip.active {
+  background: var(--accent);
+  color: #10131a;
+  border-color: var(--accent);
+}
+
+/* Color picker modal (PGN open) */
+.color-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.color-picker-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.4rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 260px;
+}
+.color-picker-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+.color-picker-file {
+  color: var(--muted);
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+.color-picker-buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+.color-btn {
+  flex: 1;
+  padding: 0.6rem;
+  background: #1c1c20;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.color-piece {
+  display: inline-block;
+  min-width: 1.1em;
+  text-align: center;
+}
+.color-piece-white {
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 2px #000;
+}
+.color-btn:hover {
+  border-color: var(--accent);
+}
+.color-btn.active {
+  border-color: var(--accent);
+  background: #2a2a31;
+}
+.color-picker-hint {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.color-picker-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.color-picker-load {
+  background: var(--accent);
+  color: #10131a;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.color-picker-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  font-family: inherit;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "chess-mcp-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Chess repertoire UI + Node MCP server (TypeScript).",
+  "scripts": {
+    "dev": "pnpm --filter @chess-mcp/ui dev",
+    "dev:host": "pnpm --filter @chess-mcp/ui dev:host",
+    "mcp": "node --import tsx apps/mcp-server/src/index.ts",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0",
+    "tsx": "^4.19.0"
+  },
+  "packageManager": "pnpm@11.3.0"
+}

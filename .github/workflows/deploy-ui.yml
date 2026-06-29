@@ -1,0 +1,48 @@
+name: Deploy PWA to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feat/node-mcp-rewrite]
+    paths:
+      - 'apps/ui/src/**'
+      - 'apps/ui/public/**'
+      - 'apps/ui/index.html'
+      - 'apps/ui/package.json'
+      - 'apps/ui/vite.config.*'
+      - 'apps/ui/tsconfig*'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '!**/*.test.*'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build chess-tools
+        run: pnpm --filter @chess-mcp/chess-tools build
+
+      - name: Build UI
+        run: pnpm --filter @chess-mcp/ui build
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy apps/ui/dist --project-name chess-repertoire-analysis --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

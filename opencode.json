@@ -2,13 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "chess-analysis": {
-      "type": "remote",
-      "url": "http://localhost:8000/sse"
-    },
-    "chess-files": {
       "type": "local",
-      "command": ["uv", "run", "--directory", "server", "chess-files"],
-      "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
+      "command": ["node", "--import", "tsx", "apps/mcp-server/src/index.ts"]
     }
   }
 }

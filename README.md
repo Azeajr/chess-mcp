@@ -2,31 +2,35 @@
 
 [![CI](https://github.com/Azeajr/chess-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Azeajr/chess-mcp/actions/workflows/ci.yml)
 
-MCP server that gives AI agents (Claude Code, etc.) grounded chess analysis via Stockfish. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
+Grounded chess analysis for AI agents (Claude Code, etc.) via Stockfish — plus a local repertoire-building PWA. The MCP server runs as a **single Node.js process** (no Docker, no Python); a **SolidJS web app** shares the same TypeScript chess logic. Eliminates hallucinated moves and illegal lines by letting the agent validate positions and query the engine directly.
+
+> **Note:** The MCP server is a Node.js/TypeScript implementation (`apps/mcp-server`, all 33 tools). `.mcp.json` launches it directly — no container, no port, no host Stockfish install (the engine ships as a bundled wasm).
 
 ## Quickstart
 
-**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) + [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) + [uv](https://docs.astral.sh/uv/getting-started/installation/).
-
-### Plugin install (no clone)
-
-```bash
-claude plugin marketplace add Azeajr/chess-mcp
-/plugin install chess-mcp@chess-mcp
-```
-
-The plugin registers both MCP servers and installs all skills. The `SessionStart` hook starts the Docker container automatically on each session open. Skills are namespaced: `/chess-mcp:chess-game-review`, `/chess-mcp:repertoire-builder`, `/chess-mcp:analyze-position`, `/chess-mcp:annotate-pgn`.
-
-### Clone install (full access)
+**Prerequisites:** [Node.js](https://nodejs.org/) ≥ 20 + [pnpm](https://pnpm.io/) + [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`).
 
 ```bash
 git clone https://github.com/Azeajr/chess-mcp
 cd chess-mcp
-docker compose pull && docker compose up -d
-claude
+pnpm install
+claude   # approve the `chess-analysis` server when prompted (one-time)
 ```
 
-Approve both MCP servers when prompted (one-time). Skills load without namespace prefix: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`. See [Setup](#setup) for remote hardware, user-scope registration, and OpenCode.
+`.mcp.json` registers one stdio server, `chess-analysis`, launched as `node --import tsx apps/mcp-server/src/index.ts` — Stockfish (the `stockfish` npm wasm), `chessops`, and the ECO/structure data all bundled. The former `chess-files` proxy is gone: its file-path tools (`load_repertoire_from_file` / `export_repertoire_to_file`) are part of the one server now. Skills in `.claude/skills/` load automatically: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`.
+
+### Web app (repertoire builder PWA)
+
+```bash
+pnpm dev          # http://localhost:5173  (pnpm dev:host to expose on your LAN)
+pnpm --filter @chess-mcp/ui build   # production PWA (installable, offline)
+```
+
+A SolidJS board UI for building/studying repertoires: play moves into a variation tree, engine-eval arrows colored by repertoire congruence, on-demand gap scan, Lichess cloud eval, and an in-app chat (OpenRouter — set your key + model in Settings). Working repertoire autosaves to IndexedDB; open/save PGN via the File System Access API.
+
+**In-app chat tools (client-side).** The chat's tools run entirely in the browser against the shared `chess-tools` logic + the local Stockfish wasm — the same repertoire toolset the MCP server exposes (`find_repertoire_gaps`, `get_structural_profile`, `analyze_repertoire_congruence`, `suggest_*`, game review, gaps, …), reimplemented with no backend. So the chat is fully featured in `pnpm dev` **and** in the deployed/built PWA (e.g. on a static host like Cloudflare Pages — no Node process required). The engine-dependent orchestration is the shared implementation the Node server uses too (`packages/chess-tools/src/enginetools.ts`), so server and PWA stay in lockstep. Only the host-filesystem tools (`*_from_file`/`*_to_file`) are MCP-only — the PWA uses the File System Access picker instead.
+
+A **workflow mode** selector in the chat panel (General / Repertoire / Game review / Position / Annotate) injects the matching playbook into the system prompt — the PWA counterpart of the Claude Code skills (`apps/ui/src/llm/workflows.ts`), telling the assistant which tools to call in what order plus the grounding rules. The skills under `.claude/skills/` remain the Claude Code version (handle-based); the PWA prompts are adapted to its handle-free, current-tree tools.
 
 ## Problem
 
@@ -34,12 +38,16 @@ AI agents reviewing chess games generate moves from pattern-matching, not board 
 
 ## Architecture
 
-```
-Claude Code
-└── MCP client ──(SSE/HTTP)──► chess-mcp container (FastMCP + python-chess + Stockfish)
-```
+pnpm monorepo, one shared chess library serving both the MCP server and the web app:
 
-Runs in Docker on the same machine as Claude Code, or any reachable host over LAN. No relay or proxy needed.
+```
+packages/chess-tools   shared TypeScript logic (chessops + structure classifier + ECO +
+                       congruence + gaps + game review + rate-limited HTTP)
+apps/mcp-server        Node MCP server — 33 tools over chess-tools + stockfish (npm wasm)
+apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
+
+Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
+```
 
 ## Tools
 
@@ -48,16 +56,26 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 | Tool | Input | Output |
 |------|-------|--------|
 | `get_game_summary` | PGN, depth | Counts, accuracy %, worst 3 moves, opening — call this first |
-| `analyze_game` | PGN, depth, min_cp_loss, verbose | Mistake list (cp_loss ≥ min_cp_loss): move, cp_loss, classification, best_move. `verbose=true` adds eval_after + best_pv |
-| `get_position` | PGN, move_number, color, depth | One move's detail: FEN, eval, best_move, best_pv, alternatives — drill-down from summary/analyze |
-| `evaluate_position` | FEN, depth, multipv | Centipawn score, best move, top line; `multipv>1` adds ranked `candidates` (top-N moves) |
+| `analyze_game` | PGN, depth, verbose | Per-move cp_loss + classification (blunder/mistake/inaccuracy/good). `verbose=true` adds eval_cp + best_move + best_eval |
+| `get_position` | FEN | Normalized FEN, side to move, and legal moves — convenience wrapper for `validate_fen` + `get_legal_moves` |
+| `evaluate_position` | FEN, depth, lines | Local Stockfish analysis (white-POV): top `lines` moves (default 3), each with SAN, cp, mate, depth |
 | `compare_moves` | FEN, moves[], depth | Ranks YOUR candidate moves (best→worst): each move, eval, cp_loss vs best, pv; unrecognized inputs returned in `illegal`. Scores the exact moves you pass — even ones the engine wouldn't pick |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
-| `get_legal_moves` | FEN, uci | Legal moves as a SAN string; `uci=true` for a UCI+SAN list |
+| `get_legal_moves` | FEN | Legal moves in SAN at the given position |
 | `validate_fen` | FEN | Valid bool + **normalized** FEN, side to move, game-over flag; rejects illegal-but-parseable positions. Run on a user-supplied FEN before analysis |
 | `validate_pgn` | PGN | Valid bool + mainline ply count, has-variations flag, headers. Run on a user-supplied PGN before analysis |
 | `identify_opening` | PGN | ECO code + opening name (deepest named position); 3700-opening table |
-| `export_annotated_pgn` | PGN, depth, min_cp_loss | Annotated PGN string: NAG glyphs (?!/?/??) + eval & best-move comments on flagged moves, mainline **and** variations, plus `moves_annotated` count |
+| `export_annotated_pgn` | PGN, depth | Annotated PGN string: NAG glyphs ($2/$4/$6) + best-move/eval comments on flagged moves |
+| `cloud_eval` | FEN | Lichess cloud eval (white-POV cp + best move), or `available: false` if uncached/offline |
+| `tablebase_lookup` | FEN | Lichess tablebase result for ≤7-piece FEN, or `available: false` |
+| `batch_review` | PGN (multi-game), group_by, username?, max_games, depth | Aggregate review grouped by ECO or player color: avg cp-loss + blunder list per group (color grouping needs `username`) |
+
+### Game history
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `lichess_games` | username, max_games, opening_eco?, include_pgn | Recent Lichess games — metadata or full PGN; filter by ECO prefix |
+| `chesscom_games` | username, year, month, opening_eco?, include_pgn | Chess.com games for a calendar month — metadata or full PGN |
 
 ### Repertoire analysis
 
@@ -65,27 +83,32 @@ Runs in Docker on the same machine as Claude Code, or any reachable host over LA
 |------|-------|--------|
 | `load_repertoire` | PGN (variation tree), color | Handle (`repertoire_id`) + tree stats — call this first; avoids re-sending the full PGN on every call |
 | `get_structural_profile` | repertoire_id, variation_path? | Single-node: pawn structure class, confidence, primitives, theme tags, open files. `variation_path=null` → aggregate fingerprint (structures + theme rollup) over all leaves |
-| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit | Flags thematic inconsistencies, judged WITHIN each opening system (lines clustered by move-order-robust system, not first move): structure outliers, weakness mismatches, center-handling splits — each with its `cluster` label + drill-down path; plus a `clusters` partition |
+| `analyze_repertoire_congruence` | repertoire_id, min_severity, limit, acknowledged_weaknesses?, exclude_paths? | Flags thematic inconsistencies, judged WITHIN each opening system (lines clustered by move-order-robust system, not first move): structure outliers, weakness mismatches, center-handling splits — each with its `cluster` label + drill-down path; plus a `clusters` partition |
 | `find_repertoire_gaps` | repertoire_id, depth, min_severity, limit, max_positions | Engine scan for completeness: at every opponent-to-move node you already answer, flags strong opponent replies the tree doesn't cover, each with drill-down path + severity |
-| `get_repertoire_coverage` | repertoire_id, limit | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers, plus depth hints |
+| `get_repertoire_coverage` | repertoire_id, limit, connect_stubs? | Engine-free tree hygiene: dangling lines (a leaf where it's *your* move = no prepared reply) vs natural frontiers. `connect_stubs=true` engine-checks whether each stub bridges to existing prep — resolved stubs report `connects_via` + `joins_path` |
 | `suggest_complementary_lines` | repertoire_id, FEN, mode, depth, limit | Continuations from an anchor FEN: `low_memorization` ranks by structural overlap with the existing repertoire; `sharp` maximizes imbalance |
 | `get_transpositions` | repertoire_id, limit | Positions reached by more than one move order, with the converging SAN paths — study one, cover several |
 | `modify_repertoire_line` | repertoire_id, path, action (`prune`/`add`/`reorder`), add_moves?, promote_move? | **Action** — edit one line and get a NEW `repertoire_id` (clone-on-write; the source id is unchanged, so you branch/compare). Drives the single-session edit loop: every read tool works on the new id immediately |
 | `export_repertoire` | repertoire_id | The edit loop's escape hatch — serialize the current tree back to a PGN string (one `[Event]`) for you to Write to disk; round-trips through `load_repertoire` |
+| `find_pruning_transpositions` | repertoire_id, limit, depth/movetime_ms, cp_threshold, confirm_depth, leaf_start/leaf_count, budget | Shorten lines by routing earlier into existing prep via transposition. Returns **all** viable re-routes per line, each tagged `bestSavings` (biggest tail cut) / `bestEval` (best resulting eval, deep-confirmed via `confirm_depth`); reports `savedPlies` + eval trade (`evalStay` vs `evalTranspose`). A full (no-cursor) call is the authoritative global ranking (`partial:false`); `leaf_start`/`leaf_count` page for progress only |
+| `compare_shortcut_lines` | repertoire_id, line_path, at_ply, joins_path, depth?, eval_tiebreak_cp? | Quality of a shortcut: judges the line you'd **adopt** (transpose into `joins_path`) vs the one you'd **abandon** (stay) on eval at the fork + structural fit with the repertoire (subtree distribution + mainline-leaf structure labels); recommends one, flags eval/fit disagreement |
+| `check_shortcut_coverage` | repertoire_id, line_path, at_ply, depth?, min_severity?, max_positions? | Coverage safety of a shortcut: prunes the tail on a copy, re-runs the gap scan, returns the gaps it would open (`introduces_gap` + `new_gaps`) |
+| `suggest_replacement_line` | repertoire_id, outlier_variation_path, mode, depth | Single-call fix for a congruence outlier: pivots at the weakness move, suggests engine-validated alternatives ranked by structural fit or eval (`structural_fit` / `low_memorization` / `solid`) |
+| `classify_illustrative_lines` | repertoire_id, limit | Flag side lines marked with NAG glyphs ($2/$4/$6) — these inflate leaf/gap counts and should be excluded from coverage scans |
+| `repertoire_vs_history` | repertoire_id, username, platform, max_games, year?, month? | Compare prep against real games: coverage %, player deviations (your off-book moves), uncovered opponent moves |
 
 Structural analysis recognizes **19 canonical pawn structures** — IQP, Carlsbad, Maroczy, French, Stonewall, King's Indian, Benoni, Closed Sicilian, Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, and Benko — each gated on a core skeleton with graduated confidence (a position missing a peripheral pawn still classifies), the open-Sicilian family scored bidirectionally (reversed-English positions included), else `unknown`. The canon is traced to Flores Rios *Chess Structures* and Soltis *Pawn Structure Chess*; every scorer is validated against an engine-verified canonical FEN (see `STRUCTURE_CLASSIFIER_DESIGN.md`). Beyond the named class, every position also carries always-on **theme tags** (fianchetto, space, wing-majority, minority-attack, flank-vs-centre, colour-complex) — these stay informative even when the class is `unknown` (e.g. fianchetto systems), and the aggregate profile rolls them up across all leaves. Opening names come from the [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) dataset (CC0).
 
-Every engine-backed tool (`analyze_game`, `get_game_summary`, `get_position`, `evaluate_position`, `compare_moves`, `suggest_complementary_lines`, `find_repertoire_gaps`, `export_annotated_pgn`) also accepts an optional `time_limit` (seconds): when set, the engine searches by wall-clock instead of `depth` — useful on slow hardware or for fast iteration. Depth stays the default and the reproducible path.
+Engine-backed tools accept `depth` (integer, clamped 1–30; per-tool default 12–16). `find_pruning_transpositions` additionally accepts `movetime_ms` (ms per position) as a time-based alternative — a tighter knob for sharp positions or slower hardware — and `confirm_depth` to deep-confirm each line's best-eval re-route. Its candidate-node pre-filter (only positions with an actual cross-branch transposer reach the engine) plus a transposition-keyed scan memo keep a full-tree scan cheap, so chunking (`leaf_start`/`leaf_count`) is for progress display, not coverage.
 
-Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
+Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request), `path_not_found` (`compare_shortcut_lines` given a `line_path`/`joins_path` that doesn't resolve), `invalid_prune` (`check_shortcut_coverage` given an `at_ply` that leaves nothing to prune). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
 
-### Repertoire file I/O (`chess-files`, host-side)
+### Repertoire file I/O
 
-A companion MCP server — `chess-files` — loads a repertoire (and writes an export) by **file path**,
-so a large PGN is read on the host and never piped through the model's context: no client-side
-truncation, no per-load token cost. It runs over stdio (the client spawns it) and forwards to the
-`chess-analysis` server over SSE; the returned `repertoire_id` resolves across both because they
-share the one backend process. See `PROXY_DESIGN.md`.
+Load a repertoire (and write an export) by **file path**, so a large PGN is read off disk and never
+piped through the model's context: no client-side truncation, no per-load token cost. In the Node
+server these are ordinary tools (the host-side `chess-files` proxy the Python deployment needed is
+gone — the one stdio process has the host filesystem directly).
 
 | Tool | Input | Output |
 |------|-------|--------|
@@ -101,8 +124,8 @@ Paths are confined to `REPERTOIRE_DIR` (default the repo's `repertoires/`). Erro
 **Game review:**
 
 1. Call `get_game_summary` — small output, gives counts and worst moves.
-2. Call `analyze_game` — filtered to moves at or above `min_cp_loss` (default 50).
-3. Call `get_position(pgn, move_number, color)` to drill into a specific move. Returns that position's **FEN** for `evaluate_position` / `validate_line` / `get_legal_moves`.
+2. Call `analyze_game` — per-move cp_loss and classification; add `verbose=true` for eval + best_move per move.
+3. Call `validate_line` from the start FEN with the game's SAN moves up to the target ply — `finalFen` in the response is the position FEN. Then call `evaluate_position` or `get_legal_moves` on it.
 
 **Repertoire analysis:**
 
@@ -142,90 +165,7 @@ Code and keep every move/line engine-grounded:
 | `analyze-position` | single-FEN deep dive (puzzles, "best move here?") |
 | `annotate-pgn` | emit an annotated PGN artifact (`?!`/`?`/`??` + comments) |
 
-## Setup
-
-### Prerequisites
-
-- **Docker** + **Docker Compose** — runs the server (bundles Stockfish + Python deps; no host install)
-- **Claude Code** (`claude` CLI) or **OpenCode** (`opencode` CLI) — the MCP client
-- **uv** — required for `chess-files` (the host-side file proxy); install via `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-### In-repo (recommended)
-
-Clone, start the server, open Claude Code:
-
-```bash
-git clone https://github.com/Azeajr/chess-mcp
-cd chess-mcp
-docker compose pull && docker compose up -d
-claude
-```
-
-- `.mcp.json` registers `chess-analysis` (SSE) and `chess-files` (stdio proxy) — approve both when prompted (once only).
-- `.claude/skills/` loads automatically — `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn` are immediately available.
-- `.claude/settings.json` includes a `SessionStart` hook that runs `docker compose up -d` automatically on every session open, so you only need to start the server manually the first time.
-
-`restart: unless-stopped` in `compose.yml` keeps the server alive across reboots. After pulling updates: `docker compose pull && docker compose up -d`.
-
-Common commands: `make pull` / `make up` (local build) / `make down` / `make logs` / `make test`.
-
-### User scope (any directory)
-
-Register globally so the engine and skills load in every Claude Code session, not just inside the repo:
-
-```bash
-# from the cloned repo:
-claude mcp add -s user -t sse chess-analysis http://localhost:8000/sse
-claude mcp add -s user chess-files -- uv run --directory "$(pwd)/server" chess_files.py
-mkdir -p ~/.claude/skills && cp -r .claude/skills/* ~/.claude/skills/
-```
-
-The server still needs to be running (`docker compose up -d` from the repo, or add the `SessionStart` hook to your global `~/.claude/settings.json`).
-
-### Remote host
-
-Run the server on another machine, point the client at it:
-
-```bash
-claude mcp add -s user -t sse chess-analysis http://<HOST_IP>:8000/sse
-```
-
-For in-repo use, edit `.mcp.json`:
-
-```json
-{ "mcpServers": { "chess-analysis": { "type": "sse", "url": "http://<HOST_IP>:8000/sse" } } }
-```
-
-`chess-files` always runs on the local host regardless of where `chess-analysis` is — it reads local files and forwards bytes to whatever `CHESS_MCP_URL` points at.
-
-### Quick try (stdio, no server)
-
-No clone, no running server — Claude Code spawns the container on demand:
-
-```bash
-claude mcp add chess-analysis -- docker run -i --rm -e MCP_TRANSPORT=stdio ghcr.io/azeajr/chess-mcp:latest
-```
-
-Limitations: no `chess-files` (no shared SSE surface), cold cache per session, ~2 s container startup per session. Use the SSE path for real work.
-
-### Native (non-Docker)
-
-Docker is the supported path. For a host install without containers, `./install.sh` installs Stockfish via the detected package manager (**pacman / apt / brew**) and runtime deps via `uv`, then prints the run command. Add `--systemd` to also install a `systemd --user` unit (Linux only):
-
-```bash
-./install.sh            # install deps, print the run command
-./install.sh --systemd  # also install the systemd unit: systemctl --user enable --now chess-mcp
-```
-
-### Verify
-
-```bash
-claude mcp get chess-analysis     # health-checks the SSE connection
-```
-
-Or ask Claude to run `get_legal_moves` on the starting position, then paste a PGN and invoke `/chess-game-review`.
-
-### Validate plugin / marketplace
+## Validate plugin / marketplace
 
 ```bash
 claude plugin validate ./plugin   # validate plugin manifest + skills
@@ -234,134 +174,78 @@ claude plugin validate .          # validate marketplace catalog
 
 ### OpenCode
 
-`opencode.json` registers both `chess-analysis` and `chess-files` automatically when running from the repo — approve the prompt, no manual setup needed. Skills in `.claude/skills/` auto-discover.
-
-```bash
-docker compose up -d
-opencode
-```
-
-**User-scope:** add to `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "mcp": {
-    "chess-analysis": {
-      "type": "remote",
-      "url": "http://localhost:8000/sse"
-    },
-    "chess-files": {
-      "type": "local",
-      "command": ["uv", "run", "--directory", "/path/to/chess-mcp/server", "chess_files.py"],
-      "environment": { "CHESS_MCP_URL": "http://localhost:8000/sse" }
-    }
-  }
-}
-```
-
-Replace `/path/to/chess-mcp` with the absolute path to your cloned repo. Copy skills:
-
-```bash
-make opencode-setup
-```
+`opencode.json` registers `chess-analysis` (the same stdio Node server as `.mcp.json`) automatically
+when running from the repo — approve the prompt, no manual setup needed. Skills in `.claude/skills/`
+auto-discover. Just run `opencode` from the repo.
 
 ## Configuration
 
-Environment variables (set in `compose.yml`):
+The Node server runs as a local stdio process — no port, no transport setting, no `STOCKFISH_PATH`
+(the `stockfish` wasm is bundled). Environment variables it reads:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_TRANSPORT` | `sse` | Transport: `sse` (networked server) or `stdio` (client spawns the process — no port; the one-command local install) |
-| `FASTMCP_HOST` | `127.0.0.1` | Bind address (SSE only). Docker image/compose set `0.0.0.0` so the published port is reachable |
-| `FASTMCP_PORT` | `8000` | Listen port (SSE only) |
-| `STOCKFISH_PATH` | `/usr/games/stockfish` | Engine binary (Debian path) |
-| `ANALYSIS_DEPTH` | `18` | Default search depth (clamped to 1–30) |
-| `MAX_ENGINE_TIME_S` | `60` | Ceiling for the optional per-call `time_limit` (seconds; floor 0.01) |
-| `GAP_BUDGET_S` | `45` | `find_repertoire_gaps` total wall-clock budget (seconds): on a large tree it scans shallowest-first until spent, then returns partial results with `budget_exhausted:true`. Lower it if your MCP client's request timeout is under ~60s |
-| `MAX_PGN_BYTES` | `100000` | Reject single-game PGN larger than this (per-call CPU/memory bound) |
-| `MAX_REPERTOIRE_BYTES` | `1000000` | Reject `load_repertoire` PGN larger than this (larger cap for variation trees) |
-| `MAX_LINE_MOVES` | `500` | Reject `validate_line` move lists longer than this |
+| `REPERTOIRE_DIR` | repo `repertoires/` | Base dir that `load_repertoire_from_file` / `export_repertoire_to_file` paths are confined to |
 | `MAX_REPERTOIRES` | `16` | Max cached repertoires (LRU eviction beyond this) |
 | `REPERTOIRE_TTL_S` | `3600` | Idle seconds before a cached repertoire expires |
 
-> **Trust boundary.** The SSE endpoint has **no authentication**. The code default bind is `127.0.0.1` (local only); the Docker image/compose bind `0.0.0.0` so the published port works — only expose that port on a **trusted LAN, never the public internet**. The server runs Stockfish on caller-supplied PGN/FEN, so `MAX_PGN_BYTES`, `MAX_REPERTOIRE_BYTES`, `MAX_LINE_MOVES`, and the depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without limit.
+Search depth is per-tool (default 12–16, clamped 1–30); `find_pruning_transpositions` also takes a
+`movetime_ms` knob and a `budget` cap. The `find_repertoire_gaps` budget and the input caps
+(PGN/repertoire bytes, line length, candidate-line count) are compiled-in constants.
 
-### `chess-files` proxy env (set in `.mcp.json` / `opencode.json`, not `compose.yml`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CHESS_MCP_URL` | `http://localhost:8000/sse` | SSE URL of the `chess-analysis` backend the proxy forwards to |
-| `REPERTOIRE_DIR` | repo `repertoires/` | Base dir that `load_repertoire_from_file` / `export_repertoire_to_file` paths are confined to |
+> **Trust boundary.** The server runs Stockfish on caller-supplied PGN/FEN. The input caps and the
+> depth clamp (1–30) bound per-call work, and the repertoire handle cache is bounded
+> (`MAX_REPERTOIRES` LRU + `REPERTOIRE_TTL_S` expiry) so loaded repertoires can't grow memory without
+> limit. As a local stdio process it exposes no network surface.
 
 ## Project layout
 
 ```
 chess-mcp/
-├── compose.yml              # Docker Compose: GHCR image + local build fallback, port 8000, env
-├── Makefile                 # up / pull / down / logs / test / lint / register / install
-├── .mcp.json                # Claude Code MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
-├── opencode.json            # OpenCode MCP config: chess-analysis (SSE) + chess-files (stdio proxy)
-├── .github/workflows/       # ci.yml — test + docker build/boot, plus a tag-gated GHCR publish job
-├── .claude/settings.json    # project settings: SessionStart hook (auto-start Docker) + MCP server approvals
+├── .mcp.json                # Claude Code MCP config: chess-analysis (stdio Node server)
+├── opencode.json            # OpenCode MCP config: chess-analysis (stdio Node server)
+├── .github/workflows/       # ci.yml — build, typecheck, smoke; tag-gated GitHub release
 ├── .claude/skills/          # standalone skills (auto-load when running claude in-repo, no namespace prefix)
 ├── .claude-plugin/
 │   └── marketplace.json     # Claude Code plugin marketplace catalog (plugin install path)
 ├── plugin/                  # distributable Claude Code plugin
 │   ├── .claude-plugin/
-│   │   └── plugin.json      # plugin manifest: MCP servers + SessionStart hook + skills
+│   │   └── plugin.json      # plugin manifest: stdio Node MCP server + skills
 │   └── skills/              # plugin skills (namespaced /chess-mcp:<skill> after install)
-├── install.sh               # native (non-Docker) install: pacman/apt/brew + uv, optional systemd unit
-├── sample-game.pgn          # anonymized single-game fixture for evals
-├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree for evals
-├── MCP_DESIGN.md            # design principles for this server
-├── REPERTOIRE_DESIGN.md     # design spec for the repertoire analysis feature set
-├── PROXY_DESIGN.md          # design spec for the chess-files file-path proxy
-├── FEATURES_DESIGN.md       # design spec for gaps, coverage, compare_moves
-├── ROADMAP_DESIGN.md        # design spec for shipped roadmap items
-├── STRUCTURE_CLASSIFIER_DESIGN.md  # design spec for pawn-structure classifier
-├── ILLUSTRATIVE_LINE_DESIGN.md     # design spec for classify_illustrative_lines
-├── GROUNDING_DESIGN.md      # grounding principles and skill-authoring decisions
-├── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
-├── evals/                   # harnesses (engine-free unless noted)
-│   ├── capture.py           # capture real tool outputs (needs Stockfish → run in Docker)
-│   ├── measure.py           # tiktoken token count
-│   ├── structure_accuracy.py # structural-classifier precision/recall vs labeled FENs
-│   ├── build_openings.py    # regenerate server/openings.tsv from lichess-org/chess-openings
-│   └── snapshots/outputs.json
-└── server/
-    ├── chess_mcp.py         # All 22 MCP tools, FastMCP SSE server
-    ├── chess_files.py       # chess-files proxy: load/export a repertoire by file path (stdio → SSE)
-    ├── structure.py         # engine-free pawn-structure analysis (19 structures + theme tags)
-    ├── repertoire.py        # variation-tree walker, LRU handle cache, congruence, transpositions
-    ├── openings.py          # ECO opening lookup (EPD → name)
-    ├── openings.tsv         # 3700 openings, vendored from lichess-org/chess-openings (CC0)
-    ├── test_structure_repertoire.py  # pytest suite (engine-free): structure + repertoire
-    ├── test_tools.py                  # pytest suite: tool wrappers (validation, errors, caps)
-    ├── test_chess_files.py            # pytest suite: chess-files proxy guards (backend mocked)
-    ├── pyproject.toml       # uv project + dependencies
-    ├── Dockerfile           # uv+Python3.14 base, apt stockfish
-    └── .dockerignore
+├── packages/
+│   └── chess-tools/         # shared TS lib: GameTree, structure classifier, congruence, gaps, ECO, HTTP
+├── apps/
+│   ├── mcp-server/          # Node MCP server (@modelcontextprotocol/sdk, stdio) — 33 tools + stockfish wasm
+│   └── ui/                  # SolidJS + Vite PWA: board, congruence arrows, gap scan, cloud eval, chat
+├── scripts/                 # engine-free smoke: smoke-gametree.mjs, structure-accuracy.mjs
+├── docs/design/             # design specs (repertoire, structure classifier, node migration, …)
+├── sample-game.pgn          # anonymized single-game fixture
+├── sample-repertoire.pgn    # sample White 1.d4 repertoire tree
+└── ENGINEERING_PASSES.md    # reusable refactor/security/testing execution-loop prompts
 ```
 
 ## Dependencies
 
-- [`mcp[cli]`](https://github.com/modelcontextprotocol/python-sdk) — FastMCP server + SSE transport
-- [`chess`](https://github.com/niklasf/python-chess) — board state, PGN/FEN parsing, legal move generation, Stockfish subprocess wrapper
+- [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) — MCP server + stdio transport
+- [`chessops`](https://github.com/niklasf/chessops) — board state, PGN/FEN parsing, legal move generation
+- [`stockfish`](https://www.npmjs.com/package/stockfish) — bundled Stockfish wasm engine (no host install)
 
 ## Roadmap
+
+Forward-looking plan (distribution, engineering, and feature backlog) lives in
+[`ROADMAP.md`](ROADMAP.md). Shipped to date:
 
 - [x] **Repertoire handle** — `load_repertoire(pgn, color) → repertoire_id` avoids re-sending large variation-tree PGNs. Implemented with bounded LRU + TTL cache (default 16 entries / 1h idle expiry; overridable via env).
 - [x] **Opening names (ECO)** — `identify_opening(pgn)` names the opening from a 3700-entry table vendored from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings); `get_structural_profile` nodes carry the opening too.
 - [x] **`classify_structure` expansion** — now **19 source-traced structures** (added Hanging pawns, Caro-Kann, Slav, Grünfeld Centre, Nimzo-Grünfeld, Hedgehog, Najdorf, Scheveningen, Symmetric Benoni, Lopez, Benko) with graduated core+bonus confidence and bidirectional open-Sicilian scoring, plus always-on **theme tags** (A) rolled up in the aggregate profile. Each scorer is validated against an engine-verified canonical FEN; see `STRUCTURE_CLASSIFIER_DESIGN.md`.
-- [x] **`time_limit` param** — every engine tool takes an optional `time_limit` (seconds) → `Limit(time=N)` instead of depth; clamped to `[0.01, MAX_ENGINE_TIME_S]`. Depth stays the reproducible default.
-- [x] **Variation-aware game analysis** — the cached engine pass now walks the whole game tree (mainline + variations) once, keyed by SAN path. The mainline game tools project the mainline unchanged; side lines are analyzed in the same pass.
-- [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged moves, across mainline and variations); the grounded, importable counterpart to the `annotate-pgn` skill.
-- [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `evals/structure_accuracy.py` harness-validated pattern (candidates: French Exchange, Hedgehog).
+- [x] **Time-based engine budget** — `find_pruning_transpositions` takes a `movetime_ms` knob (ms per position) instead of depth, plus a `budget` cap on total positions analysed. Depth stays the reproducible default elsewhere.
+- [x] **Cached single-pass game analysis** — `analyze_game` / `get_game_summary` / `export_annotated_pgn` share one engine pass over the game's mainline (one eval per position, cp_loss from consecutive white evals), keyed and cached so the summary and per-move tools don't re-search.
+- [x] **`export_annotated_pgn` tool** — emits an engine-annotated PGN artifact (NAG glyphs + eval/best-move comments on flagged mainline moves); the grounded, importable counterpart to the `annotate-pgn` skill.
+- [x] **More pawn structures** — added Closed Sicilian (8th); French Advance was already covered by the French pattern. Further structures follow the same `scripts/structure-accuracy.mjs` harness-validated pattern (candidates: French Exchange, Hedgehog).
 - [x] **Repertoire completeness + move comparison** — `find_repertoire_gaps` (engine scan for strong uncovered opponent replies), `get_repertoire_coverage` (engine-free dangling-line / tree-shape hygiene), and `compare_moves` (rank your own candidate moves from a FEN). 16 tools; closed error set unchanged.
 - [x] **Single-session edit loop** — `modify_repertoire_line` (clone-on-write prune/add/reorder → new `repertoire_id`; source id unchanged, so branch/compare) + `export_repertoire` (tree → PGN string for the agent to Write). Load → mutate → re-analyze the new id → … → export, all in one session, no re-download. New error codes `invalid_line`, `invalid_edit`. See REPERTOIRE_DESIGN.md §9.
 - [x] **Thematic-cluster congruence** — `analyze_repertoire_congruence` now clusters lines by move-order-robust opening SYSTEM (not the opponent's first move), so a system reached via several first moves is judged as one and distinct systems under one first move stay separate. Surfaces per-system inconsistencies a Black repertoire previously washed out. See REPERTOIRE_DESIGN.md §10.
-- [ ] **Opponent-popularity weighting for gaps** — rank `find_repertoire_gaps` output by how often opponents actually play each uncovered move (a moves-frequency dataset), so triage fixes the holes you'll hit, not just the engine-strong ones. Pairs the engine-criticality signal with a real-world frequency signal.
-- [ ] **`compare_repertoires(id_a, id_b)`** — structural + coverage diff between two loaded repertoire handles (shared themes, divergent lines, relative dangling/gap counts) to support evolving or merging a repertoire.
+- [x] **Shorten / transposition-pruning pass** — `find_pruning_transpositions` now pre-filters to candidate nodes only (one real repertoire went 385 → 16 engine analyses), returns **all** re-routes per line tagged `bestSavings`/`bestEval` with `confirm_depth` deep-confirm, and pages by leaf cursor (the full call owns the global ranking; chunks are progress-only). Two new tools vet a chosen shortcut: `compare_shortcut_lines` (quality — eval at the fork + structural fit) and `check_shortcut_coverage` (does the prune open a gap). Both share one chess-tools core with the PWA, whose Shorten rows now carry `↓`/`★` pick badges, a cancel button, and a "?" inspect verdict. 33 tools; new error codes `path_not_found`, `invalid_prune`. See `SHORTEN_SEMANTICS_DESIGN.md` + `SHORTEN_IMPROVEMENTS_TODO.md`.
 
 ## License
 
