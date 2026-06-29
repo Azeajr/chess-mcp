@@ -1,9 +1,7 @@
 /**
- * Node MCP server — exposes chess-tools + the Node Stockfish engine over MCP, replacing the Python
- * chess-analysis + chess-files servers with one Node process (host fs directly, bundled engine, no
- * Docker). Tool-for-tool parity with Python is complete (structure classifier, ECO, illustrative
- * lines, suggest, batch_review all ported); the Python server remains only as the dev/eval
- * reference (see docs/design/NODE_MIGRATION_DESIGN.md).
+ * Node MCP server — exposes chess-tools + the Node Stockfish engine over MCP. One Node process: host
+ * filesystem directly, bundled wasm engine, no Docker. (Supersedes an earlier Python chess-analysis +
+ * chess-files stack, since removed.)
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

@@ -48,8 +48,7 @@ server installable as a self-contained artifact.
 
 - [ ] **Standalone build target for the MCP server.** Add a `build:mcp` that bundles
       `apps/mcp-server` + `packages/chess-tools` + `data/openings.tsv` + the stockfish wasm into a
-      dist with no `tsx`/source-tree/`pnpm install` dependency for end users. (Design rationale:
-      `docs/design/NODE_MIGRATION_DESIGN.md` D4 — deferred follow-up.)
+      dist with no `tsx`/source-tree/`pnpm install` dependency for end users (a deferred follow-up).
 - [ ] **npm-publish the server** (e.g. `@chess-mcp/server` with a `bin`) so the plugin can point at
       `npx -y @chess-mcp/server` instead of the checkout, and so non-plugin MCP clients can install it
       directly. Replace/extend the tag-gated CI `release` job to publish on `v*`.

@@ -87,7 +87,7 @@ The id is an input key, not session state that varies by call order
 | # | Decision | Choice | Why |
 |---|----------|--------|-----|
 | D1 | Output type | **Plain dict + `Literal` inputs** | Consistency with 6 existing tools; clean structured-error returns; no added `outputSchema` tokens. Validation covered by `evals/` snapshot + a shape test instead. |
-| D2 | `classify_structure` scope | **Narrow set (IQP, Carlsbad, Maroczy) + `confidence` + `unknown` fallback** | A false structure label misleads an LLM cross-referencing it more than `unknown` does. The three chosen are the cleanest pawn-skeleton matches; French Advance / Closed Sicilian hinge on piece placement + move order → brittle under static matching. Expand later with fixtures. **Since expanded to 19 source-traced structures + always-on theme tags — the D2 *principle* (narrow-but-honest, never a false label) is preserved; the set grew under it. See `STRUCTURE_CLASSIFIER_DESIGN.md`.** |
+| D2 | `classify_structure` scope | **Narrow set (IQP, Carlsbad, Maroczy) + `confidence` + `unknown` fallback** | A false structure label misleads an LLM cross-referencing it more than `unknown` does. The three chosen are the cleanest pawn-skeleton matches; French Advance / Closed Sicilian hinge on piece placement + move order → brittle under static matching. Expand later with fixtures. **Since expanded to 19 source-traced structures + always-on theme tags — the D2 *principle* (narrow-but-honest, never a false label) is preserved; the set grew under it.** |
 | D3 | `variation_path` encoding | **SAN move list** e.g. `["e4","c5","Nf3"]` | Matches house SAN-first convention; what the model already emits; readable errors. Resolver walks ply-by-ply (`parse_san` per node, follow the matching child). |
 | D4 | `variation_path=None` | **Aggregate profile over all leaves** | The repertoire's overall structural fingerprint. A concrete path → single-node profile. |
 | D5 | `suggest_*` `fen` | **Anchor position to suggest a continuation FROM** | id supplies profile, fen supplies the where (a leaf, or a gap position). |
@@ -249,8 +249,8 @@ Macro-classifier:
   `structure_class ∈ {IQP, Carlsbad, Maroczy, unknown}` at the time of this doc (D2). Rule-based
   pattern match on the primitives; never forces a label — weak match → `unknown` with low
   confidence. **The set has since grown to 19 source-traced structures with graded core+bonus
-  confidence, plus an always-on `themes(board, color)` descriptor block; see
-  `STRUCTURE_CLASSIFIER_DESIGN.md` for the current canon and provenance.**
+  confidence, plus an always-on `themes(board, color)` descriptor block. The current canon lives in
+  `packages/chess-tools/src/structure.ts`, validated by `scripts/structure-accuracy.mjs`.**
 
 JSON output (consumed by `get_structural_profile`):
 
