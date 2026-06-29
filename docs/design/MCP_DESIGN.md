@@ -144,7 +144,8 @@ reads as "nothing wrong."
 Keep a server's error codes **closed and enumerated** so the model can branch on the code instead
 of parsing prose. This server's set: `invalid_pgn`, `invalid_fen`, `invalid_color`,
 `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`,
-`variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`.
+`variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`, `path_not_found`,
+`invalid_prune`.
 
 (`invalid_line` — a supplied SAN line is illegal at some ply, e.g. a move in
 `modify_repertoire_line` add_moves; `invalid_edit` — a tree-edit request is malformed, e.g.
@@ -190,18 +191,11 @@ Both are just transport — tool design is identical.
 
 ## Measuring output size
 
-Never assert a token number you didn't measure. Capture real tool outputs once, commit the
-snapshot, count offline:
-
-- `evals/capture.py` — runs every tool on `sample-game.pgn`, writes `evals/snapshots/outputs.json`
-  (real outputs + the live docstrings). Needs Stockfish, so run it in the Docker image; regenerate
-  when any tool's output shape changes.
-- `evals/measure.py` — engine-free; tiktoken `o200k_base` (OpenAI BPE, approximates Claude's
-  tokenizer — ratios meaningful, absolutes approximate).
-  `uv run --with tiktoken python evals/measure.py`.
-
-Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repertoire tools on
-`sample-repertoire.pgn`):
+Never assert a token number you didn't measure — capture real tool outputs and count them offline
+(tiktoken `o200k_base` approximates Claude's tokenizer: ratios meaningful, absolutes approximate).
+The table below is a point-in-time snapshot (game tools on `sample-game.pgn`, repertoire tools on
+`sample-repertoire.pgn`, depth 18); re-measure after any output-shape change rather than trusting
+stale numbers:
 
 | Output | Tokens |
 |--------|-------:|
@@ -253,9 +247,9 @@ Measured at depth 18, tiktoken o200k_base (game tools on `sample-game.pgn`, repe
   force the model to re-derive them — see the boundary note above). After the #19 severity-capping,
   `find_repertoire_gaps` on the sample is small (32 tok); the heaviest *reasoning* primitive is now
   `get_structural_profile` (node, 214 tok).
-- All 30 tool descriptions total ~6411 tok, re-read on every `tools/list` — why descriptions are
-  kept compressed (they are routing logic, paid every call). (repertoire-handle outputs embed a
-  random id, so load_repertoire / modify_repertoire_line wobble a few tok between captures.)
+- All tool descriptions are re-read on every `tools/list` — why descriptions are kept compressed
+  (they are routing logic, paid every call). (repertoire-handle outputs embed a random id, so
+  load_repertoire / modify_repertoire_line wobble a few tok between captures.)
 
 Regenerate after any output-shape change; stale numbers are worse than none.
 
