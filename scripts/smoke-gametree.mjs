@@ -16,6 +16,7 @@ import {
   validateFen,
   validatePgn,
   mainline,
+  analyzeMainline,
   classifyCpLoss,
   moveAccuracy,
   parseOpeningsTsv,
@@ -158,6 +159,21 @@ ok(
   "classifyCpLoss thresholds",
 );
 ok(moveAccuracy(0) === 1 && Math.abs(moveAccuracy(300) - Math.exp(-1)) < 1e-9, "moveAccuracy curve");
+
+// 15b. analyzeMainline distinguishes a TERMINAL position (mate/stalemate → the engine returns [], not
+// null) from engine-unavailable (null). A game ending in checkmate must still review move-by-move, not
+// abort as engine_unavailable. The stub mirrors the real engine: [] once no legal moves remain.
+const matePgn = "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# *";
+const termAnalyse = async (fen) => {
+  const sans = legalMoves(fen);
+  if (!sans.length) return []; // terminal: Stockfish emits no info/pv lines (verified vs the bundled engine)
+  const uci = validateLine(fen, [sans[0]]).firstUci;
+  return [{ uci, cp: 0, mate: null, depth: 12, pv: [uci] }];
+};
+const recMate = await analyzeMainline(matePgn, 12, termAnalyse);
+ok(recMate !== null && recMate.length === 7, `analyzeMainline reviews a mate-ending game (${recMate ? recMate.length : "null"} plies)`);
+ok(recMate && recMate.at(-1).san === "Qxf7#" && recMate.at(-1).classification === "good", "terminal eval: mating move classified, review not aborted");
+ok((await analyzeMainline(matePgn, 12, async () => null)) === null, "analyzeMainline still returns null when the engine is truly unavailable");
 
 // 16. modify_repertoire_line edits — clone-on-write
 const base = GameTree.fromPgn("1. e4 *");

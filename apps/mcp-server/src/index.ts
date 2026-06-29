@@ -637,7 +637,7 @@ server.tool(
   },
 );
 
-// --- structure (descriptive; named-structure scorers deferred) ---
+// --- structure (descriptive: named-structure classifier + themes/center) ---
 server.tool(
   "get_structural_profile",
   "Static pawn-structure profile of a repertoire. variation_path (SAN list) → one position's profile: the classified named structure_class (with confidence), center, primitives, files, themes. Omit it → an aggregate structure fingerprint (distribution of named structures) over all leaves.",

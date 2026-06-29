@@ -72,6 +72,11 @@ console.log("  white:", JSON.stringify(gs.white), "worst:", gs.worst_moves?.[0]?
 ok(gs.white.blunders + gs.white.mistakes >= 1, "get_game_summary flags white's Nxe5");
 const ann = await call(client, "export_annotated_pgn", { pgn: BLUNDER, depth: 8 });
 ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
+// A game ending in CHECKMATE: the terminal position returns no engine lines ([]). The review must
+// still complete (regression: [] was misread as engine_unavailable, aborting the whole review).
+const MATE = "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# *";
+const agMate = await call(client, "analyze_game", { pgn: MATE, depth: 8 });
+ok(agMate.total_moves === 7 && agMate.moves?.at(-1)?.san === "Qxf7#", `analyze_game reviews a mate-ending game (${agMate.total_moves ?? agMate.error} plies)`);
 
 const tb = await call(client, "tablebase_lookup", { fen: "4k3/8/8/8/8/8/8/4K2R w - - 0 1" });
 console.log(`  late tablebase took ${Date.now() - t0}ms →`, JSON.stringify(tb).slice(0, 80));

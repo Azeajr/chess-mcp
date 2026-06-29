@@ -3,10 +3,10 @@
  * bitboard work, no engine. Provides the always-on theme tags, pawn primitives, files, and
  * center state that carry structural signal.
  *
- * NOTE: the 19 named pawn-structure scorers (IQP, Carlsbad, Maroczy, …) are not yet ported, so
- * classify_structure returns "unknown" — by design the themes carry the signal even when the
- * structure class is unknown (Python Decision D2: a wrong label misleads more than "unknown").
- * The named scorers are a later phase.
+ * The 19 named pawn-structure scorers (IQP, Carlsbad, Maroczy, …) are ported below — classifyStructure
+ * plus the per-structure confidence functions, pinned by scripts/structure-accuracy.mjs. A position
+ * matching none returns "unknown"; by design the themes still carry the signal then (Python Decision
+ * D2: a wrong label misleads more than "unknown").
  */
 import { squareFile, squareRank, makeSquare, parseSquare } from "chessops/util";
 import { parseFen, makeBoardFen } from "chessops/fen";

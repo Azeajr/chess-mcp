@@ -82,8 +82,17 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
   const evals: { whiteCp: number; bestUci: string }[] = [];
   for (const fen of fens) {
     const res = await analyse(fen, 1, depth);
-    const l = res?.[0];
-    if (!l) return null;
+    if (res === null) return null; // engine genuinely unavailable
+    const l = res[0];
+    if (!l) {
+      // No lines ⇒ a terminal position (no legal moves); the engine returns []. This is only ever the
+      // final fenAfter, consumed as an `after` eval (its bestUci is never read). Checkmate ⇒ the side
+      // to move is mated (white-POV ∓MATE_CP); stalemate / insufficient material ⇒ a draw (0). Treating
+      // [] as engine_unavailable (the old bug) aborted the review of every game ending in mate.
+      const pos = chessFromFen(fen);
+      evals.push({ whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0, bestUci: "" });
+      continue;
+    }
     const whiteCp = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
     evals.push({ whiteCp, bestUci: l.uci });
   }
