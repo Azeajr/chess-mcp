@@ -134,6 +134,9 @@ export function analyseMulti(fen: string, multipv = 1, depth = 16, movetime?: nu
         }
       };
       engine.sendCommand("ucinewgame");
+      // multipv is a clamped integer (zod min/max); fen is always either chessops-generated
+      // (makeFen) or validateFen-gated at the tool boundary — validateFen rejects newlines/garbage,
+      // so no caller string can inject extra UCI commands through either interpolation.
       engine.sendCommand(`setoption name MultiPV value ${multipv}`);
       engine.sendCommand(`position fen ${fen}`);
       engine.sendCommand(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);

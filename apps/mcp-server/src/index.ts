@@ -6,9 +6,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { resolve as pathResolve, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   GameTree,
@@ -45,17 +45,20 @@ import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
 import { store, get } from "./handles.js";
+import { confine, readCappedPgn, MAX_PGN_BYTES } from "./paths.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
 const notFound = () =>
   ok({ error: "repertoire_not_found", reason: "unknown or expired repertoire_id; call load_repertoire" });
 
-// File-path tools are confined to REPERTOIRE_DIR (the chess-files proxy's base-dir guard).
-const BASE = pathResolve(process.env.REPERTOIRE_DIR ?? pathResolve(process.cwd(), "repertoires"));
-function confine(p: string): string | null {
-  const real = pathResolve(BASE, p);
-  return real === BASE || real.startsWith(BASE + "/") ? real : null;
-}
+// Untrusted-input caps (the threat is caller-supplied PGN/FEN/path, not a network peer). The PGN
+// byte cap bounds parse/memory DoS on every PGN that enters; MAX_COMPARE_MOVES bounds compare_moves'
+// per-candidate engine work. confine() (paths.ts) is the file-path containment guard.
+const pgnTooLarge = (pgn: string) =>
+  Buffer.byteLength(pgn, "utf8") > MAX_PGN_BYTES
+    ? ok({ error: "pgn_too_large", reason: `PGN exceeds the ${MAX_PGN_BYTES}-byte limit` })
+    : null;
+const MAX_COMPARE_MOVES = 64;
 
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" });
 
@@ -70,11 +73,18 @@ server.tool(
   "validate_line",
   "Validate SAN moves from a FEN; returns canonical SANs or the first illegal index.",
   { fen: z.string(), moves: z.array(z.string()) },
-  ({ fen, moves }) => ok(validateLine(fen, moves)),
+  ({ fen, moves }) => {
+    // Gate the FEN: validateLine → parseFen().unwrap() throws a raw FenError on garbage input.
+    const v = validateFen(fen);
+    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    return ok(validateLine(v.fen!, moves));
+  },
 );
-server.tool("get_legal_moves", "Legal moves (SAN) at a FEN.", { fen: z.string() }, ({ fen }) =>
-  ok({ fen, moves: legalMoves(fen) }),
-);
+server.tool("get_legal_moves", "Legal moves (SAN) at a FEN.", { fen: z.string() }, ({ fen }) => {
+  const v = validateFen(fen);
+  if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+  return ok({ fen: v.fen, moves: legalMoves(v.fen!) });
+});
 server.tool("get_position", "Normalised FEN, side to move, and legal moves.", { fen: z.string() }, ({ fen }) => {
   const v = validateFen(fen);
   if (!v.valid) return ok(v);
@@ -101,9 +111,11 @@ server.tool(
     // without it, moveSan below throws (chessops rejects the setup) instead of a closed-set error.
     const v = validateFen(fen);
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
-    const res = await analyseMulti(fen, lines ?? 3, depth ?? 16);
+    // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
+    // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
+    const res = await analyseMulti(v.fen!, lines ?? 3, depth ?? 16);
     if (!res) return ok({ error: "engine_unavailable" });
-    return ok({ fen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(fen, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) });
+    return ok({ fen: v.fen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(v.fen!, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) });
   },
 );
 
@@ -119,6 +131,8 @@ server.tool(
   "Parse a repertoire PGN and return a handle (repertoire_id) for the other repertoire tools.",
   { pgn: z.string(), color: colorSchema },
   ({ pgn, color }) => {
+    const tl = pgnTooLarge(pgn);
+    if (tl) return tl;
     let tree: GameTree;
     try {
       tree = GameTree.fromPgn(pgn);
@@ -135,16 +149,13 @@ server.tool(
   { path: z.string(), color: colorSchema },
   async ({ path, color }) => {
     const real = confine(path);
-    if (!real) return ok({ error: "path_not_allowed", reason: `outside ${BASE}` });
-    let pgn: string;
-    try {
-      pgn = await readFile(real, "utf8");
-    } catch (e) {
-      return ok({ error: "file_not_found", reason: e instanceof Error ? e.message : String(e) });
-    }
+    if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+    const r = await readCappedPgn(real);
+    if ("notFound" in r) return ok({ error: "file_not_found", reason: "no such PGN under the repertoire directory" });
+    if ("tooLarge" in r) return ok({ error: "pgn_too_large", reason: `PGN exceeds the ${MAX_PGN_BYTES}-byte limit` });
     let tree: GameTree;
     try {
-      tree = GameTree.fromPgn(pgn);
+      tree = GameTree.fromPgn(r.text);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -165,9 +176,15 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     const real = confine(path);
-    if (!real) return ok({ error: "path_not_allowed", reason: `outside ${BASE}` });
+    if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
     const pgn = e.tree.toPgn();
-    await writeFile(real, pgn, "utf8");
+    try {
+      await writeFile(real, pgn, "utf8");
+    } catch {
+      // Don't surface the raw fs error (it carries the absolute host path); a missing parent dir or
+      // permission failure is reported as a closed-set error instead.
+      return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+    }
     return ok({ path: real, bytes: Buffer.byteLength(pgn, "utf8"), leaves: e.tree.stats().leaves });
   },
 );
@@ -330,7 +347,16 @@ server.tool(
   "compare_moves",
   "Rank candidate moves at a FEN by local Stockfish (mover POV). Illegal moves are flagged.",
   { fen: z.string(), moves: z.array(z.string()), depth: z.number().int().min(1).max(30).optional() },
-  async ({ fen, moves, depth }) => ok(await compareMoves(fen, moves, depth ?? 14, analyseMulti)),
+  async ({ fen, moves, depth }) => {
+    // Gate the FEN (compareMoves → validateLine throws a raw FenError on garbage) and cap the
+    // candidate list — each candidate triggers a separate engine search, so an unbounded array is a
+    // per-call DoS.
+    const v = validateFen(fen);
+    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    if (moves.length > MAX_COMPARE_MOVES)
+      return ok({ error: "too_many_moves", reason: `at most ${MAX_COMPARE_MOVES} candidate moves` });
+    return ok(await compareMoves(v.fen!, moves, depth ?? 14, analyseMulti));
+  },
 );
 
 // --- game analysis (engine) ---
@@ -341,6 +367,8 @@ server.tool(
   "Per-move engine review of a game's mainline: cp loss + classification (blunder/mistake/inaccuracy/good).",
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional(), verbose: z.boolean().optional() },
   async ({ pgn, depth, verbose }) => {
+    const tl = pgnTooLarge(pgn);
+    if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
       records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
@@ -357,6 +385,8 @@ server.tool(
   "Game review summary: per-side blunder/mistake/inaccuracy counts, accuracy %, and the 3 worst moves.",
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
   async ({ pgn, depth }) => {
+    const tl = pgnTooLarge(pgn);
+    if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
       records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
@@ -388,6 +418,8 @@ server.tool(
   "Annotate a game's mainline with move glyphs ($2/$4/$6) and best-move/eval comments.",
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
   async ({ pgn, depth }) => {
+    const tl = pgnTooLarge(pgn);
+    if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
       records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
@@ -489,6 +521,8 @@ server.tool(
     depth: z.number().int().min(1).max(30).optional(),
   },
   async ({ pgn, group_by, username, max_games, depth }) => {
+    const tl = pgnTooLarge(pgn);
+    if (tl) return tl;
     const mode = group_by ?? "eco";
     if (mode === "color" && !username) return ok({ error: "missing_username", reason: "color grouping requires username" });
     let games;
