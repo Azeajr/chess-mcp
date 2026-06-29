@@ -150,19 +150,23 @@ async function buildFillLine(anchorFen: string, uncoveredMove: string, replySan:
 }
 
 /**
- * Structural fit of a line's FINAL position with the repertoire, via the blended profile (named
- * structure + center + themes). Scored at the endpoint (a real middlegame) — scoring one ply after
- * the reply is almost always "unknown". The profile blend keeps fit from collapsing to 0 the way a
- * lone named-structure match did.
+ * Structural fit of a line with the repertoire: the MEAN blended fit (named structure + center +
+ * themes) across every position the line passes through, not just its endpoint. Whole-line scoring
+ * rewards a continuation that stays in familiar structures the whole way, and is robust to a single
+ * outlier endpoint. The blend keeps fit from collapsing to 0 the way a lone named-structure match did.
  */
-function lineEndFit(startFen: string, sans: string[], profile: FitProfile, col: "white" | "black"): number {
+function lineFit(startFen: string, sans: string[], profile: FitProfile, col: "white" | "black"): number {
   const pos = Chess.fromSetup(parseFen(startFen).unwrap()).unwrap();
+  let sum = 0;
+  let n = 0;
   for (const san of sans) {
     const mv = parseSan(pos, san);
     if (!mv) break;
     pos.play(mv);
+    sum += fitScore(profile, pos.board, col);
+    n++;
   }
-  return fitScore(profile, pos.board, col);
+  return n ? Math.round((sum / n) * 100) / 100 : 0;
 }
 
 /**
@@ -223,7 +227,7 @@ export async function fillGap(g: Gap) {
     for (const s of sugg) {
       const probe = await buildFillLine(anchorFen, g.uncoveredMove, s.move, Math.min(toAdd, PROBE_PLIES));
       if (gen !== fillGen) return; // superseded during the probe searches
-      probed.push({ s, fit: lineEndFit(startFen, probe, profile, col) });
+      probed.push({ s, fit: lineFit(startFen, probe, profile, col) });
     }
     const ev = (p: { s: RawSuggestion }) => moverEval(p.s);
     const evalPick = [...probed].sort((a, b) => ev(b) - ev(a) || b.fit - a.fit)[0]!;
@@ -233,7 +237,7 @@ export async function fillGap(g: Gap) {
     // Deep-build (iterative, to the median length) only the two shown; rescore fit at the real endpoint.
     const mkOption = async (s: RawSuggestion): Promise<FillOption> => {
       const line = await buildFillLine(anchorFen, g.uncoveredMove, s.move, toAdd);
-      return { reply: s.move, line, evalCp: moverEval(s), fit: lineEndFit(startFen, line, profile, col) };
+      return { reply: s.move, line, evalCp: moverEval(s), fit: lineFit(startFen, line, profile, col) };
     };
     const bestEval = await mkOption(evalPick.s);
     if (gen !== fillGen) return;

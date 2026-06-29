@@ -95,14 +95,16 @@ Procedure for `fillGap(g)`:
 1. `anchorFen` = position after `uncoveredMove` (see grounding catch).
 2. `res = await suggestComplementaryLines(tree, color, anchorFen, { mode: "low_memorization", limit: 4 }, analyseMulti)`
    → candidate replies (eval + mover-cp).
-3. **Build each candidate's full deep line** (see C), then score **fit at the line's endpoint** via a
-   **blended structural profile** (`buildFitProfile` / `fitScore`): the endpoint's named structure
-   **+ center state + themes** (fianchetto, minority attack, flank-vs-center, wing majorities, color
-   complex), each weighted by how common it is across the repertoire's leaves; fit = mean familiarity
-   of the endpoint's signals. A lone named-structure match (`profile_match` / `profileStructureShares`)
-   was almost always `"unknown"` → 0, which made best-fit collapse into best-eval on every gap; the
-   blend keeps it discriminating even when the structure is unnamed (center + themes still place the
-   position relative to the repertoire). Scored at the endpoint, not one ply after the reply.
+3. **Build each candidate's full deep line** (see C), then score **whole-line fit** via a **blended
+   structural profile** (`buildFitProfile` / `fitScore`): for each position the line passes through,
+   `fitScore` = mean familiarity of that position's signals — named structure **+ center state +
+   themes** (fianchetto, minority attack, flank-vs-center, wing majorities, color complex), each
+   weighted by how common it is across the repertoire's leaves. `lineFit` averages `fitScore` over the
+   **whole line**, not just the endpoint, so a continuation that stays in familiar structures the whole
+   way scores higher and a single outlier position can't swing it. A lone named-structure match
+   (`profile_match` / `profileStructureShares`) was almost always `"unknown"` → 0, which made best-fit
+   collapse into best-eval on every gap; the blend + whole-line mean keep it discriminating even when
+   individual positions are unnamed.
 4. `bestEval` = candidate with max mover-cp. `bestFit` = the **distinct** remaining candidate with max
    endpoint-fit (so two genuinely different replies are offered). `bestFit` is null only when there is
    one candidate. The second row is labelled *best fit* when its fit beats best-eval's, else *alt*.
