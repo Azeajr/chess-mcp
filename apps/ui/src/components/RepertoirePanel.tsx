@@ -300,8 +300,11 @@ export default function RepertoirePanel() {
                         <div class="muted">
                           evalΔ {c().evalDelta == null ? "?" : (c().evalDelta! / 100).toFixed(2)} · fit {c().fitStay}→{c().fitTranspose} · {c().structureStay}→{c().structureTranspose}
                         </div>
-                        <Show when={Math.max(c().unknownShareStay, c().unknownShareTranspose) >= 0.5}>
-                          <div class="warn">fit weak — {Math.round(c().unknownShareStay * 100)}% / {Math.round(c().unknownShareTranspose * 100)}% unclassified</div>
+                        {/* fit weak: the two branches' blended fit is within a rounding-width, so it
+                            can't separate them — size-robust, unlike an absolute low-fit cutoff (a
+                            large repertoire's on-theme leaves score lower than a small one's). */}
+                        <Show when={Math.abs(c().fitStay - c().fitTranspose) < 0.05}>
+                          <div class="warn">fit weak — branches resemble the repertoire about equally</div>
                         </Show>
                       </div>
                     )}
