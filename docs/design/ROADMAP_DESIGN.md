@@ -2,7 +2,7 @@
 
 Status: **implemented and shipped** (all four items + a uncovered `_move_accuracy` crash fix;
 113-test suite + Docker snapshot regen, green). This doc is the design rationale of record; current
-state lives in `README.md` / `CONTEXT.md`.
+state lives in `README.md`.
 
 Design of record for the four open `README.md` Roadmap items. Written before coding
 (house convention: assess vs the codebase, recommend per choice, design doc first).

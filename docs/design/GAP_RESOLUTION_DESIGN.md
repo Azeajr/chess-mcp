@@ -211,7 +211,7 @@ shrinks and every remaining repertoire tool answers a question that stands on it
 
 ## Migration / superseded
 
-- `TRANSPOSITION_OPPORTUNITIES_DESIGN.md` → **superseded**: `frontier_link`/`coverage_confirmed`
+- `find_transposition_opportunities` (design doc since removed) → **superseded**: `frontier_link`/`coverage_confirmed`
   logic moves here; `move_order_merge` dropped; the tool is removed.
 - `TOOL_CONSOLIDATION_DESIGN.md` Plan C → **revised**: the bridges/shorten "keep both faces, dedupe"
   framing is replaced by "bridges dissolves into gap resolution; the shared primitive now has three

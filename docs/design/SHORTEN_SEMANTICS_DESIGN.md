@@ -1,6 +1,6 @@
 # Shorten — semantic improvements (Tier 2) design
 
-Design for the **semantic** shorten/transposition items (Tier 2 in `SHORTEN_IMPROVEMENTS_TODO.md`):
+Design for the **semantic** shorten/transposition items (the Tier-2 work):
 the ones that change *which* suggestions appear, *which* line is recommended, or *what counts* as a
 transposition — so they can regress soundness or coverage and need a decision, not just code.
 

@@ -2,7 +2,7 @@
 
 Status: **implemented and shipped** (three new tools beyond the shipped Roadmap; 126-test suite +
 Docker snapshot regen, green). This doc is the design rationale of record; current state lives in
-`README.md` / `CONTEXT.md`.
+`README.md`.
 
 Design of record for three new tools, written before coding (house convention: assess vs the
 codebase, recommend per choice, design doc first). Companion specs: `MCP_DESIGN.md` (lean

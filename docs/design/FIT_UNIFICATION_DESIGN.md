@@ -18,7 +18,7 @@ Three overlapping "fit" mechanisms exist; the weakest one drives shorten + sugge
 | `buildFitProfile` / `fitScore` (`structuralSignals`) | center + themes + named structure | yes ("rarely collapses to 0", per its own doc) | `apps/ui/src/store/gaps.ts` (gap-fill) |
 | inline PV-theme walk | themes only, when structure unknown | partial | `suggestReplacementLine` fallback (`enginetools.ts` ~541–558) |
 
-Symptom (observed, and recorded in `SHORTEN_IMPROVEMENTS_TODO.md` Tier-2 verification as "working as
+Symptom (observed, and previously logged in the shorten Tier-2 verification as "working as
 designed"): two sibling replies at a fork — one reaching an IQP (`fit 0.03`), one an unclassified
 structure (`fit 0`, `unknownShare 1.0`). The unclassified branch scores 0 **not because it is
 off-theme** but because `unknown` is excluded from the named-only fit by construction. A `...g6` King's

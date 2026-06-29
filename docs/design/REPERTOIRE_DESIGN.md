@@ -4,7 +4,7 @@ Design for the Holistic Repertoire Analysis feature set: a stateful, thematic
 repertoire analyzer layered on the existing stateless tactical tools.
 
 Status: **implemented and shipped** (all four tools live; 81-test suite, CI green). This doc is the
-design rationale of record; current state lives in `CONTEXT.md` / `README.md`. Build order at the bottom.
+design rationale of record; current state lives in `README.md`. Build order at the bottom.
 
 **Part II (sections 9–12, below) is the active extension** — the single-session edit loop
 (mutation + export tools) and the structural/transposition re-keying of congruence clustering.
