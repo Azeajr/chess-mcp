@@ -43,6 +43,9 @@ console.log("  best:", ev.lines?.[0]);
 
 const rep = await call(client, "load_repertoire", { pgn: TRAP, color: "white" });
 ok(typeof rep.repertoire_id === "string" && rep.nodes > 0, `load_repertoire id + ${rep.nodes} nodes`);
+// An illegal-but-parseable move (no knight reaches f6) must be rejected as invalid_pgn, not loaded.
+const badLoad = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf6 *", color: "white" });
+ok(badLoad.error === "invalid_pgn", `load_repertoire rejects an illegal move as invalid_pgn (${badLoad.error})`);
 
 const cov = await call(client, "get_repertoire_coverage", { repertoire_id: rep.repertoire_id });
 ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.dangling_count} dangling / ${cov.leaves} leaves`);

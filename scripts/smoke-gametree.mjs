@@ -136,6 +136,16 @@ ok(!validatePgn("").valid, "validatePgn empty invalid");
 const st = GameTree.fromPgn("1. d4 d5 2. c4 e6 ( 2... c6 ) *").stats();
 ok(st.nodes === 5 && st.leaves === 2 && st.maxDepth === 4, "stats nodes/leaves/maxDepth");
 
+// 12b. fromPgn validates move legality. chessops parsePgn stores a syntactically-valid-but-illegal SAN
+// verbatim, so an illegal move must be rejected at the construction boundary — not loaded silently and
+// then counted by stats() while leaves()/positionAtSan* skip-or-throw on it. load_repertoire surfaces
+// the throw as invalid_pgn. A FEN setup header is honored (validates from the true start).
+const rejects = (pgn) => { try { GameTree.fromPgn(pgn); return false; } catch { return true; } };
+ok(rejects("1. e4 e5 2. Nf6 *"), "fromPgn rejects an illegal move (no knight reaches f6)");
+ok(rejects("1. e4 e5 2. e4 *"), "fromPgn rejects a double move (e4 already played)");
+ok(!rejects("1. e4 e5 2. Nf3 *"), "fromPgn accepts a legal line");
+ok(!rejects('[FEN "8/P7/8/8/8/8/8/k6K w - - 0 1"]\n\n1. a8=Q *'), "fromPgn honors a FEN setup (a8=Q legal there)");
+
 // 13. transpositions — two move orders reaching the same position
 const tr = GameTree.fromPgn("1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *").transpositions();
 ok(tr.length === 1 && tr[0].paths.length === 2, "transposition found with 2 converging paths");

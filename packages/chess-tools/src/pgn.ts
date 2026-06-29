@@ -8,7 +8,7 @@
  */
 import { Chess } from "chessops/chess";
 import type { Board } from "chessops/board";
-import { makeFen } from "chessops/fen";
+import { makeFen, parseFen } from "chessops/fen";
 import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
 import { makeSquare, parseSquare, makeUci, parseUci } from "chessops/util";
 import {
@@ -221,7 +221,32 @@ export class GameTree {
     for (let i = 1; i < games.length; i++) {
       GameTree._mergeNodes(tree, games[i]!.moves, []);
     }
+    tree.assertLegal();
     return tree;
+  }
+
+  /**
+   * Replay every line once and throw on the first illegal SAN. chessops `parsePgn` stores a
+   * syntactically-valid-but-illegal SAN (a repeated "e4", or "Nf6" with no knight able to play it)
+   * verbatim, so without this guard such a PGN would load silently — and then `stats()` (which counts
+   * structurally) would report a leaf that `leaves()` / `leafPositions()` skip and `positionAtSan*`
+   * throw on. Validating at the construction boundary keeps every tree fully legal; `load_repertoire`
+   * catches the throw and surfaces it as `invalid_pgn`. Honors a FEN setup header so a non-standard
+   * start still validates from its true origin (e.g. a promotion study).
+   */
+  private assertLegal(): void {
+    const fen = this.game.headers.get("FEN");
+    const start = fen ? Chess.fromSetup(parseFen(fen).unwrap()).unwrap() : Chess.default();
+    const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
+      for (const child of node.children) {
+        const move = parseSan(pos, child.data.san);
+        if (!move) throw new Error(`illegal move in PGN: ${child.data.san}`);
+        const next = pos.clone();
+        next.play(move);
+        dfs(child, next);
+      }
+    };
+    dfs(this.game.moves, start);
   }
 
   /** Detect the repertoire color from PGN headers (ChessTempo: ChesstempoRepertoireColour). */
