@@ -79,7 +79,9 @@ export function pawnChains(board: Board, color: Color): string[][] {
   const groups = new Map<number, number[]>();
   for (const sq of ps) {
     const root = find(sq);
-    (groups.get(root) ?? groups.set(root, []).get(root)!).push(sq);
+    let g = groups.get(root);
+    if (!g) groups.set(root, (g = []));
+    g.push(sq);
   }
   return [...groups.values()]
     .filter((g) => g.length >= 2)

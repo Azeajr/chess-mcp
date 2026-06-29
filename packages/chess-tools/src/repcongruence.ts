@@ -258,7 +258,11 @@ export function analyzeCongruence(tree: GameTree, color: Color, table: OpeningTa
   };
 
   const groups = new Map<string, LeafData[]>();
-  for (const d of data) (groups.get(d.cluster) ?? groups.set(d.cluster, []).get(d.cluster)!).push(d);
+  for (const d of data) {
+    let g = groups.get(d.cluster);
+    if (!g) groups.set(d.cluster, (g = []));
+    g.push(d);
+  }
   const incongruencies: Flag[] = [];
   for (const [label, group] of groups) for (const flag of checksFor(group)) incongruencies.push({ ...flag, cluster: label });
 
