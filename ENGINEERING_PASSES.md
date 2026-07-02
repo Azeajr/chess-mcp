@@ -39,7 +39,8 @@ Repo shape the prompts assume:
   through the bundled engine (hits live Lichess/Chess.com, so it's excluded from CI);
   `apps/mcp-server/test/cache.mjs` covers the engine cache.
 - Design constraints live in `docs/design/MCP_DESIGN.md` (lean ~2k-token outputs, stateless contract,
-  closed error-code set) and `docs/design/REPERTOIRE_DESIGN.md` (cache, structural classifier).
+  closed error-code set), `docs/design/REPERTOIRE_DESIGN.md` (cache, structural classifier), and
+  `docs/design/UI_DESIGN.md` (the PWA's chat-mode workflows and rendering).
 
 ## Quick pick
 
@@ -141,6 +142,36 @@ EXECUTION WORKFLOW (run in order; do not stop until green):
 
 ---
 
+## 3. High-Signal Testing
+
+```text
+Act as a pragmatic, veteran TypeScript engineer extending the chess-mcp checks. This repo's "tests" are the deterministic smoke suites (scripts/smoke-gametree.mjs, scripts/structure-accuracy.mjs — engine-free, run in CI) plus the engine/network end-to-end client (apps/mcp-server/test/smoke-client.mjs) and the cache check (apps/mcp-server/test/cache.mjs); `pnpm -r typecheck` is the static net. Add high-confidence behavior checks that make refactoring safe. No vanity assertions; do not test chessops or @modelcontextprotocol/sdk themselves — pin OUR usage of them, not their behavior.
+
+Route each check to the suite that owns the layer:
+- scripts/smoke-gametree.mjs — the pure layers in packages/chess-tools/src: the GameTree walker (game.ts), path resolution + san-path round-trips, the congruence/coverage/gap helpers (repcongruence.ts, gaps.ts, congruence.ts), the edit loop (modify/export), and the pre-engine guards/clamps/error returns the tools rely on.
+- scripts/structure-accuracy.mjs — structure.ts: the 19-structure canon + unknown + confidence (brittleness/specificity/bidirectional cases), the always-on theme tags, center_state. Each scorer has a canonical FEN fixture; keep them.
+- apps/mcp-server/test/smoke-client.mjs — the full tool surface through the bundled engine and live network (Lichess/Chess.com). Excluded from CI (network), so keep its assertions self-checking when run locally.
+- apps/mcp-server/test/cache.mjs — the engine cache: hit/miss, depth-reuse.
+
+Enforce these principles:
+1. Test behavior, not implementation: call the public functions/tools as a consumer would and assert on the OUTPUTS — returned objects (structure_class, confidence, cp_loss, the closed error codes), parsed game trees, resolved FENs, cache hits/misses. Don't assert on internal call sequencing.
+2. Real instances over mocks: build real chessops positions / parsed games and feed them through the chess-tools functions. The engine-free layer needs NO mocks. The engine (the stockfish wasm) is the one true external boundary — it's bundled, so the smoke-client exercises it locally; but every guard, clamp, and error return that fires BEFORE the engine is invoked is testable engine-free, and that pre-engine slice is where tool regressions actually live. Score/POV semantics (white-POV centipawns, mate → ±10000, mover-POV negation) get pinned wherever the eval shaping is pure.
+3. High-signal targeting: pawn primitives (doubled/isolated/passed/chains/half-open/open), classify_structure (the 19-structure canon + unknown + confidence — each scorer has a canonical FEN fixture) and the theme tags, center_state, the variation walker (iter/walk/tree_stats), resolve_path + san_path round-trips, the handle cache (store/get, TTL expiry, LRU eviction), the congruence rules, and the pure helpers behind the engine tools — pv-rejoins-prep, continued-position key sets, opponent-reply-node selection, path exclusion, NAG illustrative-node detection / player-side variations, the tree edit, the gap budget fit. Skip trivial passthroughs.
+4. Clean state hygiene: guarantee isolation. Reset the module-level handle cache between cases; override MAX_REPERTOIRES / REPERTOIRE_TTL_S for eviction/expiry checks so they are deterministic and don't leak across cases.
+5. Defensive boundaries: malformed/empty PGN and FEN, garbled-tail PGN (assert the tools REJECT, not silently analyze half a game), empty or single-node trees, expired/unknown handles (repertoire_not_found), unknown structures (must return "unknown", never a guessed label), terminal positions for suggest, oversized input vs the byte caps, action↔payload mismatches in modify_repertoire_line. Assert the code degrades into a structured error from the closed set, never a crash.
+6. Assert meaning, not prose: pin error CODES and structural fields (paths, counts, severity ranks), not reason strings or float confidences to exact decimals — those are allowed to be reworded/re-tuned without breaking the suite.
+
+Match the existing smoke scripts' style (plain node:assert, hand-built positions via the existing helpers, shared fixture PGNs — reuse them instead of inventing new ones; keep all fixtures synthetic, never from real user games).
+
+EXECUTION WORKFLOW (run in order; do not stop until green):
+1. Build + typecheck: `pnpm --filter @chess-mcp/chess-tools build && pnpm -r typecheck`.
+2. Smoke: `node scripts/smoke-gametree.mjs && node scripts/structure-accuracy.mjs`. If new assertions fail or break existing ones, debug and fix the CHECK — unless you uncovered a real bug in chess-tools/the server, in which case fix the source and note it in the commit.
+3. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
+4. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
+```
+
+---
+
 ## 4. Repertoire Analysis Loop
 
 This pass is designed to be run repeatedly. Each run exercises the MCP against a real repertoire, documents what works and what breaks, and ships fixes for the bounded problems it finds. Over time this drives the MCP toward the behavior you actually need.
@@ -233,36 +264,6 @@ GUARDRAILS
 - Never hand-author a FEN or move sequence — if you need a position, derive it from tool output
 - If a shortcoming's fix is ambiguous, open the issue and skip implementation; do not guess at architecture
 - If Phase 5 fails, revert your implementation changes (do NOT use --no-verify), fix the root cause, and re-run from the typecheck step
-```
-
----
-
-## 3. High-Signal Testing
-
-```text
-Act as a pragmatic, veteran TypeScript engineer extending the chess-mcp checks. This repo's "tests" are the deterministic smoke suites (scripts/smoke-gametree.mjs, scripts/structure-accuracy.mjs — engine-free, run in CI) plus the engine/network end-to-end client (apps/mcp-server/test/smoke-client.mjs) and the cache check (apps/mcp-server/test/cache.mjs); `pnpm -r typecheck` is the static net. Add high-confidence behavior checks that make refactoring safe. No vanity assertions; do not test chessops or @modelcontextprotocol/sdk themselves — pin OUR usage of them, not their behavior.
-
-Route each check to the suite that owns the layer:
-- scripts/smoke-gametree.mjs — the pure layers in packages/chess-tools/src: the GameTree walker (game.ts), path resolution + san-path round-trips, the congruence/coverage/gap helpers (repcongruence.ts, gaps.ts, congruence.ts), the edit loop (modify/export), and the pre-engine guards/clamps/error returns the tools rely on.
-- scripts/structure-accuracy.mjs — structure.ts: the 19-structure canon + unknown + confidence (brittleness/specificity/bidirectional cases), the always-on theme tags, center_state. Each scorer has a canonical FEN fixture; keep them.
-- apps/mcp-server/test/smoke-client.mjs — the full tool surface through the bundled engine and live network (Lichess/Chess.com). Excluded from CI (network), so keep its assertions self-checking when run locally.
-- apps/mcp-server/test/cache.mjs — the engine cache: hit/miss, depth-reuse.
-
-Enforce these principles:
-1. Test behavior, not implementation: call the public functions/tools as a consumer would and assert on the OUTPUTS — returned objects (structure_class, confidence, cp_loss, the closed error codes), parsed game trees, resolved FENs, cache hits/misses. Don't assert on internal call sequencing.
-2. Real instances over mocks: build real chessops positions / parsed games and feed them through the chess-tools functions. The engine-free layer needs NO mocks. The engine (the stockfish wasm) is the one true external boundary — it's bundled, so the smoke-client exercises it locally; but every guard, clamp, and error return that fires BEFORE the engine is invoked is testable engine-free, and that pre-engine slice is where tool regressions actually live. Score/POV semantics (white-POV centipawns, mate → ±10000, mover-POV negation) get pinned wherever the eval shaping is pure.
-3. High-signal targeting: pawn primitives (doubled/isolated/passed/chains/half-open/open), classify_structure (the 19-structure canon + unknown + confidence — each scorer has a canonical FEN fixture) and the theme tags, center_state, the variation walker (iter/walk/tree_stats), resolve_path + san_path round-trips, the handle cache (store/get, TTL expiry, LRU eviction), the congruence rules, and the pure helpers behind the engine tools — pv-rejoins-prep, continued-position key sets, opponent-reply-node selection, path exclusion, NAG illustrative-node detection / player-side variations, the tree edit, the gap budget fit. Skip trivial passthroughs.
-4. Clean state hygiene: guarantee isolation. Reset the module-level handle cache between cases; override MAX_REPERTOIRES / REPERTOIRE_TTL_S for eviction/expiry checks so they are deterministic and don't leak across cases.
-5. Defensive boundaries: malformed/empty PGN and FEN, garbled-tail PGN (assert the tools REJECT, not silently analyze half a game), empty or single-node trees, expired/unknown handles (repertoire_not_found), unknown structures (must return "unknown", never a guessed label), terminal positions for suggest, oversized input vs the byte caps, action↔payload mismatches in modify_repertoire_line. Assert the code degrades into a structured error from the closed set, never a crash.
-6. Assert meaning, not prose: pin error CODES and structural fields (paths, counts, severity ranks), not reason strings or float confidences to exact decimals — those are allowed to be reworded/re-tuned without breaking the suite.
-
-Match the existing smoke scripts' style (plain node:assert, hand-built positions via the existing helpers, shared fixture PGNs — reuse them instead of inventing new ones; keep all fixtures synthetic, never from real user games).
-
-EXECUTION WORKFLOW (run in order; do not stop until green):
-1. Build + typecheck: `pnpm --filter @chess-mcp/chess-tools build && pnpm -r typecheck`.
-2. Smoke: `node scripts/smoke-gametree.mjs && node scripts/structure-accuracy.mjs`. If new assertions fail or break existing ones, debug and fix the CHECK — unless you uncovered a real bug in chess-tools/the server, in which case fix the source and note it in the commit.
-3. Commit with a concise message describing the BEHAVIOR now covered. No Co-Authored-By trailer.
-4. Push `git push origin main`, then confirm CI green (`gh run watch ... --exit-status`). Do not tag — releases are a separate, requested step.
 ```
 
 ---
