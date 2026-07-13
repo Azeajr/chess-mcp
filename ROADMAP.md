@@ -60,6 +60,16 @@ server installable as a self-contained artifact.
 
 ## Engineering backlog
 
+- [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`: engine pool
+      (parallel scans), persistent transposition-keyed eval cache, warm TT between searches,
+      `audit_repertoire_moves` (engine-check the user's own moves tree-wide), Lichess opening
+      explorer (popularity-weighted gaps + theory-depth), `prep_vs_opponent`, only-move drill
+      export. Suggested order inside.
+- [ ] **PWA chat toolset weak points** — full audit in
+      `docs/design/CHAT_TOOLSET_REVIEW.md` (14 items: 4 stale/broken workflow instructions incl. a
+      nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks
+      (full-PGN previews, PGN-through-context batch_review/history/annotate, 28 schemas per turn),
+      C3/C4 chat parity, no cancel for long chat tool calls, preview dead ends).
 - [ ] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` exercises the tools through the
       engine but hits live Lichess/Chess.com, so it's excluded from CI. Gate the network assertions
       behind an env flag so the engine + non-network paths run in CI.
