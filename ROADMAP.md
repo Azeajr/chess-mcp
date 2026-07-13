@@ -9,7 +9,7 @@ Grounded chess analysis for AI agents. The agent never guesses a move, FEN, or e
 position is validated and every line is engine-checked through the MCP tools. Two surfaces share one
 TypeScript chess core (`packages/chess-tools`):
 
-1. **The MCP server** (`apps/mcp-server`) — 34 tools for game review and repertoire work, used from
+1. **The MCP server** (`apps/mcp-server`) — 38 tools for game review and repertoire work, used from
    Claude Code (and any MCP client).
 2. **The PWA** (`apps/ui`) — a local-first SolidJS board for building and studying repertoires.
 
@@ -20,7 +20,7 @@ engine-grounded.
 
 ## Where it is now (shipped)
 
-- **Node MCP server** — 34 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
+- **Node MCP server** — 38 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
   Docker, no port, no host engine install.
 - **Engine pool (P1)** — parallel searches on both hosts: Node runs a child-process pool speaking
   UCI over stdio (`ENGINE_POOL_SIZE`, default `min(cores,4)`, in-process fallback); the PWA runs a
@@ -66,12 +66,22 @@ server installable as a self-contained artifact.
 
 ## Engineering backlog
 
+- [ ] **PWA opening-explorer surface** ← **NEXT** — the explorer (T2) is MCP-server-only today;
+      the PWA never reads a Lichess token (`setExplorerToken` is called solely in
+      `apps/mcp-server/src/index.ts` from `LICHESS_TOKEN`). Add a settings field in the UI that
+      stores the personal API token (no scopes) and calls `setExplorerToken()` in the browser,
+      then surface the explorer capabilities (position popularity, theory depth, gap popularity
+      weighting) in the chat toolset/panel — the surface deferred at T2 ship time behind
+      CHAT_TOOLSET_REVIEW.md §10 (schema bloat). Client + token holder already live in shared
+      `chess-tools/src/explorer.ts`; explorer.lichess.org allows CORS, so this is UI wiring, not
+      new plumbing.
 - [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
       ~~persistent transposition-keyed eval cache~~ (P3+P4), ~~warm TT~~ (P2),
       ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts), ~~Lichess opening
       explorer~~ (T2 — `position_popularity`, `find_theory_depth`, gap popularity weighting;
-      needs `LICHESS_TOKEN`). Remaining, in order: **`prep_vs_opponent` (T3)**, only-move drill
-      export (T4), then opportunistic P5-P8 micro-perf and R2/R3/R5-R9 robustness notes.
+      needs `LICHESS_TOKEN`), ~~`prep_vs_opponent`~~ (T3), ~~only-move drill export~~ (T4 —
+      `find_only_moves` + flashcard CSV). Remaining: opportunistic P5-P8 micro-perf, T5-T7,
+      and R2/R3/R5-R9 robustness notes.
 - [ ] **PWA chat toolset weak points** — full audit in
       `docs/design/CHAT_TOOLSET_REVIEW.md` (17 items: 4 stale/broken workflow instructions incl. a
       nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks
