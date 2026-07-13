@@ -764,6 +764,96 @@ server.tool(
   },
 );
 
+// --- match prep vs a specific opponent (network + handle) ---
+server.tool(
+  "prep_vs_opponent",
+  "Match prep against a named opponent: fetch their games on the color they'd face this repertoire from, then report how often your prep lines will actually come up (coverage + per-opening hit/score rates) and which of their habitual moves your tree doesn't cover (uncovered_opponent_moves — the gaps to plug before the game).",
+  {
+    repertoire_id: z.string(),
+    username: z.string(),
+    platform: z.enum(["lichess", "chesscom"]).optional(),
+    max_games: z.number().int().min(1).max(100).optional(),
+    year: z.number().int().optional(),
+    month: z.number().int().min(1).max(12).optional(),
+  },
+  async ({ repertoire_id, username, platform, max_games, year, month }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const oppColor = e.color === "white" ? "black" : "white";
+    const plat = platform ?? "lichess";
+    let games;
+    if (plat === "chesscom") {
+      if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
+      games = await chesscomGames(username, year, month, undefined, true);
+    } else {
+      games = await lichessGames(username, max_games ?? 30, undefined, true);
+    }
+    if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
+
+    // games where this opponent played the side they'd face our repertoire from.
+    const matched = games.filter((g) => g.user_color === oppColor && g.pgn);
+    const map = e.tree.moveMap();
+    let reached = 0;
+    let plySum = 0;
+    const unc = new Map<string, { fen: string; played: string; count: number }>();
+    const lines = new Map<
+      string,
+      { name: string; eco: string | null; games: number; reached: number; wins: number; draws: number; losses: number }
+    >();
+    for (const g of matched) {
+      const w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      const inPrep = w.in_book_plies >= 1;
+      if (inPrep) reached++;
+      plySum += w.in_book_plies;
+      if (w.uncovered_opponent) {
+        const k = `${w.uncovered_opponent.fen}|${w.uncovered_opponent.played}`;
+        const cur = unc.get(k) ?? { ...w.uncovered_opponent, count: 0 };
+        cur.count++;
+        unc.set(k, cur);
+      }
+      const hit = identifyDeepest(openingsTable, g.pgn!);
+      const key = hit?.name ?? "Unclassified";
+      let l = lines.get(key);
+      if (!l) {
+        l = { name: key, eco: hit?.eco ?? null, games: 0, reached: 0, wins: 0, draws: 0, losses: 0 };
+        lines.set(key, l);
+      }
+      l.games++;
+      if (inPrep) l.reached++;
+      if (g.user_result === "win") l.wins++;
+      else if (g.user_result === "draw") l.draws++;
+      else if (g.user_result === "loss") l.losses++;
+    }
+    const byCount = <T extends { count: number }>(m: Map<string, T>) => [...m.values()].sort((a, b) => b.count - a.count);
+    const lineRows = [...lines.values()]
+      .map((l) => {
+        const decided = l.wins + l.draws + l.losses;
+        return {
+          name: l.name,
+          eco: l.eco,
+          games: l.games,
+          hit_rate: Math.round((l.reached / l.games) * 1000) / 10,
+          win_rate: decided ? Math.round((l.wins / decided) * 1000) / 10 : null,
+          draw_rate: decided ? Math.round((l.draws / decided) * 1000) / 10 : null,
+          loss_rate: decided ? Math.round((l.losses / decided) * 1000) / 10 : null,
+        };
+      })
+      .sort((a, b) => b.games - a.games)
+      .slice(0, 15);
+    return ok({
+      username,
+      opponent_color: oppColor,
+      games_total: games.length,
+      games_matched_color: matched.length,
+      games_reached_prep: reached,
+      coverage_pct: matched.length ? Math.round((reached / matched.length) * 1000) / 10 : null,
+      avg_in_book_plies: matched.length ? Math.round((plySum / matched.length) * 10) / 10 : null,
+      uncovered_opponent_moves: byCount(unc).slice(0, 20),
+      lines: lineRows,
+    });
+  },
+);
+
 // --- structure (descriptive: named-structure classifier + themes/center) ---
 server.tool(
   "get_structural_profile",

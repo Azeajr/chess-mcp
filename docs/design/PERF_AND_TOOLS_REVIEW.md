@@ -141,13 +141,19 @@ drifts daily; stale popularity is silently wrong, unlike a merely-shallow stale 
 `apiclient` now honours Lichess's 60 s post-429 cooldown globally. The `/player` DB (NDJSON
 stream) is deliberately left for T3.
 
-### T3. `prep_vs_opponent` — compose existing pieces into match prep
+### T3. `prep_vs_opponent` — compose existing pieces into match prep — ✅ shipped 2026-07-13
 
 Given an opponent username: fetch their games (tools exist), aggregate their opening tree by color,
 intersect with the repertoire — which of YOUR lines you'll actually reach vs them, their habitual
-moves your tree doesn't cover, and (with T2) their score in those lines. `repertoire_vs_history`
-already walks games-vs-map; this is the same walk pointed at the opponent + a per-line hit-rate
-rollup. High practical value for match play; mostly orchestration, little new math.
+moves your tree doesn't cover, and their score in those lines. Shipped as MCP-only `prep_vs_opponent`
+(index.ts, next to `repertoire_vs_history`): fetches the opponent's games on the color they'd face
+this repertoire from, reuses `walkGameVsRepertoire` per game for coverage/`uncovered_opponent_moves`
+(same shape as `repertoire_vs_history`, minus `player_deviations` — in these games repColor's moves
+are a random third party's, not the target's, so that field is noise here), and buckets games by
+`identifyDeepest` opening name into a `lines[]` rollup (games, hit_rate, win/draw/loss_rate from
+the opponent's own `user_result`). No engine calls — pure composition of T1-era pieces + T2's
+`identifyDeepest`/games fetchers. Chat/panel surface deliberately deferred (CHAT_TOOLSET_REVIEW §10
+schema bloat, same call as T1/T2).
 
 ### T4. Criticality / only-move tagging → drill export
 
@@ -260,6 +266,7 @@ rest of the PWA is local-first.
    R4 dedupe, R1 fix — see §P1).
 5. ~~**T2** (explorer client + popularity gaps)~~ — shipped 2026-07-13 (see §T2; explorer now
    needs `LICHESS_TOKEN`, host moved to explorer.lichess.org).
-6. **T3/T4** — ← **NEXT**: composition tools on top of T1/T2 output. T4's only-move input
-   (`best_margin`) is already emitted by T1; T3's explorer client + games tools exist.
-7. **P5-P8, T5-T7** — opportunistic.
+6. ~~**T3** (`prep_vs_opponent`)~~ — shipped 2026-07-13 (see §T3).
+7. **T4** — ← **NEXT**: only-move tagging + drill export. Input (`best_margin`) is already
+   emitted by T1.
+8. **P5-P8, T5-T7** — opportunistic.

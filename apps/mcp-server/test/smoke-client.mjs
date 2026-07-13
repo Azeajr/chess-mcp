@@ -32,7 +32,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 36, "36 tools registered");
+ok(tools.length === 37, "37 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -184,6 +184,11 @@ const rvhRep = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf3 Nc6
 const rvh = await call(client, "repertoire_vs_history", { repertoire_id: rvhRep.repertoire_id, username: "german11", platform: "lichess", max_games: 15 });
 console.log("  rvh:", rvh.error ?? `total ${rvh.games_total}, matched ${rvh.games_matched_color}, coverage ${rvh.coverage_pct}%`);
 ok(!rvh.error && typeof rvh.games_total === "number" && Array.isArray(rvh.player_deviations), "repertoire_vs_history runs over real games");
+
+console.log("prep_vs_opponent (live)…");
+const pvo = await call(client, "prep_vs_opponent", { repertoire_id: rvhRep.repertoire_id, username: "german11", platform: "lichess", max_games: 15 });
+console.log("  pvo:", pvo.error ?? `total ${pvo.games_total}, matched ${pvo.games_matched_color}, coverage ${pvo.coverage_pct}%, lines ${pvo.lines?.length}`);
+ok(!pvo.error && pvo.opponent_color === "black" && Array.isArray(pvo.lines) && Array.isArray(pvo.uncovered_opponent_moves), "prep_vs_opponent runs over real games");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await client.close();
