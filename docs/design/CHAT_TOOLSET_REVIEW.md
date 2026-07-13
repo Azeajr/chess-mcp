@@ -171,6 +171,34 @@ the current board position, so the model must ask the user to navigate first (or
 
 Fix: optional `from_path` (SAN list) arg mapping to `stagePreviewLine`.
 
+### 15. Tool-loop exhaustion ends the turn with unanswered tool results — **bug (edge)**
+
+The round loop (chat.ts:80-107) executes the final round's tool calls, appends their results to
+history, then exits — the model never sees them and never produces a closing message. The user
+gets raw collapsed tool-result rows with no assistant text. Repertoire scans routinely burn many
+rounds (MAX_ROUNDS was already raised from 6 for this).
+
+Fix: when the loop exits with trailing tool results, make one final `streamChat` with `tools: []`
+so the model must summarize.
+
+### 16. Error contract differs per surface — **parity**
+
+The server returns a closed error set (`invalid_fen`, `invalid_pgn`, …); the chat executor lets
+library throws escape to the loop's catch (chat.ts:100-104), which wraps them as
+`{error: "Error: no game found in PGN"}` raw strings. Concretely: `validate_line`/`get_legal_moves`
+with a model-supplied garbage FEN hit `parseFen().unwrap()` (validate.ts:27,72) and throw a raw
+FenError; `analyze_game` on an empty PGN throws from `mainline()` (game.ts:24). Same tool name,
+different error shape depending on host — the workflow prompts teach the closed-set contract.
+
+Fix: gate FENs/PGNs in the chat executor the way the server does (validateFen/validatePgn first),
+or wrap the executor switch to map throws onto the closed set.
+
+### 17. Depth-default drift between surfaces — **parity**
+
+`evaluate_position` defaults to depth 14 in chat (tools.ts:197) vs 16 on the server (index.ts:116).
+Same tool, same repertoire, different default → cross-surface eval discrepancies that look like
+nondeterminism to the user. Audit the other shared tools' defaults while at it.
+
 ---
 
 ## Fixed during this review

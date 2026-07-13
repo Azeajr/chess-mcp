@@ -168,6 +168,74 @@ user misplays at ply 6 still contains an opponent novelty at ply 14 the prep sho
 Continue the walk past a departure while positions still match by transposition key — same map, same
 loop, richer drill list. Small change, existing tool gets better.
 
+## Robustness & consistency notes
+
+Not perf, not chat-surface — recorded here so the repo carries them (some previously lived only in
+session memory).
+
+### R1. Node engine watchdog race (known-deferred; fix shape now exists)
+
+engine.ts:111 resolves null on the 30s watchdog but leaves the search running; the next serialized
+search replaces the global `lineHandler`, and the timed-out search's late `bestmove` can resolve
+the NEXT search early — with partial/empty lines that get **cached**. The browser side got the
+stop-then-grace fix (commit 84ee190); mirroring it to Node (send `stop`, resolve on the imminent
+bestmove, grace timer for a hung engine, skip cache on stopped) closes the race the same way.
+
+### R2. FEN-setup PGNs load but every walker ignores the header (known-deferred)
+
+`assertLegal` honors a `FEN` header (pgn.ts:238); every other walker replays from
+`Chess.default()` — `positionAt` (pgn.ts:286), leaves/coverage/keyIndex/congruence/
+`userMovesAlong` (repcongruence.ts:79), `mainline` (game.ts:25, comment admits it). A FEN-header
+PGN passes load, then every tool silently analyses the wrong positions or errors. Cheapest honest
+fix: reject FEN-header PGNs at `fromPgn` with a closed-set error until walkers take a start
+position; full fix: one root-position helper all walkers share.
+
+### R3. Handle TTL only enforced on store
+
+`get()` (handles.ts:40-45) never checks TTL — an expired repertoire is served indefinitely if no
+`load_*` call happens to trigger `evict()`. Harmless for correctness (the tree is immutable), but
+the README documents "idle seconds before a cached repertoire expires" and memory-bounding is the
+TTL's job. One `if (now - e.ts > TTL_MS)` in `get()`.
+
+### R4. No in-flight request coalescing at either engine
+
+Two concurrent identical `analyseMulti` cache misses both run the search (both hosts — the serial
+chain runs them back-to-back; the second finds the cache filled only if keyed identically AND the
+first finished). The P1 pool front should dedupe in-flight requests by cache key.
+
+### R5. Autosave restore trusts the saved path
+
+persist.ts:48 `goto(saved.path)` — a corrupt/mixed IndexedDB record makes the first `fen()` read
+throw in render, after the restore try/catch has already passed: crash loop until site data is
+cleared. One probe (`tree.fenAt(path)` inside the try, fall back to `[]`) makes restore
+self-healing.
+
+### R6. OpenRouter stream errors surface as silent truncation
+
+openrouter.ts:91-124 parses `delta` frames and ignores everything else — a mid-stream provider
+error event or abnormal `finish_reason` (length, content_filter) just ends the text. The user sees
+a clipped answer with no signal. Surface non-`stop` finish reasons and error events into the chat
+error state.
+
+### R7. UI gap scan is a hand-maintained fork of `findRepertoireGaps`
+
+store/gaps.ts:261-329 duplicates the scan loop for progress + cancel (header comment owns it).
+Parity (severity math, covered-by-transposition semantics) is by hand. `pruneTranspositions`
+already takes an `onProgress` callback — give `findRepertoireGaps` the same (+ a cancel check) and
+the UI fork collapses onto the shared implementation.
+
+### R8. `aggregateGames` best/worst group has no sample floor
+
+game.ts:142-152 ranks groups by raw win_rate — a 1-game group can be crowned worst/best opening.
+A min-games threshold (or reporting games alongside, which it does — but the headline pick should
+respect it) keeps batch_review verdicts honest.
+
+### R9. Cloud eval ships every browsed position to Lichess
+
+store/cloud.ts fires on each position change (600ms debounce). By design and rate-limited, but
+worth a settings toggle for users who don't want their prep lines leaving the machine — the whole
+rest of the PWA is local-first.
+
 ## Suggested order
 
 1. **P3 + P4** (persistent, transposition-keyed eval cache) — every session, every tool, forever.
