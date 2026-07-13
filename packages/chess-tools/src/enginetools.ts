@@ -12,7 +12,7 @@ import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { makeSan, parseSan } from "chessops/san";
 import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
-import { type Color } from "./congruence.js";
+import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
 import { decisionNodes, turnNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
 import { validateLine } from "./validate.js";
@@ -344,6 +344,154 @@ export async function auditRepertoireMoves(
     moves_audited: perNode.reduce((a, r) => a + r!.audited, 0),
     findings: findings.slice(0, opts.limit ?? 10),
   };
+}
+
+// --- find_only_moves (criticality tagging + spaced-repetition drill deck) ---
+
+export interface OnlyMoveOptions {
+  depth?: number;
+  /** Tag positions where best − second ≥ this (default 100 — misremembering costs a "mistake"). */
+  minMargin?: number;
+  maxPositions?: number;
+  linesLimit?: number;
+}
+export interface OnlyMoveFinding {
+  /** SAN path from the root to the position (before your move). */
+  path: string[];
+  fen: string;
+  /** Your repertoire move(s) here (canonical SAN) — the drill answer. */
+  prescribed: string[];
+  best_move: string;
+  /** false ⇒ compounded problem: an only-move position where the tree prescribes a non-best
+   *  move — fix via audit_repertoire_moves before drilling. */
+  prescribed_is_best: boolean;
+  /** best − second, mover POV (MATE_CP sentinel when a mate line is involved). */
+  margin: number;
+  best_eval: number;
+}
+export interface OnlyMoveLine {
+  line: string[];
+  critical: number;
+  your_moves: number;
+  /** critical / your_moves, 2 dp — "sharpest lines to drill". */
+  density: number;
+}
+export type OnlyMoveResult =
+  | { error: "engine_unavailable" }
+  | {
+      color: Color;
+      positions_scanned: number;
+      only_moves_found: number;
+      findings: OnlyMoveFinding[];
+      lines: OnlyMoveLine[];
+    };
+
+/**
+ * Tag your-turn positions where the engine's best move stands alone (best − second ≥ minMargin):
+ * the "only move" positions where misremembering the repertoire is punished. Same walker and
+ * multipv-2 search as auditRepertoireMoves but the opposite filter — the audit surfaces bad
+ * prescriptions (cp_loss), this surfaces sharp positions regardless of prescription quality
+ * (the healthy cp_loss-0 case never clears the audit's filter). `lines` ranks leaf lines by
+ * tagged-position density, transposition-aware: a tagged node reached by two move orders counts
+ * in both lines (it must be recalled in both).
+ */
+export async function findOnlyMoves(
+  tree: GameTree,
+  color: Color,
+  opts: OnlyMoveOptions,
+  analyse: Analyse,
+): Promise<OnlyMoveResult> {
+  const depth = opts.depth ?? 14;
+  const minMargin = opts.minMargin ?? 100;
+  const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 300);
+  const perNode = await Promise.all(
+    nodes.map(async (node) => {
+      const res = await analyse(node.fen, 2, depth);
+      if (res === null) return null;
+      const key = positionKey(node.fen);
+      // < 2 lines ⇒ a single legal move — literally forced, nothing to drill.
+      if (res.length < 2) return { key, finding: null };
+      const moverIsWhite = node.fen.split(" ")[1] === "w";
+      const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
+      const margin = mcp(res[0]!) - mcp(res[1]!);
+      if (margin < minMargin) return { key, finding: null };
+      const pos = chessFromFen(node.fen);
+      const prescribed = node.covered.map((raw) => {
+        const mv = parseSan(pos, raw);
+        return mv ? makeSan(pos, mv) : raw; // tree moves are replay-verified at load; fallback unreachable
+      });
+      const best_move = moveSan(node.fen, res[0]!.uci);
+      const finding: OnlyMoveFinding = {
+        path: node.sanPath,
+        fen: node.fen,
+        prescribed,
+        best_move,
+        prescribed_is_best: prescribed.includes(best_move),
+        margin,
+        best_eval: mcp(res[0]!),
+      };
+      return { key, finding };
+    }),
+  );
+  if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
+  const scanned = new Set(perNode.map((r) => r!.key));
+  const tagged = new Set(perNode.filter((r) => r!.finding).map((r) => r!.key));
+  const findings = perNode
+    .map((r) => r!.finding)
+    .filter((f): f is OnlyMoveFinding => f !== null)
+    .sort((a, b) => b.margin - a.margin);
+
+  // Line density: replay each leaf line counting your-turn decision positions (scanned only —
+  // a maxPositions cut must not deflate the denominator) and how many are tagged.
+  const lines: OnlyMoveLine[] = [];
+  for (const leaf of tree.leaves()) {
+    const pos = Chess.default();
+    let your_moves = 0;
+    let critical = 0;
+    for (const san of leaf.path) {
+      if (pos.turn === color) {
+        const key = positionKey(makeFen(pos.toSetup()));
+        if (scanned.has(key)) {
+          your_moves++;
+          if (tagged.has(key)) critical++;
+        }
+      }
+      const mv = parseSan(pos, san);
+      if (!mv) break; // replay-verified at load; unreachable
+      pos.play(mv);
+    }
+    if (critical) lines.push({ line: leaf.path, critical, your_moves, density: Math.round((critical / your_moves) * 100) / 100 });
+  }
+  lines.sort((a, b) => b.density - a.density || b.critical - a.critical);
+
+  return {
+    color,
+    positions_scanned: nodes.length,
+    only_moves_found: findings.length,
+    findings,
+    lines: lines.slice(0, opts.linesLimit ?? 10),
+  };
+}
+
+const csvField = (s: string): string => (/[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s);
+/** "1.d4 d5 2.c4" — sanPath always starts at the root, so numbering is positional. */
+const numberedSan = (path: string[]): string =>
+  path.map((san, i) => (i % 2 === 0 ? `${i / 2 + 1}.${san}` : san)).join(" ");
+
+/**
+ * Serialize tagged only-move positions as a flashcard CSV (header row, RFC-4180 quoting):
+ * front = numbered SAN path + side to move, back = prescribed move(s) + margin note, plus a fen
+ * column for board-rendering card templates. Anki's importer maps the columns directly.
+ */
+export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): string {
+  const side = color === "white" ? "White" : "Black";
+  const rows = findings.map((f) => {
+    const front = `${f.path.length ? numberedSan(f.path) : "(start position)"} (${side} to move)`;
+    const note = f.margin >= MATE_CP / 2 ? "only move: alternatives are decisively worse" : `only move: next best -${f.margin}cp`;
+    const back = `${f.prescribed.join(" / ")} (${note})`;
+    return [front, back, f.fen, String(f.margin)].map(csvField).join(",");
+  });
+  return ["front,back,fen,margin", ...rows].join("\n") + "\n";
 }
 
 // --- shorten suggestion vetting (shared by the MCP tools and the PWA Shorten UI) ---

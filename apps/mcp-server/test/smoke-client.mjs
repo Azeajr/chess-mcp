@@ -32,7 +32,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 37, "37 tools registered");
+ok(tools.length === 38, "38 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -91,6 +91,16 @@ console.log("find_repertoire_gaps (engine scan)…");
 const gaps = await call(client, "find_repertoire_gaps", { repertoire_id: rep.repertoire_id, depth: 12, min_severity: "high" });
 console.log("  gaps:", JSON.stringify(gaps.gaps?.map((g) => `${g.severity} ${g.uncovered_move} ${g.eval}`)));
 ok(gaps.gaps?.some((g) => g.uncovered_move === "Qxg2" && g.severity === "high"), "gap scan finds Qxg2 HIGH");
+
+console.log("find_only_moves (engine scan)…");
+// The trap line is sharp by construction: after 4...Qg5 white's 5.Nxf7 stands alone (anything
+// else drops g2/the knight), so at least one node must clear the default 100cp margin.
+const om = await call(client, "find_only_moves", { repertoire_id: rep.repertoire_id, depth: 12 });
+console.log("  only-moves:", JSON.stringify(om.findings?.map((f) => `${f.path.at(-1) ?? "start"}→${f.prescribed} m=${f.margin}`)), "lines:", om.lines?.length);
+ok(!om.error && om.positions_scanned > 0 && om.only_moves_found >= 1 && Array.isArray(om.lines), "find_only_moves tags the sharp trap node");
+ok(typeof om.findings?.[0]?.prescribed_is_best === "boolean" && om.findings?.[0]?.margin >= 100, "find_only_moves finding carries margin + prescribed_is_best");
+const omBad = await call(client, "find_only_moves", { repertoire_id: rep.repertoire_id, export_path: "../escape.csv" });
+ok(omBad.error === "path_not_allowed", "find_only_moves export confined to REPERTOIRE_DIR");
 
 const t0 = Date.now();
 // Game analysis on a game with a clear white blunder (4.Nxe5 hangs a knight).

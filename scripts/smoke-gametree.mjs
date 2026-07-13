@@ -10,6 +10,8 @@ import {
   turnNodes,
   findRepertoireGaps,
   auditRepertoireMoves,
+  findOnlyMoves,
+  onlyMoveDeckCsv,
   resolveDanglingStubs,
   compareMoves,
   gapSeverity,
@@ -455,6 +457,43 @@ const auditMate = await auditRepertoireMoves(mateRep, "black", { minCpLoss: 0 },
 ok(!auditMate.error && auditMate.moves_audited === 2, "audit mate: both black moves audited");
 ok(auditMate.findings.every((f) => f.prescribed !== "Qh4#" || f.cp_loss === 0), "audit mate: the mating move is decisive, cp_loss 0");
 ok((await auditRepertoireMoves(auditRep, "white", {}, async () => null)).error === "engine_unavailable", "audit: null engine → engine_unavailable");
+
+// 16m. findOnlyMoves — tag sharp your-turn positions (best − second ≥ minMargin). White rep with
+// two your-turn nodes: root margin 5 (untagged), after d4 d5 margin 140 (tagged, prescribed IS best).
+const omRep = GameTree.fromPgn("1. d4 d5 2. c4 e6 (2... c6) *");
+const omStub = async (fen) =>
+  fen === START_FEN
+    ? [{ uci: "d2d4", cp: 20, mate: null, depth: 10, pv: [] }, { uci: "e2e4", cp: 15, mate: null, depth: 10, pv: [] }]
+    : [{ uci: "c2c4", cp: 150, mate: null, depth: 10, pv: [] }, { uci: "g1f3", cp: 10, mate: null, depth: 10, pv: [] }];
+const om = await findOnlyMoves(omRep, "white", {}, omStub);
+ok(!om.error && om.positions_scanned === 2 && om.only_moves_found === 1, "onlyMoves: 1 of 2 nodes clears the default 100cp margin");
+ok(om.findings[0].path.join(" ") === "d4 d5" && om.findings[0].margin === 140, "onlyMoves: tagged node carries path + margin");
+ok(om.findings[0].prescribed.join() === "c4" && om.findings[0].prescribed_is_best, "onlyMoves: prescribed c4 is the engine best");
+// Density is transposition-key based and counts scanned your-turn nodes per leaf line: both leaves
+// pass through root (untagged) + the tagged node → critical 1 / your_moves 2.
+ok(om.lines.length === 2 && om.lines.every((l) => l.critical === 1 && l.your_moves === 2 && l.density === 0.5), "onlyMoves: both leaf lines score density 0.5");
+// prescribed_is_best=false (sharp position, wrong prescription) + forced-move skip (single-line
+// result at the root — one legal move needs no drilling, and no error).
+const omWrongStub = async (fen) =>
+  fen === START_FEN
+    ? [{ uci: "d2d4", cp: 20, mate: null, depth: 10, pv: [] }]
+    : [{ uci: "g1f3", cp: 150, mate: null, depth: 10, pv: [] }, { uci: "c2c4", cp: 10, mate: null, depth: 10, pv: [] }];
+const omWrong = await findOnlyMoves(omRep, "white", {}, omWrongStub);
+ok(!omWrong.error && omWrong.only_moves_found === 1 && omWrong.positions_scanned === 2, "onlyMoves: single-line root skipped, no error");
+ok(omWrong.findings[0].best_move === "Nf3" && !omWrong.findings[0].prescribed_is_best, "onlyMoves: prescribed_is_best=false when the tree move trails");
+ok((await findOnlyMoves(omRep, "white", {}, async () => null)).error === "engine_unavailable", "onlyMoves: null engine → engine_unavailable");
+// minMargin dial: 150 filters the 140cp node.
+ok((await findOnlyMoves(omRep, "white", { minMargin: 150 }, omStub)).only_moves_found === 0, "onlyMoves: minMargin filters");
+
+// 16n. onlyMoveDeckCsv — header + numbered-SAN front + margin note; empty path → "(start position)";
+// sentinel margin → decisive wording; comma/quote fields get RFC-4180 quoting.
+const deck = onlyMoveDeckCsv("white", om.findings);
+const deckLines = deck.trimEnd().split("\n");
+ok(deckLines[0] === "front,back,fen,margin" && deckLines.length === 2, "deck: header + 1 row");
+ok(deckLines[1].startsWith("1.d4 d5 (White to move),c4 (only move: next best -140cp),"), "deck: numbered front + margin-note back");
+const deckEdge = onlyMoveDeckCsv("black", [{ path: [], fen: "8/8/8/8/8/8/8/8 b - - 0 1", prescribed: ['a"b'], best_move: "x", prescribed_is_best: false, margin: 100000, best_eval: 100000 }]);
+ok(deckEdge.includes("(start position) (Black to move)") && deckEdge.includes("decisively worse"), "deck: start-position front + sentinel-margin wording");
+ok(deckEdge.includes('"a""b (only move: alternatives are decisively worse)"'), "deck: quote-bearing field escaped per RFC-4180");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();

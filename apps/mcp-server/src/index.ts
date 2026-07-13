@@ -27,6 +27,8 @@ import {
   analyzeMainline,
   findRepertoireGaps,
   auditRepertoireMoves,
+  findOnlyMoves,
+  onlyMoveDeckCsv,
   resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
@@ -301,6 +303,49 @@ server.tool(
         analyseMulti,
       ),
     );
+  },
+);
+
+server.tool(
+  "find_only_moves",
+  'Tag your-turn positions where the engine best move stands alone (best minus second >= min_margin cp) — the "only move" positions where misremembering the repertoire is punished. Findings ranked by margin; lines[] ranks leaf lines by only-move density ("sharpest lines to drill"). prescribed_is_best=false flags a sharp position whose repertoire move is NOT the engine best — fix via audit_repertoire_moves before drilling. export_path (confined to REPERTOIRE_DIR) writes the FULL tagged set as a flashcard CSV (front,back,fen,margin — Anki-importable); limit only truncates the in-context findings.',
+  {
+    repertoire_id: z.string(),
+    depth: z.number().int().min(1).max(30).optional(),
+    min_margin: z.number().int().min(0).optional(),
+    max_positions: z.number().int().min(1).max(300).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    lines_limit: z.number().int().min(1).max(50).optional(),
+    export_path: z.string().optional(),
+  },
+  async ({ repertoire_id, depth, min_margin, max_positions, limit, lines_limit, export_path }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    // Resolve the export path BEFORE the engine scan so a bad path fails in ms, not after it.
+    let real: string | null = null;
+    if (export_path !== undefined) {
+      real = confine(export_path);
+      if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+    }
+    const res = await findOnlyMoves(
+      e.tree,
+      e.color,
+      { depth, minMargin: min_margin, maxPositions: max_positions, linesLimit: lines_limit },
+      analyseMulti,
+    );
+    if ("error" in res) return ok(res);
+    let deck: { path: string; rows: number; bytes: number } | undefined;
+    if (real) {
+      const csv = onlyMoveDeckCsv(res.color, res.findings);
+      try {
+        await writeFile(real, csv, "utf8");
+      } catch {
+        // Don't surface the raw fs error (it carries the absolute host path).
+        return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+      }
+      deck = { path: real, rows: res.findings.length, bytes: Buffer.byteLength(csv, "utf8") };
+    }
+    return ok({ ...res, findings: res.findings.slice(0, limit ?? 25), ...(deck ? { deck } : {}) });
   },
 );
 

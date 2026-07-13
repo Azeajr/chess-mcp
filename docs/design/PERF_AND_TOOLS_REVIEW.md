@@ -155,14 +155,24 @@ the opponent's own `user_result`). No engine calls — pure composition of T1-er
 `identifyDeepest`/games fetchers. Chat/panel surface deliberately deferred (CHAT_TOOLSET_REVIEW §10
 schema bloat, same call as T1/T2).
 
-### T4. Criticality / only-move tagging → drill export
+### T4. Criticality / only-move tagging → drill export — ✅ shipped 2026-07-13
 
-From any multipv-2+ scan (T1 produces this for free): tag your-turn positions where
-`best − second ≥ threshold` — the "only move" positions where misremembering is punished. Rank
-lines by criticality density ("sharpest lines to drill"). Then export the tagged set as a
-spaced-repetition deck (FEN → prescribed move, CSV/Anki format) — the training-loop complement to
-Shorten's "memorize less": *memorize what matters, drop the rest*. (`tactics_drill` #29 on ROADMAP
-is adjacent; this variant needs no external puzzle DB — the repertoire IS the deck.)
+Tag your-turn positions where `best − second ≥ threshold` — the "only move" positions where
+misremembering is punished — and export them as a spaced-repetition deck: the training-loop
+complement to Shorten's "memorize less": *memorize what matters, drop the rest*. Shipped as
+chess-tools `findOnlyMoves` + `onlyMoveDeckCsv` and MCP tool `find_only_moves`: same `turnNodes`
+walk + multipv-2 search as T1 but the opposite filter (the audit's cp_loss gate drops the healthy
+prescribed-is-best case this tool exists for), `min_margin` default 100cp, single-legal-move
+nodes skipped (nothing to drill). `lines[]` ranks leaf lines by tagged-node density
+(transposition-aware; the denominator counts scanned nodes only). `export_path` (confined to
+REPERTOIRE_DIR) writes the FULL tagged set as a flashcard CSV — `front,back,fen,margin`, front =
+numbered SAN path + side to move, back = prescribed move(s) + margin note, fen column for
+board-rendering Anki templates; `limit` truncates only the in-context findings.
+`prescribed_is_best=false` flags a sharp position whose repertoire move isn't the engine best —
+route to `audit_repertoire_moves` before drilling (the deck drills the *prescribed* move; the
+repertoire stays the arbiter). No new engine machinery — the eval cache's cross-multipv serve
+means a prior audit or gap scan fronts the whole T4 scan. (`tactics_drill` #29 on ROADMAP is
+adjacent; this variant needs no external puzzle DB — the repertoire IS the deck.)
 
 ### T5. Structural position search
 
@@ -267,6 +277,6 @@ rest of the PWA is local-first.
 5. ~~**T2** (explorer client + popularity gaps)~~ — shipped 2026-07-13 (see §T2; explorer now
    needs `LICHESS_TOKEN`, host moved to explorer.lichess.org).
 6. ~~**T3** (`prep_vs_opponent`)~~ — shipped 2026-07-13 (see §T3).
-7. **T4** — ← **NEXT**: only-move tagging + drill export. Input (`best_margin`) is already
-   emitted by T1.
+7. ~~**T4** (only-move tagging + drill export)~~ — shipped 2026-07-13 (see §T4;
+   `find_only_moves` + flashcard-CSV export).
 8. **P5-P8, T5-T7** — opportunistic.

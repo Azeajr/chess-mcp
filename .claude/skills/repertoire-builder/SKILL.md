@@ -164,10 +164,20 @@ comparing handles, with no re-download. See "Edit loop" below.
      original prep — pair with step 7 (shorten) to cut memorization where theory has already run
      out. Network-bound (~1 position/s, `max_positions` caps it) — warn the user a big tree takes
      a minute+.
-9. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
-   user moves with the engine fix (step 5) / uncovered opponent tries = gaps (step 5), frequency-
-   ranked when the explorer is available (step 8) / suggested extensions (step 6) / shortenable
-   lines with plies saved + eval trade (step 7) / theory-exit depths (step 8).
+9. **Drill what matters (training loop).** `find_only_moves(repertoire_id)` tags the your-turn
+   positions where the engine best stands alone (`best − second ≥ min_margin`, default 100cp) —
+   the spots where misremembering is punished — and `lines[]` ranks the sharpest lines to drill
+   by only-move density. A finding with `prescribed_is_best: false` is a sharp position whose
+   repertoire move is NOT the engine best: fix it (step 5 audit + edit loop) before drilling.
+   `export_path: "drills.csv"` (confined to the repertoire directory) writes ALL tagged positions
+   as a flashcard CSV (`front,back,fen,margin` — Anki-importable; `limit` only truncates the
+   in-context findings, never the file). The complement of step 7 (shorten): memorize less, but
+   drill what remains.
+10. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
+    user moves with the engine fix (step 5) / uncovered opponent tries = gaps (step 5), frequency-
+    ranked when the explorer is available (step 8) / suggested extensions (step 6) / shortenable
+    lines with plies saved + eval trade (step 7) / theory-exit depths (step 8) / only-move drill
+    set (step 9).
 
 ## Edit loop (single session — fix the repertoire without leaving)
 
