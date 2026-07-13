@@ -104,6 +104,7 @@ export const toolSchemas: ToolSchema[] = [
   fn("analyze_repertoire_congruence", "Flag thematic inconsistencies across the current repertoire's lines (engine-free), clustered by opening system: structure_outlier, weakness_inconsistency, center_inconsistency.", {
     min_severity: { type: "string", enum: ["low", "medium", "high"] },
     limit: { type: "integer" },
+    acknowledged_weaknesses: { type: "array", items: { type: "array", items: { type: "string" } }, description: "SAN paths of weaknesses the user has accepted — matching flags downgrade to low severity" },
     exclude_paths: { type: "array", items: { type: "array", items: { type: "string" } } },
   }),
   fn("classify_illustrative_lines", "Flag illustrative side lines in the current repertoire marked with a mistake/dubious/blunder NAG ($2/$4/$6) — they inflate leaf/gap counts.", { limit: { type: "integer" } }),
@@ -300,6 +301,7 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       return analyzeCongruence(tree, col, await openings(), {
         minSeverity: args.min_severity as never,
         limit: args.limit as number,
+        acknowledgedWeaknesses: args.acknowledged_weaknesses as string[][] | undefined,
         excludePaths: args.exclude_paths as string[][] | undefined,
       });
 
