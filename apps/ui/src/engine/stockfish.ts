@@ -50,6 +50,10 @@ async function getEngine(): Promise<EngineLike | null> {
           unavailable = true;
         };
         worker.postMessage("uci");
+        // Once per worker, NOT per search (P2): a warm TT carries the previous search's work into
+        // the next near-identical position — repertoire scans get a real same-depth speedup. Node
+        // counts / tie-break lines may vary run-to-run as a result (same class as movetime).
+        worker.postMessage("ucinewgame");
         worker.postMessage("isready");
         return { postMessage: (cmd: string) => worker.postMessage(cmd) } satisfies EngineLike;
       } catch (err) {
@@ -172,7 +176,6 @@ export function analyse(fen: string): Promise<Eval | null> {
         resolve(last);
       }
     };
-      engine.postMessage("ucinewgame");
       engine.postMessage("setoption name MultiPV value 1");
       engine.postMessage(`position fen ${fen}`);
       engine.postMessage(`go depth ${DEPTH}`);
@@ -237,7 +240,6 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
         resolve(result);
       }
     };
-      engine.postMessage("ucinewgame");
       engine.postMessage(`setoption name MultiPV value ${multipv}`);
       engine.postMessage(`position fen ${fen}`);
       engine.postMessage(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);

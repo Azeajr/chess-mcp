@@ -28,15 +28,15 @@ chess-tools needs zero changes); the eval cache becomes the pool's front. The P2
 completions instead of sequence. Watch: wasm memory per worker (~64MB+ each) — cap pool at
 `min(cores, 4)` default, env-tunable.
 
-### P2. Stop clearing the engine's transposition table between searches
+### P2. Stop clearing the engine's transposition table between searches — ✅ shipped 2026-07-13
 
-`ucinewgame` is sent before EVERY search (engine.ts:136, stockfish.ts:122,187) — it wipes the
-engine's hash table. Repertoire scans search hundreds of positions that differ by 1-2 moves; a warm
-TT carries most of the previous search's work forward. Sending `ucinewgame` once per tool call (or
-never — position changes are full `position fen`) keeps the TT hot for a real same-depth speedup on
-every multi-position scan. Trade-off: TT warmth changes move ordering, so node counts (and
+`ucinewgame` was sent before EVERY search — wiping the engine's hash table between positions that
+differ by 1-2 moves. Now sent once per process (Node) / per worker (browser) at engine init; the
+warm TT carries the previous search's work forward. Benchmark (fixture repertoire, 203 decision
+positions, depth 14 multipv 2, cache disabled): 41.8s → 33.9s, **~19% faster**, stable across
+runs. Trade-off (documented in AGENTS.md): TT warmth changes move ordering, so node counts (and
 occasionally the reported line at equal eval) vary run-to-run — same class of nondeterminism
-`movetime` already accepts. Document it; keep depth as the reproducibility knob.
+`movetime` already accepts; `depth` stays the reproducibility knob.
 
 ### P3. Persist the eval cache across sessions — ✅ shipped 2026-07-13
 
@@ -247,11 +247,11 @@ rest of the PWA is local-first.
    mirror; both keyed `positionKey|multipv` below halfmove clock 50, full FEN at/above.
 2. ~~**T1** (`audit_repertoire_moves`)~~ — shipped 2026-07-13 (see §T1; includes the
    cross-multipv cache serve on both hosts and the `turnNodes` shared walker).
-3. **P2** (keep TT warm) — ← **NEXT**. One-line-ish (drop `ucinewgame` between searches, or send
-   once per tool call), benchmark before/after on the sample repertoire; document the
-   node-count/line nondeterminism trade-off (same class `movetime` already accepts).
-4. **P1** (engine pool) — the big lever; the pool fronts the now-persistent cache, and R4
-   (in-flight dedupe by cache key) belongs to its front.
+3. ~~**P2** (keep TT warm)~~ — shipped 2026-07-13 (see §P2; ~19% same-depth scan speedup,
+   nondeterminism trade-off documented in AGENTS.md).
+4. **P1** (engine pool) — ← **NEXT**. The big lever; the pool fronts the now-persistent cache,
+   and R4 (in-flight dedupe by cache key) belongs to its front. Note: per-worker TTs dilute the
+   P2 warmth (each worker keeps its own hash) — expected, the parallelism dominates.
 5. **T2** (explorer client + popularity gaps) — unlocks the existing ROADMAP item.
 6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
    is already emitted by T1.

@@ -175,6 +175,12 @@ async function getEngine(): Promise<Engine | null> {
         const engine = await initEngine(join(binDir, "stockfish-18-lite-single.js"));
         globalThis.fetch = savedFetch;
         engine.sendCommand("uci");
+        // Once per process, NOT per search (P2): clearing the TT between searches threw away the
+        // previous search's work, and repertoire scans walk hundreds of near-identical positions.
+        // Trade-off: a warm TT changes move ordering, so node counts (and occasionally the reported
+        // line at equal eval) vary run-to-run — same class of nondeterminism `movetime` accepts;
+        // `depth` stays the reproducibility knob.
+        engine.sendCommand("ucinewgame");
         engine.sendCommand("isready");
         return engine;
       } catch (err) {
@@ -231,7 +237,6 @@ export function analyseMulti(fen: string, multipv = 1, depth = 16, movetime?: nu
           resolve(result);
         }
       };
-      engine.sendCommand("ucinewgame");
       // multipv is a clamped integer (zod min/max); fen is always either chessops-generated
       // (makeFen) or validateFen-gated at the tool boundary — validateFen rejects newlines/garbage,
       // so no caller string can inject extra UCI commands through either interpolation.
