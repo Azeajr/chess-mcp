@@ -27,6 +27,8 @@ function rateLimit(): Promise<void> {
 async function fetchRaw(url: string, headers?: Record<string, string>): Promise<Response | null> {
   await rateLimit();
   const ctrl = new AbortController();
+  // Bounds time-to-headers only: the timer is cleared once the Response resolves, so a slow body
+  // stream (e.g. a bulk Lichess PGN export) is never aborted mid-read.
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers });

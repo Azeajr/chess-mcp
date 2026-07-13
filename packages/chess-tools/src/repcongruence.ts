@@ -267,10 +267,13 @@ export function analyzeCongruence(tree: GameTree, color: Color, table: OpeningTa
   for (const [label, group] of groups) for (const flag of checksFor(group)) incongruencies.push({ ...flag, cluster: label });
 
   const floor = SEVERITY_RANK[minSeverity];
+  // Count acknowledged flags BEFORE the severity filter: acknowledging downgrades a flag to "low",
+  // which the default min_severity ("medium") then drops — counting after the filter reported 0
+  // exactly when the acknowledgement worked, hiding the "N flags suppressed" signal.
+  const acknowledgedCount = incongruencies.filter((x) => x.acknowledged).length;
   const filtered = incongruencies
     .filter((x) => SEVERITY_RANK[x.severity] >= floor)
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
-  const acknowledgedCount = filtered.filter((x) => x.acknowledged).length;
   const unacknowledged = filtered.filter((x) => !x.acknowledged);
   const byType: Record<string, number> = {};
   for (const x of unacknowledged) byType[x.type] = (byType[x.type] ?? 0) + 1;

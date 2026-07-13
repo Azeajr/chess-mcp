@@ -384,6 +384,10 @@ const cmRanked = await compareMoves(START_FEN, ["a3", "e4"], 10, cmStub);
 ok(cmRanked.candidates[0].san === "e4" && cmRanked.candidates[0].rank === 1, "compareMoves ranks the stronger move first");
 ok(cmRanked.candidates[0].mover_cp === 20 && cmRanked.candidates[1].mover_cp === -5, "compareMoves reports mover-POV cp");
 ok((await compareMoves(START_FEN, ["Qz9"], 10, cmStub)).candidates[0].error === "illegal_move", "compareMoves flags an illegal candidate");
+// An error row carries no rank — a rank on an illegal candidate reads as a real placement.
+const cmMixed = await compareMoves(START_FEN, ["e4", "Qz9"], 10, cmStub);
+ok(cmMixed.candidates.find((c) => c.error)?.rank === undefined, "compareMoves: error rows are unranked");
+ok(cmMixed.candidates.find((c) => !c.error)?.rank === 1, "compareMoves: scored rows still ranked from 1");
 ok((await compareMoves(START_FEN, ["e4"], 10, async () => null)).candidates[0].error === "engine_unavailable", "compareMoves: null engine → engine_unavailable");
 // Terminal-after-move (Ra8#): the engine returns [] (no legal replies), NOT null. The mating move must be
 // decisive (mover_cp = +MATE_CP 100000), never mislabeled engine_unavailable (the conflation bug fixed here).
@@ -396,6 +400,10 @@ ok(!cmMate.candidates[0].error && cmMate.candidates[0].mover_cp === 100000, "com
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();
 ok(il.lines.length === 1 && il.illustrativeLeaves === 1, "illustrative NAG line flagged");
 ok(il.lines[0].path.at(-1) === "Qh4", "flagged path ends at the bad move");
+// A NAG nested inside an already-flagged subtree must not re-count its leaves (nor re-list: the
+// outer path subsumes it for scan exclusion).
+const ilNested = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 3. Nf3 Qxe4+ $2 *").illustrativeLines();
+ok(ilNested.lines.length === 1 && ilNested.illustrativeLeaves === 1, "nested NAG counted once (outer subsumes)");
 
 // 18. ECO opening lookup (real table, chessops-keyed)
 const ecoTable = parseOpeningsTsv(readFileSync("./apps/mcp-server/data/openings.tsv", "utf8"));
@@ -442,6 +450,12 @@ ok(cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "weakne
 ok(Object.keys(cong.clusters).some((k) => /Nimzo/i.test(k)), `clusters carry the ECO name (${Object.keys(cong.clusters).join(", ")})`);
 // 1-leaf repertoire → nothing to compare → no flags
 ok(analyzeCongruence(GameTree.fromPgn("1. e4 e5 2. Nf3 *"), "white", ecoTable, {}).total_flagged === 0, "single line → no congruence flags");
+// Acknowledging the flagged weakness downgrades it to low (hidden at the default min severity) —
+// but acknowledged_count must still report it (counted before the severity filter).
+const congAckPath = cong.incongruencies.find((i) => i.type === "weakness_inconsistency").paths[0];
+const congAck = analyzeCongruence(GameTree.fromPgn(nimzo), "white", ecoTable, { acknowledgedWeaknesses: [congAckPath] });
+ok(!congAck.incongruencies.some((i) => i.type === "weakness_inconsistency" && i.paths[0].join() === congAckPath.join()), "acknowledged weakness hidden at default severity");
+ok(congAck.acknowledged_count === 1, `acknowledged_count visible at default severity (${congAck.acknowledged_count})`);
 
 // 24. isPromotion — pawn to last rank vs normal move
 ok(isPromotion("8/P7/8/8/8/8/8/k6K w - - 0 1", "a7", "a8") === true, "isPromotion true for a7→a8");

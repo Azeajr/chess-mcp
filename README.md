@@ -59,7 +59,7 @@ Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Dock
 | `analyze_game` | PGN, depth, verbose | Per-move cp_loss + classification (blunder/mistake/inaccuracy/good). `verbose=true` adds eval_cp + best_move + best_eval |
 | `get_position` | FEN | Normalized FEN, side to move, and legal moves — convenience wrapper for `validate_fen` + `get_legal_moves` |
 | `evaluate_position` | FEN, depth, lines | Local Stockfish analysis (white-POV): top `lines` moves (default 3), each with SAN, cp, mate, depth |
-| `compare_moves` | FEN, moves[], depth | Ranks YOUR candidate moves (best→worst): each move, eval, cp_loss vs best, pv; unrecognized inputs returned in `illegal`. Scores the exact moves you pass — even ones the engine wouldn't pick |
+| `compare_moves` | FEN, moves[], depth | Ranks YOUR candidate moves (best→worst): each candidate's SAN/UCI, white-POV `eval_cp`/`mate`, mover-POV `mover_cp`, and `rank`; an unrecognized input comes back as its own candidate with `error: "illegal_move"`. Scores the exact moves you pass — even ones the engine wouldn't pick |
 | `validate_line` | FEN, moves[] | Valid bool, which move fails and why |
 | `get_legal_moves` | FEN | Legal moves in SAN at the given position |
 | `validate_fen` | FEN | Valid bool + **normalized** FEN, side to move, game-over flag; rejects illegal-but-parseable positions. Run on a user-supplied FEN before analysis |
@@ -101,7 +101,7 @@ Structural analysis recognizes **19 canonical pawn structures** — IQP, Carlsba
 
 Engine-backed tools accept `depth` (integer, clamped 1–30; per-tool default 12–16). `find_pruning_transpositions` additionally accepts `movetime_ms` (ms per position) as a time-based alternative — a tighter knob for sharp positions or slower hardware — and `confirm_depth` to deep-confirm each line's best-eval re-route. Its candidate-node pre-filter (only positions with an actual cross-branch transposer reach the engine) plus a transposition-keyed scan memo keep a full-tree scan cheap, so chunking (`leaf_start`/`leaf_count`) is for progress display, not coverage.
 
-Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request), `path_not_found` (`compare_shortcut_lines` given a `line_path`/`joins_path` that doesn't resolve), `invalid_prune` (`check_shortcut_coverage` given an `at_ply` that leaves nothing to prune). `compare_moves` echoes unrecognized/illegal moves in an `illegal` list rather than erroring.
+Closed error-code set: bad input returns one of `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line` (an illegal SAN in a supplied line, e.g. `modify_repertoire_line` add_moves), `invalid_edit` (a malformed tree-edit request), `path_not_found` (`compare_shortcut_lines` given a `line_path`/`joins_path` that doesn't resolve), `invalid_prune` (`check_shortcut_coverage` given an `at_ply` that leaves nothing to prune). `compare_moves` echoes an unrecognized/illegal move as a per-candidate `error: "illegal_move"` entry rather than failing the call.
 
 ### Repertoire file I/O
 

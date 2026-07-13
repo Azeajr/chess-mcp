@@ -1010,6 +1010,7 @@ export class GameTree {
         if ((child.data.nags ?? []).some((n) => NAG_BAD.has(n))) {
           lines.push({ path: sp, reason: "nag" });
           illustrativeLeaves += countLeaves(child);
+          continue; // subtree already counted; a nested NAG inside it must not count its leaves again
         }
         dfs(child, sp);
       }

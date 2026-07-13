@@ -109,6 +109,11 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
     evals.push({ whiteCp: whitePov(l, MATE_CP), bestUci: l.uci });
   }
 
+  // A before-position always has a legal move (the game played one from it), so its bestUci is only
+  // empty if the engine misbehaved — report that as engine trouble, not the invalid_pgn the caller's
+  // catch would have labeled the moveSan("") throw as.
+  if (moves.some((_, k) => evals[k]!.bestUci === "")) return null;
+
   return moves.map((m, k) => {
     const before = evals[k]!;
     const after = evals[k + 1]!;
@@ -427,7 +432,9 @@ export async function compareMoves(
     out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) });
   }
   out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
-  out.forEach((o, i) => (o.rank = i + 1));
+  // Rank only the scored candidates — a rank on an illegal/engine-error row reads as a real placement.
+  let rank = 0;
+  for (const o of out) if (o.mover_cp !== undefined) o.rank = ++rank;
   return { fen, candidates: out };
 }
 
