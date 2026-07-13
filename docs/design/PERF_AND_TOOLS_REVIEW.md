@@ -16,17 +16,19 @@ wins are ranked: fewer searches > cheaper searches > parallel searches > everyth
 ### P1. Engine pool — parallel searches (largest available speedup)
 
 Both hosts run ONE single-threaded wasm instance with strictly serialized searches
-(`serial()` — engine.ts:91-96, stockfish.ts:77-82; zero `Worker`/`worker_threads` in the Node
+(`serial()` — engine.ts:196, stockfish.ts:135; zero `Worker`/`worker_threads` in the Node
 engine). Every scan is embarrassingly parallel: `find_repertoire_gaps` = 20 independent positions,
 `find_pruning_transpositions` = per-candidate searches, `batch_review` = per-game passes,
 `analyzeMainline` = per-position evals. An N-worker pool (Node `worker_threads`, browser N×`Worker`)
 gives ~linear speedup with cores on exactly the operations users wait minutes for.
 
 Shape: pool behind the same `analyseMulti` signature (the `Analyse` injection point means
-chess-tools needs zero changes); the eval cache becomes the pool's front. The P2 scan memo
-(pgn.ts:601) already keys by position, so out-of-order completion is safe; `onProgress` counts
+chess-tools needs zero changes); the eval cache becomes the pool's front. The prune scan's memo
+(pgn.ts:598) already keys by position, so out-of-order completion is safe; `onProgress` counts
 completions instead of sequence. Watch: wasm memory per worker (~64MB+ each) — cap pool at
-`min(cores, 4)` default, env-tunable.
+`min(cores, 4)` default, env-tunable. R4 (in-flight dedupe by cache key) belongs to the pool's
+front; per-worker TTs dilute the P2 warmth (each worker keeps its own hash) — expected, the
+parallelism dominates.
 
 ### P2. Stop clearing the engine's transposition table between searches — ✅ shipped 2026-07-13
 
@@ -40,24 +42,19 @@ occasionally the reported line at equal eval) vary run-to-run — same class of 
 
 ### P3. Persist the eval cache across sessions — ✅ shipped 2026-07-13
 
-Both eval caches are in-memory only (engine.ts:35, stockfish.ts:71) — every new Claude Code session
-or PWA reload re-searches the same repertoire from scratch, and re-analysis of a repertoire you
-iterate on daily is the dominant repeat cost. Node: write-through to a small disk store
-(`~/.cache/chess-mcp/` — JSON-lines or sqlite; key `positionKey|multipv`, value depth+lines, prune
-by size). Browser: mirror `multiCache` to IndexedDB (load on boot, debounced write). The depth-reuse
-rule (`stored depth >= requested` serves) already makes stale-by-depth impossible; evals are
-position-pure so there is no invalidation problem at all.
+Both eval caches were in-memory only — every new session/reload re-searched the same repertoire.
+Shipped: Node write-through JSONL at `$EVAL_CACHE_DIR/evals.jsonl` (default `~/.cache/chess-mcp/`,
+`0` disables, loaded at boot, compacted on growth); browser `multiCache` mirrored to IndexedDB
+(load at init, debounced write-back). Depth-reuse (`stored depth >= requested` serves) makes
+stale-by-depth impossible; evals are position-pure, so entries never need invalidation.
 
 ### P4. Engine cache keyed on full FEN misses transpositions — ✅ shipped 2026-07-13
 
-`evalCache.key = fen|multipv` with clocks included (engine.ts:28-37, deliberate: 50-move rule).
-But every consumer that benefits from transposition reuse re-keys by `positionKey` itself
-(pruneTranspositions memo pgn.ts:601) — the engine cache misses the same position reached with a
-different halfmove/fullmove counter, which in opening trees is the common case (transpositions
-by definition arrive with different move counts). Candidate: key on
-`positionKey|multipv` when the halfmove clock is low (< 50), full FEN otherwise — opening analysis
-gets transposition hits, 50-move-sensitive endgames keep exactness. Pairs with P3 (a persisted
-cache should be keyed the transposition-friendly way from day one).
+The cache key included the FEN clocks, so the same position reached by a different move order —
+the common case in opening trees — missed. Shipped (both hosts): key = first four FEN fields
+(`positionKey` rule) while the halfmove clock is < 50, full FEN at/above (50-move exactness).
+Later extended with the cross-multipv serve (see §T1): a stored multipv-N entry truncates to
+answer a narrower request at the same depth.
 
 ### P5. `pruneTranspositions` re-runs the full-tree pre-pass on every cursor chunk
 
@@ -77,7 +74,7 @@ sits inside the per-leaf-per-step hot loop of the pre-pass P5 also hits.
 
 ### P7. Memoize `themes`/`centerState` like `classifyStructure`
 
-`classifyStructure` is placement-memoized (structure.ts:352-363); `themes()` and `centerState()`
+`classifyStructure` is placement-memoized (structure.ts:345-365); `themes()` and `centerState()`
 are not, yet `structuralSignals` (structure.ts:430) calls all three per board — per leaf in
 `buildFitProfile`, per candidate in suggest_*, per ply in the UI's `lineFit` (gaps.ts:158). Same
 placement-key memo, same determinism argument. Small constant-factor win, zero risk.
@@ -179,7 +176,7 @@ session memory).
 
 ### R1. Node engine watchdog race (known-deferred; fix shape now exists)
 
-engine.ts:111 resolves null on the 30s watchdog but leaves the search running; the next serialized
+engine.ts:215 resolves null on the 30s watchdog but leaves the search running; the next serialized
 search replaces the global `lineHandler`, and the timed-out search's late `bestmove` can resolve
 the NEXT search early — with partial/empty lines that get **cached**. The browser side got the
 stop-then-grace fix (commit 84ee190); mirroring it to Node (send `stop`, resolve on the imminent
@@ -188,7 +185,7 @@ bestmove, grace timer for a hung engine, skip cache on stopped) closes the race 
 ### R2. FEN-setup PGNs load but every walker ignores the header (known-deferred)
 
 `assertLegal` honors a `FEN` header (pgn.ts:238); every other walker replays from
-`Chess.default()` — `positionAt` (pgn.ts:286), leaves/coverage/keyIndex/congruence/
+`Chess.default()` — `positionAt` (pgn.ts:285), leaves/coverage/keyIndex/congruence/
 `userMovesAlong` (repcongruence.ts:79), `mainline` (game.ts:25, comment admits it). A FEN-header
 PGN passes load, then every tool silently analyses the wrong positions or errors. Cheapest honest
 fix: reject FEN-header PGNs at `fromPgn` with a closed-set error until walkers take a start
@@ -249,9 +246,8 @@ rest of the PWA is local-first.
    cross-multipv cache serve on both hosts and the `turnNodes` shared walker).
 3. ~~**P2** (keep TT warm)~~ — shipped 2026-07-13 (see §P2; ~19% same-depth scan speedup,
    nondeterminism trade-off documented in AGENTS.md).
-4. **P1** (engine pool) — ← **NEXT**. The big lever; the pool fronts the now-persistent cache,
-   and R4 (in-flight dedupe by cache key) belongs to its front. Note: per-worker TTs dilute the
-   P2 warmth (each worker keeps its own hash) — expected, the parallelism dominates.
+4. **P1** (engine pool) — ← **NEXT**. The big lever; the pool fronts the now-persistent cache
+   and absorbs R4 (see §P1 for shape, memory cap, and the TT-warmth note).
 5. **T2** (explorer client + popularity gaps) — unlocks the existing ROADMAP item.
 6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
    is already emitted by T1.
