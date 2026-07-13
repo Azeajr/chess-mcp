@@ -27,6 +27,9 @@ export default function TopBar() {
       <button onClick={() => void saveFile()}>Save</button>
       <button
         onClick={() => {
+          // Guard the one-click data-loss path: newGame replaces the tree and the autosave then
+          // overwrites the IndexedDB copy — with no file saved, that copy is the only one.
+          if (dirty() && !window.confirm("Discard unsaved changes and start a new repertoire?")) return;
           clearHandle();
           actions.newGame();
         }}

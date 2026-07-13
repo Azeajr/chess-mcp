@@ -83,6 +83,7 @@ createEffect(() => {
         setArrows([]);
         return;
       }
+      setEngineOffline(false); // a later search succeeded — clear the sticky offline banner
       const childSans = tree.childSansAt(path);
       const keys = tree.allPositionKeys();
       const lines: EngineLine[] = res.map((l) => {

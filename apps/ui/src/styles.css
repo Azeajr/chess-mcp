@@ -1185,6 +1185,10 @@ body {
   color: var(--muted);
   font-size: 0.72rem;
 }
+.color-picker-error {
+  color: #f0a8ac;
+  font-size: 0.72rem;
+}
 .color-picker-actions {
   display: flex;
   gap: 0.5rem;

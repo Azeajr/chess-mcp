@@ -90,9 +90,15 @@ export function analyse(fen: string): Promise<Eval | null> {
 
     return new Promise<Eval | null>((resolve) => {
     let last: Eval | null = null;
+    // Watchdog: abort THIS search only (send "stop" → the imminent bestmove resolves with whatever
+    // depth was reached). Marking the engine unavailable here would brick it for the whole session on
+    // one slow search; only a worker error (getEngine) means it's really gone. The grace timer covers
+    // a truly hung worker — and must NOT resolve early otherwise, or the serial chain would drive an
+    // overlapping `go` at the still-searching Worker (which traps the wasm).
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
     const wd = setTimeout(() => {
-      unavailable = true;
-      resolve(null);
+      engine.postMessage("stop");
+      graceTimer = setTimeout(() => resolve(last), 2000);
     }, WATCHDOG_MS);
     lineHandler = (line: string) => {
       if (line.startsWith("info") && line.includes(" score ")) {
@@ -109,6 +115,7 @@ export function analyse(fen: string): Promise<Eval | null> {
         };
       } else if (line.startsWith("bestmove")) {
         clearTimeout(wd);
+        clearTimeout(graceTimer);
         resolve(last);
       }
     };
@@ -136,9 +143,15 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
 
     return new Promise<MultiLine[] | null>((resolve) => {
     const lines = new Map<number, MultiLine>();
+    // Per-search watchdog only — same stop-then-grace shape as analyse(): never poison the engine for
+    // the session, never resolve while the Worker may still be searching. A stopped search's partial
+    // result is returned but NOT cached (its reached depth is below what the key would claim).
+    let stopped = false;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
     const wd = setTimeout(() => {
-      unavailable = true;
-      resolve(null);
+      stopped = true;
+      engine.postMessage("stop");
+      graceTimer = setTimeout(() => resolve(null), 2000);
     }, WATCHDOG_MS);
     lineHandler = (line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
@@ -159,9 +172,13 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
         });
       } else if (line.startsWith("bestmove")) {
         clearTimeout(wd);
+        clearTimeout(graceTimer);
         const result = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-        if (result.length) {
-          multiCache.set(cacheKey(fen, multipv), { depth: cmpDepth, lines: result });
+        if (result.length && !stopped) {
+          // Store the depth actually reached (like the Node engine cache) so a movetime result can
+          // still serve later depth requests it satisfies.
+          const reached = movetime != null ? result.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
+          multiCache.set(cacheKey(fen, multipv), { depth: reached, lines: result });
           if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
         }
         resolve(result);

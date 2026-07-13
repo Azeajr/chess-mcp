@@ -5,7 +5,7 @@
  * otherwise via a user-gesture "Reopen" button). Shared by TopBar + the Cmd/Ctrl+S shortcut.
  */
 import { createSignal } from "solid-js";
-import { actions, fileName } from "./game";
+import { actions, fileName, dirty } from "./game";
 import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
@@ -36,16 +36,28 @@ type PendingLoad = { pgn: string; name?: string; detectedColor: Color | null };
 const [pendingLoad, setPendingLoad] = createSignal<PendingLoad | null>(null);
 export { pendingLoad };
 
+// Shown in the color-picker modal when the chosen file fails to parse (illegal SAN, no game) —
+// GameTree.fromPgn throws, and without catching it the Load click died silently in the console.
+const [loadError, setLoadError] = createSignal<string | null>(null);
+export { loadError };
+
 export function resolvePendingLoad(color: Color) {
   const p = pendingLoad();
   if (!p) return;
-  actions.loadPgn(p.pgn, p.name);
+  try {
+    actions.loadPgn(p.pgn, p.name);
+  } catch (e) {
+    setLoadError(e instanceof Error ? e.message : String(e));
+    return; // keep the modal open so the error is visible; Cancel dismisses
+  }
   actions.setColor(color);
+  setLoadError(null);
   setPendingLoad(null);
 }
 
 export function cancelPendingLoad() {
   setPendingLoad(null);
+  setLoadError(null);
 }
 
 function remember(h: FilePickerHandle) {
@@ -66,6 +78,9 @@ async function loadFromHandle(h: FilePickerHandle) {
 }
 
 export async function openFile() {
+  // Loading a file replaces the working tree; with unsaved edits and no file handle, the autosave
+  // copy is the only copy and gets overwritten moments later — confirm before the picker opens.
+  if (dirty() && !window.confirm("Discard unsaved changes and open a different PGN?")) return;
   const w = window as PickerWindow;
   if (w.showOpenFilePicker) {
     const [h] = await w.showOpenFilePicker({ types: PGN_TYPES });

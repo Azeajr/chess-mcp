@@ -1,5 +1,5 @@
 import { Show, createSignal } from "solid-js";
-import { pendingLoad, resolvePendingLoad, cancelPendingLoad } from "../store/files";
+import { pendingLoad, resolvePendingLoad, cancelPendingLoad, loadError } from "../store/files";
 import type { Color } from "../store/game";
 
 export default function ColorPickerModal() {
@@ -31,6 +31,9 @@ export default function ColorPickerModal() {
               </div>
               <Show when={p().detectedColor}>
                 <div class="color-picker-hint">Detected from file headers</div>
+              </Show>
+              <Show when={loadError()}>
+                <div class="color-picker-error">Could not load: {loadError()}</div>
               </Show>
               <div class="color-picker-actions">
                 <button class="color-picker-load" onClick={() => resolvePendingLoad(sel())}>
