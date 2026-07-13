@@ -582,7 +582,7 @@ server.tool(
 // --- game history (network) ---
 server.tool(
   "lichess_games",
-  "Recent games for a Lichess user (metadata by default; include_pgn attaches PGNs). opening_eco filters by ECO prefix.",
+  "Recent games for a Lichess user (metadata by default; include_pgn attaches PGNs). opening_eco filters the fetched max_games by ECO prefix (applied after the fetch — the API has no ECO filter), so fewer than max_games may return.",
   {
     username: z.string(),
     max_games: z.number().int().min(1).max(100).optional(),
@@ -598,7 +598,7 @@ server.tool(
 
 server.tool(
   "chesscom_games",
-  "Games for a Chess.com user in a given month (metadata by default; include_pgn attaches PGNs). opening_eco filters by ECO prefix.",
+  "Games for a Chess.com user in a given month (metadata by default; include_pgn attaches PGNs). opening_eco filters the month's games by ECO prefix (applied after the fetch — the API has no ECO filter).",
   {
     username: z.string(),
     year: z.number().int(),
