@@ -190,6 +190,7 @@ The Node server runs as a local stdio process — no port, no transport setting,
 | `MAX_REPERTOIRES` | `16` | Max cached repertoires (LRU eviction beyond this) |
 | `REPERTOIRE_TTL_S` | `3600` | Idle seconds before a cached repertoire expires |
 | `EVAL_CACHE_DIR` | `$XDG_CACHE_HOME/chess-mcp` (or `~/.cache/chess-mcp`) | Directory for the persistent engine eval cache (`evals.jsonl`); set to `0` to disable persistence |
+| `ENGINE_POOL_SIZE` | `min(cores, 4)` | Stockfish child processes for parallel searches (clamped 1–8); `0` forces the single in-process engine |
 
 Search depth is per-tool (default 12–16, clamped 1–30); `find_pruning_transpositions` also takes a
 `movetime_ms` knob and a `budget` cap. The `find_repertoire_gaps` budget and the input caps

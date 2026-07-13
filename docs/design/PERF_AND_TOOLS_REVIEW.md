@@ -13,22 +13,18 @@ wins are ranked: fewer searches > cheaper searches > parallel searches > everyth
 
 ## Performance / speedups
 
-### P1. Engine pool — parallel searches (largest available speedup)
+### P1. Engine pool — parallel searches — ✅ Node shipped 2026-07-13 (browser pending)
 
-Both hosts run ONE single-threaded wasm instance with strictly serialized searches
-(`serial()` — engine.ts:196, stockfish.ts:135; zero `Worker`/`worker_threads` in the Node
-engine). Every scan is embarrassingly parallel: `find_repertoire_gaps` = 20 independent positions,
-`find_pruning_transpositions` = per-candidate searches, `batch_review` = per-game passes,
-`analyzeMainline` = per-position evals. An N-worker pool (Node `worker_threads`, browser N×`Worker`)
-gives ~linear speedup with cores on exactly the operations users wait minutes for.
-
-Shape: pool behind the same `analyseMulti` signature (the `Analyse` injection point means
-chess-tools needs zero changes); the eval cache becomes the pool's front. The prune scan's memo
-(pgn.ts:598) already keys by position, so out-of-order completion is safe; `onProgress` counts
-completions instead of sequence. Watch: wasm memory per worker (~64MB+ each) — cap pool at
-`min(cores, 4)` default, env-tunable. R4 (in-flight dedupe by cache key) belongs to the pool's
-front; per-worker TTs dilute the P2 warmth (each worker keeps its own hash) — expected, the
-parallelism dominates.
+Design + decisions: `docs/design/ENGINE_POOL.md`. Node: pool of Stockfish wasm child processes
+(UCI over stdio; worker_threads is a dead end — the emscripten UMD wrapper treats a node worker
+as a web worker), `ENGINE_POOL_SIZE` env (default `min(cores,4)`), in-process fallback when spawn
+fails. chess-tools scan loops (`findRepertoireGaps`, `auditRepertoireMoves`, `analyzeMainline`,
+`compareMoves`, `checkShortcutCoverage`) now fire per-position searches concurrently — the pool
+queue is the limiter. Fixture scan (96 positions, depth 14 multipv 2, cache off): 17.1s serial →
+**6.4s at 4 children (2.7×)**, 4.9s at 8. Absorbed R4 (in-flight dedupe, depth-aware join) and
+fixed R1 on the pool path (per-child single ownership + stop-then-grace; stopped partials never
+cached). Deferred: prune-scan concurrency (budget/cursor accounting), **browser pool + dedicated
+eval-bar worker** (phase 4 in ENGINE_POOL.md).
 
 ### P2. Stop clearing the engine's transposition table between searches — ✅ shipped 2026-07-13
 
@@ -174,13 +170,13 @@ loop, richer drill list. Small change, existing tool gets better.
 Not perf, not chat-surface — recorded here so the repo carries them (some previously lived only in
 session memory).
 
-### R1. Node engine watchdog race (known-deferred; fix shape now exists)
+### R1. Node engine watchdog race — ✅ fixed 2026-07-13 (P1 pool)
 
-engine.ts:215 resolves null on the 30s watchdog but leaves the search running; the next serialized
-search replaces the global `lineHandler`, and the timed-out search's late `bestmove` can resolve
-the NEXT search early — with partial/empty lines that get **cached**. The browser side got the
-stop-then-grace fix (commit 84ee190); mirroring it to Node (send `stop`, resolve on the imminent
-bestmove, grace timer for a hung engine, skip cache on stopped) closes the race the same way.
+The pool path has per-child single ownership + the stop-then-grace watchdog (send `stop`, resolve
+on the imminent bestmove, kill+respawn a hung child); stopped partials are never cached. The
+shared `runSearch` gives the in-process FALLBACK path the same stop-then-grace behavior; only a
+fallback engine hung past the grace window retains a residual handler-swap race (can't kill
+in-process wasm) — accepted, fallback-only.
 
 ### R2. FEN-setup PGNs load but every walker ignores the header (known-deferred)
 
@@ -198,11 +194,12 @@ position; full fix: one root-position helper all walkers share.
 the README documents "idle seconds before a cached repertoire expires" and memory-bounding is the
 TTL's job. One `if (now - e.ts > TTL_MS)` in `get()`.
 
-### R4. No in-flight request coalescing at either engine
+### R4. No in-flight request coalescing at either engine — ✅ Node fixed 2026-07-13 (P1 pool)
 
-Two concurrent identical `analyseMulti` cache misses both run the search (both hosts — the serial
-chain runs them back-to-back; the second finds the cache filled only if keyed identically AND the
-first finished). The P1 pool front should dedupe in-flight requests by cache key.
+Node `analyseMulti` now keeps an in-flight map keyed by cache key; a concurrent identical miss
+joins the pending search (join requires pending depth ≥ requested — a depth-16 request never
+silently adopts a pending depth-12 result). Browser side still uncoalesced — lands with the
+browser pool (ENGINE_POOL.md phase 4).
 
 ### R5. Autosave restore trusts the saved path
 
@@ -246,9 +243,10 @@ rest of the PWA is local-first.
    cross-multipv cache serve on both hosts and the `turnNodes` shared walker).
 3. ~~**P2** (keep TT warm)~~ — shipped 2026-07-13 (see §P2; ~19% same-depth scan speedup,
    nondeterminism trade-off documented in AGENTS.md).
-4. **P1** (engine pool) — ← **NEXT**. The big lever; the pool fronts the now-persistent cache
-   and absorbs R4 (see §P1 for shape, memory cap, and the TT-warmth note).
-5. **T2** (explorer client + popularity gaps) — unlocks the existing ROADMAP item.
+4. ~~**P1** (engine pool)~~ — Node half shipped 2026-07-13 (child-process pool, concurrent scan
+   loops, R4 dedupe, R1 fix; 2.7× on the fixture scan). Remaining: browser pool + dedicated
+   eval-bar worker (ENGINE_POOL.md phase 4).
+5. **T2** (explorer client + popularity gaps) — ← **NEXT**. Unlocks the existing ROADMAP item.
 6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
    is already emitted by T1.
 7. **P5-P8, T5-T7** — opportunistic.

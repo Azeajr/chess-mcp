@@ -92,22 +92,21 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
   const fens = moves.map((m) => m.fenBefore);
   fens.push(moves[moves.length - 1]!.fenAfter);
 
-  const evals: { whiteCp: number; bestUci: string }[] = [];
-  for (const fen of fens) {
-    const res = await analyse(fen, 1, depth);
-    if (res === null) return null; // engine genuinely unavailable
-    const l = res[0];
+  // Fired concurrently — the engine pool parallelises, its queue is the limiter (P1).
+  const results = await Promise.all(fens.map((fen) => analyse(fen, 1, depth)));
+  if (results.some((r) => r === null)) return null; // engine genuinely unavailable
+  const evals = results.map((res, i) => {
+    const l = res![0];
     if (!l) {
       // No lines ⇒ a terminal position (no legal moves); the engine returns []. This is only ever the
       // final fenAfter, consumed as an `after` eval (its bestUci is never read). Checkmate ⇒ the side
       // to move is mated (white-POV ∓MATE_CP); stalemate / insufficient material ⇒ a draw (0). Treating
       // [] as engine_unavailable (the old bug) aborted the review of every game ending in mate.
-      const pos = chessFromFen(fen);
-      evals.push({ whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0, bestUci: "" });
-      continue;
+      const pos = chessFromFen(fens[i]!);
+      return { whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0, bestUci: "" };
     }
-    evals.push({ whiteCp: whitePov(l, MATE_CP), bestUci: l.uci });
-  }
+    return { whiteCp: whitePov(l, MATE_CP), bestUci: l.uci };
+  });
 
   // A before-position always has a legal move (the game played one from it), so its bestUci is only
   // empty if the engine misbehaved — report that as engine trouble, not the invalid_pgn the caller's
@@ -175,30 +174,38 @@ export async function findRepertoireGaps(
   const minSev: Severity = opts.minSeverity ?? "medium";
   const nodes = decisionNodes(tree, color).slice(0, opts.maxPositions ?? 20);
   const { keyMap } = buildKeyIndex(tree.game.moves);
-  const found: Gap[] = [];
-  const covered: CoveredGap[] = [];
-  for (const node of nodes) {
-    const res = await analyse(node.fen, 4, opts.depth ?? 14);
-    if (!res) return { error: "engine_unavailable" };
-    const moverIsWhite = node.fen.split(" ")[1] === "w";
-    const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-    const best = res.length ? moverCp(res[0]!) : 0;
-    for (const l of res) {
-      const san = moveSan(node.fen, l.uci);
-      if (node.covered.includes(san)) continue;
-      // Transposition-first: a strong uncovered reply that walks into prep on a DIFFERENT line is
-      // not a real gap. Record it as covered-by-transposition instead of inflating the gap list —
-      // engine-free, on results the scan already computed.
-      const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
-      after.play(parseUci(l.uci)!);
-      const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
-      if (tgt) {
-        covered.push({ path: node.path, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
-        continue;
+  // Per-node searches fired concurrently (P1 — the pool parallelises, its queue is the limiter);
+  // results assembled in node order so output matches the old sequential scan.
+  const perNode = await Promise.all(
+    nodes.map(async (node) => {
+      const res = await analyse(node.fen, 4, opts.depth ?? 14);
+      if (!res) return null;
+      const gaps: Gap[] = [];
+      const covered: CoveredGap[] = [];
+      const moverIsWhite = node.fen.split(" ")[1] === "w";
+      const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
+      const best = res.length ? moverCp(res[0]!) : 0;
+      for (const l of res) {
+        const san = moveSan(node.fen, l.uci);
+        if (node.covered.includes(san)) continue;
+        // Transposition-first: a strong uncovered reply that walks into prep on a DIFFERENT line is
+        // not a real gap. Record it as covered-by-transposition instead of inflating the gap list —
+        // engine-free, on results the scan already computed.
+        const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
+        after.play(parseUci(l.uci)!);
+        const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
+        if (tgt) {
+          covered.push({ path: node.path, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
+          continue;
+        }
+        gaps.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
       }
-      found.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
-    }
-  }
+      return { gaps, covered };
+    }),
+  );
+  if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
+  const found = perNode.flatMap((r) => r!.gaps);
+  const covered = perNode.flatMap((r) => r!.covered);
   const gaps = found
     .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
@@ -250,57 +257,64 @@ export async function auditRepertoireMoves(
   const depth = opts.depth ?? 14;
   const minCpLoss = opts.minCpLoss ?? 50;
   const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 20);
-  const findings: AuditFinding[] = [];
-  let audited = 0;
-  for (const node of nodes) {
-    const res = await analyse(node.fen, 2, depth);
-    if (res === null) return { error: "engine_unavailable" };
-    if (!res.length) continue; // unreachable: the node has a stored child, so a legal move exists
-    const moverIsWhite = node.fen.split(" ")[1] === "w";
-    const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-    const best = mcp(res[0]!);
-    const best_move = moveSan(node.fen, res[0]!.uci);
-    const best_margin = res.length > 1 ? best - mcp(res[1]!) : null;
-    const bySan = new Map(res.map((l) => [moveSan(node.fen, l.uci), l]));
-    for (const raw of node.covered) {
-      const pos = chessFromFen(node.fen);
-      const mv = parseSan(pos, raw);
-      if (!mv) continue; // tree moves are replay-verified at load; unreachable
-      const prescribed = makeSan(pos, mv);
-      audited++;
-      const hit = bySan.get(prescribed);
-      let prescribedCp: number;
-      if (hit) {
-        prescribedCp = mcp(hit);
-      } else {
-        pos.play(mv);
-        const r = await analyse(makeFen(pos.toSetup()), 1, depth);
-        if (r === null) return { error: "engine_unavailable" };
-        const l = r[0];
-        // [] ⇒ the prescribed move ENDS the game (same terminal contract as compareMoves):
-        // mate delivered is decisive for the mover; stalemate / insufficient material is a draw.
-        prescribedCp = l ? -moverPov(l, pos.turn === "white", MATE_CP) : pos.isCheckmate() ? MATE_CP : 0;
+  // Nodes fired concurrently (P1); within a node the two-phase logic (multipv-2, then a
+  // conditional single-PV for an off-line prescribed move) stays sequential and readable.
+  const perNode = await Promise.all(
+    nodes.map(async (node) => {
+      const res = await analyse(node.fen, 2, depth);
+      if (res === null) return null;
+      const findings: AuditFinding[] = [];
+      let audited = 0;
+      if (!res.length) return { findings, audited }; // unreachable: the node has a stored child, so a legal move exists
+      const moverIsWhite = node.fen.split(" ")[1] === "w";
+      const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
+      const best = mcp(res[0]!);
+      const best_move = moveSan(node.fen, res[0]!.uci);
+      const best_margin = res.length > 1 ? best - mcp(res[1]!) : null;
+      const bySan = new Map(res.map((l) => [moveSan(node.fen, l.uci), l]));
+      for (const raw of node.covered) {
+        const pos = chessFromFen(node.fen);
+        const mv = parseSan(pos, raw);
+        if (!mv) continue; // tree moves are replay-verified at load; unreachable
+        const prescribed = makeSan(pos, mv);
+        audited++;
+        const hit = bySan.get(prescribed);
+        let prescribedCp: number;
+        if (hit) {
+          prescribedCp = mcp(hit);
+        } else {
+          pos.play(mv);
+          const r = await analyse(makeFen(pos.toSetup()), 1, depth);
+          if (r === null) return null;
+          const l = r[0];
+          // [] ⇒ the prescribed move ENDS the game (same terminal contract as compareMoves):
+          // mate delivered is decisive for the mover; stalemate / insufficient material is a draw.
+          prescribedCp = l ? -moverPov(l, pos.turn === "white", MATE_CP) : pos.isCheckmate() ? MATE_CP : 0;
+        }
+        const cp_loss = Math.max(0, best - prescribedCp);
+        if (cp_loss < minCpLoss) continue;
+        findings.push({
+          path: node.sanPath,
+          fen: node.fen,
+          prescribed,
+          prescribed_eval: prescribedCp,
+          best_move,
+          best_eval: best,
+          cp_loss,
+          classification: classifyCpLoss(cp_loss),
+          best_margin,
+        });
       }
-      const cp_loss = Math.max(0, best - prescribedCp);
-      if (cp_loss < minCpLoss) continue;
-      findings.push({
-        path: node.sanPath,
-        fen: node.fen,
-        prescribed,
-        prescribed_eval: prescribedCp,
-        best_move,
-        best_eval: best,
-        cp_loss,
-        classification: classifyCpLoss(cp_loss),
-        best_margin,
-      });
-    }
-  }
+      return { findings, audited };
+    }),
+  );
+  if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
+  const findings = perNode.flatMap((r) => r!.findings);
   findings.sort((a, b) => b.cp_loss - a.cp_loss);
   return {
     color,
     positions_scanned: nodes.length,
-    moves_audited: audited,
+    moves_audited: perNode.reduce((a, r) => a + r!.audited, 0),
     findings: findings.slice(0, opts.limit ?? 10),
   };
 }
@@ -413,9 +427,13 @@ export async function checkShortcutCoverage(
   const edited = tree.edit("prune", prunes);
   if (!edited.tree) return { error: edited.error ?? "invalid_edit" };
   const gapsOpts = { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: opts.limit };
-  const before = await findRepertoireGaps(tree, color, gapsOpts, analyse);
+  // Both scans in parallel (P1) — they share most positions, so the cache/in-flight dedupe
+  // collapses the overlap either way.
+  const [before, after] = await Promise.all([
+    findRepertoireGaps(tree, color, gapsOpts, analyse),
+    findRepertoireGaps(edited.tree, color, gapsOpts, analyse),
+  ]);
   if ("error" in before) return { error: before.error };
-  const after = await findRepertoireGaps(edited.tree, color, gapsOpts, analyse);
   if ("error" in after) return { error: after.error };
   const key = (g: Gap) => `${g.fen}|${g.uncovered_move}`;
   const beforeSet = new Set(before.gaps.map(key));
@@ -506,30 +524,25 @@ export async function compareMoves(
   analyse: Analyse,
 ): Promise<{ fen: string; candidates: Record<string, unknown>[] }> {
   const moverIsWhite = fen.split(" ")[1] === "w";
-  const out: Record<string, unknown>[] = [];
-  for (const san of moves) {
-    const chk = validateLine(fen, [san]);
-    if (!chk.ok || !chk.finalFen) {
-      out.push({ san, error: "illegal_move" });
-      continue;
-    }
-    const res = await analyse(chk.finalFen, 1, depth);
-    if (res === null) {
-      out.push({ san: chk.canonical[0], error: "engine_unavailable" });
-      continue;
-    }
-    const line = res[0];
-    if (!line) {
-      // The move ENDS the game: finalFen is terminal (no legal replies), so the engine returns [] (not
-      // null). Distinguishing that from engine-unavailable (null) is the fix — otherwise a mating candidate
-      // was reported engine_unavailable (the same class as the analyzeMainline terminal bug). Checkmate ⇒
-      // this move wins for the mover (decisive +MATE_CP); stalemate / insufficient material ⇒ a draw (0).
-      const moverWins = chessFromFen(chk.finalFen).isCheckmate();
-      out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: null, mate: null, mover_cp: moverWins ? MATE_CP : 0 });
-      continue;
-    }
-    out.push({ san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) });
-  }
+  // Candidates fired concurrently (P1); `out` keeps the caller's move order until the sort below.
+  const out: Record<string, unknown>[] = await Promise.all(
+    moves.map(async (san) => {
+      const chk = validateLine(fen, [san]);
+      if (!chk.ok || !chk.finalFen) return { san, error: "illegal_move" };
+      const res = await analyse(chk.finalFen, 1, depth);
+      if (res === null) return { san: chk.canonical[0], error: "engine_unavailable" };
+      const line = res[0];
+      if (!line) {
+        // The move ENDS the game: finalFen is terminal (no legal replies), so the engine returns [] (not
+        // null). Distinguishing that from engine-unavailable (null) is the fix — otherwise a mating candidate
+        // was reported engine_unavailable (the same class as the analyzeMainline terminal bug). Checkmate ⇒
+        // this move wins for the mover (decisive +MATE_CP); stalemate / insufficient material ⇒ a draw (0).
+        const moverWins = chessFromFen(chk.finalFen).isCheckmate();
+        return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: null, mate: null, mover_cp: moverWins ? MATE_CP : 0 };
+      }
+      return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) };
+    }),
+  );
   out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
   // Rank only the scored candidates — a rank on an illegal/engine-error row reads as a real placement.
   let rank = 0;
