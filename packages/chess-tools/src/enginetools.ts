@@ -10,11 +10,11 @@
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
-import { makeSan } from "chessops/san";
+import { makeSan, parseSan } from "chessops/san";
 import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
-import { decisionNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
+import { decisionNodes, turnNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
 import { validateLine } from "./validate.js";
 import { replacementPivot } from "./repcongruence.js";
 import {
@@ -204,6 +204,105 @@ export async function findRepertoireGaps(
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
     .slice(0, opts.limit ?? 10);
   return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps, covered_by_transposition: covered };
+}
+
+// --- audit_repertoire_moves (engine-check the user's own prescribed moves, tree-wide) ---
+
+export interface AuditOptions {
+  depth?: number;
+  /** Report findings with cp_loss >= this (default 50). */
+  minCpLoss?: number;
+  maxPositions?: number;
+  limit?: number;
+}
+export interface AuditFinding {
+  /** SAN path from the root to the position (before the prescribed move). */
+  path: string[];
+  fen: string;
+  /** Your repertoire move here (canonical SAN). */
+  prescribed: string;
+  /** Mover-POV cp (MATE_CP sentinel — same magnitude as the severity math). */
+  prescribed_eval: number;
+  best_move: string;
+  best_eval: number;
+  /** best_eval - prescribed_eval, floored at 0. */
+  cp_loss: number;
+  classification: MoveClass;
+  /** best - second from the multipv-2 search (only-move signal); null when only one legal move. */
+  best_margin: number | null;
+}
+export type AuditResult =
+  | { error: "engine_unavailable" }
+  | { color: Color; positions_scanned: number; moves_audited: number; findings: AuditFinding[] };
+
+/**
+ * Walk every your-turn node (transposition-deduped, shallowest first), multipv-2 search, and rank
+ * the prescribed moves by cp_loss vs the engine's best — "which of my repertoire moves are bad".
+ * A prescribed move inside the multipv lines is scored directly; otherwise one extra single-PV
+ * search of the position after it (the same 1-ply-offset comparison analyzeMainline makes).
+ */
+export async function auditRepertoireMoves(
+  tree: GameTree,
+  color: Color,
+  opts: AuditOptions,
+  analyse: Analyse,
+): Promise<AuditResult> {
+  const depth = opts.depth ?? 14;
+  const minCpLoss = opts.minCpLoss ?? 50;
+  const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 20);
+  const findings: AuditFinding[] = [];
+  let audited = 0;
+  for (const node of nodes) {
+    const res = await analyse(node.fen, 2, depth);
+    if (res === null) return { error: "engine_unavailable" };
+    if (!res.length) continue; // unreachable: the node has a stored child, so a legal move exists
+    const moverIsWhite = node.fen.split(" ")[1] === "w";
+    const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
+    const best = mcp(res[0]!);
+    const best_move = moveSan(node.fen, res[0]!.uci);
+    const best_margin = res.length > 1 ? best - mcp(res[1]!) : null;
+    const bySan = new Map(res.map((l) => [moveSan(node.fen, l.uci), l]));
+    for (const raw of node.covered) {
+      const pos = chessFromFen(node.fen);
+      const mv = parseSan(pos, raw);
+      if (!mv) continue; // tree moves are replay-verified at load; unreachable
+      const prescribed = makeSan(pos, mv);
+      audited++;
+      const hit = bySan.get(prescribed);
+      let prescribedCp: number;
+      if (hit) {
+        prescribedCp = mcp(hit);
+      } else {
+        pos.play(mv);
+        const r = await analyse(makeFen(pos.toSetup()), 1, depth);
+        if (r === null) return { error: "engine_unavailable" };
+        const l = r[0];
+        // [] ⇒ the prescribed move ENDS the game (same terminal contract as compareMoves):
+        // mate delivered is decisive for the mover; stalemate / insufficient material is a draw.
+        prescribedCp = l ? -moverPov(l, pos.turn === "white", MATE_CP) : pos.isCheckmate() ? MATE_CP : 0;
+      }
+      const cp_loss = Math.max(0, best - prescribedCp);
+      if (cp_loss < minCpLoss) continue;
+      findings.push({
+        path: node.sanPath,
+        fen: node.fen,
+        prescribed,
+        prescribed_eval: prescribedCp,
+        best_move,
+        best_eval: best,
+        cp_loss,
+        classification: classifyCpLoss(cp_loss),
+        best_margin,
+      });
+    }
+  }
+  findings.sort((a, b) => b.cp_loss - a.cp_loss);
+  return {
+    color,
+    positions_scanned: nodes.length,
+    moves_audited: audited,
+    findings: findings.slice(0, opts.limit ?? 10),
+  };
 }
 
 // --- shorten suggestion vetting (shared by the MCP tools and the PWA Shorten UI) ---

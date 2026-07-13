@@ -24,8 +24,22 @@ evalCache.put(FEN, 1, 16, lines(16));
 ok(evalCache.get(FEN, 1, 16) !== null, "same depth → hit");
 ok(evalCache.get(FEN, 1, 14) !== null, "stored depth 16 serves request depth 14");
 ok(evalCache.get(FEN, 1, 20) === null, "stored depth 16 misses deeper request depth 20");
-ok(evalCache.get(FEN, 3, 16) === null, "different multipv → miss (multipv in key)");
+ok(evalCache.get(FEN, 3, 16) === null, "wider multipv request than stored → miss");
 ok(evalCache.get(FEN, 1, 10)?.[0]?.uci === "e2e4", "hit returns the stored lines");
+
+// Cross-multipv serve: a stored multipv-N entry truncates to answer a narrower request at the
+// same (or shallower) depth; never the other way around, and never below the stored depth.
+const FEN2 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+const four = [
+  { uci: "e7e5", cp: -20, mate: null, depth: 14, pv: ["e7e5"] },
+  { uci: "c7c5", cp: -25, mate: null, depth: 14, pv: ["c7c5"] },
+  { uci: "e7e6", cp: -35, mate: null, depth: 14, pv: ["e7e6"] },
+  { uci: "c7c6", cp: -40, mate: null, depth: 14, pv: ["c7c6"] },
+];
+evalCache.put(FEN2, 4, 14, four);
+ok(evalCache.get(FEN2, 2, 14)?.length === 2, "stored multipv-4 serves multipv-2 truncated");
+ok(evalCache.get(FEN2, 1, 14)?.[0]?.uci === "e7e5", "truncation keeps the engine's top line");
+ok(evalCache.get(FEN2, 2, 20) === null, "cross-multipv still respects the depth rule");
 
 // P4 — transposition keying: below halfmove clock 50 the key drops the clocks, so the same
 // position with different move counters (a transposition) hits; at clock >= 50 the full FEN

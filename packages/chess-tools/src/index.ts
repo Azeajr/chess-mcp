@@ -9,7 +9,7 @@ export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLeg
 export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
-export { decisionNodes, gapSeverity, moveSan, medianLineLength, SEVERITY_RANK } from "./gaps.js";
+export { decisionNodes, turnNodes, gapSeverity, moveSan, medianLineLength, SEVERITY_RANK } from "./gaps.js";
 export type { DecisionNode, Severity } from "./gaps.js";
 export {
   positionProfile,
@@ -44,6 +44,7 @@ export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence
 export {
   analyzeMainline,
   findRepertoireGaps,
+  auditRepertoireMoves,
   resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
@@ -59,6 +60,9 @@ export type {
   Gap,
   GapsResult,
   CoveredGap,
+  AuditOptions,
+  AuditFinding,
+  AuditResult,
   StubResolution,
   CoverageResolution,
   SuggestComplementaryOptions,

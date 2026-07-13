@@ -7,7 +7,9 @@ import {
   classifyUciMove,
   weightFor,
   decisionNodes,
+  turnNodes,
   findRepertoireGaps,
+  auditRepertoireMoves,
   resolveDanglingStubs,
   compareMoves,
   gapSeverity,
@@ -395,6 +397,60 @@ const cmMateFen = "6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1";
 const cmMateStub = async (fen) => (legalMoves(fen).length ? [{ uci: "a1a2", cp: 0, mate: null, depth: 10, pv: [] }] : []);
 const cmMate = await compareMoves(cmMateFen, ["Ra8"], 10, cmMateStub);
 ok(!cmMate.candidates[0].error && cmMate.candidates[0].mover_cp === 100000, "compareMoves: a mating move is decisive, not engine_unavailable");
+
+// 16i. turnNodes — the your-turn flip of decisionNodes (shared walker). White rep: root
+// (prescribed d4) + after d4 d5 (prescribed c4); sanPath carries the SAN route to the node.
+const yNodes = turnNodes(wRep, "white");
+ok(yNodes.length === 2, "turnNodes(white): root + after d4 d5");
+ok(yNodes[0].path.length === 0 && JSON.stringify(yNodes[0].covered) === '["d4"]', "turnNodes: root prescribes d4");
+ok(yNodes[1].sanPath.join(" ") === "d4 d5" && JSON.stringify(yNodes[1].covered) === '["c4"]', "turnNodes: sanPath threads the SAN route");
+
+// 16j. auditRepertoireMoves — engine-vet YOUR moves. Direct-hit path: both prescribed moves are
+// inside the multipv-2 lines, so no child search runs (2 analyse calls for 2 nodes). At the root
+// d4 trails best (e4) by 30cp; after d4 d5 the prescribed c4 IS best (cp_loss 0).
+const auditRep = GameTree.fromPgn("1. d4 d5 2. c4 *");
+let auditCalls = 0;
+const auditStub = async (fen) => {
+  auditCalls++;
+  return fen === START_FEN
+    ? [{ uci: "e2e4", cp: 40, mate: null, depth: 10, pv: [] }, { uci: "d2d4", cp: 10, mate: null, depth: 10, pv: [] }]
+    : [{ uci: "c2c4", cp: 30, mate: null, depth: 10, pv: [] }, { uci: "e2e4", cp: 5, mate: null, depth: 10, pv: [] }];
+};
+const audit = await auditRepertoireMoves(auditRep, "white", { minCpLoss: 0 }, auditStub);
+ok(!audit.error && audit.positions_scanned === 2 && audit.moves_audited === 2, "audit: 2 your-turn nodes, 2 moves audited");
+ok(auditCalls === 2, "audit: prescribed-in-lines needs no child search");
+ok(audit.findings[0].prescribed === "d4" && audit.findings[0].cp_loss === 30 && audit.findings[0].path.length === 0, "audit: worst-first, root d4 loses 30 to e4");
+ok(audit.findings[0].best_move === "e4" && audit.findings[0].best_margin === 30, "audit: best_move + best_margin from the multipv-2 pair");
+ok(audit.findings[1].prescribed === "c4" && audit.findings[1].cp_loss === 0 && audit.findings[1].path.join(" ") === "d4 d5", "audit: best-move prescription scores cp_loss 0, SAN path to the node");
+// Default min_cp_loss 50 filters both findings but still counts the audited moves.
+const auditMin = await auditRepertoireMoves(auditRep, "white", {}, auditStub);
+ok(!auditMin.error && auditMin.findings.length === 0 && auditMin.moves_audited === 2, "audit: default minCpLoss 50 filters small losses");
+
+// 16k. audit fallback path: prescribed NOT in the multipv lines → one single-PV search of the
+// position after it, negated to the mover's POV. Root best 200cp; after 1.d4 the white-POV eval is
+// +40 (mover black -40 → +40 yours) → cp_loss 160 → "mistake".
+const fallbackStub = async (fen) =>
+  fen === START_FEN
+    ? [{ uci: "e2e4", cp: 200, mate: null, depth: 10, pv: [] }, { uci: "g1f3", cp: 150, mate: null, depth: 10, pv: [] }]
+    : [{ uci: "d7d5", cp: 40, mate: null, depth: 10, pv: [] }];
+const fb = await auditRepertoireMoves(GameTree.fromPgn("1. d4 *"), "white", { minCpLoss: 0 }, fallbackStub);
+ok(!fb.error && fb.findings[0].prescribed_eval === 40 && fb.findings[0].cp_loss === 160 && fb.findings[0].classification === "mistake", "audit fallback: child eval negated to mover POV, classified");
+
+// 16l. audit terminal edge: a prescribed MATING move's after-position has no legal replies — the
+// engine returns [] (not null); the move is decisive (cp_loss 0), never engine_unavailable.
+// Black repertoire delivering Fool's mate; stub keeps the prescribed moves OUT of the multipv
+// lines so both go through the child-search path.
+const mateRep = GameTree.fromPgn("1. f3 e5 2. g4 Qh4# *");
+const auditMateStub = async (fen) =>
+  legalMoves(fen).length
+    ? fen.split(" ")[1] === "b"
+      ? [{ uci: "a7a6", cp: 0, mate: null, depth: 10, pv: [] }, { uci: "h7h6", cp: -10, mate: null, depth: 10, pv: [] }]
+      : [{ uci: "g2g4", cp: -20, mate: null, depth: 10, pv: [] }]
+    : [];
+const auditMate = await auditRepertoireMoves(mateRep, "black", { minCpLoss: 0 }, auditMateStub);
+ok(!auditMate.error && auditMate.moves_audited === 2, "audit mate: both black moves audited");
+ok(auditMate.findings.every((f) => f.prescribed !== "Qh4#" || f.cp_loss === 0), "audit mate: the mating move is decisive, cp_loss 0");
+ok((await auditRepertoireMoves(auditRep, "white", {}, async () => null)).error === "engine_unavailable", "audit: null engine → engine_unavailable");
 
 // 17. illustrative lines — NAG tier
 const il = GameTree.fromPgn("1. e4 e5 2. Bc4 Qh4 $4 *").illustrativeLines();

@@ -108,15 +108,19 @@ would catch.
 
 ## Missing analysis / tools
 
-### T1. `audit_repertoire_moves` — engine-check YOUR moves, tree-wide (clear gap)
+### T1. `audit_repertoire_moves` — engine-check YOUR moves, tree-wide — ✅ shipped 2026-07-13
 
-Nothing today engine-vets the user's own prescribed moves across the tree: `find_repertoire_gaps`
+Nothing previously engine-vetted the user's own prescribed moves across the tree: `find_repertoire_gaps`
 checks opponent coverage, congruence is thematic, `compare_moves` is one position by hand,
-`analyze_game` wants a linear game. The obvious missing primitive: walk every your-turn node,
-multipv-2 search, report `cp_loss(prescribed vs best)` ranked worst-first with drill-down paths —
-"which of my repertoire moves are actually bad". Reuses `decisionNodes`-style enumeration (flip the
-turn filter), the near-best machinery, and the severity vocabulary. Engine cost ≈ one gap scan.
-Highest value-per-effort on this list.
+`analyze_game` wants a linear game. Shipped as chess-tools `auditRepertoireMoves` + MCP server tool:
+`turnNodes` (the your-turn flip of `decisionNodes`, one shared walker) → multipv-2 per position →
+`cp_loss(prescribed vs best)` ranked worst-first with SAN drill-down paths, `classifyCpLoss`
+vocabulary, and `best_margin` (best − second — the T4 only-move seed, emitted for free). A
+prescribed move outside the multipv lines gets one single-PV after-position search (the same
+1-ply-offset comparison `analyzeMainline` makes). Bundled: cross-multipv eval-cache serve (a stored
+multipv-N entry truncates to answer a narrower request at the same depth, both hosts) — so a gap
+scan's multipv-4 entries now front the audit's searches. Chat/panel surfaces deliberately deferred
+(chat: CHAT_TOOLSET_REVIEW §10 schema bloat; panel: wants R7's shared onProgress first).
 
 ### T2. Lichess opening-explorer integration (one client, three tools)
 
@@ -241,9 +245,14 @@ rest of the PWA is local-first.
 1. ~~**P3 + P4** (persistent, transposition-keyed eval cache)~~ — shipped 2026-07-13: Node
    write-through JSONL at `EVAL_CACHE_DIR` (default `~/.cache/chess-mcp/`), browser IndexedDB
    mirror; both keyed `positionKey|multipv` below halfmove clock 50, full FEN at/above.
-2. **T1** (`audit_repertoire_moves`) — biggest product gap, smallest new surface.
-3. **P2** (keep TT warm) — one-line-ish, benchmark before/after on the sample repertoire.
-4. **P1** (engine pool) — the big lever; do after P3 so the pool fronts a persistent cache.
+2. ~~**T1** (`audit_repertoire_moves`)~~ — shipped 2026-07-13 (see §T1; includes the
+   cross-multipv cache serve on both hosts and the `turnNodes` shared walker).
+3. **P2** (keep TT warm) — ← **NEXT**. One-line-ish (drop `ucinewgame` between searches, or send
+   once per tool call), benchmark before/after on the sample repertoire; document the
+   node-count/line nondeterminism trade-off (same class `movetime` already accepts).
+4. **P1** (engine pool) — the big lever; the pool fronts the now-persistent cache, and R4
+   (in-flight dedupe by cache key) belongs to its front.
 5. **T2** (explorer client + popularity gaps) — unlocks the existing ROADMAP item.
-6. **T3/T4** — composition tools on top of T1/T2 output.
+6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
+   is already emitted by T1.
 7. **P5-P8, T5-T7** — opportunistic.

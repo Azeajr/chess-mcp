@@ -21,6 +21,7 @@ import {
   moveSan,
   analyzeMainline,
   findRepertoireGaps,
+  auditRepertoireMoves,
   resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
@@ -208,6 +209,30 @@ server.tool(
         e.tree,
         e.color,
         { depth, minSeverity: min_severity, maxPositions: max_positions, limit },
+        analyseMulti,
+      ),
+    );
+  },
+);
+
+server.tool(
+  "audit_repertoire_moves",
+  "Engine-check YOUR prescribed moves tree-wide: every your-turn position is searched and each repertoire move scored vs the engine's best; findings ranked worst-first by cp_loss (classification: good/inaccuracy/mistake/blunder). best_margin (best minus second line) flags only-move positions. Answers \"which of my repertoire moves are actually bad\" — the complement of find_repertoire_gaps (which checks OPPONENT coverage).",
+  {
+    repertoire_id: z.string(),
+    depth: z.number().int().min(1).max(30).optional(),
+    min_cp_loss: z.number().int().min(0).optional(),
+    max_positions: z.number().int().min(1).max(60).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  },
+  async ({ repertoire_id, depth, min_cp_loss, max_positions, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    return ok(
+      await auditRepertoireMoves(
+        e.tree,
+        e.color,
+        { depth, minCpLoss: min_cp_loss, maxPositions: max_positions, limit },
         analyseMulti,
       ),
     );

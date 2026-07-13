@@ -88,7 +88,13 @@ comparing handles, with no re-download. See "Edit loop" below.
    played move that isn't near the top and drops eval is **weak**). The lines at an *opponent* node
    are the critical tries the repertoire must answer; an unanswered strong one is a **gap** (or use
    `find_repertoire_gaps` to scan for them). Ground any line with `validate_line(fen, [...])` before
-   stating it.
+   stating it. To vet the user's OWN moves tree-wide in one call, use
+   `audit_repertoire_moves(repertoire_id)` — every your-turn position is engine-searched and each
+   prescribed move scored vs the engine's best; findings come back worst-first with `cp_loss`,
+   `classification` (good/inaccuracy/mistake/blunder), a SAN `path` to drill into, and `best_margin`
+   (best − second line; a large margin means an only-move position where misremembering is punished).
+   `min_cp_loss` (default 50) sets the reporting bar; it is the complement of `find_repertoire_gaps`
+   (which checks OPPONENT coverage).
 6. **Extend or diversify** from any position: `suggest_complementary_lines(repertoire_id, fen, mode)`.
    - `mode="low_memorization"` → continuations whose resulting structure the user **already plays**
      elsewhere (high `profile_match`) — least new theory.

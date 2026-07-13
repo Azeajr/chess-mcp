@@ -44,6 +44,8 @@ export interface MultiLine {
  */
 const MAX_CACHE = 1000;
 const HALFMOVE_EXACT = 50;
+// Highest MultiPV any tool requests (suggest_* pool) — bounds the cross-multipv cache probe.
+const MULTIPV_MAX = 10;
 
 const PERSIST_FILE = (() => {
   const dir =
@@ -111,7 +113,15 @@ export const evalCache = {
   /** Stored lines iff present and computed to >= depth; else null (miss). */
   get(fen: string, multipv: number, depth: number): MultiLine[] | null {
     const hit = this.store.get(this.key(fen, multipv));
-    return hit && hit.depth >= depth ? hit.lines : null;
+    if (hit && hit.depth >= depth) return hit.lines;
+    // Cross-multipv serve: a stored multipv-N result truncated to its top k IS the multipv-k
+    // answer at that depth (the lines are the engine's ranking either way) — so a gap scan's
+    // multipv-4 entry serves a later multipv-1/2 request at the same position.
+    for (let m = multipv + 1; m <= MULTIPV_MAX; m++) {
+      const wider = this.store.get(this.key(fen, m));
+      if (wider && wider.depth >= depth) return wider.lines.slice(0, multipv);
+    }
+    return null;
   },
   put(fen: string, multipv: number, depth: number, lines: MultiLine[]): void {
     const key = this.key(fen, multipv);

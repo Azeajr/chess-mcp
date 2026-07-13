@@ -18,28 +18,30 @@ export const SEVERITY_RANK: Record<Severity, number> = { low: 0, medium: 1, high
 export interface DecisionNode {
   /** Shallowest path to this position. */
   path: Path;
+  /** The same shallowest path as SAN moves from the root. */
+  sanPath: string[];
   fen: string;
-  /** Opponent replies already prepared here (SANs). */
+  /** Replies the repertoire already stores here (SANs) — the side to move's tree children. */
   covered: string[];
   /** All paths that converge on this position (len > 1 ⇒ transposition endpoint). */
   transpositionPaths: Path[];
 }
 
 /**
- * Positions where the OPPONENT is to move and the repertoire already prepares ≥1 reply — the
- * internal decision points (not unextended frontier leaves, where every move is trivially
- * uncovered). Transposition-aware: positions reached by multiple move orders are deduplicated
- * and their covered sets merged. Shallowest first.
+ * Positions where `sideToMove` is to move and the repertoire stores ≥1 continuation — the
+ * internal decision points (not unextended frontier leaves). Transposition-aware: positions
+ * reached by multiple move orders are deduplicated and their covered sets merged. Shallowest
+ * first. `decisionNodes` (gap scan) asks for the opponent's turn; `auditRepertoireMoves`
+ * (enginetools) asks for the user's.
  */
-export function decisionNodes(tree: GameTree, color: Color): DecisionNode[] {
-  const opponent: Color = color === "white" ? "black" : "white";
+export function turnNodes(tree: GameTree, sideToMove: Color): DecisionNode[] {
   const byKey = new Map<string, DecisionNode>();
 
   // One DFS carrying the chess position (O(nodes)). The previous shape re-derived each node's
   // position with positionAt(path) + childSansAt(path) — both replay from the root, so the whole
   // scan was O(nodes·depth). Same pre-order visit ⇒ identical "first-seen path" / merge / sort.
-  const consider = (node: Node<PgnNodeData>, pos: Chess, path: Path) => {
-    if (pos.turn === opponent && node.children.length) {
+  const consider = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
+    if (pos.turn === sideToMove && node.children.length) {
       const covered = node.children.map((c) => c.data.san);
       const fen = makeFen(pos.toSetup());
       const key = positionKey(fen);
@@ -47,9 +49,12 @@ export function decisionNodes(tree: GameTree, color: Color): DecisionNode[] {
       if (existing) {
         for (const s of covered) if (!existing.covered.includes(s)) existing.covered.push(s);
         existing.transpositionPaths.push(path);
-        if (path.length < existing.path.length) existing.path = path;
+        if (path.length < existing.path.length) {
+          existing.path = path;
+          existing.sanPath = sanPath;
+        }
       } else {
-        byKey.set(key, { path, fen, covered: [...covered], transpositionPaths: [path] });
+        byKey.set(key, { path, sanPath, fen, covered: [...covered], transpositionPaths: [path] });
       }
     }
     node.children.forEach((child, i) => {
@@ -57,12 +62,20 @@ export function decisionNodes(tree: GameTree, color: Color): DecisionNode[] {
       const move = parseSan(next, child.data.san);
       if (!move) return;
       next.play(move);
-      consider(child, next, [...path, i]);
+      consider(child, next, [...path, i], [...sanPath, child.data.san]);
     });
   };
-  consider(tree.game.moves, Chess.default(), []); // root: a Black repertoire must answer White's first moves
+  consider(tree.game.moves, Chess.default(), [], []); // root: a Black repertoire must answer White's first moves
 
   return [...byKey.values()].sort((a, b) => a.path.length - b.path.length);
+}
+
+/**
+ * Positions where the OPPONENT is to move and the repertoire already prepares ≥1 reply — the
+ * decision points a completeness (gap) scan cares about.
+ */
+export function decisionNodes(tree: GameTree, color: Color): DecisionNode[] {
+  return turnNodes(tree, color === "white" ? "black" : "white");
 }
 
 // Gap severity (server.py): how close an uncovered move is to the opponent's best reply, then

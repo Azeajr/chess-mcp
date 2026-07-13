@@ -74,12 +74,26 @@ const DEPTH = 14;
 // chess-tools' positionKey), so transpositions — same position, different move counters — hit.
 // At clock >= 50 the 50-move rule genuinely affects the eval, so the full FEN keys exactly.
 const MAX_CACHE = 1000;
+// Highest MultiPV any tool requests — bounds the cross-multipv cache probe.
+const MULTIPV_MAX = 10;
 const multiCache = new Map<string, { depth: number; lines: MultiLine[] }>();
 const cacheKey = (fen: string, multipv: number) => {
   const f = fen.split(" ");
   const pos = Number(f[4]) < 50 ? f.slice(0, 4).join(" ") : fen;
   return `${pos}|${multipv}`;
 };
+
+/** Cached lines iff stored to >= depth; a stored multipv-N result truncated to its top k IS the
+ *  multipv-k answer at that depth, so wider entries serve narrower requests (mirrors the Node cache). */
+function cacheGet(fen: string, multipv: number, depth: number): MultiLine[] | null {
+  const exact = multiCache.get(cacheKey(fen, multipv));
+  if (exact && exact.depth >= depth) return exact.lines;
+  for (let m = multipv + 1; m <= MULTIPV_MAX; m++) {
+    const wider = multiCache.get(cacheKey(fen, m));
+    if (wider && wider.depth >= depth) return wider.lines.slice(0, multipv);
+  }
+  return null;
+}
 
 // P3 — persist multiCache to IndexedDB so a reload doesn't re-search the same repertoire. Loaded
 // once at module init (misses during the async load just search as before), written back debounced
@@ -171,9 +185,8 @@ export function analyse(fen: string): Promise<Eval | null> {
  * the white-POV score. Resolves null if the engine is unavailable.
  */
 export function analyseMulti(fen: string, multipv: number, depth = DEPTH, movetime?: number): Promise<MultiLine[] | null> {
-  const cmpDepth = movetime != null ? 0 : depth;
-  const hit = multiCache.get(cacheKey(fen, multipv));
-  if (hit && hit.depth >= cmpDepth) return Promise.resolve(hit.lines);
+  const hit = cacheGet(fen, multipv, movetime != null ? 0 : depth);
+  if (hit) return Promise.resolve(hit);
   return serial(async () => {
     const engine = await getEngine();
     if (!engine) return null;
