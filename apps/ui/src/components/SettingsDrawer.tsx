@@ -1,10 +1,10 @@
 /**
- * Settings drawer: OpenRouter API key + model slug (persisted to localStorage by the settings
- * store). The key is stored in plaintext — noted to the user.
+ * Settings drawer: OpenRouter API key, model slug, and Lichess API token (persisted to
+ * localStorage by the settings store). The keys are stored in plaintext — noted to the user.
  */
 import { For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
-import { apiKey, model, setApiKey, setModel, MODEL_SUGGESTIONS } from "../store/settings";
+import { apiKey, model, setApiKey, setModel, lichessToken, setLichessToken, MODEL_SUGGESTIONS } from "../store/settings";
 
 export default function SettingsDrawer() {
   return (
@@ -50,6 +50,21 @@ export default function SettingsDrawer() {
                 )}
               </For>
             </div>
+          </label>
+
+          <label class="field">
+            <span>Lichess API token</span>
+            <input
+              type="password"
+              placeholder="lip_…"
+              value={lichessToken()}
+              onInput={(e) => setLichessToken(e.currentTarget.value)}
+            />
+            <small>
+              Personal token, no scopes needed — lichess.org/account/oauth/token. Enables the
+              opening-explorer tools (position popularity, theory depth, gap popularity). Stored
+              in localStorage (plaintext).
+            </small>
           </label>
         </div>
       </div>

@@ -130,6 +130,10 @@ Fix, in increasing ambition: (a) filter `toolSchemas` by chat mode (the mode sel
 partitions intent); (b) system message carries FEN + color + tree stats, PGN on demand via
 `get_position`; (c) cap/elide old tool results in the re-sent history.
 
+**(a) shipped 2026-07-13** with the PWA explorer surface: `toolSchemasFor(mode)` in `tools.ts` —
+each specific mode ships only its playbook's tools (position 12 / repertoire 22 / review 15 /
+annotate 9 of 30); General keeps the full set. (b) and (c) remain open.
+
 ## Parity gaps
 
 ### 11. C3/C4 shortcut vetting missing from chat — **parity**

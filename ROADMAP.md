@@ -66,16 +66,14 @@ server installable as a self-contained artifact.
 
 ## Engineering backlog
 
-- [ ] **PWA opening-explorer surface** ← **NEXT** — the explorer (T2) is MCP-server-only today;
-      the PWA never reads a Lichess token (`setExplorerToken` is called solely in
-      `apps/mcp-server/src/index.ts` from `LICHESS_TOKEN`). Add a settings field in the UI that
-      stores the personal API token (no scopes) and calls `setExplorerToken()` in the browser,
-      then surface the explorer capabilities (position popularity, theory depth, gap popularity
-      weighting) in the chat toolset/panel — the surface deferred at T2 ship time behind
-      CHAT_TOOLSET_REVIEW.md §10 (schema bloat). Client + token holder already live in shared
-      `chess-tools/src/explorer.ts`; explorer.lichess.org allows CORS, so this is UI wiring, not
-      new plumbing.
-- [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
+- [x] **PWA opening-explorer surface** — shipped 2026-07-13: Lichess token field in Settings
+      (localStorage, feeds the shared `setExplorerToken()` holder at init), `position_popularity`
+      + `find_theory_depth` + `find_repertoire_gaps popularity` in the chat toolset, and
+      mode-filtered tool schemas (CHAT_TOOLSET_REVIEW §10 fix (a): each chat mode ships only its
+      playbook's tools — 9–22 schemas instead of 30). Deferred: a popularity tag on the panel gap
+      scan (`store/gaps.ts` is a hand-tuned port with its own budget/cancel; threading a 1 req/s
+      lookup through it triples scan time for a tag the chat already provides).
+- [ ] **Perf + missing-tools review** ← **NEXT** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
       ~~persistent transposition-keyed eval cache~~ (P3+P4), ~~warm TT~~ (P2),
       ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts), ~~Lichess opening
       explorer~~ (T2 — `position_popularity`, `find_theory_depth`, gap popularity weighting;

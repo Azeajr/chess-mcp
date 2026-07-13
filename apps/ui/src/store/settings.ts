@@ -1,14 +1,16 @@
 /**
- * User settings persisted to localStorage: the OpenRouter API key and model slug. The key is
- * stored in plaintext and is readable by any injected script (XSS) — see UI_DESIGN.md "Browser
- * Constraints & Security". Keep the bundle dependency-minimal.
+ * User settings persisted to localStorage: the OpenRouter API key, model slug, and Lichess
+ * token. The keys are stored in plaintext and are readable by any injected script (XSS) — see
+ * UI_DESIGN.md "Browser Constraints & Security". Keep the bundle dependency-minimal.
  */
 import { createSignal } from "solid-js";
+import { setExplorerToken } from "@chess-mcp/chess-tools";
 import type { ChatMode } from "../llm/workflows";
 
 const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
 const KEY_MODE = "chess.chat.mode";
+const KEY_LICHESS = "chess.lichess.token";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
 /** The selectable models (friendly label → OpenRouter slug), shown as chips in Settings. */
@@ -38,6 +40,22 @@ export function setModel(v: string) {
   const m = v.trim() || DEFAULT_MODEL;
   setModelRaw(m);
   localStorage.setItem(KEY_MODEL, m);
+}
+
+// Lichess personal API token (no scopes) — required by the opening explorer since ~2026-03.
+// Mirrors the OpenRouter key handling; also feeds the shared chess-tools token holder so the
+// explorer client sends Authorization on every lookup.
+const [lichessToken, setLichessTokenRaw] = createSignal(read(KEY_LICHESS, ""));
+setExplorerToken(lichessToken() || null);
+
+export { lichessToken };
+
+export function setLichessToken(v: string) {
+  const t = v.trim();
+  setLichessTokenRaw(t);
+  if (t) localStorage.setItem(KEY_LICHESS, t);
+  else localStorage.removeItem(KEY_LICHESS);
+  setExplorerToken(t || null);
 }
 
 const [chatMode, setChatModeRaw] = createSignal<ChatMode>(read(KEY_MODE, "") as ChatMode);

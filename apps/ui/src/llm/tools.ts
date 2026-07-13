@@ -11,11 +11,16 @@
  * propose_line stages a suggestion for the user to accept; it does not mutate the repertoire.
  */
 import type { ToolSchema } from "./openrouter";
+import type { ChatMode } from "./workflows";
 import { fen, color, actions, currentTree } from "../store/game";
 import { analyseMulti } from "../engine/stockfish";
 import {
   cloudEval,
   tablebaseLookup,
+  explorerPosition,
+  theoryDepth,
+  hasExplorerToken,
+  type ExplorerDb,
   legalMoves,
   moveSan,
   validateFen,
@@ -64,6 +69,12 @@ function openings(): Promise<OpeningTable> {
 }
 
 const MATE_CP = 100000;
+// The opening explorer requires a Lichess login (anonymous → 401); the token comes from the
+// Settings drawer (store/settings feeds the shared chess-tools holder).
+const explorerAuthRequired = () => ({
+  error: "explorer_auth_required",
+  reason: "the Lichess opening explorer requires authentication; ask the user to add a personal API token (no scopes needed, lichess.org/account/oauth/token) in Settings",
+});
 const lean = (r: MoveRecord) => ({ ply: r.ply, color: r.color, san: r.san, cp_loss: r.cp_loss, classification: r.classification });
 const NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
 
@@ -88,12 +99,24 @@ export const toolSchemas: ToolSchema[] = [
   fn("cloud_eval", "Lichess community cloud evaluation for a position (white-POV), if available.", { fen: { type: "string", description: "FEN; defaults to the current position" } }),
   fn("tablebase_lookup", "Lichess tablebase result for a ≤7-piece endgame position (win/draw/loss, DTZ), or unavailable.", { fen: { type: "string", description: "FEN; defaults to the current position" } }),
   fn("identify_opening", "Name the deepest ECO opening the current line (or a given PGN) reaches.", { pgn: { type: "string", description: "PGN; defaults to the current working line" } }),
+  fn("position_popularity", 'Lichess opening-explorer stats at a position — what humans actually play here: per-move frequencies and win rates (white-POV), total games, opening name. db "lichess" (online games, 1800+ blitz/rapid/classical) or "masters" (OTB 2200+ FIDE). Needs the Lichess token from Settings.', {
+    fen: { type: "string", description: "FEN; defaults to the current position" },
+    db: { type: "string", enum: ["lichess", "masters"] },
+    top_moves: { type: "integer", description: "how many top moves to return (default 12)" },
+  }),
   // --- repertoire tools (operate on the current working repertoire tree) ---
-  fn("find_repertoire_gaps", "Scan the current repertoire's decision nodes for uncovered strong opponent replies, ranked by severity.", {
+  fn("find_repertoire_gaps", "Scan the current repertoire's decision nodes for uncovered strong opponent replies, ranked by severity. popularity=true additionally annotates each gap with how often the move is actually played (opening explorer; needs the Lichess token from Settings) and re-ranks by frequency within each severity tier.", {
     depth: { type: "integer" },
     min_severity: { type: "string", enum: ["low", "medium", "high"] },
     max_positions: { type: "integer" },
     limit: { type: "integer" },
+    popularity: { type: "boolean" },
+    popularity_db: { type: "string", enum: ["lichess", "masters"] },
+  }),
+  fn("find_theory_depth", 'Where each line of the current repertoire leaves known theory: walks the tree querying the opening explorer and reports, per line, the ply at which game counts collapse below min_games — the point where memorization stops paying. db "lichess" (default, min_games 100) or "masters" (OTB, min_games 5). Network-bound: ~1 query/s per unique in-theory position, capped by max_positions. Needs the Lichess token from Settings.', {
+    db: { type: "string", enum: ["lichess", "masters"] },
+    min_games: { type: "integer" },
+    max_positions: { type: "integer", description: "explorer-query budget (default 60)" },
   }),
   fn("get_transpositions", "Positions the current repertoire reaches by more than one move order, largest groups first.", { limit: { type: "integer" } }),
   fn("find_pruning_transpositions", "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first; among the top engine moves within a near-best window of #1 (cp_threshold — never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies + the eval trade (evalStay vs evalTranspose, evalDelta). ALL viable re-routes per line are returned (not just the earliest) — each line's two picks are tagged bestSavings (biggest tail cut) and bestEval (best resulting eval); they may differ, so the user trades memorization vs quality. confirm_depth deep-confirms each line's bestEval pick (evalConfirmed=true) so the eval you act on is trustworthy. Engine effort per position: depth (default 14) or movetime_ms (time-based, a better dial than depth for sharp positions). Leave budget UNSET for full coverage (it is spent in tree order, so a low cap silently misses transposable lines that sort last). RANKING: a full (no-cursor) call returns ALL suggestions globally sorted — that is the authoritative ranking; use it. leaf_start/leaf_count are for PROGRESS ONLY: each chunk sets partial:true and its sort is chunk-local — NEVER merge/re-sort chunks yourself (the tool owns the ranking; for the final ranked set make one full call). Report the returned next_leaf / total_leaves between calls.", { limit: { type: "integer" }, multipv: { type: "integer" }, cp_threshold: { type: "integer" }, max_loss_cp: { type: "integer" }, depth: { type: "integer" }, movetime_ms: { type: "integer", description: "ms per position (overrides depth)" }, budget: { type: "integer", description: "max positions analysed; leave unset for full coverage" }, leaf_start: { type: "integer", description: "cursor: first leaf to scan (default 0)" }, leaf_count: { type: "integer", description: "cursor: leaves to scan from leaf_start (default: all)" }, confirm_depth: { type: "integer", description: "E1: deep-confirm depth for each line's best-eval re-route" } }),
@@ -176,6 +199,40 @@ function fn(name: string, description: string, properties: Record<string, unknow
   return { type: "function", function: { name, description, parameters: { type: "object", properties, ...(required.length ? { required } : {}) } } };
 }
 
+// Mode-filtered toolsets (CHAT_TOOLSET_REVIEW §10): the schema set is re-sent on every round of
+// every turn, so each chat mode ships only the tools its workflow uses. CORE is the grounding
+// set every mode needs; "general" (the catch-all) keeps the full set.
+const CORE = ["get_position", "get_legal_moves", "evaluate_position", "compare_moves", "validate_fen", "validate_pgn", "validate_line", "propose_line"];
+const MODE_TOOLS: Partial<Record<ChatMode, string[]>> = {
+  position: [...CORE, "cloud_eval", "tablebase_lookup", "identify_opening", "position_popularity"],
+  repertoire: [
+    ...CORE,
+    "identify_opening",
+    "position_popularity",
+    "find_theory_depth",
+    "find_repertoire_gaps",
+    "get_transpositions",
+    "find_pruning_transpositions",
+    "get_repertoire_coverage",
+    "get_structural_profile",
+    "analyze_repertoire_congruence",
+    "classify_illustrative_lines",
+    "modify_repertoire_line",
+    "suggest_complementary_lines",
+    "suggest_replacement_line",
+    "repertoire_vs_history",
+  ],
+  review: [...CORE, "cloud_eval", "identify_opening", "analyze_game", "get_game_summary", "batch_review", "lichess_games", "chesscom_games"],
+  annotate: [...CORE, "export_annotated_pgn"],
+};
+
+export function toolSchemasFor(mode: ChatMode): ToolSchema[] {
+  const names = MODE_TOOLS[mode];
+  if (!names) return toolSchemas;
+  const keep = new Set(names);
+  return toolSchemas.filter((t) => keep.has(t.function.name));
+}
+
 type Args = Record<string, unknown>;
 
 export async function runTool(name: string, args: Args): Promise<unknown> {
@@ -226,13 +283,44 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       return hit ?? { opening: null };
     }
 
-    case "find_repertoire_gaps":
+    case "position_popularity": {
+      const v = validateFen(atFen);
+      if (!v.valid) return { error: "invalid_fen", reason: v.reason };
+      if (!hasExplorerToken()) return explorerAuthRequired();
+      const db = (args.db as ExplorerDb | undefined) ?? "lichess";
+      const res = await explorerPosition(v.fen!, { db, movesLimit: args.top_moves as number | undefined });
+      return res ? { fen: v.fen, db, ...res } : { fen: v.fen, available: false };
+    }
+
+    case "find_repertoire_gaps": {
+      const popularity = args.popularity as boolean | undefined;
+      if (popularity && !hasExplorerToken()) return explorerAuthRequired();
       return findRepertoireGaps(
         tree,
         col,
-        { depth, minSeverity: args.min_severity as never, maxPositions: args.max_positions as number, limit: args.limit as number },
+        {
+          depth,
+          minSeverity: args.min_severity as never,
+          maxPositions: args.max_positions as number,
+          limit: args.limit as number,
+          // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
+          // ask deep enough that the approximation only bites on true rarities.
+          popularity: popularity ? (f: string) => explorerPosition(f, { db: args.popularity_db as ExplorerDb | undefined, movesLimit: 30 }) : undefined,
+        },
         analyse,
       );
+    }
+
+    case "find_theory_depth": {
+      if (!hasExplorerToken()) return explorerAuthRequired();
+      const db = (args.db as ExplorerDb | undefined) ?? "lichess";
+      const res = await theoryDepth(
+        tree,
+        { minGames: (args.min_games as number | undefined) ?? (db === "masters" ? 5 : 100), maxPositions: args.max_positions as number | undefined },
+        (f) => explorerPosition(f, { db, movesLimit: 0 }),
+      );
+      return "error" in res ? res : { db, ...res };
+    }
 
     case "get_transpositions": {
       const groups = tree.transpositions();

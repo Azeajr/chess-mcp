@@ -2,14 +2,15 @@
  * Chat orchestration: holds the message history, streams the assistant turn, and runs the
  * tool loop (model → tool_calls → local execution → tool results → model …). The current
  * position (FEN + PGN + color) is injected into the system message each send, so the model is
- * always grounded without a round-trip. Every tool runs in the browser (llm/tools.ts) against
+ * always grounded without a round-trip. Tool schemas are filtered by the selected chat mode
+ * (toolSchemasFor) since they are re-sent every round. Every tool runs in the browser (llm/tools.ts) against
  * chess-tools + the local engine — the full repertoire toolset, identical in dev and the deployed
  * PWA (no Node bridge). Errors surface inline; nothing here mutates the repertoire (propose_line
  * and modify_repertoire_line only stage/preview).
  */
 import { createSignal } from "solid-js";
 import { streamChat, type ChatMessage } from "../llm/openrouter";
-import { toolSchemas, runTool } from "../llm/tools";
+import { toolSchemasFor, runTool } from "../llm/tools";
 import { workflowPrompt } from "../llm/workflows";
 import { apiKey, model, hasApiKey, chatMode } from "./settings";
 import { fen, color, actions, currentTree } from "./game";
@@ -85,7 +86,7 @@ export async function send(userText: string) {
         apiKey: apiKey(),
         model: model(),
         messages,
-        tools: toolSchemas,
+        tools: toolSchemasFor(chatMode()),
         onText: (d) => setStreamingText((t) => t + d),
       });
       setStreamingText("");

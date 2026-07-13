@@ -29,10 +29,11 @@ const MODE_BODY: Record<Exclude<ChatMode, "">, string> = {
 3. Drill a flagged line: get_structural_profile(variation_path=[…SAN…]) for that node's structure/center/primitives.
 4. get_repertoire_coverage → dangling lines (your-turn leaves owed a reply) vs natural frontiers.
 5. classify_illustrative_lines FIRST, then pass its paths as exclude_paths to find_repertoire_gaps so "wrong-answer" side lines don't seed false gaps.
-6. find_repertoire_gaps → strong uncovered opponent replies, ranked by severity. Transposition-first: a reply that walks back into prep on a DIFFERENT line is returned under covered_by_transposition (a false gap, not counted) — trust the gap list directly, no separate get_transpositions pass needed.
+6. find_repertoire_gaps → strong uncovered opponent replies, ranked by severity. Transposition-first: a reply that walks back into prep on a DIFFERENT line is returned under covered_by_transposition (a false gap, not counted) — trust the gap list directly, no separate get_transpositions pass needed. popularity=true adds how often each gap move is actually played and re-ranks by frequency within severity — prefer it when the Lichess token is set (explorer_auth_required → ask the user to add the token in Settings).
 7. Extend/diversify from a position: suggest_complementary_lines(mode "low_memorization" = least new theory / "sharp" = imbalance); fix an incongruent line with suggest_replacement_line(outlier_variation_path=[…]).
 8. Connect dangling stubs: get_repertoire_coverage lists your-turn leaves owed a continuation; a stub whose position already appears in get_transpositions is covered by transposition (wire it, no new theory). For one that doesn't, suggest_complementary_lines continues it in-theme.
 9. Shorten lines to cut memorization: find_pruning_transpositions → for each line, the earliest of YOUR moves where an engine-best (near-#1) move re-routes into a DIFFERENT prepared line, making the tail redundant (savedPlies). It reports the eval trade (evalStay vs evalTranspose) so you weigh transposing vs staying; apply by pruning the tail (modify_repertoire_line prune) and keeping the re-route move.
+10. Practical-play checks (opening explorer; needs the Lichess token in Settings — on explorer_auth_required ask the user to add it): position_popularity(fen) → what opponents actually play at a position (frequency + score); find_theory_depth → per line, the ply where explorer game counts collapse (theory_exit_ply) — past it memorization stops paying, so deep tails beyond the exit are prune candidates and lines that exit early deserve the prep budget.
 To ADD a line, prefer propose_line (SAN moves from the current position) → it stages a board arrow the user accepts, no path-building needed. Reserve modify_repertoire_line for prune/reorder, or an add whose anchor isn't the current position; address its path by SAN from the root and let it graft the tail (its result echoes added_from/added_moves so you can confirm where it landed). modify_repertoire_line only PREVIEWS the edit (returns the resulting PGN + stats) — it does NOT change the board; tell the user to apply it via the board to keep it.
 Report: structural identity / incongruencies with the offending line / weak user moves + the engine fix / uncovered opponent tries = gaps / suggested extensions.`,
 
@@ -45,7 +46,8 @@ Present: verdict up top (accuracy per side, the 1–3 turning points), then per 
   position: `Single position — the current board, or a FEN the user gives (pass it as fen).
 1. validate_fen on a pasted FEN; use the normalized fen from here on.
 2. evaluate_position(lines=3) → the verdict plus the ranked top moves with evals. Compare them directly.
-3. Go deeper: validate_line(fen,[…]) → take its final_fen → evaluate_position(final_fen). Use get_legal_moves for the full legal set, or compare_moves to rank specific candidate moves you name.`,
+3. Go deeper: validate_line(fen,[…]) → take its final_fen → evaluate_position(final_fen). Use get_legal_moves for the full legal set, or compare_moves to rank specific candidate moves you name.
+4. What humans play: position_popularity(fen) → per-move frequency + win rates from the Lichess opening explorer (db "masters" for OTB theory). Needs the Lichess token in Settings — on explorer_auth_required, ask the user to add it.`,
 
   annotate: `Produce an annotated PGN artifact.
 1. validate_pgn (omit pgn to annotate the current board's line).
