@@ -120,16 +120,26 @@ scan's multipv-4 entries now front the audit's searches. Chat/panel surfaces del
 
 ### T2. Lichess opening-explorer integration (one client, three tools)
 
-`explorer.lichess.ovh` (masters / lichess / player DBs) is free, fits the existing rate-limited
-`apiclient`, and unlocks:
-  - **Popularity-weighted gaps** — the existing ROADMAP item's concrete data source: rank
-    `find_repertoire_gaps` output by how often opponents actually play each uncovered move
-    (engine criticality × real-world frequency).
-  - **`position_popularity`** — moves + frequencies + win rates at a FEN ("what do humans play
-    here"), the grounding for "is this line practically relevant".
-  - **Theory-depth detection** — walk each line until explorer game counts collapse: the ply where
-    the repertoire leaves known theory. Tells the user where memorization stops paying and prep
-    becomes original — pairs directly with Shorten's memorization economics.
+**SHIPPED 2026-07-13** — client in `chess-tools/src/explorer.ts` over the shared `apiclient`;
+MCP server only (chat/panel deferred behind CHAT_TOOLSET_REVIEW §10, same call as T1). The three
+capabilities, as landed:
+  - **Popularity-weighted gaps** — `popularity` flag on `find_repertoire_gaps` (not a new tool):
+    the surviving gaps (post-limit, so ≤ limit requests) get `played_pct`/`played_games` and
+    re-rank by frequency WITHIN each severity tier; explorer failure nulls the annotation, never
+    the scan. Closed the ROADMAP feature item.
+  - **`position_popularity`** — per-move frequencies + white-POV win rates + opening name at a
+    FEN; `db` = `lichess` (default: 1800+ blitz/rapid/classical) or `masters`.
+  - **`find_theory_depth`** — DFS from the root querying the explorer per position; a line exits
+    theory at the first position with < `min_games` (100 lichess / 5 masters). No descent below
+    an exit + transposition dedupe ⇒ queries ≈ unique in-theory positions; `max_positions` ≤120
+    caps wall-clock (~1 query/s).
+
+Landed constraints discovered at ship time: the explorer requires **auth since ~2026-03**
+(anonymous → 401; personal token, no scopes, `LICHESS_TOKEN` → `explorer_auth_required` when
+unset) and the host moved to `explorer.lichess.org`. Cache is in-memory only (explorer data
+drifts daily; stale popularity is silently wrong, unlike a merely-shallow stale eval). Bundled:
+`apiclient` now honours Lichess's 60 s post-429 cooldown globally. The `/player` DB (NDJSON
+stream) is deliberately left for T3.
 
 ### T3. `prep_vs_opponent` — compose existing pieces into match prep
 
@@ -248,7 +258,8 @@ rest of the PWA is local-first.
 4. ~~**P1** (engine pool)~~ — shipped 2026-07-13, both hosts (Node child-process pool +
    concurrent scan loops, 2.7× on the fixture scan; browser worker pool + dedicated live worker;
    R4 dedupe, R1 fix — see §P1).
-5. **T2** (explorer client + popularity gaps) — ← **NEXT**. Unlocks the existing ROADMAP item.
-6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
-   is already emitted by T1.
+5. ~~**T2** (explorer client + popularity gaps)~~ — shipped 2026-07-13 (see §T2; explorer now
+   needs `LICHESS_TOKEN`, host moved to explorer.lichess.org).
+6. **T3/T4** — ← **NEXT**: composition tools on top of T1/T2 output. T4's only-move input
+   (`best_margin`) is already emitted by T1; T3's explorer client + games tools exist.
 7. **P5-P8, T5-T7** — opportunistic.

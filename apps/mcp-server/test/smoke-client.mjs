@@ -1,6 +1,6 @@
 // MCP smoke client: spawn the Node server over stdio, list tools, exercise a representative set.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -17,14 +17,22 @@ let pass = 0,
 const ok = (c, m) => (c ? pass++ : (fail++, console.log("FAIL:", m)));
 const call = async (client, name, args) => JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
 
-// Launch exactly as .mcp.json does: `node --import tsx <entry>` from the repo root.
-const transport = new StdioClientTransport({ command: "node", args: ["--import", "tsx", entry], cwd: repoRoot });
+// Launch exactly as .mcp.json does: `node --import tsx <entry>` from the repo root. The SDK's
+// StdioClientTransport does NOT inherit the parent's full env by default (only an allowlist —
+// PATH, HOME, etc., sudo-style) — LICHESS_TOKEN must be forwarded explicitly or the spawned
+// server never sees it even when this process has it.
+const transport = new StdioClientTransport({
+  command: "node",
+  args: ["--import", "tsx", entry],
+  cwd: repoRoot,
+  env: { ...getDefaultEnvironment(), ...(process.env.LICHESS_TOKEN ? { LICHESS_TOKEN: process.env.LICHESS_TOKEN } : {}) },
+});
 const client = new Client({ name: "smoke", version: "0" }, { capabilities: {} });
 await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 34, "34 tools registered");
+ok(tools.length === 36, "36 tools registered");
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
@@ -34,6 +42,16 @@ ok(typeof cloud.cp === "number", `cloud_eval start cp (${cloud.cp})`);
 
 const tbEarly = await call(client, "tablebase_lookup", { fen: "4k3/8/8/8/8/8/8/4K2R w - - 0 1" });
 ok(tbEarly.category === "win", `tablebase_lookup early (${tbEarly.category})`);
+
+// Opening explorer: live when LICHESS_TOKEN is in the environment (the spawned server inherits
+// it), else the auth gate must answer — never a silent null.
+const pop = await call(client, "position_popularity", { fen: START, top_moves: 3 });
+if (process.env.LICHESS_TOKEN) {
+  ok(pop.total_games > 0 && pop.moves?.length === 3 && typeof pop.moves[0].played_pct === "number", `position_popularity live (${pop.total_games} games, top ${pop.moves?.[0]?.san})`);
+} else {
+  ok(pop.error === "explorer_auth_required", `position_popularity without token → explorer_auth_required (${pop.error})`);
+}
+ok((await call(client, "position_popularity", { fen: "not a fen" })).error === "invalid_fen", "position_popularity gates FEN");
 
 console.log("evaluate_position (Node Stockfish, depth 12)…");
 const ev = await call(client, "evaluate_position", { fen: START, depth: 12, lines: 3 });
@@ -49,6 +67,16 @@ ok(badLoad.error === "invalid_pgn", `load_repertoire rejects an illegal move as 
 
 const cov = await call(client, "get_repertoire_coverage", { repertoire_id: rep.repertoire_id });
 ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.dangling_count} dangling / ${cov.leaves} leaves`);
+
+if (process.env.LICHESS_TOKEN) {
+  console.log("find_theory_depth (explorer, ~1 query/s)…");
+  const td = await call(client, "find_theory_depth", { repertoire_id: rep.repertoire_id });
+  console.log("  lines:", JSON.stringify(td.lines?.map((l) => `${l.san_path.at(-1)}@${l.theory_exit_ply ?? "in-theory"}`)));
+  ok(td.lines?.length >= 1 && td.positions_queried > 0, `find_theory_depth walks (${td.positions_queried} queried)`);
+} else {
+  const td = await call(client, "find_theory_depth", { repertoire_id: rep.repertoire_id });
+  ok(td.error === "explorer_auth_required", `find_theory_depth without token → explorer_auth_required (${td.error})`);
+}
 
 const transRep = await call(client, "load_repertoire", { pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *", color: "white" });
 const trans = await call(client, "get_transpositions", { repertoire_id: transRep.repertoire_id });

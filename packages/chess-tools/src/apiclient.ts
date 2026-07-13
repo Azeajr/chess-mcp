@@ -10,6 +10,9 @@
  */
 const MIN_INTERVAL_MS = 1000;
 const TIMEOUT_MS = 5000;
+// Lichess asks clients that receive a 429 to wait a full minute before the next request
+// (https://lichess.org/api#section/Introduction/Rate-limiting).
+const RATE_LIMITED_COOLDOWN_MS = 60000;
 
 let lastRequest = 0;
 let gate: Promise<void> = Promise.resolve();
@@ -32,6 +35,9 @@ async function fetchRaw(url: string, headers?: Record<string, string>): Promise<
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers });
+    // A 429 still degrades to null for the caller, but the global limiter holds ALL requests for
+    // the cooldown — one throttled consumer must not let the next call re-offend a second later.
+    if (res.status === 429) lastRequest = Date.now() + RATE_LIMITED_COOLDOWN_MS - MIN_INTERVAL_MS;
     return res.ok ? res : null;
   } finally {
     clearTimeout(timer);

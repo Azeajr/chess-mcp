@@ -1,6 +1,6 @@
 # AGENTS.md — chess-mcp
 
-pnpm monorepo. The **active MCP server is Node.js/TypeScript** (`apps/mcp-server`, 34 tools). Shared
+pnpm monorepo. The **active MCP server is Node.js/TypeScript** (`apps/mcp-server`, 36 tools). Shared
 chess logic in `packages/chess-tools`; a SolidJS PWA in `apps/ui`. `.mcp.json` launches the Node
 server directly (`node --import tsx apps/mcp-server/src/index.ts`).
 
@@ -22,7 +22,8 @@ pnpm mcp                                          # run the MCP server directly
 - `packages/chess-tools` — TypeScript port of the chess logic (chessops, not python-chess):
   GameTree (variation PGN + edits), congruence, gaps, **structure classifier** (19 named structures,
   validated by `scripts/structure-accuracy.mjs`), ECO lookup (chessops-keyed `data/openings.tsv`),
-  game review, congruence + suggest_*, rate-limited offline-safe HTTP (cloud eval / tablebase / games).
+  game review, congruence + suggest_*, rate-limited offline-safe HTTP (cloud eval / tablebase /
+  games / opening explorer). A 429 puts the shared limiter into the 60 s cooldown Lichess asks for.
 - `apps/mcp-server` — `@modelcontextprotocol/sdk` stdio server. Node Stockfish in `src/engine.ts`:
   a child-process pool speaking UCI over stdio (P1), plus the in-process loader as fallback — its
   three quirks (drive with `sendCommand`; capture UCI via a `console.log` override so it never
@@ -64,10 +65,11 @@ both manifests when the tool surface changes.
 - **Engine pool** (`src/engine.ts`): searches run on a pool of Stockfish wasm CHILD processes (plain UCI over stdio; `ENGINE_POOL_SIZE`, default `min(cores,4)`, `0` = single in-process fallback). child_process, not worker_threads — the emscripten UMD wrapper treats a node worker as a web worker and exports nothing there. Scan loops in chess-tools fire per-position searches concurrently (`Promise.all`); the pool queue is the limiter (fixture scan: 17s serial → 6.4s at 4 children). In-flight dedupe: concurrent identical requests share one search (join requires pending depth ≥ requested). Watchdog is stop-then-grace per search; stopped partials are returned but never cached.
 - **Engine cache** (`src/engine.ts`): transposition-keyed (first 4 FEN fields while halfmove clock < 50, full FEN at/above — 50-move exactness), depth-reuse (a deeper cached search satisfies a shallower request), cross-multipv reuse (a stored multipv-N entry truncates to answer a narrower request at the same depth; mirrored in the PWA cache), 1000-entry FIFO; persisted write-through to `$EVAL_CACHE_DIR/evals.jsonl` (default `~/.cache/chess-mcp/`, `0` disables), loaded at boot. Game review searches `multipv=1`. `ucinewgame` is sent once per child (or per process in fallback mode), not per search — the warm TT gives multi-position scans a real same-depth speedup at the cost of run-to-run node-count/tie-break-line nondeterminism (same class `movetime` accepts; `depth` is the reproducibility knob); pool children each warm their own TT.
 - **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars (`src/handles.ts`).
-- **Gap scan defaults**: `find_repertoire_gaps` searches `depth ?? 14`, `multipv=4`; transposition-first (a strong uncovered reply that rejoins prep on another line is reported under `covered_by_transposition`, not counted).
+- **Gap scan defaults**: `find_repertoire_gaps` searches `depth ?? 14`, `multipv=4`; transposition-first (a strong uncovered reply that rejoins prep on another line is reported under `covered_by_transposition`, not counted). `popularity=true` annotates the surviving gaps (post-limit, ≤ limit explorer requests) with `played_pct`/`played_games` and re-ranks by frequency within each severity tier; explorer failure degrades the annotation to null, never the scan.
+- **Opening explorer** (`explorer.ts`): `explorer.lichess.org` requires auth since ~2026-03 — a personal API token (no scopes), `LICHESS_TOKEN` env → `setExplorerToken()`; unset → `explorer_auth_required` from the three explorer surfaces (`position_popularity`, `find_theory_depth`, gap `popularity`). Lichess db defaults 1800+ blitz/rapid/classical; in-memory cache only (explorer data drifts daily), keyed db+filters+transposition key. `theoryDepth` DFS stops descending once a position's games < `min_games` (default 100 lichess / 5 masters) and dedupes transpositions, so queries ≈ unique in-theory positions; `max_positions` (≤120) bounds wall-clock at ~1 query/s.
 - **Move audit**: `audit_repertoire_moves` engine-checks YOUR prescribed moves tree-wide (`turnNodes` — the your-turn flip of `decisionNodes`, one shared walker): multipv-2 per position (`depth ?? 14`); a prescribed move inside the lines is scored directly, else one single-PV search of its after-position. Findings ranked by `cp_loss` (`min_cp_loss ?? 50`), SAN drill-down `path`, `best_margin` = only-move signal.
 - **`compare_moves`**: returns `illegal` list, NOT an error, for unrecognized moves.
-- **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`, `path_not_found`, `invalid_prune`.
+- **Closed error codes**: `invalid_pgn`, `invalid_fen`, `invalid_color`, `move_not_found`, `pgn_too_large`, `too_many_moves`, `repertoire_not_found`, `variation_not_found`, `invalid_mode`, `invalid_line`, `invalid_edit`, `path_not_found`, `invalid_prune`, `explorer_auth_required`, `explorer_unavailable`.
 - **Engine knobs**: `depth` clamped `[1,30]` (per-tool default 12–16); `evaluate_position` `lines` ≤5; `find_pruning_transpositions` `multipv` ≤8 + `movetime_ms` + `confirm_depth` (deep-confirm bestEval) + `leaf_start`/`leaf_count` (progress-only cursor; full call owns the ranking) + `budget`.
 - **Shorten vetting**: `find_pruning_transpositions` returns all re-routes per line tagged `bestSavings`/`bestEval`; `compare_shortcut_lines` (quality: eval + structural fit) and `check_shortcut_coverage` (does the prune open a gap) share one chess-tools core (`compareShortcutLines`/`checkShortcutCoverage`) with the PWA.
 

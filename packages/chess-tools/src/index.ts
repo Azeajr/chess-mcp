@@ -35,6 +35,8 @@ export { validateLine, legalMoves, validateFen, validatePgn, isPromotion } from 
 export type { LineCheck } from "./validate.js";
 export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
+export { explorerPosition, theoryDepth, setExplorerToken, hasExplorerToken } from "./explorer.js";
+export type { ExplorerDb, ExplorerFilters, ExplorerMove, ExplorerPosition, ExplorerLookup, TheoryDepthOptions, TheoryLine, TheoryDepthResult } from "./explorer.js";
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, RepertoireMoveMap } from "./game.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";

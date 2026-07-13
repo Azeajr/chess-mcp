@@ -16,6 +16,7 @@ import { type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
 import { decisionNodes, turnNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
 import { validateLine } from "./validate.js";
+import type { ExplorerLookup } from "./explorer.js";
 import { replacementPivot } from "./repcongruence.js";
 import {
   profileStructureShares,
@@ -138,6 +139,14 @@ export interface GapsOptions {
   minSeverity?: Severity;
   maxPositions?: number;
   limit?: number;
+  /**
+   * Optional explorer lookup (T2). When set, the surviving gaps are annotated with how often the
+   * uncovered move is actually played and re-ranked by frequency WITHIN each severity tier —
+   * severity stays the primary signal (an uncovered near-refutation matters even when rare);
+   * frequency breaks ties toward the holes actually faced. Explorer failure degrades the
+   * annotation to null, never the scan.
+   */
+  popularity?: ExplorerLookup;
 }
 export interface Gap {
   path: Path;
@@ -146,6 +155,10 @@ export interface Gap {
   eval: number | null;
   mate: number | null;
   severity: Severity;
+  /** % of explorer games at this position playing the uncovered move (only when popularity requested; null on explorer miss). */
+  played_pct?: number | null;
+  /** explorer game count for the uncovered move (same conditions). */
+  played_games?: number | null;
 }
 export interface CoveredGap {
   path: Path;
@@ -210,6 +223,20 @@ export async function findRepertoireGaps(
     .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
     .slice(0, opts.limit ?? 10);
+  if (opts.popularity && gaps.length) {
+    // One request per unique decision node (several gaps can share one), post-limit only —
+    // request budget ≤ limit at 1 req/s. The lookup caches, so transposition re-hits are free.
+    const fens = [...new Set(gaps.map((g) => g.fen))];
+    const byFen = new Map(await Promise.all(fens.map(async (f) => [f, await opts.popularity!(f)] as const)));
+    for (const g of gaps) {
+      const pos = byFen.get(g.fen);
+      // A move absent from the explorer's top-moves list is (approximately) never played there.
+      const m = pos?.moves.find((x) => x.san === g.uncovered_move);
+      g.played_pct = pos ? (m?.played_pct ?? 0) : null;
+      g.played_games = pos ? (m?.games ?? 0) : null;
+    }
+    gaps.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || (b.played_pct ?? -1) - (a.played_pct ?? -1));
+  }
   return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps, covered_by_transposition: covered };
 }
 

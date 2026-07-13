@@ -68,10 +68,10 @@ server installable as a self-contained artifact.
 
 - [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
       ~~persistent transposition-keyed eval cache~~ (P3+P4), ~~warm TT~~ (P2),
-      ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts). Remaining, in order:
-      **Lichess opening explorer (T2** — popularity-weighted gaps + theory-depth**)**,
-      `prep_vs_opponent` (T3), only-move drill export (T4), then opportunistic P5-P8 micro-perf
-      and R2/R3/R5-R9 robustness notes.
+      ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts), ~~Lichess opening
+      explorer~~ (T2 — `position_popularity`, `find_theory_depth`, gap popularity weighting;
+      needs `LICHESS_TOKEN`). Remaining, in order: **`prep_vs_opponent` (T3)**, only-move drill
+      export (T4), then opportunistic P5-P8 micro-perf and R2/R3/R5-R9 robustness notes.
 - [ ] **PWA chat toolset weak points** — full audit in
       `docs/design/CHAT_TOOLSET_REVIEW.md` (17 items: 4 stale/broken workflow instructions incl. a
       nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks
@@ -88,9 +88,9 @@ server installable as a self-contained artifact.
 
 Engine-grounded, repertoire-first. Open GitHub issues + README roadmap items:
 
-- [ ] **Opponent-popularity weighting for gaps** — rank `find_repertoire_gaps` output by how often
-      opponents actually play each uncovered move (a move-frequency dataset), pairing engine
-      criticality with real-world frequency so triage hits the holes you'll actually face.
+- [x] **Opponent-popularity weighting for gaps** — shipped 2026-07-13 as the `popularity` flag on
+      `find_repertoire_gaps` (Lichess opening explorer; `played_pct`/`played_games` per gap,
+      frequency re-rank within severity tiers). Requires `LICHESS_TOKEN`.
 - [ ] **`compare_repertoires(id_a, id_b)`** — structural + coverage diff between two loaded handles
       (shared themes, divergent lines, relative dangling/gap counts) to support evolving or merging a
       repertoire.

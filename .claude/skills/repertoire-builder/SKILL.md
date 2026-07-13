@@ -147,9 +147,27 @@ comparing handles, with no re-download. See "Edit loop" below.
    node** — `modify_repertoire_line(prune)` at `linePath` truncated to `atPly+1` moves (one ply
    deeper than `atPath`). That drops the long tail and leaves the `joinsPath` branch as the surviving
    prep. Do NOT prune at `atPath` itself — that would also delete the transposition target.
-8. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
-   user moves with the engine fix (step 5) / uncovered opponent tries = gaps (step 5) / suggested
-   extensions (step 6) / shortenable lines with plies saved + eval trade (step 7).
+8. **Real-world grounding (opening explorer — needs `LICHESS_TOKEN`).** Engine says what's strong;
+   the explorer says what actually happens. All three surfaces return `explorer_auth_required` if
+   the server has no Lichess token — tell the user to set `LICHESS_TOKEN` (a personal API token,
+   no scopes) and move on; never guess frequencies from memory.
+   - **Prioritize gaps by frequency:** re-run `find_repertoire_gaps` with `popularity: true` —
+     each gap gains `played_pct`/`played_games` and gaps re-rank by frequency within each severity
+     tier. A high-severity gap at 40% frequency outranks one at 0.5%; fix the former first. A
+     `played_pct` of `null` means the explorer lookup failed (the engine scan is still valid).
+   - **"Do humans even play this?"** `position_popularity(fen)` → per-move frequencies + white-POV
+     win rates + total games. `db: "masters"` for OTB theory; the default `lichess` db is 1800+
+     blitz/rapid/classical — practical opposition.
+   - **Where does memorization stop paying?** `find_theory_depth(repertoire_id)` → per line, the
+     ply where explorer game counts collapse below `min_games` (`theory_exit_ply`; `null` = the
+     whole line stays in book). Deep exits = well-trodden theory worth memorizing; early exits =
+     original prep — pair with step 7 (shorten) to cut memorization where theory has already run
+     out. Network-bound (~1 position/s, `max_positions` caps it) — warn the user a big tree takes
+     a minute+.
+9. **Report**: structural identity (step 2) / incongruencies with the offending line (step 3) / weak
+   user moves with the engine fix (step 5) / uncovered opponent tries = gaps (step 5), frequency-
+   ranked when the explorer is available (step 8) / suggested extensions (step 6) / shortenable
+   lines with plies saved + eval trade (step 7) / theory-exit depths (step 8).
 
 ## Edit loop (single session — fix the repertoire without leaving)
 

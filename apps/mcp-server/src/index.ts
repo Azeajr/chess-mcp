@@ -18,6 +18,11 @@ import {
   legalMoves,
   cloudEval,
   tablebaseLookup,
+  explorerPosition,
+  theoryDepth,
+  setExplorerToken,
+  hasExplorerToken,
+  type ExplorerDb,
   moveSan,
   analyzeMainline,
   findRepertoireGaps,
@@ -63,6 +68,16 @@ const MAX_COMPARE_MOVES = 64;
 
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" });
 
+// The opening explorer requires a Lichess login since ~2026-03 (anonymous → 401). A personal API
+// token with no scopes is enough; without one the explorer tools return explorer_auth_required
+// instead of letting the 401 masquerade as "offline".
+setExplorerToken(process.env.LICHESS_TOKEN ?? null);
+const explorerAuthRequired = () =>
+  ok({
+    error: "explorer_auth_required",
+    reason: "the Lichess opening explorer requires authentication; set LICHESS_TOKEN to a personal API token (no scopes needed, https://lichess.org/account/oauth/token)",
+  });
+
 // --- validation / position (engine-free) ---
 server.tool("validate_fen", "Validate a FEN; returns the normalised FEN when legal.", { fen: z.string() }, ({ fen }) =>
   ok(validateFen(fen)),
@@ -101,6 +116,22 @@ server.tool("tablebase_lookup", "Lichess tablebase result for a ≤7-piece FEN, 
   const t = await tablebaseLookup(fen);
   return ok(t ?? { available: false });
 });
+server.tool(
+  "position_popularity",
+  'Lichess opening-explorer stats at a FEN — what humans actually play here: per-move frequencies and win rates (white-POV), total games, opening name. db "lichess" (online games, 1800+ blitz/rapid/classical) or "masters" (OTB 2200+ FIDE).',
+  {
+    fen: z.string(),
+    db: z.enum(["lichess", "masters"]).optional(),
+    top_moves: z.number().int().min(0).max(30).optional(),
+  },
+  async ({ fen, db, top_moves }) => {
+    const v = validateFen(fen);
+    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    if (!hasExplorerToken()) return explorerAuthRequired();
+    const res = await explorerPosition(v.fen!, { db, movesLimit: top_moves });
+    return ok(res ? { fen: v.fen, db: db ?? "lichess", ...res } : { fen: v.fen, available: false });
+  },
+);
 
 // --- engine ---
 server.tool(
@@ -193,25 +224,59 @@ server.tool(
 // --- gaps (engine scan) ---
 server.tool(
   "find_repertoire_gaps",
-  "Scan decision nodes for uncovered strong opponent replies, ranked by severity.",
+  "Scan decision nodes for uncovered strong opponent replies, ranked by severity. popularity=true additionally annotates each gap with how often the move is actually played (opening explorer) and re-ranks by frequency within each severity tier.",
   {
     repertoire_id: z.string(),
     depth: z.number().int().min(1).max(30).optional(),
     min_severity: z.enum(["low", "medium", "high"]).optional(),
     max_positions: z.number().int().min(1).max(60).optional(),
     limit: z.number().int().min(1).max(50).optional(),
+    popularity: z.boolean().optional(),
+    popularity_db: z.enum(["lichess", "masters"]).optional(),
   },
-  async ({ repertoire_id, depth, min_severity, max_positions, limit }) => {
+  async ({ repertoire_id, depth, min_severity, max_positions, limit, popularity, popularity_db }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
+    if (popularity && !hasExplorerToken()) return explorerAuthRequired();
     return ok(
       await findRepertoireGaps(
         e.tree,
         e.color,
-        { depth, minSeverity: min_severity, maxPositions: max_positions, limit },
+        {
+          depth,
+          minSeverity: min_severity,
+          maxPositions: max_positions,
+          limit,
+          // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
+          // ask deep enough that the approximation only bites on true rarities.
+          popularity: popularity ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 }) : undefined,
+        },
         analyseMulti,
       ),
     );
+  },
+);
+
+server.tool(
+  "find_theory_depth",
+  'Where each repertoire line leaves known theory: walks the tree querying the opening explorer and reports, per line, the ply at which game counts collapse below min_games — the point where memorization stops paying. db "lichess" (default, min_games 100) or "masters" (OTB, min_games 5). Network-bound: ~1 query/s per unique in-theory position, capped by max_positions.',
+  {
+    repertoire_id: z.string(),
+    db: z.enum(["lichess", "masters"]).optional(),
+    min_games: z.number().int().min(1).optional(),
+    max_positions: z.number().int().min(1).max(120).optional(),
+  },
+  async ({ repertoire_id, db, min_games, max_positions }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    if (!hasExplorerToken()) return explorerAuthRequired();
+    const d: ExplorerDb = db ?? "lichess";
+    const res = await theoryDepth(
+      e.tree,
+      { minGames: min_games ?? (d === "masters" ? 5 : 100), maxPositions: max_positions },
+      (fen) => explorerPosition(fen, { db: d, movesLimit: 0 }),
+    );
+    return ok("error" in res ? res : { db: d, ...res });
   },
 );
 

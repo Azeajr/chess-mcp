@@ -34,6 +34,10 @@ import {
   medianLineLength,
   buildFitProfile,
   fitScore,
+  explorerPosition,
+  theoryDepth,
+  setExplorerToken,
+  hasExplorerToken,
 } from "../packages/chess-tools/dist/index.js";
 import { readFileSync } from "node:fs";
 
@@ -562,6 +566,106 @@ ok(selfFit > 0 && selfFit <= 1, "fitScore: a repertoire leaf scores in (0,1] aga
 const fianBoards = GameTree.fromPgn("1. g3 g6 2. Bg2 Bg7 3. Nf3 Nf6 *").leafPositions().map((p) => p.board);
 ok(positionProfile(fianBoards[0], "white", "").structure_class === "unknown", "fianchetto leaf classifies unknown");
 ok(fitScore(buildFitProfile(fianBoards, "white"), fianBoards[0], "white") > 0, "fitScore: unknown-but-thematic position scores > 0 (themes/center carry it)");
+
+// 31. explorerPosition — response parsing + per-process cache, over a stubbed global fetch (the
+// live endpoint is smoke-client's). Two moves so frequency math is visible.
+const rawExplorer = {
+  white: 550,
+  draws: 250,
+  black: 200,
+  opening: { eco: "B20", name: "Sicilian Defense" },
+  moves: [
+    { uci: "g1f3", san: "Nf3", averageRating: 1980, white: 500, draws: 200, black: 200 },
+    { uci: "c2c4", san: "c4", white: 50, draws: 30, black: 20 },
+  ],
+};
+const realFetch = globalThis.fetch;
+let fetchCalls = [];
+let fetchAuth = [];
+globalThis.fetch = async (url, init) => {
+  fetchCalls.push(String(url));
+  fetchAuth.push(init?.headers?.Authorization ?? null);
+  return { ok: true, status: 200, json: async () => rawExplorer };
+};
+setExplorerToken("lip_smoketoken"); // the explorer 401s anonymous requests since ~2026-03
+ok(hasExplorerToken() === true, "explorer: token registered");
+const exFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const ex1 = await explorerPosition(exFen);
+ok(ex1 && ex1.total_games === 1000 && ex1.white_pct === 55 && ex1.opening.eco === "B20", "explorer: totals + white-POV shares parsed");
+ok(ex1.moves[0].san === "Nf3" && ex1.moves[0].played_pct === 90 && ex1.moves[0].games === 900, "explorer: per-move frequency (900/1000 = 90%)");
+ok(ex1.moves[1].played_pct === 10 && ex1.moves[1].average_rating === null, "explorer: missing averageRating → null");
+ok(fetchCalls[0].includes("speeds=blitz,rapid,classical") && fetchCalls[0].includes("ratings=1800,2000,2200,2500"), "explorer: lichess db defaults (1800+ blitz/rapid/classical)");
+ok(fetchCalls[0].startsWith("https://explorer.lichess.org/") && fetchAuth[0] === "Bearer lip_smoketoken", "explorer: new host + Bearer token header");
+const ex2 = await explorerPosition(exFen);
+ok(ex2 === ex1 && fetchCalls.length === 1, "explorer: same key served from cache, no second fetch");
+await explorerPosition(exFen, { db: "masters" });
+ok(fetchCalls.length === 2 && fetchCalls[1].includes("/masters?"), "explorer: masters db is a separate key + endpoint");
+globalThis.fetch = realFetch;
+setExplorerToken(null);
+ok(hasExplorerToken() === false, "explorer: token cleared");
+
+// 31b. findRepertoireGaps popularity annotation — gaps keep severity as the primary rank but
+// re-order by real-world frequency within a tier; explorer miss degrades to null, never the scan.
+// After 1.e4 (covered reply e5), two uncovered high-severity replies: c5 (rare here) and e6
+// (popular) — popularity flips their order.
+const popTree = GameTree.fromPgn("1. e4 e5 2. Nf3 *");
+const popEngine = async (fen) =>
+  fen.split(" ")[1] === "b"
+    ? [
+        { uci: "e7e5", cp: -80, mate: null, depth: 10, pv: [] }, // covered, mover(black) 80
+        { uci: "c7c5", cp: -75, mate: null, depth: 10, pv: [] }, // gap, loss 5 → high
+        { uci: "e7e6", cp: -70, mate: null, depth: 10, pv: [] }, // gap, loss 10 → high
+      ]
+    : [];
+const popLookup = async () => ({
+  total_games: 1000,
+  white_pct: 50, draw_pct: 30, black_pct: 20,
+  opening: null,
+  moves: [
+    { san: "e6", uci: "e7e6", games: 550, played_pct: 55, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
+    { san: "c5", uci: "c7c5", games: 100, played_pct: 10, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
+  ],
+});
+const popGaps = await findRepertoireGaps(popTree, "white", { minSeverity: "low", popularity: popLookup }, popEngine);
+ok(!popGaps.error && popGaps.gaps.length === 2 && popGaps.gaps.every((g) => g.severity === "high"), "popularity: both gaps high severity");
+ok(popGaps.gaps[0].uncovered_move === "e6" && popGaps.gaps[0].played_pct === 55 && popGaps.gaps[0].played_games === 550, "popularity: more-played gap ranked first within the tier");
+ok(popGaps.gaps[1].uncovered_move === "c5" && popGaps.gaps[1].played_pct === 10, "popularity: rarer gap second, annotated");
+const popOffline = await findRepertoireGaps(popTree, "white", { minSeverity: "low", popularity: async () => null }, popEngine);
+ok(!popOffline.error && popOffline.gaps.length === 2 && popOffline.gaps[0].played_pct === null, "popularity: explorer miss → null annotation, scan intact");
+const popNoFlag = await findRepertoireGaps(popTree, "white", { minSeverity: "low" }, popEngine);
+ok(!popNoFlag.error && !("played_pct" in popNoFlag.gaps[0]), "popularity: absent unless requested");
+
+// 31c. theoryDepth — DFS with explorer counts: a line's exit ply is where games collapse below
+// min_games; below an exit the walk does NOT descend (children can only be rarer). The 1.e4 c5
+// branch leaves theory at 2.Nf3 (50 games); the 1.e4 e5 mainline never does.
+const tdTree = GameTree.fromPgn("1. e4 e5 ( 1... c5 2. Nf3 d6 ) 2. Nf3 Nc6 *");
+let tdCalls = 0;
+const tdLookup = async (fen) => {
+  tdCalls++;
+  const games = fen.includes("2p5") && fen.includes("5N2") ? 50 : 1000; // after 1.e4 c5 2.Nf3
+  return { total_games: games, white_pct: 50, draw_pct: 30, black_pct: 20, opening: null, moves: [] };
+};
+const td = await theoryDepth(tdTree, {}, tdLookup);
+ok(!td.error && td.lines.length === 2 && td.truncated === false, "theoryDepth: one verdict per leaf line");
+const tdSic = td.lines.find((l) => l.san_path.includes("c5"));
+ok(tdSic.theory_exit_ply === 3 && tdSic.games_at_exit === 50 && tdSic.games_at_last_theory === 1000, "theoryDepth: c5 branch exits theory at ply 3 (2.Nf3, 50 games)");
+ok(tdSic.san_path.join(" ") === "e4 c5 Nf3 d6", "theoryDepth: full line reported even below the exit");
+const tdMain = td.lines.find((l) => !l.san_path.includes("c5"));
+ok(tdMain.theory_exit_ply === null && tdMain.games_at_exit === null && tdMain.games_at_last_theory === 1000, "theoryDepth: in-theory-throughout line has no exit");
+ok(tdCalls === 7 && td.positions_queried === 7, "theoryDepth: 8 nodes, 7 queried — no lookup below the exit");
+// Transpositions queried once: 1.d4 d5 2.Nf3 and 1.Nf3 d5 2.d4 converge (7 nodes, 6 unique).
+let tdxCalls = 0;
+const tdxLookup = async () => (tdxCalls++, { total_games: 1000, white_pct: 50, draw_pct: 30, black_pct: 20, opening: null, moves: [] });
+const tdx = await theoryDepth(GameTree.fromPgn("1. d4 d5 2. Nf3 *\n\n1. Nf3 d5 2. d4 *"), {}, tdxLookup);
+ok(!tdx.error && tdxCalls === 6 && tdx.lines.length === 2, "theoryDepth: transposed position queried once");
+// Budget: maxPositions 2 → truncated, unvisited leaves counted as skipped.
+const tdCap = await theoryDepth(tdTree, { maxPositions: 2 }, tdLookup);
+ok(!tdCap.error && tdCap.truncated === true && tdCap.lines_skipped > 0, "theoryDepth: query budget → truncated + lines_skipped");
+// Offline aborts (after one retry); a single transient failure recovers.
+ok((await theoryDepth(tdTree, {}, async () => null)).error === "explorer_unavailable", "theoryDepth: offline → explorer_unavailable");
+let tdrFirst = true;
+const tdrLookup = async (fen) => (tdrFirst ? ((tdrFirst = false), null) : tdLookup(fen));
+ok(!(await theoryDepth(tdTree, {}, tdrLookup)).error, "theoryDepth: one transient failure retried, walk completes");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
