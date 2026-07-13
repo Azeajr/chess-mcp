@@ -10,7 +10,8 @@ Repo shape the prompts assume:
   tools confined to `REPERTOIRE_DIR`. The MCP surface and its validation/error shaping.
 - `apps/mcp-server/src/engine.ts` — the only engine I/O boundary (the `stockfish` wasm; UCI driven via
   `sendCommand`, output captured through a `console.log` override so it never corrupts stdout JSON-RPC).
-  Also holds the in-process eval cache (keyed `${fen}|${multipv}`, depth-reuse, FIFO). The mainline
+  Also holds the eval cache (transposition-keyed below halfmove clock 50, depth-reuse, FIFO,
+  persisted to `EVAL_CACHE_DIR` JSONL across sessions). The mainline
   game-review analysis is `analyzeMainline` in `packages/chess-tools/src/enginetools.ts`.
 - `apps/mcp-server/src/handles.ts` — the in-memory repertoire handle cache (LRU + idle TTL).
 - `packages/chess-tools/src/` — the pure, engine-free chess logic (chessops, not python-chess):

@@ -58,7 +58,7 @@ both manifests when the tool surface changes.
 
 - **Game review workflow**: `get_game_summary` (overview) → `analyze_game` (mistake list) → `validate_line` from the start FEN to a target ply (its `finalFen`) → `evaluate_position`/`get_legal_moves`. Game review is mainline-only (`analyzeMainline` → `mainline(pgn)`).
 - **Repertoire workflow**: `load_repertoire(PGN, color)` → handle → read tools (`get_structural_profile`, `analyze_repertoire_congruence`, `find_repertoire_gaps`, etc.) → `modify_repertoire_line` (clone-on-write, returns NEW id) → repeat → `export_repertoire` (PGN artifact).
-- **Engine cache** (`src/engine.ts`): keyed `${fen}|${multipv}`, depth-reuse (a deeper cached search satisfies a shallower request), 1000-entry FIFO, per session. Game review searches `multipv=1`.
+- **Engine cache** (`src/engine.ts`): transposition-keyed (first 4 FEN fields while halfmove clock < 50, full FEN at/above — 50-move exactness), depth-reuse (a deeper cached search satisfies a shallower request), 1000-entry FIFO; persisted write-through to `$EVAL_CACHE_DIR/evals.jsonl` (default `~/.cache/chess-mcp/`, `0` disables), loaded at boot. Game review searches `multipv=1`.
 - **Repertoire cache**: bounded LRU (default 16) + idle TTL (1h). `MAX_REPERTOIRES`/`REPERTOIRE_TTL_S` env vars (`src/handles.ts`).
 - **Gap scan defaults**: `find_repertoire_gaps` searches `depth ?? 14`, `multipv=4`; transposition-first (a strong uncovered reply that rejoins prep on another line is reported under `covered_by_transposition`, not counted).
 - **`compare_moves`**: returns `illegal` list, NOT an error, for unrecognized moves.

@@ -22,8 +22,10 @@ engine-grounded.
 
 - **Node MCP server** — 33 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
   Docker, no port, no host engine install.
-- **In-process eval cache** (`apps/mcp-server/src/engine.ts`) — `${fen}|${multipv}` keyed, depth-reuse,
-  1000-entry FIFO. Per session.
+- **Persistent, transposition-keyed eval cache** (`apps/mcp-server/src/engine.ts`, mirrored in the
+  PWA engine) — keyed by position (clocks dropped below halfmove 50, full FEN at/above), depth-reuse,
+  1000-entry FIFO; write-through to `~/.cache/chess-mcp/evals.jsonl` (Node) / IndexedDB (PWA) so
+  evals survive across sessions.
 - **Variation-aware repertoire tools** — `GameTree` addresses every position by SAN path, so the
   structural/congruence/gap/transposition tools walk the whole variation tree. (Game review —
   `analyze_game`/`get_game_summary`/`export_annotated_pgn` — is mainline-only.)
@@ -61,7 +63,8 @@ server installable as a self-contained artifact.
 ## Engineering backlog
 
 - [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`: engine pool
-      (parallel scans), persistent transposition-keyed eval cache, warm TT between searches,
+      (parallel scans), ~~persistent transposition-keyed eval cache~~ (P3+P4 shipped), warm TT
+      between searches,
       `audit_repertoire_moves` (engine-check the user's own moves tree-wide), Lichess opening
       explorer (popularity-weighted gaps + theory-depth), `prep_vs_opponent`, only-move drill
       export. Suggested order inside.

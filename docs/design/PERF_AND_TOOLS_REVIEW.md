@@ -38,7 +38,7 @@ every multi-position scan. Trade-off: TT warmth changes move ordering, so node c
 occasionally the reported line at equal eval) vary run-to-run — same class of nondeterminism
 `movetime` already accepts. Document it; keep depth as the reproducibility knob.
 
-### P3. Persist the eval cache across sessions
+### P3. Persist the eval cache across sessions — ✅ shipped 2026-07-13
 
 Both eval caches are in-memory only (engine.ts:35, stockfish.ts:71) — every new Claude Code session
 or PWA reload re-searches the same repertoire from scratch, and re-analysis of a repertoire you
@@ -48,7 +48,7 @@ by size). Browser: mirror `multiCache` to IndexedDB (load on boot, debounced wri
 rule (`stored depth >= requested` serves) already makes stale-by-depth impossible; evals are
 position-pure so there is no invalidation problem at all.
 
-### P4. Engine cache keyed on full FEN misses transpositions
+### P4. Engine cache keyed on full FEN misses transpositions — ✅ shipped 2026-07-13
 
 `evalCache.key = fen|multipv` with clocks included (engine.ts:28-37, deliberate: 50-move rule).
 But every consumer that benefits from transposition reuse re-keys by `positionKey` itself
@@ -238,7 +238,9 @@ rest of the PWA is local-first.
 
 ## Suggested order
 
-1. **P3 + P4** (persistent, transposition-keyed eval cache) — every session, every tool, forever.
+1. ~~**P3 + P4** (persistent, transposition-keyed eval cache)~~ — shipped 2026-07-13: Node
+   write-through JSONL at `EVAL_CACHE_DIR` (default `~/.cache/chess-mcp/`), browser IndexedDB
+   mirror; both keyed `positionKey|multipv` below halfmove clock 50, full FEN at/above.
 2. **T1** (`audit_repertoire_moves`) — biggest product gap, smallest new surface.
 3. **P2** (keep TT warm) — one-line-ish, benchmark before/after on the sample repertoire.
 4. **P1** (engine pool) — the big lever; do after P3 so the pool fronts a persistent cache.

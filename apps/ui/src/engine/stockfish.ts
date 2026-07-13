@@ -6,6 +6,8 @@
  * Phase 1 scope: one eval at a time, latest-FEN-wins. Depth-search + multipv come with the
  * full engine layer (chess-tools StockfishProvider) in a later phase.
  */
+import { idbGet, idbSet } from "../store/idb";
+
 export interface Eval {
   /** Centipawns, white-POV. */
   cp: number | null;
@@ -62,14 +64,51 @@ async function getEngine(): Promise<EngineLike | null> {
 
 const DEPTH = 14;
 
-// P3 — in-session eval cache for analyseMulti (the heavy, repeated work: gaps / shorten / bridges /
-// complementary scans). Mirrors the MCP engine cache. Key is `${fen}|${multipv}`; depth is a compared
-// value (a result computed to >= the request satisfies it). movetime requests compare at depth 0 (time-
-// based, non-deterministic — any prior result for that key serves). The single-PV live `analyse` is
-// intentionally NOT cached: the eval bar wants a fresh streaming search. FIFO eviction at MAX_CACHE.
+// Eval cache for analyseMulti (the heavy, repeated work: gaps / shorten / bridges / complementary
+// scans). Mirrors the MCP engine cache. Depth is a compared value (a result computed to >= the
+// request satisfies it). movetime requests compare at depth 0 (time-based, non-deterministic — any
+// prior result for that key serves). The single-PV live `analyse` is intentionally NOT cached: the
+// eval bar wants a fresh streaming search. FIFO eviction at MAX_CACHE.
+//
+// Key (P4): while the halfmove clock is < 50 the key is the first four FEN fields (same rule as
+// chess-tools' positionKey), so transpositions — same position, different move counters — hit.
+// At clock >= 50 the 50-move rule genuinely affects the eval, so the full FEN keys exactly.
 const MAX_CACHE = 1000;
 const multiCache = new Map<string, { depth: number; lines: MultiLine[] }>();
-const cacheKey = (fen: string, multipv: number) => `${fen}|${multipv}`;
+const cacheKey = (fen: string, multipv: number) => {
+  const f = fen.split(" ");
+  const pos = Number(f[4]) < 50 ? f.slice(0, 4).join(" ") : fen;
+  return `${pos}|${multipv}`;
+};
+
+// P3 — persist multiCache to IndexedDB so a reload doesn't re-search the same repertoire. Loaded
+// once at module init (misses during the async load just search as before), written back debounced
+// after cache inserts. Evals are position-pure and depth-reuse handles shallower stored results, so
+// entries never need invalidation. Best-effort: any IndexedDB failure leaves the cache memory-only.
+const PERSIST_KEY = "engineEvals";
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+
+void (async () => {
+  try {
+    const saved = await idbGet<[string, { depth: number; lines: MultiLine[] }][]>(PERSIST_KEY);
+    if (!Array.isArray(saved)) return;
+    for (const [k, v] of saved) {
+      if (typeof k !== "string" || typeof v?.depth !== "number" || !Array.isArray(v?.lines)) continue;
+      // Don't clobber a result computed while the load was in flight.
+      if (!multiCache.has(k)) multiCache.set(k, v);
+    }
+    while (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+  } catch {
+    // memory-only
+  }
+})();
+
+function schedulePersist(): void {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    idbSet(PERSIST_KEY, [...multiCache]).catch(() => undefined);
+  }, 1500);
+}
 
 // One engine, one search at a time. Every search runs through this chain so two consumers
 // (eval bar, analysis panel) never drive overlapping `go` commands at the shared Worker —
@@ -180,6 +219,7 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
           const reached = movetime != null ? result.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
           multiCache.set(cacheKey(fen, multipv), { depth: reached, lines: result });
           if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+          schedulePersist();
         }
         resolve(result);
       }
