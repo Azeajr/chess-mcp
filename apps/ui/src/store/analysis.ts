@@ -7,7 +7,7 @@
 import { createSignal, createEffect, onCleanup } from "solid-js";
 import { classifyUciMove, weightFor, type Fit, type Weight } from "@chess-mcp/chess-tools";
 import { fen, currentTree, currentPath, color } from "./game";
-import { analyseMulti } from "../engine/stockfish";
+import { analyseLive } from "../engine/stockfish";
 
 export interface EngineLine {
   uci: string;
@@ -74,7 +74,8 @@ createEffect(() => {
   let cancelled = false;
   const t = setTimeout(() => {
     setAnalysing(true);
-    void analyseMulti(f, MULTIPV).then((res) => {
+    // Dedicated live worker (P1): browsing positions never queues behind a scan burst.
+    void analyseLive(f, MULTIPV).then((res) => {
       if (cancelled) return;
       setAnalysing(false);
       if (!res) {

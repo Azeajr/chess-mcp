@@ -126,7 +126,13 @@ A rejected promise (bug, not engine-down) propagates as today via the tool-bound
    analyzeMainline, compareMoves concurrent; checkShortcutCoverage runs before/after scans in
    parallel. Benchmark (fixture english-white.pgn, 96 decision positions, depth 14 multipv 2,
    cache off): 17.1s serial / 16.9s in-process → **6.4s pool-4 (2.7×)**, 4.9s pool-8.
-4. **Browser pool** + dedicated eval-bar worker — pending.
+4. ~~**Browser pool**~~ — shipped 2026-07-13: N-worker scan pool behind `analyseMulti` (budget
+   `min(hardwareConcurrency||2, 5)`, one slot reserved for the live worker), R4 dedupe shared
+   with the new `analyseLive` — a dedicated worker for the board's arrows/eval (store/analysis.ts),
+   so browsing never queues behind a chat-scan burst. The dead streaming `analyse()` export
+   (no importers — the eval bar reads the analysis store) was deleted. Same stop-then-grace
+   watchdog; hung/errored workers terminated + respawned (2-consecutive-failure cap). Verified
+   headless: Gaps scan clean, Eval On → 3 live lines + arrows, production build green.
 5. ~~Docs~~ — AGENTS.md engine-pool fact, README `ENGINE_POOL_SIZE`, review-doc §P1/R1/R4 updated.
 
 ## Decisions (recommendation first)

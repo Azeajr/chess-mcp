@@ -1,10 +1,12 @@
 /**
  * Stockfish (WASM) eval, lazily loaded and fail-soft. The board and move tree never depend on
- * the engine: if stockfish.js fails to load (asset, COEP, unsupported), `analyse` resolves to
- * null and the EvalBar shows "offline". Single-threaded build is fine for an eval bar.
+ * the engine: if stockfish.js fails to load (asset, COEP, unsupported), searches resolve to
+ * null and the EvalBar shows "offline".
  *
- * Phase 1 scope: one eval at a time, latest-FEN-wins. Depth-search + multipv come with the
- * full engine layer (chess-tools StockfishProvider) in a later phase.
+ * P1 pool: `analyseMulti` runs on N pooled Workers — chess-tools scans fire per-position
+ * searches concurrently and the pool queue is the limiter. `analyseLive` (the board's arrows /
+ * eval bar, via store/analysis.ts) gets its OWN dedicated worker so browsing positions never
+ * queues behind a chat-invoked scan burst. The eval cache + in-flight dedupe front both paths.
  */
 import { idbGet, idbSet } from "../store/idb";
 
@@ -23,56 +25,25 @@ export interface MultiLine extends Eval {
   pv: string[];
 }
 
-type EngineLike = { postMessage: (cmd: string) => void };
-
 // Single-threaded browser build, copied to /engine/ by scripts/copy-engine.mjs (predev).
 const ENGINE_URL = "/engine/stockfish-18-lite-single.js";
-// If a search produces no bestmove within this window, treat the engine as unavailable.
+// If a search produces no bestmove within this window, treat the search as stuck.
 const WATCHDOG_MS = 20000;
-
-let enginePromise: Promise<EngineLike | null> | null = null;
-let unavailable = false;
-// One persistent line handler, swapped per analyse() call (latest-FEN-wins).
-let lineHandler: ((line: string) => void) | null = null;
-
-async function getEngine(): Promise<EngineLike | null> {
-  if (unavailable) return null;
-  if (!enginePromise) {
-    enginePromise = (async () => {
-      try {
-        const worker = new Worker(ENGINE_URL);
-        worker.onmessage = (e: MessageEvent) => {
-          const data = e.data as unknown;
-          lineHandler?.(typeof data === "string" ? data : String(data));
-        };
-        worker.onerror = (e) => {
-          console.warn("[engine] worker error:", e.message);
-          unavailable = true;
-        };
-        worker.postMessage("uci");
-        // Once per worker, NOT per search (P2): a warm TT carries the previous search's work into
-        // the next near-identical position — repertoire scans get a real same-depth speedup. Node
-        // counts / tie-break lines may vary run-to-run as a result (same class as movetime).
-        worker.postMessage("ucinewgame");
-        worker.postMessage("isready");
-        return { postMessage: (cmd: string) => worker.postMessage(cmd) } satisfies EngineLike;
-      } catch (err) {
-        console.warn("[engine] stockfish unavailable:", err);
-        unavailable = true;
-        return null;
-      }
-    })();
-  }
-  return enginePromise;
-}
-
+const GRACE_MS = 2000;
 const DEPTH = 14;
 
-// Eval cache for analyseMulti (the heavy, repeated work: gaps / shorten / bridges / complementary
-// scans). Mirrors the MCP engine cache. Depth is a compared value (a result computed to >= the
-// request satisfies it). movetime requests compare at depth 0 (time-based, non-deterministic — any
-// prior result for that key serves). The single-PV live `analyse` is intentionally NOT cached: the
-// eval bar wants a fresh streaming search. FIFO eviction at MAX_CACHE.
+// Worker budget: one slot is reserved for the live board worker, the rest form the scan pool.
+// hardwareConcurrency caps it (low-end mobile: 2 → pool of 1 + live); absolute cap keeps the
+// wasm heaps (~64MB+ each) bounded on big desktops.
+const POOL_BUDGET = Math.min((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2, 5);
+const POOL_SIZE = Math.max(1, POOL_BUDGET - 1);
+// Consecutive failed (re)spawns before the pool stops trying (prevents a spawn storm).
+const MAX_BOOT_FAILURES = 2;
+
+// Eval cache for analyseMulti/analyseLive (the heavy, repeated work: gaps / shorten / bridges /
+// complementary scans). Mirrors the MCP engine cache. Depth is a compared value (a result computed
+// to >= the request satisfies it). movetime requests compare at depth 0 (time-based,
+// non-deterministic — any prior result for that key serves). FIFO eviction at MAX_CACHE.
 //
 // Key (P4): while the halfmove clock is < 50 the key is the first four FEN fields (same rule as
 // chess-tools' positionKey), so transpositions — same position, different move counters — hit.
@@ -97,6 +68,12 @@ function cacheGet(fen: string, multipv: number, depth: number): MultiLine[] | nu
     if (wider && wider.depth >= depth) return wider.lines.slice(0, multipv);
   }
   return null;
+}
+
+function cachePut(fen: string, multipv: number, depth: number, lines: MultiLine[]): void {
+  multiCache.set(cacheKey(fen, multipv), { depth, lines });
+  if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+  schedulePersist();
 }
 
 // P3 — persist multiCache to IndexedDB so a reload doesn't re-search the same repertoire. Loaded
@@ -128,121 +105,279 @@ function schedulePersist(): void {
   }, 1500);
 }
 
-// One engine, one search at a time. Every search runs through this chain so two consumers
-// (eval bar, analysis panel) never drive overlapping `go` commands at the shared Worker —
-// which traps the wasm. Latest-wins debouncing happens above; this just serialises.
-let chain: Promise<unknown> = Promise.resolve();
-function serial<T>(fn: () => Promise<T>): Promise<T> {
-  const run = chain.then(fn, fn);
-  chain = run.catch(() => undefined);
-  return run;
-}
+// --- workers ----------------------------------------------------------------------------------
 
-/** Analyse `fen` to a fixed depth. Resolves null if the engine is unavailable. */
-export function analyse(fen: string): Promise<Eval | null> {
-  return serial(async () => {
-    const engine = await getEngine();
-    if (!engine) return null;
-    const blackToMove = fen.split(" ")[1] === "b";
+type WorkerEndpoint = {
+  post: (cmd: string) => void;
+  setHandler: (h: ((line: string) => void) | null) => void;
+  terminate: () => void;
+  dead: boolean;
+  /** resolves when the worker errors or is terminated (races the in-flight search). */
+  died: Promise<void>;
+};
 
-    return new Promise<Eval | null>((resolve) => {
-    let last: Eval | null = null;
-    // Watchdog: abort THIS search only (send "stop" → the imminent bestmove resolves with whatever
-    // depth was reached). Marking the engine unavailable here would brick it for the whole session on
-    // one slow search; only a worker error (getEngine) means it's really gone. The grace timer covers
-    // a truly hung worker — and must NOT resolve early otherwise, or the serial chain would drive an
-    // overlapping `go` at the still-searching Worker (which traps the wasm).
-    let graceTimer: ReturnType<typeof setTimeout> | undefined;
-    const wd = setTimeout(() => {
-      engine.postMessage("stop");
-      graceTimer = setTimeout(() => resolve(last), 2000);
-    }, WATCHDOG_MS);
-    lineHandler = (line: string) => {
-      if (line.startsWith("info") && line.includes(" score ")) {
-        const depthM = line.match(/ depth (\d+)/);
-        const cpM = line.match(/ score cp (-?\d+)/);
-        const mateM = line.match(/ score mate (-?\d+)/);
-        const depth = depthM ? Number(depthM[1]) : 0;
-        // Engine reports score from side-to-move POV; normalise to white-POV.
-        const sign = blackToMove ? -1 : 1;
-        last = {
-          depth,
-          cp: cpM ? sign * Number(cpM[1]) : null,
-          mate: mateM ? sign * Number(mateM[1]) : null,
-        };
-      } else if (line.startsWith("bestmove")) {
-        clearTimeout(wd);
-        clearTimeout(graceTimer);
-        resolve(last);
-      }
+// Constructor-level failure (asset missing, COEP, unsupported): no worker will ever boot.
+let unavailable = false;
+
+function spawnWorker(): WorkerEndpoint | null {
+  if (unavailable) return null;
+  try {
+    const worker = new Worker(ENGINE_URL);
+    let handler: ((line: string) => void) | null = null;
+    let markDead!: () => void;
+    const died = new Promise<void>((r) => (markDead = r));
+    const ep: WorkerEndpoint = {
+      post: (cmd) => worker.postMessage(cmd),
+      setHandler: (h) => (handler = h),
+      terminate: () => {
+        if (ep.dead) return;
+        ep.dead = true;
+        worker.terminate();
+        markDead();
+      },
+      dead: false,
+      died,
     };
-      engine.postMessage("setoption name MultiPV value 1");
-      engine.postMessage(`position fen ${fen}`);
-      engine.postMessage(`go depth ${DEPTH}`);
-    });
-  });
+    worker.onmessage = (e: MessageEvent) => {
+      const data = e.data as unknown;
+      handler?.(typeof data === "string" ? data : String(data));
+    };
+    worker.onerror = (e) => {
+      console.warn("[engine] worker error:", e.message);
+      ep.dead = true;
+      markDead();
+    };
+    // The stockfish.js worker buffers commands until the wasm is ready — no handshake wait needed.
+    worker.postMessage("uci");
+    // Once per worker, NOT per search (P2): a warm TT carries the previous search's work into
+    // the next near-identical position. Node counts / tie-break lines may vary run-to-run as a
+    // result (same class as movetime).
+    worker.postMessage("ucinewgame");
+    worker.postMessage("isready");
+    return ep;
+  } catch (err) {
+    console.warn("[engine] stockfish unavailable:", err);
+    unavailable = true;
+    return null;
+  }
 }
 
 /**
- * Top-`multipv` lines for `fen` to a fixed depth. Each line carries its first move (UCI) and
- * the white-POV score. Resolves null if the engine is unavailable.
+ * One search on an endpoint. Watchdog is stop-then-grace: on timeout send `stop` and resolve on
+ * the imminent bestmove with whatever depth was reached; only a truly hung worker trips the grace
+ * timer (→ null, caller terminates+respawns). `stopped` results are returned but never cached —
+ * their reached depth is below what the cache key would claim.
  */
-export function analyseMulti(fen: string, multipv: number, depth = DEPTH, movetime?: number): Promise<MultiLine[] | null> {
-  const hit = cacheGet(fen, multipv, movetime != null ? 0 : depth);
-  if (hit) return Promise.resolve(hit);
-  return serial(async () => {
-    const engine = await getEngine();
-    if (!engine) return null;
-    const blackToMove = fen.split(" ")[1] === "b";
-    const sign = blackToMove ? -1 : 1;
+type SearchOutcome = { lines: MultiLine[]; stopped: boolean } | null;
 
-    return new Promise<MultiLine[] | null>((resolve) => {
+function runSearch(ep: WorkerEndpoint, fen: string, multipv: number, depth: number, movetime?: number): Promise<SearchOutcome> {
+  const sign = fen.split(" ")[1] === "b" ? -1 : 1;
+  return new Promise<SearchOutcome>((resolve) => {
     const lines = new Map<number, MultiLine>();
-    // Per-search watchdog only — same stop-then-grace shape as analyse(): never poison the engine for
-    // the session, never resolve while the Worker may still be searching. A stopped search's partial
-    // result is returned but NOT cached (its reached depth is below what the key would claim).
     let stopped = false;
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (out: SearchOutcome) => {
+      clearTimeout(wd);
+      clearTimeout(graceTimer);
+      ep.setHandler(null);
+      resolve(out);
+    };
     const wd = setTimeout(() => {
       stopped = true;
-      engine.postMessage("stop");
-      graceTimer = setTimeout(() => resolve(null), 2000);
+      ep.post("stop");
+      graceTimer = setTimeout(() => finish(null), GRACE_MS);
     }, WATCHDOG_MS);
-    lineHandler = (line: string) => {
+    ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
-        const pvIdx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
-        const depth = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
-        const cpM = line.match(/ score cp (-?\d+)/);
-        const mateM = line.match(/ score mate (-?\d+)/);
+        const idx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
+        const d = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
+        const cp = line.match(/ score cp (-?\d+)/);
+        const mate = line.match(/ score mate (-?\d+)/);
         const pvStr = line.split(" pv ")[1];
         const pv = pvStr ? pvStr.trim().split(/\s+/) : [];
-        const firstMove = pv[0];
-        if (!pvIdx || !firstMove) return;
-        lines.set(pvIdx, {
-          uci: firstMove,
+        if (!idx || !pv[0]) return;
+        lines.set(idx, {
+          uci: pv[0],
           pv,
-          depth,
-          cp: cpM ? sign * Number(cpM[1]) : null,
-          mate: mateM ? sign * Number(mateM[1]) : null,
+          depth: d,
+          cp: cp ? sign * Number(cp[1]) : null,
+          mate: mate ? sign * Number(mate[1]) : null,
         });
       } else if (line.startsWith("bestmove")) {
-        clearTimeout(wd);
-        clearTimeout(graceTimer);
-        const result = [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-        if (result.length && !stopped) {
-          // Store the depth actually reached (like the Node engine cache) so a movetime result can
-          // still serve later depth requests it satisfies.
-          const reached = movetime != null ? result.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
-          multiCache.set(cacheKey(fen, multipv), { depth: reached, lines: result });
-          if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
-          schedulePersist();
-        }
-        resolve(result);
+        finish({ lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v), stopped });
       }
-    };
-      engine.postMessage(`setoption name MultiPV value ${multipv}`);
-      engine.postMessage(`position fen ${fen}`);
-      engine.postMessage(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);
     });
+    ep.post(`setoption name MultiPV value ${multipv}`);
+    ep.post(`position fen ${fen}`);
+    ep.post(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);
   });
+}
+
+// --- scan pool (P1) ---
+
+type Job = {
+  fen: string;
+  multipv: number;
+  depth: number;
+  movetime?: number;
+  retried: boolean;
+  resolve: (out: SearchOutcome) => void;
+};
+
+const queue: Job[] = [];
+const idle: WorkerEndpoint[] = [];
+let livePool = 0;
+let bootFailures = 0;
+let poolStarted = false;
+
+function addPoolWorker(ep: WorkerEndpoint): void {
+  livePool++;
+  bootFailures = 0;
+  void ep.died.then(() => {
+    livePool--;
+    const i = idle.indexOf(ep);
+    if (i >= 0) idle.splice(i, 1);
+    if (!unavailable && bootFailures < MAX_BOOT_FAILURES) {
+      const next = spawnWorker();
+      if (next) {
+        addPoolWorker(next);
+        return;
+      }
+      bootFailures++;
+    }
+    // Pool gone for good — fail pending jobs instead of leaving them queued forever.
+    if (livePool === 0) for (const job of queue.splice(0)) job.resolve(null);
+  });
+  idle.push(ep);
+  pump();
+}
+
+function pump(): void {
+  while (queue.length && idle.length) {
+    const job = queue.shift()!;
+    const ep = idle.pop()!;
+    void runOnWorker(ep, job);
+  }
+}
+
+async function runOnWorker(ep: WorkerEndpoint, job: Job): Promise<void> {
+  const outcome = await Promise.race([
+    runSearch(ep, job.fen, job.multipv, job.depth, job.movetime),
+    ep.died.then(() => "died" as const),
+  ]);
+  if (outcome === "died") {
+    // Worker error mid-search: requeue once (a transient), fail on the second attempt.
+    if (!job.retried) {
+      job.retried = true;
+      queue.unshift(job);
+      pump();
+    } else {
+      job.resolve(null);
+    }
+    return;
+  }
+  if (outcome === null) {
+    // Hung past stop+grace: this worker is wedged — terminate it (the death handler respawns).
+    ep.terminate();
+    job.resolve(null);
+    return;
+  }
+  job.resolve(outcome);
+  if (!ep.dead) {
+    idle.push(ep);
+    pump();
+  }
+}
+
+/** Lazily boot the pool; true iff at least one worker is live. */
+function ensurePool(): boolean {
+  if (!poolStarted) {
+    poolStarted = true;
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const ep = spawnWorker();
+      if (!ep) break; // constructor threw → unavailable; earlier successes (none on i=0) still serve
+      addPoolWorker(ep);
+    }
+  }
+  return livePool > 0;
+}
+
+function poolSearch(fen: string, multipv: number, depth: number, movetime?: number): Promise<SearchOutcome> {
+  return new Promise((resolve) => {
+    queue.push({ fen, multipv, depth, movetime, retried: false, resolve });
+    pump();
+  });
+}
+
+// --- in-flight dedupe (R4) ---
+// Two concurrent misses for the same cache key share one search. Depth is part of the JOIN
+// condition, not the key — a depth-16 request must not silently adopt a pending depth-12 search
+// (mirrors the cache's depth-reuse rule; movetime requests join anything).
+const inFlight = new Map<string, { depth: number; promise: Promise<MultiLine[] | null> }>();
+
+function withDedupe(fen: string, multipv: number, wanted: number, run: () => Promise<MultiLine[] | null>): Promise<MultiLine[] | null> {
+  const key = cacheKey(fen, multipv);
+  const pending = inFlight.get(key);
+  if (pending && pending.depth >= wanted) return pending.promise;
+  const promise = run();
+  inFlight.set(key, { depth: wanted, promise });
+  void promise.finally(() => {
+    if (inFlight.get(key)?.promise === promise) inFlight.delete(key);
+  });
+  return promise;
+}
+
+// --- public API ---
+
+/**
+ * Top-`multipv` lines for `fen` to `depth`. White-POV scores. Resolves null if the engine is
+ * unavailable. Runs on the scan pool — concurrent calls run in parallel up to POOL_SIZE.
+ */
+export function analyseMulti(fen: string, multipv: number, depth = DEPTH, movetime?: number): Promise<MultiLine[] | null> {
+  const wanted = movetime != null ? 0 : depth;
+  const hit = cacheGet(fen, multipv, wanted);
+  if (hit) return Promise.resolve(hit);
+  return withDedupe(fen, multipv, wanted, async () => {
+    if (!ensurePool()) return null;
+    const outcome = await poolSearch(fen, multipv, depth, movetime);
+    if (outcome === null) return null;
+    if (outcome.lines.length && !outcome.stopped) {
+      // Store the depth actually reached (like the Node engine cache) so a movetime result can
+      // still serve later depth requests it satisfies.
+      const reached = movetime != null ? outcome.lines.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
+      cachePut(fen, multipv, reached, outcome.lines);
+    }
+    return outcome.lines;
+  });
+}
+
+// The live board worker: dedicated, so browsing positions never waits behind a scan burst
+// filling the pool queue. Its searches serialize among themselves (latest-wins debouncing
+// happens in store/analysis.ts; this just prevents overlapping `go` at one Worker).
+let liveEp: WorkerEndpoint | null = null;
+let liveChain: Promise<unknown> = Promise.resolve();
+function liveSerial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = liveChain.then(fn, fn);
+  liveChain = run.catch(() => undefined);
+  return run;
+}
+
+/** analyseMulti semantics on the dedicated live worker (board arrows / eval bar). */
+export function analyseLive(fen: string, multipv: number, depth = DEPTH): Promise<MultiLine[] | null> {
+  const hit = cacheGet(fen, multipv, depth);
+  if (hit) return Promise.resolve(hit);
+  return withDedupe(fen, multipv, depth, () =>
+    liveSerial(async () => {
+      if (!liveEp || liveEp.dead) liveEp = spawnWorker();
+      if (!liveEp) return null;
+      const outcome = await runSearch(liveEp, fen, multipv, depth);
+      if (outcome === null) {
+        // Wedged — terminate; the next call respawns.
+        liveEp.terminate();
+        return null;
+      }
+      if (outcome.lines.length && !outcome.stopped) cachePut(fen, multipv, depth, outcome.lines);
+      return outcome.lines;
+    }),
+  );
 }

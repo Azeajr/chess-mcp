@@ -13,7 +13,7 @@ wins are ranked: fewer searches > cheaper searches > parallel searches > everyth
 
 ## Performance / speedups
 
-### P1. Engine pool — parallel searches — ✅ Node shipped 2026-07-13 (browser pending)
+### P1. Engine pool — parallel searches — ✅ shipped 2026-07-13 (both hosts)
 
 Design + decisions: `docs/design/ENGINE_POOL.md`. Node: pool of Stockfish wasm child processes
 (UCI over stdio; worker_threads is a dead end — the emscripten UMD wrapper treats a node worker
@@ -23,8 +23,9 @@ fails. chess-tools scan loops (`findRepertoireGaps`, `auditRepertoireMoves`, `an
 queue is the limiter. Fixture scan (96 positions, depth 14 multipv 2, cache off): 17.1s serial →
 **6.4s at 4 children (2.7×)**, 4.9s at 8. Absorbed R4 (in-flight dedupe, depth-aware join) and
 fixed R1 on the pool path (per-child single ownership + stop-then-grace; stopped partials never
-cached). Deferred: prune-scan concurrency (budget/cursor accounting), **browser pool + dedicated
-eval-bar worker** (phase 4 in ENGINE_POOL.md).
+cached). Browser half: N-worker scan pool behind `analyseMulti` + a DEDICATED live worker
+(`analyseLive`, store/analysis.ts) so board browsing never queues behind a chat-scan burst;
+dead streaming `analyse()` deleted. Deferred: prune-scan concurrency (budget/cursor accounting).
 
 ### P2. Stop clearing the engine's transposition table between searches — ✅ shipped 2026-07-13
 
@@ -194,12 +195,11 @@ position; full fix: one root-position helper all walkers share.
 the README documents "idle seconds before a cached repertoire expires" and memory-bounding is the
 TTL's job. One `if (now - e.ts > TTL_MS)` in `get()`.
 
-### R4. No in-flight request coalescing at either engine — ✅ Node fixed 2026-07-13 (P1 pool)
+### R4. No in-flight request coalescing at either engine — ✅ fixed 2026-07-13 (P1 pool, both hosts)
 
-Node `analyseMulti` now keeps an in-flight map keyed by cache key; a concurrent identical miss
-joins the pending search (join requires pending depth ≥ requested — a depth-16 request never
-silently adopts a pending depth-12 result). Browser side still uncoalesced — lands with the
-browser pool (ENGINE_POOL.md phase 4).
+`analyseMulti` (and browser `analyseLive`) keep an in-flight map keyed by cache key; a concurrent
+identical miss joins the pending search (join requires pending depth ≥ requested — a depth-16
+request never silently adopts a pending depth-12 result).
 
 ### R5. Autosave restore trusts the saved path
 
@@ -243,9 +243,9 @@ rest of the PWA is local-first.
    cross-multipv cache serve on both hosts and the `turnNodes` shared walker).
 3. ~~**P2** (keep TT warm)~~ — shipped 2026-07-13 (see §P2; ~19% same-depth scan speedup,
    nondeterminism trade-off documented in AGENTS.md).
-4. ~~**P1** (engine pool)~~ — Node half shipped 2026-07-13 (child-process pool, concurrent scan
-   loops, R4 dedupe, R1 fix; 2.7× on the fixture scan). Remaining: browser pool + dedicated
-   eval-bar worker (ENGINE_POOL.md phase 4).
+4. ~~**P1** (engine pool)~~ — shipped 2026-07-13, both hosts (Node child-process pool +
+   concurrent scan loops, 2.7× on the fixture scan; browser worker pool + dedicated live worker;
+   R4 dedupe, R1 fix — see ENGINE_POOL.md).
 5. **T2** (explorer client + popularity gaps) — ← **NEXT**. Unlocks the existing ROADMAP item.
 6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
    is already emitted by T1.

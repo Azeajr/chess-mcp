@@ -145,11 +145,12 @@ Fix: expose both to chat (handle-free wrappers exist in chess-tools; executor is
 
 `streamChat` accepts a `signal?: AbortSignal` (openrouter.ts:59) but `chat.ts` never passes one,
 `ChatPanel` has no stop button (input + Send are simply disabled while `busy()`), and `runTool` /
-the engine layer have no cancellation regardless — so aborting the fetch would still leave a wasm
-search running. A chat-invoked gap scan runs chess-tools defaults (20 positions × depth 14
-multipv-4, single-threaded wasm — `engine/stockfish.ts` serialises to one eval at a time) — the
-turn blocks for minutes with no feedback and no way out. The panel versions have cancel tokens +
-determinate progress for exactly this reason (and run lighter: 12 × depth 12).
+the engine layer have no cancellation regardless — so aborting the fetch would still leave wasm
+searches running. A chat-invoked gap scan runs chess-tools defaults (20 positions × depth 14
+multipv-4) — since the P1 pool that's parallel across `min(hardwareConcurrency,5)-1` Workers and
+the live board worker stays responsive, but the turn still blocks with no feedback and no way
+out. The panel versions have cancel tokens + determinate progress for exactly this reason (and
+run lighter: 12 × depth 12).
 
 Fix: wire an AbortSignal from a ChatPanel stop button through `send` → `streamChat` AND a cancel
 token into `runTool`'s engine calls; consider browser-tuned defaults for chat-invoked scans.
