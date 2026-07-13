@@ -13,19 +13,21 @@ wins are ranked: fewer searches > cheaper searches > parallel searches > everyth
 
 ## Performance / speedups
 
-### P1. Engine pool — parallel searches — ✅ shipped 2026-07-13 (both hosts)
+### P1. Engine pool — parallel searches — ✅ shipped 2026-07-13 (both hosts, commits 7d0fe32 + 9d34f57)
 
-Design + decisions: `docs/design/ENGINE_POOL.md`. Node: pool of Stockfish wasm child processes
-(UCI over stdio; worker_threads is a dead end — the emscripten UMD wrapper treats a node worker
-as a web worker), `ENGINE_POOL_SIZE` env (default `min(cores,4)`), in-process fallback when spawn
-fails. chess-tools scan loops (`findRepertoireGaps`, `auditRepertoireMoves`, `analyzeMainline`,
-`compareMoves`, `checkShortcutCoverage`) now fire per-position searches concurrently — the pool
-queue is the limiter. Fixture scan (96 positions, depth 14 multipv 2, cache off): 17.1s serial →
-**6.4s at 4 children (2.7×)**, 4.9s at 8. Absorbed R4 (in-flight dedupe, depth-aware join) and
-fixed R1 on the pool path (per-child single ownership + stop-then-grace; stopped partials never
-cached). Browser half: N-worker scan pool behind `analyseMulti` + a DEDICATED live worker
-(`analyseLive`, store/analysis.ts) so board browsing never queues behind a chat-scan burst;
-dead streaming `analyse()` deleted. Deferred: prune-scan concurrency (budget/cursor accounting).
+Node: pool of Stockfish wasm child processes speaking UCI over stdio (worker_threads is a dead
+end — the emscripten UMD wrapper treats a node worker as a web worker and exports nothing),
+`ENGINE_POOL_SIZE` env (default `min(cores,4)`, `0` forces the old in-process engine, which is
+also the automatic fallback when spawn fails). chess-tools scan loops (`findRepertoireGaps`,
+`auditRepertoireMoves`, `analyzeMainline`, `compareMoves`, `checkShortcutCoverage`) fire
+per-position searches concurrently — the pool queue is the limiter. Fixture scan (96 positions,
+depth 14 multipv 2, cache off): 17.1s serial → **6.4s at 4 children (2.7×)**, 4.9s at 8.
+Absorbed R4 (in-flight dedupe, depth-aware join) and fixed R1 on the pool path (per-child single
+ownership + stop-then-grace; stopped partials never cached). Browser half: N-worker scan pool
+behind `analyseMulti` (budget `min(hardwareConcurrency||2,5)`, one slot reserved) + a DEDICATED
+live worker (`analyseLive`, store/analysis.ts) so board browsing never queues behind a chat-scan
+burst; dead streaming `analyse()` deleted. Deferred: prune-scan concurrency — its budget/cursor
+accounting conflicts with fire-all, and the cross-leaf memo + persistent cache already blunt it.
 
 ### P2. Stop clearing the engine's transposition table between searches — ✅ shipped 2026-07-13
 
@@ -245,7 +247,7 @@ rest of the PWA is local-first.
    nondeterminism trade-off documented in AGENTS.md).
 4. ~~**P1** (engine pool)~~ — shipped 2026-07-13, both hosts (Node child-process pool +
    concurrent scan loops, 2.7× on the fixture scan; browser worker pool + dedicated live worker;
-   R4 dedupe, R1 fix — see ENGINE_POOL.md).
+   R4 dedupe, R1 fix — see §P1).
 5. **T2** (explorer client + popularity gaps) — ← **NEXT**. Unlocks the existing ROADMAP item.
 6. **T3/T4** — composition tools on top of T1/T2 output. T4's only-move input (`best_margin`)
    is already emitted by T1.

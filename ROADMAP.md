@@ -9,7 +9,7 @@ Grounded chess analysis for AI agents. The agent never guesses a move, FEN, or e
 position is validated and every line is engine-checked through the MCP tools. Two surfaces share one
 TypeScript chess core (`packages/chess-tools`):
 
-1. **The MCP server** (`apps/mcp-server`) — 33 tools for game review and repertoire work, used from
+1. **The MCP server** (`apps/mcp-server`) — 34 tools for game review and repertoire work, used from
    Claude Code (and any MCP client).
 2. **The PWA** (`apps/ui`) — a local-first SolidJS board for building and studying repertoires.
 
@@ -20,8 +20,12 @@ engine-grounded.
 
 ## Where it is now (shipped)
 
-- **Node MCP server** — 33 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
+- **Node MCP server** — 34 tools over `chessops` + a bundled `stockfish` wasm. Local stdio, no
   Docker, no port, no host engine install.
+- **Engine pool (P1)** — parallel searches on both hosts: Node runs a child-process pool speaking
+  UCI over stdio (`ENGINE_POOL_SIZE`, default `min(cores,4)`, in-process fallback); the PWA runs a
+  Worker pool plus a dedicated live worker so board browsing never queues behind a scan burst.
+  chess-tools scans fire per-position searches concurrently — fixture gap scan 17.1s → 6.4s.
 - **Persistent, transposition-keyed eval cache** (`apps/mcp-server/src/engine.ts`, mirrored in the
   PWA engine) — keyed by position (clocks dropped below halfmove 50, full FEN at/above), depth-reuse,
   1000-entry FIFO; write-through to `~/.cache/chess-mcp/evals.jsonl` (Node) / IndexedDB (PWA) so
@@ -62,17 +66,18 @@ server installable as a self-contained artifact.
 
 ## Engineering backlog
 
-- [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`: engine pool
-      (parallel scans), ~~persistent transposition-keyed eval cache~~ (P3+P4 shipped), warm TT
-      between searches,
-      `audit_repertoire_moves` (engine-check the user's own moves tree-wide), Lichess opening
-      explorer (popularity-weighted gaps + theory-depth), `prep_vs_opponent`, only-move drill
-      export. Suggested order inside.
+- [ ] **Perf + missing-tools review** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
+      ~~persistent transposition-keyed eval cache~~ (P3+P4), ~~warm TT~~ (P2),
+      ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts). Remaining, in order:
+      **Lichess opening explorer (T2** — popularity-weighted gaps + theory-depth**)**,
+      `prep_vs_opponent` (T3), only-move drill export (T4), then opportunistic P5-P8 micro-perf
+      and R2/R3/R5-R9 robustness notes.
 - [ ] **PWA chat toolset weak points** — full audit in
-      `docs/design/CHAT_TOOLSET_REVIEW.md` (14 items: 4 stale/broken workflow instructions incl. a
+      `docs/design/CHAT_TOOLSET_REVIEW.md` (17 items: 4 stale/broken workflow instructions incl. a
       nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks
-      (full-PGN previews, PGN-through-context batch_review/history/annotate, 28 schemas per turn),
-      C3/C4 chat parity, no cancel for long chat tool calls, preview dead ends).
+      (full-PGN previews, PGN-through-context batch_review/history/annotate, 28 schemas per round),
+      C3/C4 chat parity, no cancel for long chat tool calls, preview dead ends). Suggested order
+      inside.
 - [ ] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` exercises the tools through the
       engine but hits live Lichess/Chess.com, so it's excluded from CI. Gate the network assertions
       behind an env flag so the engine + non-network paths run in CI.
