@@ -15,9 +15,9 @@ import {
   defaultGame,
   parsePgn,
   makePgn,
+  Node,
   ChildNode,
   type Game,
-  type Node,
   type PgnNodeData,
 } from "chessops/pgn";
 import { chessgroundDests } from "chessops/compat";
@@ -185,9 +185,10 @@ export function landsInCrossBranchPrep(
   return { sanPath: tgt.sanPath, ply: tgt.ply };
 }
 
-/** Legal moves at `pos` as { move, after } — pawns to the last rank as queen promotions only. */
-export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[] {
-  const out: { move: NormalMove; after: Chess }[] = [];
+/** Legal moves at `pos` as { move, after }, yielded lazily — pawns to the last rank as queen
+ *  promotions only. Each yield costs one `pos.clone()`, so an early-exiting consumer (P6:
+ *  `someLegal`) skips the clones a full enumeration would pay. */
+export function* iterateLegal(pos: Chess): Generator<{ move: NormalMove; after: Chess }> {
   for (const [orig, dests] of chessgroundDests(pos)) {
     const from = parseSquare(orig)!;
     for (const dest of dests) {
@@ -198,14 +199,38 @@ export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[]
         piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
       const after = pos.clone();
       after.play(move);
-      out.push({ move, after });
+      yield { move, after };
     }
   }
-  return out;
+}
+
+/** Legal moves at `pos` as { move, after } — pawns to the last rank as queen promotions only. */
+export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[] {
+  return [...iterateLegal(pos)];
+}
+
+/** True when any legal move satisfies `pred` — stops cloning at the first hit (P6). */
+export function someLegal(pos: Chess, pred: (m: { move: NormalMove; after: Chess }) => boolean): boolean {
+  for (const m of iterateLegal(pos)) if (pred(m)) return true;
+  return false;
+}
+
+/** P5: one leaf's engine-free prune-scan pre-pass — the replayed step positions plus the indices
+ *  of your-turn steps that have a cross-branch transposer (the only nodes worth an engine call). */
+interface PruneLeafWork {
+  leaf: Path;
+  leafSan: string[];
+  steps: { pos: Chess; ply: number }[];
+  candidates: number[];
 }
 
 export class GameTree {
   game: Game<PgnNodeData>;
+
+  /** P5: cached prune-scan pre-pass (key index + per-leaf replay/candidates). Valid because the
+   *  tree is immutable per MCP handle (edits clone-on-write); the UI's live tree mutates only
+   *  through appendSan, which drops the cache. Scan code must treat `steps[].pos` as read-only. */
+  private _pruneWork: { color: Color; keyMap: KeyIndex["keyMap"]; work: PruneLeafWork[] } | null = null;
 
   constructor(game?: Game<PgnNodeData>) {
     this.game = game ?? defaultGame();
@@ -334,6 +359,7 @@ export class GameTree {
     if (existing >= 0) return { path: [...path, existing], appended: false };
     const child = new ChildNode<PgnNodeData>({ san });
     parent.children.push(child);
+    this._pruneWork = null; // P5: tree shape changed — the cached pre-pass is stale
     return { path: [...path, parent.children.length - 1], appended: true };
   }
 
@@ -527,65 +553,64 @@ export class GameTree {
     const confirmDepth = opts.confirmDepth; // E1: deep-confirm depth for each line's best-eval pick
     const MATE = 100000;
 
-    const { keyMap } = buildKeyIndex(this.game.moves);
-
     const moverCp = (fen: string, l: PruneEngineLine) => {
       const white = l.mate !== null ? (l.mate > 0 ? MATE : -MATE) : (l.cp ?? 0);
       return fen.split(" ")[1] === "w" ? white : -white;
     };
 
-    // Every leaf's index path.
-    const leaves: Path[] = [];
-    const collect = (node: Node<PgnNodeData>, path: Path) => {
-      if (node.children.length === 0) {
-        if (path.length) leaves.push(path);
-        return;
-      }
-      node.children.forEach((c, i) => collect(c, [...path, i]));
-    };
-    collect(this.game.moves, []);
-
-    // Cursor slice: scan leaves [leafStart, leafStart+leafCount). Default = the whole tree.
-    const totalLeaves = leaves.length;
-    const leafStart = Math.min(Math.max(opts.leafStart ?? 0, 0), totalLeaves);
-    const leafCount = opts.leafCount ?? totalLeaves - leafStart;
-    const slice = leaves.slice(leafStart, leafStart + leafCount);
-
     // Pre-pass (engine-free, P1): replay each leaf and find the your-turn nodes that actually have a
     // legal move transposing into a DIFFERENT prepared line — the ONLY nodes worth an engine call.
     // Skipping the rest is the main speed-up, and the candidate count is a TIGHT progress denominator
-    // (real engine work, not a loose parity bound).
-    interface LeafWork {
-      leaf: Path;
-      leafSan: string[];
-      steps: { pos: Chess; ply: number }[];
-      candidates: number[]; // indices into steps: your-turn nodes with a cross-branch transposer
-    }
-    const replayLeaf = (leaf: Path): LeafWork => {
-      const leafSan: string[] = [];
-      const steps: { pos: Chess; ply: number }[] = [];
-      const pos = Chess.default();
-      let node: Node<PgnNodeData> = this.game.moves;
-      for (let depth = 0; depth < leaf.length; depth++) {
-        steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
-        const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
-        const move = parseSan(pos, child.data.san);
-        if (!move) break;
-        pos.play(move);
-        leafSan.push(child.data.san);
-        node = child;
-      }
-      const candidates: number[] = [];
-      steps.forEach((s, idx) => {
-        if (s.pos.turn !== color) return;
-        if (enumerateLegal(s.pos).some((m) => landsInCrossBranchPrep(keyMap, m.after, leaf) != null)) {
-          candidates.push(idx);
-        }
-      });
-      return { leaf, leafSan, steps, candidates };
-    };
+    // (real engine work, not a loose parity bound). P5: the pre-pass is O(whole tree) and depends only
+    // on the tree + color, so it is computed once per instance and reused across cursor chunks (and
+    // repeat scans on the same MCP handle) instead of being re-run on every chunked call.
+    if (!this._pruneWork || this._pruneWork.color !== color) {
+      const keyIndex = buildKeyIndex(this.game.moves).keyMap;
 
-    const allWork = leaves.map(replayLeaf);
+      // Every leaf's index path.
+      const leaves: Path[] = [];
+      const collect = (node: Node<PgnNodeData>, path: Path) => {
+        if (node.children.length === 0) {
+          if (path.length) leaves.push(path);
+          return;
+        }
+        node.children.forEach((c, i) => collect(c, [...path, i]));
+      };
+      collect(this.game.moves, []);
+
+      const replayLeaf = (leaf: Path): PruneLeafWork => {
+        const leafSan: string[] = [];
+        const steps: { pos: Chess; ply: number }[] = [];
+        const pos = Chess.default();
+        let node: Node<PgnNodeData> = this.game.moves;
+        for (let depth = 0; depth < leaf.length; depth++) {
+          steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
+          const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
+          const move = parseSan(pos, child.data.san);
+          if (!move) break;
+          pos.play(move);
+          leafSan.push(child.data.san);
+          node = child;
+        }
+        const candidates: number[] = [];
+        steps.forEach((s, idx) => {
+          if (s.pos.turn !== color) return;
+          // P6: stop cloning at the first cross-branch hit instead of materialising every after-position.
+          if (someLegal(s.pos, (m) => landsInCrossBranchPrep(keyIndex, m.after, leaf) != null)) {
+            candidates.push(idx);
+          }
+        });
+        return { leaf, leafSan, steps, candidates };
+      };
+
+      this._pruneWork = { color, keyMap: keyIndex, work: leaves.map(replayLeaf) };
+    }
+    const { keyMap, work: allWork } = this._pruneWork;
+
+    // Cursor slice: scan leaves [leafStart, leafStart+leafCount). Default = the whole tree.
+    const totalLeaves = allWork.length;
+    const leafStart = Math.min(Math.max(opts.leafStart ?? 0, 0), totalLeaves);
+    const leafCount = opts.leafCount ?? totalLeaves - leafStart;
     const sliceWork = allWork.slice(leafStart, leafStart + leafCount);
     const totalPositionsEstimate = allWork.reduce((a, w) => a + w.candidates.length, 0);
     const sliceEstimate = sliceWork.reduce((a, w) => a + w.candidates.length, 0);
@@ -923,6 +948,33 @@ export class GameTree {
   }
 
   /**
+   * Deep structural copy (P8): nodes and their data (san/nags/comments) are copied directly —
+   * no PGN serialize + reparse + full legality replay. Safe because the source tree is already
+   * legal (validated at construction), so a copy cannot introduce illegality.
+   */
+  clone(): GameTree {
+    const copyChildren = (src: Node<PgnNodeData>, dst: Node<PgnNodeData>) => {
+      for (const c of src.children) {
+        const child = new ChildNode<PgnNodeData>({
+          ...c.data,
+          nags: c.data.nags?.slice(),
+          comments: c.data.comments?.slice(),
+          startingComments: c.data.startingComments?.slice(),
+        });
+        dst.children.push(child);
+        copyChildren(c, child);
+      }
+    };
+    const root = new Node<PgnNodeData>();
+    copyChildren(this.game.moves, root);
+    return new GameTree({
+      headers: new Map(this.game.headers),
+      comments: this.game.comments?.slice(),
+      moves: root,
+    });
+  }
+
+  /**
    * Clone-on-write edit (port of apply_repertoire_edit). Returns a NEW GameTree with the edit
    * applied; `this` is untouched. error ∈ variation_not_found / invalid_line / invalid_edit.
    *   - prune: remove the node at `sanPath` and its subtree (path must be non-empty).
@@ -934,7 +986,7 @@ export class GameTree {
     sanPath: readonly string[],
     opts: { addMoves?: string[]; promoteMove?: string } = {},
   ): { tree: GameTree | null; error: string | null; added?: { from: string[]; moves: string[] } } {
-    const clone = GameTree.fromPgn(this.toPgn()); // deep copy via round-trip
+    const clone = this.clone(); // P8: structural deep copy, no PGN round-trip
     let effectiveSanPath = [...sanPath];
     let effectiveAddMoves = opts.addMoves ?? [];
     let res = clone.resolveSan(effectiveSanPath);

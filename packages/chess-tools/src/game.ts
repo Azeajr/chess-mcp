@@ -58,37 +58,55 @@ export function moveAccuracy(cpLoss: number): number {
 
 export type RepertoireMoveMap = Map<string, { sans: string[]; turn: Color }>;
 
+export interface PlayerDeviation {
+  ply: number;
+  fen: string;
+  prescribed: string[];
+  played: string;
+}
+export interface UncoveredOpponent {
+  ply: number;
+  fen: string;
+  played: string;
+}
 export interface GameWalk {
   /** plies the game stayed in the repertoire before its first departure. */
   in_book_plies: number;
-  /** where the user (repertoire side) left their own prep, if they did. */
-  player_deviation: { fen: string; prescribed: string[]; played: string } | null;
-  /** where the opponent played a move the prep doesn't cover, if they did. */
-  uncovered_opponent: { fen: string; played: string } | null;
+  /** every position where the user (repertoire side) left their own prep. */
+  player_deviations: PlayerDeviation[];
+  /** every position where the opponent played a move the prep doesn't cover. */
+  uncovered_opponents: UncoveredOpponent[];
 }
 
 /**
  * Walk a played game's mainline against a repertoire move-map (port of walk_game_vs_repertoire).
- * Records only the FIRST departure from book. `repColor` is the side the repertoire is for.
+ * Records EVERY departure, not just the first (T7): after a departure the walk continues over the
+ * remaining moves, checking each position against the map by transposition key — a game that
+ * leaves book at ply 6 can wander back into prep and still contain an opponent novelty at ply 14
+ * the prep should learn from. `in_book_plies` stays the consecutive-from-the-start count.
+ * `repColor` is the side the repertoire is for.
  */
 export function walkGameVsRepertoire(map: RepertoireMoveMap, repColor: Color, pgn: string): GameWalk {
   const moves = mainline(pgn);
   let inBook = 0;
+  let stillInBook = true;
+  const player_deviations: PlayerDeviation[] = [];
+  const uncovered_opponents: UncoveredOpponent[] = [];
   for (const m of moves) {
     const entry = map.get(positionKey(m.fenBefore));
-    if (!entry) break; // position not in the prep
-    if (m.color === repColor) {
-      // player to move: did they follow their own prep?
-      if (!entry.sans.includes(m.san))
-        return { in_book_plies: inBook, player_deviation: { fen: m.fenBefore, prescribed: entry.sans, played: m.san }, uncovered_opponent: null };
-    } else {
-      // opponent to move: is their move covered?
-      if (!entry.sans.includes(m.san))
-        return { in_book_plies: inBook, player_deviation: null, uncovered_opponent: { fen: m.fenBefore, played: m.san } };
+    if (!entry) {
+      stillInBook = false; // position not in the prep — keep walking; a transposition may re-enter it
+      continue;
     }
-    inBook++;
+    const covered = entry.sans.includes(m.san);
+    if (!covered) {
+      if (m.color === repColor) player_deviations.push({ ply: m.ply, fen: m.fenBefore, prescribed: entry.sans, played: m.san });
+      else uncovered_opponents.push({ ply: m.ply, fen: m.fenBefore, played: m.san });
+      stillInBook = false;
+    }
+    if (stillInBook) inBook++;
   }
-  return { in_book_plies: inBook, player_deviation: null, uncovered_opponent: null };
+  return { in_book_plies: inBook, player_deviations, uncovered_opponents };
 }
 
 export interface GameRecord {

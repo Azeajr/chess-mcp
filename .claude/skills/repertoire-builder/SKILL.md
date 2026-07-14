@@ -75,6 +75,9 @@ comparing handles, with no re-download. See "Edit loop" below.
 2. `get_structural_profile(repertoire_id)` (no path) → the repertoire's **aggregate fingerprint**:
    which `structures` it reaches (IQP / Carlsbad / Maroczy / unknown, with counts), center tendencies,
    common open / half-open files. This is the repertoire's strategic identity — state it plainly.
+   To turn that into a QUERY ("which lines actually reach the IQP / a locked center / the
+   fianchetto?"), `find_structures(repertoire_id, structure?/center?/themes?/color_complex?)` —
+   engine-free, criteria AND-ed — returns the matching lines with their paths.
 3. `analyze_repertoire_congruence(repertoire_id)` → thematic **incongruencies**, judged WITHIN each
    opening system (lines are clustered by move-order-robust system, so a system reached via several
    first moves is judged as one and distinct systems under one first move don't dilute each other): a
@@ -202,6 +205,10 @@ same session — no hand-editing, no re-download, no fresh session:
    large PGN never enters your context (`path` is confined to the configured repertoire dir).
    Otherwise `export_repertoire(final_id)` returns the `pgn` string — Write it to disk yourself;
    **do NOT print it into the conversation** (large artifact, not something to read aloud).
+   For a marked-up artifact instead of a clean one, `export_annotated_repertoire(final_id,
+   export_path)` embeds analysis findings (audit NAGs + cp-loss comments, only-move drill notes,
+   gaps, congruence outliers — pick with `include`) as PGN comments at the flagged nodes —
+   portable to any board GUI; same confined path handling, PGN never enters context.
 
 The agent orchestrates the loop purely with paths / actions / SAN the MCP surfaced. The ONLY chess
 content it ever writes to disk is the `pgn` string `export_repertoire` returned — it never authors,

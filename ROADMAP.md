@@ -78,8 +78,10 @@ server installable as a self-contained artifact.
       ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts), ~~Lichess opening
       explorer~~ (T2 — `position_popularity`, `find_theory_depth`, gap popularity weighting;
       needs `LICHESS_TOKEN`), ~~`prep_vs_opponent`~~ (T3), ~~only-move drill export~~ (T4 —
-      `find_only_moves` + flashcard CSV). Remaining: opportunistic P5-P8 micro-perf, T5-T7,
-      and R2/R3/R5-R9 robustness notes.
+      `find_only_moves` + flashcard CSV), ~~P5-P8 micro-perf~~ (prune pre-pass cache, lazy
+      legal-move enumeration, themes/center memo, structural clone), ~~T5~~ (`find_structures`),
+      ~~T6~~ (`export_annotated_repertoire`), ~~T7~~ (all-departures history walk).
+      Remaining: R2/R3/R5-R9 robustness notes.
 - [ ] **PWA chat toolset weak points** — full audit in
       `docs/design/CHAT_TOOLSET_REVIEW.md` (17 items: 4 stale/broken workflow instructions incl. a
       nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks

@@ -541,21 +541,22 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
       const matched = games.filter((g) => g.user_color === col && g.pgn);
       const map = tree.moveMap();
       let reached = 0, plySum = 0;
-      const dev = new Map<string, { fen: string; prescribed: string[]; played: string; count: number }>();
-      const unc = new Map<string, { fen: string; played: string; count: number }>();
+      const dev = new Map<string, { ply: number; fen: string; prescribed: string[]; played: string; count: number }>();
+      const unc = new Map<string, { ply: number; fen: string; played: string; count: number }>();
       for (const g of matched) {
+        // T7: the walk reports EVERY departure (it continues past the first by transposition key).
         const w = walkGameVsRepertoire(map, col, g.pgn!);
         if (w.in_book_plies >= 1) reached++;
         plySum += w.in_book_plies;
-        if (w.player_deviation) {
-          const k = `${w.player_deviation.fen}|${w.player_deviation.played}`;
-          const cur = dev.get(k) ?? { ...w.player_deviation, count: 0 };
+        for (const d of w.player_deviations) {
+          const k = `${d.fen}|${d.played}`;
+          const cur = dev.get(k) ?? { ...d, count: 0 };
           cur.count++;
           dev.set(k, cur);
         }
-        if (w.uncovered_opponent) {
-          const k = `${w.uncovered_opponent.fen}|${w.uncovered_opponent.played}`;
-          const cur = unc.get(k) ?? { ...w.uncovered_opponent, count: 0 };
+        for (const u of w.uncovered_opponents) {
+          const k = `${u.fen}|${u.played}`;
+          const cur = unc.get(k) ?? { ...u, count: 0 };
           cur.count++;
           unc.set(k, cur);
         }

@@ -147,8 +147,27 @@ export interface Themes {
   color_complex: "light" | "dark" | null;
 }
 
+// P7: themes/centerState get the same placement-keyed memo as classifyStructure — structuralSignals
+// calls all three per board (per leaf in buildFitProfile, per candidate in suggest_*, per ply in the
+// UI's lineFit), on positions that recur across tools within one repertoire workflow. Both depend
+// only on piece placement (+ color for themes), so entries are deterministic and never stale.
+// FIFO-bounded like STRUCT_CACHE. Cached objects are shared — callers must not mutate them.
+const THEMES_CACHE = new Map<string, Themes>();
+const CENTER_CACHE = new Map<string, "tense" | "locked" | "open" | "semi-open">();
+const MEMO_CAP = 4096;
+
 // Square indices: g2=14, b2=9, g7=54, b7=49.
 export function themes(board: Board, color: Color): Themes {
+  const key = `${makeBoardFen(board)}|${color}`;
+  const cached = THEMES_CACHE.get(key);
+  if (cached) return cached;
+  const result = themesUncached(board, color);
+  if (THEMES_CACHE.size >= MEMO_CAP) THEMES_CACHE.delete(THEMES_CACHE.keys().next().value!);
+  THEMES_CACHE.set(key, result);
+  return result;
+}
+
+function themesUncached(board: Board, color: Color): Themes {
   const wb = new Set(board.pieces("white", "bishop"));
   const bb = new Set(board.pieces("black", "bishop"));
   const wCenter = pawns(board, "white").filter((sq) => squareFile(sq) === 3 || squareFile(sq) === 4).length;
@@ -169,6 +188,16 @@ export function themes(board: Board, color: Color): Themes {
 
 // --- center state ---
 export function centerState(board: Board): "tense" | "locked" | "open" | "semi-open" {
+  const key = makeBoardFen(board);
+  const cached = CENTER_CACHE.get(key);
+  if (cached) return cached;
+  const result = centerStateUncached(board);
+  if (CENTER_CACHE.size >= MEMO_CAP) CENTER_CACHE.delete(CENTER_CACHE.keys().next().value!);
+  CENTER_CACHE.set(key, result);
+  return result;
+}
+
+function centerStateUncached(board: Board): "tense" | "locked" | "open" | "semi-open" {
   const white = new Set(pawns(board, "white"));
   const black = new Set(pawns(board, "black"));
   const central = [3, 4];
@@ -544,4 +573,78 @@ export function aggregateProfile(boards: Board[], color: Color) {
     common_open_files: [...openTally.entries()].filter(([, c]) => c / denom >= 0.5).map(([f]) => f).sort(),
     common_half_open_files: [...halfTally.entries()].filter(([, c]) => c / denom >= 0.5).map(([f]) => f).sort(),
   };
+}
+
+// --- structural position search (T5: the classifier as a QUERY, not just a profile) ---
+
+/** Every structure_class the classifier can emit (for validating a search query). */
+export const STRUCTURE_NAMES = [
+  "IQP",
+  "Closed Sicilian",
+  "Hedgehog",
+  "Najdorf",
+  "Scheveningen",
+  "Hanging pawns",
+  "Carlsbad",
+  "Maroczy",
+  "French",
+  "Stonewall",
+  "King's Indian",
+  "Benoni",
+  "Caro-Kann",
+  "Slav",
+  "Grünfeld Centre",
+  "Nimzo-Grünfeld",
+  "Symmetric Benoni",
+  "Lopez",
+  "Benko",
+] as const;
+
+export type ThemeName = (typeof BOOL_THEMES)[number];
+export const THEME_NAMES: readonly ThemeName[] = BOOL_THEMES;
+
+export interface StructureQuery {
+  /** Named structure_class to match (case-insensitive; see STRUCTURE_NAMES). */
+  structure?: string;
+  /** Minimum classifier confidence for a structure match (default 0). */
+  minConfidence?: number;
+  center?: "tense" | "locked" | "open" | "semi-open";
+  /** Boolean themes that must ALL be active. */
+  themes?: ThemeName[];
+  colorComplex?: "light" | "dark";
+}
+
+export interface StructureMatch {
+  path: string[];
+  fen: string;
+  structure_class: string;
+  confidence: number;
+  center: string;
+}
+
+/**
+ * Filter leaf positions by classifier output — "show every line reaching an IQP / fianchetto /
+ * locked-center position". All provided criteria are AND-ed. Engine-free; the memoised
+ * classifiers make repeat queries on the same repertoire near-instant.
+ */
+export function searchStructures(
+  leaves: { path: string[]; board: Board; fen: string }[],
+  color: Color,
+  q: StructureQuery,
+): StructureMatch[] {
+  const want = q.structure?.toLowerCase();
+  const out: StructureMatch[] = [];
+  for (const leaf of leaves) {
+    const cls = classifyStructure(leaf.board);
+    if (want !== undefined && (cls.structure_class.toLowerCase() !== want || cls.confidence < (q.minConfidence ?? 0))) continue;
+    const center = centerState(leaf.board);
+    if (q.center !== undefined && center !== q.center) continue;
+    if (q.themes?.length || q.colorComplex !== undefined) {
+      const t = themes(leaf.board, color);
+      if (q.themes?.some((name) => !t[name])) continue;
+      if (q.colorComplex !== undefined && t.color_complex !== q.colorComplex) continue;
+    }
+    out.push({ path: leaf.path, fen: leaf.fen, structure_class: cls.structure_class, confidence: cls.confidence, center });
+  }
+  return out;
 }

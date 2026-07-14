@@ -11,13 +11,15 @@ import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { makeSan, parseSan } from "chessops/san";
+import type { ChildNode, PgnNodeData } from "chessops/pgn";
 import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
 import { decisionNodes, turnNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
 import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
-import { replacementPivot } from "./repcongruence.js";
+import type { OpeningTable } from "./openings.js";
+import { replacementPivot, analyzeCongruence } from "./repcongruence.js";
 import {
   profileStructureShares,
   buildFitProfile,
@@ -492,6 +494,135 @@ export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): stri
     return [front, back, f.fen, String(f.margin)].map(csvField).join(",");
   });
   return ["front,back,fen,margin", ...rows].join("\n") + "\n";
+}
+
+// --- export_annotated_repertoire (T6: analysis findings as portable PGN comments/NAGs) ---
+
+export type AnnotateSource = "audit" | "only_moves" | "gaps" | "congruence";
+export interface AnnotateOptions {
+  /** Which analyses to embed (default: all four; congruence silently skipped without an OpeningTable). */
+  include?: AnnotateSource[];
+  depth?: number;
+  /** Per-scan position cap; unset = each tool's own default (audit/gaps 20, only-moves 300). */
+  maxPositions?: number;
+  /** audit filter (default 50). */
+  minCpLoss?: number;
+  /** only-move filter (default 100). */
+  minMargin?: number;
+  /** gaps + congruence filter (default medium). */
+  minSeverity?: Severity;
+}
+export type AnnotateResult =
+  | { error: "engine_unavailable" }
+  | { color: Color; pgn: string; annotated: Record<AnnotateSource, number> };
+
+// Same glyph mapping as export_annotated_pgn: $4 = blunder (??), $2 = mistake (?), $6 = dubious (?!).
+const ANNOTATE_NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
+
+/**
+ * Run the selected repertoire analyses and embed every finding as a PGN comment (plus a NAG for
+ * audit findings) at the flagged node of a CLONED tree — the findings become portable to any
+ * board GUI instead of living only in tool JSON. The scans run on the source tree; the audit and
+ * only-move scans share the same turnNodes walk + multipv-2 searches, so the eval cache collapses
+ * the overlap. In-context truncation limits are the interactive tools' concern — the export
+ * annotates the FULL finding sets (bounded by maxPositions, which caps the engine work).
+ */
+export async function annotateRepertoire(
+  tree: GameTree,
+  color: Color,
+  opts: AnnotateOptions,
+  analyse: Analyse,
+  openings?: OpeningTable,
+): Promise<AnnotateResult> {
+  const include = opts.include ?? ["audit", "only_moves", "gaps", "congruence"];
+  const clone = tree.clone();
+  const NO_LIMIT = 10000;
+
+  const evalStr = (cp: number) =>
+    cp >= MATE_CP / 2 ? "winning" : cp <= -MATE_CP / 2 ? "losing" : `${cp >= 0 ? "+" : ""}${(cp / 100).toFixed(2)}`;
+  const childData = (sanPath: string[]): PgnNodeData | null => {
+    const idx = clone.indexPathOfSan(sanPath);
+    if (!idx || !idx.length) return null;
+    return (clone.nodeAt(idx) as ChildNode<PgnNodeData>).data;
+  };
+  const comment = (data: PgnNodeData, text: string) => {
+    (data.comments ??= []).push(text);
+  };
+  const addNag = (data: PgnNodeData, n: number) => {
+    if (!(data.nags ??= []).includes(n)) data.nags.push(n);
+  };
+
+  const annotated: Record<AnnotateSource, number> = { audit: 0, only_moves: 0, gaps: 0, congruence: 0 };
+
+  if (include.includes("audit")) {
+    const res = await auditRepertoireMoves(
+      tree,
+      color,
+      { depth: opts.depth, minCpLoss: opts.minCpLoss, maxPositions: opts.maxPositions, limit: NO_LIMIT },
+      analyse,
+    );
+    if ("error" in res) return res;
+    for (const f of res.findings) {
+      const d = childData([...f.path, f.prescribed]);
+      if (!d) continue; // findings come from this tree; unreachable
+      addNag(d, ANNOTATE_NAG[f.classification] ?? 6);
+      const loss = f.cp_loss >= MATE_CP / 2 ? "decisively" : `${f.cp_loss}cp`;
+      comment(d, `audit: ${f.classification} — loses ${loss} vs ${f.best_move} (${evalStr(f.best_eval)})`);
+      annotated.audit++;
+    }
+  }
+
+  if (include.includes("only_moves")) {
+    const res = await findOnlyMoves(
+      tree,
+      color,
+      { depth: opts.depth, minMargin: opts.minMargin, maxPositions: opts.maxPositions, linesLimit: 1 },
+      analyse,
+    );
+    if ("error" in res) return res;
+    for (const f of res.findings) {
+      const note =
+        f.margin >= MATE_CP / 2 ? "only move: alternatives are decisively worse" : `only move: next best -${f.margin}cp`;
+      const tail = f.prescribed_is_best ? "" : `; engine best is ${f.best_move}`;
+      for (const san of f.prescribed) {
+        const d = childData([...f.path, san]);
+        if (d) comment(d, `${note}${tail}`);
+      }
+      annotated.only_moves++;
+    }
+  }
+
+  if (include.includes("gaps")) {
+    const res = await findRepertoireGaps(
+      tree,
+      color,
+      { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: NO_LIMIT },
+      analyse,
+    );
+    if ("error" in res) return res;
+    for (const g of res.gaps) {
+      // Gap.path is the index path to the position OWED the reply; an empty path = the root
+      // (a Black repertoire's uncovered first move) → the game-level comment.
+      const text = `gap: ${g.uncovered_move} not covered (severity ${g.severity})`;
+      if (g.path.length === 0) (clone.game.comments ??= []).push(text);
+      else comment((clone.nodeAt(g.path) as ChildNode<PgnNodeData>).data, text);
+      annotated.gaps++;
+    }
+  }
+
+  if (include.includes("congruence") && openings) {
+    const res = analyzeCongruence(tree, color, openings, { minSeverity: opts.minSeverity, limit: NO_LIMIT });
+    for (const flag of res.incongruencies) {
+      for (const p of flag.paths) {
+        const d = childData(p);
+        if (!d) continue;
+        comment(d, `congruence: ${flag.description}`);
+        annotated.congruence++;
+      }
+    }
+  }
+
+  return { color, pgn: clone.toPgn(), annotated };
 }
 
 // --- shorten suggestion vetting (shared by the MCP tools and the PWA Shorten UI) ---

@@ -42,6 +42,9 @@ import {
   walkGameVsRepertoire,
   positionProfile,
   aggregateProfile,
+  searchStructures,
+  STRUCTURE_NAMES,
+  annotateRepertoire,
   compareShortcutLines,
   checkShortcutCoverage,
   analyzeCongruence,
@@ -579,6 +582,49 @@ server.tool(
   },
 );
 
+server.tool(
+  "export_annotated_repertoire",
+  "Embed repertoire analysis findings as PGN comments/NAGs at the flagged nodes — portable to any board GUI. include selects the sources: audit (engine-checks YOUR moves; NAG + cp-loss comment), only_moves (only-move drill notes), gaps (uncovered opponent replies), congruence (thematic outliers; engine-free). Default: all four. Engine-backed sources share searches via the eval cache, so a prior audit/gap scan fronts most of the work. export_path (confined to REPERTOIRE_DIR) writes the PGN to a file; otherwise it is returned inline.",
+  {
+    repertoire_id: z.string(),
+    include: z.array(z.enum(["audit", "only_moves", "gaps", "congruence"])).optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+    max_positions: z.number().int().min(1).max(300).optional(),
+    min_cp_loss: z.number().int().min(0).optional(),
+    min_margin: z.number().int().min(0).optional(),
+    min_severity: z.enum(["low", "medium", "high"]).optional(),
+    export_path: z.string().optional(),
+  },
+  async ({ repertoire_id, include, depth, max_positions, min_cp_loss, min_margin, min_severity, export_path }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    // Resolve the export path BEFORE the engine scans so a bad path fails in ms, not after them.
+    let real: string | null = null;
+    if (export_path !== undefined) {
+      real = confine(export_path);
+      if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+    }
+    const res = await annotateRepertoire(
+      e.tree,
+      e.color,
+      { include, depth, maxPositions: max_positions, minCpLoss: min_cp_loss, minMargin: min_margin, minSeverity: min_severity },
+      analyseMulti,
+      openingsTable,
+    );
+    if ("error" in res) return ok(res);
+    if (real) {
+      try {
+        await writeFile(real, res.pgn, "utf8");
+      } catch {
+        // Don't surface the raw fs error (it carries the absolute host path).
+        return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+      }
+      return ok({ color: res.color, path: real, bytes: Buffer.byteLength(res.pgn, "utf8"), annotated: res.annotated });
+    }
+    return ok(res);
+  },
+);
+
 // --- repertoire edit + illustrative lines ---
 server.tool(
   "modify_repertoire_line",
@@ -777,21 +823,23 @@ server.tool(
     const map = e.tree.moveMap();
     let reached = 0;
     let plySum = 0;
-    const dev = new Map<string, { fen: string; prescribed: string[]; played: string; count: number }>();
-    const unc = new Map<string, { fen: string; played: string; count: number }>();
+    const dev = new Map<string, { ply: number; fen: string; prescribed: string[]; played: string; count: number }>();
+    const unc = new Map<string, { ply: number; fen: string; played: string; count: number }>();
     for (const g of matched) {
+      // T7: the walk reports EVERY departure (it continues past the first by transposition key),
+      // so one game can contribute several drill entries.
       const w = walkGameVsRepertoire(map, e.color, g.pgn!);
       if (w.in_book_plies >= 1) reached++;
       plySum += w.in_book_plies;
-      if (w.player_deviation) {
-        const k = `${w.player_deviation.fen}|${w.player_deviation.played}`;
-        const cur = dev.get(k) ?? { ...w.player_deviation, count: 0 };
+      for (const d of w.player_deviations) {
+        const k = `${d.fen}|${d.played}`;
+        const cur = dev.get(k) ?? { ...d, count: 0 };
         cur.count++;
         dev.set(k, cur);
       }
-      if (w.uncovered_opponent) {
-        const k = `${w.uncovered_opponent.fen}|${w.uncovered_opponent.played}`;
-        const cur = unc.get(k) ?? { ...w.uncovered_opponent, count: 0 };
+      for (const u of w.uncovered_opponents) {
+        const k = `${u.fen}|${u.played}`;
+        const cur = unc.get(k) ?? { ...u, count: 0 };
         cur.count++;
         unc.set(k, cur);
       }
@@ -840,7 +888,7 @@ server.tool(
     const map = e.tree.moveMap();
     let reached = 0;
     let plySum = 0;
-    const unc = new Map<string, { fen: string; played: string; count: number }>();
+    const unc = new Map<string, { ply: number; fen: string; played: string; count: number }>();
     const lines = new Map<
       string,
       { name: string; eco: string | null; games: number; reached: number; wins: number; draws: number; losses: number }
@@ -850,9 +898,9 @@ server.tool(
       const inPrep = w.in_book_plies >= 1;
       if (inPrep) reached++;
       plySum += w.in_book_plies;
-      if (w.uncovered_opponent) {
-        const k = `${w.uncovered_opponent.fen}|${w.uncovered_opponent.played}`;
-        const cur = unc.get(k) ?? { ...w.uncovered_opponent, count: 0 };
+      for (const u of w.uncovered_opponents) {
+        const k = `${u.fen}|${u.played}`;
+        const cur = unc.get(k) ?? { ...u, count: 0 };
         cur.count++;
         unc.set(k, cur);
       }
@@ -913,6 +961,44 @@ server.tool(
       return ok(positionProfile(pos.board, e.color, makeFen(pos.toSetup())));
     }
     return ok({ color: e.color, ...aggregateProfile(e.tree.leafPositions().map((p) => p.board), e.color) });
+  },
+);
+
+server.tool(
+  "find_structures",
+  'Structural position SEARCH (engine-free): every repertoire line whose final position matches the query — "show every line reaching an IQP / fianchetto / locked-center position". Criteria are AND-ed; at least one is required. structure matches the named classifier (see get_structural_profile), themes are boolean theme tags, center is the pawn-center state. The query complement of get_structural_profile (which only aggregates).',
+  {
+    repertoire_id: z.string(),
+    structure: z.string().optional(),
+    min_confidence: z.number().min(0).max(1).optional(),
+    center: z.enum(["tense", "locked", "open", "semi-open"]).optional(),
+    themes: z
+      .array(z.enum(["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"]))
+      .optional(),
+    color_complex: z.enum(["light", "dark"]).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  },
+  ({ repertoire_id, structure, min_confidence, center, themes, color_complex, limit }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    if (!structure && !center && !themes?.length && !color_complex)
+      return ok({ error: "missing_criteria", reason: "provide at least one of structure/center/themes/color_complex" });
+    if (structure && !STRUCTURE_NAMES.some((n) => n.toLowerCase() === structure.toLowerCase()))
+      return ok({ error: "unknown_structure", reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}` });
+    const leaves = e.tree.leaves().map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
+    const matches = searchStructures(leaves, e.color, {
+      structure,
+      minConfidence: min_confidence,
+      center,
+      themes,
+      colorComplex: color_complex,
+    });
+    return ok({
+      color: e.color,
+      leaves_total: leaves.length,
+      total_matches: matches.length,
+      matches: matches.slice(0, limit ?? 30),
+    });
   },
 );
 

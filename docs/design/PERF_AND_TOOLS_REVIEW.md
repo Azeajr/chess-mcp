@@ -55,35 +55,31 @@ the common case in opening trees — missed. Shipped (both hosts): key = first f
 Later extended with the cross-multipv serve (see §T1): a stored multipv-N entry truncates to
 answer a narrower request at the same depth.
 
-### P5. `pruneTranspositions` re-runs the full-tree pre-pass on every cursor chunk
+### P5. `pruneTranspositions` re-runs the full-tree pre-pass on every cursor chunk — ✅ shipped 2026-07-13
 
-`allWork = leaves.map(replayLeaf)` (pgn.ts:588) replays and candidate-filters the WHOLE tree before
-slicing, on every chunked call — driving a big scan in N chunks pays the engine-free pre-pass N
-times (each `replayLeaf` runs `enumerateLegal` × `landsInCrossBranchPrep` per your-turn step). It
-exists to compute `totalPositionsEstimate`. Options: (a) accept a slice-only estimate on cursor
-calls; (b) cache the pre-pass per `repertoire_id` (the tree is immutable per handle —
-clone-on-write guarantees it). (b) is clean server-side.
+Option (b) as landed: the engine-free pre-pass (key index + per-leaf replay/candidates) is cached
+on the GameTree INSTANCE per color — one field, no handle-keyed side table, and it serves both
+hosts (the MCP handle is immutable via clone-on-write; the UI's live tree invalidates through
+`appendSan`, its single mutation entry point). Cursor chunks and repeat scans on the same handle
+now pay the pre-pass once (fixture: 52ms → 0ms on the second chunk); `totalPositionsEstimate`
+stays whole-tree-accurate on every chunk. Scan code treats the cached `steps[].pos` as read-only.
 
-### P6. `enumerateLegal` allocates every after-position before a `.some()` early-exits
+### P6. `enumerateLegal` allocates every after-position before a `.some()` early-exits — ✅ shipped 2026-07-13
 
-pgn.ts:189-205 builds the full `{move, after}` array (one `pos.clone()` + `play` per legal move,
-~30 clones/node), then the P1-prefilter asks `.some(...)` over it (pgn.ts:581). A generator (or a
-`someLegal(pos, pred)` helper) stops cloning at the first cross-branch hit. Micro but free, and it
-sits inside the per-leaf-per-step hot loop of the pre-pass P5 also hits.
+`iterateLegal` generator + `someLegal(pos, pred)` helper; `enumerateLegal` is now `[...iterateLegal()]`
+so the move-building logic isn't duplicated. The P5 pre-pass candidate filter uses `someLegal` and
+stops cloning at the first cross-branch hit.
 
-### P7. Memoize `themes`/`centerState` like `classifyStructure`
+### P7. Memoize `themes`/`centerState` like `classifyStructure` — ✅ shipped 2026-07-13
 
-`classifyStructure` is placement-memoized (structure.ts:345-365); `themes()` and `centerState()`
-are not, yet `structuralSignals` (structure.ts:430) calls all three per board — per leaf in
-`buildFitProfile`, per candidate in suggest_*, per ply in the UI's `lineFit` (gaps.ts:158). Same
-placement-key memo, same determinism argument. Small constant-factor win, zero risk.
+Same placement-key FIFO memo (4096 entries; themes keyed placement+color). Cached objects are
+shared — callers must not mutate them (none did). Also what makes T5's repeat queries near-instant.
 
-### P8. `GameTree.edit` clones via PGN round-trip
+### P8. `GameTree.edit` clones via PGN round-trip — ✅ shipped 2026-07-13
 
-`fromPgn(this.toPgn())` (pgn.ts:937) = serialize + reparse + full `assertLegal` replay per edit.
-`checkShortcutCoverage` does it per inspection; the single-session edit loop does it per action.
-A direct structural node copy (the tree is already legal — cloning can't introduce illegality)
-skips all three. Only matters if edit loops get long; low priority.
+Public `GameTree.clone()`: direct structural node copy (data + nags/comments arrays copied, headers
+map cloned) — no serialize, no reparse, no `assertLegal` replay (the source tree is already legal).
+`edit` uses it; T6's `annotateRepertoire` builds on it too.
 
 ## Process
 
@@ -174,25 +170,32 @@ repertoire stays the arbiter). No new engine machinery — the eval cache's cros
 means a prior audit or gap scan fronts the whole T4 scan. (`tactics_drill` #29 on ROADMAP is
 adjacent; this variant needs no external puzzle DB — the repertoire IS the deck.)
 
-### T5. Structural position search
+### T5. Structural position search — ✅ shipped 2026-07-13
 
-`get_structural_profile` aggregates; there is no query. "Show every line reaching an IQP /
-fianchetto / locked-center position" = filter `leaves()` by classifier output, return paths —
-engine-free, ~30 lines, makes the 19-structure classifier navigable instead of just descriptive.
+`searchStructures` (chess-tools) + MCP tool `find_structures`: filter leaf positions by classifier
+output — named `structure` (case-insensitive, validated against `STRUCTURE_NAMES` with the list in
+the error), `min_confidence`, `center`, boolean `themes[]`, `color_complex` — criteria AND-ed, ≥1
+required (`missing_criteria`). Engine-free; P7's memos make repeat queries near-instant. MCP-only
+(chat/panel deferred behind CHAT_TOOLSET_REVIEW §10, same call as T1-T4).
 
-### T6. Annotated repertoire export
+### T6. Annotated repertoire export — ✅ shipped 2026-07-13
 
-`export_annotated_pgn` is game-mainline-only. A repertoire variant embedding analysis results as
-PGN comments/NAGs at the flagged nodes (gap here / congruence outlier / T1 cp_loss / T4 only-move)
-makes every finding portable to any board GUI instead of living only in tool JSON. Builder exists
-(chessops `makePgn` keeps comments; the edit loop already round-trips).
+`annotateRepertoire` (chess-tools, enginetools) + MCP tool `export_annotated_repertoire`: runs the
+selected sources (`include` ⊆ audit / only_moves / gaps / congruence, default all) and embeds every
+finding as a PGN comment at the flagged node of a P8 clone — audit findings also get the $2/$4/$6
+NAG (same glyph map as `export_annotated_pgn`); a root-position gap goes to the game-level comment.
+FULL finding sets are annotated (the interactive tools' `limit`s are in-context concerns);
+`max_positions` caps the engine work, and audit + only-move share the same turnNodes multipv-2
+searches via the eval cache. `export_path` (confined) writes the PGN to a file, else inline.
 
-### T7. `repertoire_vs_history`: report all departures, not the first
+### T7. `repertoire_vs_history`: report all departures, not the first — ✅ shipped 2026-07-13
 
-`walkGameVsRepertoire` stops at the first departure per game (game.ts:72 comment). A game where the
-user misplays at ply 6 still contains an opponent novelty at ply 14 the prep should learn from.
-Continue the walk past a departure while positions still match by transposition key — same map, same
-loop, richer drill list. Small change, existing tool gets better.
+`walkGameVsRepertoire` now returns `player_deviations[]` / `uncovered_opponents[]` (each with
+`ply`) and keeps walking after a departure, checking each later position against the move-map by
+transposition key — a game that leaves book at ply 6 and transposes back still surfaces the ply-14
+novelty. `in_book_plies` unchanged (consecutive from the start). All three aggregators updated
+(`repertoire_vs_history`, `prep_vs_opponent`, the PWA chat mirror); dedupe keys unchanged, so one
+game can now contribute several drill entries.
 
 ## Robustness & consistency notes
 
@@ -279,4 +282,7 @@ rest of the PWA is local-first.
 6. ~~**T3** (`prep_vs_opponent`)~~ — shipped 2026-07-13 (see §T3).
 7. ~~**T4** (only-move tagging + drill export)~~ — shipped 2026-07-13 (see §T4;
    `find_only_moves` + flashcard-CSV export).
-8. **P5-P8, T5-T7** — opportunistic.
+8. ~~**P5-P8, T5-T7**~~ — shipped 2026-07-13 (P5 pre-pass cache, P6 lazy legal enumeration,
+   P7 themes/center memo, P8 structural clone; T5 `find_structures`, T6
+   `export_annotated_repertoire`, T7 all-departures history walk). Remaining in this doc:
+   the R2/R3/R5-R9 robustness notes.

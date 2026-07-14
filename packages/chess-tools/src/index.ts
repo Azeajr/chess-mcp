@@ -5,7 +5,7 @@
  * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
  * TypeScript port of the Python servers (see docs/design/UI_DESIGN.md).
  */
-export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal, pruneTailPath } from "./pgn.js";
+export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal, iterateLegal, someLegal, pruneTailPath } from "./pgn.js";
 export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
@@ -24,8 +24,11 @@ export {
   isolatedPawns,
   doubledPawns,
   passedPawns,
+  searchStructures,
+  STRUCTURE_NAMES,
+  THEME_NAMES,
 } from "./structure.js";
-export type { Themes, FitProfile } from "./structure.js";
+export type { Themes, FitProfile, StructureQuery, StructureMatch, ThemeName } from "./structure.js";
 export { fetchJson, fetchText } from "./apiclient.js";
 export { lichessGames, chesscomGames } from "./games.js";
 export type { GameMeta } from "./games.js";
@@ -38,7 +41,7 @@ export type { TablebaseResult } from "./tablebase.js";
 export { explorerPosition, theoryDepth, setExplorerToken, hasExplorerToken } from "./explorer.js";
 export type { ExplorerDb, ExplorerFilters, ExplorerMove, ExplorerPosition, ExplorerLookup, TheoryDepthOptions, TheoryLine, TheoryDepthResult } from "./explorer.js";
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
-export type { MainlineMove, MoveClass, GameRecord, GameWalk, RepertoireMoveMap } from "./game.js";
+export type { MainlineMove, MoveClass, GameRecord, GameWalk, PlayerDeviation, UncoveredOpponent, RepertoireMoveMap } from "./game.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
 export type { OpeningTable } from "./openings.js";
 export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
@@ -55,6 +58,7 @@ export {
   suggestReplacementLine,
   compareShortcutLines,
   checkShortcutCoverage,
+  annotateRepertoire,
 } from "./enginetools.js";
 export type {
   Analyse,
@@ -77,4 +81,7 @@ export type {
   SuggestReplacementOptions,
   ShortcutComparison,
   ShortcutCoverage,
+  AnnotateSource,
+  AnnotateOptions,
+  AnnotateResult,
 } from "./enginetools.js";
