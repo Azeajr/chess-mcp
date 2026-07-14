@@ -531,6 +531,29 @@ body {
   padding: 0.4rem 0.6rem;
   font-size: 0.9rem;
 }
+.outcome-label {
+  padding: 8px 10px 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.scope-note {
+  padding: 5px 12px 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.command-input { padding: 7px 10px; }
+.command-input input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
 .rep-section {
   border-bottom: 1px solid var(--border);
 }

@@ -44,10 +44,18 @@ import {
   repertoireHistoryResult,
   batchReviewOperation,
   gapScanOperation,
+  auditRepertoireMoves,
+  findOnlyMoves,
+  onlyMoveDeckCsv,
+  annotateRepertoire,
+  searchStructures,
+  STRUCTURE_NAMES,
+  opponentPrepResult,
 } from "@chess-mcp/chess-tools";
 import { addSuggestion, stageEdit } from "../store/suggestions";
 import { createArtifact } from "../store/artifacts";
 import { POSITION_TOOL_NAMES, runBrowserPositionTool } from "./browser-position-tools";
+import { makeFen } from "chessops/fen";
 
 // Shared engine orchestration expects (fen, multipv, depth) → lines; the browser engine matches.
 const analyse = analyseMulti;
@@ -104,6 +112,11 @@ const MODE_TOOLS: Partial<Record<ChatMode, string[]>> = {
     "suggest_complementary_lines",
     "suggest_replacement_line",
     "repertoire_vs_history",
+    "audit_repertoire_moves",
+    "find_only_moves",
+    "find_structures",
+    "export_annotated_repertoire",
+    "prep_vs_opponent",
   ],
   review: [...CORE, "cloud_eval", "identify_opening", "analyze_game", "get_game_summary", "batch_review", "lichess_games", "chesscom_games"],
   annotate: [...CORE, "export_annotated_pgn"],
@@ -191,6 +204,64 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
       );
       throwIfAborted(options.signal);
       return result;
+    }
+
+    case "audit_repertoire_moves":
+      return auditRepertoireMoves(tree, col, {
+        depth: depth ?? toolDefault(name, "depth", 14),
+        minCpLoss: (args.min_cp_loss as number) ?? toolDefault(name, "min_cp_loss", 50),
+        maxPositions: (args.max_positions as number) ?? toolDefault(name, "max_positions", 20),
+        limit: (args.limit as number) ?? toolDefault(name, "limit", 10),
+      }, analyse);
+
+    case "find_only_moves": {
+      const result = await findOnlyMoves(tree, col, {
+        depth: depth ?? toolDefault(name, "depth", 14),
+        minMargin: (args.min_margin as number) ?? toolDefault(name, "min_margin", 100),
+        maxPositions: (args.max_positions as number) ?? toolDefault(name, "max_positions", 300),
+        linesLimit: (args.lines_limit as number) ?? toolDefault(name, "lines_limit", 10),
+      }, analyse);
+      if ("error" in result) return result;
+      const findings = result.findings.slice(0, (args.limit as number) ?? toolDefault(name, "limit", 25));
+      if (!args.export_deck) return { ...result, findings };
+      const artifact = createArtifact("csv", onlyMoveDeckCsv(result.color, result.findings), "only-move-drill.csv");
+      return { ...result, findings, deck: artifact };
+    }
+
+    case "find_structures": {
+      const structure = args.structure as string | undefined;
+      const center = args.center as "tense" | "locked" | "open" | "semi-open" | undefined;
+      const themes = args.themes as string[] | undefined;
+      const colorComplex = args.color_complex as "light" | "dark" | undefined;
+      if (!structure && !center && !themes?.length && !colorComplex)
+        return { error: "missing_criteria", reason: "provide at least one of structure/center/themes/color_complex" };
+      if (structure && !STRUCTURE_NAMES.some((candidate) => candidate.toLowerCase() === structure.toLowerCase()))
+        return { error: "unknown_structure", reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}` };
+      const leaves = tree.leaves().map((leaf) => ({ path: leaf.path, board: leaf.pos.board, fen: makeFen(leaf.pos.toSetup()) }));
+      const matches = searchStructures(leaves, col, {
+        structure,
+        minConfidence: (args.min_confidence as number) ?? toolDefault(name, "min_confidence", 0.6),
+        center,
+        themes: themes as never,
+        colorComplex,
+      });
+      return { color: col, leaves_total: leaves.length, total_matches: matches.length, matches: matches.slice(0, (args.limit as number) ?? toolDefault(name, "limit", 30)) };
+    }
+
+    case "export_annotated_repertoire": {
+      options.onProgress?.(0, args.max_positions as number | undefined, "running repertoire analyses");
+      const result = await annotateRepertoire(tree, col, {
+        include: args.include as never,
+        depth: depth ?? toolDefault(name, "depth", 14),
+        maxPositions: args.max_positions as number | undefined,
+        minCpLoss: args.min_cp_loss as number | undefined,
+        minMargin: args.min_margin as number | undefined,
+        minSeverity: args.min_severity as never,
+      }, analyse, await openings());
+      throwIfAborted(options.signal);
+      if ("error" in result) return result;
+      const base = (fileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
+      return { ...createArtifact("pgn", result.pgn, `${base}-annotated.pgn`), color: result.color, annotated: result.annotated };
     }
 
     case "find_theory_depth": {
@@ -334,6 +405,20 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
       }
       if (games === null) return { error: "fetch_failed", reason: "offline or unknown user" };
       return repertoireHistoryResult(tree, col, games);
+    }
+
+    case "prep_vs_opponent": {
+      const platform = (args.platform as "lichess" | "chesscom") ?? toolDefault(name, "platform", "lichess");
+      const username = args.username as string;
+      let games;
+      if (platform === "chesscom") {
+        if (args.year == null || args.month == null) return { error: "missing_arg", reason: "chesscom requires year and month" };
+        games = await chesscomGames(username, args.year as number, args.month as number, undefined, true);
+      } else {
+        games = await lichessGames(username, (args.max_games as number) ?? toolDefault(name, "max_games", 30), undefined, true);
+      }
+      if (games === null) return { error: "fetch_failed", reason: "offline or unknown user" };
+      return opponentPrepResult(tree, col, username, games, await openings());
     }
 
     case "propose_line":

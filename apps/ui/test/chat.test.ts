@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { selectOutcomes, schemasForConversation } from "../src/llm/chat-routing.ts";
 import { streamChat, type ToolSchema } from "../src/llm/openrouter.ts";
-import { validateToolArguments } from "@chess-mcp/chess-tools";
+import { contractsForHost, toolDefault, validateToolArguments } from "@chess-mcp/chess-tools";
 import { actions, currentTree, version } from "../src/store/game.ts";
 import { acceptStagedEdit, rejectStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
 import { artifactById, createArtifact } from "../src/store/artifacts.ts";
@@ -28,6 +28,17 @@ test("canonical browser validation rejects malformed and unknown arguments", () 
   assert.equal(validateToolArguments("evaluate_position", null, "browser").ok, false);
   const unknown = validateToolArguments("evaluate_position", { surprise: true }, "browser");
   assert.deepEqual(unknown, { ok: false, error: "invalid_arguments", reason: "unknown argument: surprise" });
+});
+
+test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {
+  const browser = new Set(contractsForHost("browser").map((contract) => contract.name));
+  for (const name of ["audit_repertoire_moves", "find_only_moves", "find_structures", "export_annotated_repertoire", "prep_vs_opponent"])
+    assert.equal(browser.has(name), true, `${name} is available to chat and direct UI`);
+  assert.equal(toolDefault("audit_repertoire_moves", "max_positions", 0), 20);
+  assert.equal(toolDefault("find_only_moves", "min_margin", 0), 100);
+  assert.equal(validateToolArguments("prep_vs_opponent", {}, "browser").ok, false);
+  assert.equal(validateToolArguments("find_only_moves", { export_deck: true }, "browser").ok, true);
+  assert.equal(validateToolArguments("find_only_moves", { export_path: "deck.csv" }, "browser").ok, false);
 });
 
 test("fake model stream reassembles multiple tool calls", async (t) => {

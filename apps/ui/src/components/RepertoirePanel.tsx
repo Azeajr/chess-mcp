@@ -56,6 +56,8 @@ import {
 import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { stagePreviewLine } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
+import { commandStates, executeCommand, cancelCommand, type DirectCommand } from "../store/commands";
+import { saveArtifact } from "../store/artifacts";
 
 function gapEval(g: Gap): string {
   if (g.mate !== null) return `M${Math.abs(g.mate)}`;
@@ -79,6 +81,19 @@ const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === co
 
 export default function RepertoirePanel() {
   const [mode, setMode] = createSignal<"low_memorization" | "sharp">("low_memorization");
+  const [structure, setStructure] = createSignal("");
+  const [opponent, setOpponent] = createSignal("");
+  const state = (command: DirectCommand) => commandStates()[command];
+  const rows = (command: DirectCommand, key: string) => ((state(command).result?.[key] as Record<string, unknown>[] | undefined) ?? []);
+  const commandButton = (command: DirectCommand, label: string, args: () => Record<string, unknown> = () => ({})) => (
+    <Show when={state(command).status === "running"} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void executeCommand(command, args()))}>{label}</button>}>
+      <button class="scan-btn" onClick={(e) => (e.preventDefault(), cancelCommand(command))}>Cancel</button>
+    </Show>
+  );
+  const commandStatus = (command: DirectCommand) => <>
+    <Show when={state(command).progress}>{(p) => <div class="scan-progress">{p().detail ?? "working"} {p().total ? `${p().done}/${p().total}` : "…"}</div>}</Show>
+    <Show when={state(command).error}><div class="empty">{state(command).error}</div></Show>
+  </>;
 
   const navSan = (sans: string[]) => {
     const ip = currentTree().indexPathOfSan(sans);
@@ -134,6 +149,62 @@ export default function RepertoirePanel() {
 
   return (
     <div class="rep-panel">
+      <div class="outcome-label">Repertoire</div>
+      <details class="rep-section">
+        <summary><span>Prescribed-move audit</span>{commandButton("audit_repertoire_moves", "Audit")}</summary>
+        <div class="scope-note">Up to 20 positions · depth 14 · local engine</div>
+        {commandStatus("audit_repertoire_moves")}
+        <For each={rows("audit_repertoire_moves", "findings")}>{(finding) => (
+          <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
+            <span class={`sev sev-${String(finding.classification)}`}>{String(finding.classification)}</span>
+            <span class="san">{(finding.path as string[]).join(" ")} · {String(finding.prescribed)} → {String(finding.best_move)}</span>
+            <span class="ev">−{(Number(finding.cp_loss) / 100).toFixed(2)}</span>
+          </div>
+        )}</For>
+      </details>
+
+      <details class="rep-section">
+        <summary><span>Only moves & drills</span>{commandButton("find_only_moves", "Find", () => ({ max_positions: 60 }))}</summary>
+        <div class="scope-note">Up to 60 positions · depth 14 · cancellable</div>
+        {commandStatus("find_only_moves")}
+        <For each={rows("find_only_moves", "findings")}>{(finding) => (
+          <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
+            <span class="bridge-icon">!</span><span class="san">{(finding.path as string[]).join(" ") || "Start"} · {String(finding.best_move)}</span>
+            <span class="fit">margin {Number(finding.margin)}cp</span>
+          </div>
+        )}</For>
+        <Show when={state("find_only_moves").status === "completed"}>
+          <button class="fix-btn" onClick={() => void executeCommand("find_only_moves", { max_positions: 60, export_deck: true })}>Generate CSV deck</button>
+        </Show>
+        <Show when={(state("find_only_moves").result?.deck as Record<string, unknown> | undefined)?.artifact_id}>
+          {(id) => <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>Save CSV deck</button>}
+        </Show>
+      </details>
+
+      <details class="rep-section">
+        <summary><span>Structure search</span>{commandButton("find_structures", "Search", () => ({ structure: structure() }))}</summary>
+        <div class="command-input"><input value={structure()} placeholder="e.g. Carlsbad" onInput={(e) => setStructure(e.currentTarget.value)} /></div>
+        {commandStatus("find_structures")}
+        <For each={rows("find_structures", "matches")}>{(match) => (
+          <div class="rep-row" onClick={() => navSan(match.path as string[])}><span class="san">{(match.path as string[]).join(" ")}</span><span class="fit">{String(match.structure)}</span></div>
+        )}</For>
+      </details>
+
+      <details class="rep-section">
+        <summary><span>Opponent preparation</span>{commandButton("prep_vs_opponent", "Prepare", () => ({ username: opponent() }))}</summary>
+        <div class="command-input"><input value={opponent()} placeholder="Lichess username" onInput={(e) => setOpponent(e.currentTarget.value)} /></div>
+        {commandStatus("prep_vs_opponent")}
+        <For each={rows("prep_vs_opponent", "lines")}>{(line) => <div class="rep-row"><span class="san">{String(line.name)}</span><span class="fit">{String(line.games)} games · {String(line.hit_rate)}% in prep</span></div>}</For>
+      </details>
+
+      <details class="rep-section">
+        <summary><span>Annotated repertoire</span>{commandButton("export_annotated_repertoire", "Generate", () => ({ max_positions: 60 }))}</summary>
+        <div class="scope-note">Audit, only moves, gaps, and congruence · up to 60 positions</div>
+        {commandStatus("export_annotated_repertoire")}
+        <Show when={state("export_annotated_repertoire").result?.artifact_id}>{(id) => <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>Save annotated PGN</button>}</Show>
+      </details>
+
+      <div class="outcome-label">Advanced</div>
       {/* Tier A: gaps */}
       <details class="rep-section" open>
         <summary>

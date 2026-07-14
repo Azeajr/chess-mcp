@@ -26,6 +26,7 @@ function cloudText(): string {
 export default function AnalysisPanel() {
   return (
     <div class="analysis">
+      <div class="outcome-label">Position</div>
       <div class="panel-head">
         <span>Engine lines</span>
         <Show when={analysing()}>

@@ -3,6 +3,7 @@ import { analyzeMainline, findRepertoireGaps, type Analyse, type EngineLine, typ
 import type { Color } from "./congruence.js";
 import type { MoveRecord } from "./enginetools.js";
 import { aggregateGames, moveAccuracy, walkGameVsRepertoire, type GameRecord } from "./game.js";
+import type { GameMeta } from "./games.js";
 import { identifyDeepest, type OpeningTable } from "./openings.js";
 import { toolDefault } from "./tool-contract.js";
 import { aggregateProfile, positionProfile } from "./structure.js";
@@ -195,6 +196,44 @@ export function repertoireHistoryResult(
     player_deviations: byCount(deviations).slice(0, 20),
     uncovered_opponent_moves: byCount(uncovered).slice(0, 20),
   };
+}
+
+/** Shared opponent-preparation report used by both the handle-based MCP host and browser document. */
+export function opponentPrepResult(tree: GameTree, color: Color, username: string, games: readonly GameMeta[], openings: OpeningTable) {
+  const opponentColor: Color = color === "white" ? "black" : "white";
+  const matched = games.filter((game) => game.user_color === opponentColor && game.pgn);
+  const moveMap = tree.moveMap();
+  const uncovered = new Map<string, { ply: number; fen: string; played: string; count: number }>();
+  const lineMap = new Map<string, { name: string; eco: string | null; games: number; reached: number; wins: number; draws: number; losses: number }>();
+  let reached = 0, plySum = 0, skipped = 0;
+  for (const game of matched) {
+    let walk;
+    try { walk = walkGameVsRepertoire(moveMap, color, game.pgn!); } catch { skipped++; continue; }
+    const inPrep = walk.in_book_plies >= 1;
+    if (inPrep) reached++;
+    plySum += walk.in_book_plies;
+    for (const item of walk.uncovered_opponents) {
+      const key = `${item.fen}|${item.played}`;
+      const row = uncovered.get(key) ?? { ...item, count: 0 };
+      row.count++;
+      uncovered.set(key, row);
+    }
+    const opening = identifyDeepest(openings, game.pgn!);
+    const key = opening?.name ?? "Unclassified";
+    const row = lineMap.get(key) ?? { name: key, eco: opening?.eco ?? null, games: 0, reached: 0, wins: 0, draws: 0, losses: 0 };
+    row.games++;
+    if (inPrep) row.reached++;
+    if (game.user_result === "win") row.wins++;
+    else if (game.user_result === "draw") row.draws++;
+    else if (game.user_result === "loss") row.losses++;
+    lineMap.set(key, row);
+  }
+  const walked = matched.length - skipped;
+  const lines = [...lineMap.values()].map((row) => {
+    const decided = row.wins + row.draws + row.losses;
+    return { name: row.name, eco: row.eco, games: row.games, hit_rate: Math.round(row.reached / row.games * 1000) / 10, win_rate: decided ? Math.round(row.wins / decided * 1000) / 10 : null, draw_rate: decided ? Math.round(row.draws / decided * 1000) / 10 : null, loss_rate: decided ? Math.round(row.losses / decided * 1000) / 10 : null };
+  }).sort((a, b) => b.games - a.games).slice(0, 15);
+  return { username, opponent_color: opponentColor, games_total: games.length, games_matched_color: matched.length, games_skipped_fen_setup: skipped, games_reached_prep: reached, coverage_pct: walked ? Math.round(reached / walked * 1000) / 10 : null, avg_in_book_plies: walked ? Math.round(plySum / walked * 10) / 10 : null, uncovered_opponent_moves: [...uncovered.values()].sort((a, b) => b.count - a.count).slice(0, 20), lines };
 }
 
 export async function batchReviewOperation(
