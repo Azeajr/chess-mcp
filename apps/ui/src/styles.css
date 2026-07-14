@@ -24,6 +24,26 @@ body {
   color: var(--text);
   /* Stop pull-to-refresh / scroll-chaining while panning the board or scrolling chat. */
   overscroll-behavior: none;
+  /* Kill long-press callout menu and drag-select highlight app-wide (mobile Safari/Chrome). */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Text areas and inputs still need normal select/drag/callout for editing (chat box, FEN/PGN fields). */
+input,
+textarea,
+[contenteditable] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img,
+.cg-wrap .piece {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 .app {
