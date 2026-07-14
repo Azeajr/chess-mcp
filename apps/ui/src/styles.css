@@ -318,6 +318,16 @@ body {
   min-height: 0;
 }
 
+/* The wide workspace is locked to the viewport and clips its own overflow. Let the complete
+   middle column scroll as well as the move tree's body, otherwise expanded analysis/repertoire
+   content can be pushed outside the viewport with no scroll container that can reach it. */
+@media (min-width: 1101px) {
+  .side-panel {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 .move-tree {
   background: var(--panel);
   border: 1px solid var(--border);
