@@ -71,9 +71,9 @@ const r3 = t.playMove([], "d2", "d4");
 ok(r3.appended && t.nodeAt([]).children.length === before + 1, "d4 creates sibling variation");
 ok(t.sanAt(r3.path) === "d4", "variation san d4");
 
-// 4. promotion parsed from PGN
-const promo = GameTree.fromPgn('[FEN "8/P7/8/8/8/8/8/k6K w - - 0 1"]\n\n1. a8=Q *');
-ok(promo.sanAt([0]) === "a8=Q", "parsed promotion from pgn");
+// 4. promotion parsed from a standard-start PGN
+const promo = GameTree.fromPgn("1. a4 b5 2. axb5 a6 3. bxa6 Nf6 4. a7 e6 5. axb8=Q *");
+ok(promo.sanAt([0, 0, 0, 0, 0, 0, 0, 0, 0]) === "axb8=Q", "parsed promotion from pgn");
 
 // 5. load real repertoire, walk, dests
 const pgn = readFileSync(new URL("../sample-repertoire.pgn", import.meta.url), "utf8");
@@ -152,12 +152,13 @@ ok(st.nodes === 5 && st.leaves === 2 && st.maxDepth === 4, "stats nodes/leaves/m
 // 12b. fromPgn validates move legality. chessops parsePgn stores a syntactically-valid-but-illegal SAN
 // verbatim, so an illegal move must be rejected at the construction boundary — not loaded silently and
 // then counted by stats() while leaves()/positionAtSan* skip-or-throw on it. load_repertoire surfaces
-// the throw as invalid_pgn. A FEN setup header is honored (validates from the true start).
+// the throw as invalid_pgn. A standard-start FEN header is accepted; custom setups are unsupported.
 const rejects = (pgn) => { try { GameTree.fromPgn(pgn); return false; } catch { return true; } };
 ok(rejects("1. e4 e5 2. Nf6 *"), "fromPgn rejects an illegal move (no knight reaches f6)");
 ok(rejects("1. e4 e5 2. e4 *"), "fromPgn rejects a double move (e4 already played)");
 ok(!rejects("1. e4 e5 2. Nf3 *"), "fromPgn accepts a legal line");
-ok(!rejects('[FEN "8/P7/8/8/8/8/8/k6K w - - 0 1"]\n\n1. a8=Q *'), "fromPgn honors a FEN setup (a8=Q legal there)");
+ok(!rejects('[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n1. e4 *'), "fromPgn accepts a standard-start FEN header");
+ok(rejects('[FEN "8/P7/8/8/8/8/8/k6K w - - 0 1"]\n\n1. a8=Q *'), "fromPgn rejects a custom FEN setup");
 
 // 13. transpositions — two move orders reaching the same position
 const tr = GameTree.fromPgn("1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *").transpositions();
@@ -524,11 +525,11 @@ ok(agg.groups[0].loss_rate === 1, "aggregateGames loss_rate 1.0");
 // 21. walkGameVsRepertoire — followed / opponent-departed / player-departed
 const mapH = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *").moveMap();
 const followed = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
-ok(followed.in_book_plies === 4 && !followed.player_deviation && !followed.uncovered_opponent, "followed prep: 4 in-book plies");
+ok(followed.in_book_plies === 4 && followed.player_deviations.length === 0 && followed.uncovered_opponents.length === 0, "followed prep: 4 in-book plies");
 const oppDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. Nf3 d6 *");
-ok(oppDev.in_book_plies === 3 && oppDev.uncovered_opponent?.played === "d6", "opponent left book at d6");
+ok(oppDev.in_book_plies === 3 && oppDev.uncovered_opponents[0]?.played === "d6", "opponent left book at d6");
 const playerDev = walkGameVsRepertoire(mapH, "white", "1. e4 e5 2. d4 *");
-ok(playerDev.in_book_plies === 2 && playerDev.player_deviation?.played === "d4", "player left prep at d4");
+ok(playerDev.in_book_plies === 2 && playerDev.player_deviations[0]?.played === "d4", "player left prep at d4");
 
 // 22. structure — themes, center state, primitives
 const fianchetto = GameTree.fromPgn("1. g3 g6 2. Bg2 Bg7 *").positionAtSanPath(["g3", "g6", "Bg2", "Bg7"]);
