@@ -51,6 +51,8 @@ import {
   searchStructures,
   STRUCTURE_NAMES,
   opponentPrepResult,
+  compareShortcutLines,
+  checkShortcutCoverage,
 } from "@chess-mcp/chess-tools";
 import { addSuggestion, stageEdit } from "../store/suggestions";
 import { createArtifact } from "../store/artifacts";
@@ -104,6 +106,7 @@ const MODE_TOOLS: Partial<Record<ChatMode, string[]>> = {
     "find_repertoire_gaps",
     "get_transpositions",
     "find_pruning_transpositions",
+    "inspect_shortcut",
     "get_repertoire_coverage",
     "get_structural_profile",
     "analyze_repertoire_congruence",
@@ -311,6 +314,29 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
         estimated_positions_remaining: res.estimatedPositionsRemaining,
         partial: res.partial,
       };
+    }
+
+    case "inspect_shortcut": {
+      const scanDepth = (args.depth as number | undefined) ?? toolDefault("inspect_shortcut", "depth", 12);
+      const linePath = args.line_path as string[];
+      const atPly = args.at_ply as number;
+      const joinsPath = args.joins_path as string[];
+      options.onProgress?.(0, 2, "comparing shortcut lines");
+      const quality = await compareShortcutLines(tree, col, {
+        linePath, atPly, joinsPath, depth: scanDepth,
+        evalTiebreakCp: (args.eval_tiebreak_cp as number | undefined) ?? toolDefault("inspect_shortcut", "eval_tiebreak_cp", 30),
+      }, analyse);
+      throwIfAborted(options.signal);
+      options.onProgress?.(1, 2, "checking coverage after pruning");
+      const coverage = await checkShortcutCoverage(tree, col, {
+        linePath, atPly, depth: scanDepth,
+        maxPositions: (args.max_positions as number | undefined) ?? toolDefault("inspect_shortcut", "max_positions", 12),
+        minSeverity: args.min_severity as "low" | "medium" | "high" | undefined,
+        limit: args.limit as number | undefined,
+      }, analyse);
+      throwIfAborted(options.signal);
+      options.onProgress?.(2, 2, "shortcut inspection complete");
+      return { quality, coverage };
     }
 
     case "get_repertoire_coverage": {

@@ -39,6 +39,9 @@ test("primary direct repertoire outcomes use the canonical browser commands and 
   assert.equal(validateToolArguments("prep_vs_opponent", {}, "browser").ok, false);
   assert.equal(validateToolArguments("find_only_moves", { export_deck: true }, "browser").ok, true);
   assert.equal(validateToolArguments("find_only_moves", { export_path: "deck.csv" }, "browser").ok, false);
+  assert.equal(browser.has("inspect_shortcut"), true);
+  assert.equal(toolDefault("inspect_shortcut", "max_positions", 0), 12);
+  assert.equal(validateToolArguments("inspect_shortcut", { line_path: [], at_ply: 0 }, "browser").ok, false);
 });
 
 test("fake model stream reassembles multiple tool calls", async (t) => {

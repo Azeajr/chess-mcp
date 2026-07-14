@@ -19,6 +19,7 @@ const GAME = new Set([
 const REPERTOIRE = new Set([
   "identify_opening", "position_popularity", "find_theory_depth", "find_repertoire_gaps",
   "get_transpositions", "find_pruning_transpositions", "get_repertoire_coverage",
+  "inspect_shortcut",
   "get_structural_profile", "analyze_repertoire_congruence", "classify_illustrative_lines",
   "modify_repertoire_line", "suggest_complementary_lines", "suggest_replacement_line",
   "repertoire_vs_history", "get_selected_subtree", "get_document_pgn",

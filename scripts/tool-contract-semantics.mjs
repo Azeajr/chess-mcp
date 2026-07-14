@@ -58,4 +58,6 @@ assert.equal(gapResult.positions_scanned, 1);
 assert.equal(TOOL_CONTRACTS.every((tool) => tool.input && tool.result), true);
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "export_annotated_pgn").result.kind, "artifact");
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "propose_line").result.kind, "action");
+assert.deepEqual(jsonSchemaForTool("inspect_shortcut", "browser").required, ["line_path", "at_ply", "joins_path"]);
+assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "inspect_shortcut").hosts.includes("mcp"), false);
 console.log("tool contract semantics: ok");
