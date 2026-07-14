@@ -550,6 +550,14 @@ historical rationale.
 
 ## Phase 7 — Final integration and product verification
 
+**Automated integration implemented 2026-07-14.** The canonical contract checks, browser unit
+tests, and an offline Playwright/Chromium suite now cover document-aware natural routing, direct
+analysis availability, finding navigation, explicit edit acceptance/rejection, stale revisions,
+artifact downloads, and direct/chat command equivalence. The manual journeys below remain the
+release verification checklist because native file pickers, persistence across a real browser
+restart, representative long scans, and the external Claude Code plugin workflow are not faithfully
+proved by a deterministic headless test.
+
 ### Objective
 
 Validate the redesigned system as a whole, including the user journeys that unit tests cannot prove.

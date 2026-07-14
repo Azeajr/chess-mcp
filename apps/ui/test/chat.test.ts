@@ -22,6 +22,8 @@ test("automatic routing can move from position to repertoire without a required 
   assert.deepEqual(selectOutcomes("Now find gaps in my repertoire", "", ["position"]), ["position", "repertoire"]);
   const selected = schemasForConversation([schema("get_position"), schema("evaluate_position"), schema("find_repertoire_gaps"), schema("batch_review")], ["repertoire"]);
   assert.deepEqual(selected.map((item) => item.function.name), ["get_position", "find_repertoire_gaps"]);
+  assert.deepEqual(selectOutcomes("What are the biggest problems here?", "", [], "repertoire"), ["repertoire"]);
+  assert.deepEqual(selectOutcomes("What are the biggest problems here?", "", [], "game"), ["game"]);
 });
 
 test("canonical browser validation rejects malformed and unknown arguments", () => {

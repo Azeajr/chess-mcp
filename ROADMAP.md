@@ -5,10 +5,9 @@ tests; completed chronology belongs in Git history and releases.
 
 ## Product review completion
 
-- Run the Phase 7 automated suite and manual product journeys in `PROJECT_REVIEW_PLAN.md`.
-- Add headless Chromium coverage for the critical end-to-end journeys: natural chat routing,
-  navigation from findings, stale staged edits, cancellation, artifact saving, and direct/chat
-  command equivalence.
+- Run the Phase 7 manual product journeys in `PROJECT_REVIEW_PLAN.md` on release candidates.
+- Measure cancellation and progress on representative long gap, shortening, and game scans; the
+  deterministic browser suite covers the cancellation affordances and state transitions.
 - Confirm autosave and browser file reopen behavior across a production build.
 - Exercise the Claude Code plugin workflows after the final documentation and contract checks.
 

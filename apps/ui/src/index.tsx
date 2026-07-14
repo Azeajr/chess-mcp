@@ -2,8 +2,10 @@
 import { render } from "solid-js/web";
 import App from "./App";
 import { actions } from "./store/game";
-import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, acceptPreview, clearPreview } from "./store/suggestions";
+import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
+import { createArtifact, saveArtifact } from "./store/artifacts";
+import { selectOutcomes } from "./llm/chat-routing";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -22,6 +24,13 @@ if (import.meta.env.DEV) {
     stagePreview,
     acceptPreview,
     clearPreview,
+    stageEdit,
+    stagedEdit,
+    acceptStagedEdit,
+    rejectStagedEdit,
+    createArtifact,
+    saveArtifact,
+    selectOutcomes,
     runTool,
   };
 }

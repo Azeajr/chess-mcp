@@ -42,6 +42,10 @@ function systemMessage(outcomes: readonly Outcome[]): ChatMessage {
   return { role: "system", content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${ctx}` };
 }
 
+function documentOutcome(): "game" | "repertoire" {
+  return currentTree().stats().leaves > 1 ? "repertoire" : "game";
+}
+
 function compactMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter((m) => m.role !== "focus").map((m) => {
     if (m.role !== "tool" || !m.content || m.content.length <= MAX_TOOL_RESULT_CHARS) return m;
@@ -97,7 +101,7 @@ export async function send(userText: string) {
   let trailingTools = false;
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const outcomes = selectOutcomes(text, chatMode(), [...expanded]);
+      const outcomes = selectOutcomes(text, chatMode(), [...expanded], documentOutcome());
       setStreamingText("");
       const result = await streamChat({ apiKey: apiKey(), model: model(), messages: [systemMessage(outcomes), ...compactMessages(history())], tools: schemasForConversation(toolSchemas, outcomes), signal, onText: (d) => setStreamingText((t) => t + d) });
       setStreamingText("");
@@ -109,7 +113,7 @@ export async function send(userText: string) {
       if (signal.aborted) break;
     }
     if (trailingTools && !signal.aborted) {
-      const outcomes = selectOutcomes(text, chatMode(), [...expanded]);
+      const outcomes = selectOutcomes(text, chatMode(), [...expanded], documentOutcome());
       const final = await streamChat({ apiKey: apiKey(), model: model(), messages: [systemMessage(outcomes), ...compactMessages(history()), { role: "system", content: "The tool-round limit was reached. Give a concise incomplete-state summary: what completed, what remains, and how the user can continue. Do not call tools." }], tools: [], signal, onText: (d) => setStreamingText((t) => t + d) });
       setStreamingText("");
       setHistory((h) => [...h, { role: "assistant", content: final.content || "I reached the tool-round limit before completing the request. Please continue or retry to finish the remaining work." }]);

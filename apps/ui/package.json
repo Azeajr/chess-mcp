@@ -11,6 +11,7 @@
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
     "test:chat": "tsx --test test/chat.test.ts",
+    "test:e2e": "playwright test --config playwright.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

@@ -34,11 +34,18 @@ const PATTERNS: Record<Outcome, RegExp> = {
   annotate: /\b(annotate|annotated|export pgn)\b/i,
 };
 
-export function selectOutcomes(text: string, preset: ChatMode, expanded: readonly Outcome[] = []): Outcome[] {
+export function selectOutcomes(
+  text: string,
+  preset: ChatMode,
+  expanded: readonly Outcome[] = [],
+  documentOutcome?: "game" | "repertoire",
+): Outcome[] {
   const selected = new Set<Outcome>(expanded);
   if (preset && preset !== "general") selected.add(preset === "review" ? "game" : preset);
   for (const outcome of Object.keys(PATTERNS) as Outcome[]) if (PATTERNS[outcome].test(text)) selected.add(outcome);
-  if (!selected.size) selected.add("position");
+  // Ambiguous first turns such as "What are the biggest problems here?" should use the open
+  // document as their scope. Explicit wording and capability expansion still take precedence.
+  if (!selected.size) selected.add(documentOutcome ?? "position");
   return [...selected];
 }
 
