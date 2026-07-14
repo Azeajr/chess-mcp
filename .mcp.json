@@ -2,8 +2,8 @@
   "mcpServers": {
     "chess-analysis": {
       "type": "stdio",
-      "command": "node",
-      "args": ["--import", "tsx", "apps/mcp-server/src/index.ts"]
+      "command": "node_modules/.bin/tsx",
+      "args": ["apps/mcp-server/src/index.ts"]
     }
   }
 }

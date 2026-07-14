@@ -3,7 +3,7 @@
   "mcp": {
     "chess-analysis": {
       "type": "local",
-      "command": ["node", "--import", "tsx", "apps/mcp-server/src/index.ts"]
+      "command": ["node_modules/.bin/tsx", "apps/mcp-server/src/index.ts"]
     }
   }
 }

@@ -9,7 +9,7 @@
     "chess-analysis": {
       "type": "stdio",
       "command": "sh",
-      "args": ["-c", "MROOT=$(dirname \"$CLAUDE_PLUGIN_ROOT\")/../../../marketplaces/chess-mcp; REPDIR=\"$CLAUDE_PLUGIN_DATA/repertoires\"; mkdir -p \"$REPDIR\"; exec env REPERTOIRE_DIR=\"$REPDIR\" node --import tsx \"$MROOT/apps/mcp-server/src/index.ts\""],
+      "args": ["-c", "MROOT=$(dirname \"$CLAUDE_PLUGIN_ROOT\")/../../../marketplaces/chess-mcp; REPDIR=\"$CLAUDE_PLUGIN_DATA/repertoires\"; mkdir -p \"$REPDIR\"; exec env REPERTOIRE_DIR=\"$REPDIR\" \"$MROOT/node_modules/.bin/tsx\" \"$MROOT/apps/mcp-server/src/index.ts\""],
       "env": {}
     }
   }

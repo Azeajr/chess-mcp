@@ -2,7 +2,7 @@
 
 pnpm monorepo. The **active MCP server is Node.js/TypeScript** (`apps/mcp-server`, 38 tools). Shared
 chess logic in `packages/chess-tools`; a SolidJS PWA in `apps/ui`. `.mcp.json` launches the Node
-server directly (`node --import tsx apps/mcp-server/src/index.ts`).
+server directly (`node_modules/.bin/tsx apps/mcp-server/src/index.ts`).
 
 ## Commands (current)
 

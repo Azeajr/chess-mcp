@@ -3,6 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { TOOL_CONTRACTS, jsonSchemaForTool } from "../../../packages/chess-tools/dist/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = resolve(here, "..");
@@ -23,26 +24,56 @@ const ok = (c, m) => (c ? pass++ : (fail++, console.log("FAIL:", m)));
 const skip = (m) => (skipped++, console.log("SKIP (network):", m));
 const call = async (client, name, args) => JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
 
-// Launch exactly as .mcp.json does: `node --import tsx <entry>` from the repo root. The SDK's
+// Launch exactly as .mcp.json does: the tsx executable from the repo root. `node --import tsx`
+// loses piped child stdio on Node 26.2 and exits cleanly before MCP initialize; the CLI path works
+// on both the supported Node 22 runtime and current Node. The SDK's
 // StdioClientTransport does NOT inherit the parent's full env by default (only an allowlist —
 // PATH, HOME, etc., sudo-style) — LICHESS_TOKEN must be forwarded explicitly or the spawned
 // server never sees it even when this process has it.
-const transport = new StdioClientTransport({
-  command: "node",
-  args: ["--import", "tsx", entry],
+class DiagnosticStdioTransport extends StdioClientTransport {
+  async start() {
+    await super.start();
+    this._process?.once("exit", (code, signal) => {
+      console.error(`[smoke] MCP child exited: code=${code ?? "null"} signal=${signal ?? "null"}`);
+    });
+  }
+}
+
+const transport = new DiagnosticStdioTransport({
+  command: join(repoRoot, "node_modules", ".bin", "tsx"),
+  args: [entry],
   cwd: repoRoot,
   env: {
     ...getDefaultEnvironment(),
     ...(process.env.LICHESS_TOKEN ? { LICHESS_TOKEN: process.env.LICHESS_TOKEN } : {}),
     ...(process.env.EVAL_CACHE_DIR ? { EVAL_CACHE_DIR: process.env.EVAL_CACHE_DIR } : {}),
   },
+  stderr: "pipe",
 });
+transport.stderr?.on("data", (chunk) => process.stderr.write(chunk));
 const client = new Client({ name: "smoke", version: "0" }, { capabilities: {} });
 await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
 ok(tools.length === 40, "40 tools registered");
+
+// Phase 1 vertical slice: MCP Zod output must mechanically match the canonical application
+// contract. Descriptions are intentionally ignored here because Zod adds/omits transport prose.
+for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.includes("mcp")).map((tool) => tool.name)) {
+  const live = tools.find((tool) => tool.name === name)?.inputSchema;
+  const canonical = jsonSchemaForTool(name, "mcp");
+  const sameRequired = JSON.stringify([...(live?.required ?? [])].sort()) === JSON.stringify([...(canonical?.required ?? [])].sort());
+  const liveProperties = live?.properties ?? {};
+  const expectedProperties = canonical?.properties ?? {};
+  const sameFields = JSON.stringify(Object.keys(liveProperties).sort()) === JSON.stringify(Object.keys(expectedProperties).sort()) && Object.keys(expectedProperties).every((key) => {
+    const actual = liveProperties[key];
+    const expected = expectedProperties[key];
+    return actual?.type === expected.type && (expected.enum == null || JSON.stringify(actual.enum) === JSON.stringify(expected.enum)) && (expected.minimum == null || actual.minimum === expected.minimum) && (expected.maximum == null || actual.maximum === expected.maximum);
+  });
+  if (!sameRequired || !sameFields) console.log("SCHEMA DRIFT:", name, JSON.stringify({ live, canonical }));
+  ok(sameRequired && sameFields, `${name} MCP schema matches canonical contract`);
+}
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
 ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");

@@ -25,7 +25,6 @@ import {
   type ExplorerDb,
   moveSan,
   analyzeMainline,
-  findRepertoireGaps,
   auditRepertoireMoves,
   findOnlyMoves,
   onlyMoveDeckCsv,
@@ -33,15 +32,11 @@ import {
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
-  moveAccuracy,
   parseOpeningsTsv,
   identifyDeepest,
-  aggregateGames,
   lichessGames,
   chesscomGames,
   walkGameVsRepertoire,
-  positionProfile,
-  aggregateProfile,
   searchStructures,
   STRUCTURE_NAMES,
   annotateRepertoire,
@@ -50,9 +45,21 @@ import {
   analyzeCongruence,
   type Color,
   type MoveRecord,
-  type GameRecord,
+  toolContract,
+  toolDefault,
+  groundPosition,
+  shapeEvaluation,
+  transpositionResult,
+  repertoireCoverageResult,
+  illustrativeLinesResult,
+  structuralProfileResult,
+  gameAnalysisResult,
+  gameSummaryResult,
+  annotatedGameResult,
+  repertoireHistoryResult,
+  batchReviewOperation,
+  gapScanOperation,
 } from "@chess-mcp/chess-tools";
-import { parsePgn, makePgn } from "chessops/pgn";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
 import { store, get } from "./handles.js";
@@ -84,15 +91,19 @@ const explorerAuthRequired = () =>
   });
 
 // --- validation / position (engine-free) ---
-server.tool("validate_fen", "Validate a FEN; returns the normalised FEN when legal.", { fen: z.string() }, ({ fen }) =>
+server.tool(
+  "validate_fen",
+  toolContract("validate_fen").description, { fen: z.string() }, ({ fen }) =>
   ok(validateFen(fen)),
 );
-server.tool("validate_pgn", "Validate a PGN; returns the game count.", { pgn: z.string() }, ({ pgn }) =>
+server.tool(
+  "validate_pgn",
+  toolContract("validate_pgn").description, { pgn: z.string() }, ({ pgn }) =>
   ok(validatePgn(pgn)),
 );
 server.tool(
   "validate_line",
-  "Validate SAN moves from a FEN; returns canonical SANs or the first illegal index.",
+  toolContract("validate_line").description,
   { fen: z.string(), moves: z.array(z.string()) },
   ({ fen, moves }) => {
     // Gate the FEN: validateLine → parseFen().unwrap() throws a raw FenError on garbage input.
@@ -101,29 +112,35 @@ server.tool(
     return ok(validateLine(v.fen!, moves));
   },
 );
-server.tool("get_legal_moves", "Legal moves (SAN) at a FEN.", { fen: z.string() }, ({ fen }) => {
-  const v = validateFen(fen);
-  if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
-  return ok({ fen: v.fen, moves: legalMoves(v.fen!) });
+server.tool(
+  "get_legal_moves",
+  toolContract("get_legal_moves").description, { fen: z.string() }, ({ fen }) => {
+  const grounded = groundPosition(fen);
+  if ("error" in grounded) return ok(grounded);
+  return ok({ fen: grounded.fen, moves: grounded.legal_moves });
 });
-server.tool("get_position", "Normalised FEN, side to move, and legal moves.", { fen: z.string() }, ({ fen }) => {
-  const v = validateFen(fen);
-  if (!v.valid) return ok(v);
-  return ok({ fen: v.fen, turn: v.fen!.split(" ")[1] === "w" ? "white" : "black", legal_moves: legalMoves(v.fen!) });
+server.tool(
+  "get_position",
+  toolContract("get_position").description, { fen: z.string() }, ({ fen }) => {
+  return ok(groundPosition(fen));
 });
 
 // --- network (offline-safe) ---
-server.tool("cloud_eval", "Lichess cloud evaluation (white-POV) for a FEN, or unavailable.", { fen: z.string() }, async ({ fen }) => {
+server.tool(
+  "cloud_eval",
+  toolContract("cloud_eval").description, { fen: z.string() }, async ({ fen }) => {
   const c = await cloudEval(fen);
   return ok(c ? { fen, ...c } : { fen, available: false });
 });
-server.tool("tablebase_lookup", "Lichess tablebase result for a ≤7-piece FEN, or null.", { fen: z.string() }, async ({ fen }) => {
+server.tool(
+  "tablebase_lookup",
+  toolContract("tablebase_lookup").description, { fen: z.string() }, async ({ fen }) => {
   const t = await tablebaseLookup(fen);
   return ok(t ?? { available: false });
 });
 server.tool(
   "position_popularity",
-  'Lichess opening-explorer stats at a FEN — what humans actually play here: per-move frequencies and win rates (white-POV), total games, opening name. db "lichess" (online games, 1800+ blitz/rapid/classical) or "masters" (OTB 2200+ FIDE).',
+  toolContract("position_popularity").description,
   {
     fen: z.string(),
     db: z.enum(["lichess", "masters"]).optional(),
@@ -134,14 +151,14 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (!hasExplorerToken()) return explorerAuthRequired();
     const res = await explorerPosition(v.fen!, { db, movesLimit: top_moves });
-    return ok(res ? { fen: v.fen, db: db ?? "lichess", ...res } : { fen: v.fen, available: false });
+    return ok(res ? { fen: v.fen, db: db ?? toolDefault("position_popularity", "db", "lichess"), ...res } : { fen: v.fen, available: false });
   },
 );
 
 // --- engine ---
 server.tool(
   "evaluate_position",
-  "Local Stockfish multi-line analysis (white-POV cp/mate).",
+  toolContract("evaluate_position").description,
   { fen: z.string(), depth: z.number().int().min(1).max(30).optional(), lines: z.number().int().min(1).max(5).optional() },
   async ({ fen, depth, lines }) => {
     // Reject an illegal-but-parseable FEN up front (the same gate get_position/suggest_* apply):
@@ -150,9 +167,9 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
     // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
-    const res = await analyseMulti(v.fen!, lines ?? 3, depth ?? 16);
+    const res = await analyseMulti(v.fen!, lines ?? toolDefault("evaluate_position", "lines", 3), depth ?? toolDefault("evaluate_position", "depth", 16));
     if (!res) return ok({ error: "engine_unavailable" });
-    return ok({ fen: v.fen, lines: res.map((l) => ({ uci: l.uci, san: moveSan(v.fen!, l.uci), cp: l.cp, mate: l.mate, depth: l.depth })) });
+    return ok(shapeEvaluation(v.fen!, res, moveSan));
   },
 );
 
@@ -165,7 +182,7 @@ function loadSummary(id: string, tree: GameTree, color: Color) {
 
 server.tool(
   "load_repertoire",
-  "Parse a repertoire PGN and return a handle (repertoire_id) for the other repertoire tools.",
+  toolContract("load_repertoire").description,
   { pgn: z.string(), color: colorSchema },
   ({ pgn, color }) => {
     const tl = pgnTooLarge(pgn);
@@ -182,7 +199,7 @@ server.tool(
 );
 server.tool(
   "load_repertoire_from_file",
-  "Load a repertoire PGN by path (confined to REPERTOIRE_DIR) without the PGN entering context.",
+  toolContract("load_repertoire_from_file").description,
   { path: z.string(), color: colorSchema },
   async ({ path, color }) => {
     const real = confine(path);
@@ -199,7 +216,9 @@ server.tool(
     return ok(loadSummary(store(tree, color), tree, color));
   },
 );
-server.tool("export_repertoire", "Serialize a repertoire handle back to a PGN string.", { repertoire_id: z.string() }, ({ repertoire_id }) => {
+server.tool(
+  "export_repertoire",
+  toolContract("export_repertoire").description, { repertoire_id: z.string() }, ({ repertoire_id }) => {
   const e = get(repertoire_id);
   if (!e) return notFound();
   const s = e.tree.stats();
@@ -207,7 +226,7 @@ server.tool("export_repertoire", "Serialize a repertoire handle back to a PGN st
 });
 server.tool(
   "export_repertoire_to_file",
-  "Write a repertoire handle's PGN to a path (confined to REPERTOIRE_DIR).",
+  toolContract("export_repertoire_to_file").description,
   { repertoire_id: z.string(), path: z.string() },
   async ({ repertoire_id, path }) => {
     const e = get(repertoire_id);
@@ -229,7 +248,7 @@ server.tool(
 // --- gaps (engine scan) ---
 server.tool(
   "find_repertoire_gaps",
-  "Scan decision nodes for uncovered strong opponent replies, ranked by severity. popularity=true additionally annotates each gap with how often the move is actually played (opening explorer) and re-ranks by frequency within each severity tier.",
+  toolContract("find_repertoire_gaps").description,
   {
     repertoire_id: z.string(),
     depth: z.number().int().min(1).max(30).optional(),
@@ -244,19 +263,19 @@ server.tool(
     if (!e) return notFound();
     if (popularity && !hasExplorerToken()) return explorerAuthRequired();
     return ok(
-      await findRepertoireGaps(
+      await gapScanOperation(
         e.tree,
         e.color,
         {
           depth,
-          minSeverity: min_severity,
-          maxPositions: max_positions,
+          min_severity,
+          max_positions,
           limit,
-          // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
-          // ask deep enough that the approximation only bites on true rarities.
-          popularity: popularity ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 }) : undefined,
         },
         analyseMulti,
+        // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
+        // ask deep enough that the approximation only bites on true rarities.
+        popularity ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 }) : undefined,
       ),
     );
   },
@@ -264,7 +283,7 @@ server.tool(
 
 server.tool(
   "find_theory_depth",
-  'Where each repertoire line leaves known theory: walks the tree querying the opening explorer and reports, per line, the ply at which game counts collapse below min_games — the point where memorization stops paying. db "lichess" (default, min_games 100) or "masters" (OTB, min_games 5). Network-bound: ~1 query/s per unique in-theory position, capped by max_positions.',
+  toolContract("find_theory_depth").description,
   {
     repertoire_id: z.string(),
     db: z.enum(["lichess", "masters"]).optional(),
@@ -275,7 +294,7 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     if (!hasExplorerToken()) return explorerAuthRequired();
-    const d: ExplorerDb = db ?? "lichess";
+    const d: ExplorerDb = db ?? toolDefault("find_theory_depth", "db", "lichess");
     const res = await theoryDepth(
       e.tree,
       { minGames: min_games ?? (d === "masters" ? 5 : 100), maxPositions: max_positions },
@@ -287,7 +306,7 @@ server.tool(
 
 server.tool(
   "audit_repertoire_moves",
-  "Engine-check YOUR prescribed moves tree-wide: every your-turn position is searched and each repertoire move scored vs the engine's best; findings ranked worst-first by cp_loss (classification: good/inaccuracy/mistake/blunder). best_margin (best minus second line) flags only-move positions. Answers \"which of my repertoire moves are actually bad\" — the complement of find_repertoire_gaps (which checks OPPONENT coverage).",
+  toolContract("audit_repertoire_moves").description,
   {
     repertoire_id: z.string(),
     depth: z.number().int().min(1).max(30).optional(),
@@ -311,7 +330,7 @@ server.tool(
 
 server.tool(
   "find_only_moves",
-  'Tag your-turn positions where the engine best move stands alone (best minus second >= min_margin cp) — the "only move" positions where misremembering the repertoire is punished. Findings ranked by margin; lines[] ranks leaf lines by only-move density ("sharpest lines to drill"). prescribed_is_best=false flags a sharp position whose repertoire move is NOT the engine best — fix via audit_repertoire_moves before drilling. export_path (confined to REPERTOIRE_DIR) writes the FULL tagged set as a flashcard CSV (front,back,fen,margin — Anki-importable); limit only truncates the in-context findings.',
+  toolContract("find_only_moves").description,
   {
     repertoire_id: z.string(),
     depth: z.number().int().min(1).max(30).optional(),
@@ -348,26 +367,24 @@ server.tool(
       }
       deck = { path: real, rows: res.findings.length, bytes: Buffer.byteLength(csv, "utf8") };
     }
-    return ok({ ...res, findings: res.findings.slice(0, limit ?? 25), ...(deck ? { deck } : {}) });
+    return ok({ ...res, findings: res.findings.slice(0, limit ?? toolDefault("find_only_moves", "limit", 25)), ...(deck ? { deck } : {}) });
   },
 );
 
 server.tool(
   "get_transpositions",
-  "Positions the repertoire reaches by more than one move order, largest groups first.",
+  toolContract("get_transpositions").description,
   { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
   ({ repertoire_id, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const groups = e.tree.transpositions();
-    const shown = groups.slice(0, limit ?? 20);
-    return ok({ total: groups.length, returned: shown.length, transpositions: shown });
+    return ok(transpositionResult(e.tree, limit ?? toolDefault("get_transpositions", "limit", 20)));
   },
 );
 
 server.tool(
   "find_pruning_transpositions",
-  "Engine-backed. SHORTEN lines to cut memorization: for each leaf line, walk YOUR moves earliest-first (earliest re-route = biggest cut); among the top engine moves within a near-best window of #1 (cp_threshold — so never a blunder, even if multipv ranks one), find a move that transposes into a DIFFERENT prepared line, making the original tail redundant. Each suggestion reports savedPlies and the eval trade (evalStay vs evalTranspose, evalDelta). ALL viable re-routes per line are returned (not just the earliest) — each line's two picks are tagged bestSavings (biggest tail cut) and bestEval (best resulting eval); they may differ, so the user trades memorization vs quality. confirm_depth deep-confirms each line's bestEval pick (evalConfirmed=true) so the eval you act on is trustworthy. Engine effort per position: depth (default 14) or movetime_ms (time-based — a better dial than depth for sharp positions). COVERAGE: by default the whole tree is scanned — leave budget UNSET for full coverage (the transposable lines are often last in the PGN, and budget is spent in tree order, so a low cap silently misses them). RANKING (C6): a full (no-cursor) call returns ALL suggestions globally sorted — that is the authoritative ranking; use it. leaf_start/leaf_count are for PROGRESS ONLY: each chunk sets partial:true and its sort is chunk-local — NEVER merge/re-sort chunks yourself (the tool owns the ranking; for the final ranked set make one full call, which P1 keeps cheap). Returns total_leaves, leaves_scanned, next_leaf (cursor; null = done), positions_analysed, total_positions_estimate, estimated_positions_remaining, partial.",
+  toolContract("find_pruning_transpositions").description,
   {
     repertoire_id: z.string(),
     limit: z.number().int().min(1).max(100).optional(),
@@ -386,11 +403,11 @@ server.tool(
     if (!e) return notFound();
     const res = await e.tree.pruneTranspositions(
       e.color,
-      { multipv: multipv ?? 4, cpThreshold: cp_threshold ?? 50, maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count, confirmDepth: confirm_depth },
+      { multipv: multipv ?? toolDefault("find_pruning_transpositions", "multipv", 4), cpThreshold: cp_threshold ?? toolDefault("find_pruning_transpositions", "cp_threshold", 50), maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count, confirmDepth: confirm_depth },
       // depth override d (E1 deep confirm) uses fixed depth and bypasses movetime; else the scan effort.
-      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? 14, d != null ? undefined : movetime_ms),
+      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? toolDefault("find_pruning_transpositions", "depth", 14), d != null ? undefined : movetime_ms),
     );
-    const shown = res.suggestions.slice(0, limit ?? 20);
+    const shown = res.suggestions.slice(0, limit ?? toolDefault("find_pruning_transpositions", "limit", 20));
     return ok({
       total: res.suggestions.length,
       returned: shown.length,
@@ -409,7 +426,7 @@ server.tool(
 
 server.tool(
   "check_shortcut_coverage",
-  "C4 — before applying a shorten suggestion, check the prune doesn't open a NEW gap. Prunes the line's redundant tail (line_path truncated to at_ply+1 — the same node pruneTailPath gives) on a COPY, re-runs the gap scan, and returns gaps present AFTER the prune but not before: uncovered opponent replies the pruned tail had been covering (e.g. by transposition for another line). introduces_gap=false ⇒ the shortcut is coverage-safe. Engine-backed — run it for the one suggestion you're about to apply, not every suggestion.",
+  toolContract("check_shortcut_coverage").description,
   {
     repertoire_id: z.string(),
     line_path: z.array(z.string()),
@@ -435,7 +452,7 @@ server.tool(
 
 server.tool(
   "compare_shortcut_lines",
-  "C3 — for a shorten suggestion, judge the line you'd ADOPT (transpose into joins_path = Line B) vs the one you'd ABANDON (stay on line_path past at_ply = Line A), on two axes. EVAL at the fork: your-POV cp after the stay move (evalStay) vs after the re-route into the join node (evalTranspose); evalDelta = evalStay − evalTranspose (>0 ⇒ staying better, <0 ⇒ transposing better). FIT: each branch's blended structural fit — named structure + center + themes — scored against the repertoire (fitStay/fitTranspose, 0..1, higher = more on-theme); structureStay/structureTranspose are each branch's mainline-leaf structure_class (readable label); unknownShare* = how much of a branch can't be NAMED (informational — center/themes still score it, so unknown no longer forces fit to 0). RECOMMEND: eval decides unless |evalDelta| ≤ eval_tiebreak_cp (default 30), then fit breaks the tie; eval_disagrees_with_fit flags opposite pulls. This is the QUALITY axis — weigh against the suggestion's savedPlies (memorization).",
+  toolContract("compare_shortcut_lines").description,
   {
     repertoire_id: z.string(),
     line_path: z.array(z.string()),
@@ -460,21 +477,13 @@ server.tool(
 
 server.tool(
   "get_repertoire_coverage",
-  "Tree-shape hygiene: dangling lines (your-turn leaves owed a move) vs natural frontiers. Pass connect_stubs=true to engine-check whether each dangling stub bridges back into existing prep — resolved stubs report connects_via (the engine-best SAN sequence) + joins_path, so you wire them with no new theory.",
+  toolContract("get_repertoire_coverage").description,
   { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional() },
   async ({ repertoire_id, limit, connect_stubs }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const c = e.tree.coverage(e.color);
-    const base = {
-      color: e.color,
-      leaves: c.leaves,
-      dangling_count: c.danglingCount,
-      frontier_count: c.frontierCount,
-      max_depth: c.maxDepth,
-      shallowest_leaf_ply: c.shallowestLeafPly,
-    };
-    if (!connect_stubs) return ok({ ...base, dangling_lines: c.danglingLines.slice(0, limit ?? 20) });
+    const base = repertoireCoverageResult(e.tree, e.color, limit ?? toolDefault("get_repertoire_coverage", "limit", 20));
+    if (!connect_stubs) return ok(base);
     const r = await resolveDanglingStubs(e.tree, e.color, { limit }, analyseMulti);
     if ("error" in r) return ok({ ...base, error: r.error });
     return ok({ ...base, stubs_resolved: r.resolved, dangling_lines: r.dangling });
@@ -483,7 +492,7 @@ server.tool(
 
 server.tool(
   "compare_moves",
-  "Rank candidate moves at a FEN by local Stockfish (mover POV). Illegal moves are flagged.",
+  toolContract("compare_moves").description,
   { fen: z.string(), moves: z.array(z.string()), depth: z.number().int().min(1).max(30).optional() },
   async ({ fen, moves, depth }) => {
     // Gate the FEN (compareMoves → validateLine throws a raw FenError on garbage) and cap the
@@ -493,98 +502,70 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (moves.length > MAX_COMPARE_MOVES)
       return ok({ error: "too_many_moves", reason: `at most ${MAX_COMPARE_MOVES} candidate moves` });
-    return ok(await compareMoves(v.fen!, moves, depth ?? 14, analyseMulti));
+    return ok(await compareMoves(v.fen!, moves, depth ?? toolDefault("compare_moves", "depth", 14), analyseMulti));
   },
 );
 
 // --- game analysis (engine) ---
-const lean = (r: MoveRecord) => ({ ply: r.ply, color: r.color, san: r.san, cp_loss: r.cp_loss, classification: r.classification });
-
 server.tool(
   "analyze_game",
-  "Per-move engine review of a game's mainline: cp loss + classification (blunder/mistake/inaccuracy/good).",
+  toolContract("analyze_game").description,
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional(), verbose: z.boolean().optional() },
   async ({ pgn, depth, verbose }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("analyze_game", "depth", 14), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
     if (records === null) return ok({ error: "engine_unavailable" });
-    return ok({ total_moves: records.length, moves: verbose ? records : records.map(lean) });
+    return ok(verbose ? { total_moves: records.length, moves: records } : gameAnalysisResult(records));
   },
 );
 
 server.tool(
   "get_game_summary",
-  "Game review summary: per-side blunder/mistake/inaccuracy counts, accuracy %, and the 3 worst moves.",
+  toolContract("get_game_summary").description,
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
   async ({ pgn, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("get_game_summary", "depth", 14), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
     if (records === null) return ok({ error: "engine_unavailable" });
 
-    const side = (color: Color) => {
-      const rs = records!.filter((r) => r.color === color);
-      const count = rs.length;
-      const accSum = rs.reduce((a, r) => a + moveAccuracy(r.cp_loss), 0);
-      return {
-        blunders: rs.filter((r) => r.classification === "blunder").length,
-        mistakes: rs.filter((r) => r.classification === "mistake").length,
-        inaccuracies: rs.filter((r) => r.classification === "inaccuracy").length,
-        good_moves: rs.filter((r) => r.classification === "good").length,
-        accuracy_pct: count ? Math.round((accSum / count) * 1000) / 10 : null,
-      };
-    };
-    const worst = [...records].sort((a, b) => b.cp_loss - a.cp_loss).slice(0, 3).map(lean);
-    return ok({ total_moves: records.length, white: side("white"), black: side("black"), worst_moves: worst });
+    return ok(gameSummaryResult(records));
   },
 );
 
-const NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
 server.tool(
   "export_annotated_pgn",
-  "Annotate a game's mainline with move glyphs ($2/$4/$6) and best-move/eval comments.",
+  toolContract("export_annotated_pgn").description,
   { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
   async ({ pgn, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? 14, analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("export_annotated_pgn", "depth", 14), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
     if (records === null) return ok({ error: "engine_unavailable" });
 
-    const game = parsePgn(pgn)[0];
-    if (!game) return ok({ error: "invalid_pgn", reason: "no game" });
-    let node = game.moves;
-    for (let k = 0; node.children.length && k < records.length; k++) {
-      const child = node.children[0]!;
-      const r = records[k]!;
-      if (r.classification !== "good") {
-        child.data.nags = [NAG[r.classification]!];
-        child.data.comments = [`best: ${r.best_move} (${(r.best_eval / 100).toFixed(2)})`];
-      }
-      node = child;
-    }
-    return ok({ annotated_pgn: makePgn(game) });
+    return ok(annotatedGameResult(pgn, records));
   },
 );
 
 server.tool(
   "export_annotated_repertoire",
-  "Embed repertoire analysis findings as PGN comments/NAGs at the flagged nodes — portable to any board GUI. include selects the sources: audit (engine-checks YOUR moves; NAG + cp-loss comment), only_moves (only-move drill notes), gaps (uncovered opponent replies), congruence (thematic outliers; engine-free). Default: all four. Engine-backed sources share searches via the eval cache, so a prior audit/gap scan fronts most of the work. export_path (confined to REPERTOIRE_DIR) writes the PGN to a file; otherwise it is returned inline.",
+  toolContract("export_annotated_repertoire").description,
   {
     repertoire_id: z.string(),
     include: z.array(z.enum(["audit", "only_moves", "gaps", "congruence"])).optional(),
@@ -628,7 +609,7 @@ server.tool(
 // --- repertoire edit + illustrative lines ---
 server.tool(
   "modify_repertoire_line",
-  "Edit one line (prune/add/reorder by SAN path) → a NEW repertoire_id; the source is unchanged.",
+  toolContract("modify_repertoire_line").description,
   {
     repertoire_id: z.string(),
     action: z.enum(["prune", "add", "reorder"]),
@@ -659,20 +640,12 @@ server.tool(
 
 server.tool(
   "classify_illustrative_lines",
-  "Flag illustrative side lines marked with a mistake/dubious/blunder NAG ($2/$4/$6) — they inflate leaf/gap counts. NAG tier only (engine tier deferred).",
+  toolContract("classify_illustrative_lines").description,
   { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
   ({ repertoire_id, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const { lines, illustrativeLeaves } = e.tree.illustrativeLines();
-    const shown = lines.slice(0, limit ?? 20);
-    return ok({
-      color: e.color,
-      leaves_total: e.tree.stats().leaves,
-      illustrative_leaves: illustrativeLeaves,
-      lines: shown,
-      truncated: shown.length < lines.length,
-    });
+    return ok(illustrativeLinesResult(e.tree, e.color, limit ?? toolDefault("classify_illustrative_lines", "limit", 20)));
   },
 );
 
@@ -682,7 +655,7 @@ const openingsTable = parseOpeningsTsv(
 );
 server.tool(
   "identify_opening",
-  "Name the deepest ECO opening a game's mainline reaches (eco, name, ply), or null.",
+  toolContract("identify_opening").description,
   { pgn: z.string() },
   ({ pgn }) => {
     const hit = identifyDeepest(openingsTable, pgn);
@@ -693,7 +666,7 @@ server.tool(
 // --- batch review (engine, multi-game) ---
 server.tool(
   "batch_review",
-  "Analyze multiple games, aggregated by opening (eco) or the user's color (needs username). With a username, only that user's games are included and results are from their POV.",
+  toolContract("batch_review").description,
   {
     pgn: z.string(),
     group_by: z.enum(["eco", "color"]).optional(),
@@ -704,73 +677,24 @@ server.tool(
   async ({ pgn, group_by, username, max_games, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
-    const mode = group_by ?? "eco";
-    if (mode === "color" && !username) return ok({ error: "missing_username", reason: "color grouping requires username" });
-    let games;
-    try {
-      games = parsePgn(pgn);
-    } catch (e) {
-      return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
-    }
-    if (!games.length) return ok({ error: "invalid_pgn", reason: "no games" });
-    games = games.slice(0, max_games ?? 100);
-
-    const records: GameRecord[] = [];
-    let skippedFenSetup = 0;
-    for (const game of games) {
-      let userColor: Color | null = null;
-      if (username) {
-        const u = username.toLowerCase();
-        const white = (game.headers.get("White") ?? "").toLowerCase();
-        const black = (game.headers.get("Black") ?? "").toLowerCase();
-        if (white === u) userColor = "white";
-        else if (black === u) userColor = "black";
-        else continue; // username given but didn't play this game
-      }
-      const gamePgn = makePgn(game);
-      let recs;
-      try {
-        recs = await analyzeMainline(gamePgn, depth ?? 12, analyseMulti);
-      } catch {
-        skippedFenSetup++; // FEN-setup game (e.g. Chess960) — walkers only support the standard start
-        continue;
-      }
-      if (recs === null) return ok({ error: "engine_unavailable" });
-
-      const relevant = userColor ? recs.filter((r) => r.color === userColor) : recs;
-      const avg_cpl = relevant.length ? relevant.reduce((a, r) => a + r.cp_loss, 0) / relevant.length : 0;
-      const blunders = relevant
-        .filter((r) => r.classification !== "good")
-        .map((r) => ({ move: r.san, classification: r.classification }));
-
-      let group_key: string;
-      let group_name: string;
-      if (mode === "color") {
-        group_key = userColor!;
-        group_name = userColor!;
-      } else {
-        const op = identifyDeepest(openingsTable, gamePgn);
-        group_key = op?.eco ?? "unknown";
-        group_name = op?.name ?? "Unknown";
-      }
-
-      let result: GameRecord["result"] = null;
-      if (username) {
-        const rh = game.headers.get("Result") ?? "*";
-        if (rh === "1/2-1/2") result = "draw";
-        else if (rh === "1-0") result = userColor === "white" ? "win" : "loss";
-        else if (rh === "0-1") result = userColor === "black" ? "win" : "loss";
-      }
-      records.push({ result, group_key, group_name, avg_cpl: Math.round(avg_cpl * 10) / 10, blunders });
-    }
-    return ok({ ...aggregateGames(records, !!username), games_skipped_fen_setup: skippedFenSetup });
+    return ok(await batchReviewOperation(
+      pgn,
+      {
+        groupBy: group_by ?? toolDefault("batch_review", "group_by", "eco"),
+        username,
+        maxGames: max_games ?? toolDefault("batch_review", "max_games", 100),
+        depth: depth ?? toolDefault("batch_review", "depth", 12),
+      },
+      openingsTable,
+      analyseMulti,
+    ));
   },
 );
 
 // --- game history (network) ---
 server.tool(
   "lichess_games",
-  "Recent games for a Lichess user (metadata by default; include_pgn attaches PGNs). opening_eco filters the fetched max_games by ECO prefix (applied after the fetch — the API has no ECO filter), so fewer than max_games may return.",
+  toolContract("lichess_games").description,
   {
     username: z.string(),
     max_games: z.number().int().min(1).max(100).optional(),
@@ -778,7 +702,7 @@ server.tool(
     include_pgn: z.boolean().optional(),
   },
   async ({ username, max_games, opening_eco, include_pgn }) => {
-    const games = await lichessGames(username, max_games ?? 20, opening_eco, include_pgn ?? false);
+    const games = await lichessGames(username, max_games ?? toolDefault("lichess_games", "max_games", 20), opening_eco, include_pgn ?? toolDefault("lichess_games", "include_pgn", false));
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
     return ok({ platform: "lichess", username, total: games.length, games });
   },
@@ -786,7 +710,7 @@ server.tool(
 
 server.tool(
   "chesscom_games",
-  "Games for a Chess.com user in a given month (metadata by default; include_pgn attaches PGNs). opening_eco filters the month's games by ECO prefix (applied after the fetch — the API has no ECO filter).",
+  toolContract("chesscom_games").description,
   {
     username: z.string(),
     year: z.number().int(),
@@ -804,7 +728,7 @@ server.tool(
 // --- repertoire vs played games (network + handle) ---
 server.tool(
   "repertoire_vs_history",
-  "Compare a repertoire against a user's real games: how often they reach prep, where they leave it (player_deviations — the drill list), and what opponents play past it (uncovered_opponent_moves). Only games on the repertoire's color count.",
+  toolContract("repertoire_vs_history").description,
   {
     repertoire_id: z.string(),
     username: z.string(),
@@ -816,67 +740,24 @@ server.tool(
   async ({ repertoire_id, username, platform, max_games, year, month }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const plat = platform ?? "lichess";
+    const plat = platform ?? toolDefault("repertoire_vs_history", "platform", "lichess");
     let games;
     if (plat === "chesscom") {
       if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
       games = await chesscomGames(username, year, month, undefined, true);
     } else {
-      games = await lichessGames(username, max_games ?? 30, undefined, true);
+      games = await lichessGames(username, max_games ?? toolDefault("repertoire_vs_history", "max_games", 30), undefined, true);
     }
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
 
-    const matched = games.filter((g) => g.user_color === e.color && g.pgn);
-    const map = e.tree.moveMap();
-    let reached = 0;
-    let plySum = 0;
-    const dev = new Map<string, { ply: number; fen: string; prescribed: string[]; played: string; count: number }>();
-    const unc = new Map<string, { ply: number; fen: string; played: string; count: number }>();
-    let skipped = 0;
-    for (const g of matched) {
-      // T7: the walk reports EVERY departure (it continues past the first by transposition key),
-      // so one game can contribute several drill entries.
-      let w;
-      try {
-        w = walkGameVsRepertoire(map, e.color, g.pgn!);
-      } catch {
-        skipped++; // FEN-setup game (e.g. Chess960) — walkers only support the standard start
-        continue;
-      }
-      if (w.in_book_plies >= 1) reached++;
-      plySum += w.in_book_plies;
-      for (const d of w.player_deviations) {
-        const k = `${d.fen}|${d.played}`;
-        const cur = dev.get(k) ?? { ...d, count: 0 };
-        cur.count++;
-        dev.set(k, cur);
-      }
-      for (const u of w.uncovered_opponents) {
-        const k = `${u.fen}|${u.played}`;
-        const cur = unc.get(k) ?? { ...u, count: 0 };
-        cur.count++;
-        unc.set(k, cur);
-      }
-    }
-    const walked = matched.length - skipped;
-    const byCount = <T extends { count: number }>(m: Map<string, T>) => [...m.values()].sort((a, b) => b.count - a.count);
-    return ok({
-      games_total: games.length,
-      games_matched_color: matched.length,
-      games_skipped_fen_setup: skipped,
-      games_reached_prep: reached,
-      coverage_pct: walked ? Math.round((reached / walked) * 1000) / 10 : null,
-      avg_in_book_plies: walked ? Math.round((plySum / walked) * 10) / 10 : null,
-      player_deviations: byCount(dev).slice(0, 20),
-      uncovered_opponent_moves: byCount(unc).slice(0, 20),
-    });
+    return ok(repertoireHistoryResult(e.tree, e.color, games));
   },
 );
 
 // --- match prep vs a specific opponent (network + handle) ---
 server.tool(
   "prep_vs_opponent",
-  "Match prep against a named opponent: fetch their games on the color they'd face this repertoire from, then report how often your prep lines will actually come up (coverage + per-opening hit/score rates) and which of their habitual moves your tree doesn't cover (uncovered_opponent_moves — the gaps to plug before the game).",
+  toolContract("prep_vs_opponent").description,
   {
     repertoire_id: z.string(),
     username: z.string(),
@@ -889,13 +770,13 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     const oppColor = e.color === "white" ? "black" : "white";
-    const plat = platform ?? "lichess";
+    const plat = platform ?? toolDefault("prep_vs_opponent", "platform", "lichess");
     let games;
     if (plat === "chesscom") {
       if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
       games = await chesscomGames(username, year, month, undefined, true);
     } else {
-      games = await lichessGames(username, max_games ?? 30, undefined, true);
+      games = await lichessGames(username, max_games ?? toolDefault("prep_vs_opponent", "max_games", 30), undefined, true);
     }
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
 
@@ -975,23 +856,18 @@ server.tool(
 // --- structure (descriptive: named-structure classifier + themes/center) ---
 server.tool(
   "get_structural_profile",
-  "Static pawn-structure profile of a repertoire. variation_path (SAN list) → one position's profile: the classified named structure_class (with confidence), center, primitives, files, themes. Omit it → an aggregate structure fingerprint (distribution of named structures) over all leaves.",
+  toolContract("get_structural_profile").description,
   { repertoire_id: z.string(), variation_path: z.array(z.string()).optional() },
   ({ repertoire_id, variation_path }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    if (variation_path && variation_path.length) {
-      const pos = e.tree.positionAtSanPath(variation_path);
-      if (!pos) return ok({ error: "variation_not_found", reason: "path does not match a line in the repertoire" });
-      return ok(positionProfile(pos.board, e.color, makeFen(pos.toSetup())));
-    }
-    return ok({ color: e.color, ...aggregateProfile(e.tree.leafPositions().map((p) => p.board), e.color) });
+    return ok(structuralProfileResult(e.tree, e.color, variation_path));
   },
 );
 
 server.tool(
   "find_structures",
-  'Structural position SEARCH (engine-free): every repertoire line whose final position matches the query — "show every line reaching an IQP / fianchetto / locked-center position". Criteria are AND-ed; at least one is required. structure matches the named classifier (see get_structural_profile), themes are boolean theme tags, center is the pawn-center state. The query complement of get_structural_profile (which only aggregates).',
+  toolContract("find_structures").description,
   {
     repertoire_id: z.string(),
     structure: z.string().optional(),
@@ -1022,14 +898,14 @@ server.tool(
       color: e.color,
       leaves_total: leaves.length,
       total_matches: matches.length,
-      matches: matches.slice(0, limit ?? 30),
+      matches: matches.slice(0, limit ?? toolDefault("find_structures", "limit", 30)),
     });
   },
 );
 
 server.tool(
   "analyze_repertoire_congruence",
-  "Flag thematic inconsistencies across a repertoire's lines (engine-free). Clusters leaves by opening system and judges each only against its siblings: structure_outlier, weakness_inconsistency, center_inconsistency.",
+  toolContract("analyze_repertoire_congruence").description,
   {
     repertoire_id: z.string(),
     min_severity: z.enum(["low", "medium", "high"]).optional(),
@@ -1054,7 +930,7 @@ server.tool(
 // --- suggest complementary lines (engine + structure) ---
 server.tool(
   "suggest_complementary_lines",
-  "Engine-validated complementary moves from an anchor FEN, ranked to fit the repertoire's structures (low_memorization) or maximise imbalance (sharp). Auto-advances one ply if the opponent is to move.",
+  toolContract("suggest_complementary_lines").description,
   {
     repertoire_id: z.string(),
     fen: z.string(),
@@ -1072,7 +948,7 @@ server.tool(
 // --- suggest replacement line (pivot resolution + engine + structure) ---
 server.tool(
   "suggest_replacement_line",
-  "Single-call replacement for an incongruent line. Given an outlier variation_path (from analyze_repertoire_congruence), pivots at the divergence/weakness move, then suggests sound alternatives with engine-validated continuations ranked by structural fit (or eval, mode 'solid').",
+  toolContract("suggest_replacement_line").description,
   {
     repertoire_id: z.string(),
     outlier_variation_path: z.array(z.string()),

@@ -17,7 +17,7 @@ pnpm install
 claude   # approve the `chess-analysis` server when prompted (one-time)
 ```
 
-`.mcp.json` registers one stdio server, `chess-analysis`, launched as `node --import tsx apps/mcp-server/src/index.ts` — Stockfish (the `stockfish` npm wasm), `chessops`, and the ECO/structure data all bundled. The former `chess-files` proxy is gone: its file-path tools (`load_repertoire_from_file` / `export_repertoire_to_file`) are part of the one server now. Skills in `.claude/skills/` load automatically: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`.
+`.mcp.json` registers one stdio server, `chess-analysis`, launched with `node_modules/.bin/tsx apps/mcp-server/src/index.ts` — Stockfish (the `stockfish` npm wasm), `chessops`, and the ECO/structure data all bundled. The former `chess-files` proxy is gone: its file-path tools (`load_repertoire_from_file` / `export_repertoire_to_file`) are part of the one server now. Skills in `.claude/skills/` load automatically: `/chess-game-review`, `/repertoire-builder`, `/analyze-position`, `/annotate-pgn`.
 
 ### Web app (repertoire builder PWA)
 
@@ -48,7 +48,7 @@ packages/chess-tools   shared TypeScript logic (chessops + structure classifier 
 apps/mcp-server        Node MCP server — 34 tools over chess-tools + stockfish (npm wasm)
 apps/ui                SolidJS PWA — board, congruence arrows, gaps, cloud eval, chat
 
-Claude Code ──(stdio)──► apps/mcp-server   (node --import tsx; no Docker, no port)
+Claude Code ──(stdio)──► apps/mcp-server   (tsx CLI; no Docker, no port)
 ```
 
 ## Tools

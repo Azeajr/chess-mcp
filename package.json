@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "pnpm --filter @chess-mcp/ui dev",
     "dev:host": "pnpm --filter @chess-mcp/ui dev:host",
-    "mcp": "node --import tsx apps/mcp-server/src/index.ts",
+    "mcp": "tsx apps/mcp-server/src/index.ts",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
+    "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
     "sync:skills": "rm -rf plugin/skills && cp -r .claude/skills plugin/skills",
     "check:skills": "diff -r .claude/skills plugin/skills"
   },

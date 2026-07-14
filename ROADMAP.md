@@ -48,7 +48,7 @@ engine-grounded.
 
 ## Near-term: distribution
 
-The plugin runs the server via `node --import tsx` against the **marketplace checkout** — so it
+The plugin runs the server via the checkout's `node_modules/.bin/tsx` against the **marketplace checkout** — so it
 needs the full source tree plus a `pnpm install` at that checkout. The remaining work is to make the
 server installable as a self-contained artifact.
 

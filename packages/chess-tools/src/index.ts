@@ -85,3 +85,5 @@ export type {
   AnnotateOptions,
   AnnotateResult,
 } from "./enginetools.js";
+export * from "./tool-contract.js";
+export * from "./tool-operations.js";
