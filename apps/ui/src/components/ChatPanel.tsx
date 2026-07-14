@@ -8,41 +8,9 @@ import { history, streamingText, busy, error, send, clearChat, stop, retry, tool
 import { hasApiKey, chatMode, setChatMode } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
-import { preview, stagePreview, acceptPreview, clearPreview } from "../store/suggestions";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
-
-/** A clickable preview chip for a propose_line tool result. Click stages it (gold arrow + tree
- *  glow); when active, shows Accept/Reject. */
-function PreviewChip(props: { content: string | null }) {
-  const data = createMemo(() => {
-    try {
-      return JSON.parse(props.content || "{}") as { ok?: boolean; id?: string; canonical?: string[] };
-    } catch {
-      return {} as { ok?: boolean; id?: string; canonical?: string[] };
-    }
-  });
-  const id = () => data().id;
-  const active = () => !!id() && preview()?.id === id();
-  return (
-    <Show when={data().ok && id()}>
-      <div class="preview-chip" classList={{ active: active() }}>
-        <span class="pc-line" onClick={() => stagePreview(id()!)}>
-          {data().canonical?.join(" ")}
-        </span>
-        <Show when={active()}>
-          <span class="pc-badge">previewing</span>
-          <button class="pc-accept" onClick={acceptPreview}>
-            Accept
-          </button>
-          <button class="pc-reject" onClick={clearPreview}>
-            Reject
-          </button>
-        </Show>
-      </div>
-    </Show>
-  );
-}
+import ToolResult from "./ToolResult";
 
 function buildToolNameMap(msgs: ChatMessage[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -118,16 +86,13 @@ export default function ChatPanel() {
                 </div>
               </Show>
               <Show when={m.role === "tool" && m.tool_call_id}>
-                <details class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
-                  <summary>
+                <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
+                  <div class="tool-result-label">
                     {toolNames().get(m.tool_call_id!) ?? "tool"} result
                     {isErrorResult(m.content) ? " ⚠" : ""}
-                  </summary>
-                  <pre>{m.content}</pre>
-                </details>
-                <Show when={toolNames().get(m.tool_call_id!) === "propose_line"}>
-                  <PreviewChip content={m.content} />
-                </Show>
+                  </div>
+                  <ToolResult operation={toolNames().get(m.tool_call_id!) ?? "tool"} content={m.content} />
+                </div>
               </Show>
             </>
           )}

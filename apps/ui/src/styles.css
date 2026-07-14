@@ -963,9 +963,9 @@ body {
   padding: 0.1rem 0.5rem;
   margin: 0.1rem 0;
 }
-.tool-result summary {
-  cursor: pointer;
+.tool-result-label {
   padding: 0.15rem 0;
+  font-weight: 600;
 }
 .tool-result pre {
   margin: 0.3rem 0 0.1rem;
@@ -979,6 +979,20 @@ body {
   border-color: #6b2f33;
   color: #f0a8ac;
 }
+.result-card { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; padding: 0.35rem 0; color: var(--text); }
+.result-title { width: 100%; font-weight: 650; font-size: 0.8rem; }
+.result-line { width: 100%; font-family: ui-monospace, monospace; color: #dceaff; }
+.result-summary { color: var(--muted); margin-right: auto; }
+.result-card button, .result-nav { font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.18rem 0.5rem; background: #33333a; color: var(--text); cursor: pointer; }
+.result-card .result-accept { border-color: #3c7a4b; background: #284d31; }
+.result-status { text-transform: capitalize; }
+.result-status.stale { color: #f0a8ac; }
+.result-status.accepted { color: #8bd49a; }
+.result-nav { width: 100%; display: flex; gap: 0.5rem; text-align: left; }
+.result-nav span { color: var(--muted); min-width: 6rem; }
+.result-nav b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-result-raw { width: 100%; border-top: 1px solid var(--border); margin-top: 0.2rem; }
+.tool-result-raw summary { cursor: pointer; padding: 0.25rem 0; }
 .chat-hint {
   color: #f0c674;
   font-size: 0.8rem;

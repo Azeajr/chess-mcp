@@ -45,7 +45,8 @@ import {
   batchReviewOperation,
   gapScanOperation,
 } from "@chess-mcp/chess-tools";
-import { addSuggestion } from "../store/suggestions";
+import { addSuggestion, stageEdit } from "../store/suggestions";
+import { createArtifact } from "../store/artifacts";
 import { POSITION_TOOL_NAMES, runBrowserPositionTool } from "./browser-position-tools";
 
 // Shared engine orchestration expects (fen, multipv, depth) → lines; the browser engine matches.
@@ -266,23 +267,10 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
     }
 
     case "modify_repertoire_line": {
-      const { tree: edited, error, added } = tree.edit(args.action as never, (args.path as string[]) ?? [], {
+      return stageEdit(args.action as "add" | "prune" | "reorder", (args.path as string[]) ?? [], {
         addMoves: args.add_moves as string[] | undefined,
         promoteMove: args.promote_move as string | undefined,
       });
-      if (error || !edited) return { error: error ?? "invalid_edit" };
-      const s = edited.stats();
-      return {
-        action: args.action,
-        nodes: s.nodes,
-        leaves: s.leaves,
-        max_depth: s.maxDepth,
-        pgn: edited.toPgn(),
-        // For an add, echo where the graft actually anchored + the moves grafted — the path may
-        // have been re-split when it ran past the existing tree (so the model can see it worked).
-        ...(added ? { added_from: added.from, added_moves: added.moves } : {}),
-        note: "preview only — apply via the board to keep it",
-      };
     }
 
     case "suggest_complementary_lines":
@@ -306,7 +294,10 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
     case "export_annotated_pgn": {
       const records = await analyzeMainline(pgnArg, depth ?? toolDefault("export_annotated_pgn", "depth", 14), analyse);
       if (records === null) return { error: "engine offline" };
-      return annotatedGameResult(pgnArg, records);
+      const result = annotatedGameResult(pgnArg, records);
+      if ("error" in result) return result;
+      const base = (fileName() ?? "game.pgn").replace(/\.pgn$/i, "");
+      return createArtifact("pgn", result.annotated_pgn, `${base}-annotated.pgn`);
     }
 
     case "batch_review": {

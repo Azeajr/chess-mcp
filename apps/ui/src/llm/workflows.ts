@@ -3,8 +3,8 @@
  * encode the METHOD: which tools to call, in what order, to reach an outcome, plus the grounding
  * rules that keep every claim engine-backed. Adapted to the browser tools (llm/tools.ts): there is
  * no repertoire_id handle (the loaded board tree IS the repertoire), no host-filesystem tools, and
- * modify_repertoire_line only previews. The user picks a mode in the chat panel; the selected
- * workflow is appended to the system prompt for that turn.
+ * modify_repertoire_line stages an explicit user action. Optional presets append the selected
+ * workflow to the automatically routed system prompt.
  */
 export type ChatMode = "" | "general" | "repertoire" | "review" | "position" | "annotate";
 
@@ -34,7 +34,7 @@ const MODE_BODY: Record<Exclude<ChatMode, "">, string> = {
 8. Connect dangling stubs: get_repertoire_coverage lists your-turn leaves owed a continuation; a stub whose position already appears in get_transpositions is covered by transposition (wire it, no new theory). For one that doesn't, suggest_complementary_lines continues it in-theme.
 9. Shorten lines to cut memorization: find_pruning_transpositions → for each line, the earliest of YOUR moves where an engine-best (near-#1) move re-routes into a DIFFERENT prepared line, making the tail redundant (savedPlies). It reports the eval trade (evalStay vs evalTranspose) so you weigh transposing vs staying; apply by pruning the tail (modify_repertoire_line prune) and keeping the re-route move.
 10. Practical-play checks (opening explorer; needs the Lichess token in Settings — on explorer_auth_required ask the user to add it): position_popularity(fen) → what opponents actually play at a position (frequency + score); find_theory_depth → per line, the ply where explorer game counts collapse (theory_exit_ply) — past it memorization stops paying, so deep tails beyond the exit are prune candidates and lines that exit early deserve the prep budget.
-To ADD a line, prefer propose_line (SAN moves from the current position) → it stages a board arrow the user accepts, no path-building needed. Reserve modify_repertoire_line for prune/reorder, or an add whose anchor isn't the current position; address its path by SAN from the root and let it graft the tail (its result echoes added_from/added_moves so you can confirm where it landed). modify_repertoire_line only PREVIEWS the edit (returns the resulting PGN + stats) — it does NOT change the board; tell the user to apply it via the board to keep it.
+To ADD a line, prefer propose_line (SAN moves from the current position). Reserve modify_repertoire_line for prune/reorder, or an add whose anchor isn't the current position. Both create revision-checked action cards; neither changes the tree until the user presses Accept. Do not repeat preview PGN or claim an edit was applied.
 Report: structural identity / incongruencies with the offending line / weak user moves + the engine fix / uncovered opponent tries = gaps / suggested extensions.`,
 
   review: `Game review (the current line on the board, or a PGN the user pastes — pass it as pgn).
@@ -52,7 +52,7 @@ Present: verdict up top (accuracy per side, the 1–3 turning points), then per 
   annotate: `Produce an annotated PGN artifact.
 1. validate_pgn (omit pgn to annotate the current board's line).
 2. export_annotated_pgn(pgn) → an annotated PGN string: glyphs ($2/$4/$6) + best-move/eval comments on flagged moves. Do NOT hand-assemble a PGN yourself.
-3. Emit the returned PGN in a fenced \`\`\`pgn block and offer to save it as <name>-annotated.pgn.`,
+3. The result is a saveable artifact card. Mention its name and summary only; never repeat the PGN content.`,
 };
 
 export function workflowPrompt(mode: ChatMode): string {

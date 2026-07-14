@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { selectOutcomes, schemasForConversation } from "../src/llm/chat-routing.ts";
 import { streamChat, type ToolSchema } from "../src/llm/openrouter.ts";
 import { validateToolArguments } from "@chess-mcp/chess-tools";
+import { actions, currentTree, version } from "../src/store/game.ts";
+import { acceptStagedEdit, rejectStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
+import { artifactById, createArtifact } from "../src/store/artifacts.ts";
 
 const schema = (name: string): ToolSchema => ({ type: "function", function: { name, description: name, parameters: {} } });
 const sse = (...frames: unknown[]) => new ReadableStream({
@@ -54,4 +57,51 @@ test("fake model stream reports abnormal finish and respects cancellation", asyn
   assert.equal(abnormal.abnormalFinish, "length");
   const controller = new AbortController(); controller.abort();
   await assert.rejects(streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], signal: controller.signal, onText() {} }), { name: "AbortError" });
+});
+
+test("staged add, prune, and reorder edits require acceptance and share the game command", () => {
+  actions.loadPgn("1. e4 (1. d4) e5 2. Nf3");
+  const initial = actions.toPgn();
+  const reorder = stageEdit("reorder", [], { promoteMove: "d4" });
+  assert.equal(reorder.ok, true);
+  assert.equal(actions.toPgn(), initial, "staging must not mutate the tree");
+  if (!reorder.ok) return;
+  assert.equal(acceptStagedEdit(reorder.action_id).ok, true);
+  assert.equal(currentTree().nodeAt([]).children[0]!.data.san, "d4");
+
+  const add = stageEdit("add", ["e4", "e5", "Nf3"], { addMoves: ["Nc6"] });
+  assert.equal(add.ok, true);
+  if (!add.ok) return;
+  rejectStagedEdit(add.action_id);
+  assert.equal(stagedEdit(add.action_id)?.status, "rejected");
+  assert.equal(currentTree().indexPathOfSan(["e4", "e5", "Nf3", "Nc6"]), null);
+
+  const prune = stageEdit("prune", ["d4"]);
+  assert.equal(prune.ok, true);
+  if (!prune.ok) return;
+  assert.equal(acceptStagedEdit(prune.action_id).ok, true);
+  assert.equal(currentTree().indexPathOfSan(["d4"]), null);
+});
+
+test("staged edits cannot apply after the tree revision changes", () => {
+  actions.loadPgn("1. e4 e5");
+  const staged = stageEdit("add", ["e4", "e5"], { addMoves: ["Nf3"] });
+  assert.equal(staged.ok, true);
+  if (!staged.ok) return;
+  const stagedRevision = staged.revision;
+  actions.newGame();
+  assert.notEqual(version(), stagedRevision);
+  assert.deepEqual(acceptStagedEdit(staged.action_id), { ok: false, error: "stale_revision" });
+  assert.equal(stagedEdit(staged.action_id)?.status, "stale");
+});
+
+test("artifact results expose metadata by reference without repeating content", () => {
+  const content = "[Event \"Annotated\"]\n\n1. e4 *";
+  const result = createArtifact("pgn", content, "game-annotated.pgn");
+  assert.equal("content" in result, false);
+  assert.equal(result.format, "pgn");
+  assert.equal(artifactById(result.artifact_id)?.content, content);
+  const deck = createArtifact("csv", "fen,move\nstart,e4", "only-moves.csv");
+  assert.equal(deck.media_type, "text/csv");
+  assert.equal(artifactById(deck.artifact_id)?.name, "only-moves.csv");
 });

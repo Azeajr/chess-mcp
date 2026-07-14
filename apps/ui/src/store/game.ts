@@ -76,18 +76,30 @@ export const actions = {
     setPath(p);
   },
 
-  /** Append a sequence of canonical SANs from `from`, navigate to the end, mark dirty. */
-  appendLine(from: Path, sans: string[]) {
-    let p = from;
-    let created = false;
-    for (const san of sans) {
-      const r = tree().appendSan(p, san);
-      created = created || r.appended;
-      p = r.path;
-    }
-    setPath(p);
-    if (created) setDirty(true);
+  /** Apply the canonical clone-on-write repertoire command. Chat and direct UI edits share this. */
+  applyEdit(
+    action: "prune" | "add" | "reorder",
+    sanPath: readonly string[],
+    opts: { addMoves?: string[]; promoteMove?: string } = {},
+    expectedRevision?: number,
+  ): { ok: true; revision: number } | { ok: false; error: string } {
+    if (expectedRevision != null && expectedRevision !== version()) return { ok: false, error: "stale_revision" };
+    const result = tree().edit(action, sanPath, opts);
+    if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
+    setTree(result.tree);
+    const destination = action === "add"
+      ? result.tree.indexPathOfSan([...(result.added?.from ?? sanPath), ...(result.added?.moves ?? [])])
+      : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
+    if (destination) setPath(destination);
+    setDirty(true);
     bump();
+    return { ok: true, revision: version() };
+  },
+
+  /** Append a line through the same application command used by accepted chat edits. */
+  appendLine(from: Path, sans: string[]) {
+    const sanPath = tree().sanPathAt(from);
+    return this.applyEdit("add", sanPath, { addMoves: sans });
   },
 
   back() {
