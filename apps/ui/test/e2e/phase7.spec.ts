@@ -7,6 +7,7 @@ type ChessHarness = {
   goto(path: number[]): void;
   addSuggestion(moves: string[], comment?: string): { id: string };
   suggestions(): { id: string }[];
+  stagePreviewLine(path: number[], moves: string[]): { ok: boolean };
   stageEdit(action: "add" | "prune" | "reorder", path: string[], options?: Record<string, unknown>): { ok: boolean; action_id?: string };
   stagedEdit(id: string): { status: string } | undefined;
   acceptStagedEdit(id: string): { ok: boolean; error?: string };
@@ -51,6 +52,20 @@ test("suggestions do not mutate until accepted and can be rejected", async ({ pa
   await chess(page, (api) => api.addSuggestion(["Nf3"], "Develop"));
   await page.getByRole("button", { name: "Accept" }).click();
   expect(await chess(page, (api) => api.toPgn())).toContain("Nf3");
+});
+
+test("direct repertoire previews expose cancel and accept controls", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 e5", "prep.pgn"));
+  const before = await chess(page, (api) => api.toPgn());
+  await chess(page, (api) => api.stagePreviewLine([], ["d4", "d5"]));
+  await expect(page.getByRole("status", { name: "Staged repertoire line" })).toContainText("1. d4 d5");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+
+  await chess(page, (api) => api.stagePreviewLine([], ["d4", "d5"]));
+  await page.getByRole("button", { name: "Accept line" }).click();
+  expect(await chess(page, (api) => api.toPgn())).toContain("d4 d5");
+  await expect(page.getByRole("status", { name: "Staged repertoire line" })).toHaveCount(0);
 });
 
 test("stale staged edits are refused after the document changes", async ({ page }) => {

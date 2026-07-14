@@ -9,6 +9,7 @@ import {
   decisionNodes,
   turnNodes,
   findRepertoireGaps,
+  suggestGapFills,
   auditRepertoireMoves,
   findOnlyMoves,
   onlyMoveDeckCsv,
@@ -382,6 +383,18 @@ ok(!gr.error && gr.covered_by_transposition.length === 1, "findRepertoireGaps: a
 ok(gr.covered_by_transposition?.[0]?.uncovered_move === "d5", "covered_by_transposition records the transposing reply ...d5");
 ok(gr.covered_by_transposition?.[0]?.joins_path.join(" ") === "d4 d5 c4 e6 Nc3 Nf6", "covered_by_transposition names the prep line joined");
 ok(!gr.error && !gr.gaps.some((g) => g.uncovered_move === "d5"), "findRepertoireGaps: the transposing reply is excluded from gaps");
+
+// Gap fills are shared host orchestration: both choices include the uncovered move and a legal reply.
+const fillTree = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *");
+const fillStub = async (fen) => fen.includes("2p5/4P3") && fen.split(" ")[1] === "w"
+  ? [
+      { uci: "g1f3", cp: 40, mate: null, depth: 10, pv: [] },
+      { uci: "d2d4", cp: 20, mate: null, depth: 10, pv: [] },
+    ]
+  : [];
+const fills = await suggestGapFills(fillTree, "white", [0], "c5", { depth: 10, target_plies: 4 }, fillStub);
+ok(!("error" in fills) && fills.options.length === 2, "suggestGapFills returns best-eval and best-fit choices");
+ok(!("error" in fills) && fills.options[0].kind === "best_eval" && fills.options[0].line.join(" ") === "c5 Nf3", "suggestGapFills keeps the uncovered move and strongest reply in the staged line");
 
 // 16h. compareMoves — rank caller SANs by engine, mover POV. Stubs stand in for the engine (the
 // real one is exercised by smoke-client). From the start (White to move) e4 (white-POV +20) outranks

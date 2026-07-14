@@ -2,7 +2,7 @@
 import { render } from "solid-js/web";
 import App from "./App";
 import { actions } from "./store/game";
-import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
+import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { createArtifact, saveArtifact } from "./store/artifacts";
 import { selectOutcomes } from "./llm/chat-routing";
@@ -22,6 +22,7 @@ if (import.meta.env.DEV) {
     suggestions,
     preview,
     stagePreview,
+    stagePreviewLine,
     acceptPreview,
     clearPreview,
     stageEdit,

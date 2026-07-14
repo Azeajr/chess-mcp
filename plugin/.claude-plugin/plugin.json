@@ -1,7 +1,7 @@
 {
   "name": "chess-mcp",
   "description": "Grounded chess analysis — local Stockfish over a Node MCP server (no Docker). Skills: game review, repertoire builder, position analysis, annotated PGN.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": {
     "name": "Antonio Zea"
   },

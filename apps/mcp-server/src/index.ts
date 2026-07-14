@@ -58,6 +58,7 @@ import {
   repertoireHistoryResult,
   batchReviewOperation,
   gapScanOperation,
+  suggestGapFills,
   opponentPrepResult,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
@@ -278,6 +279,26 @@ server.tool(
         popularity ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 }) : undefined,
       ),
     );
+  },
+);
+
+server.tool(
+  "suggest_gap_fills",
+  toolContract("suggest_gap_fills").description,
+  {
+    repertoire_id: z.string(),
+    variation_path: z.array(z.string()),
+    uncovered_move: z.string(),
+    depth: z.number().int().min(1).max(30).optional(),
+    limit: z.number().int().min(2).max(10).optional(),
+    target_plies: z.number().int().min(2).max(200).optional(),
+  },
+  async ({ repertoire_id, variation_path, uncovered_move, depth, limit, target_plies }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const path = e.tree.indexPathOfSan(variation_path);
+    if (!path) return ok({ error: "path_not_found", reason: "variation_path is not in the repertoire" });
+    return ok(await suggestGapFills(e.tree, e.color, path, uncovered_move, { depth, limit, target_plies }, analyseMulti));
   },
 );
 

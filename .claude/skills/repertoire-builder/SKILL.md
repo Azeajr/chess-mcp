@@ -98,6 +98,11 @@ comparing handles, with no re-download. See "Edit loop" below.
    (best − second line; a large margin means an only-move position where misremembering is punished).
    `min_cp_loss` (default 50) sets the reporting bar; it is the complement of `find_repertoire_gaps`
    (which checks OPPONENT coverage).
+   For a reported gap, call `suggest_gap_fills(repertoire_id, variation_path, uncovered_move)` and
+   present its `best_eval` and `best_fit` options before editing. Each option's `line` begins with the
+   uncovered opponent move and is already extended to the repertoire's typical depth. Apply the
+   chosen line with `modify_repertoire_line(action="add", path=variation_path, add_moves=line)` only
+   after the user chooses; continue on the returned clone-on-write handle.
 6. **Extend or diversify** from any position: `suggest_complementary_lines(repertoire_id, fen, mode)`.
    - `mode="low_memorization"` → continuations whose resulting structure the user **already plays**
      elsewhere (high `profile_match`) — least new theory.
@@ -189,7 +194,8 @@ same session — no hand-editing, no re-download, no fresh session:
 
 1. **Decide the edit from a tool result.** A prune target is a flagged `path`, or a shorten target
    from `find_pruning_transpositions` (prune the redundant tail — see Workflow step 7); an `add`
-   continuation comes from `suggest_complementary_lines` / `evaluate_position` `lines` (confirm with
+   continuation comes from `suggest_gap_fills` for a reported gap, or
+   `suggest_complementary_lines` / `evaluate_position` `lines` elsewhere (confirm ad-hoc lines with
    `validate_line`); a `reorder` promotes an existing child move. You only ever pass back paths + SAN
    the MCP already surfaced.
 2. **Apply it:** `modify_repertoire_line(repertoire_id, path, action, …)` →

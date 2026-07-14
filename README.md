@@ -34,13 +34,13 @@ a no-scope Lichess personal token because the explorer requires authentication.
   theory depth, structure search, practical-history comparison, opponent preparation, and annotated
   export.
 - Advanced repertoire: thematic congruence, transpositions and shortening, shortcut inspection,
-  and engine-vetted replacement or complementary lines.
+  engine-vetted replacement or complementary lines, and shared best-eval/best-fit gap fills.
 
 Chat accepts a natural first message; workflow presets are optional. It routes a bounded capability
 bundle, can expand that bundle during a conversation, retrieves document data only when needed, and
 shows progress with Stop/Retry controls. Tool results render as navigable application data. Proposed
-edits are staged against a document revision and require Accept; generated PGN/CSV artifacts have
-direct save actions.
+edits are staged against a document revision and require Accept; direct repertoire previews expose
+Accept line/Cancel controls, and generated PGN/CSV artifacts have direct save actions.
 
 Direct analysis is available without chat and invokes the same browser application commands and
 result models. MCP and browser host differences are intentional: MCP uses repertoire handles and

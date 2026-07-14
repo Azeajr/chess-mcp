@@ -56,7 +56,7 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 40, "40 tools registered");
+ok(tools.length === 41, "41 tools registered");
 
 // Phase 1 vertical slice: MCP Zod output must mechanically match the canonical application
 // contract. Descriptions are intentionally ignored here because Zod adds/omits transport prose.
@@ -141,6 +141,16 @@ console.log("find_repertoire_gaps (engine scan)…");
 const gaps = await call(client, "find_repertoire_gaps", { repertoire_id: rep.repertoire_id, depth: 12, min_severity: "high" });
 console.log("  gaps:", JSON.stringify(gaps.gaps?.map((g) => `${g.severity} ${g.uncovered_move} ${g.eval}`)));
 ok(gaps.gaps?.some((g) => g.uncovered_move === "Qxg2" && g.severity === "high"), "gap scan finds Qxg2 HIGH");
+const firstGap = gaps.gaps?.[0];
+const gapFills = await call(client, "suggest_gap_fills", {
+  repertoire_id: rep.repertoire_id,
+  variation_path: firstGap.san_path,
+  uncovered_move: firstGap.uncovered_move,
+  depth: 10,
+  limit: 2,
+  target_plies: firstGap.path.length + 2,
+});
+ok(Array.isArray(gapFills.options) && gapFills.options[0]?.kind === "best_eval" && gapFills.options[0]?.line[0] === firstGap.uncovered_move, "suggest_gap_fills returns an actionable line for a reported gap");
 
 console.log("find_only_moves (engine scan)…");
 // The trap line is sharp by construction: after 4...Qg5 white's 5.Nxf7 stands alone (anything else

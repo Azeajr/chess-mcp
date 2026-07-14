@@ -55,6 +55,7 @@ export {
   resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
+  suggestGapFills,
   suggestReplacementLine,
   compareShortcutLines,
   checkShortcutCoverage,
@@ -63,6 +64,8 @@ export {
 export type {
   Analyse,
   EngineLine,
+  GapFillOption,
+  SuggestGapFillsOptions,
   MoveRecord,
   GapsOptions,
   Gap,

@@ -44,6 +44,7 @@ import {
   repertoireHistoryResult,
   batchReviewOperation,
   gapScanOperation,
+  suggestGapFills,
   auditRepertoireMoves,
   findOnlyMoves,
   onlyMoveDeckCsv,
@@ -104,6 +105,7 @@ const MODE_TOOLS: Partial<Record<ChatMode, string[]>> = {
     "position_popularity",
     "find_theory_depth",
     "find_repertoire_gaps",
+    "suggest_gap_fills",
     "get_transpositions",
     "find_pruning_transpositions",
     "inspect_shortcut",
@@ -207,6 +209,16 @@ export async function runTool(name: string, args: Args, options: ToolExecutionOp
       );
       throwIfAborted(options.signal);
       return result;
+    }
+
+    case "suggest_gap_fills": {
+      const path = tree.indexPathOfSan((args.variation_path as string[]) ?? []);
+      if (!path) return { error: "path_not_found", reason: "variation_path is not in the repertoire" };
+      return suggestGapFills(tree, col, path, args.uncovered_move as string, {
+        depth,
+        limit: args.limit as number | undefined,
+        target_plies: args.target_plies as number | undefined,
+      }, analyse);
     }
 
     case "audit_repertoire_moves":

@@ -26,6 +26,9 @@ Repertoire add, prune, and reorder operations produce staged actions. Each previ
 source revision, path, before/after summary, and line where applicable. Accept uses the same command
 as direct editing; Reject discards it; a stale revision cannot apply.
 
+Direct repertoire suggestions, including gap fills, open a visible staged-line card with Accept line
+and Cancel controls. Accept grafts the line into the working tree; the normal Save action persists it.
+
 Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
 the model compact metadata and an artifact reference while the UI owns the save affordance.
 

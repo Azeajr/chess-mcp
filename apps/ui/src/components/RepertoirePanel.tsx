@@ -54,7 +54,7 @@ import {
   type ReplacementResult,
 } from "../store/repertoire";
 import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
-import { stagePreviewLine } from "../store/suggestions";
+import { stagePreviewLine, preview, acceptPreview, clearPreview } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 import { commandStates, executeCommand, cancelCommand, type DirectCommand } from "../store/commands";
 import { saveArtifact } from "../store/artifacts";
@@ -150,6 +150,16 @@ export default function RepertoirePanel() {
   return (
     <div class="rep-panel">
       <div class="outcome-label">Repertoire</div>
+      <Show when={preview()}>{(active) => (
+        <div class="rep-preview" role="status" aria-label="Staged repertoire line">
+          <div class="rep-preview-label">Staged line</div>
+          <div class="rep-preview-line">{numbered(active().sans, active().fromPath.length)}</div>
+          <div class="rep-preview-actions">
+            <button class="accept" onClick={acceptPreview}>Accept line</button>
+            <button class="reject" onClick={clearPreview}>Cancel</button>
+          </div>
+        </div>
+      )}</Show>
       <details class="rep-section">
         <summary><span>Prescribed-move audit</span>{commandButton("audit_repertoire_moves", "Audit")}</summary>
         <div class="scope-note">Up to 20 positions · depth 14 · local engine</div>

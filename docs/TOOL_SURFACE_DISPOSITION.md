@@ -46,6 +46,7 @@ do not require a compatibility bump.
 | `position_popularity` | Human move frequency and results | N | Position/Repertoire | report | keep |
 | `identify_opening` | Deepest ECO reached by a line | L | Position/Game | report | keep |
 | `find_repertoire_gaps` | Opponent-reply coverage, transposition-aware | E/N optional | Repertoire | report | keep |
+| `suggest_gap_fills` | Best-eval/best-fit complete lines for one reported gap | E | finding action | report | keep |
 | `find_theory_depth` | Per-line explorer exit depth | N | Repertoire | report | keep |
 | `get_transpositions` | Explain/navigate move-order convergence | L | Advanced | report | keep, lower prominence |
 | `find_pruning_transpositions` | Generate memory-saving reroutes | E | Advanced | report | keep |

@@ -15,7 +15,7 @@ import type { ChildNode, PgnNodeData } from "chessops/pgn";
 import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
-import { decisionNodes, turnNodes, gapSeverity, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
+import { decisionNodes, turnNodes, gapSeverity, medianLineLength, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
 import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
 import type { OpeningTable } from "./openings.js";
@@ -158,6 +158,8 @@ export interface GapsOptions {
 }
 export interface Gap {
   path: Path;
+  /** Host-neutral SAN path to the decision node, suitable for follow-up tools. */
+  san_path: string[];
   fen: string;
   uncovered_move: string;
   eval: number | null;
@@ -170,6 +172,7 @@ export interface Gap {
 }
 export interface CoveredGap {
   path: Path;
+  san_path: string[];
   fen: string;
   uncovered_move: string;
   /** the prepared line this reply transposes into (shallowest SAN path). */
@@ -221,10 +224,10 @@ export async function findRepertoireGaps(
         after.play(parseUci(l.uci)!);
         const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
         if (tgt) {
-          covered.push({ path: node.path, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
+          covered.push({ path: node.path, san_path: node.sanPath, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
           continue;
         }
-        gaps.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
+        gaps.push({ path: node.path, san_path: node.sanPath, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
       }
       opts.onProgress?.(++progressDone, nodes.length);
       return { gaps, covered };
@@ -951,6 +954,142 @@ export async function suggestComplementaryLines(
   const result: Record<string, unknown> = { mode: m, anchor_fen: anchorFen, suggestions: ranked.slice(0, lim).map((r) => r.entry) };
   if (opponentMoveSan) result.opponent_move = opponentMoveSan;
   return result;
+}
+
+// --- suggest_gap_fills (opinionated best-eval / best-fit gap completion) ---
+
+export interface GapFillOption {
+  kind: "best_eval" | "best_fit";
+  reply: string;
+  /** Complete SAN line from the gap node: uncovered opponent move, reply, then engine tail. */
+  line: string[];
+  /** Repertoire-side POV centipawns after the reply. */
+  eval_cp: number;
+  /** Mean structural fit across the complete proposed line, 0..1. */
+  fit: number;
+}
+
+export interface SuggestGapFillsOptions {
+  depth?: number;
+  limit?: number;
+  /** Override the repertoire-median target depth, primarily for bounded clients/tests. */
+  target_plies?: number;
+}
+
+type RawComplementarySuggestion = { move: string; eval: number; profile_match?: number; pv: string };
+
+async function gapFillTail(fen: string, maxPlies: number, depth: number, analyse: Analyse): Promise<string[]> {
+  const out: string[] = [];
+  if (maxPlies <= 0) return out;
+  const pos = chessFromFen(fen);
+  let currentFen = fen;
+  for (let guard = 0; out.length < maxPlies && guard < 6; guard++) {
+    const need = maxPlies - out.length;
+    const searchDepth = Math.min(18, Math.max(depth, need + 2));
+    const result = await analyse(currentFen, 1, searchDepth);
+    if (!result?.length) break;
+    let advanced = 0;
+    for (const uci of result[0]!.pv ?? []) {
+      if (out.length >= maxPlies) break;
+      const move = parseUci(uci);
+      if (!move) break;
+      out.push(makeSan(pos, move));
+      pos.play(move);
+      advanced++;
+    }
+    if (!advanced) break;
+    currentFen = makeFen(pos.toSetup());
+  }
+  return out;
+}
+
+async function buildGapFillLine(
+  anchorFen: string,
+  uncoveredMove: string,
+  reply: string,
+  pliesToAdd: number,
+  depth: number,
+  analyse: Analyse,
+): Promise<string[]> {
+  const pos = chessFromFen(anchorFen);
+  const move = parseSan(pos, reply);
+  if (!move) return [uncoveredMove, reply];
+  pos.play(move);
+  const tail = await gapFillTail(makeFen(pos.toSetup()), pliesToAdd - 2, depth, analyse);
+  const line = [uncoveredMove, reply, ...tail].slice(0, Math.max(2, pliesToAdd));
+  // The uncovered move is the opponent's, so an even-length line ends on the repertoire side.
+  if (line.length % 2 === 1) line.pop();
+  return line;
+}
+
+function gapFillFit(startFen: string, sans: string[], profile: ReturnType<typeof buildFitProfile>, color: Color): number {
+  const pos = chessFromFen(startFen);
+  let sum = 0;
+  let count = 0;
+  for (const san of sans) {
+    const move = parseSan(pos, san);
+    if (!move) break;
+    pos.play(move);
+    sum += fitScore(profile, pos.board, color);
+    count++;
+  }
+  return count ? Math.round((sum / count) * 100) / 100 : 0;
+}
+
+/** Return the same two actionable gap-fill choices for browser and MCP hosts. */
+export async function suggestGapFills(
+  tree: GameTree,
+  color: Color,
+  path: Path,
+  uncoveredMove: string,
+  opts: SuggestGapFillsOptions,
+  analyse: Analyse,
+): Promise<{ path: string[]; uncovered_move: string; target_plies: number; options: GapFillOption[] } | { error: string; reason?: string }> {
+  let startFen: string;
+  let sanPath: string[];
+  try {
+    startFen = tree.fenAt(path);
+    sanPath = tree.sanPathAt(path);
+  } catch {
+    return { error: "path_not_found" };
+  }
+  const afterGap = chessFromFen(startFen);
+  const gapMove = parseSan(afterGap, uncoveredMove);
+  if (!gapMove) return { error: "illegal_uncovered_move", reason: `cannot play '${uncoveredMove}' at the gap path` };
+  afterGap.play(gapMove);
+  const anchorFen = makeFen(afterGap.toSetup());
+  const depth = Math.max(1, Math.min(30, opts.depth ?? 16));
+  const limit = Math.max(2, Math.min(10, opts.limit ?? 4));
+  const raw = await suggestComplementaryLines(tree, color, anchorFen, { mode: "low_memorization", limit, depth }, analyse) as {
+    suggestions?: RawComplementarySuggestion[];
+    error?: string;
+    reason?: string;
+  };
+  if (raw.error) return { error: raw.error, ...(raw.reason ? { reason: raw.reason } : {}) };
+  if (!raw.suggestions?.length) return { error: "no_fill_found" };
+
+  const target = Math.max(2, opts.target_plies ?? (medianLineLength(tree) || 10));
+  const pliesToAdd = Math.max(2, target - path.length);
+  const profile = buildFitProfile(tree.leafPositions().map((position) => position.board), color);
+  const moverEval = (suggestion: RawComplementarySuggestion) => (color === "white" ? 1 : -1) * suggestion.eval;
+  const probed: { suggestion: RawComplementarySuggestion; fit: number }[] = [];
+  for (const suggestion of raw.suggestions) {
+    const line = await buildGapFillLine(anchorFen, uncoveredMove, suggestion.move, Math.min(pliesToAdd, 10), 14, analyse);
+    probed.push({ suggestion, fit: gapFillFit(startFen, line, profile, color) });
+  }
+  const byEval = [...probed].sort((a, b) => moverEval(b.suggestion) - moverEval(a.suggestion) || b.fit - a.fit);
+  const evalPick = byEval[0]!;
+  const fitPick = [...probed]
+    .filter((candidate) => candidate.suggestion.move !== evalPick.suggestion.move)
+    .sort((a, b) => b.fit - a.fit || moverEval(b.suggestion) - moverEval(a.suggestion))[0];
+
+  const build = async (kind: GapFillOption["kind"], pick: typeof evalPick): Promise<GapFillOption> => {
+    const line = await buildGapFillLine(anchorFen, uncoveredMove, pick.suggestion.move, pliesToAdd, 14, analyse);
+    return { kind, reply: pick.suggestion.move, line, eval_cp: moverEval(pick.suggestion), fit: gapFillFit(startFen, line, profile, color) };
+  };
+  const options = [await build("best_eval", evalPick)];
+  if (fitPick) options.push(await build("best_fit", fitPick));
+  return { path: sanPath, uncovered_move: uncoveredMove, target_plies: target, options };
 }
 
 // --- suggest_replacement_line (pivot resolution + engine + structure) ---

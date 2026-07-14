@@ -101,6 +101,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   get_game_summary: (data) => <ReviewSummary data={data} />,
   analyze_game: (data) => <div class="result-card"><div class="result-title">Move findings · {String(data.total_moves ?? 0)} analysed</div><NavigationRows data={data} /></div>,
   find_repertoire_gaps: (data) => <div class="result-card"><div class="result-title">Repertoire findings</div><NavigationRows data={data} /></div>,
+  suggest_gap_fills: (data) => <div class="result-card"><div class="result-title">Gap-fill choices</div><NavigationRows data={data} /></div>,
 };
 const byKind: Record<string, (data: Data) => unknown> = {
   staged_edit: (data) => <StagedEditResult data={data} />,

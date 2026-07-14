@@ -17,7 +17,7 @@ const GAME = new Set([
   "chesscom_games", "export_annotated_pgn", "get_document_pgn",
 ]);
 const REPERTOIRE = new Set([
-  "identify_opening", "position_popularity", "find_theory_depth", "find_repertoire_gaps",
+  "identify_opening", "position_popularity", "find_theory_depth", "find_repertoire_gaps", "suggest_gap_fills",
   "get_transpositions", "find_pruning_transpositions", "get_repertoire_coverage",
   "inspect_shortcut",
   "get_structural_profile", "analyze_repertoire_congruence", "classify_illustrative_lines",
