@@ -68,7 +68,8 @@ export function setCloudEvalEnabled(v: boolean) {
   localStorage.setItem(KEY_CLOUD, String(v));
 }
 
-const [chatMode, setChatModeRaw] = createSignal<ChatMode>(read(KEY_MODE, "") as ChatMode);
+const savedMode = read(KEY_MODE, "") as ChatMode;
+const [chatMode, setChatModeRaw] = createSignal<ChatMode>(["", "general", "repertoire", "review", "position", "annotate"].includes(savedMode) ? savedMode : "");
 export { chatMode };
 export function setChatMode(m: ChatMode) {
   setChatModeRaw(m);

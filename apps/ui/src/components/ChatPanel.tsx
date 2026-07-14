@@ -4,7 +4,7 @@
  * chat store. Proposed lines land in the AnalysisPanel (Suggestions) + as blue board arrows.
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { history, streamingText, busy, error, send, clearChat } from "../store/chat";
+import { history, streamingText, busy, error, send, clearChat, stop, retry, toolRuns } from "../store/chat";
 import { hasApiKey, chatMode, setChatMode } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
@@ -81,8 +81,8 @@ export default function ChatPanel() {
       <div class="panel-head">
         <span>Chat</span>
         <select
-          class={`chat-mode${chatMode() ? "" : " needs-mode"}`}
-          title="Workflow: tells the assistant which tools to use, in what order, for this kind of task"
+          class="chat-mode"
+          title="Optional workflow preset; Auto routes tools from your request"
           value={chatMode()}
           onChange={(e) => setChatMode(e.currentTarget.value as ChatMode)}
         >
@@ -138,10 +138,19 @@ export default function ChatPanel() {
         <Show when={busy() && !streamingText()}>
           <div class="msg assistant streaming">…</div>
         </Show>
+        <For each={toolRuns()}>
+          {(run) => (
+            <div class={`tool-run ${run.status}`}>
+              <span class="tool-run-state">{run.status}</span> {run.name}
+              <Show when={run.total != null}><span> {run.done ?? 0}/{run.total}</span></Show>
+              <Show when={run.detail}><span class="tool-run-detail"> — {run.detail}</span></Show>
+            </div>
+          )}
+        </For>
       </div>
 
       <Show when={error()}>
-        <div class="chat-error">{error()}</div>
+        <div class="chat-error">{error()} <Show when={!busy()}><button class="chat-retry" onClick={retry}>Retry</button></Show></div>
       </Show>
       <Show when={!hasApiKey()}>
         <div class="chat-error">
@@ -151,14 +160,10 @@ export default function ChatPanel() {
           </a>
         </div>
       </Show>
-      <Show when={hasApiKey() && !chatMode()}>
-        <div class="chat-hint">Select a mode before sending.</div>
-      </Show>
-
       <div class="chat-input">
         <textarea
           rows="2"
-          placeholder={chatMode() ? "Ask about the position…" : "Select a mode first…"}
+          placeholder="Ask about this position, game, or repertoire…"
           value={input()}
           disabled={busy()}
           onInput={(e) => setInput(e.currentTarget.value)}
@@ -169,9 +174,9 @@ export default function ChatPanel() {
             }
           }}
         />
-        <button onClick={submit} disabled={busy()}>
-          Send
-        </button>
+        <Show when={!busy()} fallback={<button class="stop-btn" onClick={stop}>Stop</button>}>
+          <button onClick={submit}>Send</button>
+        </Show>
       </div>
     </div>
   );

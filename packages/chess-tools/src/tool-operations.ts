@@ -74,6 +74,7 @@ export function gapScanOperation(
   args: { depth?: number; min_severity?: "low" | "medium" | "high"; max_positions?: number; limit?: number },
   analyse: Analyse,
   popularity?: GapsOptions["popularity"],
+  control?: Pick<GapsOptions, "onProgress" | "shouldCancel">,
 ) {
   return findRepertoireGaps(
     tree,
@@ -84,6 +85,7 @@ export function gapScanOperation(
       maxPositions: args.max_positions,
       limit: args.limit ?? toolDefault("find_repertoire_gaps", "limit", 20),
       popularity,
+      ...control,
     },
     analyse,
   );

@@ -845,6 +845,20 @@ body {
   border-color: #f0c674;
   box-shadow: 0 0 0 1px rgba(240, 198, 116, 0.45);
 }
+.tool-run {
+  margin: 0.25rem 0;
+  padding: 0.3rem 0.45rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.tool-run.running { border-left-color: var(--accent); color: var(--text); }
+.tool-run.completed { border-left-color: #6aa84f; }
+.tool-run.cancelled { border-left-color: #d2a84a; }
+.tool-run.failed { border-left-color: #d45b5b; }
+.tool-run-state { text-transform: capitalize; font-weight: 600; }
+.tool-run-detail { color: var(--muted); }
+.chat-input .stop-btn { background: #7a3333; }
 .chat-log {
   flex: 1;
   overflow-y: auto;
@@ -977,6 +991,14 @@ body {
 }
 .chat-error a {
   color: var(--accent);
+}
+.chat-error .chat-retry {
+  margin-left: 0.4rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  cursor: pointer;
 }
 .chat-input {
   display: flex;

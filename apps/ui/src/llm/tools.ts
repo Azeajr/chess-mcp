@@ -12,7 +12,7 @@
  */
 import type { ToolSchema } from "./openrouter";
 import type { ChatMode } from "./workflows";
-import { fen, color, actions, currentTree } from "../store/game";
+import { fen, color, actions, currentTree, currentPath, fileName, version } from "../store/game";
 import { analyseMulti } from "../engine/stockfish";
 import {
   explorerPosition,
@@ -116,8 +116,17 @@ export function toolSchemasFor(mode: ChatMode): ToolSchema[] {
 }
 
 type Args = Record<string, unknown>;
+export type ToolExecutionOptions = {
+  signal?: AbortSignal;
+  onProgress?: (done: number, total?: number, detail?: string) => void;
+};
 
-export async function runTool(name: string, args: Args): Promise<unknown> {
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+};
+
+export async function runTool(name: string, args: Args, options: ToolExecutionOptions = {}): Promise<unknown> {
+  throwIfAborted(options.signal);
   const checkedArgs = validateToolArguments(name, args, "browser");
   if (!checkedArgs.ok) return { error: checkedArgs.error, reason: checkedArgs.reason };
   args = checkedArgs.value;
@@ -128,6 +137,30 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
   const tree = currentTree();
   const col = color() as Color;
 
+  if (name === "get_current_line") {
+    const selected = currentPath();
+    return { path: tree.sanPathAt(selected), fen: tree.fenAt(selected), path_ref: selected };
+  }
+  if (name === "get_document_summary") {
+    const stats = tree.stats();
+    return { document_type: stats.leaves > 1 ? "repertoire" : "game", revision: version(), file_name: fileName(), color: col, selected_path: tree.sanPathAt(currentPath()), current_fen: fen(), nodes: stats.nodes, leaves: stats.leaves, max_depth: stats.maxDepth };
+  }
+  if (name === "get_selected_subtree") {
+    const sans = tree.sanPathAt(currentPath());
+    const max = (args.max_plies as number | undefined) ?? 80;
+    const lines: string[][] = [];
+    const walk = (path: number[], tail: string[]) => {
+      if (lines.length >= 20) return;
+      const node = tree.nodeAt(path);
+      if (!node.children.length) { lines.push(tail.slice(0, max)); return; }
+      node.children.forEach((child, index) => walk([...path, index], [...tail, child.data.san]));
+    };
+    walk(currentPath(), []);
+    return { selected_path: sans, lines, truncated: lines.length === 20 };
+  }
+  if (name === "get_document_pgn") return { revision: version(), pgn: actions.toPgn() };
+  if (name === "expand_capabilities") return { expanded: args.outcome };
+
   switch (name) {
     case "identify_opening": {
       const hit = identifyDeepest(await openings(), pgnArg);
@@ -137,7 +170,7 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
     case "find_repertoire_gaps": {
       const popularity = args.popularity as boolean | undefined;
       if (popularity && !hasExplorerToken()) return explorerAuthRequired();
-      return gapScanOperation(
+      const result = await gapScanOperation(
         tree,
         col,
         {
@@ -150,7 +183,13 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
         // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
         // ask deep enough that the approximation only bites on true rarities.
         popularity ? (f: string) => explorerPosition(f, { db: args.popularity_db as ExplorerDb | undefined, movesLimit: 30 }) : undefined,
+        {
+          onProgress: (done, total) => options.onProgress?.(done, total, "scanning repertoire positions"),
+          shouldCancel: () => options.signal?.aborted ?? false,
+        },
       );
+      throwIfAborted(options.signal);
+      return result;
     }
 
     case "find_theory_depth": {
@@ -169,6 +208,7 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
     }
 
     case "find_pruning_transpositions": {
+      options.onProgress?.(0, args.budget as number | undefined, "checking shortcut candidates");
       const res = await tree.pruneTranspositions(
         col,
         {
@@ -184,6 +224,8 @@ export async function runTool(name: string, args: Args): Promise<unknown> {
           analyseMulti(f, mpv, d ?? ((args.depth as number) ?? toolDefault("find_pruning_transpositions", "depth", 14)), d != null ? undefined : (args.movetime_ms as number | undefined)),
       );
       const shown = res.suggestions.slice(0, (args.limit as number) ?? toolDefault("find_pruning_transpositions", "limit", 20));
+      throwIfAborted(options.signal);
+      options.onProgress?.(res.positionsAnalysed, res.totalPositionsEstimate, "shortcut scan");
       return {
         total: res.suggestions.length,
         returned: shown.length,

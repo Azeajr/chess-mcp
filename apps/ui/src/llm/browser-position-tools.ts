@@ -34,7 +34,7 @@ export async function runBrowserPositionTool(name: string, args: Record<string, 
   switch (name) {
     case "get_position": {
       const grounded = groundPosition(atFen);
-      return "error" in grounded ? grounded : { ...grounded, color: color(), pgn: actions.toPgn() };
+      return "error" in grounded ? grounded : { ...grounded, color: color() };
     }
     case "get_legal_moves": {
       const grounded = groundPosition(atFen);

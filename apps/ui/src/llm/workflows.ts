@@ -9,7 +9,7 @@
 export type ChatMode = "" | "general" | "repertoire" | "review" | "position" | "annotate";
 
 export const CHAT_MODES: { id: ChatMode; label: string }[] = [
-  { id: "", label: "Select mode..." },
+  { id: "", label: "Auto" },
   { id: "general", label: "General" },
   { id: "repertoire", label: "Repertoire" },
   { id: "review", label: "Game review" },
@@ -56,6 +56,6 @@ Present: verdict up top (accuracy per side, the 1–3 turning points), then per 
 };
 
 export function workflowPrompt(mode: ChatMode): string {
-  if (!mode) return GROUNDING;
+  if (!mode) return `${GROUNDING}\n\nInfer the user's outcome from the request and available document context. Start with the smallest relevant tool bundle. If the request changes direction and a needed tool is unavailable, call expand_capabilities for position, game, repertoire, or annotate.`;
   return `${GROUNDING}\n\n${MODE_BODY[mode]}`;
 }

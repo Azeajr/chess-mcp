@@ -10,6 +10,7 @@
     "dev:host": "vite --host",
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
+    "test:chat": "tsx --test test/chat.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

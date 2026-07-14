@@ -38,7 +38,7 @@ export const lastMove = () => {
   return tree().lastMoveAt(path());
 };
 
-export { color, path, dirty, fileName };
+export { color, path, dirty, fileName, version };
 
 /** Read-only handle to the tree for rendering the move list (read version() to subscribe). */
 export const currentTree = () => {

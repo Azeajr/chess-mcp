@@ -39,7 +39,7 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
       ],
       mcpInjects: input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
-      ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color and PGN" }
+      ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
         : {}),
@@ -92,6 +92,11 @@ export const TOOL_CONTRACTS = [
   define("export_repertoire", "Serialize a Node repertoire handle to PGN.", ["repertoire", "artifact"], MCP, {}, { properties: { repertoire_id: string() }, mcpRequired: ["repertoire_id"] }),
   define("export_repertoire_to_file", "Write repertoire PGN under the confined Node repertoire directory.", ["repertoire", "artifact"], MCP, {}, { properties: { repertoire_id: string(), path: string() }, mcpRequired: ["repertoire_id", "path"] }),
   define("propose_line", "Stage a validated SAN line for explicit user acceptance without mutating the repertoire.", ["repertoire", "action"], BROWSER, {}, { properties: { moves: array(), comment: string() }, required: ["moves"] }),
+  define("get_current_line", "Retrieve the selected SAN line and its position references from the current browser document.", ["position", "game"], BROWSER, {}, { properties: {} }),
+  define("get_selected_subtree", "Retrieve bounded SAN lines for the currently selected repertoire subtree.", ["repertoire"], BROWSER, { max_plies: 80 }, { properties: { max_plies: integer(1, 200) } }),
+  define("get_document_summary", "Retrieve compact current-document metadata and tree statistics.", ["game", "repertoire"], BROWSER, {}, { properties: {} }),
+  define("get_document_pgn", "Retrieve the full current PGN only when an operation genuinely needs the artifact.", ["game", "repertoire", "artifact"], BROWSER, {}, { properties: {} }),
+  define("expand_capabilities", "Request an additional tool bundle when the conversation changes outcome.", ["action"], BROWSER, {}, { properties: { outcome: { type: "string", enum: ["position", "game", "repertoire", "annotate"] } }, required: ["outcome"] }),
 ] as const;
 
 export const TOOL_CONTRACT_BY_NAME = new Map(TOOL_CONTRACTS.map((tool) => [tool.name, tool]));
