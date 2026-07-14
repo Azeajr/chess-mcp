@@ -1,21 +1,15 @@
 /**
- * On-demand repertoire gap scan — the engine pass over chess-tools decisionNodes(). For each
- * opponent-to-move decision point, search the position and flag strong opponent replies the
- * repertoire does not cover, ranked by severity (port of find_repertoire_gaps).
+ * On-demand repertoire gap scan — a thin wrapper over the shared chess-tools
+ * `findRepertoireGaps` (R7: the scan loop used to be a hand-maintained fork for progress +
+ * cancel; the shared implementation now takes onProgress/shouldCancel, so severity math and
+ * covered-by-transposition semantics have a single owner). This store only adapts the result
+ * to UI shapes and runs the per-gap fill suggestions.
  *
  * Engine-heavy, so it runs only when the user clicks Scan, is cancellable, and reports progress.
- * Forward-transposition suppression: a strong reply that transposes into prep on a DIFFERENT line
- * is recorded as covered-by-transposition (not a gap), via landsInCrossBranchPrep — the surviving
- * half of the old coverage_confirmed bridge, folded in here.
  */
 import { createSignal } from "solid-js";
 import {
-  decisionNodes,
-  gapSeverity,
-  moveSan,
-  SEVERITY_RANK,
-  buildKeyIndex,
-  landsInCrossBranchPrep,
+  findRepertoireGaps,
   suggestComplementaryLines,
   medianLineLength,
   buildFitProfile,
@@ -47,11 +41,9 @@ export interface CoveredGap {
 }
 
 const MAX_POSITIONS = 12; // decision points scanned (shallowest first)
-const MULTIPV = 4; // opponent candidate moves examined per position
 const SCAN_DEPTH = 12; // shallower than the live bar — a full scan trades depth for time
 const MIN_SEVERITY: Severity = "medium";
 const LIMIT = 12;
-const MATE_CP = 100000;
 
 const [gaps, setGaps] = createSignal<Gap[]>([]);
 const [covered, setCovered] = createSignal<CoveredGap[]>([]);
@@ -262,8 +254,6 @@ export async function scanGaps() {
   const token = ++cancelToken;
   const tree = currentTree();
   const col = color();
-  const nodes = decisionNodes(tree, col).slice(0, MAX_POSITIONS);
-  const { keyMap } = buildKeyIndex(tree.game.moves);
 
   setScanError(null);
   setGaps([]);
@@ -271,59 +261,37 @@ export async function scanGaps() {
   setFills({});
   fillGen++; // discard any in-flight fill from the previous scan
   setScanning(true);
-  setProgress({ done: 0, total: nodes.length });
+  setProgress({ done: 0, total: 0 });
 
-  const found: Gap[] = [];
-  const coveredHits: CoveredGap[] = [];
-  for (let i = 0; i < nodes.length; i++) {
-    if (token !== cancelToken) return; // cancelled / superseded
-    const node = nodes[i]!;
-    const res = await analyseMulti(node.fen, MULTIPV, SCAN_DEPTH);
-    if (token !== cancelToken) return;
-    if (!res) {
-      setScanError("engine offline");
-      setScanning(false);
-      setProgress(null);
-      return;
-    }
-
-    const moverIsWhite = node.fen.split(" ")[1] === "w";
-    const moverCp = (l: (typeof res)[number]) => {
-      const white = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-      return moverIsWhite ? white : -white;
-    };
-    const best = res.length ? moverCp(res[0]!) : 0;
-
-    for (const l of res) {
-      const san = moveSan(node.fen, l.uci);
-      if (node.covered.includes(san)) continue;
-      // Transposition-first: a strong uncovered reply that walks into prep on a DIFFERENT line is
-      // not a real gap — record it as covered-by-transposition rather than flag it.
-      const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
-      after.play(parseUci(l.uci)!);
-      const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
-      if (tgt) {
-        coveredHits.push({ path: node.path, uncoveredMove: san, joinsPath: tgt.sanPath });
-        continue;
-      }
-      found.push({
-        path: node.path,
-        uncoveredMove: san,
-        evalCp: l.cp,
-        mate: l.mate,
-        severity: gapSeverity(best, moverCp(l)),
-      });
-    }
-    setProgress({ done: i + 1, total: nodes.length });
+  const res = await findRepertoireGaps(
+    tree,
+    col,
+    {
+      depth: SCAN_DEPTH,
+      minSeverity: MIN_SEVERITY,
+      maxPositions: MAX_POSITIONS,
+      limit: LIMIT,
+      onProgress: (done, total) => {
+        if (token === cancelToken) setProgress({ done, total });
+      },
+      shouldCancel: () => token !== cancelToken,
+    },
+    analyseMulti,
+  );
+  if (token !== cancelToken || "cancelled" in res) return; // cancelled / superseded
+  if ("error" in res) {
+    setScanError("engine offline");
+    setScanning(false);
+    setProgress(null);
+    return;
   }
 
-  const ranked = found
-    .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[MIN_SEVERITY])
-    .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
-    .slice(0, LIMIT);
-
-  setGaps(ranked);
-  setCovered(coveredHits);
+  setGaps(
+    res.gaps.map((g) => ({ path: g.path, uncoveredMove: g.uncovered_move, evalCp: g.eval, mate: g.mate, severity: g.severity })),
+  );
+  setCovered(
+    res.covered_by_transposition.map((c) => ({ path: c.path, uncoveredMove: c.uncovered_move, joinsPath: c.joins_path })),
+  );
   setScanning(false);
   setProgress(null);
 }

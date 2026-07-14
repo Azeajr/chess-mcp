@@ -40,6 +40,11 @@ export function store(tree: GameTree, color: Color): string {
 export function get(id: string): Entry | null {
   const e = map.get(id);
   if (!e) return null;
-  e.ts = Date.now();
+  const now = Date.now();
+  if (now - e.ts > TTL_MS) {
+    map.delete(id);
+    return null;
+  }
+  e.ts = now;
   return e;
 }

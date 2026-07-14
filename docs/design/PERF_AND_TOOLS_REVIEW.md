@@ -210,21 +210,20 @@ shared `runSearch` gives the in-process FALLBACK path the same stop-then-grace b
 fallback engine hung past the grace window retains a residual handler-swap race (can't kill
 in-process wasm) — accepted, fallback-only.
 
-### R2. FEN-setup PGNs load but every walker ignores the header (known-deferred)
+### R2. FEN-setup PGNs load but every walker ignores the header — ✅ shipped 2026-07-13
 
-`assertLegal` honors a `FEN` header (pgn.ts:238); every other walker replays from
-`Chess.default()` — `positionAt` (pgn.ts:285), leaves/coverage/keyIndex/congruence/
-`userMovesAlong` (repcongruence.ts:79), `mainline` (game.ts:25, comment admits it). A FEN-header
-PGN passes load, then every tool silently analyses the wrong positions or errors. Cheapest honest
-fix: reject FEN-header PGNs at `fromPgn` with a closed-set error until walkers take a start
-position; full fix: one root-position helper all walkers share.
+Shipped the "cheapest honest fix": shared `rejectFenSetup(game)` (pgn.ts) throws a closed-set
+`fen_setup_unsupported` error on any non-standard `FEN` header (a header spelling the standard
+start still loads). Enforced at both parse boundaries: `GameTree.fromPgn` (every merged game) and
+`mainline` (game.ts). Multi-game loops that walk FETCHED games (batch_review,
+repertoire_vs_history, prep_vs_opponent) skip such games per-game instead of failing the batch —
+Chess960 games carry FEN headers — and report `games_skipped_fen_setup`; denominators use the
+walked count. Full fix (walkers take a start position) remains future work if ever needed.
 
-### R3. Handle TTL only enforced on store
+### R3. Handle TTL only enforced on store — ✅ shipped 2026-07-13
 
-`get()` (handles.ts:40-45) never checks TTL — an expired repertoire is served indefinitely if no
-`load_*` call happens to trigger `evict()`. Harmless for correctness (the tree is immutable), but
-the README documents "idle seconds before a cached repertoire expires" and memory-bounding is the
-TTL's job. One `if (now - e.ts > TTL_MS)` in `get()`.
+`get()` now checks TTL and deletes+returns null on expiry (the caller already surfaces
+"unknown or expired repertoire_id"). Covered by a test in test/handles.mjs.
 
 ### R4. No in-flight request coalescing at either engine — ✅ fixed 2026-07-13 (P1 pool, both hosts)
 
@@ -232,38 +231,34 @@ TTL's job. One `if (now - e.ts > TTL_MS)` in `get()`.
 identical miss joins the pending search (join requires pending depth ≥ requested — a depth-16
 request never silently adopts a pending depth-12 result).
 
-### R5. Autosave restore trusts the saved path
+### R5. Autosave restore trusts the saved path — ✅ shipped 2026-07-13
 
-persist.ts:48 `goto(saved.path)` — a corrupt/mixed IndexedDB record makes the first `fen()` read
-throw in render, after the restore try/catch has already passed: crash loop until site data is
-cleared. One probe (`tree.fenAt(path)` inside the try, fall back to `[]`) makes restore
-self-healing.
+`probePath` in persist.ts: shape-check + `tree.fenAt(path)` probe against the restored tree,
+falling back to `[]` — a corrupt/mixed IndexedDB record can no longer crash-loop the render.
 
-### R6. OpenRouter stream errors surface as silent truncation
+### R6. OpenRouter stream errors surface as silent truncation — ✅ shipped 2026-07-13
 
-openrouter.ts:91-124 parses `delta` frames and ignores everything else — a mid-stream provider
-error event or abnormal `finish_reason` (length, content_filter) just ends the text. The user sees
-a clipped answer with no signal. Surface non-`stop` finish reasons and error events into the chat
-error state.
+Mid-stream `error` frames now throw (surfaced by chat's error state, with any partial streamed
+text preserved in the log); a non-stop/tool_calls `finish_reason` is returned as
+`abnormalFinish` and chat shows "Response ended early (finish_reason: …)".
 
-### R7. UI gap scan is a hand-maintained fork of `findRepertoireGaps`
+### R7. UI gap scan is a hand-maintained fork of `findRepertoireGaps` — ✅ shipped 2026-07-13
 
-store/gaps.ts:261-329 duplicates the scan loop for progress + cancel (header comment owns it).
-Parity (severity math, covered-by-transposition semantics) is by hand. `pruneTranspositions`
-already takes an `onProgress` callback — give `findRepertoireGaps` the same (+ a cancel check) and
-the UI fork collapses onto the shared implementation.
+`findRepertoireGaps` takes `onProgress` (done=0 primer, then completion-order ticks) and
+`shouldCancel` (returns `{ cancelled: true }`, a new `GapsResult` arm); store/gaps.ts is now a
+thin adapter mapping the shared result into UI shapes — severity math and
+covered-by-transposition semantics have a single owner. Verified headless: progress indicator
+renders and the scan terminates clean.
 
-### R8. `aggregateGames` best/worst group has no sample floor
+### R8. `aggregateGames` best/worst group has no sample floor — ✅ shipped 2026-07-13
 
-game.ts:142-152 ranks groups by raw win_rate — a 1-game group can be crowned worst/best opening.
-A min-games threshold (or reporting games alongside, which it does — but the headline pick should
-respect it) keeps batch_review verdicts honest.
+Headline best/worst pick requires ≥3 games (MIN_HEADLINE_GAMES) and now reports `games`
+alongside `win_rate`; per-group stats still list every group. No qualifying group → null.
 
-### R9. Cloud eval ships every browsed position to Lichess
+### R9. Cloud eval ships every browsed position to Lichess — ✅ shipped 2026-07-13
 
-store/cloud.ts fires on each position change (600ms debounce). By design and rate-limited, but
-worth a settings toggle for users who don't want their prep lines leaving the machine — the whole
-rest of the PWA is local-first.
+Settings toggle "Lichess cloud eval" (default on — status quo), persisted to localStorage;
+off clears the cloud badge and stops the fetch effect. Local Stockfish unaffected.
 
 ## Suggested order
 
@@ -284,5 +279,6 @@ rest of the PWA is local-first.
    `find_only_moves` + flashcard-CSV export).
 8. ~~**P5-P8, T5-T7**~~ — shipped 2026-07-13 (P5 pre-pass cache, P6 lazy legal enumeration,
    P7 themes/center memo, P8 structural clone; T5 `find_structures`, T6
-   `export_annotated_repertoire`, T7 all-departures history walk). Remaining in this doc:
-   the R2/R3/R5-R9 robustness notes.
+   `export_annotated_repertoire`, T7 all-departures history walk).
+9. ~~**R2/R3/R5-R9** (robustness batch)~~ — shipped 2026-07-13 (see each §R note). Everything
+   actionable in this doc has shipped except PR1/PR2 (process notes).

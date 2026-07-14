@@ -58,6 +58,16 @@ export function setLichessToken(v: string) {
   setExplorerToken(t || null);
 }
 
+// Cloud eval sends every browsed FEN to Lichess; the rest of the PWA is local-first, so this is
+// opt-out-able for users who don't want prep lines leaving the machine. Default on (status quo).
+const KEY_CLOUD = "chess.cloudeval.enabled";
+const [cloudEvalEnabled, setCloudEvalEnabledRaw] = createSignal(read(KEY_CLOUD, "true") === "true");
+export { cloudEvalEnabled };
+export function setCloudEvalEnabled(v: boolean) {
+  setCloudEvalEnabledRaw(v);
+  localStorage.setItem(KEY_CLOUD, String(v));
+}
+
 const [chatMode, setChatModeRaw] = createSignal<ChatMode>(read(KEY_MODE, "") as ChatMode);
 export { chatMode };
 export function setChatMode(m: ChatMode) {

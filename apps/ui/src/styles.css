@@ -1057,6 +1057,12 @@ body {
   color: var(--muted);
   font-size: 0.72rem;
 }
+.field-toggle input {
+  align-self: flex-start;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+}
 
 /* Promotion picker */
 .promo-backdrop {

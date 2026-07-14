@@ -2,6 +2,7 @@
 // Run: MAX_REPERTOIRES=2 node --import tsx apps/mcp-server/test/handles.mjs
 // MAX must be set BEFORE the module is imported (read once at load), so this file is dynamic-import.
 process.env.MAX_REPERTOIRES = "2";
+process.env.REPERTOIRE_TTL_S = "0.2"; // short TTL so the expiry-on-read test runs fast
 const { store, get } = await import("../src/handles.ts");
 const { GameTree } = await import("../../../packages/chess-tools/dist/index.js");
 
@@ -24,6 +25,12 @@ const b = store(tree(), "white");
 const c = store(tree(), "black"); // 3rd store at MAX=2 → 'a' (oldest) must be evicted
 ok(get(a) === null, "LRU cap = MAX: the oldest handle is evicted at MAX+1 (no off-by-one leak)");
 ok(get(b) !== null && get(c) !== null, "the most-recent MAX handles stay live");
+
+// R3: TTL is enforced on read, not only during a store()'s evict sweep — without the get() check
+// an expired repertoire was served indefinitely if no load_* call happened to trigger evict().
+const d = store(tree(), "white");
+await new Promise((r) => setTimeout(r, 250));
+ok(get(d) === null, "expired handle → null on get (TTL enforced on read)");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

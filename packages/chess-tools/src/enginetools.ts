@@ -149,6 +149,12 @@ export interface GapsOptions {
    * annotation to null, never the scan.
    */
   popularity?: ExplorerLookup;
+  /** Called once with done=0 before the scan, then as each decision-node search completes
+   *  (completion order — the searches run concurrently). */
+  onProgress?: (done: number, total: number) => void;
+  /** Cooperative cancel, checked around each node's search; a cancelled scan returns
+   *  `{ cancelled: true }`. In-flight searches still finish (they land in the eval cache). */
+  shouldCancel?: () => boolean;
 }
 export interface Gap {
   path: Path;
@@ -171,6 +177,7 @@ export interface CoveredGap {
 }
 export type GapsResult =
   | { error: "engine_unavailable" }
+  | { cancelled: true }
   | {
       color: Color;
       positions_scanned: number;
@@ -189,11 +196,15 @@ export async function findRepertoireGaps(
   const minSev: Severity = opts.minSeverity ?? "medium";
   const nodes = decisionNodes(tree, color).slice(0, opts.maxPositions ?? 20);
   const { keyMap } = buildKeyIndex(tree.game.moves);
+  opts.onProgress?.(0, nodes.length);
+  let progressDone = 0;
   // Per-node searches fired concurrently (P1 — the pool parallelises, its queue is the limiter);
   // results assembled in node order so output matches the old sequential scan.
   const perNode = await Promise.all(
     nodes.map(async (node) => {
+      if (opts.shouldCancel?.()) return "cancelled" as const;
       const res = await analyse(node.fen, 4, opts.depth ?? 14);
+      if (opts.shouldCancel?.()) return "cancelled" as const;
       if (!res) return null;
       const gaps: Gap[] = [];
       const covered: CoveredGap[] = [];
@@ -215,12 +226,15 @@ export async function findRepertoireGaps(
         }
         gaps.push({ path: node.path, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
       }
+      opts.onProgress?.(++progressDone, nodes.length);
       return { gaps, covered };
     }),
   );
+  if (perNode.some((r) => r === "cancelled")) return { cancelled: true };
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
-  const found = perNode.flatMap((r) => r!.gaps);
-  const covered = perNode.flatMap((r) => r!.covered);
+  const results = perNode as { gaps: Gap[]; covered: CoveredGap[] }[];
+  const found = results.flatMap((r) => r.gaps);
+  const covered = results.flatMap((r) => r.covered);
   const gaps = found
     .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
@@ -599,7 +613,9 @@ export async function annotateRepertoire(
       { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: NO_LIMIT },
       analyse,
     );
+    // No shouldCancel passed, so "cancelled" can't actually occur — narrow it away.
     if ("error" in res) return res;
+    if ("cancelled" in res) return { error: "engine_unavailable" };
     for (const g of res.gaps) {
       // Gap.path is the index path to the position OWED the reply; an empty path = the root
       // (a Black repertoire's uncovered first move) → the game-level comment.
@@ -741,6 +757,8 @@ export async function checkShortcutCoverage(
   ]);
   if ("error" in before) return { error: before.error };
   if ("error" in after) return { error: after.error };
+  // No shouldCancel passed, so "cancelled" can't actually occur — narrow it away.
+  if ("cancelled" in before || "cancelled" in after) return { error: "engine_unavailable" };
   const key = (g: Gap) => `${g.fen}|${g.uncovered_move}`;
   const beforeSet = new Set(before.gaps.map(key));
   const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));

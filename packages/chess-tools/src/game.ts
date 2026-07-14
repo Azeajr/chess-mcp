@@ -9,6 +9,7 @@ import { makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
 import { parsePgn } from "chessops/pgn";
 import { positionKey, type Color } from "./congruence.js";
+import { rejectFenSetup } from "./pgn.js";
 
 export interface MainlineMove {
   ply: number;
@@ -18,10 +19,11 @@ export interface MainlineMove {
   fenAfter: string;
 }
 
-/** The mainline moves of a PGN's first game (standard start; FEN-setup games unsupported). */
+/** The mainline moves of a PGN's first game (standard start; FEN-setup games throw). */
 export function mainline(pgn: string): MainlineMove[] {
   const game = parsePgn(pgn)[0];
   if (!game) throw new Error("no game found in PGN");
+  rejectFenSetup(game);
   const pos = Chess.default();
   const out: MainlineMove[] = [];
   let node = game.moves;
@@ -157,16 +159,19 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
     })
     .sort((a, b) => b.games - a.games);
 
+  // A 1-game group must not be crowned best/worst opening; require a minimal sample before the
+  // headline pick. Per-group stats (incl. games) are still reported for every group above.
+  const MIN_HEADLINE_GAMES = 3;
   let worst_group = null;
   let best_group = null;
   if (decided) {
-    const byWin = ([...out] as Array<{ key: string; name: string; win_rate: number }>).sort(
-      (a, b) => a.win_rate - b.win_rate,
-    );
+    const byWin = ([...out] as Array<{ key: string; name: string; games: number; win_rate: number }>)
+      .filter((g) => g.games >= MIN_HEADLINE_GAMES)
+      .sort((a, b) => a.win_rate - b.win_rate);
     const lo = byWin[0];
     const hi = byWin[byWin.length - 1];
-    if (lo) worst_group = { key: lo.key, name: lo.name, win_rate: lo.win_rate };
-    if (hi) best_group = { key: hi.key, name: hi.name, win_rate: hi.win_rate };
+    if (lo) worst_group = { key: lo.key, name: lo.name, win_rate: lo.win_rate, games: lo.games };
+    if (hi) best_group = { key: hi.key, name: hi.name, win_rate: hi.win_rate, games: hi.games };
   }
   return { total_games: records.length, groups: out, worst_group, best_group };
 }

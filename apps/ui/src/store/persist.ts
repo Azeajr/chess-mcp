@@ -8,6 +8,17 @@ import { createSignal, createEffect, onCleanup } from "solid-js";
 import { idbGet, idbSet } from "./idb";
 import { currentTree, path, color, fileName, dirty, actions, type Color } from "./game";
 
+/** A saved path is only trusted if the restored tree can actually resolve it. */
+function probePath(p: unknown): number[] {
+  if (!Array.isArray(p) || !p.every((i) => typeof i === "number")) return [];
+  try {
+    currentTree().fenAt(p);
+    return p;
+  } catch {
+    return [];
+  }
+}
+
 const KEY = "workingRepertoire";
 
 interface Saved {
@@ -45,7 +56,7 @@ export async function restoreWorking() {
     if (saved?.pgn) {
       actions.loadPgn(saved.pgn, saved.fileName ?? undefined);
       actions.setColor(saved.color);
-      actions.goto(saved.path);
+      actions.goto(probePath(saved.path));
       if (saved.dirty) actions.markDirty();
     }
   } catch {

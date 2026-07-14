@@ -716,6 +716,7 @@ server.tool(
     games = games.slice(0, max_games ?? 100);
 
     const records: GameRecord[] = [];
+    let skippedFenSetup = 0;
     for (const game of games) {
       let userColor: Color | null = null;
       if (username) {
@@ -727,7 +728,13 @@ server.tool(
         else continue; // username given but didn't play this game
       }
       const gamePgn = makePgn(game);
-      const recs = await analyzeMainline(gamePgn, depth ?? 12, analyseMulti);
+      let recs;
+      try {
+        recs = await analyzeMainline(gamePgn, depth ?? 12, analyseMulti);
+      } catch {
+        skippedFenSetup++; // FEN-setup game (e.g. Chess960) — walkers only support the standard start
+        continue;
+      }
       if (recs === null) return ok({ error: "engine_unavailable" });
 
       const relevant = userColor ? recs.filter((r) => r.color === userColor) : recs;
@@ -756,7 +763,7 @@ server.tool(
       }
       records.push({ result, group_key, group_name, avg_cpl: Math.round(avg_cpl * 10) / 10, blunders });
     }
-    return ok(aggregateGames(records, !!username));
+    return ok({ ...aggregateGames(records, !!username), games_skipped_fen_setup: skippedFenSetup });
   },
 );
 
@@ -825,10 +832,17 @@ server.tool(
     let plySum = 0;
     const dev = new Map<string, { ply: number; fen: string; prescribed: string[]; played: string; count: number }>();
     const unc = new Map<string, { ply: number; fen: string; played: string; count: number }>();
+    let skipped = 0;
     for (const g of matched) {
       // T7: the walk reports EVERY departure (it continues past the first by transposition key),
       // so one game can contribute several drill entries.
-      const w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      let w;
+      try {
+        w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      } catch {
+        skipped++; // FEN-setup game (e.g. Chess960) — walkers only support the standard start
+        continue;
+      }
       if (w.in_book_plies >= 1) reached++;
       plySum += w.in_book_plies;
       for (const d of w.player_deviations) {
@@ -844,13 +858,15 @@ server.tool(
         unc.set(k, cur);
       }
     }
+    const walked = matched.length - skipped;
     const byCount = <T extends { count: number }>(m: Map<string, T>) => [...m.values()].sort((a, b) => b.count - a.count);
     return ok({
       games_total: games.length,
       games_matched_color: matched.length,
+      games_skipped_fen_setup: skipped,
       games_reached_prep: reached,
-      coverage_pct: matched.length ? Math.round((reached / matched.length) * 1000) / 10 : null,
-      avg_in_book_plies: matched.length ? Math.round((plySum / matched.length) * 10) / 10 : null,
+      coverage_pct: walked ? Math.round((reached / walked) * 1000) / 10 : null,
+      avg_in_book_plies: walked ? Math.round((plySum / walked) * 10) / 10 : null,
       player_deviations: byCount(dev).slice(0, 20),
       uncovered_opponent_moves: byCount(unc).slice(0, 20),
     });
@@ -893,8 +909,15 @@ server.tool(
       string,
       { name: string; eco: string | null; games: number; reached: number; wins: number; draws: number; losses: number }
     >();
+    let skipped = 0;
     for (const g of matched) {
-      const w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      let w;
+      try {
+        w = walkGameVsRepertoire(map, e.color, g.pgn!);
+      } catch {
+        skipped++; // FEN-setup game (e.g. Chess960) — walkers only support the standard start
+        continue;
+      }
       const inPrep = w.in_book_plies >= 1;
       if (inPrep) reached++;
       plySum += w.in_book_plies;
@@ -933,14 +956,16 @@ server.tool(
       })
       .sort((a, b) => b.games - a.games)
       .slice(0, 15);
+    const walked = matched.length - skipped;
     return ok({
       username,
       opponent_color: oppColor,
       games_total: games.length,
       games_matched_color: matched.length,
+      games_skipped_fen_setup: skipped,
       games_reached_prep: reached,
-      coverage_pct: matched.length ? Math.round((reached / matched.length) * 1000) / 10 : null,
-      avg_in_book_plies: matched.length ? Math.round((plySum / matched.length) * 10) / 10 : null,
+      coverage_pct: walked ? Math.round((reached / walked) * 1000) / 10 : null,
+      avg_in_book_plies: walked ? Math.round((plySum / walked) * 10) / 10 : null,
       uncovered_opponent_moves: byCount(unc).slice(0, 20),
       lines: lineRows,
     });

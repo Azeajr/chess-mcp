@@ -8,7 +8,7 @@
  */
 import { Chess } from "chessops/chess";
 import type { Board } from "chessops/board";
-import { makeFen, parseFen } from "chessops/fen";
+import { makeFen, parseFen, INITIAL_FEN } from "chessops/fen";
 import { parseSan, makeSan, makeSanAndPlay } from "chessops/san";
 import { makeSquare, parseSquare, makeUci, parseUci } from "chessops/util";
 import {
@@ -26,6 +26,28 @@ import { positionKey, type Color } from "./congruence.js";
 
 /** Child-index path from the root. `[]` is the starting position. */
 export type Path = number[];
+
+/**
+ * Throw if a parsed game declares a non-standard start via a FEN header. Every walker in this
+ * package (positionAt, leaves, coverage, congruence, mainline) replays from the standard start,
+ * so a FEN-setup game would silently be analysed from the wrong positions. Rejecting at each
+ * parse boundary is the honest behavior until the walkers take a start position.
+ */
+export function rejectFenSetup(game: Game<PgnNodeData>): void {
+  const setupFen = game.headers.get("FEN");
+  if (setupFen === undefined) return;
+  let isStandard = false;
+  try {
+    isStandard = makeFen(parseFen(setupFen).unwrap()) === INITIAL_FEN;
+  } catch {
+    /* unparseable header FEN — treat as non-standard */
+  }
+  if (!isStandard) {
+    throw new Error(
+      "fen_setup_unsupported: this PGN starts from a FEN setup position; only PGNs from the standard start position are supported",
+    );
+  }
+}
 
 export interface PlayResult {
   path: Path;
@@ -237,11 +259,13 @@ export class GameTree {
   }
 
   /** Parse a PGN into a single tree. Multiple games are merged (used when repertoire tools
-   *  export each line as a separate game). Throws if no game is present. */
+   *  export each line as a separate game). Throws if no game is present, or if any game sets
+   *  up a non-standard start via a FEN header (see `rejectFenSetup`). */
   static fromPgn(pgn: string): GameTree {
     const games = parsePgn(pgn);
     const first = games[0];
     if (!first) throw new Error("no game found in PGN");
+    for (const g of games) rejectFenSetup(g);
     const tree = new GameTree(first);
     for (let i = 1; i < games.length; i++) {
       GameTree._mergeNodes(tree, games[i]!.moves, []);

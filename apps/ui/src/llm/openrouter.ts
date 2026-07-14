@@ -33,6 +33,8 @@ export interface ToolSchema {
 export interface RoundResult {
   content: string;
   toolCalls: ToolCall[];
+  /** finish_reason when it is not a normal end ("length", "content_filter", …). */
+  abnormalFinish?: string;
 }
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -85,6 +87,7 @@ export async function streamChat(opts: {
   const decoder = new TextDecoder();
   let buffer = "";
   let content = "";
+  let abnormalFinish: string | undefined;
   // Tool calls stream as fragments keyed by index; reassemble here.
   const toolByIndex = new Map<number, ToolCall>();
 
@@ -105,7 +108,21 @@ export async function streamChat(opts: {
       } catch {
         continue;
       }
-      const delta = json.choices?.[0]?.delta;
+      // Mid-stream provider errors arrive as data frames, not HTTP errors — without this the
+      // stream just ends and the user sees a silently clipped answer.
+      if (json.error) {
+        const msg =
+          typeof json.error === "object" && json.error !== null
+            ? (json.error.message ?? JSON.stringify(json.error))
+            : String(json.error);
+        throw new Error(`OpenRouter stream error: ${String(msg).slice(0, 300)}`);
+      }
+      const choice = json.choices?.[0];
+      const finish = choice?.finish_reason;
+      if (typeof finish === "string" && finish !== "stop" && finish !== "tool_calls") {
+        abnormalFinish = finish;
+      }
+      const delta = choice?.delta;
       if (!delta) continue;
       if (typeof delta.content === "string" && delta.content) {
         content += delta.content;
@@ -124,5 +141,5 @@ export async function streamChat(opts: {
   }
 
   const toolCalls = [...toolByIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-  return { content, toolCalls };
+  return { content, toolCalls, abnormalFinish };
 }

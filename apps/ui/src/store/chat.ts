@@ -82,7 +82,7 @@ export async function send(userText: string) {
       setStreamingText("");
       // Drop UI-only "focus" markers — they are display context, never sent to the model.
       const messages = [systemMessage(), ...history().filter((m) => m.role !== "focus")];
-      const { content, toolCalls } = await streamChat({
+      const { content, toolCalls, abnormalFinish } = await streamChat({
         apiKey: apiKey(),
         model: model(),
         messages,
@@ -95,6 +95,10 @@ export async function send(userText: string) {
         { role: "assistant", content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined },
       ]);
 
+      if (abnormalFinish) {
+        setError(`Response ended early (finish_reason: ${abnormalFinish}) — the answer above may be incomplete.`);
+        break;
+      }
       if (!toolCalls.length) break;
       for (const tc of toolCalls) {
         let result: unknown;
@@ -107,6 +111,9 @@ export async function send(userText: string) {
       }
     }
   } catch (e) {
+    // Keep whatever streamed before the failure in the log — the error banner explains the cut.
+    const partial = streamingText();
+    if (partial) setHistory((h) => [...h, { role: "assistant", content: partial }]);
     setError(e instanceof Error ? e.message : String(e));
   } finally {
     setBusy(false);

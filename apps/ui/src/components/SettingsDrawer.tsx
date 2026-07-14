@@ -4,7 +4,17 @@
  */
 import { For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
-import { apiKey, model, setApiKey, setModel, lichessToken, setLichessToken, MODEL_SUGGESTIONS } from "../store/settings";
+import {
+  apiKey,
+  model,
+  setApiKey,
+  setModel,
+  lichessToken,
+  setLichessToken,
+  cloudEvalEnabled,
+  setCloudEvalEnabled,
+  MODEL_SUGGESTIONS,
+} from "../store/settings";
 
 export default function SettingsDrawer() {
   return (
@@ -64,6 +74,19 @@ export default function SettingsDrawer() {
               Personal token, no scopes needed — lichess.org/account/oauth/token. Enables the
               opening-explorer tools (position popularity, theory depth, gap popularity). Stored
               in localStorage (plaintext).
+            </small>
+          </label>
+
+          <label class="field field-toggle">
+            <span>Lichess cloud eval</span>
+            <input
+              type="checkbox"
+              checked={cloudEvalEnabled()}
+              onChange={(e) => setCloudEvalEnabled(e.currentTarget.checked)}
+            />
+            <small>
+              Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn
+              off to keep prep lines fully on this machine — local Stockfish is unaffected.
             </small>
           </label>
         </div>
