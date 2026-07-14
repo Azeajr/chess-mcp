@@ -326,6 +326,10 @@ body {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
+
+  .side-panel .move-tree {
+    flex: 0 0 min(50vh, 28rem);
+  }
 }
 
 .move-tree {
