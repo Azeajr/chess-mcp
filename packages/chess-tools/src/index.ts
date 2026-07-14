@@ -3,7 +3,7 @@
  *
  * Phase 1: the variation-aware PGN GameTree. Later phases add the engine providers,
  * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
- * TypeScript port of the Python servers (see docs/design/UI_DESIGN.md).
+ * Shared domain layer for the Node MCP host and SolidJS PWA (see docs/ARCHITECTURE.md).
  */
 export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal, iterateLegal, someLegal, pruneTailPath } from "./pgn.js";
 export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";

@@ -486,26 +486,33 @@ For every MCP and PWA operation, record:
 
 ## Phase 6 — Documentation reset
 
+**Implemented 2026-07-14.** The canonical registry now generates `docs/TOOL_CATALOG.md`; the
+verified host inventories are captured by that generated file. The earlier review baseline was
+superseded by shortcut and conversation operations already present in source. Current architecture/product docs replace the
+superseded design set, durable rationale is under `docs/archive/`, and `pnpm docs:check` guards the
+generated catalog and known stale claims.
+
 ### Objective
 
 Make markdown describe current code, remove duplicated sources of truth, and preserve only useful
 historical rationale.
 
-### Known drift to resolve
+### Drift resolved by this phase
 
-- README says 34 tools in several places; current MCP code registers 38.
-- MCP smoke expects 40 tools.
-- ROADMAP and `AGENTS.md` say 38.
-- README/ROADMAP claim full or identical PWA chat parity when chat currently has 30 tools.
-- `docs/design/UI_DESIGN.md` says Anthropic SDK, while code calls OpenRouter's OpenAI-compatible API.
-- UI design claims shadcn-solid/Tailwind, while the implementation uses custom Solid components and
+- Hand-maintained tool counts in README, ROADMAP, and `AGENTS.md` were removed. The smoke expectation
+  and generated catalog now follow the verified canonical MCP inventory.
+- Browser/MCP differences are documented as host adaptations rather than described as numeric or
+  behavioral parity.
+- `docs/archive/UI_DESIGN_HISTORY.md` records that the old UI proposal used a superseded stack;
+  current code calls OpenRouter's OpenAI-compatible API.
+- The superseded UI stack proposal was archived; current docs describe custom Solid components and
   `styles.css`.
-- `docs/design/REPERTOIRE_DESIGN.md` mixes current TypeScript behavior with extensive Python,
-  decorator, Docker, and rejected-design material.
-- `ENGINEERING_PASSES.md` is largely a collection of historical execution prompts, not current
-  architecture or contributor guidance.
-- `docs/design/CHAT_TOOLSET_REVIEW.md` contains valuable open findings but stale counts and mixed
-  shipped/open status.
+- The former repertoire design mixed current behavior with extensive Python-era material; its
+  durable decisions are summarized in `docs/archive/REPERTOIRE_DESIGN_HISTORY.md`.
+- The former engineering-pass prompt collection has been retired; reusable process is in
+  `AGENTS.md`, with its disposition recorded under `docs/archive/`.
+- The chat-toolset review findings are summarized in `docs/archive/CHAT_TOOLSET_REVIEW_HISTORY.md`;
+  remaining integration verification is in `ROADMAP.md`.
 - README's chronological completed-feature log duplicates ROADMAP and has already accumulated stale
   counts.
 

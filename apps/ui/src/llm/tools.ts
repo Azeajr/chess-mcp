@@ -92,7 +92,7 @@ export const toolSchemas: ToolSchema[] = contractsForHost("browser").map((contra
   },
 }));
 
-// Mode-filtered toolsets (CHAT_TOOLSET_REVIEW §10): the schema set is re-sent on every round of
+// Capability-filtered toolsets: the schema set is re-sent on every round of
 // every turn, so each chat mode ships only the tools its workflow uses. CORE is the grounding
 // set every mode needs; "general" (the catch-all) keeps the full set.
 const CORE = ["get_position", "get_legal_moves", "evaluate_position", "compare_moves", "validate_fen", "validate_pgn", "validate_line", "propose_line"];

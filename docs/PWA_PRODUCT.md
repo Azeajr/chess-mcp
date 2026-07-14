@@ -1,0 +1,48 @@
+# PWA product
+
+The PWA supports two equal entry points: natural conversation and direct analysis. Both invoke the
+same browser application commands and consume the same result models.
+
+## Conversation
+
+Users can ask about the current position, game, or repertoire without choosing a mode. Auto routing
+starts with compact grounding/actions and selects an outcome bundle from the request and document
+state. Position, game, repertoire, and annotation presets remain optional hints. A conversation can
+expand capabilities when its subject changes.
+
+The prompt includes normalized FEN, color, selected path/reference, document kind and revision, and
+compact statistics. Scoped tools retrieve the current line, selected subtree, document summary, or
+full PGN on demand. Tool-round exhaustion produces an explicit incomplete summary.
+
+Streaming and supported tool work share cancellation. The UI shows queued/running/completed,
+cancelled, and failed states, including progress counts for long scans, plus Stop and Retry.
+
+## Results, actions, and artifacts
+
+Typed tool results render navigation targets for FENs, SAN paths, and game plies. Raw JSON remains a
+debug disclosure, not the primary presentation.
+
+Repertoire add, prune, and reorder operations produce staged actions. Each preview records the
+source revision, path, before/after summary, and line where applicable. Accept uses the same command
+as direct editing; Reject discards it; a stale revision cannot apply.
+
+Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
+the model compact metadata and an artifact reference while the UI owns the save affordance.
+
+## Direct analysis
+
+The Position area presents local engine lines and cloud provenance. Game workflows cover summary,
+detail, batch review, and annotated export. Repertoire controls expose prescribed-move audit,
+only-move drills, structure search, opponent preparation, gaps, coverage, congruence, shortening,
+suggestions, and annotated export. Advanced controls group operations without changing the public
+MCP surface; for example, the browser's shortcut inspector combines quality and coverage while MCP
+keeps the independently composable operations.
+
+Direct local analysis does not need an OpenRouter key. Network operations still need connectivity
+and, for Lichess opening explorer, a personal token entered in Settings.
+
+## Persistence
+
+The current document autosaves in IndexedDB. Browser file APIs open and save PGN without routing
+content through the model. Settings keep model and token configuration locally. The production
+build is an installable PWA and packages browser Stockfish assets during build.

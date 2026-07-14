@@ -26,6 +26,8 @@ jobs:
         run: pnpm check:skills   # fix with `pnpm sync:skills` (.claude/skills → plugin/skills)
       - name: Build chess-tools (dist used by the smoke scripts)
         run: pnpm --filter @chess-mcp/chess-tools build
+      - name: Generated documentation is current
+        run: pnpm docs:check
       - name: Typecheck all packages
         run: pnpm -r typecheck
       - name: Deterministic smoke suites (engine-free, no network)
