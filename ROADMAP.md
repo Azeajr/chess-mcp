@@ -73,24 +73,17 @@ server installable as a self-contained artifact.
       playbook's tools — 9–22 schemas instead of 30). Deferred: a popularity tag on the panel gap
       scan (`store/gaps.ts` is a hand-tuned port with its own budget/cancel; threading a 1 req/s
       lookup through it triples scan time for a tag the chat already provides).
-- [ ] **Perf + missing-tools review** ← **NEXT** — `docs/design/PERF_AND_TOOLS_REVIEW.md`. Shipped:
-      ~~persistent transposition-keyed eval cache~~ (P3+P4), ~~warm TT~~ (P2),
-      ~~`audit_repertoire_moves`~~ (T1), ~~engine pool~~ (P1, both hosts), ~~Lichess opening
-      explorer~~ (T2 — `position_popularity`, `find_theory_depth`, gap popularity weighting;
-      needs `LICHESS_TOKEN`), ~~`prep_vs_opponent`~~ (T3), ~~only-move drill export~~ (T4 —
-      `find_only_moves` + flashcard CSV), ~~P5-P8 micro-perf~~ (prune pre-pass cache, lazy
-      legal-move enumeration, themes/center memo, structural clone), ~~T5~~ (`find_structures`),
-      ~~T6~~ (`export_annotated_repertoire`), ~~T7~~ (all-departures history walk).
-      Remaining: R2/R3/R5-R9 robustness notes.
-- [ ] **PWA chat toolset weak points** — full audit in
+- [x] **Perf + missing-tools review** — fully shipped 2026-07-13 (P1-P8 perf, T1-T7 tools, R1-R9
+      robustness, PR1/PR2 process notes). Landed in the code + README + AGENTS; design doc pruned.
+- [ ] **PWA chat toolset weak points** ← **NEXT** — full audit in
       `docs/design/CHAT_TOOLSET_REVIEW.md` (17 items: 4 stale/broken workflow instructions incl. a
       nonexistent `exclude_paths` param and a stripped `best_move` field, token sinks
       (full-PGN previews, PGN-through-context batch_review/history/annotate, 28 schemas per round),
       C3/C4 chat parity, no cancel for long chat tool calls, preview dead ends). Suggested order
       inside.
-- [ ] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` exercises the tools through the
-      engine but hits live Lichess/Chess.com, so it's excluded from CI. Gate the network assertions
-      behind an env flag so the engine + non-network paths run in CI.
+- [x] **MCP smoke in CI.** `apps/mcp-server/test/smoke-client.mjs` gates its live Lichess/Chess.com
+      assertions behind `SMOKE_NETWORK=0`; CI runs it with that plus `EVAL_CACHE_DIR=0` (cold cache)
+      so the engine + non-network paths regress visibly.
 - [ ] **Manual test: File System Access re-open flow** (PWA). Native picker + handle permission
       re-grant can't run headless — open a PGN, reload, click "Reopen <name>".
 

@@ -43,9 +43,13 @@ pnpm mcp                                          # run the MCP server directly
 |-------|---------|-------------|
 | `scripts/smoke-gametree.mjs` | `node scripts/smoke-gametree.mjs` | No |
 | `scripts/structure-accuracy.mjs` | `node scripts/structure-accuracy.mjs` | No |
-| `apps/mcp-server/test/smoke-client.mjs` | `node apps/mcp-server/test/smoke-client.mjs` | Yes (bundled wasm) — hits live Lichess/Chess.com, excluded from CI |
+| `apps/mcp-server/test/smoke-client.mjs` | `node apps/mcp-server/test/smoke-client.mjs` | Yes (bundled wasm) — full run hits live Lichess/Chess.com; `SMOKE_NETWORK=0` gates those out for CI |
 
-CI runs the two engine-free smoke suites + typecheck.
+`SMOKE_NETWORK=0` skips the live Lichess/Chess.com assertions (explorer auth-gate checks still run
+locally); `EVAL_CACHE_DIR=0` forces a cold eval cache. CI sets both so the engine + non-network
+paths run without a warm store or network access.
+
+CI runs the two engine-free smoke suites + the network-gated MCP stdio smoke + typecheck.
 
 ## Release
 
@@ -55,8 +59,8 @@ both manifests when the tool surface changes.
 
 ## CI workflow
 
-`.github/workflows/ci.yml`: `node` (build chess-tools, typecheck, engine-free smoke) and a tag-gated
-`release` (GitHub release on `v*`, gated on `node`).
+`.github/workflows/ci.yml`: `node` (build chess-tools, typecheck, engine-free smoke, network-gated
+MCP stdio smoke) and a tag-gated `release` (GitHub release on `v*`, gated on `node`).
 
 ## Key design facts
 
