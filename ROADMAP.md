@@ -39,7 +39,7 @@ engine-grounded.
   pipeline: `find_pruning_transpositions` (all re-routes per line, `bestSavings`/`bestEval`, deep
   confirm, leaf-cursor paging) → `compare_shortcut_lines` (quality: eval + structural fit) →
   `check_shortcut_coverage` (does the prune open a gap), shared with the PWA's Shorten inspect UI.
-- **Claude Code plugin** — `plugin/` + `.claude-plugin/marketplace.json`, v1.0.0, Node stdio, no
+- **Claude Code plugin** — `plugin/` + `.claude-plugin/marketplace.json`, v1.1.0, Node stdio, no
   Docker hook. Installable via `claude plugin marketplace add Azeajr/chess-mcp`.
 - **PWA** — board, engine-congruence arrows, on-demand gap scan, Lichess cloud eval, OpenRouter chat,
   IndexedDB autosave + File System Access PGN I/O. The chat's full repertoire toolset runs
