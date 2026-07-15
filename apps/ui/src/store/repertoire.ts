@@ -1,21 +1,17 @@
 /**
  * Feature 6 backbone: deterministic, no-API repertoire reports surfaced in the side panel.
  * Tier A scans (congruence — gaps live in store/gaps.ts) and Tier B actions (extend / fix) all
- * run through llm/tools runTool against the shared chess-tools functions + local engine — the same
+ * run through the application browser-command client against shared chess-tools + local engine — the same
  * source of truth the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
 import {
-  compareShortcutLines,
-  checkShortcutCoverage,
   type ExtendedBridge,
   type PruneSuggestion,
   type ShortcutComparison,
   type ShortcutCoverage,
 } from "@chess-mcp/chess-tools";
-import { runTool } from "../llm/tools";
-import { currentTree, color } from "./game";
-import { analyseMulti } from "../engine/stockfish";
+import { executeBrowserCommand } from "../application/browser-commands/client";
 
 // --- Tier A: congruence (engine-free) ---
 
@@ -36,7 +32,7 @@ export async function scanCongruence() {
   setCongError(null);
   setCongScanning(true);
   try {
-    const r = (await runTool("analyze_repertoire_congruence", { min_severity: "low" })) as {
+    const r = (await executeBrowserCommand("analyze_repertoire_congruence", { min_severity: "low" })) as {
       incongruencies?: CongruenceFlag[];
       error?: string;
     };
@@ -63,46 +59,34 @@ const MULTIPV = 3;
 const SCAN_DEPTH = 12;
 const CONFIRM_DEPTH = 18; // E1: deeper re-check of each line's best-eval re-route
 const CP_THRESHOLD = 50; // a color move within 0.5 of best counts as "good"
-const MATE_CP = 100000;
-const MAX_DEPTH = 4;
-const NODE_BUDGET = 40;
 
 const [extBridges, setExtBridges] = createSignal<ExtendedBridge[] | null>(null);
 const [bridgeScanning, setBridgeScanning] = createSignal(false);
 const [bridgeError, setBridgeError] = createSignal<string | null>(null);
 export { extBridges, bridgeScanning, bridgeError };
 
-let bridgeToken = 0;
-
-/** The color's engine-best moves (UCI) at a position, within CP_THRESHOLD of best. [] on error. */
-async function pickColorMoves(fen: string): Promise<string[]> {
-  const res = await analyseMulti(fen, MULTIPV, SCAN_DEPTH);
-  if (!res || !res.length) return [];
-  const moverIsWhite = fen.split(" ")[1] === "w";
-  const moverCp = (l: (typeof res)[number]) => {
-    const white = l.mate !== null ? (l.mate > 0 ? MATE_CP : -MATE_CP) : (l.cp ?? 0);
-    return moverIsWhite ? white : -white;
-  };
-  const best = moverCp(res[0]!);
-  return res.filter((l) => best - moverCp(l) <= CP_THRESHOLD).map((l) => l.uci);
-}
-
 export async function scanBridges() {
-  const token = ++bridgeToken;
   setBridgeError(null);
   setExtBridges(null);
   setBridgeScanning(true);
   try {
-    // Engine-guided: continue each frontier stub with the color's best moves until it rejoins prep.
-    // Includes 1-ply links (the old engine-free pass-1 is gone; these are now engine-vetted instead).
-    const ext = await currentTree().extendedBridges(color(), { maxDepth: MAX_DEPTH, nodeBudget: NODE_BUDGET }, pickColorMoves);
-    if (token !== bridgeToken) return;
-    setExtBridges(ext);
+    const result = await executeBrowserCommand("get_repertoire_coverage", { connect_stubs: true, limit: 20 }) as {
+      error?: string;
+      color?: "white" | "black";
+      dangling_lines?: { path: string[]; connects_via?: string[]; joins_path?: string[]; joins_ply?: number }[];
+    };
+    if (result.error) {
+      setBridgeError(result.error === "engine_unavailable" ? "engine offline" : result.error);
+      return;
+    }
+    const resolved: ExtendedBridge[] = (result.dangling_lines ?? [])
+      .filter((stub) => stub.connects_via?.length && stub.joins_path?.length)
+      .map((stub) => ({ fromPath: stub.path, moves: stub.connects_via!, sideToMove: result.color ?? "white", joinsPath: stub.joins_path!, joinsPly: stub.joins_ply ?? stub.joins_path!.length }));
+    setExtBridges(resolved);
   } catch (e) {
-    if (token !== bridgeToken) return;
     setBridgeError(e instanceof Error ? e.message : String(e));
   } finally {
-    if (token === bridgeToken) setBridgeScanning(false);
+    setBridgeScanning(false);
   }
 }
 
@@ -116,41 +100,52 @@ const [pruneDone, setPruneDone] = createSignal(0);
 const [pruneTotal, setPruneTotal] = createSignal(0);
 export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
-let pruneToken = 0;
+let pruneController: AbortController | null = null;
 
 /** U3: abort an in-flight shorten scan. Bumps the token so in-flight engine results are discarded
  *  (the callback + finally guard on `token === pruneToken` go stale) and clears the scanning flag. */
 export function cancelPrune() {
-  pruneToken++;
+  pruneController?.abort();
+  pruneController = null;
   setPruneScanning(false);
 }
 
 export async function scanPrune() {
-  const token = ++pruneToken;
+  cancelPrune();
+  const controller = new AbortController();
+  pruneController = controller;
   setPruneError(null);
   setPruneSuggestions(null);
   setPruneDone(0);
   setPruneTotal(0);
   setPruneScanning(true);
   try {
-    const res = await currentTree().pruneTranspositions(
-      color(),
-      { multipv: MULTIPV, cpThreshold: CP_THRESHOLD, confirmDepth: CONFIRM_DEPTH },
-      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? SCAN_DEPTH),
-      (done, total) => {
-        if (token !== pruneToken) return;
+    const res = await executeBrowserCommand("find_pruning_transpositions", {
+      multipv: MULTIPV,
+      cp_threshold: CP_THRESHOLD,
+      confirm_depth: CONFIRM_DEPTH,
+      depth: SCAN_DEPTH,
+      limit: 100,
+    }, {
+      signal: controller.signal,
+      onProgress: (done, total) => {
+        if (pruneController !== controller) return;
         setPruneDone(done);
-        setPruneTotal(total);
+        setPruneTotal(total ?? 0);
       },
-    );
-    if (token !== pruneToken) return;
-    setPruneSuggestions(res.suggestions);
+    }) as { error?: string; suggestions?: PruneSuggestion[] };
+    if (pruneController !== controller || controller.signal.aborted) return;
+    if (res.error) throw new Error(res.error);
+    setPruneSuggestions(res.suggestions ?? []);
     setPruneDone(pruneTotal()); // fill the bar — leaves that emit early leave the estimate short
   } catch (e) {
-    if (token !== pruneToken) return;
+    if (pruneController !== controller || controller.signal.aborted) return;
     setPruneError(e instanceof Error ? e.message : String(e));
   } finally {
-    if (token === pruneToken) setPruneScanning(false);
+    if (pruneController === controller) {
+      pruneController = null;
+      setPruneScanning(false);
+    }
   }
 }
 
@@ -188,11 +183,16 @@ export async function inspectShortcut(p: PruneSuggestion) {
   setCoverage(null);
   setInspectError(null);
   setInspecting(true);
-  const analyse = (fen: string, mpv: number, depth?: number) => analyseMulti(fen, mpv, depth ?? INSPECT_DEPTH);
   try {
-    const tree = currentTree();
-    const cmp = await compareShortcutLines(tree, color(), { linePath: p.linePath, atPly: p.atPly, joinsPath: p.joinsPath, depth: INSPECT_DEPTH }, analyse);
-    const cov = await checkShortcutCoverage(tree, color(), { linePath: p.linePath, atPly: p.atPly, depth: INSPECT_DEPTH, maxPositions: INSPECT_MAX_POSITIONS }, analyse);
+    const result = await executeBrowserCommand("inspect_shortcut", {
+      line_path: p.linePath,
+      at_ply: p.atPly,
+      joins_path: p.joinsPath,
+      depth: INSPECT_DEPTH,
+      max_positions: INSPECT_MAX_POSITIONS,
+    }) as { quality: ShortcutComparison | { error: string }; coverage: ShortcutCoverage | { error: string } };
+    const cmp = result.quality;
+    const cov = result.coverage;
     if (token !== inspectToken) return;
     setComparison("error" in cmp ? null : cmp);
     setCoverage("error" in cov ? null : cov);
@@ -226,7 +226,7 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
   setCompError(null);
   setCompScanning(true);
   try {
-    const r = (await runTool("suggest_complementary_lines", { mode })) as {
+    const r = (await executeBrowserCommand("suggest_complementary_lines", { mode })) as {
       suggestions?: ComplementaryMove[];
       error?: string;
     };
@@ -271,7 +271,7 @@ export async function fixFlag(outlierPath: string[]) {
   const key = outlierPath.join(",");
   setReplacements((p) => ({ ...p, [key]: "loading" }));
   try {
-    const r = (await runTool("suggest_replacement_line", { outlier_variation_path: outlierPath })) as ReplacementResult & {
+    const r = (await executeBrowserCommand("suggest_replacement_line", { outlier_variation_path: outlierPath })) as ReplacementResult & {
       error?: string;
     };
     setReplacements((p) => ({ ...p, [key]: r.error ? { error: r.error } : r }));

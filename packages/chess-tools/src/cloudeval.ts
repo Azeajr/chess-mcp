@@ -29,8 +29,8 @@ interface RawCloud {
 
 const URL = "https://lichess.org/api/cloud-eval";
 
-export async function cloudEval(fen: string): Promise<CloudEval | null> {
-  const data = await fetchJson<RawCloud>(`${URL}?fen=${encodeURIComponent(fen)}&multiPv=1`);
+export async function cloudEval(fen: string, signal?: AbortSignal): Promise<CloudEval | null> {
+  const data = await fetchJson<RawCloud>(`${URL}?fen=${encodeURIComponent(fen)}&multiPv=1`, undefined, signal);
   const pv = data?.pvs?.[0];
   if (!data || !pv) return null;
   return {

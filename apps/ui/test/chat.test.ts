@@ -1,13 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectOutcomes, schemasForConversation } from "../src/llm/chat-routing.ts";
 import { streamChat, type ToolSchema } from "../src/llm/openrouter.ts";
 import { contractsForHost, toolDefault, validateToolArguments } from "@chess-mcp/chess-tools";
 import { actions, currentTree, version } from "../src/store/game.ts";
 import { acceptStagedEdit, rejectStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
 import { artifactById, createArtifact } from "../src/store/artifacts.ts";
+import { defaultBrowserCommandDependencies } from "../src/application/browser-commands/default-context.ts";
+import { executeDirectBrowserCommand } from "../src/store/commands.ts";
+import { runTool } from "../src/llm/tools.ts";
+import { workflowPrompt } from "../src/llm/workflows.ts";
+import { findArtifactMetadata } from "../src/components/ToolResult.tsx";
 
-const schema = (name: string): ToolSchema => ({ type: "function", function: { name, description: name, parameters: {} } });
 const sse = (...frames: unknown[]) => new ReadableStream({
   start(controller) {
     const encoder = new TextEncoder();
@@ -17,25 +20,22 @@ const sse = (...frames: unknown[]) => new ReadableStream({
   },
 });
 
-test("automatic routing can move from position to repertoire without a required preset", () => {
-  assert.deepEqual(selectOutcomes("Evaluate this FEN", ""), ["position"]);
-  assert.deepEqual(selectOutcomes("Now find gaps in my repertoire", "", ["position"]), ["position", "repertoire"]);
-  const selected = schemasForConversation([schema("get_position"), schema("evaluate_position"), schema("find_repertoire_gaps"), schema("batch_review")], ["repertoire"]);
-  assert.deepEqual(selected.map((item) => item.function.name), ["get_position", "find_repertoire_gaps"]);
-  assert.deepEqual(selectOutcomes("What are the biggest problems here?", "", [], "repertoire"), ["repertoire"]);
-  assert.deepEqual(selectOutcomes("What are the biggest problems here?", "", [], "game"), ["game"]);
-});
-
 test("canonical browser validation rejects malformed and unknown arguments", () => {
   assert.equal(validateToolArguments("evaluate_position", null, "browser").ok, false);
   const unknown = validateToolArguments("evaluate_position", { surprise: true }, "browser");
   assert.deepEqual(unknown, { ok: false, error: "invalid_arguments", reason: "unknown argument: surprise" });
+  assert.deepEqual(validateToolArguments("load_repertoire", { pgn: "*", color: "white" }, "browser"), {
+    ok: false, error: "invalid_arguments", reason: "load_repertoire is not available on the browser host",
+  });
+  assert.deepEqual(validateToolArguments("propose_line", { moves: ["e4"] }, "mcp"), {
+    ok: false, error: "invalid_arguments", reason: "propose_line is not available on the mcp host",
+  });
 });
 
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {
   const browser = new Set(contractsForHost("browser").map((contract) => contract.name));
   for (const name of ["audit_repertoire_moves", "find_only_moves", "find_structures", "export_annotated_repertoire", "prep_vs_opponent"])
-    assert.equal(browser.has(name), true, `${name} is available to chat and direct UI`);
+    assert.equal(browser.has(name), true, `${name} is a browser command`);
   assert.equal(toolDefault("audit_repertoire_moves", "max_positions", 0), 20);
   assert.equal(toolDefault("find_only_moves", "min_margin", 0), 100);
   assert.equal(validateToolArguments("prep_vs_opponent", {}, "browser").ok, false);
@@ -46,6 +46,214 @@ test("primary direct repertoire outcomes use the canonical browser commands and 
   assert.equal(validateToolArguments("inspect_shortcut", { line_path: [], at_ply: 0 }, "browser").ok, false);
 });
 
+test("direct and chat adapters share one semantic command result with injected providers", async () => {
+  actions.loadPgn("1. e4 e5 *");
+  const networkGames = [{
+    white: "someone", black: "alice", result: "1-0", white_elo: 1800, black_elo: 1800,
+    eco: null, opening: null, date: null, time_control: null, user_color: "black" as const,
+    user_result: "loss" as const, pgn: '[White "someone"]\n[Black "alice"]\n[Result "1-0"]\n\n1. e4 e5 1-0',
+  }];
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    analyse: async () => [{ uci: "e2e4", cp: 24, mate: null, depth: 12, pv: ["e2e4", "e7e5"] }],
+    lichessGames: async () => networkGames,
+    openings: async () => new Map(),
+  };
+  const args = { depth: 12, lines: 1 };
+  const direct = await executeDirectBrowserCommand("evaluate_position", args, {}, dependencies);
+  const chat = await runTool("evaluate_position", args, {}, dependencies);
+  assert.deepEqual(chat, direct);
+  assert.deepEqual(direct, {
+    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    eval_pov: "white",
+    eval_sign: "positive favors White; negative favors Black",
+    lines: [{ uci: "e2e4", san: "e4", cp: 24, mate: null, depth: 12 }],
+  });
+
+  const prepArgs = { username: "alice", max_games: 1 };
+  const directPrep = await executeDirectBrowserCommand("prep_vs_opponent", prepArgs, {}, dependencies);
+  const chatPrep = await runTool("prep_vs_opponent", prepArgs, {}, dependencies);
+  assert.deepEqual(chatPrep, directPrep);
+  assert.deepEqual(directPrep, {
+    username: "alice", opponent_color: "black", games_total: 1, games_matched_color: 1,
+    games_skipped_fen_setup: 0, games_reached_prep: 1, coverage_pct: 100,
+    avg_in_book_plies: 2, uncovered_opponent_moves: [],
+    lines: [{ name: "Unclassified", eco: null, games: 1, hit_rate: 100, win_rate: 0, draw_rate: 0, loss_rate: 100 }],
+  });
+});
+
+test("browser annotation guidance validates pasted PGN only and keeps artifact types distinct", () => {
+  assert.match(workflowPrompt(""), /Shared grounding contract/);
+  assert.match(workflowPrompt(""), /When the user explicitly names an analysis or export, call its matching command/);
+  assert.match(workflowPrompt(""), /validate the line once and evaluate its returned final FEN/);
+  assert.match(workflowPrompt("general"), /White-POV centipawns/);
+  const prompt = workflowPrompt("annotate");
+  assert.match(prompt, /Validate only PGN pasted by the user/);
+  assert.match(prompt, /export_annotated_pgn/);
+  assert.match(prompt, /export_annotated_repertoire/);
+  assert.doesNotMatch(prompt, /omit pgn to annotate/);
+});
+
+test("actual chat requests transmit all 39 schemas on natural, follow-up, and preset turns", async (t) => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  const requests: { tools: ToolSchema[]; messages: { role: string; content: string | null }[] }[] = [];
+  const executed: string[] = [];
+  const expectedByText = new Map([
+    ["audit my repertoire moves", "audit_repertoire_moves"],
+    ["find only moves in my repertoire", "find_only_moves"],
+    ["find structures in my repertoire", "find_structures"],
+    ["prep vs opponent alice", "prep_vs_opponent"],
+    ["export an annotated repertoire", "export_annotated_repertoire"],
+    ["evaluate this position", "evaluate_position"],
+    ["what about g4", "evaluate_position"],
+    ["now audit this repertoire", "audit_repertoire_moves"],
+    ["review this game", "get_game_summary"],
+    ["long audit", "audit_repertoire_moves"],
+  ]);
+  chat.setChatTransportForTesting(async (opts) => {
+    requests.push({ tools: opts.tools, messages: opts.messages });
+    const last = opts.messages.at(-1);
+    const command = last?.role === "user" ? expectedByText.get(last.content ?? "") : undefined;
+    return command
+      ? { content: "", toolCalls: [{ id: `call-${requests.length}`, type: "function", function: { name: command, arguments: command === "prep_vs_opponent" ? '{"username":"alice"}' : "{}" } }] }
+      : { content: "done", toolCalls: [] };
+  });
+  chat.setChatToolExecutorForTesting(async (name) => {
+    executed.push(name);
+    return { command: name, fixture: true };
+  });
+  t.after(() => {
+    chat.setChatTransportForTesting();
+    chat.setChatToolExecutorForTesting();
+    settings.setApiKey("");
+    chat.clearChat();
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  for (const [request, command] of [...expectedByText].slice(0, 5)) {
+    chat.clearChat();
+    await chat.send(request);
+    assert.equal(executed.at(-1), command, `${request} executes ${command}`);
+    const names = requests.at(-2)!.tools.map((tool) => tool.function.name);
+    assert.equal(names.length, 39);
+    assert.equal(new Set(names).size, 39);
+    assert.equal(names.includes(command), true);
+    if (command === "export_annotated_repertoire") assert.equal(executed.at(-1), "export_annotated_repertoire");
+  }
+
+  chat.clearChat();
+  await chat.send("evaluate this position");
+  await chat.send("what about g4");
+  assert.deepEqual(executed.slice(-2), ["evaluate_position", "evaluate_position"]);
+  assert.equal(requests.at(-2)!.tools.some((tool) => tool.function.name === "evaluate_position"), true);
+
+  chat.clearChat();
+  await chat.send("evaluate this position");
+  await chat.send("now audit this repertoire");
+  await chat.send("review this game");
+  assert.deepEqual(executed.slice(-3), ["evaluate_position", "audit_repertoire_moves", "get_game_summary"]);
+  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === 39), true);
+
+  settings.setChatMode("repertoire");
+  chat.clearChat();
+  await chat.send("find structures in my repertoire");
+  assert.equal(requests.at(-2)!.tools.length, 39, "preset changes guidance, not availability");
+
+  chat.setChatToolExecutorForTesting(async (_name, _args, options) => new Promise((_resolve, reject) => {
+    const abort = () => reject(new DOMException("Cancelled", "AbortError"));
+    if (options.signal?.aborted) abort();
+    else options.signal?.addEventListener("abort", abort, { once: true });
+  }));
+  chat.clearChat();
+  const pending = chat.send("long audit");
+  while (!chat.toolRuns().some((run) => run.status === "running")) await new Promise((resolve) => setTimeout(resolve, 0));
+  chat.stop();
+  await pending;
+  assert.equal(chat.busy(), false, "chat settles promptly after Stop during a command");
+  assert.equal(chat.toolRuns().at(-1)?.status, "cancelled");
+});
+
+test("current-document annotation and pasted-PGN validation use distinct valid paths", async () => {
+  actions.loadPgn("1. e4 e5 *", "game.pgn");
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    analyse: async (fen: string) => [{ uci: fen.split(" ")[1] === "w" ? "e2e4" : "e7e5", cp: 20, mate: null, depth: 12, pv: [] }],
+  };
+  const pasted = await runTool("validate_pgn", { pgn: "1. d4 d5 *" }, {}, dependencies) as { valid?: boolean };
+  assert.equal(pasted.valid, true);
+  const missing = await runTool("validate_pgn", {}, {}, dependencies);
+  assert.deepEqual(missing, { error: "invalid_arguments", reason: "missing required argument: pgn" });
+  const current = await runTool("export_annotated_pgn", { depth: 12 }, {}, dependencies) as { kind?: string; artifact_id?: string };
+  assert.equal(current.kind, "artifact");
+  assert.equal(typeof current.artifact_id, "string");
+});
+
+test("chat reports round exhaustion, malformed tool JSON, and clean Retry", async (t) => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  t.after(() => {
+    chat.setChatTransportForTesting();
+    chat.setChatToolExecutorForTesting();
+    settings.setApiKey("");
+    chat.clearChat();
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  let roundRequests = 0;
+  chat.setChatTransportForTesting(async (options) => {
+    roundRequests++;
+    return options.tools.length
+      ? { content: "", toolCalls: [{ id: `round-${roundRequests}`, type: "function", function: { name: "get_position", arguments: "{}" } }] }
+      : { content: "Incomplete: the bounded loop ended cleanly.", toolCalls: [] };
+  });
+  chat.setChatToolExecutorForTesting(async () => ({ grounded: true }));
+  await chat.send("keep using tools");
+  assert.equal(roundRequests, 13, "twelve tool rounds are followed by one no-tool summary request");
+  assert.match(chat.error() ?? "", /Tool-round limit reached/);
+  assert.equal(chat.history().at(-1)?.content, "Incomplete: the bounded loop ended cleanly.");
+
+  chat.clearChat();
+  let malformedRound = 0;
+  chat.setChatToolExecutorForTesting();
+  chat.setChatTransportForTesting(async () => ++malformedRound === 1
+    ? { content: "", toolCalls: [{ id: "bad-json", type: "function", function: { name: "get_position", arguments: "{" } }] }
+    : { content: "Recovered from invalid arguments.", toolCalls: [] });
+  await chat.send("malformed call");
+  const malformed = chat.history().find((message) => message.role === "tool" && message.tool_call_id === "bad-json");
+  assert.match(malformed?.content ?? "", /invalid_arguments/);
+  assert.equal(chat.history().at(-1)?.content, "Recovered from invalid arguments.");
+
+  chat.clearChat();
+  let retryAttempts = 0;
+  chat.setChatTransportForTesting(async () => {
+    if (retryAttempts++ === 0) throw new Error("temporary provider failure");
+    return { content: "Retry completed.", toolCalls: [] };
+  });
+  await chat.send("retry this request");
+  assert.match(chat.error() ?? "", /temporary provider failure/);
+  chat.retry();
+  while (chat.busy()) await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(chat.error(), null);
+  assert.equal(chat.history().at(-1)?.content, "Retry completed.");
+});
+
 test("fake model stream reassembles multiple tool calls", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
@@ -53,11 +261,14 @@ test("fake model stream reassembles multiple tool calls", async (t) => {
   globalThis.fetch = async () => new Response(sse(
     { choices: [{ delta: { tool_calls: [{ index: 0, id: "a", function: { name: "get_position", arguments: "{}" } }, { index: 1, id: "b", function: { name: "evaluate_position", arguments: "{\"lines\":" } }] } }] },
     { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: "3}" } }] }, finish_reason: "tool_calls" }] },
-  ), { status: 200 });
+    { choices: [], usage: { prompt_tokens: 4000, completion_tokens: 20, total_tokens: 4020, cost: 0.01 } },
+  ), { status: 200, headers: { "X-Generation-Id": "gen-test" } });
   t.after(() => { globalThis.fetch = originalFetch; Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true }); });
   const result = await streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], onText() {} });
   assert.equal(result.toolCalls.length, 2);
   assert.equal(result.toolCalls[1]!.function.arguments, "{\"lines\":3}");
+  assert.equal(result.usage?.total_tokens, 4020);
+  assert.equal(result.generationId, "gen-test");
 });
 
 test("fake model stream reports abnormal finish and respects cancellation", async (t) => {
@@ -120,4 +331,27 @@ test("artifact results expose metadata by reference without repeating content", 
   const deck = createArtifact("csv", "fen,move\nstart,e4", "only-moves.csv");
   assert.equal(deck.media_type, "text/csv");
   assert.equal(artifactById(deck.artifact_id)?.name, "only-moves.csv");
+  assert.deepEqual(findArtifactMetadata({ findings: [], deck }), [deck]);
+});
+
+test("history compaction preserves nested artifacts, actions, navigation, and pagination references", async () => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+  });
+  const { compactToolResult } = await import("../src/store/chat.ts");
+  const compacted = JSON.parse(compactToolResult(JSON.stringify({
+    findings: [{ path: ["e4", "e5"], fen: "fen-value", detail: "x".repeat(7000) }],
+    deck: { kind: "artifact", artifact_id: "artifact-9", format: "csv", name: "drill.csv", bytes: 12 },
+    action: { kind: "staged_edit", action_id: "edit-3", revision: 7, path: ["e4"] },
+    next_page: "cursor-2",
+    partial: true,
+  }))) as { references: Record<string, unknown>[] };
+  const serialized = JSON.stringify(compacted.references);
+  assert.match(serialized, /artifact-9/);
+  assert.match(serialized, /edit-3/);
+  assert.match(serialized, /fen-value/);
+  assert.match(serialized, /cursor-2/);
+  delete (globalThis as { localStorage?: unknown }).localStorage;
 });

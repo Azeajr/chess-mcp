@@ -376,7 +376,7 @@ server.tool(
       { depth, minMargin: min_margin, maxPositions: max_positions, linesLimit: lines_limit },
       analyseMulti,
     );
-    if ("error" in res) return ok(res);
+    if ("error" in res || "cancelled" in res) return ok(res);
     let deck: { path: string; rows: number; bytes: number } | undefined;
     if (real) {
       const csv = onlyMoveDeckCsv(res.color, res.findings);
@@ -613,7 +613,7 @@ server.tool(
       analyseMulti,
       openingsTable,
     );
-    if ("error" in res) return ok(res);
+    if ("error" in res || "cancelled" in res) return ok(res);
     if (real) {
       try {
         await writeFile(real, res.pgn, "utf8");

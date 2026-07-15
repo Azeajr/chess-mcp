@@ -9,11 +9,12 @@
     "mcp": "tsx apps/mcp-server/src/index.ts",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
+    "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node --import tsx scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
+    "verify:openrouter": "node --import tsx scripts/openrouter-tool-surface-eval.mjs",
     "docs:generate": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs",
     "docs:check": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs --check && node scripts/docs-consistency.mjs",
-    "sync:skills": "rm -rf plugin/skills && cp -r .claude/skills plugin/skills",
-    "check:skills": "diff -r .claude/skills plugin/skills"
+    "sync:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs && rm -rf plugin/skills && cp -r .claude/skills plugin/skills",
+    "check:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs --check && diff -r .claude/skills plugin/skills"
   },
   "engines": {
     "node": ">=20"

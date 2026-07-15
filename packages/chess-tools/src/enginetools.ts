@@ -45,6 +45,39 @@ export interface EngineLine {
 /** Injected engine: top-`multipv` lines for a FEN to `depth`, or null when unavailable. */
 export type Analyse = (fen: string, multipv: number, depth: number) => Promise<EngineLine[] | null>;
 
+/** Host-neutral controls for bounded multi-position operations. */
+export interface OperationControl {
+  shouldCancel?: () => boolean;
+  onProgress?: (done: number, total: number) => void;
+  concurrency?: number;
+}
+
+async function mapBounded<T, R>(
+  items: readonly T[],
+  worker: (item: T, index: number) => Promise<R>,
+  control: OperationControl = {},
+): Promise<{ cancelled: boolean; results: R[] }> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  let done = 0;
+  let cancelled = false;
+  control.onProgress?.(0, items.length);
+  const run = async () => {
+    for (;;) {
+      if (control.shouldCancel?.()) { cancelled = true; return; }
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]!, index);
+      done++;
+      control.onProgress?.(done, items.length);
+      if (control.shouldCancel?.()) { cancelled = true; return; }
+    }
+  };
+  const concurrency = Math.max(1, Math.min(items.length || 1, control.concurrency ?? 4));
+  await Promise.all(Array.from({ length: concurrency }, run));
+  return { cancelled, results: results.slice(0, next) };
+}
+
 const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
 
 // Mate-sentinel NOTE: this file deliberately carries TWO magnitudes, and unifying them WOULD change tool
@@ -89,14 +122,15 @@ export interface MoveRecord {
 }
 
 /** One engine eval per mainline position (N+1 for N moves); cp_loss from consecutive white evals. */
-export async function analyzeMainline(pgn: string, depth: number, analyse: Analyse): Promise<MoveRecord[] | null> {
+export async function analyzeMainline(pgn: string, depth: number, analyse: Analyse, control: OperationControl = {}): Promise<MoveRecord[] | null> {
   const moves = mainline(pgn);
   if (!moves.length) return [];
   const fens = moves.map((m) => m.fenBefore);
   fens.push(moves[moves.length - 1]!.fenAfter);
 
-  // Fired concurrently — the engine pool parallelises, its queue is the limiter (P1).
-  const results = await Promise.all(fens.map((fen) => analyse(fen, 1, depth)));
+  const scheduled = await mapBounded(fens, (fen) => analyse(fen, 1, depth), control);
+  if (scheduled.cancelled) return null;
+  const results = scheduled.results;
   if (results.some((r) => r === null)) return null; // engine genuinely unavailable
   const evals = results.map((res, i) => {
     const l = res![0];
@@ -155,6 +189,8 @@ export interface GapsOptions {
   /** Cooperative cancel, checked around each node's search; a cancelled scan returns
    *  `{ cancelled: true }`. In-flight searches still finish (they land in the eval cache). */
   shouldCancel?: () => boolean;
+  /** Maximum concurrently scheduled positions. Default 4; cancellation stops further scheduling. */
+  concurrency?: number;
 }
 export interface Gap {
   path: Path;
@@ -199,15 +235,10 @@ export async function findRepertoireGaps(
   const minSev: Severity = opts.minSeverity ?? "medium";
   const nodes = decisionNodes(tree, color).slice(0, opts.maxPositions ?? 20);
   const { keyMap } = buildKeyIndex(tree.game.moves);
-  opts.onProgress?.(0, nodes.length);
-  let progressDone = 0;
-  // Per-node searches fired concurrently (P1 — the pool parallelises, its queue is the limiter);
-  // results assembled in node order so output matches the old sequential scan.
-  const perNode = await Promise.all(
-    nodes.map(async (node) => {
-      if (opts.shouldCancel?.()) return "cancelled" as const;
+  const scheduled = await mapBounded(
+    nodes,
+    async (node) => {
       const res = await analyse(node.fen, 4, opts.depth ?? 14);
-      if (opts.shouldCancel?.()) return "cancelled" as const;
       if (!res) return null;
       const gaps: Gap[] = [];
       const covered: CoveredGap[] = [];
@@ -229,11 +260,12 @@ export async function findRepertoireGaps(
         }
         gaps.push({ path: node.path, san_path: node.sanPath, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
       }
-      opts.onProgress?.(++progressDone, nodes.length);
       return { gaps, covered };
-    }),
+    },
+    { shouldCancel: opts.shouldCancel, onProgress: opts.onProgress, concurrency: opts.concurrency },
   );
-  if (perNode.some((r) => r === "cancelled")) return { cancelled: true };
+  if (scheduled.cancelled) return { cancelled: true };
+  const perNode = scheduled.results;
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
   const results = perNode as { gaps: Gap[]; covered: CoveredGap[] }[];
   const found = results.flatMap((r) => r.gaps);
@@ -246,7 +278,12 @@ export async function findRepertoireGaps(
     // One request per unique decision node (several gaps can share one), post-limit only —
     // request budget ≤ limit at 1 req/s. The lookup caches, so transposition re-hits are free.
     const fens = [...new Set(gaps.map((g) => g.fen))];
-    const byFen = new Map(await Promise.all(fens.map(async (f) => [f, await opts.popularity!(f)] as const)));
+    const popularity = await mapBounded(fens, async (fen) => [fen, await opts.popularity!(fen)] as const, {
+      shouldCancel: opts.shouldCancel,
+      concurrency: opts.concurrency,
+    });
+    if (popularity.cancelled) return { cancelled: true };
+    const byFen = new Map(popularity.results);
     for (const g of gaps) {
       const pos = byFen.get(g.fen);
       // A move absent from the explorer's top-moves list is (approximately) never played there.
@@ -261,7 +298,7 @@ export async function findRepertoireGaps(
 
 // --- audit_repertoire_moves (engine-check the user's own prescribed moves, tree-wide) ---
 
-export interface AuditOptions {
+export interface AuditOptions extends OperationControl {
   depth?: number;
   /** Report findings with cp_loss >= this (default 50). */
   minCpLoss?: number;
@@ -286,6 +323,7 @@ export interface AuditFinding {
 }
 export type AuditResult =
   | { error: "engine_unavailable" }
+  | { cancelled: true }
   | { color: Color; positions_scanned: number; moves_audited: number; findings: AuditFinding[] };
 
 /**
@@ -303,10 +341,9 @@ export async function auditRepertoireMoves(
   const depth = opts.depth ?? 14;
   const minCpLoss = opts.minCpLoss ?? 50;
   const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 20);
-  // Nodes fired concurrently (P1); within a node the two-phase logic (multipv-2, then a
-  // conditional single-PV for an off-line prescribed move) stays sequential and readable.
-  const perNode = await Promise.all(
-    nodes.map(async (node) => {
+  const scheduled = await mapBounded(
+    nodes,
+    async (node) => {
       const res = await analyse(node.fen, 2, depth);
       if (res === null) return null;
       const findings: AuditFinding[] = [];
@@ -352,8 +389,11 @@ export async function auditRepertoireMoves(
         });
       }
       return { findings, audited };
-    }),
+    },
+    opts,
   );
+  if (scheduled.cancelled) return { cancelled: true };
+  const perNode = scheduled.results;
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
   const findings = perNode.flatMap((r) => r!.findings);
   findings.sort((a, b) => b.cp_loss - a.cp_loss);
@@ -367,7 +407,7 @@ export async function auditRepertoireMoves(
 
 // --- find_only_moves (criticality tagging + spaced-repetition drill deck) ---
 
-export interface OnlyMoveOptions {
+export interface OnlyMoveOptions extends OperationControl {
   depth?: number;
   /** Tag positions where best − second ≥ this (default 100 — misremembering costs a "mistake"). */
   minMargin?: number;
@@ -397,6 +437,7 @@ export interface OnlyMoveLine {
 }
 export type OnlyMoveResult =
   | { error: "engine_unavailable" }
+  | { cancelled: true }
   | {
       color: Color;
       positions_scanned: number;
@@ -423,8 +464,9 @@ export async function findOnlyMoves(
   const depth = opts.depth ?? 14;
   const minMargin = opts.minMargin ?? 100;
   const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 300);
-  const perNode = await Promise.all(
-    nodes.map(async (node) => {
+  const scheduled = await mapBounded(
+    nodes,
+    async (node) => {
       const res = await analyse(node.fen, 2, depth);
       if (res === null) return null;
       const key = positionKey(node.fen);
@@ -450,8 +492,11 @@ export async function findOnlyMoves(
         best_eval: mcp(res[0]!),
       };
       return { key, finding };
-    }),
+    },
+    opts,
   );
+  if (scheduled.cancelled) return { cancelled: true };
+  const perNode = scheduled.results;
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
   const scanned = new Set(perNode.map((r) => r!.key));
   const tagged = new Set(perNode.filter((r) => r!.finding).map((r) => r!.key));
@@ -516,7 +561,7 @@ export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): stri
 // --- export_annotated_repertoire (T6: analysis findings as portable PGN comments/NAGs) ---
 
 export type AnnotateSource = "audit" | "only_moves" | "gaps" | "congruence";
-export interface AnnotateOptions {
+export interface AnnotateOptions extends OperationControl {
   /** Which analyses to embed (default: all four; congruence silently skipped without an OpeningTable). */
   include?: AnnotateSource[];
   depth?: number;
@@ -531,6 +576,7 @@ export interface AnnotateOptions {
 }
 export type AnnotateResult =
   | { error: "engine_unavailable" }
+  | { cancelled: true }
   | { color: Color; pgn: string; annotated: Record<AnnotateSource, number> };
 
 // Same glyph mapping as export_annotated_pgn: $4 = blunder (??), $2 = mistake (?), $6 = dubious (?!).
@@ -552,6 +598,13 @@ export async function annotateRepertoire(
   openings?: OpeningTable,
 ): Promise<AnnotateResult> {
   const include = opts.include ?? ["audit", "only_moves", "gaps", "congruence"];
+  let phase = 0;
+  const phaseControl = (): OperationControl => ({
+    shouldCancel: opts.shouldCancel,
+    concurrency: opts.concurrency,
+    onProgress: (done, total) => opts.onProgress?.(phase * 100 + (total ? Math.round(done / total * 100) : 0), include.length * 100),
+  });
+  const nextPhase = () => { phase++; };
   const clone = tree.clone();
   const NO_LIMIT = 10000;
 
@@ -572,13 +625,16 @@ export async function annotateRepertoire(
   const annotated: Record<AnnotateSource, number> = { audit: 0, only_moves: 0, gaps: 0, congruence: 0 };
 
   if (include.includes("audit")) {
+    if (opts.shouldCancel?.()) return { cancelled: true };
+    const control = phaseControl();
     const res = await auditRepertoireMoves(
       tree,
       color,
-      { depth: opts.depth, minCpLoss: opts.minCpLoss, maxPositions: opts.maxPositions, limit: NO_LIMIT },
+      { depth: opts.depth, minCpLoss: opts.minCpLoss, maxPositions: opts.maxPositions, limit: NO_LIMIT, ...control },
       analyse,
     );
     if ("error" in res) return res;
+    if ("cancelled" in res) return res;
     for (const f of res.findings) {
       const d = childData([...f.path, f.prescribed]);
       if (!d) continue; // findings come from this tree; unreachable
@@ -587,16 +643,20 @@ export async function annotateRepertoire(
       comment(d, `audit: ${f.classification} — loses ${loss} vs ${f.best_move} (${evalStr(f.best_eval)})`);
       annotated.audit++;
     }
+    nextPhase();
   }
 
   if (include.includes("only_moves")) {
+    if (opts.shouldCancel?.()) return { cancelled: true };
+    const control = phaseControl();
     const res = await findOnlyMoves(
       tree,
       color,
-      { depth: opts.depth, minMargin: opts.minMargin, maxPositions: opts.maxPositions, linesLimit: 1 },
+      { depth: opts.depth, minMargin: opts.minMargin, maxPositions: opts.maxPositions, linesLimit: 1, ...control },
       analyse,
     );
     if ("error" in res) return res;
+    if ("cancelled" in res) return res;
     for (const f of res.findings) {
       const note =
         f.margin >= MATE_CP / 2 ? "only move: alternatives are decisively worse" : `only move: next best -${f.margin}cp`;
@@ -607,18 +667,20 @@ export async function annotateRepertoire(
       }
       annotated.only_moves++;
     }
+    nextPhase();
   }
 
   if (include.includes("gaps")) {
+    if (opts.shouldCancel?.()) return { cancelled: true };
+    const control = phaseControl();
     const res = await findRepertoireGaps(
       tree,
       color,
-      { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: NO_LIMIT },
+      { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: NO_LIMIT, ...control },
       analyse,
     );
-    // No shouldCancel passed, so "cancelled" can't actually occur — narrow it away.
     if ("error" in res) return res;
-    if ("cancelled" in res) return { error: "engine_unavailable" };
+    if ("cancelled" in res) return res;
     for (const g of res.gaps) {
       // Gap.path is the index path to the position OWED the reply; an empty path = the root
       // (a Black repertoire's uncovered first move) → the game-level comment.
@@ -627,9 +689,11 @@ export async function annotateRepertoire(
       else comment((clone.nodeAt(g.path) as ChildNode<PgnNodeData>).data, text);
       annotated.gaps++;
     }
+    nextPhase();
   }
 
   if (include.includes("congruence") && openings) {
+    if (opts.shouldCancel?.()) return { cancelled: true };
     const res = analyzeCongruence(tree, color, openings, { minSeverity: opts.minSeverity, limit: NO_LIMIT });
     for (const flag of res.incongruencies) {
       for (const p of flag.paths) {
@@ -639,6 +703,7 @@ export async function annotateRepertoire(
         annotated.congruence++;
       }
     }
+    opts.onProgress?.(++phase * 100, include.length * 100);
   }
 
   return { color, pgn: clone.toPgn(), annotated };
@@ -744,14 +809,21 @@ export interface ShortcutCoverage {
 export async function checkShortcutCoverage(
   tree: GameTree,
   color: Color,
-  opts: { linePath: string[]; atPly: number; depth?: number; minSeverity?: Severity; maxPositions?: number; limit?: number },
+  opts: { linePath: string[]; atPly: number; depth?: number; minSeverity?: Severity; maxPositions?: number; limit?: number } & OperationControl,
   analyse: Analyse,
 ): Promise<ShortcutCoverage | { error: string }> {
   const prunes = opts.linePath.slice(0, opts.atPly + 1);
   if (!prunes.length) return { error: "invalid_prune" };
   const edited = tree.edit("prune", prunes);
   if (!edited.tree) return { error: edited.error ?? "invalid_edit" };
-  const gapsOpts = { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: opts.limit };
+  const gapsOpts = {
+    depth: opts.depth,
+    minSeverity: opts.minSeverity,
+    maxPositions: opts.maxPositions,
+    limit: opts.limit,
+    shouldCancel: opts.shouldCancel,
+    concurrency: opts.concurrency,
+  };
   // Both scans in parallel (P1) — they share most positions, so the cache/in-flight dedupe
   // collapses the overlap either way.
   const [before, after] = await Promise.all([
@@ -760,8 +832,7 @@ export async function checkShortcutCoverage(
   ]);
   if ("error" in before) return { error: before.error };
   if ("error" in after) return { error: after.error };
-  // No shouldCancel passed, so "cancelled" can't actually occur — narrow it away.
-  if ("cancelled" in before || "cancelled" in after) return { error: "engine_unavailable" };
+  if ("cancelled" in before || "cancelled" in after) return { error: "cancelled" };
   const key = (g: Gap) => `${g.fen}|${g.uncovered_move}`;
   const beforeSet = new Set(before.gaps.map(key));
   const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));
@@ -797,7 +868,7 @@ const STUB_CP_THRESHOLD = 50;
 export async function resolveDanglingStubs(
   tree: GameTree,
   color: Color,
-  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number },
+  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number } & OperationControl,
   analyse: Analyse,
 ): Promise<CoverageResolution> {
   const dangling = tree.coverage(color).danglingLines.slice(0, opts.limit ?? 20);
@@ -820,7 +891,12 @@ export async function resolveDanglingStubs(
 
   const ext = await tree.extendedBridges(
     color,
-    { maxDepth: opts.maxDepth ?? STUB_MAX_DEPTH, nodeBudget: opts.nodeBudget ?? STUB_NODE_BUDGET },
+    {
+      maxDepth: opts.maxDepth ?? STUB_MAX_DEPTH,
+      nodeBudget: opts.nodeBudget ?? STUB_NODE_BUDGET,
+      shouldCancel: opts.shouldCancel,
+      onProgress: opts.onProgress,
+    },
     pickMoves,
   );
   if (!engineOk) return { error: "engine_unavailable" };
@@ -849,11 +925,12 @@ export async function compareMoves(
   moves: string[],
   depth: number,
   analyse: Analyse,
-): Promise<{ fen: string; candidates: Record<string, unknown>[] }> {
+  control: OperationControl = {},
+): Promise<{ fen: string; candidates: Record<string, unknown>[]; cancelled?: true }> {
   const moverIsWhite = fen.split(" ")[1] === "w";
-  // Candidates fired concurrently (P1); `out` keeps the caller's move order until the sort below.
-  const out: Record<string, unknown>[] = await Promise.all(
-    moves.map(async (san) => {
+  const scheduled = await mapBounded(
+    moves,
+    async (san) => {
       const chk = validateLine(fen, [san]);
       if (!chk.ok || !chk.finalFen) return { san, error: "illegal_move" };
       const res = await analyse(chk.finalFen, 1, depth);
@@ -868,13 +945,15 @@ export async function compareMoves(
         return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: null, mate: null, mover_cp: moverWins ? MATE_CP : 0 };
       }
       return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) };
-    }),
+    },
+    control,
   );
+  const out: Record<string, unknown>[] = scheduled.results;
   out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
   // Rank only the scored candidates — a rank on an illegal/engine-error row reads as a real placement.
   let rank = 0;
   for (const o of out) if (o.mover_cp !== undefined) o.rank = ++rank;
-  return { fen, candidates: out };
+  return { fen, candidates: out, ...(scheduled.cancelled ? { cancelled: true as const } : {}) };
 }
 
 // --- suggest_complementary_lines (engine + structure ranking from an anchor FEN) ---

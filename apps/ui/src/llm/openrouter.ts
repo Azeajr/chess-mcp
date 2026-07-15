@@ -35,6 +35,10 @@ export interface RoundResult {
   toolCalls: ToolCall[];
   /** finish_reason when it is not a normal end ("length", "content_filter", …). */
   abnormalFinish?: string;
+  /** Provider-reported accounting from the final streaming chunk, when available. */
+  usage?: Record<string, unknown>;
+  /** OpenRouter request correlation identifier from the response headers. */
+  generationId?: string;
 }
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -88,6 +92,7 @@ export async function streamChat(opts: {
   let buffer = "";
   let content = "";
   let abnormalFinish: string | undefined;
+  let usage: Record<string, unknown> | undefined;
   // Tool calls stream as fragments keyed by index; reassemble here.
   const toolByIndex = new Map<number, ToolCall>();
 
@@ -117,6 +122,7 @@ export async function streamChat(opts: {
             : String(json.error);
         throw new Error(`OpenRouter stream error: ${String(msg).slice(0, 300)}`);
       }
+      if (json.usage && typeof json.usage === "object" && !Array.isArray(json.usage)) usage = json.usage;
       const choice = json.choices?.[0];
       const finish = choice?.finish_reason;
       if (typeof finish === "string" && finish !== "stop" && finish !== "tool_calls") {
@@ -141,5 +147,6 @@ export async function streamChat(opts: {
   }
 
   const toolCalls = [...toolByIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-  return { content, toolCalls, abnormalFinish };
+  const generationId = res.headers.get("X-Generation-Id") ?? undefined;
+  return { content, toolCalls, abnormalFinish, ...(usage ? { usage } : {}), ...(generationId ? { generationId } : {}) };
 }

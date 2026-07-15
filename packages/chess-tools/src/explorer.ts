@@ -101,7 +101,7 @@ const cache = new Map<string, ExplorerPosition>();
  * positions — valid data) are cached; failures are not, so a transient blip doesn't poison
  * the process.
  */
-export async function explorerPosition(fen: string, filters: ExplorerFilters = {}): Promise<ExplorerPosition | null> {
+export async function explorerPosition(fen: string, filters: ExplorerFilters = {}, signal?: AbortSignal): Promise<ExplorerPosition | null> {
   const db = filters.db ?? "lichess";
   const movesLimit = filters.movesLimit ?? 12;
   const speeds = (filters.speeds ?? DEFAULT_SPEEDS).join(",");
@@ -115,7 +115,7 @@ export async function explorerPosition(fen: string, filters: ExplorerFilters = {
     db === "masters"
       ? `https://explorer.lichess.org/masters?fen=${f}&moves=${movesLimit}&topGames=0`
       : `https://explorer.lichess.org/lichess?variant=standard&fen=${f}&speeds=${speeds}&ratings=${ratings}&moves=${movesLimit}&topGames=0&recentGames=0`;
-  const raw = await fetchJson<RawExplorer>(url, explorerToken ? { Authorization: `Bearer ${explorerToken}` } : undefined);
+  const raw = await fetchJson<RawExplorer>(url, explorerToken ? { Authorization: `Bearer ${explorerToken}` } : undefined, signal);
   if (!raw || !Array.isArray(raw.moves)) return null;
 
   const total = raw.white + raw.draws + raw.black;
@@ -150,6 +150,10 @@ export interface TheoryDepthOptions {
   minGames?: number;
   /** Explorer-query budget — bounds wall-clock at 1 req/s. Default 60. */
   maxPositions?: number;
+  /** Host-provided cooperative cancellation check for long explorer walks. */
+  shouldCancel?: () => boolean;
+  /** Reports completed explorer queries against the configured query budget. */
+  onProgress?: (done: number, total: number) => void;
 }
 
 export interface TheoryLine {
@@ -173,6 +177,7 @@ export type TheoryDepthResult =
       /** Per-leaf verdicts, earliest theory exit first (never-exits last). */
       lines: TheoryLine[];
       median_exit_ply: number | null;
+      cancelled?: true;
     };
 
 /**
@@ -191,7 +196,13 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
   let queried = 0;
   let budgetOut = false;
   let offline = false;
+  let cancelled = false;
+  opts.onProgress?.(0, maxPositions);
   const query = async (fen: string): Promise<ExplorerPosition | null> => {
+    if (opts.shouldCancel?.()) {
+      cancelled = true;
+      return null;
+    }
     const key = positionKey(fen);
     if (seen.has(key)) return seen.get(key)!;
     if (queried >= maxPositions) {
@@ -200,7 +211,16 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
     }
     queried++;
     let res = await lookup(fen);
+    opts.onProgress?.(queried, maxPositions);
+    if (opts.shouldCancel?.()) {
+      cancelled = true;
+      return null;
+    }
     if (res === null) res = await lookup(fen); // one retry through the rate limiter
+    if (opts.shouldCancel?.()) {
+      cancelled = true;
+      return null;
+    }
     if (res === null) offline = true;
     seen.set(key, res);
     return res;
@@ -220,7 +240,10 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
 
   // DFS carrying the position; `lastTheoryGames` = games at the deepest in-theory node so far.
   const walk = async (node: Node<PgnNodeData>, pos: Chess, sanPath: string[], lastTheoryGames: number): Promise<void> => {
-    if (offline) return;
+    if (offline || cancelled || opts.shouldCancel?.()) {
+      cancelled ||= opts.shouldCancel?.() ?? false;
+      return;
+    }
     const res = await query(makeFen(pos.toSetup()));
     if (offline) return;
     if (res === null) {
@@ -243,6 +266,10 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
       return;
     }
     for (const child of node.children) {
+      if (opts.shouldCancel?.()) {
+        cancelled = true;
+        return;
+      }
       const next = pos.clone();
       const move = parseSan(next, child.data.san);
       if (!move) continue;
@@ -252,6 +279,7 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
   };
 
   await walk(tree.game.moves, Chess.default(), [], 0);
+  if (cancelled) return { positions_queried: queried, truncated: true, lines_skipped: skipped, lines, median_exit_ply: null, cancelled: true };
   if (offline) return { error: "explorer_unavailable" };
 
   lines.sort((a, b) => (a.theory_exit_ply ?? Infinity) - (b.theory_exit_ply ?? Infinity));

@@ -1,18 +1,18 @@
 # PWA product
 
-The PWA supports two equal entry points: natural conversation and direct analysis. Both invoke the
-same browser application commands and consume the same result models.
+The PWA supports two complementary entry points: natural conversation and direct analysis. Both use
+canonical application commands and result models for user-triggered reports and exports.
 
 ## Conversation
 
-Users can ask about the current position, game, or repertoire without choosing a mode. Auto routing
-starts with compact grounding/actions and selects an outcome bundle from the request and document
-state. Position, game, repertoire, and annotation presets remain optional hints. A conversation can
-expand capabilities when its subject changes.
+Users can ask about the current position, game, or repertoire without choosing a mode. Every
+tool-capable round exposes the complete stable browser command schema, allowing a conversation to
+change subject without a routing gate. Position, game, repertoire, and annotation presets are
+optional guidance only and never hide commands.
 
-The prompt includes normalized FEN, color, selected path/reference, document kind and revision, and
-compact statistics. Scoped tools retrieve the current line, selected subtree, document summary, or
-full PGN on demand. Tool-round exhaustion produces an explicit incomplete summary.
+The prompt includes normalized FEN, color, selected SAN path, document kind and revision, and
+compact statistics. Scoped tools retrieve a bounded selected subtree or full PGN artifact on
+demand. Tool-round exhaustion produces an explicit incomplete summary.
 
 Streaming and supported tool work share cancellation. The UI shows queued/running/completed,
 cancelled, and failed states, including progress counts for long scans, plus Stop and Retry.
@@ -40,6 +40,11 @@ only-move drills, structure search, opponent preparation, gaps, coverage, congru
 suggestions, and annotated export. Advanced controls group operations without changing the public
 MCP surface; for example, the browser's shortcut inspector combines quality and coverage while MCP
 keeps the independently composable operations.
+
+Continuous live board analysis is deliberately UI-owned: it uses a dedicated Worker and discards
+late results after navigation. Gap filling and shortening are named multi-step panel workflows that
+compose canonical commands. These are documented exceptions to one-command equivalence, not
+duplicate domain implementations.
 
 Direct local analysis does not need an OpenRouter key. Network operations still need connectivity
 and, for Lichess opening explorer, a personal token entered in Settings.

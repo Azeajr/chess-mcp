@@ -13,7 +13,7 @@ type ChessHarness = {
   acceptStagedEdit(id: string): { ok: boolean; error?: string };
   createArtifact(format: "pgn" | "csv", content: string, name: string): { artifact_id: string };
   saveArtifact(id: string): boolean;
-  selectOutcomes(text: string, preset: string, expanded: string[], documentOutcome?: "game" | "repertoire"): string[];
+  appendToolResultForTesting(operation: string, result: unknown): void;
   runTool(name: string, args: Record<string, unknown>): Promise<unknown>;
 };
 
@@ -27,12 +27,15 @@ test.beforeEach(async ({ page }) => {
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
 });
 
-test("an ambiguous natural request inherits repertoire scope and exposes direct analysis", async ({ page }) => {
+test("an ambiguous natural request needs no preset and direct analysis remains available", async ({ page }) => {
   await chess(page, (api) => api.loadPgn("1. e4 (1. d4 d5) e5 2. Nf3", "prep.pgn"));
   await expect(page.getByPlaceholder("Ask about this position, game, or repertoire…")).toBeVisible();
-  expect(await chess(page, (api) => api.selectOutcomes("What are the biggest problems here?", "", [], "repertoire"))).toEqual(["repertoire"]);
   await expect(page.getByText("Prescribed-move audit")).toBeVisible();
   await expect(page.getByRole("button", { name: "Audit" })).toBeVisible();
+  await expect(page.getByText("Only moves & drills")).toBeVisible();
+  await expect(page.getByText("Structure search")).toBeVisible();
+  await expect(page.getByText("Opponent preparation")).toBeVisible();
+  await expect(page.getByText("Annotated repertoire")).toBeVisible();
 });
 
 test("a finding path navigates to the exact move", async ({ page }) => {
@@ -86,6 +89,71 @@ test("artifact saving is a browser download affordance", async ({ page }) => {
   expect(download.suggestedFilename()).toBe("annotated.pgn");
 });
 
+test("typed audit navigation and nested only-move deck saving work from chat results", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6"));
+  await chess(page, (api) => api.appendToolResultForTesting("audit_repertoire_moves", {
+    color: "white",
+    positions_scanned: 2,
+    moves_audited: 2,
+    findings: [{ path: ["e4", "e5", "Nf3"], cp_loss: 90, classification: "inaccuracy", best_move: "Nc3" }],
+  }));
+  await expect(page.getByText("Prescribed-move audit").last()).toBeVisible();
+  await page.locator(".tool-result .result-nav").last().click();
+  await expect(page.locator(".move.current").first()).toContainText("Nf3");
+
+  const deck = await chess(page, (api) => api.createArtifact("csv", "front,back\nposition,e4", "only-move-drill.csv"));
+  await chess(page, (api, artifact) => api.appendToolResultForTesting("find_only_moves", {
+    positions_scanned: 4,
+    only_moves_found: 1,
+    findings: [],
+    lines: [],
+    deck: { kind: "artifact", artifact_id: artifact.artifact_id, format: "csv", name: "only-move-drill.csv", bytes: 22 },
+  }), deck);
+  await expect(page.getByText("Only-move training positions")).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator(".tool-result .artifact-card").last().getByRole("button", { name: "Save" }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("only-move-drill.csv");
+});
+
+test("all newly reachable primary reports have typed chat cards", async ({ page }) => {
+  await chess(page, (api) => api.appendToolResultForTesting("find_structures", {
+    total_matches: 2, leaves_total: 8, matches: [{ path: ["d4", "d5"], structure: "Carlsbad" }],
+  }));
+  await chess(page, (api) => api.appendToolResultForTesting("prep_vs_opponent", {
+    username: "alice", games_matched_color: 12, coverage_pct: 75, uncovered_opponent_moves: [],
+  }));
+  const artifact = await chess(page, (api) => api.createArtifact("pgn", "1. d4 *", "prep-annotated.pgn"));
+  await chess(page, (api, nested) => api.appendToolResultForTesting("export_annotated_repertoire", {
+    annotated: { audit: 1, only_moves: 2, gaps: 3, congruence: 4 }, artifact: nested,
+  }), artifact);
+  await expect(page.getByText("Structure search").last()).toBeVisible();
+  await expect(page.getByText("Opponent preparation · alice")).toBeVisible();
+  await expect(page.getByText("Annotated repertoire").last()).toBeVisible();
+});
+
+test("top-level chat artifacts have a save affordance", async ({ page }) => {
+  const artifact = await chess(page, (api) => api.createArtifact("pgn", "1. e4 *", "review-annotated.pgn"));
+  await chess(page, (api, result) => api.appendToolResultForTesting("export_annotated_pgn", result), artifact);
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator(".tool-result .artifact-card").last().getByRole("button", { name: "Save" }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("review-annotated.pgn");
+});
+
+test("the working document restores from IndexedDB after reload", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "autosaved.pgn"));
+  await chess(page, (api) => api.goto([0, 0, 0]));
+  await page.waitForTimeout(550);
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.toPgn())).toContain("Nf3 Nc6");
+  await expect(page.locator(".move.current").first()).toContainText("Nf3");
+});
+
+test("structured command errors render as distinct result cards", async ({ page }) => {
+  await chess(page, (api) => api.appendToolResultForTesting("find_structures", { error: "missing_criteria", reason: "provide a structure or theme" }));
+  await expect(page.getByRole("alert")).toContainText("Search criteria required");
+  await expect(page.getByRole("alert")).toContainText("missing_criteria");
+});
+
 test("long direct analysis exposes a working cancel action", async ({ page }) => {
   await chess(page, (api) => api.loadPgn("1. e4 (1. d4 d5 2. c4) e5 2. Nf3 Nc6 3. Bb5"));
   await page.getByRole("button", { name: "Audit" }).click();
@@ -93,11 +161,4 @@ test("long direct analysis exposes a working cancel action", async ({ page }) =>
   await expect(cancel).toBeVisible();
   await cancel.click();
   await expect(page.getByRole("button", { name: "Audit" })).toBeVisible();
-});
-
-test("direct and chat clients execute the same canonical browser command", async ({ page }) => {
-  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3"));
-  const direct = await chess(page, (api) => api.runTool("get_document_summary", {}));
-  const chat = await chess(page, (api) => api.runTool("get_document_summary", {}));
-  expect(chat).toEqual(direct);
 });

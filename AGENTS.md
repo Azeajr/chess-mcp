@@ -17,6 +17,7 @@ node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
+pnpm exec playwright test --config apps/ui/playwright.config.ts
 pnpm dev                       # use dev:host for LAN
 pnpm mcp
 ```
@@ -29,6 +30,10 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 - `packages/chess-tools/src/tool-contract.ts` owns tool identifiers, descriptions, hosts,
   capabilities, defaults, validation metadata, and result kind. Generate
   `docs/TOOL_CATALOG.md` with `pnpm docs:generate`; never edit it by hand.
+- `packages/chess-tools/src/workflow-contract.ts` owns shared workflow invariants and method
+  boundaries. Generate skill sections with `pnpm sync:skills`; do not hand-edit generated blocks.
+- `apps/ui/src/application/browser-commands/registry.ts` is the exhaustive browser execution
+  registry. Chat and direct report/export controls must call it instead of adding store switches.
 - `packages/chess-tools` must not import SolidJS, MCP SDK, Zod, or OpenRouter types.
 - MCP adapters inject repertoire handles, the Node engine pool, network credentials, and confined
   paths. Browser adapters inject the current tree/FEN/PGN, Worker engine, credentials, staged
@@ -50,6 +55,8 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 - Explorer-backed operations require `LICHESS_TOKEN` on Node or the browser Settings token.
 - Mutations proposed by chat are staged and require explicit acceptance; filesystem writes and
   browser saves remain explicit actions.
+- Browser chat sends the complete canonical browser schema on every tool-capable round. Presets
+  change guidance only; do not reintroduce keyword routing or capability expansion.
 - Preserve structured error codes and per-item illegal results from `compare_moves`.
 
 ## Working conventions

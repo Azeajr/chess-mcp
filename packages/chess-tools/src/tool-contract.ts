@@ -94,11 +94,8 @@ export const TOOL_CONTRACTS = [
   define("export_repertoire", "Serialize a Node repertoire handle to PGN.", ["repertoire", "artifact"], MCP, {}, { properties: { repertoire_id: string() }, mcpRequired: ["repertoire_id"] }),
   define("export_repertoire_to_file", "Write repertoire PGN under the confined Node repertoire directory.", ["repertoire", "artifact"], MCP, {}, { properties: { repertoire_id: string(), path: string() }, mcpRequired: ["repertoire_id", "path"] }),
   define("propose_line", "Stage a validated SAN line for explicit user acceptance without mutating the repertoire.", ["repertoire", "action"], BROWSER, {}, { properties: { moves: array(), comment: string() }, required: ["moves"] }),
-  define("get_current_line", "Retrieve the selected SAN line and its position references from the current browser document.", ["position", "game"], BROWSER, {}, { properties: {} }),
   define("get_selected_subtree", "Retrieve bounded SAN lines for the currently selected repertoire subtree.", ["repertoire"], BROWSER, { max_plies: 80 }, { properties: { max_plies: integer(1, 200) } }),
-  define("get_document_summary", "Retrieve compact current-document metadata and tree statistics.", ["game", "repertoire"], BROWSER, {}, { properties: {} }),
   define("get_document_pgn", "Retrieve the full current PGN only when an operation genuinely needs the artifact.", ["game", "repertoire", "artifact"], BROWSER, {}, { properties: {} }),
-  define("expand_capabilities", "Request an additional tool bundle when the conversation changes outcome.", ["action"], BROWSER, {}, { properties: { outcome: { type: "string", enum: ["position", "game", "repertoire", "annotate"] } }, required: ["outcome"] }),
 ] as const;
 
 export const TOOL_CONTRACT_BY_NAME = new Map(TOOL_CONTRACTS.map((tool) => [tool.name, tool]));
@@ -114,6 +111,7 @@ export function toolDefault<T>(name: string, key: string, fallback: T): T {
 
 export function jsonSchemaForTool(name: string, host: ToolHost): Record<string, unknown> | null {
   const contract = toolContract(name);
+  if (!(contract.hosts as readonly ToolHost[]).includes(host)) return null;
   if (!contract.input) return null;
   const omitted = host === "browser" ? new Set(["repertoire_id"]) : new Set<string>();
   const hostProperties = host === "mcp" ? contract.input.mcpProperties : contract.input.browserProperties;
@@ -140,7 +138,9 @@ function fieldError(field: InputField, candidate: unknown, path: string): string
 }
 export function validateToolArguments(name: string, raw: unknown, host: ToolHost): ArgumentsResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
-  const contract = toolContract(name);
+  const contract = TOOL_CONTRACT_BY_NAME.get(name);
+  if (!contract) return { ok: false, error: "invalid_arguments", reason: `unknown tool: ${name}` };
+  if (!(contract.hosts as readonly ToolHost[]).includes(host)) return { ok: false, error: "invalid_arguments", reason: `${name} is not available on the ${host} host` };
   if (!contract.input) return { ok: true, value: raw as Record<string, unknown> };
   const value = raw as Record<string, unknown>;
   const schema = jsonSchemaForTool(name, host)!;

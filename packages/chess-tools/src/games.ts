@@ -65,10 +65,11 @@ export async function lichessGames(
   maxGames: number,
   openingEco?: string,
   includePgn = false,
+  signal?: AbortSignal,
 ): Promise<GameMeta[] | null> {
   const n = Math.max(1, Math.min(100, maxGames));
   const url = `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=${n}`;
-  const text = await fetchText(url, { Accept: "application/x-chess-pgn" });
+  const text = await fetchText(url, { Accept: "application/x-chess-pgn" }, signal);
   if (text === null) return null;
   return filterEco(
     parsePgn(text).map((g) => metaFromGame(g, username, includePgn)),
@@ -83,9 +84,10 @@ export async function chesscomGames(
   month: number,
   openingEco?: string,
   includePgn = false,
+  signal?: AbortSignal,
 ): Promise<GameMeta[] | null> {
   const url = `https://api.chess.com/pub/player/${encodeURIComponent(username)}/games/${String(year).padStart(4, "0")}/${String(month).padStart(2, "0")}`;
-  const data = await fetchJson<{ games?: { pgn?: string }[] }>(url);
+  const data = await fetchJson<{ games?: { pgn?: string }[] }>(url, undefined, signal);
   if (!data) return null;
   const out: GameMeta[] = [];
   for (const g of data.games ?? []) {

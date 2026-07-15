@@ -36,16 +36,20 @@ a no-scope Lichess personal token because the explorer requires authentication.
 - Advanced repertoire: thematic congruence, transpositions and shortening, shortcut inspection,
   engine-vetted replacement or complementary lines, and shared best-eval/best-fit gap fills.
 
-Chat accepts a natural first message; workflow presets are optional. It routes a bounded capability
-bundle, can expand that bundle during a conversation, retrieves document data only when needed, and
-shows progress with Stop/Retry controls. Tool results render as navigable application data. Proposed
-edits are staged against a document revision and require Accept; direct repertoire previews expose
-Accept line/Cancel controls, and generated PGN/CSV artifacts have direct save actions.
+Chat accepts a natural first message; workflow presets change guidance only. Every tool-capable
+round receives the complete stable browser command schema, while the prompt carries only compact
+document context and scoped commands retrieve a selected subtree or full PGN when needed. Long
+operations show progress and share Stop/Retry lifecycle handling with streaming. Tool results render
+as navigable application data. Proposed edits are staged against a document revision and require
+Accept; direct repertoire previews expose Accept line/Cancel controls, and generated PGN/CSV
+artifacts have direct save actions.
 
-Direct analysis is available without chat and invokes the same browser application commands and
-result models. MCP and browser host differences are intentional: MCP uses repertoire handles and
-confined filesystem operations, while the browser injects the current document and supplies staged
-UI actions. See the generated [tool catalog](docs/TOOL_CATALOG.md) for the exact inventories.
+Direct analysis is available without chat. User-triggered reports and exports invoke the canonical
+browser application commands and result models; continuous live board evaluation and a few
+multi-step panel workflows remain explicit UI orchestration. MCP and browser host differences are
+intentional: MCP uses repertoire handles and confined filesystem operations, while the browser
+injects the current document and supplies staged UI actions. See the generated
+[tool catalog](docs/TOOL_CATALOG.md) for the exact inventories.
 
 ## Architecture
 
@@ -72,6 +76,7 @@ node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
+pnpm exec playwright test --config apps/ui/playwright.config.ts
 ```
 
 The network-gated MCP smoke still exercises the bundled engine and local paths. CI runs on Node 26.
@@ -83,6 +88,5 @@ Use `pnpm docs:generate` after changing the canonical registry; do not edit the 
 - [Architecture](docs/ARCHITECTURE.md): implemented system design.
 - [Tool catalog](docs/TOOL_CATALOG.md): generated host inventories and contract metadata.
 - [PWA product](docs/PWA_PRODUCT.md): conversation, direct analysis, actions, and artifacts.
-- [Tool disposition](docs/TOOL_SURFACE_DISPOSITION.md): evidence-backed keep/group decisions.
 - [Roadmap](ROADMAP.md): unshipped work only.
 - [Archive](docs/archive/README.md): superseded design rationale and review records.

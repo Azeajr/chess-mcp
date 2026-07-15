@@ -1067,6 +1067,9 @@ img,
 .result-title { width: 100%; font-weight: 650; font-size: 0.8rem; }
 .result-line { width: 100%; font-family: ui-monospace, monospace; color: #dceaff; }
 .result-summary { color: var(--muted); margin-right: auto; }
+.result-error-card { border-left: 3px solid #b95a61; padding-left: 0.55rem; }
+.result-code { color: #f0a8ac; font-family: ui-monospace, monospace; font-size: 0.68rem; }
+.report-card .result-summary { width: 100%; }
 .result-card button, .result-nav { font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.18rem 0.5rem; background: #33333a; color: var(--text); cursor: pointer; }
 .result-card .result-accept { border-color: #3c7a4b; background: #284d31; }
 .result-status { text-transform: capitalize; }

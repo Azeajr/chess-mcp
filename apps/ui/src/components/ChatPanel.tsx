@@ -50,7 +50,7 @@ export default function ChatPanel() {
         <span>Chat</span>
         <select
           class="chat-mode"
-          title="Optional workflow preset; Auto routes tools from your request"
+          title="Optional workflow guidance; all tools remain available"
           value={chatMode()}
           onChange={(e) => setChatMode(e.currentTarget.value as ChatMode)}
         >

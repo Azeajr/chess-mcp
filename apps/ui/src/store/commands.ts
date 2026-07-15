@@ -1,7 +1,19 @@
-/** Shared direct-analysis client. Buttons and chat both execute `runTool`; this store owns only
+/** Shared direct-analysis client. Buttons and chat both execute the application command; this store owns only
  * direct-UI lifecycle (progress, cancellation, and the last typed result). */
 import { createSignal } from "solid-js";
-import { runTool } from "../llm/tools";
+import { executeBrowserCommand, type BrowserCommandDependencies, type BrowserCommandExecutionOptions } from "../application/browser-commands/client";
+import type { BrowserCommandName } from "../application/browser-commands/types";
+import { executionOutcome, type ExecutionStatus } from "../application/execution-status";
+
+/** Direct-control adapter; dependency injection keeps equivalence tests deterministic. */
+export function executeDirectBrowserCommand(
+  command: BrowserCommandName,
+  args: Record<string, unknown> = {},
+  options: BrowserCommandExecutionOptions = {},
+  dependencies?: BrowserCommandDependencies,
+) {
+  return executeBrowserCommand(command, args, options, dependencies);
+}
 
 export type DirectCommand =
   | "audit_repertoire_moves"
@@ -11,7 +23,7 @@ export type DirectCommand =
   | "prep_vs_opponent";
 
 export interface CommandState {
-  status: "idle" | "running" | "completed" | "cancelled" | "failed";
+  status: Exclude<ExecutionStatus, "queued">;
   result?: Record<string, unknown>;
   error?: string;
   progress?: { done: number; total?: number; detail?: string };
@@ -41,7 +53,7 @@ export async function executeCommand(command: DirectCommand, args: Record<string
   controllers.set(command, controller);
   setCommandStates((all) => ({ ...all, [command]: { status: "running" } }));
   try {
-    const value = await runTool(command, args, {
+    const value = await executeDirectBrowserCommand(command, args, {
       signal: controller.signal,
       onProgress: (done, total, detail) => setCommandStates((all) => ({
         ...all,
@@ -51,7 +63,7 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     if (controller.signal.aborted) return;
     const result = value as Record<string, unknown>;
     const error = typeof result?.error === "string" ? result.error : undefined;
-    setCommandStates((all) => ({ ...all, [command]: error ? { status: "failed", result, error } : { status: "completed", result } }));
+    setCommandStates((all) => ({ ...all, [command]: error ? { status: executionOutcome(false, true), result, error } : { status: executionOutcome(false), result } }));
   } catch (error) {
     if (controller.signal.aborted) return;
     setCommandStates((all) => ({ ...all, [command]: { status: "failed", error: error instanceof Error ? error.message : String(error) } }));

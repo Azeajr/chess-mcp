@@ -29,9 +29,9 @@ interface RawTb {
   moves?: RawMove[];
 }
 
-export async function tablebaseLookup(fen: string): Promise<TablebaseResult | null> {
+export async function tablebaseLookup(fen: string, signal?: AbortSignal): Promise<TablebaseResult | null> {
   const url = `https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`;
-  const data = await fetchJson<RawTb>(url);
+  const data = await fetchJson<RawTb>(url, undefined, signal);
   if (!data) return null;
   return {
     category: (data.category as TablebaseResult["category"]) ?? "unknown",

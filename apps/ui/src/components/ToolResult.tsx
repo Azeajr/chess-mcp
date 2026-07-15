@@ -78,6 +78,45 @@ function ArtifactResult(props: { data: Data }) {
   </div>;
 }
 
+export function findArtifactMetadata(value: unknown): Data[] {
+  const found: Data[] = [];
+  const visit = (candidate: unknown) => {
+    if (!candidate || typeof candidate !== "object") return;
+    if (Array.isArray(candidate)) { candidate.forEach(visit); return; }
+    const item = candidate as Data;
+    if (item.kind === "artifact" && typeof item.artifact_id === "string") found.push(item);
+    Object.values(item).forEach(visit);
+  };
+  visit(value);
+  return found;
+}
+
+function ArtifactRows(props: { data: Data }) {
+  const artifacts = createMemo(() => findArtifactMetadata(props.data));
+  return <For each={artifacts()}>{(artifact) => <ArtifactResult data={artifact} />}</For>;
+}
+
+const ERROR_LABELS: Record<string, string> = {
+  invalid_arguments: "Invalid command arguments",
+  engine_unavailable: "Local engine unavailable",
+  cancelled: "Cancelled",
+  explorer_auth_required: "Lichess token required",
+  fetch_failed: "Network request failed",
+  missing_criteria: "Search criteria required",
+  path_not_found: "Repertoire path not found",
+  variation_not_found: "Repertoire path not found",
+  stale_revision: "Document changed",
+};
+
+function ErrorResult(props: { data: Data }) {
+  const code = () => String(props.data.error ?? "command_failed");
+  return <div class={`result-card result-error-card error-${code()}`} role="alert">
+    <div class="result-title">{ERROR_LABELS[code()] ?? code().replace(/_/g, " ")}</div>
+    <Show when={props.data.reason}><div class="result-summary">{String(props.data.reason)}</div></Show>
+    <div class="result-code">{code()}</div>
+  </div>;
+}
+
 function PositionResult(props: { data: Data }) {
   return <div class="result-card">
     <div class="result-title">Board position</div>
@@ -96,25 +135,63 @@ function ReviewSummary(props: { data: Data }) {
   </div>;
 }
 
+function ReportResult(props: { title: string; summary: string; data: Data }) {
+  return <div class="result-card report-card">
+    <div class="result-title">{props.title}</div>
+    <div class="result-summary">{props.summary}</div>
+    <NavigationRows data={props.data} />
+  </div>;
+}
+
 const byOperation: Record<string, (data: Data) => unknown> = {
   get_position: (data) => <PositionResult data={data} />,
   get_game_summary: (data) => <ReviewSummary data={data} />,
   analyze_game: (data) => <div class="result-card"><div class="result-title">Move findings · {String(data.total_moves ?? 0)} analysed</div><NavigationRows data={data} /></div>,
   find_repertoire_gaps: (data) => <div class="result-card"><div class="result-title">Repertoire findings</div><NavigationRows data={data} /></div>,
   suggest_gap_fills: (data) => <div class="result-card"><div class="result-title">Gap-fill choices</div><NavigationRows data={data} /></div>,
+  audit_repertoire_moves: (data) => <ReportResult
+    title="Prescribed-move audit"
+    summary={`${String(data.findings && Array.isArray(data.findings) ? data.findings.length : 0)} ranked findings · ${String(data.moves_audited ?? 0)} moves audited across ${String(data.positions_scanned ?? 0)} positions`}
+    data={data}
+  />,
+  find_only_moves: (data) => <ReportResult
+    title="Only-move training positions"
+    summary={`${String(data.only_moves_found ?? 0)} critical positions · ${String(data.positions_scanned ?? 0)} scanned · ${String(Array.isArray(data.lines) ? data.lines.length : 0)} ranked lines`}
+    data={data}
+  />,
+  find_structures: (data) => <ReportResult
+    title="Structure search"
+    summary={`${String(data.total_matches ?? 0)} matches across ${String(data.leaves_total ?? 0)} repertoire leaves`}
+    data={data}
+  />,
+  prep_vs_opponent: (data) => <ReportResult
+    title={`Opponent preparation · ${String(data.username ?? "unknown")}`}
+    summary={`${String(data.games_matched_color ?? 0)} relevant games · ${String(data.coverage_pct ?? "—")}% reached prep · ${String(Array.isArray(data.uncovered_opponent_moves) ? data.uncovered_opponent_moves.length : 0)} targets`}
+    data={data}
+  />,
+  export_annotated_repertoire: (data) => <ReportResult
+    title="Annotated repertoire"
+    summary={`Audit ${String((data.annotated as Data | undefined)?.audit ?? 0)} · only moves ${String((data.annotated as Data | undefined)?.only_moves ?? 0)} · gaps ${String((data.annotated as Data | undefined)?.gaps ?? 0)} · congruence ${String((data.annotated as Data | undefined)?.congruence ?? 0)}`}
+    data={data}
+  />,
 };
 const byKind: Record<string, (data: Data) => unknown> = {
   staged_edit: (data) => <StagedEditResult data={data} />,
-  artifact: (data) => <ArtifactResult data={data} />,
 };
 
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */
 export default function ToolResult(props: Props) {
   const data = createMemo(() => parse(props.content));
   const renderer = () => data() && (byOperation[props.operation] ?? byKind[String(data()!.kind)]);
+  const hasArtifacts = () => data() ? findArtifactMetadata(data()).length > 0 : false;
   return <>
-    <Show when={data() && renderer()}>{(render) => render()(data()!) as never}</Show>
-    <Show when={data() && !renderer()}><div class="result-card"><NavigationRows data={data()!} /></div></Show>
+    <Show when={data() && typeof data()!.error === "string"} fallback={
+      <>
+        <Show when={data() && renderer()}>{(render) => render()(data()!) as never}</Show>
+        <Show when={data() && !renderer() && !hasArtifacts()}><div class="result-card"><NavigationRows data={data()!} /></div></Show>
+        <Show when={data()}>{(value) => <ArtifactRows data={value()} />}</Show>
+      </>
+    }><ErrorResult data={data()!} /></Show>
     <details class="tool-result-raw"><summary>Raw JSON</summary><pre>{props.content}</pre></details>
   </>;
 }

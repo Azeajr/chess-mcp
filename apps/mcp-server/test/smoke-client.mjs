@@ -4,6 +4,7 @@ import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotoc
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { TOOL_CONTRACTS, jsonSchemaForTool } from "../../../packages/chess-tools/dist/index.js";
+import { schemaSemanticDifferences } from "../../../scripts/lib/schema-semantics.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = resolve(here, "..");
@@ -58,21 +59,14 @@ const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
 ok(tools.length === 41, "41 tools registered");
 
-// Phase 1 vertical slice: MCP Zod output must mechanically match the canonical application
-// contract. Descriptions are intentionally ignored here because Zod adds/omits transport prose.
+// MCP Zod output must recursively match the canonical application contract. Transport prose is
+// explicitly ignored by the shared comparer; nested array items and additionalProperties are not.
 for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.includes("mcp")).map((tool) => tool.name)) {
   const live = tools.find((tool) => tool.name === name)?.inputSchema;
   const canonical = jsonSchemaForTool(name, "mcp");
-  const sameRequired = JSON.stringify([...(live?.required ?? [])].sort()) === JSON.stringify([...(canonical?.required ?? [])].sort());
-  const liveProperties = live?.properties ?? {};
-  const expectedProperties = canonical?.properties ?? {};
-  const sameFields = JSON.stringify(Object.keys(liveProperties).sort()) === JSON.stringify(Object.keys(expectedProperties).sort()) && Object.keys(expectedProperties).every((key) => {
-    const actual = liveProperties[key];
-    const expected = expectedProperties[key];
-    return actual?.type === expected.type && (expected.enum == null || JSON.stringify(actual.enum) === JSON.stringify(expected.enum)) && (expected.minimum == null || actual.minimum === expected.minimum) && (expected.maximum == null || actual.maximum === expected.maximum);
-  });
-  if (!sameRequired || !sameFields) console.log("SCHEMA DRIFT:", name, JSON.stringify({ live, canonical }));
-  ok(sameRequired && sameFields, `${name} MCP schema matches canonical contract`);
+  const differences = schemaSemanticDifferences(live, canonical);
+  if (differences.length) console.log("SCHEMA DRIFT:", name, differences.join("; "));
+  ok(differences.length === 0, `${name} MCP schema matches canonical contract recursively`);
 }
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");

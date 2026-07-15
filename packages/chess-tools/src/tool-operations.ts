@@ -1,5 +1,5 @@
 import { legalMoves, validateFen } from "./validate.js";
-import { analyzeMainline, findRepertoireGaps, type Analyse, type EngineLine, type GapsOptions } from "./enginetools.js";
+import { analyzeMainline, findRepertoireGaps, type Analyse, type EngineLine, type GapsOptions, type OperationControl } from "./enginetools.js";
 import type { Color } from "./congruence.js";
 import type { MoveRecord } from "./enginetools.js";
 import { aggregateGames, moveAccuracy, walkGameVsRepertoire, type GameRecord } from "./game.js";
@@ -241,6 +241,7 @@ export async function batchReviewOperation(
   options: { groupBy: "eco" | "color"; username?: string; maxGames: number; depth: number },
   openings: OpeningTable,
   analyse: Analyse,
+  control: OperationControl = {},
 ) {
   if (options.groupBy === "color" && !options.username) return { error: "missing_username" as const, reason: "color grouping requires username" };
   let games;
@@ -254,6 +255,7 @@ export async function batchReviewOperation(
   const records: GameRecord[] = [];
   let skippedFenSetup = 0;
   for (const game of games) {
+    if (control.shouldCancel?.()) return { cancelled: true as const };
     let userColor: Color | null = null;
     if (options.username) {
       const username = options.username.toLowerCase();
@@ -266,7 +268,7 @@ export async function batchReviewOperation(
     const gamePgn = makePgn(game);
     let moves;
     try {
-      moves = await analyzeMainline(gamePgn, options.depth, analyse);
+      moves = await analyzeMainline(gamePgn, options.depth, analyse, control);
     } catch {
       skippedFenSetup++;
       continue;
@@ -286,6 +288,7 @@ export async function batchReviewOperation(
       else if (header === "0-1") result = userColor === "black" ? "win" : "loss";
     }
     records.push({ result, group_key: groupKey, group_name: groupName, avg_cpl: Math.round(avgCpl * 10) / 10, blunders });
+    control.onProgress?.(records.length, games.length);
   }
   return { ...aggregateGames(records, !!options.username), games_skipped_fen_setup: skippedFenSetup };
 }

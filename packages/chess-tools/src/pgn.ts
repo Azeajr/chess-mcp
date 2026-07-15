@@ -475,7 +475,7 @@ export class GameTree {
    */
   async extendedBridges(
     color: Color,
-    opts: { maxDepth?: number; nodeBudget?: number },
+    opts: { maxDepth?: number; nodeBudget?: number; shouldCancel?: () => boolean; onProgress?: (done: number, total: number) => void },
     pickMoves: (fen: string) => Promise<string[]>,
   ): Promise<ExtendedBridge[]> {
     const maxDepth = opts.maxDepth ?? 4;
@@ -512,16 +512,21 @@ export class GameTree {
     const out: ExtendedBridge[] = [];
     const seen = new Set<string>();
 
+    let completed = 0;
+    opts.onProgress?.(0, frontiers.length);
     for (const f of frontiers) {
+      if (opts.shouldCancel?.()) break;
       const dfs = async (pos: Chess, acc: string[], ply: number): Promise<void> => {
-        if (ply > maxDepth || budget <= 0) return;
+        if (opts.shouldCancel?.() || ply > maxDepth || budget <= 0) return;
         budget--;
         let candidates = legalMoves(pos);
         if (pos.turn === color) {
           const ucis = new Set(await pickMoves(makeFen(pos.toSetup())));
+          if (opts.shouldCancel?.()) return;
           candidates = candidates.filter((c) => ucis.has(c.uci));
         }
         for (const c of candidates) {
+          if (opts.shouldCancel?.()) return;
           const accNext = [...acc, c.san];
           const tgt = landsInCrossBranchPrep(keyMap, c.after, f.path);
           if (tgt) {
@@ -536,6 +541,7 @@ export class GameTree {
         }
       };
       await dfs(f.pos, [], 1);
+      opts.onProgress?.(++completed, frontiers.length);
     }
 
     return out.sort(
@@ -565,6 +571,8 @@ export class GameTree {
       /** E1: deep-confirm depth. When set, each line's best-eval re-route is re-searched at this depth
        *  (vs the cheaper scan effort) so the eval you act on is trustworthy. Unset = no deep confirm. */
       confirmDepth?: number;
+      /** Cooperative cancellation; no additional engine work is scheduled after it becomes true. */
+      shouldCancel?: () => boolean;
     },
     analyse: (fen: string, multipv: number, depth?: number) => Promise<PruneEngineLine[] | null>,
     /** Fires after each engine analysis with (analysesDone, sliceEstimate) — for a determinate progress bar. */
@@ -649,6 +657,7 @@ export class GameTree {
     // once. Only a real engine call (cache miss) counts toward analyses / onProgress.
     const evalMemo = new Map<string, PruneEngineLine[] | null>();
     const analyseCached = async (fen: string, mpv: number, depth?: number): Promise<PruneEngineLine[] | null> => {
+      if (opts.shouldCancel?.()) return null;
       const k = `${positionKey(fen)}|${mpv}|${depth ?? 0}`;
       if (evalMemo.has(k)) return evalMemo.get(k) ?? null;
       const r = await analyse(fen, mpv, depth);
@@ -683,12 +692,13 @@ export class GameTree {
     }
 
     for (const work of sliceWork) {
-      if (budgetSpent) break;
+      if (budgetSpent || opts.shouldCancel?.()) break;
       const { leaf, leafSan, steps, candidates } = work;
       // C1: collect EVERY viable re-route for this line (not just the earliest) — a shallow one saves
       // more plies, a deeper one may keep a better eval; the caller chooses the trade.
       const reroutes: Reroute[] = [];
       for (const idx of candidates) {
+        if (opts.shouldCancel?.()) break;
         if (budget != null && analyses >= budget) { budgetSpent = true; break; }
         const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
@@ -709,6 +719,7 @@ export class GameTree {
         let evalStayResolved = stayInList != null; // don't re-eval the stay move per candidate
 
         for (const e of enriched) {
+          if (opts.shouldCancel?.()) break;
           if (e.san === stayMove) continue; // staying, not a re-route
           if (evalBest - e.cp > cpThreshold) continue; // near-best gate (drops blunders in top-k)
           const after = s.pos.clone();
@@ -728,7 +739,7 @@ export class GameTree {
           });
         }
       }
-      if (!budgetSpent) leavesScanned++; // a leaf cut short by budget is left for the next cursor chunk
+      if (!budgetSpent && !opts.shouldCancel?.()) leavesScanned++; // a cut-short leaf is left for the next cursor chunk
       if (!reroutes.length) continue;
 
       // Tag the per-line winners on each axis: max-savings (earliest; tie → better eval) and
@@ -745,7 +756,7 @@ export class GameTree {
       // E1: deep-confirm the best-eval pick so the number the user acts on is trustworthy (selection
       // itself stays on the cheaper scan eval; only the reported eval is upgraded).
       let confirmedIdx = -1;
-      if (confirmDepth != null) {
+      if (confirmDepth != null && !opts.shouldCancel?.()) {
         const best = reroutes[evIdx]!;
         const deep = await evalAfterMove(best.pos, best.rerouteMove, confirmDepth);
         if (deep != null) {

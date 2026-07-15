@@ -5,7 +5,7 @@ import { actions } from "./store/game";
 import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { createArtifact, saveArtifact } from "./store/artifacts";
-import { selectOutcomes } from "./llm/chat-routing";
+import { appendToolResultForTesting } from "./store/chat";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -31,7 +31,7 @@ if (import.meta.env.DEV) {
     rejectStagedEdit,
     createArtifact,
     saveArtifact,
-    selectOutcomes,
+    appendToolResultForTesting,
     runTool,
   };
 }
