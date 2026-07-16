@@ -15,7 +15,13 @@ assert.deepEqual(
   shapeEvaluation(start, [{ uci: "e2e4", cp: 31, mate: null, depth: 16, pv: ["e2e4"] }], () => "e4"),
   { fen: start, eval_pov: "white", eval_sign: "positive favors White; negative favors Black", lines: [{ uci: "e2e4", san: "e4", cp: 31, mate: null, depth: 16 }] },
 );
-assert.equal(toolDefault("evaluate_position", "depth", 0), 16);
+for (const tool of [
+  "evaluate_position", "compare_moves", "find_repertoire_gaps", "suggest_gap_fills",
+  "find_pruning_transpositions", "get_repertoire_coverage", "suggest_complementary_lines",
+  "suggest_replacement_line", "analyze_game", "get_game_summary", "export_annotated_pgn",
+  "batch_review", "audit_repertoire_moves", "find_only_moves", "check_shortcut_coverage",
+  "compare_shortcut_lines", "inspect_shortcut", "export_annotated_repertoire",
+]) assert.equal(toolDefault(tool, "depth", 0), 20, `${tool} defaults to depth 20`);
 assert.deepEqual(jsonSchemaForTool("compare_moves", "browser").required, ["moves"]);
 assert.equal("repertoire_id" in jsonSchemaForTool("find_repertoire_gaps", "browser").properties, false);
 assert.equal("repertoire_id" in jsonSchemaForTool("find_repertoire_gaps", "mcp").properties, true);
@@ -23,6 +29,7 @@ assert.equal(validateToolArguments("evaluate_position", { depth: 31 }, "browser"
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4", 2] }, "browser").error, "invalid_arguments");
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], surprise: true }, "browser").error, "invalid_arguments");
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], depth: 12 }, "browser").ok, true);
+assert.equal(validateToolArguments("get_repertoire_coverage", { connect_stubs: true, depth: 30 }, "browser").ok, true);
 assert.equal(validateToolArguments("analyze_repertoire_congruence", { acknowledged_weaknesses: [["e4", 2]] }, "browser").error, "invalid_arguments");
 
 const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 (2. Nc3 Nf6) Nc6 *");

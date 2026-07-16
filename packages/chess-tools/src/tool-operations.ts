@@ -81,7 +81,7 @@ export function gapScanOperation(
     tree,
     color,
     {
-      depth: args.depth ?? toolDefault("find_repertoire_gaps", "depth", 14),
+      depth: args.depth ?? toolDefault("find_repertoire_gaps", "depth", 20),
       minSeverity: args.min_severity,
       maxPositions: args.max_positions,
       limit: args.limit ?? toolDefault("find_repertoire_gaps", "limit", 20),

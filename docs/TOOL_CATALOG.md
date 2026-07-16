@@ -29,7 +29,7 @@ changing that contract; CI uses `pnpm docs:check` to reject drift.
 | `find_theory_depth` | Report where repertoire lines leave known opening theory using explorer game counts. | `mcp`, `browser` | `repertoire`, `network` | `data` |
 | `get_transpositions` | Positions the repertoire reaches by more than one move order, largest groups first. | `mcp`, `browser` | `repertoire` | `data` |
 | `find_pruning_transpositions` | Find sound moves that transpose into another prepared line and shorten memorisation. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
-| `get_repertoire_coverage` | Report dangling lines and natural frontiers; optionally engine-check whether stubs reconnect. | `mcp`, `browser` | `repertoire` | `data` |
+| `get_repertoire_coverage` | Report dangling lines and natural frontiers; optionally engine-check whether stubs reconnect. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
 | `get_structural_profile` | Return a repertoire-wide pawn-structure profile or one position selected by SAN path. | `mcp`, `browser` | `repertoire` | `data` |
 | `analyze_repertoire_congruence` | Flag thematic inconsistencies across repertoire lines, clustered by opening system. | `mcp`, `browser` | `repertoire` | `data` |
 | `classify_illustrative_lines` | Find NAG-marked side lines that can inflate repertoire analysis counts. | `mcp`, `browser` | `repertoire` | `data` |

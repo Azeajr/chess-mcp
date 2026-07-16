@@ -36,6 +36,10 @@ a no-scope Lichess personal token because the explorer requires authentication.
 - Advanced repertoire: thematic congruence, transpositions and shortening, shortcut inspection,
   engine-vetted replacement or complementary lines, and shared best-eval/best-fit gap fills.
 
+Engine-backed position, game, and repertoire operations default to depth 20. The PWA's analysis
+selector can enable global Deep analysis at depth 30; it warns that bulk work may take minutes and
+shows determinate progress whenever an operation reports completed and total positions.
+
 Chat accepts a natural first message; workflow presets change guidance only. Every tool-capable
 round receives the complete stable browser command schema, while the prompt carries only compact
 document context and scoped commands retrieve a selected subtree or full PGN when needed. Long

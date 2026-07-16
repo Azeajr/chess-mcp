@@ -91,6 +91,36 @@ img,
   font-size: 0.8rem;
 }
 
+.analysis-notice {
+  position: fixed;
+  z-index: 100;
+  top: calc(3.6rem + env(safe-area-inset-top));
+  right: calc(1rem + env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #8a6a2f;
+  border-radius: 8px;
+  background: #3b3222;
+  color: #f0d9a6;
+  box-shadow: 0 8px 24px #0008;
+  font-size: 0.82rem;
+}
+
+.analysis-notice button {
+  flex: 0 0 auto;
+}
+
+.tool-run-progress {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin-top: 0.3rem;
+  accent-color: var(--accent);
+}
+
 /* Wide: flex row — board grows, side + chat are fixed widths the dividers drag. */
 .workspace {
   display: flex;
@@ -474,6 +504,28 @@ img,
   letter-spacing: 0;
 }
 
+.analysis .analysis-progress {
+  height: 3px;
+  margin: -0.25rem 0 0.45rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #33333a;
+}
+
+.analysis .analysis-progress span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: analysis-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes analysis-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(290%); }
+}
+
 .analysis .empty {
   color: var(--muted);
   font-style: italic;
@@ -658,6 +710,11 @@ img,
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+.rep-panel .scan-meter {
+  width: 64px;
+  height: 6px;
+  accent-color: var(--accent);
 }
 .rep-panel .scan-bar {
   display: inline-block;

@@ -12,6 +12,7 @@ import {
   type ShortcutCoverage,
 } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
+import { analysisDepth } from "./engine-settings";
 
 // --- Tier A: congruence (engine-free) ---
 
@@ -56,8 +57,6 @@ export async function scanCongruence() {
 // now surfaces inside the Gaps scan as covered-by-transposition.
 
 const MULTIPV = 3;
-const SCAN_DEPTH = 12;
-const CONFIRM_DEPTH = 18; // E1: deeper re-check of each line's best-eval re-route
 const CP_THRESHOLD = 50; // a color move within 0.5 of best counts as "good"
 
 const [extBridges, setExtBridges] = createSignal<ExtendedBridge[] | null>(null);
@@ -70,7 +69,7 @@ export async function scanBridges() {
   setExtBridges(null);
   setBridgeScanning(true);
   try {
-    const result = await executeBrowserCommand("get_repertoire_coverage", { connect_stubs: true, limit: 20 }) as {
+    const result = await executeBrowserCommand("get_repertoire_coverage", { connect_stubs: true, limit: 20, depth: analysisDepth() }) as {
       error?: string;
       color?: "white" | "black";
       dangling_lines?: { path: string[]; connects_via?: string[]; joins_path?: string[]; joins_ply?: number }[];
@@ -123,8 +122,8 @@ export async function scanPrune() {
     const res = await executeBrowserCommand("find_pruning_transpositions", {
       multipv: MULTIPV,
       cp_threshold: CP_THRESHOLD,
-      confirm_depth: CONFIRM_DEPTH,
-      depth: SCAN_DEPTH,
+      confirm_depth: analysisDepth(),
+      depth: analysisDepth(),
       limit: 100,
     }, {
       signal: controller.signal,
@@ -151,7 +150,6 @@ export async function scanPrune() {
 
 // --- C3/C4: inspect a chosen shortcut (quality + coverage safety), via the shared chess-tools core ---
 
-const INSPECT_DEPTH = 12;
 const INSPECT_MAX_POSITIONS = 12; // gap-scan decision nodes per side (before/after) — keep the UI snappy
 
 const [inspectKey, setInspectKey] = createSignal<string | null>(null);
@@ -188,7 +186,7 @@ export async function inspectShortcut(p: PruneSuggestion) {
       line_path: p.linePath,
       at_ply: p.atPly,
       joins_path: p.joinsPath,
-      depth: INSPECT_DEPTH,
+      depth: analysisDepth(),
       max_positions: INSPECT_MAX_POSITIONS,
     }) as { quality: ShortcutComparison | { error: string }; coverage: ShortcutCoverage | { error: string } };
     const cmp = result.quality;
@@ -226,7 +224,7 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
   setCompError(null);
   setCompScanning(true);
   try {
-    const r = (await executeBrowserCommand("suggest_complementary_lines", { mode })) as {
+    const r = (await executeBrowserCommand("suggest_complementary_lines", { mode, depth: analysisDepth() })) as {
       suggestions?: ComplementaryMove[];
       error?: string;
     };
@@ -271,7 +269,7 @@ export async function fixFlag(outlierPath: string[]) {
   const key = outlierPath.join(",");
   setReplacements((p) => ({ ...p, [key]: "loading" }));
   try {
-    const r = (await executeBrowserCommand("suggest_replacement_line", { outlier_variation_path: outlierPath })) as ReplacementResult & {
+    const r = (await executeBrowserCommand("suggest_replacement_line", { outlier_variation_path: outlierPath, depth: analysisDepth() })) as ReplacementResult & {
       error?: string;
     };
     setReplacements((p) => ({ ...p, [key]: r.error ? { error: r.error } : r }));

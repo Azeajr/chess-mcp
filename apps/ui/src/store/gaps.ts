@@ -11,6 +11,7 @@ import {
   type Path,
 } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
+import { analysisDepth } from "./engine-settings";
 
 export interface Gap {
   path: Path;
@@ -29,7 +30,6 @@ export interface CoveredGap {
 }
 
 const MAX_POSITIONS = 12; // decision points scanned (shallowest first)
-const SCAN_DEPTH = 12; // shallower than the live bar — a full scan trades depth for time
 const MIN_SEVERITY: Severity = "medium";
 const LIMIT = 12;
 
@@ -87,6 +87,7 @@ export async function fillGap(g: Gap) {
     const res = await executeBrowserCommand("suggest_gap_fills", {
       variation_path: g.sanPath,
       uncovered_move: g.uncoveredMove,
+      depth: analysisDepth(),
     }) as { error: string } | { options: { kind: "best_eval" | "best_fit"; reply: string; line: string[]; eval_cp: number | null; fit: number }[] };
     if (gen !== fillGen) return; // superseded by a rescan
     if ("error" in res) {
@@ -130,7 +131,7 @@ export async function scanGaps() {
 
   try {
     const res = await executeBrowserCommand("find_repertoire_gaps", {
-      depth: SCAN_DEPTH,
+      depth: analysisDepth(),
       min_severity: MIN_SEVERITY,
       max_positions: MAX_POSITIONS,
       limit: LIMIT,

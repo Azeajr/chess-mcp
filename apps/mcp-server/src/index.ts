@@ -168,7 +168,7 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
     // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
-    const res = await analyseMulti(v.fen!, lines ?? toolDefault("evaluate_position", "lines", 3), depth ?? toolDefault("evaluate_position", "depth", 16));
+    const res = await analyseMulti(v.fen!, lines ?? toolDefault("evaluate_position", "lines", 3), depth ?? toolDefault("evaluate_position", "depth", 20));
     if (!res) return ok({ error: "engine_unavailable" });
     return ok(shapeEvaluation(v.fen!, res, moveSan));
   },
@@ -426,7 +426,7 @@ server.tool(
       e.color,
       { multipv: multipv ?? toolDefault("find_pruning_transpositions", "multipv", 4), cpThreshold: cp_threshold ?? toolDefault("find_pruning_transpositions", "cp_threshold", 50), maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count, confirmDepth: confirm_depth },
       // depth override d (E1 deep confirm) uses fixed depth and bypasses movetime; else the scan effort.
-      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? toolDefault("find_pruning_transpositions", "depth", 14), d != null ? undefined : movetime_ms),
+      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? toolDefault("find_pruning_transpositions", "depth", 20), d != null ? undefined : movetime_ms),
     );
     const shown = res.suggestions.slice(0, limit ?? toolDefault("find_pruning_transpositions", "limit", 20));
     return ok({
@@ -499,13 +499,13 @@ server.tool(
 server.tool(
   "get_repertoire_coverage",
   toolContract("get_repertoire_coverage").description,
-  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional() },
-  async ({ repertoire_id, limit, connect_stubs }) => {
+  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional(), depth: z.number().int().min(1).max(30).optional() },
+  async ({ repertoire_id, limit, connect_stubs, depth }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const base = repertoireCoverageResult(e.tree, e.color, limit ?? toolDefault("get_repertoire_coverage", "limit", 20));
     if (!connect_stubs) return ok(base);
-    const r = await resolveDanglingStubs(e.tree, e.color, { limit }, analyseMulti);
+    const r = await resolveDanglingStubs(e.tree, e.color, { limit, depth: depth ?? toolDefault("get_repertoire_coverage", "depth", 20) }, analyseMulti);
     if ("error" in r) return ok({ ...base, error: r.error });
     return ok({ ...base, stubs_resolved: r.resolved, dangling_lines: r.dangling });
   },
@@ -523,7 +523,7 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (moves.length > MAX_COMPARE_MOVES)
       return ok({ error: "too_many_moves", reason: `at most ${MAX_COMPARE_MOVES} candidate moves` });
-    return ok(await compareMoves(v.fen!, moves, depth ?? toolDefault("compare_moves", "depth", 14), analyseMulti));
+    return ok(await compareMoves(v.fen!, moves, depth ?? toolDefault("compare_moves", "depth", 20), analyseMulti));
   },
 );
 
@@ -537,7 +537,7 @@ server.tool(
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("analyze_game", "depth", 14), analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("analyze_game", "depth", 20), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -555,7 +555,7 @@ server.tool(
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("get_game_summary", "depth", 14), analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("get_game_summary", "depth", 20), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -574,7 +574,7 @@ server.tool(
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("export_annotated_pgn", "depth", 14), analyseMulti);
+      records = await analyzeMainline(pgn, depth ?? toolDefault("export_annotated_pgn", "depth", 20), analyseMulti);
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -704,7 +704,7 @@ server.tool(
         groupBy: group_by ?? toolDefault("batch_review", "group_by", "eco"),
         username,
         maxGames: max_games ?? toolDefault("batch_review", "max_games", 100),
-        depth: depth ?? toolDefault("batch_review", "depth", 12),
+        depth: depth ?? toolDefault("batch_review", "depth", 20),
       },
       openingsTable,
       analyseMulti,

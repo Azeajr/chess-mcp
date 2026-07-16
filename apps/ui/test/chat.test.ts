@@ -10,6 +10,7 @@ import { executeDirectBrowserCommand } from "../src/store/commands.ts";
 import { runTool } from "../src/llm/tools.ts";
 import { workflowPrompt } from "../src/llm/workflows.ts";
 import { findArtifactMetadata } from "../src/components/ToolResult.tsx";
+import { requestedDepth } from "../src/application/browser-commands/types.ts";
 
 const sse = (...frames: unknown[]) => new ReadableStream({
   start(controller) {
@@ -30,6 +31,13 @@ test("canonical browser validation rejects malformed and unknown arguments", () 
   assert.deepEqual(validateToolArguments("propose_line", { moves: ["e4"] }, "mcp"), {
     ok: false, error: "invalid_arguments", reason: "propose_line is not available on the mcp host",
   });
+});
+
+test("deep analysis forces every browser engine request to depth 30", () => {
+  assert.equal(requestedDepth({}, { analysisDepth: () => 20 } as never), 20);
+  assert.equal(requestedDepth({ depth: 12 }, { analysisDepth: () => 20 } as never), 12);
+  assert.equal(requestedDepth({}, { analysisDepth: () => 30 } as never), 30);
+  assert.equal(requestedDepth({ depth: 12 }, { analysisDepth: () => 30 } as never), 30);
 });
 
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {

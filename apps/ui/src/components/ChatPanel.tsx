@@ -109,6 +109,9 @@ export default function ChatPanel() {
               <span class="tool-run-state">{run.status}</span> {run.name}
               <Show when={run.total != null}><span> {run.done ?? 0}/{run.total}</span></Show>
               <Show when={run.detail}><span class="tool-run-detail"> — {run.detail}</span></Show>
+              <Show when={run.status === "running"}>
+                <progress class="tool-run-progress" max={run.total || 1} value={run.total ? Math.min(run.done ?? 0, run.total) : undefined} />
+              </Show>
             </div>
           )}
         </For>

@@ -29,8 +29,9 @@ export interface MultiLine extends Eval {
 const ENGINE_URL = "/engine/stockfish-18-lite-single.js";
 // If a search produces no bestmove within this window, treat the search as stuck.
 const WATCHDOG_MS = 20000;
+const DEEP_WATCHDOG_MS = 60000;
 const GRACE_MS = 2000;
-const DEPTH = 14;
+const DEPTH = 20;
 
 // Worker budget: one slot is reserved for the live board worker, the rest form the scan pool.
 // hardwareConcurrency caps it (low-end mobile: 2 → pool of 1 + live); absolute cap keeps the
@@ -194,7 +195,7 @@ function runSearch(ep: WorkerEndpoint, fen: string, multipv: number, depth: numb
     };
     const wd = setTimeout(() => {
       stop();
-    }, WATCHDOG_MS);
+    }, movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS);
     signal?.addEventListener("abort", stop, { once: true });
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {

@@ -58,6 +58,7 @@ import { stagePreviewLine, preview, acceptPreview, clearPreview } from "../store
 import { actions, currentTree, currentPath, fen, color } from "../store/game";
 import { commandStates, executeCommand, cancelCommand, type DirectCommand } from "../store/commands";
 import { saveArtifact } from "../store/artifacts";
+import { analysisDepth } from "../store/engine-settings";
 
 function gapEval(g: Gap): string {
   if (g.mate !== null) return `M${Math.abs(g.mate)}`;
@@ -86,12 +87,18 @@ export default function RepertoirePanel() {
   const state = (command: DirectCommand) => commandStates()[command];
   const rows = (command: DirectCommand, key: string) => ((state(command).result?.[key] as Record<string, unknown>[] | undefined) ?? []);
   const commandButton = (command: DirectCommand, label: string, args: () => Record<string, unknown> = () => ({})) => (
-    <Show when={state(command).status === "running"} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void executeCommand(command, args()))}>{label}</button>}>
+    <Show when={state(command).status === "running"} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void executeCommand(command, {
+      ...args(),
+      ...(["audit_repertoire_moves", "find_only_moves", "export_annotated_repertoire"].includes(command) ? { depth: analysisDepth() } : {}),
+    }))}>{label}</button>}>
       <button class="scan-btn" onClick={(e) => (e.preventDefault(), cancelCommand(command))}>Cancel</button>
     </Show>
   );
   const commandStatus = (command: DirectCommand) => <>
-    <Show when={state(command).progress}>{(p) => <div class="scan-progress">{p().detail ?? "working"} {p().total ? `${p().done}/${p().total}` : "…"}</div>}</Show>
+    <Show when={state(command).progress}>{(p) => <div class="scan-progress">
+      <progress class="scan-meter" max={p().total || 1} value={p().total ? Math.min(p().done, p().total!) : undefined} />
+      <span>{p().detail ?? "working"} {p().total ? `${p().done}/${p().total}` : "…"}</span>
+    </div>}</Show>
     <Show when={state(command).error}><div class="empty">{state(command).error}</div></Show>
   </>;
 
@@ -150,6 +157,7 @@ export default function RepertoirePanel() {
   return (
     <div class="rep-panel">
       <div class="outcome-label">Repertoire</div>
+      <div class="scope-note">Engine-backed operations use depth {analysisDepth()}.</div>
       <Show when={preview()}>{(active) => (
         <div class="rep-preview" role="status" aria-label="Staged repertoire line">
           <div class="rep-preview-label">Staged line</div>
@@ -162,7 +170,7 @@ export default function RepertoirePanel() {
       )}</Show>
       <details class="rep-section">
         <summary><span>Prescribed-move audit</span>{commandButton("audit_repertoire_moves", "Audit")}</summary>
-        <div class="scope-note">Up to 20 positions · depth 14 · local engine</div>
+        <div class="scope-note">Up to 20 positions · depth {analysisDepth()} · local engine</div>
         {commandStatus("audit_repertoire_moves")}
         <For each={rows("audit_repertoire_moves", "findings")}>{(finding) => (
           <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
@@ -175,7 +183,7 @@ export default function RepertoirePanel() {
 
       <details class="rep-section">
         <summary><span>Only moves & drills</span>{commandButton("find_only_moves", "Find", () => ({ max_positions: 60 }))}</summary>
-        <div class="scope-note">Up to 60 positions · depth 14 · cancellable</div>
+        <div class="scope-note">Up to 60 positions · depth {analysisDepth()} · cancellable</div>
         {commandStatus("find_only_moves")}
         <For each={rows("find_only_moves", "findings")}>{(finding) => (
           <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
@@ -184,7 +192,7 @@ export default function RepertoirePanel() {
           </div>
         )}</For>
         <Show when={state("find_only_moves").status === "completed"}>
-          <button class="fix-btn" onClick={() => void executeCommand("find_only_moves", { max_positions: 60, export_deck: true })}>Generate CSV deck</button>
+          <button class="fix-btn" onClick={() => void executeCommand("find_only_moves", { max_positions: 60, export_deck: true, depth: analysisDepth() })}>Generate CSV deck</button>
         </Show>
         <Show when={(state("find_only_moves").result?.deck as Record<string, unknown> | undefined)?.artifact_id}>
           {(id) => <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>Save CSV deck</button>}
@@ -223,7 +231,10 @@ export default function RepertoirePanel() {
             <button class="scan-btn" onClick={(e) => (e.preventDefault(), cancelScan())}>Cancel</button>
           </Show>
         </summary>
-        <Show when={progress()}>{(p) => <div class="scan-progress">scanning {p().done}/{p().total}…</div>}</Show>
+        <Show when={progress()}>{(p) => <div class="scan-progress">
+          <progress class="scan-meter" max={p().total || 1} value={p().total ? Math.min(p().done, p().total) : undefined} />
+          <span>scanning {p().done}/{p().total}…</span>
+        </div>}</Show>
         <Show when={scanError()}><div class="empty">{scanError()}</div></Show>
         <Show when={!scanning() && gaps().length === 0 && !scanError()}>
           <div class="empty">No scan yet — or no gaps.</div>

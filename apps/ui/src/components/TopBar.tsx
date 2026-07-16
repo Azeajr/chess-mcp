@@ -2,13 +2,15 @@
  * TopBar: open/save PGN, white/black repertoire toggle, new game, unsaved indicator, settings.
  * File I/O lives in store/files (shared with the Cmd/Ctrl+S shortcut).
  */
-import { Show } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
 import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
 import { setSettingsOpen } from "../store/ui";
 import { evalEnabled, setEvalEnabled } from "../store/analysis";
+import { analysisMode, setAnalysisMode, type AnalysisMode } from "../store/engine-settings";
 
 export default function TopBar() {
+  const [showDeepNotice, setShowDeepNotice] = createSignal(false);
   return (
     <div class="topbar">
       <span class="title">Chess Repertoire</span>
@@ -49,7 +51,26 @@ export default function TopBar() {
       >
         Eval {evalEnabled() ? "On" : "Off"}
       </button>
+      <select
+        aria-label="Analysis depth"
+        title="Standard uses depth 20; Deep uses depth 30 for engine-backed position, game, and repertoire analysis"
+        value={analysisMode()}
+        onChange={(e) => {
+          const mode = e.currentTarget.value as AnalysisMode;
+          setAnalysisMode(mode);
+          setShowDeepNotice(mode === "deep");
+        }}
+      >
+        <option value="standard">Depth 20</option>
+        <option value="deep">Deep 30</option>
+      </select>
       <button onClick={() => setSettingsOpen(true)}>Settings</button>
+      <Show when={showDeepNotice()}>
+        <div class="analysis-notice" role="status">
+          <span><b>Deep analysis enabled.</b> Every engine task will use depth 30 and may take several minutes.</span>
+          <button aria-label="Dismiss deep analysis notice" onClick={() => setShowDeepNotice(false)}>Dismiss</button>
+        </div>
+      </Show>
     </div>
   );
 }

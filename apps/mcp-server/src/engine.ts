@@ -171,6 +171,7 @@ type UciEndpoint = {
 };
 
 const WATCHDOG_MS = 30000;
+const DEEP_WATCHDOG_MS = 60000;
 const GRACE_MS = 2000;
 const BOOT_MS = 15000;
 // Consecutive failed (re)spawns before the pool stops trying (prevents a spawn storm).
@@ -178,7 +179,7 @@ const MAX_BOOT_FAILURES = 2;
 
 // ENGINE_POOL_SIZE: 0 forces the in-process fallback (debug knob); otherwise clamped 1-8.
 // Default caps at 4 — each child carries a node runtime + wasm heap, and >4 rarely helps
-// depth-14 opening searches.
+// depth-20 opening searches.
 const POOL_SIZE = (() => {
   const env = Number(process.env.ENGINE_POOL_SIZE);
   if (Number.isFinite(env)) return env <= 0 ? 0 : Math.min(8, Math.floor(env));
@@ -209,7 +210,7 @@ function runSearch(ep: UciEndpoint, fen: string, multipv: number, depth: number,
       stopped = true;
       ep.send("stop");
       graceTimer = setTimeout(() => finish(null), GRACE_MS);
-    }, WATCHDOG_MS);
+    }, movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS);
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
         const idx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
@@ -510,7 +511,7 @@ function inProcessSearch(fen: string, multipv: number, depth: number, movetime?:
 const inFlight = new Map<string, { depth: number; promise: Promise<MultiLine[] | null> }>();
 
 /** Top-`multipv` lines for `fen` to `depth`. White-POV cp/mate. null if engine unavailable. */
-export function analyseMulti(fen: string, multipv = 1, depth = 16, movetime?: number): Promise<MultiLine[] | null> {
+export function analyseMulti(fen: string, multipv = 1, depth = 20, movetime?: number): Promise<MultiLine[] | null> {
   // movetime is a soft effort target (time, not depth-deterministic) — any cached eval for this
   // position is acceptable (get at depth 0); we store the depth actually reached so depth requests
   // can still reuse it.

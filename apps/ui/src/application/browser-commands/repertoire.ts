@@ -24,7 +24,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
 import type { BrowserCommandHandler } from "./types";
-import { commandAnalyse, throwIfAborted } from "./types";
+import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
 const explorerAuthRequired = () => ({
   error: "explorer_auth_required",
@@ -59,7 +59,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       context.currentTree(),
       context.currentColor(),
       {
-        depth: args.depth as number | undefined,
+        depth: requestedDepth(args, context),
         min_severity: args.min_severity as never,
         max_positions: args.max_positions as number | undefined,
         limit: args.limit as number | undefined,
@@ -79,7 +79,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const path = tree.indexPathOfSan((args.variation_path as string[]) ?? []);
     if (!path) return { error: "path_not_found", reason: "variation_path is not in the repertoire" };
     const result = await suggestGapFills(tree, context.currentColor(), path, args.uncovered_move as string, {
-      depth: args.depth as number | undefined,
+      depth: requestedDepth(args, context),
       limit: args.limit as number | undefined,
       target_plies: args.target_plies as number | undefined,
     }, commandAnalyse(context));
@@ -104,6 +104,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   },
   get_transpositions: (args, context) => transpositionResult(context.currentTree(), (args.limit as number | undefined) ?? toolDefault("get_transpositions", "limit", 20)),
   find_pruning_transpositions: async (args, context) => {
+    const deep = context.analysisDepth() === 30;
     context.onProgress?.(0, args.budget as number | undefined, "checking shortcut candidates");
     const result = await context.currentTree().pruneTranspositions(
       context.currentColor(),
@@ -114,14 +115,14 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
         budget: args.budget as number | undefined,
         leafStart: args.leaf_start as number | undefined,
         leafCount: args.leaf_count as number | undefined,
-        confirmDepth: args.confirm_depth as number | undefined,
+        confirmDepth: deep ? 30 : args.confirm_depth as number | undefined,
         shouldCancel: () => context.signal?.aborted ?? false,
       },
       (fen, multipv, depth) => context.analyse(
         fen,
         multipv,
-        depth ?? ((args.depth as number | undefined) ?? toolDefault("find_pruning_transpositions", "depth", 14)),
-        depth != null ? undefined : args.movetime_ms as number | undefined,
+        depth ?? requestedDepth(args, context),
+        depth != null || deep ? undefined : args.movetime_ms as number | undefined,
         context.signal,
       ),
       (done, total) => context.onProgress?.(done, total, "checking shortcut candidates"),
@@ -148,6 +149,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     if (!args.connect_stubs) return base;
     const result = await resolveDanglingStubs(context.currentTree(), context.currentColor(), {
       limit: args.limit as number | undefined,
+      depth: requestedDepth(args, context),
       shouldCancel: () => context.signal?.aborted ?? false,
       onProgress: (done, total) => context.onProgress?.(done, total, "connecting dangling stubs"),
     }, commandAnalyse(context));
@@ -169,7 +171,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   suggest_complementary_lines: async (args, context) => {
     const result = await suggestComplementaryLines(
       context.currentTree(), context.currentColor(), (args.fen as string | undefined) || context.currentFen(),
-      { mode: args.mode as never, depth: args.depth as number | undefined, limit: args.limit as number | undefined },
+      { mode: args.mode as never, depth: requestedDepth(args, context), limit: args.limit as number | undefined },
       commandAnalyse(context),
     );
     throwIfAborted(context.signal);
@@ -178,14 +180,14 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   suggest_replacement_line: async (args, context) => {
     const result = await suggestReplacementLine(
       context.currentTree(), context.currentColor(), (args.outlier_variation_path as string[]) ?? [],
-      { mode: args.mode as never, depth: args.depth as number | undefined }, commandAnalyse(context),
+      { mode: args.mode as never, depth: requestedDepth(args, context) }, commandAnalyse(context),
     );
     throwIfAborted(context.signal);
     return result;
   },
   audit_repertoire_moves: async (args, context) => {
     const result = await auditRepertoireMoves(context.currentTree(), context.currentColor(), {
-      depth: (args.depth as number | undefined) ?? toolDefault("audit_repertoire_moves", "depth", 14),
+      depth: requestedDepth(args, context),
       minCpLoss: (args.min_cp_loss as number | undefined) ?? toolDefault("audit_repertoire_moves", "min_cp_loss", 50),
       maxPositions: (args.max_positions as number | undefined) ?? toolDefault("audit_repertoire_moves", "max_positions", 20),
       limit: (args.limit as number | undefined) ?? toolDefault("audit_repertoire_moves", "limit", 10),
@@ -197,7 +199,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   },
   find_only_moves: async (args, context) => {
     const result = await findOnlyMoves(context.currentTree(), context.currentColor(), {
-      depth: (args.depth as number | undefined) ?? toolDefault("find_only_moves", "depth", 14),
+      depth: requestedDepth(args, context),
       minMargin: (args.min_margin as number | undefined) ?? toolDefault("find_only_moves", "min_margin", 100),
       maxPositions: (args.max_positions as number | undefined) ?? toolDefault("find_only_moves", "max_positions", 300),
       linesLimit: (args.lines_limit as number | undefined) ?? toolDefault("find_only_moves", "lines_limit", 10),
@@ -231,7 +233,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     return { color: context.currentColor(), leaves_total: leaves.length, total_matches: matches.length, matches: matches.slice(0, (args.limit as number | undefined) ?? toolDefault("find_structures", "limit", 30)) };
   },
   inspect_shortcut: async (args, context) => {
-    const depth = (args.depth as number | undefined) ?? toolDefault("inspect_shortcut", "depth", 12);
+    const depth = requestedDepth(args, context);
     const linePath = args.line_path as string[];
     const atPly = args.at_ply as number;
     const joinsPath = args.joins_path as string[];
@@ -257,7 +259,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     context.onProgress?.(0, args.max_positions as number | undefined, "running repertoire analyses");
     const result = await annotateRepertoire(context.currentTree(), context.currentColor(), {
       include: args.include as never,
-      depth: (args.depth as number | undefined) ?? toolDefault("export_annotated_repertoire", "depth", 14),
+      depth: requestedDepth(args, context),
       maxPositions: args.max_positions as number | undefined,
       minCpLoss: args.min_cp_loss as number | undefined,
       minMargin: args.min_margin as number | undefined,

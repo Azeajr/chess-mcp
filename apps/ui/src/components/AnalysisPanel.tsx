@@ -6,6 +6,7 @@ import { For, Show } from "solid-js";
 import { engineLines, analysing, engineOffline, type EngineLine } from "../store/analysis";
 import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
+import { analysisDepth } from "../store/engine-settings";
 import type { Fit } from "@chess-mcp/chess-tools";
 
 const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
@@ -28,11 +29,14 @@ export default function AnalysisPanel() {
     <div class="analysis">
       <div class="outcome-label">Position</div>
       <div class="panel-head">
-        <span>Engine lines</span>
+        <span>Engine lines · depth {analysisDepth()}</span>
         <Show when={analysing()}>
           <span class="spinner">analysing…</span>
         </Show>
       </div>
+      <Show when={analysing()}>
+        <div class="analysis-progress" role="progressbar" aria-label="Position analysis in progress"><span /></div>
+      </Show>
       <Show
         when={!engineOffline()}
         fallback={<div class="empty">Engine offline — arrows unavailable.</div>}

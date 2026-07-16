@@ -12,6 +12,7 @@ import { analyseMulti } from "../../engine/stockfish";
 import { actions, color, currentPath, currentTree, fen, fileName, version } from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
+import { analysisDepth } from "../../store/engine-settings";
 import type { BrowserCommandDependencies } from "./types";
 
 let openingsPromise: Promise<OpeningTable> | null = null;
@@ -33,6 +34,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentPath,
   currentFileName: fileName,
   currentRevision: version,
+  analysisDepth,
   analyse: (atFen, multipv, depth, movetime, signal) => analyseMulti(atFen, multipv, depth, movetime, signal),
   cloudEval,
   tablebaseLookup,

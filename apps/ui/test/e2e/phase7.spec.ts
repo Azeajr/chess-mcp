@@ -38,6 +38,17 @@ test("an ambiguous natural request needs no preset and direct analysis remains a
   await expect(page.getByText("Annotated repertoire")).toBeVisible();
 });
 
+test("deep analysis is global and warns about long-running scans", async ({ page }) => {
+  const depth = page.getByRole("combobox", { name: "Analysis depth" });
+  await expect(depth).toHaveValue("standard");
+  await expect(depth.locator("option:checked")).toHaveText("Depth 20");
+  await depth.selectOption("deep");
+  await expect(depth.locator("option:checked")).toHaveText("Deep 30");
+  await expect(page.getByRole("status")).toContainText("Every engine task will use depth 30");
+  await page.getByRole("button", { name: "Dismiss deep analysis notice" }).click();
+  await expect(page.getByText("Every engine task will use depth 30")).toHaveCount(0);
+});
+
 test("a finding path navigates to the exact move", async ({ page }) => {
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6"));
   await page.locator(".move", { hasText: "Nf3" }).click();

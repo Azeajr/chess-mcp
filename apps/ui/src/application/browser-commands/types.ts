@@ -42,6 +42,8 @@ export type BrowserCommandDependencies = {
   currentPath: () => Path;
   currentFileName: () => string | null;
   currentRevision: () => number;
+  /** Browser preference: depth 20 normally, or 30 when the user enables Deep analysis. */
+  analysisDepth: () => number;
   analyse: (fen: string, multipv: number, depth: number, movetime?: number, signal?: AbortSignal) => Promise<EngineLine[] | null>;
   cloudEval: (fen: string, signal?: AbortSignal) => Promise<CloudEval | null>;
   tablebaseLookup: (fen: string, signal?: AbortSignal) => Promise<TablebaseResult | null>;
@@ -63,3 +65,10 @@ export const throwIfAborted = (signal?: AbortSignal) => {
 
 export const commandAnalyse = (context: BrowserCommandContext) =>
   (fen: string, multipv: number, depth: number) => context.analyse(fen, multipv, depth, undefined, context.signal);
+
+export const requestedDepth = (args: BrowserCommandArgs, context: BrowserCommandContext) => {
+  const preferred = context.analysisDepth();
+  // Deep mode is a global browser promise: even an LLM-supplied shallower value cannot silently
+  // downgrade one task while the UI says every engine operation is running at depth 30.
+  return preferred === 30 ? 30 : (args.depth as number | undefined) ?? preferred;
+};

@@ -238,7 +238,7 @@ export async function findRepertoireGaps(
   const scheduled = await mapBounded(
     nodes,
     async (node) => {
-      const res = await analyse(node.fen, 4, opts.depth ?? 14);
+      const res = await analyse(node.fen, 4, opts.depth ?? 20);
       if (!res) return null;
       const gaps: Gap[] = [];
       const covered: CoveredGap[] = [];
@@ -338,7 +338,7 @@ export async function auditRepertoireMoves(
   opts: AuditOptions,
   analyse: Analyse,
 ): Promise<AuditResult> {
-  const depth = opts.depth ?? 14;
+  const depth = opts.depth ?? 20;
   const minCpLoss = opts.minCpLoss ?? 50;
   const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 20);
   const scheduled = await mapBounded(
@@ -461,7 +461,7 @@ export async function findOnlyMoves(
   opts: OnlyMoveOptions,
   analyse: Analyse,
 ): Promise<OnlyMoveResult> {
-  const depth = opts.depth ?? 14;
+  const depth = opts.depth ?? 20;
   const minMargin = opts.minMargin ?? 100;
   const nodes = turnNodes(tree, color).slice(0, opts.maxPositions ?? 300);
   const scheduled = await mapBounded(
@@ -743,7 +743,7 @@ export async function compareShortcutLines(
   if (!stayFen || !joinFen || !subA || !subB) return { error: "path_not_found" };
 
   const yourEval = async (fen: string): Promise<number | null> => {
-    const r = await analyse(fen, 1, opts.depth ?? 16);
+    const r = await analyse(fen, 1, opts.depth ?? 20);
     if (!r || !r.length) return null;
     // After your move the side to move is the OPPONENT; moverPov gives their POV, so negate to yours.
     return -moverPov(r[0]!, fen.split(" ")[1] === "w", MATE_CP);
@@ -868,7 +868,7 @@ const STUB_CP_THRESHOLD = 50;
 export async function resolveDanglingStubs(
   tree: GameTree,
   color: Color,
-  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number } & OperationControl,
+  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number; depth?: number } & OperationControl,
   analyse: Analyse,
 ): Promise<CoverageResolution> {
   const dangling = tree.coverage(color).danglingLines.slice(0, opts.limit ?? 20);
@@ -877,7 +877,7 @@ export async function resolveDanglingStubs(
   const cpThreshold = opts.cpThreshold ?? STUB_CP_THRESHOLD;
   let engineOk = true;
   const pickMoves = async (fen: string): Promise<string[]> => {
-    const res = await analyse(fen, 3, 12);
+    const res = await analyse(fen, 3, opts.depth ?? 20);
     if (!res) {
       engineOk = false;
       return [];
@@ -982,7 +982,7 @@ export async function suggestComplementaryLines(
 
   let opponentMoveSan: string | null = null;
   if (pos.turn !== color) {
-    const oppRes = await analyse(makeFen(pos.toSetup()), 1, opts.depth ?? 16);
+    const oppRes = await analyse(makeFen(pos.toSetup()), 1, opts.depth ?? 20);
     if (!oppRes) return { error: "engine_unavailable" };
     const oppUci = oppRes[0]?.uci;
     if (!oppUci) return { mode: m, anchor_fen: makeFen(pos.toSetup()), suggestions: [] };
@@ -993,7 +993,7 @@ export async function suggestComplementaryLines(
   const moverIsWhite = pos.turn === "white";
   const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, 10000);
 
-  const res = await analyse(anchorFen, pool, opts.depth ?? 16);
+  const res = await analyse(anchorFen, pool, opts.depth ?? 20);
   if (!res) return { error: "engine_unavailable" };
   const best = res.length ? moverCp(res[0]!) : 0;
   const leafBoards = tree.leafPositions().map((p) => p.board);
@@ -1064,7 +1064,7 @@ async function gapFillTail(fen: string, maxPlies: number, depth: number, analyse
   let currentFen = fen;
   for (let guard = 0; out.length < maxPlies && guard < 6; guard++) {
     const need = maxPlies - out.length;
-    const searchDepth = Math.min(18, Math.max(depth, need + 2));
+    const searchDepth = Math.min(30, Math.max(depth, need + 2));
     const result = await analyse(currentFen, 1, searchDepth);
     if (!result?.length) break;
     let advanced = 0;
@@ -1137,7 +1137,7 @@ export async function suggestGapFills(
   if (!gapMove) return { error: "illegal_uncovered_move", reason: `cannot play '${uncoveredMove}' at the gap path` };
   afterGap.play(gapMove);
   const anchorFen = makeFen(afterGap.toSetup());
-  const depth = Math.max(1, Math.min(30, opts.depth ?? 16));
+  const depth = Math.max(1, Math.min(30, opts.depth ?? 20));
   const limit = Math.max(2, Math.min(10, opts.limit ?? 4));
   const raw = await suggestComplementaryLines(tree, color, anchorFen, { mode: "low_memorization", limit, depth }, analyse) as {
     suggestions?: RawComplementarySuggestion[];
@@ -1196,7 +1196,7 @@ export async function suggestReplacementLine(
   }
 
   const profile = buildFitProfile(tree.leafPositions().map((p) => p.board), color);
-  const res = await analyse(piv.pivotBeforeFen, 5, opts.depth ?? 16);
+  const res = await analyse(piv.pivotBeforeFen, 5, opts.depth ?? 20);
   if (!res) return { error: "engine_unavailable" };
   const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
   const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, 10000);

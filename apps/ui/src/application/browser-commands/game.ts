@@ -8,13 +8,13 @@ import {
   toolDefault,
 } from "@chess-mcp/chess-tools";
 import type { BrowserCommandHandler } from "./types";
-import { commandAnalyse, throwIfAborted } from "./types";
+import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
 const pgnFor = (args: Record<string, unknown>, current: () => string) => (args.pgn as string | undefined) || current();
 
 export const gameCommands = {
   analyze_game: async (args, context) => {
-    const records = await analyzeMainline(pgnFor(args, context.currentPgn), (args.depth as number | undefined) ?? toolDefault("analyze_game", "depth", 14), commandAnalyse(context), {
+    const records = await analyzeMainline(pgnFor(args, context.currentPgn), requestedDepth(args, context), commandAnalyse(context), {
       shouldCancel: () => context.signal?.aborted ?? false,
       onProgress: (done, total) => context.onProgress?.(done, total, "reviewing game"),
     });
@@ -22,7 +22,7 @@ export const gameCommands = {
     return records === null ? { error: "engine_unavailable" } : gameAnalysisResult(records);
   },
   get_game_summary: async (args, context) => {
-    const records = await analyzeMainline(pgnFor(args, context.currentPgn), (args.depth as number | undefined) ?? toolDefault("get_game_summary", "depth", 14), commandAnalyse(context), {
+    const records = await analyzeMainline(pgnFor(args, context.currentPgn), requestedDepth(args, context), commandAnalyse(context), {
       shouldCancel: () => context.signal?.aborted ?? false,
       onProgress: (done, total) => context.onProgress?.(done, total, "summarizing game"),
     });
@@ -31,7 +31,7 @@ export const gameCommands = {
   },
   export_annotated_pgn: async (args, context) => {
     const pgn = pgnFor(args, context.currentPgn);
-    const records = await analyzeMainline(pgn, (args.depth as number | undefined) ?? toolDefault("export_annotated_pgn", "depth", 14), commandAnalyse(context), {
+    const records = await analyzeMainline(pgn, requestedDepth(args, context), commandAnalyse(context), {
       shouldCancel: () => context.signal?.aborted ?? false,
       onProgress: (done, total) => context.onProgress?.(done, total, "annotating game"),
     });
@@ -49,7 +49,7 @@ export const gameCommands = {
         groupBy: (args.group_by as "eco" | "color" | undefined) ?? toolDefault("batch_review", "group_by", "eco"),
         username: args.username as string | undefined,
         maxGames: (args.max_games as number | undefined) ?? toolDefault("batch_review", "max_games", 100),
-        depth: (args.depth as number | undefined) ?? toolDefault("batch_review", "depth", 12),
+        depth: requestedDepth(args, context),
       },
       await context.openings(),
       commandAnalyse(context),

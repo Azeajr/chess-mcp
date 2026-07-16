@@ -10,7 +10,7 @@ import {
   type ExplorerDb,
 } from "@chess-mcp/chess-tools";
 import type { BrowserCommandHandler } from "./types";
-import { commandAnalyse, throwIfAborted } from "./types";
+import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
 const explorerAuthRequired = () => ({
   error: "explorer_auth_required",
@@ -41,7 +41,7 @@ export const positionCommands = {
     const checked = validateFen(atFen);
     if (!checked.valid) return { error: "invalid_fen", reason: checked.reason };
     const lines = (args.lines as number | undefined) ?? toolDefault("evaluate_position", "lines", 3);
-    const depth = (args.depth as number | undefined) ?? toolDefault("evaluate_position", "depth", 16);
+    const depth = requestedDepth(args, context);
     const result = await context.analyse(checked.fen!, lines, depth, undefined, context.signal);
     throwIfAborted(context.signal);
     return result ? shapeEvaluation(checked.fen!, result, moveSan) : { error: "engine_unavailable" };
@@ -53,7 +53,7 @@ export const positionCommands = {
     const result = await compareMoves(
       checked.fen!,
       args.moves as string[],
-      (args.depth as number | undefined) ?? toolDefault("compare_moves", "depth", 14),
+      requestedDepth(args, context),
       commandAnalyse(context),
       {
         shouldCancel: () => context.signal?.aborted ?? false,
