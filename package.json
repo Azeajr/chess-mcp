@@ -9,7 +9,7 @@
     "mcp": "tsx apps/mcp-server/src/index.ts",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test:strategic-fit": "tsx --test packages/chess-tools/test/strategic-fit/*.test.ts",
+    "test:strategic-fit": "pnpm --filter @chess-mcp/chess-tools exec tsc -p test/strategic-fit/tsconfig.json && tsx --test packages/chess-tools/test/strategic-fit/*.test.ts",
     "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node --import tsx scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
     "verify:openrouter": "node --import tsx scripts/openrouter-tool-surface-eval.mjs",
     "docs:generate": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs",
