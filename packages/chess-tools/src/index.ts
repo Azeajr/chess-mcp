@@ -43,7 +43,7 @@ export type { ExplorerDb, ExplorerFilters, ExplorerMove, ExplorerPosition, Explo
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, PlayerDeviation, UncoveredOpponent, RepertoireMoveMap } from "./game.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
-export type { OpeningTable } from "./openings.js";
+export type { OpeningEntry, OpeningTable } from "./openings.js";
 export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
 export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence.js";
 export {
@@ -93,6 +93,7 @@ export * from "./strategic-fit/types.js";
 export * from "./strategic-fit/version.js";
 export * from "./strategic-fit/preflight.js";
 export * from "./strategic-fit/graph.js";
+export * from "./strategic-fit/taxonomy.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";

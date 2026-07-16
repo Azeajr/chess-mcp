@@ -28,7 +28,12 @@ export function identifyDeepestFromMoves(
   return best;
 }
 
-export type OpeningTable = Map<string, { eco: string; name: string }>;
+export interface OpeningEntry {
+  readonly eco: string;
+  readonly name: string;
+}
+
+export type OpeningTable = Map<string, OpeningEntry>;
 
 /** Parse the generated TSV (positionKey<TAB>eco<TAB>name) into a lookup map. */
 export function parseOpeningsTsv(text: string): OpeningTable {
