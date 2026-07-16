@@ -92,6 +92,7 @@ export type {
 export * from "./strategic-fit/types.js";
 export * from "./strategic-fit/version.js";
 export * from "./strategic-fit/preflight.js";
+export * from "./strategic-fit/graph.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";
