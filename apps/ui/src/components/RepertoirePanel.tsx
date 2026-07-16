@@ -232,8 +232,12 @@ export default function RepertoirePanel() {
           </Show>
         </summary>
         <Show when={progress()}>{(p) => <div class="scan-progress">
-          <progress class="scan-meter" max={p().total || 1} value={p().total ? Math.min(p().done, p().total) : undefined} />
-          <span>scanning {p().done}/{p().total}…</span>
+          <span class={`scan-bar${p().total ? "" : " indeterminate"}`} role="progressbar"
+            aria-label="Scanning repertoire positions" aria-valuemin="0"
+            aria-valuemax={p().total || undefined} aria-valuenow={p().total ? Math.min(p().done, p().total) : undefined}>
+            <span class="scan-bar-fill" style={{ width: p().total ? `${Math.min(100, Math.round((p().done / p().total) * 100))}%` : "38%" }} />
+          </span>
+          <span>{p().total ? `scanning ${p().done}/${p().total}…` : "preparing scan…"}</span>
         </div>}</Show>
         <Show when={scanError()}><div class="empty">{scanError()}</div></Show>
         <Show when={!scanning() && gaps().length === 0 && !scanError()}>

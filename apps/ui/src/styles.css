@@ -730,6 +730,13 @@ img,
   background: var(--accent);
   transition: width 0.15s ease;
 }
+.rep-panel .scan-bar.indeterminate .scan-bar-fill {
+  animation: scan-progress 1.2s ease-in-out infinite;
+}
+@keyframes scan-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(290%); }
+}
 .rep-panel .scan-cancel {
   padding: 0 0.35rem;
   line-height: 1;
