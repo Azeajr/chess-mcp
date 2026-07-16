@@ -95,6 +95,7 @@ export * from "./strategic-fit/preflight.js";
 export * from "./strategic-fit/graph.js";
 export * from "./strategic-fit/taxonomy.js";
 export * from "./strategic-fit/checkpoints.js";
+export * from "./strategic-fit/pawn-signals.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";
