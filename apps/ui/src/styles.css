@@ -72,7 +72,8 @@ img,
 }
 
 .topbar button,
-.topbar select {
+.topbar select,
+.topbar input {
   background: #33333a;
   color: var(--text);
   border: 1px solid var(--border);
@@ -80,6 +81,24 @@ img,
   padding: 0.35rem 0.7rem;
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+.topbar .depth-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.topbar .depth-control input[type="range"] {
+  width: 88px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.topbar .depth-number {
+  width: 3.4rem;
+  padding: 0.35rem 0.25rem;
+  text-align: center;
 }
 
 .topbar button:hover {
@@ -302,6 +321,7 @@ img,
 @media (pointer: coarse) {
   .topbar button,
   .topbar select,
+  .topbar input,
   .chat-input button,
   .mobile-tabs button,
   .rep-panel .scan-btn {

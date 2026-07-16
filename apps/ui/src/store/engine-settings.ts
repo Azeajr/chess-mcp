@@ -1,11 +1,14 @@
 import { createSignal } from "solid-js";
 
+export const MIN_ANALYSIS_DEPTH = 1;
+export const MAX_ANALYSIS_DEPTH = 30;
 export const STANDARD_ANALYSIS_DEPTH = 20;
-export const DEEP_ANALYSIS_DEPTH = 30;
 
-export type AnalysisMode = "standard" | "deep";
+const clampDepth = (depth: number) => Math.max(MIN_ANALYSIS_DEPTH, Math.min(MAX_ANALYSIS_DEPTH, Math.round(depth)));
 
-const [analysisMode, setAnalysisMode] = createSignal<AnalysisMode>("standard");
-const analysisDepth = () => analysisMode() === "deep" ? DEEP_ANALYSIS_DEPTH : STANDARD_ANALYSIS_DEPTH;
+const [analysisDepth, setDepth] = createSignal(STANDARD_ANALYSIS_DEPTH);
+const setAnalysisDepth = (depth: number) => {
+  if (Number.isFinite(depth)) setDepth(clampDepth(depth));
+};
 
-export { analysisMode, setAnalysisMode, analysisDepth };
+export { analysisDepth, setAnalysisDepth };

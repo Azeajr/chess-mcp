@@ -38,12 +38,14 @@ test("an ambiguous natural request needs no preset and direct analysis remains a
   await expect(page.getByText("Annotated repertoire")).toBeVisible();
 });
 
-test("deep analysis is global and warns about long-running scans", async ({ page }) => {
-  const depth = page.getByRole("combobox", { name: "Analysis depth" });
-  await expect(depth).toHaveValue("standard");
-  await expect(depth.locator("option:checked")).toHaveText("Depth 20");
-  await depth.selectOption("deep");
-  await expect(depth.locator("option:checked")).toHaveText("Deep 30");
+test("analysis depth is globally adjustable and warns at the maximum", async ({ page }) => {
+  const depth = page.getByRole("spinbutton", { name: "Analysis depth" });
+  const slider = page.getByRole("slider", { name: "Analysis depth slider" });
+  await expect(depth).toHaveValue("20");
+  await slider.fill("24");
+  await expect(depth).toHaveValue("24");
+  await depth.fill("30");
+  await expect(slider).toHaveValue("30");
   await expect(page.getByRole("status")).toContainText("Every engine task will use depth 30");
   await page.getByRole("button", { name: "Dismiss deep analysis notice" }).click();
   await expect(page.getByText("Every engine task will use depth 30")).toHaveCount(0);
