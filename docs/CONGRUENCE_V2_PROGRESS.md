@@ -22,18 +22,17 @@
 | 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 | 2.8 | Complete | `15b4a48` | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
 | 2.9 | Complete | `445be49` | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
-| 3.1 | Complete | This commit | Task validation | Deprecated bounded legacy `incongruencies` projection with exhaustive classification mapping and explicit multi-path disclosure. |
-| 3.3 | Complete | This commit | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
+| 3.1 | Complete | `5af5039` | Task validation | Deprecated bounded legacy `incongruencies` projection with exhaustive classification mapping and explicit multi-path disclosure. |
+| 3.3 | Complete | `8ddeb7e` | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
 
 ## Coordinator state
 
-- Verified through Task 2.9 at `445be49` (`feat: compose strategic fit analyzer`).
-- Latest implementation gate at `445be49`: Strategic Fit 138/138; chess-tools build; monorepo typecheck;
-  game-tree smoke 213/213.
+- Verified Tasks 3.1 at `5af5039` and 3.3 at `8ddeb7e` after their explicitly parallel workstream.
+- Latest combined gate: Strategic Fit 142/142; UI 25/25; chess-tools and UI builds; monorepo
+  typecheck; docs check; game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next tasks: Task 3.1 — Add the temporary legacy result projection, and Task 3.3 — Add the
-  Strategic Fit Web Worker and typed client. Their dependencies are complete, and the plan
-  explicitly permits Task 3.3 to run in parallel with Tasks 3.1–3.2.
+- Next task: Task 3.2 — Evolve the canonical tool contract and both host adapters. Its Task 3.1
+  dependency is complete; the Task 3.3 worker boundary is also available for the browser adapter.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
