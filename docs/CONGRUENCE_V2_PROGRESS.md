@@ -22,6 +22,7 @@
 | 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 | 2.8 | Complete | `15b4a48` | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
 | 2.9 | Complete | `445be49` | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
+| 3.1 | Complete | This commit | Task validation | Deprecated bounded legacy `incongruencies` projection with exhaustive classification mapping and explicit multi-path disclosure. |
 
 ## Coordinator state
 
