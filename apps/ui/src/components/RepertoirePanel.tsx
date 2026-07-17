@@ -59,6 +59,7 @@ import { actions, currentTree, currentPath, fen, color } from "../store/game";
 import { commandStates, executeCommand, cancelCommand, type DirectCommand } from "../store/commands";
 import { saveArtifact } from "../store/artifacts";
 import { analysisDepth } from "../store/engine-settings";
+import StrategicFitTransfer from "./StrategicFitTransfer";
 
 function gapEval(g: Gap): string {
   if (g.mate !== null) return `M${Math.abs(g.mate)}`;
@@ -221,6 +222,8 @@ export default function RepertoirePanel() {
         {commandStatus("export_annotated_repertoire")}
         <Show when={state("export_annotated_repertoire").result?.artifact_id}>{(id) => <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>Save annotated PGN</button>}</Show>
       </details>
+
+      <StrategicFitTransfer />
 
       <div class="outcome-label">Advanced</div>
       {/* Tier A: gaps */}

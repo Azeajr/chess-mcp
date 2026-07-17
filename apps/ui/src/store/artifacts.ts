@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 
-export type ArtifactFormat = "pgn" | "csv";
+export type ArtifactFormat = "pgn" | "csv" | "json";
 export interface Artifact {
   id: string;
   kind: "artifact";
@@ -21,7 +21,9 @@ export function createArtifact(format: ArtifactFormat, content: string, name: st
     kind: "artifact",
     format,
     name,
-    mediaType: format === "pgn" ? "application/x-chess-pgn" : "text/csv",
+    mediaType: format === "pgn"
+      ? "application/x-chess-pgn"
+      : format === "json" ? "application/json" : "text/csv",
     content,
     bytes: new Blob([content]).size,
   };

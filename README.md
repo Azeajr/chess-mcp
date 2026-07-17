@@ -32,7 +32,7 @@ a no-scope Lichess personal token because the explorer requires authentication.
 - Game: summary and move review, annotated PGN, batch review, and Lichess/Chess.com history.
 - Repertoire: prescribed-move audit, missing replies, coverage, critical moves and drill decks,
   theory depth, structure search, practical-history comparison, opponent preparation, and annotated
-  export.
+  export, secret-free Strategic Fit JSON sidecars, and clone-only portable intent PGNs.
 - Advanced repertoire: transposition-aware Strategic Fit V2 reports with explicit profiles,
   weighting, paging, provenance, and a temporary legacy projection; transposition shortening,
   shortcut inspection, engine-vetted replacement or complementary lines, and shared
@@ -47,7 +47,7 @@ round receives the complete stable browser command schema, while the prompt carr
 document context and scoped commands retrieve a selected subtree or full PGN when needed. Long
 operations show progress and share Stop/Retry lifecycle handling with streaming. Tool results render
 as navigable application data. Proposed edits are staged against a document revision and require
-Accept; direct repertoire previews expose Accept line/Cancel controls, and generated PGN/CSV
+Accept; direct repertoire previews expose Accept line/Cancel controls, and generated PGN/CSV/JSON
 artifacts have direct save actions.
 
 Direct analysis is available without chat. User-triggered reports and exports invoke the canonical

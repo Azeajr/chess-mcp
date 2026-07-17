@@ -9,12 +9,13 @@ import {
   type OpeningTable,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "../../engine/stockfish";
-import { actions, color, currentPath, currentTree, fen, fileName, version } from "../../store/game";
+import { actions, color, currentPath, currentTree, documentId, fen, fileName, version } from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
 import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
+import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import { getCachedStrategicFitReport } from "../strategic-fit-report-cache";
 import type { BrowserCommandDependencies } from "./types";
 
@@ -37,6 +38,8 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentPath,
   currentFileName: fileName,
   currentRevision: version,
+  currentDocumentId: documentId,
+  currentStrategicFitMetadata: strategicFitMetadata,
   currentStrategicFitProfile: strategicFitProfile,
   currentStrategicFitAnalysisSettings: strategicFitAnalysisSettings,
   analysisDepth,

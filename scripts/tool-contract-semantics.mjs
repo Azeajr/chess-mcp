@@ -80,4 +80,8 @@ assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "propose_line").result.
 assert.match(TOOL_CONTRACTS.find((tool) => tool.name === "analyze_repertoire_congruence").result.semantics, /Strategic Fit V2/);
 assert.deepEqual(jsonSchemaForTool("inspect_shortcut", "browser").required, ["line_path", "at_ply", "joins_path"]);
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "inspect_shortcut").hosts.includes("mcp"), false);
+assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "export_strategic_fit_metadata").result.kind, "artifact");
+assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "export_strategic_fit_metadata").hosts.includes("mcp"), false);
+assert.equal(validateToolArguments("export_strategic_fit_metadata", {}, "browser").ok, true);
+assert.equal(validateToolArguments("export_strategic_fit_intent_pgn", { max_findings: 101 }, "browser").error, "invalid_arguments");
 console.log("tool contract semantics: ok");

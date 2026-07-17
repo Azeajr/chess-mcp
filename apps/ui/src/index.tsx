@@ -4,7 +4,7 @@ import App from "./App";
 import { actions, documentId, version } from "./store/game";
 import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
-import { createArtifact, saveArtifact } from "./store/artifacts";
+import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting } from "./store/chat";
 import {
   deleteStrategicFitMetadata,
@@ -35,6 +35,13 @@ import {
   upsertStrategicFitResolution,
   upsertStrategicFitRouteWeight,
 } from "./store/strategic-fit-resolutions";
+import {
+  cancelStrategicFitSidecarImport,
+  confirmStrategicFitSidecarImport,
+  prepareStrategicFitSidecarImport,
+  strategicFitSidecarImportError,
+  strategicFitSidecarImportPreview,
+} from "./store/strategic-fit-sidecar";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -61,6 +68,7 @@ if (import.meta.env.DEV) {
     acceptStagedEdit,
     rejectStagedEdit,
     createArtifact,
+    artifactById,
     saveArtifact,
     appendToolResultForTesting,
     runTool,
@@ -87,5 +95,10 @@ if (import.meta.env.DEV) {
     removeStrategicFitDecisionWeight,
     reconcileStrategicFitSettings,
     strategicFitAnalysisSettings,
+    strategicFitSidecarImportPreview,
+    strategicFitSidecarImportError,
+    prepareStrategicFitSidecarImport,
+    confirmStrategicFitSidecarImport,
+    cancelStrategicFitSidecarImport,
   };
 }

@@ -112,7 +112,7 @@ test("deep analysis forces every browser engine request to depth 30", () => {
 
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {
   const browser = new Set(contractsForHost("browser").map((contract) => contract.name));
-  for (const name of ["audit_repertoire_moves", "find_only_moves", "find_structures", "export_annotated_repertoire", "prep_vs_opponent"])
+  for (const name of ["audit_repertoire_moves", "find_only_moves", "find_structures", "export_annotated_repertoire", "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn", "prep_vs_opponent"])
     assert.equal(browser.has(name), true, `${name} is a browser command`);
   assert.equal(toolDefault("audit_repertoire_moves", "max_positions", 0), 20);
   assert.equal(toolDefault("find_only_moves", "min_margin", 0), 100);
@@ -280,7 +280,7 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
   assert.match(workflowPrompt("repertoire"), /insufficient-evidence result is not evidence of consistency/);
 });
 
-test("actual chat requests transmit all 39 schemas on natural, follow-up, and preset turns", async (t) => {
+test("actual chat requests transmit all 41 schemas on natural, follow-up, and preset turns", async (t) => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -301,6 +301,8 @@ test("actual chat requests transmit all 39 schemas on natural, follow-up, and pr
     ["find structures in my repertoire", "find_structures"],
     ["prep vs opponent alice", "prep_vs_opponent"],
     ["export an annotated repertoire", "export_annotated_repertoire"],
+    ["export my strategic fit settings", "export_strategic_fit_metadata"],
+    ["export a strategic fit intent pgn", "export_strategic_fit_intent_pgn"],
     ["evaluate this position", "evaluate_position"],
     ["what about g4", "evaluate_position"],
     ["now audit this repertoire", "audit_repertoire_moves"],
@@ -327,13 +329,13 @@ test("actual chat requests transmit all 39 schemas on natural, follow-up, and pr
     delete (globalThis as { localStorage?: unknown }).localStorage;
   });
 
-  for (const [request, command] of [...expectedByText].slice(0, 5)) {
+  for (const [request, command] of [...expectedByText].slice(0, 7)) {
     chat.clearChat();
     await chat.send(request);
     assert.equal(executed.at(-1), command, `${request} executes ${command}`);
     const names = requests.at(-2)!.tools.map((tool) => tool.function.name);
-    assert.equal(names.length, 39);
-    assert.equal(new Set(names).size, 39);
+    assert.equal(names.length, 41);
+    assert.equal(new Set(names).size, 41);
     assert.equal(names.includes(command), true);
     if (command === "export_annotated_repertoire") assert.equal(executed.at(-1), "export_annotated_repertoire");
   }
@@ -349,12 +351,12 @@ test("actual chat requests transmit all 39 schemas on natural, follow-up, and pr
   await chat.send("now audit this repertoire");
   await chat.send("review this game");
   assert.deepEqual(executed.slice(-3), ["evaluate_position", "audit_repertoire_moves", "get_game_summary"]);
-  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === 39), true);
+  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === 41), true);
 
   settings.setChatMode("repertoire");
   chat.clearChat();
   await chat.send("find structures in my repertoire");
-  assert.equal(requests.at(-2)!.tools.length, 39, "preset changes guidance, not availability");
+  assert.equal(requests.at(-2)!.tools.length, 41, "preset changes guidance, not availability");
 
   chat.setChatToolExecutorForTesting(async (_name, _args, options) => new Promise((_resolve, reject) => {
     const abort = () => reject(new DOMException("Cancelled", "AbortError"));
@@ -408,7 +410,7 @@ test("browser repertoire annotation exports native V2 evidence through the artif
         strategicFitCompleteAnalysisOptions(options),
       ));
     },
-    createArtifact: (format: "pgn" | "csv", content: string, name: string) => {
+    createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => {
       artifact = { format, content, name };
       return { kind: "artifact", artifact_id: "artifact:strategic-fit", format, name };
     },
@@ -564,6 +566,9 @@ test("artifact results expose metadata by reference without repeating content", 
   const deck = createArtifact("csv", "fen,move\nstart,e4", "only-moves.csv");
   assert.equal(deck.media_type, "text/csv");
   assert.equal(artifactById(deck.artifact_id)?.name, "only-moves.csv");
+  const sidecar = createArtifact("json", "{\"sidecar_version\":\"1.0.0\"}\n", "strategic-fit.json");
+  assert.equal(sidecar.media_type, "application/json");
+  assert.equal("content" in sidecar, false);
   assert.deepEqual(findArtifactMetadata({ findings: [], deck }), [deck]);
 });
 

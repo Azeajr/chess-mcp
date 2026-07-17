@@ -12,6 +12,7 @@ import type {
   StrategicFitProgress,
   StrategicFitProfile,
   StrategicFitMetadataAnalysisInputs,
+  StrategicFitDocumentMetadata,
   StrategicFitReport,
   TablebaseResult,
 } from "@chess-mcp/chess-tools";
@@ -27,6 +28,7 @@ export const BROWSER_COMMAND_NAMES = [
   "chesscom_games", "repertoire_vs_history", "audit_repertoire_moves", "find_only_moves",
   "find_structures", "inspect_shortcut", "export_annotated_repertoire", "prep_vs_opponent",
   "propose_line", "get_selected_subtree", "get_document_pgn",
+  "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn",
 ] as const;
 
 export type BrowserCommandName = (typeof BROWSER_COMMAND_NAMES)[number];
@@ -47,6 +49,8 @@ export type BrowserCommandDependencies = {
   currentPath: () => Path;
   currentFileName: () => string | null;
   currentRevision: () => number;
+  currentDocumentId: () => string;
+  currentStrategicFitMetadata: () => StrategicFitDocumentMetadata;
   currentStrategicFitProfile: () => StrategicFitProfile;
   currentStrategicFitAnalysisSettings: () => {
     readonly identity: string;
@@ -67,7 +71,7 @@ export type BrowserCommandDependencies = {
     options: AnalyzeStrategicFitOptions,
     execution?: { signal?: AbortSignal; onProgress?: (progress: StrategicFitProgress) => void },
   ) => Promise<StrategicFitReport>;
-  createArtifact: (format: "pgn" | "csv", content: string, name: string) => unknown;
+  createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => unknown;
   stageEdit: (action: "add" | "prune" | "reorder", path: string[], options?: { addMoves?: string[]; promoteMove?: string }) => unknown;
   proposeLine: (moves: string[], comment?: string) => unknown;
 };

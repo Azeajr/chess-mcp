@@ -50,7 +50,11 @@ const define = (name: string, description: string, capabilities: ToolCapability[
       } : {}),
     },
     hostAdaptation: {
-      browserInjects: name === "analyze_repertoire_congruence"
+      browserInjects: name === "export_strategic_fit_metadata"
+        ? ["stable document ID", "normalized Strategic Fit metadata"]
+        : name === "export_strategic_fit_intent_pgn"
+        ? ["current PGN", "current GameTree", "stable document ID", "document revision", "normalized Strategic Fit metadata", "current Strategic Fit report"]
+        : name === "analyze_repertoire_congruence"
         ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "Strategic Fit Web Worker"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
@@ -187,6 +191,22 @@ export const TOOL_CONTRACTS = [
   define("propose_line", "Stage a validated SAN line for explicit user acceptance without mutating the repertoire.", ["repertoire", "action"], BROWSER, {}, { properties: { moves: array(), comment: string() }, required: ["moves"] }),
   define("get_selected_subtree", "Retrieve bounded SAN lines for the currently selected repertoire subtree.", ["repertoire"], BROWSER, { max_plies: 80 }, { properties: { max_plies: integer(1, 200) } }),
   define("get_document_pgn", "Retrieve the full current PGN only when an operation genuinely needs the artifact.", ["game", "repertoire", "artifact"], BROWSER, {}, { properties: {} }),
+  define(
+    "export_strategic_fit_metadata",
+    "Export the current document's normalized Strategic Fit metadata as a versioned, secret-free JSON sidecar.",
+    ["repertoire", "artifact"],
+    BROWSER,
+    {},
+    { properties: {} },
+  ),
+  define(
+    "export_strategic_fit_intent_pgn",
+    "Export a cloned legal PGN with bounded portable comments for confirmed Strategic Fit intent, resolutions, and findings.",
+    ["repertoire", "artifact"],
+    BROWSER,
+    { max_findings: 25, max_resolutions: 25 },
+    { properties: { max_findings: integer(0, 100), max_resolutions: integer(0, 100) } },
+  ),
 ] as const;
 
 export const TOOL_CONTRACT_BY_NAME = new Map(TOOL_CONTRACTS.map((tool) => [tool.name, tool]));

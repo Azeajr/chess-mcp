@@ -1460,3 +1460,75 @@ img,
   cursor: pointer;
   font-family: inherit;
 }
+
+.strategic-fit-transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0;
+}
+.strategic-fit-import-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.strategic-fit-import-label input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.strategic-fit-import-label:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.strategic-fit-import-preview {
+  margin: 0.5rem 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #18181d;
+}
+.strategic-fit-import-preview h4 {
+  margin: 0 0 0.45rem;
+}
+.strategic-fit-import-preview dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem 0.55rem;
+  margin: 0;
+  font-size: 0.72rem;
+}
+.strategic-fit-import-preview dt { color: var(--muted); }
+.strategic-fit-import-preview dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-import-counts {
+  margin: 0.55rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.72rem;
+}
+.strategic-fit-import-identities {
+  margin: 0.45rem 0;
+  font-size: 0.7rem;
+}
+.strategic-fit-import-identities > div {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-mismatch-confirm {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin: 0.55rem 0;
+  color: #f0c878;
+  font-size: 0.72rem;
+}
+.strategic-fit-import-error {
+  margin: 0.4rem 0;
+  color: #f0a8ac;
+  font-size: 0.72rem;
+}

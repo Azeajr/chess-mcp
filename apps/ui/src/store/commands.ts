@@ -20,6 +20,8 @@ export type DirectCommand =
   | "find_only_moves"
   | "find_structures"
   | "export_annotated_repertoire"
+  | "export_strategic_fit_metadata"
+  | "export_strategic_fit_intent_pgn"
   | "prep_vs_opponent";
 
 export interface CommandState {
@@ -35,6 +37,8 @@ const [commandStates, setCommandStates] = createSignal<Record<DirectCommand, Com
   find_only_moves: initial(),
   find_structures: initial(),
   export_annotated_repertoire: initial(),
+  export_strategic_fit_metadata: initial(),
+  export_strategic_fit_intent_pgn: initial(),
   prep_vs_opponent: initial(),
 });
 export { commandStates };

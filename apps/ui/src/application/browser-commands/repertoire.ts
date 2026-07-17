@@ -23,6 +23,9 @@ import {
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
+  serializeStrategicFitSidecar,
+  exportStrategicFitIntentPgn,
+  STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
@@ -91,6 +94,8 @@ type RepertoireCommandName =
   | "find_structures"
   | "inspect_shortcut"
   | "export_annotated_repertoire"
+  | "export_strategic_fit_metadata"
+  | "export_strategic_fit_intent_pgn"
   | "prep_vs_opponent";
 
 export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHandler> = {
@@ -439,6 +444,82 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     if ("cancelled" in result) return result;
     const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
     return { ...context.createArtifact("pgn", result.pgn, `${base}-annotated.pgn`) as object, color: result.color, annotated: result.annotated };
+  },
+  export_strategic_fit_metadata: (_args, context) => {
+    const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
+    const content = serializeStrategicFitSidecar(
+      context.currentDocumentId(),
+      context.currentStrategicFitMetadata(),
+    );
+    return {
+      ...context.createArtifact("json", content, `${base}-strategic-fit.json`) as object,
+      document_id: context.currentDocumentId(),
+      metadata_version: STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    };
+  },
+  export_strategic_fit_intent_pgn: async (args, context) => {
+    const tree = context.currentTree();
+    const pgn = context.currentPgn();
+    const color = context.currentColor();
+    const revision = context.currentRevision();
+    const repertoireRevision = `browser:${revision}`;
+    const documentId = context.currentDocumentId();
+    const documentSettings = context.currentStrategicFitAnalysisSettings();
+    const documentSettingsIdentity = documentSettings.identity;
+    // Reading effective settings may reconcile stale semantic records. Capture the metadata only
+    // after that reconciliation so the export is bound to the actual analyzed snapshot.
+    const metadata = context.currentStrategicFitMetadata();
+    const metadataIdentity = JSON.stringify(metadata);
+    const report = await context.strategicFitReport(pgn, {
+      ...strategicFitOptionsFromToolArguments({}, {
+        repertoireColor: color,
+        repertoireRevision,
+        openingTable: await context.openings(),
+      }),
+      profile: metadata.profile,
+      ...(documentSettings.inputs.weighting === undefined
+        ? {}
+        : { weighting: documentSettings.inputs.weighting }),
+      ...(documentSettings.inputs.cohort_overrides === undefined
+        ? {}
+        : { cohorts: { overrides: documentSettings.inputs.cohort_overrides } }),
+      ...(documentSettings.inputs.route_assessments === undefined
+        ? {}
+        : { routeAssessments: documentSettings.inputs.route_assessments }),
+    }, {
+      signal: context.signal,
+      onProgress: (progress) => context.onProgress?.(
+        progress.phase_index + (progress.state === "completed" ? 1 : 0),
+        progress.phase_count,
+        progress.message,
+      ),
+    });
+    throwIfAborted(context.signal);
+    if (
+      context.currentRevision() !== revision || context.currentPgn() !== pgn ||
+      context.currentColor() !== color || context.currentDocumentId() !== documentId ||
+      JSON.stringify(context.currentStrategicFitMetadata()) !== metadataIdentity ||
+      context.currentStrategicFitAnalysisSettings().identity !== documentSettingsIdentity
+    ) {
+      return {
+        error: "strategic_fit_stale_report",
+        reason: "The document, repertoire, or Strategic Fit metadata changed while intent export was running; generate a fresh export.",
+      };
+    }
+    const exported = exportStrategicFitIntentPgn(tree, metadata, {
+      findings: report.findings,
+      max_findings: args.max_findings as number | undefined,
+      max_resolutions: args.max_resolutions as number | undefined,
+    });
+    const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
+    return {
+      ...context.createArtifact("pgn", exported.pgn, `${base}-strategic-fit-intent.pgn`) as object,
+      profile_comments: exported.profile_comments,
+      resolution_comments: exported.resolution_comments,
+      finding_comments: exported.finding_comments,
+      skipped_paths: exported.skipped_paths,
+      report_id: report.report_id,
+    };
   },
   prep_vs_opponent: async (args, context) => {
     const platform = (args.platform as "lichess" | "chesscom" | undefined) ?? toolDefault("prep_vs_opponent", "platform", "lichess");

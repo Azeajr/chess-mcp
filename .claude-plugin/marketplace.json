@@ -9,7 +9,7 @@
       "name": "chess-mcp",
       "source": "./plugin",
       "description": "MCP server + skills for grounded chess analysis: game review, repertoire builder, position deep-dive, annotated PGN. Runs on Node (local Stockfish), no Docker.",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "author": {
         "name": "Antonio Zea"
       },

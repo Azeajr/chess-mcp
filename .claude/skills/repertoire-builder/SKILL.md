@@ -34,7 +34,7 @@ Pressure-test a branching repertoire for soundness, coverage, memorization cost,
 7. Extend and connect: Use coverage for dangling lines and stub reconnection; use complementary or replacement suggestions for intentional additions grounded in engine output. Tools: `get_repertoire_coverage`, `suggest_complementary_lines`, `suggest_replacement_line`.
 8. Use practical evidence: Use explorer popularity and theory depth only with authentication. Keep engine soundness distinct from human frequency. Tools: `position_popularity`, `find_theory_depth`.
 9. Prepare an opponent: Use opponent preparation for an opponent's games and targets; use repertoire-versus-history for the user's own departures. Do not substitute one report for the other. Tools: `prep_vs_opponent`, `repertoire_vs_history`.
-10. Export the right artifact: Use annotated repertoire export for the branching tree and only-move deck export for training. Game annotation is not a repertoire artifact. Tools: `export_annotated_repertoire`, `find_only_moves`.
+10. Export the right artifact: Use annotated repertoire export for the branching tree and only-move deck export for training. In the browser, use the JSON sidecar for canonical Strategic Fit metadata and the intent PGN only for portable comments; never expose tokens or repeat full artifact content. Tools: `export_annotated_repertoire`, `find_only_moves`.
 
 ## Shared report contract
 
