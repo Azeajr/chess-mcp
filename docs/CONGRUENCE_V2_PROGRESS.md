@@ -17,6 +17,7 @@
 | 2.2 | Complete | `e9a895a` | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
 | 2.3 | Complete | `1ee9737` | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
 | 2.4 | Complete | `3d77fbe` | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
+| 2.5 | Complete | This commit | Phase 2 gate | Weighted geometric confidence, explicit hard-cap reasons, and separate deterministic difference magnitude. |
 
 ## Coordinator state
 
