@@ -25,17 +25,17 @@
 | 3.1 | Complete | `5af5039` | Task validation | Deprecated bounded legacy `incongruencies` projection with exhaustive classification mapping and explicit multi-path disclosure. |
 | 3.2 | Complete | `e64a216` | Phase 3 gate | Canonical nested V2 inputs, shared host argument adaptation, worker/in-process analyzer parity, bounded legacy projection, and synchronized public surfaces. |
 | 3.3 | Complete | `8ddeb7e` | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
-| 3.4 | Complete | This commit | Phase 3 gate | Immutable revision/content/settings-keyed host report caches with bounded summary, cursor-page, finding, and full projections plus stale-result rejection and handle-lifecycle cleanup. |
+| 3.4 | Complete | `e844593` | Phase 3 gate | Immutable revision/content/settings-keyed host report caches with bounded summary, cursor-page, finding, and full projections plus exact report identity, stale-result rejection, and handle-lifecycle cleanup. |
 
 ## Coordinator state
 
-- Verified through Task 3.3, including Task 3.2 at `e64a216` (`feat: expose strategic fit v2 adapters`).
-- Task 3.4 implementation is complete in this commit and awaits coordinator verification.
-- Task 3.4 validation: Strategic Fit 151/151; UI 31/31; handle cache 9/9; GameTree smoke
+- Verified through Task 3.4 at `e844593` (`fix: harden strategic fit report identity`) after an
+  independent implementation audit and coordinator rerun of the complete gate.
+- Latest combined gate: Strategic Fit 151/151; UI 31/31; handle cache 9/9; GameTree smoke
   213/213; structure accuracy 27/27; canonical tool-contract inventory and semantics; MCP smoke
   76/76 with network disabled; chess-tools/UI builds; monorepo typecheck; docs and
   synchronized-skills checks.
-- No blocker remains. The coordinator should verify this commit before selecting Task 3.5.
+- No blocker remains. Resume with Task 3.5 — Render typed V2 chat results.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
