@@ -6,6 +6,15 @@ import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, st
 import { runTool } from "./llm/tools";
 import { createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting } from "./store/chat";
+import {
+  deleteStrategicFitMetadata,
+  flushStrategicFitMetadata,
+  replaceStrategicFitMetadata,
+  strategicFitMetadata,
+  strategicFitMetadataIssues,
+  strategicFitMetadataStatus,
+  strategicFitMetadataWarning,
+} from "./store/strategic-fit-metadata";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -34,5 +43,12 @@ if (import.meta.env.DEV) {
     saveArtifact,
     appendToolResultForTesting,
     runTool,
+    strategicFitMetadata,
+    strategicFitMetadataStatus,
+    strategicFitMetadataIssues,
+    strategicFitMetadataWarning,
+    replaceStrategicFitMetadata,
+    deleteStrategicFitMetadata,
+    flushStrategicFitMetadata,
   };
 }

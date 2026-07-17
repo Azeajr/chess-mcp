@@ -1,4 +1,4 @@
-import { onMount, onCleanup } from "solid-js";
+import { onMount, onCleanup, Show } from "solid-js";
 import TopBar from "./components/TopBar";
 import Board from "./components/Board";
 import EvalBar from "./components/EvalBar";
@@ -14,15 +14,22 @@ import ColorPickerModal from "./components/ColorPickerModal";
 import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
+import {
+  restoreStrategicFitMetadata,
+  startStrategicFitMetadataPersistence,
+  strategicFitMetadataWarning,
+} from "./store/strategic-fit-metadata";
 import { mobileTab } from "./store/ui";
 import { resizeSide, resizeSideChat, effSideWidth, effChatWidth, persistLayout, boardSize, setBoardSize, persistBoard } from "./store/layout";
 
 export default function App() {
   startAutosave();
+  startStrategicFitMetadataPersistence();
 
   onMount(() => {
     void (async () => {
       await restoreWorking();
+      await restoreStrategicFitMetadata();
       void restoreLastFile();
     })();
     const onKey = (e: KeyboardEvent) => {
@@ -50,6 +57,9 @@ export default function App() {
   return (
     <div class="app">
       <TopBar />
+      <Show when={strategicFitMetadataWarning()}>
+        {(warning) => <div class="strategic-fit-metadata-warning" role="alert">{warning().message}</div>}
+      </Show>
       <div
         class="workspace"
         data-mtab={mobileTab()}

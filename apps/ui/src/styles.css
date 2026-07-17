@@ -53,6 +53,22 @@ img,
   height: 100dvh; /* dynamic viewport — tracks the mobile URL bar show/hide */
 }
 
+.strategic-fit-metadata-warning {
+  position: fixed;
+  z-index: 120;
+  top: calc(3.7rem + env(safe-area-inset-top));
+  left: 50%;
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: 0.65rem 0.85rem;
+  transform: translateX(-50%);
+  border: 1px solid #c9972d;
+  border-radius: 6px;
+  background: #3b321f;
+  color: #ffe3a3;
+  box-shadow: 0 4px 18px #0008;
+  font-size: 0.85rem;
+}
+
 .topbar {
   display: flex;
   align-items: center;
