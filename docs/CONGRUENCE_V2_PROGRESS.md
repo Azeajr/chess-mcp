@@ -16,16 +16,17 @@
 | 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
 | 2.2 | Complete | `e9a895a` | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
 | 2.3 | Complete | `1ee9737` | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
-| 2.4 | Complete | This commit | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
+| 2.4 | Complete | `3d77fbe` | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
 
 ## Coordinator state
 
-- Verified through Task 2.3 at `1ee9737` (`feat: add strategic fit modes`).
-- Latest implementation gate at `1ee9737`: Strategic Fit 86/86; chess-tools build; monorepo typecheck;
+- Verified through Task 2.4 at `3d77fbe` (`feat: add strategic fit distance`).
+- Latest implementation gate at `3d77fbe`: Strategic Fit 93/93; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.4 — Implement explainable strategic distance. Its Task 1.8 and 2.3
-  dependencies are complete.
+- Next tasks: Task 2.5 — Calculate confidence and difference magnitude, and Task 2.6 — Attribute
+  engine-free causal ownership. Their dependencies are complete, and the plan explicitly permits
+  these tasks to run in parallel after Task 2.4.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
