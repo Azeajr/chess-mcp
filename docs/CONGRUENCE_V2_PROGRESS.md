@@ -21,16 +21,17 @@
 | 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
 | 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 | 2.8 | Complete | `15b4a48` | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
-| 2.9 | Complete | This commit | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
+| 2.9 | Complete | `445be49` | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
 
 ## Coordinator state
 
-- Verified through Task 2.8 at `15b4a48` (`feat: compute strategic fit overview metrics`).
-- Latest implementation gate at `15b4a48`: Strategic Fit 128/128; chess-tools build; monorepo typecheck;
+- Verified through Task 2.9 at `445be49` (`feat: compose strategic fit analyzer`).
+- Latest implementation gate at `445be49`: Strategic Fit 138/138; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.9 — Compose the engine-free V2 analyzer. Its Task 1.1 and Task 2.2–2.8
-  dependencies are complete.
+- Next tasks: Task 3.1 — Add the temporary legacy result projection, and Task 3.3 — Add the
+  Strategic Fit Web Worker and typed client. Their dependencies are complete, and the plan
+  explicitly permits Task 3.3 to run in parallel with Tasks 3.1–3.2.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
