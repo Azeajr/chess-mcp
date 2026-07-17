@@ -31,7 +31,7 @@
 
 - Verified through Task 3.3, including Task 3.2 at `e64a216` (`feat: expose strategic fit v2 adapters`).
 - Task 3.4 implementation is complete in this commit and awaits coordinator verification.
-- Task 3.4 validation: Strategic Fit 149/149; UI 31/31; handle cache 9/9; GameTree smoke
+- Task 3.4 validation: Strategic Fit 151/151; UI 31/31; handle cache 9/9; GameTree smoke
   213/213; structure accuracy 27/27; canonical tool-contract inventory and semantics; MCP smoke
   76/76 with network disabled; chess-tools/UI builds; monorepo typecheck; docs and
   synchronized-skills checks.

@@ -50,6 +50,8 @@ export interface StrategicFitPageProjectionRequest extends StrategicFitProjectio
 
 export interface StrategicFitFindingProjectionRequest extends StrategicFitProjectionIdentity {
   readonly kind: "finding";
+  /** Finding evidence is report-specific even when its semantic finding ID survives reanalysis. */
+  readonly expected_report_id: string;
   readonly finding_id: string;
 }
 
@@ -328,6 +330,15 @@ export function projectStrategicFitReport(
   report: StrategicFitReport,
   request: StrategicFitProjectionRequest,
 ): StrategicFitProjection {
+  if (
+    request.kind === "finding" &&
+    (typeof request.expected_report_id !== "string" || request.expected_report_id.length === 0)
+  ) {
+    throw new StrategicFitReportProjectionError(
+      "strategic_fit_missing_report_identity",
+      "Finding projections require the exact Strategic Fit report identity.",
+    );
+  }
   assertCurrent(report, request);
   if (request.kind === "summary") {
     return {

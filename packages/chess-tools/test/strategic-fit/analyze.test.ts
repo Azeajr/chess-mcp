@@ -201,6 +201,25 @@ test("empty blocking input returns an explicit report without starting dependent
   assert.doesNotMatch(JSON.stringify(report), /consistent/i);
 });
 
+test("distinct blocked reports cannot collide when a revision label is reused", () => {
+  const empty = new GameTree();
+  const malformed = GameTree.fromPgn("1. e4 e5 *");
+  (malformed.game.moves.children[0]!.data as { san: unknown }).san = 42;
+  const options = {
+    repertoireColor: "white" as const,
+    repertoireRevision: "revision:reused-blocked",
+  };
+
+  const emptyReport = analyzeStrategicFit(empty, options);
+  const malformedReport = analyzeStrategicFit(malformed, options);
+  assert.equal(emptyReport.preflight.state, "blocked");
+  assert.equal(malformedReport.preflight.state, "blocked");
+  assert.notDeepEqual(emptyReport.preflight, malformedReport.preflight);
+  assert.notEqual(emptyReport.report_id, malformedReport.report_id);
+  assert.equal(analyzeStrategicFit(empty, options).report_id, emptyReport.report_id);
+  assert.equal(analyzeStrategicFit(malformed, options).report_id, malformedReport.report_id);
+});
+
 test("malformed trees remain structured blocking reports at the composition boundary", () => {
   const tree = GameTree.fromPgn("1. e4 e5 *");
   (tree.game.moves.children[0]!.data as { san: unknown }).san = 42;

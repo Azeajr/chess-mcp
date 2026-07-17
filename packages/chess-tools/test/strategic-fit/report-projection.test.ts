@@ -142,6 +142,47 @@ test("stale revisions, report IDs, and missing findings fail closed", () => {
   }
 });
 
+test("finding lookup requires the exact report after same-revision settings changes", () => {
+  const previous = completeReport();
+  const current = completeReport({
+    ...OPTIONS,
+    profile: {
+      ...previous.profile,
+      mode: "familiar-plans",
+      source: "explicit",
+      provisional: false,
+    },
+  });
+  assert.notEqual(previous.report_id, current.report_id);
+  const sharedFinding = previous.findings.find((finding) =>
+    current.findings.some((candidate) => candidate.finding_id === finding.finding_id)
+  );
+  assert.ok(sharedFinding, "the fixture retains a semantic finding across profile settings");
+
+  assert.throws(
+    () => projectStrategicFitReport(current, {
+      kind: "finding",
+      expected_repertoire_revision: current.repertoire_revision,
+      expected_report_id: previous.report_id,
+      finding_id: sharedFinding.finding_id,
+    }),
+    (error: unknown) =>
+      error instanceof StrategicFitReportProjectionError &&
+      error.code === "strategic_fit_stale_report",
+  );
+
+  assert.throws(
+    () => projectStrategicFitReport(current, {
+      kind: "finding",
+      expected_repertoire_revision: current.repertoire_revision,
+      finding_id: sharedFinding.finding_id,
+    } as Parameters<typeof projectStrategicFitReport>[1]),
+    (error: unknown) =>
+      error instanceof StrategicFitReportProjectionError &&
+      error.code === "strategic_fit_missing_report_identity",
+  );
+});
+
 test("cache identity ignores projections but changes with content, revision, color, manifest settings, and profile", () => {
   const base = strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, OPTIONS);
   assert.equal(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {

@@ -981,10 +981,11 @@ function reportId(
   options: AnalyzeStrategicFitOptions,
   graph: RepertoireGraph | null,
   profile: StrategicFitProfile,
+  blockedPreflight: StrategicFitPreflight | null = null,
 ): string {
   return semanticId("strategic-fit-report", [
     options.repertoireRevision,
-    graph?.graph_id ?? "blocked",
+    graph?.graph_id ?? ["blocked", blockedPreflight],
     STRATEGIC_FIT_ANALYSIS_MANIFEST,
     profile,
     analysisIdentity(options),
@@ -1001,7 +1002,7 @@ function blockedResult(
   return {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-    report_id: reportId(options, null, profile),
+    report_id: reportId(options, null, profile, preflight),
     repertoire_revision: options.repertoireRevision,
     manifest: STRATEGIC_FIT_ANALYSIS_MANIFEST,
     profile,
