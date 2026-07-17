@@ -14,6 +14,7 @@
 | 1.7 | Complete | `d25e5e9` | Phase 1 gate | Strategic trajectories and persistence rules. |
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
 | 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
+| 2.2 | Complete | This commit | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
 
 ## Coordinator state
 
