@@ -19,15 +19,15 @@
 | 2.4 | Complete | `3d77fbe` | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
 | 2.5 | Complete | `f19f7b5` | Phase 2 gate | Weighted geometric confidence, explicit hard-cap reasons, and separate deterministic difference magnitude. |
 | 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
-| 2.7 | Complete | This commit | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
+| 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 
 ## Coordinator state
 
-- Verified through Task 2.6 at `474c196` (`feat: add strategic fit causality`).
-- Latest implementation gate at `474c196`: Strategic Fit 111/111; chess-tools build; monorepo typecheck;
+- Verified through Task 2.7 at `f99fb28` (`feat: classify strategic fit findings`).
+- Latest implementation gate at `f99fb28`: Strategic Fit 123/123; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.7 — Classify diversity and calculate priorities. Its Task 2.3, 2.5, and 2.6
+- Next task: Task 2.8 — Compute Strategic Fit overview metrics. Its Task 2.1, 2.3, and 2.7
   dependencies are complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
