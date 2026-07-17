@@ -13,16 +13,16 @@
 | 1.6 | Complete | `a8d52a1` | Phase 1 gate | King, piece-setup, space, and file signals. |
 | 1.7 | Complete | `d25e5e9` | Phase 1 gate | Strategic trajectories and persistence rules. |
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
-| 2.1 | Complete | This commit | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
+| 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
 
 ## Coordinator state
 
-- Verified through Task 1.8 at `ce09d6b` (`feat: add strategic fit concept dictionary`).
-- Latest implementation gate at `ce09d6b`: Strategic Fit 66/66; chess-tools build; monorepo typecheck;
-  structure accuracy 27/27; game-tree smoke 213/213.
+- Verified through Task 2.1 at `9a005a0` (`feat: add strategic fit route weights`).
+- Latest implementation gate at `9a005a0`: Strategic Fit 72/72; chess-tools build; monorepo typecheck;
+  game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.1 — Implement route weights and effective sample size. Its Task 1.2
-  dependency is complete.
+- Next task: Task 2.2 — Form hierarchical comparable cohorts. Its Task 1.3, 1.7, and 2.1
+  dependencies are complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
