@@ -298,8 +298,16 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   },
   export_annotated_repertoire: async (args, context) => {
     context.onProgress?.(0, args.max_positions as number | undefined, "running repertoire analyses");
-    const result = await annotateRepertoire(context.currentTree(), context.currentColor(), {
-      include: args.include as never,
+    const tree = context.currentTree();
+    const color = context.currentColor();
+    const pgn = context.currentPgn();
+    const revision = context.currentRevision();
+    const repertoireRevision = `browser:${revision}`;
+    const openings = await context.openings();
+    const include = args.include as ("audit" | "only_moves" | "gaps" | "congruence")[] | undefined;
+    const result = await annotateRepertoire(tree, color, {
+      include,
+      repertoireRevision,
       depth: requestedDepth(args, context),
       maxPositions: args.max_positions as number | undefined,
       minCpLoss: args.min_cp_loss as number | undefined,
@@ -307,7 +315,23 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       minSeverity: args.min_severity as never,
       shouldCancel: () => context.signal?.aborted ?? false,
       onProgress: (done, total) => context.onProgress?.(done, total, "annotating repertoire"),
-    }, commandAnalyse(context), await context.openings());
+    }, commandAnalyse(context), openings, include?.includes("congruence") === false
+      ? undefined
+      : (control) => context.strategicFitReport(
+          pgn,
+          strategicFitOptionsFromToolArguments({}, {
+            repertoireColor: color,
+            repertoireRevision,
+            openingTable: openings,
+          }),
+          {
+            signal: context.signal,
+            onProgress: (progress) => control.onProgress?.(
+              progress.phase_index + (progress.state === "completed" ? 1 : 0),
+              progress.phase_count,
+            ),
+          },
+        ));
     throwIfAborted(context.signal);
     if ("error" in result) return result;
     if ("cancelled" in result) return result;

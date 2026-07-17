@@ -3,6 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { readFile, unlink } from "node:fs/promises";
 import { TOOL_CONTRACTS, jsonSchemaForTool } from "../../../packages/chess-tools/dist/index.js";
 import { schemaSemanticDifferences } from "../../../scripts/lib/schema-semantics.mjs";
 
@@ -250,6 +251,44 @@ try {
   invalidStrategicFitRejected = true;
 }
 ok(invalidStrategicFitRejected, "analyze_repertoire_congruence rejects malformed nested V2 arguments");
+
+const annotatedFit = await call(client, "export_annotated_repertoire", {
+  repertoire_id: congRep.repertoire_id,
+  include: ["congruence"],
+});
+ok(
+  annotatedFit.annotated?.congruence > 0 &&
+    /Strategic Fit evidence \[analysis=2\.0\.0;/.test(annotatedFit.pgn ?? "") &&
+    /category=uncertain;/.test(annotatedFit.pgn ?? "") &&
+    /status=uncertain-evidence-only/.test(annotatedFit.pgn ?? ""),
+  "export_annotated_repertoire returns neutral native V2 evidence and the legacy congruence count",
+);
+const sourceAfterAnnotation = await call(client, "export_repertoire", { repertoire_id: congRep.repertoire_id });
+ok(
+  !/Strategic Fit evidence/.test(sourceAfterAnnotation.pgn ?? ""),
+  "returned annotated repertoire leaves the MCP source handle unchanged",
+);
+
+const annotationExportName = `.smoke-strategic-fit-${process.pid}.pgn`;
+const writtenFit = await call(client, "export_annotated_repertoire", {
+  repertoire_id: congRep.repertoire_id,
+  include: ["congruence"],
+  export_path: annotationExportName,
+});
+let writtenFitPgn = "";
+if (writtenFit.path) {
+  try {
+    writtenFitPgn = await readFile(writtenFit.path, "utf8");
+  } finally {
+    await unlink(writtenFit.path).catch(() => undefined);
+  }
+}
+ok(
+  writtenFit.annotated?.congruence > 0 &&
+    writtenFit.bytes > 0 &&
+    /Strategic Fit evidence \[analysis=2\.0\.0;/.test(writtenFitPgn),
+  "export_annotated_repertoire preserves the MCP confined write-artifact behavior",
+);
 
 console.log("suggest_complementary_lines (engine, depth 10)…");
 const sugRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. c4 e6 3. Nc3 Nf6 *", color: "white" });

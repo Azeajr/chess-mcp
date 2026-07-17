@@ -671,9 +671,31 @@ server.tool(
     const res = await annotateRepertoire(
       e.tree,
       e.color,
-      { include, depth, maxPositions: max_positions, minCpLoss: min_cp_loss, minMargin: min_margin, minSeverity: min_severity },
+      {
+        include,
+        repertoireRevision: e.revision,
+        depth,
+        maxPositions: max_positions,
+        minCpLoss: min_cp_loss,
+        minMargin: min_margin,
+        minSeverity: min_severity,
+      },
       analyseMulti,
       openingsTable,
+      include?.includes("congruence") === false
+        ? undefined
+        : () => {
+            const options = strategicFitOptionsFromToolArguments({}, {
+              repertoireColor: e.color,
+              repertoireRevision: e.revision,
+              openingTable: openingsTable,
+            });
+            return getOrCreateStrategicFitReport(
+              e,
+              options,
+              (completeOptions) => analyzeStrategicFit(e.tree, completeOptions),
+            );
+          },
     );
     if ("error" in res || "cancelled" in res) return ok(res);
     if (real) {

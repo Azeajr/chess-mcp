@@ -88,6 +88,7 @@ export type {
   AnnotateSource,
   AnnotateOptions,
   AnnotateResult,
+  StrategicFitAnnotationReport,
 } from "./enginetools.js";
 export * from "./strategic-fit/types.js";
 export * from "./strategic-fit/version.js";
@@ -110,6 +111,7 @@ export * from "./strategic-fit/metrics.js";
 export * from "./strategic-fit/analyze.js";
 export * from "./strategic-fit/report-projection.js";
 export * from "./strategic-fit/legacy-projection.js";
+export * from "./strategic-fit/annotation.js";
 export * from "./strategic-fit/tool-adapter.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";

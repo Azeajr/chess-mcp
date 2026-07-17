@@ -385,6 +385,53 @@ test("current-document annotation and pasted-PGN validation use distinct valid p
   assert.equal(typeof current.artifact_id, "string");
 });
 
+test("browser repertoire annotation exports native V2 evidence through the artifact boundary", async () => {
+  actions.loadPgn(`1. e4 e5 *
+
+1. d4 d5 2. c4 *
+
+1. c4 *`, "strategic-fit.pgn");
+  const source = currentTree().toPgn();
+  let artifact: { format: string; content: string; name: string } | undefined;
+  let injectedRevision: string | undefined;
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    openings: async () => new Map(),
+    analyse: async () => { throw new Error("congruence-only export must not invoke the engine"); },
+    strategicFitReport: async (
+      pgn: string,
+      options: Parameters<typeof analyzeStrategicFit>[1],
+    ) => {
+      injectedRevision = options.repertoireRevision;
+      return completeStrategicFitReport(analyzeStrategicFit(
+        GameTree.fromPgn(pgn),
+        strategicFitCompleteAnalysisOptions(options),
+      ));
+    },
+    createArtifact: (format: "pgn" | "csv", content: string, name: string) => {
+      artifact = { format, content, name };
+      return { kind: "artifact", artifact_id: "artifact:strategic-fit", format, name };
+    },
+  };
+
+  const result = await executeDirectBrowserCommand(
+    "export_annotated_repertoire",
+    { include: ["congruence"] },
+    {},
+    dependencies,
+  ) as { kind?: string; artifact_id?: string; annotated?: { congruence: number } };
+
+  assert.equal(result.kind, "artifact");
+  assert.equal(result.artifact_id, "artifact:strategic-fit");
+  assert.ok((result.annotated?.congruence ?? 0) > 0);
+  assert.equal(injectedRevision, `browser:${version()}`);
+  assert.equal(artifact?.format, "pgn");
+  assert.equal(artifact?.name, "strategic-fit-annotated.pgn");
+  assert.match(artifact?.content ?? "", /Strategic Fit evidence \[analysis=2\.0\.0;/);
+  assert.match(artifact?.content ?? "", /status=uncertain-evidence-only/);
+  assert.equal(currentTree().toPgn(), source, "browser artifact export leaves the source document unchanged");
+});
+
 test("chat reports round exhaustion, malformed tool JSON, and clean Retry", async (t) => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {

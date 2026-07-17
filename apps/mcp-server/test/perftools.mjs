@@ -139,7 +139,7 @@ for (const fen of [
     }));
   };
   const table = parseOpeningsTsv("eco\tname\tpgn\n");
-  const res = await annotateRepertoire(tree, "white", {}, analyse, table);
+  const res = await annotateRepertoire(tree, "white", { repertoireRevision: "perftools:annotation" }, analyse, table);
   ok(!("error" in res), "annotate runs clean");
   ok(res.annotated.audit === 2, `audit annotations on both prescribed moves (got ${res.annotated.audit})`);
   ok(res.annotated.only_moves === 2, `only-move annotations on both your-turn nodes (got ${res.annotated.only_moves})`);
@@ -148,7 +148,13 @@ for (const fen of [
   ok(res.pgn.includes("only move: next best -200cp"), "only-move comment embedded");
   ok(res.pgn.includes("gap: a6 not covered"), "gap comment embedded at the owed node");
   ok(tree.toPgn() === sourcePgn, "source tree untouched (annotations on a clone)");
-  const auditOnly = await annotateRepertoire(tree, "white", { include: ["audit"] }, analyse, table);
+  const auditOnly = await annotateRepertoire(
+    tree,
+    "white",
+    { include: ["audit"], repertoireRevision: "perftools:audit-only" },
+    analyse,
+    table,
+  );
   ok(auditOnly.annotated.only_moves === 0 && auditOnly.annotated.gaps === 0, "include filters the sources");
 }
 

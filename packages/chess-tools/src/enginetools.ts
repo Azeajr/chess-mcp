@@ -19,7 +19,16 @@ import { decisionNodes, turnNodes, gapSeverity, medianLineLength, SEVERITY_RANK,
 import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
 import type { OpeningTable } from "./openings.js";
-import { replacementPivot, analyzeCongruence } from "./repcongruence.js";
+import { replacementPivot } from "./repcongruence.js";
+import {
+  analyzeStrategicFit,
+  StrategicFitAnalysisCancelledError,
+} from "./strategic-fit/analyze.js";
+import {
+  strategicFitCompleteAnalysisOptions,
+} from "./strategic-fit/report-projection.js";
+import { strategicFitPortableAnnotations } from "./strategic-fit/annotation.js";
+import type { StrategicFitProgress, StrategicFitReport } from "./strategic-fit/types.js";
 import {
   profileStructureShares,
   buildFitProfile,
@@ -562,8 +571,10 @@ export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): stri
 
 export type AnnotateSource = "audit" | "only_moves" | "gaps" | "congruence";
 export interface AnnotateOptions extends OperationControl {
-  /** Which analyses to embed (default: all four; congruence silently skipped without an OpeningTable). */
+  /** Which analyses to embed (default: all four). */
   include?: AnnotateSource[];
+  /** Host-owned immutable revision disclosed to and checked against Strategic Fit evidence. */
+  repertoireRevision: string;
   depth?: number;
   /** Per-scan position cap; unset = each tool's own default (audit/gaps 20, only-moves 300). */
   maxPositions?: number;
@@ -571,13 +582,23 @@ export interface AnnotateOptions extends OperationControl {
   minCpLoss?: number;
   /** only-move filter (default 100). */
   minMargin?: number;
-  /** gaps + congruence filter (default medium). */
+  /** Gap severity filter (default medium); retained as a public compatibility input. */
   minSeverity?: Severity;
 }
 export type AnnotateResult =
   | { error: "engine_unavailable" }
+  | { error: "strategic_fit_stale_report"; reason: string }
   | { cancelled: true }
   | { color: Color; pgn: string; annotated: Record<AnnotateSource, number> };
+
+/**
+ * Hosts inject their canonical Strategic Fit execution boundary: the browser uses its Worker and
+ * report cache, while MCP uses the handle cache and in-process analyzer. Direct domain callers may
+ * omit this callback and use the same shared analyzer synchronously.
+ */
+export type StrategicFitAnnotationReport = (
+  control: OperationControl,
+) => StrategicFitReport | Promise<StrategicFitReport>;
 
 // Same glyph mapping as export_annotated_pgn: $4 = blunder (??), $2 = mistake (?), $6 = dubious (?!).
 const ANNOTATE_NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
@@ -596,6 +617,7 @@ export async function annotateRepertoire(
   opts: AnnotateOptions,
   analyse: Analyse,
   openings?: OpeningTable,
+  strategicFitReport?: StrategicFitAnnotationReport,
 ): Promise<AnnotateResult> {
   const include = opts.include ?? ["audit", "only_moves", "gaps", "congruence"];
   let phase = 0;
@@ -692,18 +714,51 @@ export async function annotateRepertoire(
     nextPhase();
   }
 
-  if (include.includes("congruence") && openings) {
+  if (include.includes("congruence")) {
     if (opts.shouldCancel?.()) return { cancelled: true };
-    const res = analyzeCongruence(tree, color, openings, { minSeverity: opts.minSeverity, limit: NO_LIMIT });
-    for (const flag of res.incongruencies) {
-      for (const p of flag.paths) {
-        const d = childData(p);
+    const control = phaseControl();
+    let report: StrategicFitReport;
+    try {
+      report = strategicFitReport
+        ? await strategicFitReport(control)
+        : analyzeStrategicFit(tree, strategicFitCompleteAnalysisOptions({
+            repertoireColor: color,
+            repertoireRevision: opts.repertoireRevision,
+            openingTable: openings,
+            shouldCancel: opts.shouldCancel,
+            onProgress: (progress: StrategicFitProgress) => control.onProgress?.(
+              progress.phase_index + (progress.state === "completed" ? 1 : 0),
+              progress.phase_count,
+            ),
+          }));
+    } catch (error) {
+      if (opts.shouldCancel?.() || error instanceof StrategicFitAnalysisCancelledError) {
+        return { cancelled: true };
+      }
+      throw error;
+    }
+    if (opts.shouldCancel?.()) return { cancelled: true };
+    if (report.repertoire_revision !== opts.repertoireRevision) {
+      return {
+        error: "strategic_fit_stale_report",
+        reason: `Strategic Fit report belongs to ${report.repertoire_revision}, not ${opts.repertoireRevision}.`,
+      };
+    }
+    for (const annotation of strategicFitPortableAnnotations(report)) {
+      for (const p of annotation.source_san_paths) {
+        if (p.length === 0) {
+          (clone.game.comments ??= []).push(annotation.text);
+          annotated.congruence++;
+          continue;
+        }
+        const d = childData([...p]);
         if (!d) continue;
-        comment(d, `congruence: ${flag.description}`);
+        comment(d, annotation.text);
         annotated.congruence++;
       }
     }
-    opts.onProgress?.(++phase * 100, include.length * 100);
+    nextPhase();
+    opts.onProgress?.(phase * 100, include.length * 100);
   }
 
   return { color, pgn: clone.toPgn(), annotated };
