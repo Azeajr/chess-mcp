@@ -1154,6 +1154,24 @@ img,
 .result-error-card { border-left: 3px solid #b95a61; padding-left: 0.55rem; }
 .result-code { color: #f0a8ac; font-family: ui-monospace, monospace; font-size: 0.68rem; }
 .report-card .result-summary { width: 100%; }
+.strategic-fit-card { align-items: stretch; }
+.strategic-fit-report-id { width: 100%; color: var(--muted); font-size: 0.68rem; }
+.strategic-fit-report-id code, .strategic-fit-reference code { color: #b8c7dd; overflow-wrap: anywhere; }
+.strategic-fit-counts { width: 100%; display: flex; flex-wrap: wrap; gap: 0.28rem; }
+.strategic-fit-counts span, .strategic-fit-signals span { border: 1px solid var(--border); border-radius: 999px; padding: 0.12rem 0.38rem; color: var(--muted); }
+.strategic-fit-preflight { padding-left: 0.42rem; border-left: 3px solid #6e7784; }
+.strategic-fit-incomplete .strategic-fit-preflight { border-left-color: #b78b38; }
+.strategic-fit-blocked .strategic-fit-preflight { border-left-color: #b95a61; }
+.strategic-fit-issues { width: 100%; margin: 0; padding-left: 1.2rem; color: var(--muted); }
+.strategic-fit-findings-title { width: 100%; font-weight: 650; margin-top: 0.2rem; }
+.strategic-fit-finding { width: 100%; display: grid; gap: 0.25rem; border: 1px solid var(--border); border-radius: 7px; padding: 0.45rem; }
+.strategic-fit-finding-head { display: flex; justify-content: space-between; gap: 0.5rem; }
+.strategic-fit-category { font-weight: 650; }
+.strategic-fit-classification, .strategic-fit-scope, .strategic-fit-explanation, .strategic-fit-empty, .strategic-fit-more { color: var(--muted); }
+.strategic-fit-signals { display: flex; flex-wrap: wrap; gap: 0.25rem; font-size: 0.68rem; }
+.strategic-fit-signals b { color: var(--text); }
+.strategic-fit-reference { display: grid; gap: 0.25rem; }
+.strategic-fit-nav { margin-top: 0.1rem; }
 .result-card button, .result-nav { font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.18rem 0.5rem; background: #33333a; color: var(--text); cursor: pointer; }
 .result-card .result-accept { border-color: #3c7a4b; background: #284d31; }
 .result-status { text-transform: capitalize; }

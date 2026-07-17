@@ -26,6 +26,7 @@
 | 3.2 | Complete | `e64a216` | Phase 3 gate | Canonical nested V2 inputs, shared host argument adaptation, worker/in-process analyzer parity, bounded legacy projection, and synchronized public surfaces. |
 | 3.3 | Complete | `8ddeb7e` | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
 | 3.4 | Complete | `e844593` | Phase 3 gate | Immutable revision/content/settings-keyed host report caches with bounded summary, cursor-page, finding, and full projections plus exact report identity, stale-result rejection, and handle-lifecycle cleanup. |
+| 3.5 | Complete | `This commit` | UI chat 32/32; Playwright 17/17 (targeted 4/4); Phase 3 gate | Typed Strategic Fit chat card with explicit preflight/report states, separate confidence/difference/replacement/training priority, bounded top findings, safe SAN navigation from semantic findings, compact report/finding references, and legacy projection compatibility. Awaiting independent coordinator verification. |
 
 ## Coordinator state
 
@@ -35,7 +36,8 @@
   213/213; structure accuracy 27/27; canonical tool-contract inventory and semantics; MCP smoke
   76/76 with network disabled; chess-tools/UI builds; monorepo typecheck; docs and
   synchronized-skills checks.
-- No blocker remains. Resume with Task 3.5 — Render typed V2 chat results.
+- Task 3.5 implementation is recorded as `This commit` and awaits independent coordinator review;
+  do not begin Task 3.6 until that verification is complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.

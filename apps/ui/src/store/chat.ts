@@ -62,6 +62,7 @@ const REFERENCE_KEYS = new Set([
   "error", "reason", "fen", "path", "san_path", "variation_path", "pivot_path", "joins_path",
   "selected_path", "revision", "action_id", "artifact_id", "kind", "format", "name", "media_type",
   "bytes", "total", "returned", "next_leaf", "partial", "page", "next_page", "truncated",
+  "report_id", "finding_id", "repertoire_revision", "source_san_paths",
 ]);
 
 export function compactToolResult(content: string): string {
@@ -69,14 +70,54 @@ export function compactToolResult(content: string): string {
     const value = JSON.parse(content) as unknown;
     if (!value || typeof value !== "object") return JSON.stringify({ compacted: true, characters: content.length });
     const references: Record<string, unknown>[] = [];
+    const referencesByLocation = new Map<string, Record<string, unknown>>();
+    const addReference = (location: string, kept: Record<string, unknown>) => {
+      if (!Object.keys(kept).length) return;
+      const existing = referencesByLocation.get(location);
+      if (existing) {
+        Object.assign(existing, kept);
+        return;
+      }
+      if (references.length >= 100) return;
+      const reference = { location, ...kept };
+      references.push(reference);
+      referencesByLocation.set(location, reference);
+    };
+    // Strategic Fit reports contain enough provenance to exhaust the general reference bound
+    // before findings are reached. Pin semantic report/finding identities first so follow-up
+    // discussion never loses the canonical handles during history compaction.
+    const pinStrategicFitIdentities = (candidate: unknown, location: string) => {
+      if (!candidate || typeof candidate !== "object") return;
+      if (Array.isArray(candidate)) {
+        candidate.forEach((item, index) => pinStrategicFitIdentities(item, `${location}[${index}]`));
+        return;
+      }
+      const item = candidate as Record<string, unknown>;
+      if (typeof item.report_id === "string") addReference(location, {
+        report_id: item.report_id,
+        ...(typeof item.repertoire_revision === "string" ? { repertoire_revision: item.repertoire_revision } : {}),
+      });
+      if (typeof item.finding_id === "string") {
+        const findingReferences = item.references && typeof item.references === "object" && !Array.isArray(item.references)
+          ? item.references as Record<string, unknown>
+          : null;
+        addReference(location, {
+          finding_id: item.finding_id,
+          ...(typeof item.repertoire_revision === "string" ? { repertoire_revision: item.repertoire_revision } : {}),
+          ...(Array.isArray(findingReferences?.source_san_paths) ? { source_san_paths: findingReferences.source_san_paths } : {}),
+        });
+      }
+      for (const [key, child] of Object.entries(item)) pinStrategicFitIdentities(child, `${location}.${key}`);
+    };
     const visit = (candidate: unknown, location: string) => {
       if (references.length >= 100 || !candidate || typeof candidate !== "object") return;
       if (Array.isArray(candidate)) { candidate.forEach((item, index) => visit(item, `${location}[${index}]`)); return; }
       const item = candidate as Record<string, unknown>;
       const kept = Object.fromEntries(Object.entries(item).filter(([key]) => REFERENCE_KEYS.has(key)));
-      if (Object.keys(kept).length) references.push({ location, ...kept });
+      addReference(location, kept);
       for (const [key, child] of Object.entries(item)) visit(child, `${location}.${key}`);
     };
+    pinStrategicFitIdentities(value, "$result");
     visit(value, "$result");
     const root = value as Record<string, unknown>;
     return JSON.stringify({ compacted: true, keys: Object.keys(root), references, references_truncated: references.length >= 100 });

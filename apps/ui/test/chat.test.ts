@@ -22,7 +22,7 @@ import { defaultBrowserCommandDependencies } from "../src/application/browser-co
 import { executeDirectBrowserCommand } from "../src/store/commands.ts";
 import { runTool } from "../src/llm/tools.ts";
 import { workflowPrompt } from "../src/llm/workflows.ts";
-import { findArtifactMetadata } from "../src/components/ToolResult.tsx";
+import { findArtifactMetadata, strategicFitChatState } from "../src/components/ToolResult.tsx";
 import { requestedDepth } from "../src/application/browser-commands/types.ts";
 
 const sse = (...frames: unknown[]) => new ReadableStream({
@@ -259,6 +259,13 @@ test("browser Strategic Fit adapter fails closed when the document changes durin
   );
 });
 
+test("Strategic Fit chat state preserves incomplete and blocked evidence semantics", () => {
+  assert.equal(strategicFitChatState({ state: "ready" }, []), "complete");
+  assert.equal(strategicFitChatState({ state: "ready" }, [{ provisional: true }]), "provisional");
+  assert.equal(strategicFitChatState({ state: "degraded" }, []), "incomplete");
+  assert.equal(strategicFitChatState({ state: "blocked" }, []), "blocked");
+});
+
 test("browser annotation guidance validates pasted PGN only and keeps artifact types distinct", () => {
   assert.match(workflowPrompt(""), /Shared grounding contract/);
   assert.match(workflowPrompt(""), /When the user explicitly names an analysis or export, call its matching command/);
@@ -269,6 +276,8 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
   assert.match(prompt, /export_annotated_pgn/);
   assert.match(prompt, /export_annotated_repertoire/);
   assert.doesNotMatch(prompt, /omit pgn to annotate/);
+  assert.match(workflowPrompt("repertoire"), /preserve report_id and finding_id exactly/);
+  assert.match(workflowPrompt("repertoire"), /insufficient-evidence result is not evidence of consistency/);
 });
 
 test("actual chat requests transmit all 39 schemas on natural, follow-up, and preset turns", async (t) => {
@@ -511,7 +520,7 @@ test("artifact results expose metadata by reference without repeating content", 
   assert.deepEqual(findArtifactMetadata({ findings: [], deck }), [deck]);
 });
 
-test("history compaction preserves nested artifacts, actions, navigation, and pagination references", async () => {
+test("history compaction preserves Strategic Fit identities, artifacts, actions, navigation, and pagination references", async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -519,7 +528,15 @@ test("history compaction preserves nested artifacts, actions, navigation, and pa
   });
   const { compactToolResult } = await import("../src/store/chat.ts");
   const compacted = JSON.parse(compactToolResult(JSON.stringify({
-    findings: [{ path: ["e4", "e5"], fen: "fen-value", detail: "x".repeat(7000) }],
+    report_id: "strategic-fit-report:abc",
+    repertoire_revision: "browser:7",
+    findings: [{
+      finding_id: "finding:def",
+      references: { source_san_paths: [["e4", "e5"]] },
+      path: ["e4", "e5"],
+      fen: "fen-value",
+      detail: "x".repeat(7000),
+    }],
     deck: { kind: "artifact", artifact_id: "artifact-9", format: "csv", name: "drill.csv", bytes: 12 },
     action: { kind: "staged_edit", action_id: "edit-3", revision: 7, path: ["e4"] },
     next_page: "cursor-2",
@@ -530,5 +547,9 @@ test("history compaction preserves nested artifacts, actions, navigation, and pa
   assert.match(serialized, /edit-3/);
   assert.match(serialized, /fen-value/);
   assert.match(serialized, /cursor-2/);
+  assert.match(serialized, /strategic-fit-report:abc/);
+  assert.match(serialized, /finding:def/);
+  assert.match(serialized, /browser:7/);
+  assert.match(serialized, /source_san_paths/);
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
