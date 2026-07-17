@@ -13,6 +13,7 @@
 | 1.6 | Complete | `a8d52a1` | Phase 1 gate | King, piece-setup, space, and file signals. |
 | 1.7 | Complete | `d25e5e9` | Phase 1 gate | Strategic trajectories and persistence rules. |
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
+| 2.1 | Complete | This commit | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
 
 ## Coordinator state
 
