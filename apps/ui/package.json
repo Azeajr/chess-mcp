@@ -10,6 +10,7 @@
     "dev:host": "vite --host",
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
+    "postbuild": "node scripts/check-worker-boundary.mjs",
     "test:chat": "tsx --test test/*.test.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "preview": "vite preview",

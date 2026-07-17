@@ -20,15 +20,8 @@ import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
 import type { OpeningTable } from "./openings.js";
 import { replacementPivot } from "./repcongruence.js";
-import {
-  analyzeStrategicFit,
-  StrategicFitAnalysisCancelledError,
-} from "./strategic-fit/analyze.js";
-import {
-  strategicFitCompleteAnalysisOptions,
-} from "./strategic-fit/report-projection.js";
 import { strategicFitPortableAnnotations } from "./strategic-fit/annotation.js";
-import type { StrategicFitProgress, StrategicFitReport } from "./strategic-fit/types.js";
+import type { StrategicFitReport } from "./strategic-fit/types.js";
 import {
   profileStructureShares,
   buildFitProfile,
@@ -594,7 +587,8 @@ export type AnnotateResult =
 /**
  * Hosts inject their canonical Strategic Fit execution boundary: the browser uses its Worker and
  * report cache, while MCP uses the handle cache and in-process analyzer. Direct domain callers may
- * omit this callback and use the same shared analyzer synchronously.
+ * omit this callback; congruence annotation is then skipped without pulling the heavy analyzer
+ * into a host's execution bundle.
  */
 export type StrategicFitAnnotationReport = (
   control: OperationControl,
@@ -616,7 +610,7 @@ export async function annotateRepertoire(
   color: Color,
   opts: AnnotateOptions,
   analyse: Analyse,
-  openings?: OpeningTable,
+  _openings?: OpeningTable,
   strategicFitReport?: StrategicFitAnnotationReport,
 ): Promise<AnnotateResult> {
   const include = opts.include ?? ["audit", "only_moves", "gaps", "congruence"];
@@ -716,45 +710,34 @@ export async function annotateRepertoire(
 
   if (include.includes("congruence")) {
     if (opts.shouldCancel?.()) return { cancelled: true };
-    const control = phaseControl();
-    let report: StrategicFitReport;
-    try {
-      report = strategicFitReport
-        ? await strategicFitReport(control)
-        : analyzeStrategicFit(tree, strategicFitCompleteAnalysisOptions({
-            repertoireColor: color,
-            repertoireRevision: opts.repertoireRevision,
-            openingTable: openings,
-            shouldCancel: opts.shouldCancel,
-            onProgress: (progress: StrategicFitProgress) => control.onProgress?.(
-              progress.phase_index + (progress.state === "completed" ? 1 : 0),
-              progress.phase_count,
-            ),
-          }));
-    } catch (error) {
-      if (opts.shouldCancel?.() || error instanceof StrategicFitAnalysisCancelledError) {
-        return { cancelled: true };
+    if (strategicFitReport) {
+      const control = phaseControl();
+      let report: StrategicFitReport;
+      try {
+        report = await strategicFitReport(control);
+      } catch (error) {
+        if (opts.shouldCancel?.()) return { cancelled: true };
+        throw error;
       }
-      throw error;
-    }
-    if (opts.shouldCancel?.()) return { cancelled: true };
-    if (report.repertoire_revision !== opts.repertoireRevision) {
-      return {
-        error: "strategic_fit_stale_report",
-        reason: `Strategic Fit report belongs to ${report.repertoire_revision}, not ${opts.repertoireRevision}.`,
-      };
-    }
-    for (const annotation of strategicFitPortableAnnotations(report)) {
-      for (const p of annotation.source_san_paths) {
-        if (p.length === 0) {
-          (clone.game.comments ??= []).push(annotation.text);
+      if (opts.shouldCancel?.()) return { cancelled: true };
+      if (report.repertoire_revision !== opts.repertoireRevision) {
+        return {
+          error: "strategic_fit_stale_report",
+          reason: `Strategic Fit report belongs to ${report.repertoire_revision}, not ${opts.repertoireRevision}.`,
+        };
+      }
+      for (const annotation of strategicFitPortableAnnotations(report)) {
+        for (const p of annotation.source_san_paths) {
+          if (p.length === 0) {
+            (clone.game.comments ??= []).push(annotation.text);
+            annotated.congruence++;
+            continue;
+          }
+          const d = childData([...p]);
+          if (!d) continue;
+          comment(d, annotation.text);
           annotated.congruence++;
-          continue;
         }
-        const d = childData([...p]);
-        if (!d) continue;
-        comment(d, annotation.text);
-        annotated.congruence++;
       }
     }
     nextPhase();

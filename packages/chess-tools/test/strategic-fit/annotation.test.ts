@@ -59,11 +59,14 @@ test("multi-path V2 findings annotate every relevant source SAN path", async () 
 test("uncertain observations are clearly exported as evidence only, never as defects", async () => {
   const tree = parseStrategicFitFixture(SHALLOW_LINES_FIXTURE);
   const revision = "annotation:uncertain";
+  const report = completeReport(tree, SHALLOW_LINES_FIXTURE.repertoireColor, revision);
   const result = await annotateRepertoire(
     tree,
     SHALLOW_LINES_FIXTURE.repertoireColor,
     { include: ["congruence"], repertoireRevision: revision },
     noEngine,
+    undefined,
+    () => report,
   );
   assert.ok(!("error" in result) && !("cancelled" in result));
   assert.ok(result.annotated.congruence > 0);
@@ -115,11 +118,14 @@ test("annotation exports mutate only the clone and reject stale injected evidenc
   });
   assert.equal(tree.toPgn(), before);
 
+  const cloneReport = completeReport(tree, SHALLOW_LINES_FIXTURE.repertoireColor, "annotation:clone");
   const exported = await annotateRepertoire(
     tree,
     SHALLOW_LINES_FIXTURE.repertoireColor,
     { include: ["congruence"], repertoireRevision: "annotation:clone" },
     noEngine,
+    undefined,
+    () => cloneReport,
   );
   assert.ok(!("error" in exported) && !("cancelled" in exported));
   assert.notEqual(exported.pgn, before);
@@ -129,6 +135,7 @@ test("annotation exports mutate only the clone and reject stale injected evidenc
 
 test("direct Strategic Fit annotation cancellation returns without an artifact", async () => {
   const tree = parseStrategicFitFixture(SHALLOW_LINES_FIXTURE);
+  const report = completeReport(tree, SHALLOW_LINES_FIXTURE.repertoireColor, "annotation:cancelled");
   let cancelled = false;
   const result = await annotateRepertoire(
     tree,
@@ -140,7 +147,28 @@ test("direct Strategic Fit annotation cancellation returns without an artifact",
       onProgress: () => { cancelled = true; },
     },
     noEngine,
+    undefined,
+    (control) => {
+      control.onProgress?.(0, 6);
+      return report;
+    },
   );
 
   assert.deepEqual(result, { cancelled: true });
+});
+
+test("direct callers without a host report provider skip congruence compatibly", async () => {
+  const tree = parseStrategicFitFixture(SHALLOW_LINES_FIXTURE);
+  const before = tree.toPgn();
+  const result = await annotateRepertoire(
+    tree,
+    SHALLOW_LINES_FIXTURE.repertoireColor,
+    { include: ["congruence"], repertoireRevision: "annotation:no-provider" },
+    noEngine,
+  );
+
+  assert.ok(!("error" in result) && !("cancelled" in result));
+  assert.equal(result.annotated.congruence, 0);
+  assert.equal(result.pgn, before);
+  assert.equal(tree.toPgn(), before);
 });
