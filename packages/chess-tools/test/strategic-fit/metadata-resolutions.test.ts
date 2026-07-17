@@ -59,6 +59,7 @@ function resolution(
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     resolution_id: "resolution:test",
     finding_id: "finding:test",
+    semantic_finding_id: "semantic-finding:test",
     repertoire_revision: "revision:test",
     state: "keep-intentionally",
     intentional_reason: "strategically-desirable",
@@ -226,6 +227,7 @@ test("active persisted decisions remain in reports but leave the unresolved queu
   const metadata = withResolution(graph, {
     resolution_id: "resolution:queue",
     finding_id: finding.finding_id,
+    semantic_finding_id: finding.semantic_finding_id,
     repertoire_revision: options.repertoireRevision,
     state: "defer",
     intentional_reason: null,
@@ -241,6 +243,103 @@ test("active persisted decisions remain in reports but leave the unresolved queu
   assert.ok(retained, "resolved finding remains available to map/report projections");
   assert.equal(retained.resolution_state, "defer");
   assert.ok(second.summary.unresolved_finding_count < first.summary.unresolved_finding_count);
+});
+
+test("a persisted resolution targets one semantic finding when sibling findings share every route", () => {
+  const tree = parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE);
+  const graph = buildRepertoireGraph(tree, "white");
+  const first = analyzeStrategicFit(tree, {
+    repertoireColor: "white",
+    repertoireRevision: "revision:shared-routes",
+  });
+  const target = first.findings.find((finding) =>
+    finding.classification === "transpositional-equivalence"
+  );
+  const sibling = first.findings.find((finding) => finding.classification === "uncertain");
+  assert.ok(target);
+  assert.ok(sibling);
+  assert.deepEqual(target.references.route_ids, sibling.references.route_ids);
+  assert.deepEqual(target.references.position_ids, sibling.references.position_ids);
+  assert.deepEqual(target.references.decision_ids, sibling.references.decision_ids);
+  assert.notEqual(target.semantic_finding_id, sibling.semantic_finding_id);
+
+  const metadata = withResolution(graph, {
+    resolution_id: "resolution:shared-routes",
+    finding_id: target.finding_id,
+    semantic_finding_id: target.semantic_finding_id,
+    repertoire_revision: target.repertoire_revision,
+    state: "defer",
+    intentional_reason: null,
+    references: target.references,
+  });
+  const inputs = strategicFitAnalysisInputsFromMetadata(metadata, graph);
+  const second = analyzeStrategicFit(tree, {
+    repertoireColor: "white",
+    repertoireRevision: "revision:shared-routes",
+    routeAssessments: inputs.route_assessments,
+  });
+
+  assert.equal(
+    second.findings.find((finding) => finding.semantic_finding_id === target.semantic_finding_id)?.resolution_state,
+    "defer",
+  );
+  assert.equal(
+    second.findings.find((finding) => finding.semantic_finding_id === sibling.semantic_finding_id)?.resolution_state,
+    "unresolved",
+  );
+  assert.equal(first.summary.unresolved_finding_count, 2);
+  assert.equal(second.summary.unresolved_finding_count, 1);
+
+  const siblingResolution = resolution(graph, {
+    resolution_id: "resolution:shared-routes-sibling",
+    finding_id: sibling.finding_id,
+    semantic_finding_id: sibling.semantic_finding_id,
+    repertoire_revision: sibling.repertoire_revision,
+    state: "train-as-exception",
+    intentional_reason: null,
+    references: sibling.references,
+  });
+  const bothInputs = strategicFitAnalysisInputsFromMetadata({
+    ...metadata,
+    resolutions: [...metadata.resolutions, siblingResolution],
+  }, graph);
+  assert.equal(
+    bothInputs.route_assessments?.length,
+    target.references.route_ids.length + sibling.references.route_ids.length,
+  );
+  const both = analyzeStrategicFit(tree, {
+    repertoireColor: "white",
+    repertoireRevision: "revision:shared-routes",
+    routeAssessments: bothInputs.route_assessments,
+  });
+  assert.equal(
+    both.findings.find((finding) => finding.semantic_finding_id === target.semantic_finding_id)?.resolution_state,
+    "defer",
+  );
+  assert.equal(
+    both.findings.find((finding) => finding.semantic_finding_id === sibling.semantic_finding_id)?.resolution_state,
+    "train-as-exception",
+  );
+
+  tree.game.moves.children.reverse();
+  const reorderedGraph = buildRepertoireGraph(tree, "white");
+  const reordered = analyzeStrategicFit(tree, {
+    repertoireColor: "white",
+    repertoireRevision: "revision:reordered",
+    routeAssessments: strategicFitAnalysisInputsFromMetadata(metadata, reorderedGraph).route_assessments,
+  });
+  const reorderedTarget = reordered.findings.find((finding) =>
+    finding.semantic_finding_id === target.semantic_finding_id
+  );
+  const reorderedSibling = reordered.findings.find((finding) =>
+    finding.semantic_finding_id === sibling.semantic_finding_id
+  );
+  assert.ok(reorderedTarget);
+  assert.ok(reorderedSibling);
+  assert.notEqual(reorderedTarget.finding_id, target.finding_id);
+  assert.notEqual(reorderedSibling.finding_id, sibling.finding_id);
+  assert.equal(reorderedTarget.resolution_state, "defer");
+  assert.equal(reorderedSibling.resolution_state, "unresolved");
 });
 
 test("profile/revision/expiry rules use stored snapshots and exact timestamps", () => {
@@ -273,24 +372,35 @@ test("profile/revision/expiry rules use stored snapshots and exact timestamps", 
   ]);
 });
 
-test("1.0 records migrate deterministically into active 1.1 lifecycle records", () => {
+test("legacy records without semantic finding identity migrate deterministically but remain inactive", () => {
   const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
   const current = withResolution(graph);
   const oldResolution = { ...current.resolutions[0] } as Record<string, unknown>;
-  for (const field of ["profile_snapshot", "record_state", "stale_reasons", "reason", "updated_at"]) {
+  for (const field of [
+    "semantic_finding_id",
+    "profile_snapshot",
+    "record_state",
+    "stale_reasons",
+    "reason",
+    "updated_at",
+  ]) {
     delete oldResolution[field];
   }
-  const old = {
-    ...current,
-    metadata_version: "1.0.0",
-    resolutions: [oldResolution],
-  };
-  const first = normalizeStrategicFitDocumentMetadata(old);
-  const second = normalizeStrategicFitDocumentMetadata(structuredClone(old));
+  for (const metadataVersion of ["1.0.0", "1.1.0"]) {
+    const old = {
+      ...current,
+      metadata_version: metadataVersion,
+      resolutions: [oldResolution],
+    };
+    const first = normalizeStrategicFitDocumentMetadata(old);
+    const second = normalizeStrategicFitDocumentMetadata(structuredClone(old));
 
-  assert.equal(first.state, "migrated");
-  assert.deepEqual(first, second);
-  assert.equal(first.metadata.resolutions[0]!.record_state, "active");
-  assert.deepEqual(first.metadata.resolutions[0]!.stale_reasons, []);
-  assert.equal(first.metadata.resolutions[0]!.updated_at, NOW);
+    assert.equal(first.state, "migrated");
+    assert.deepEqual(first, second);
+    assert.equal(first.metadata.resolutions[0]!.semantic_finding_id, null);
+    assert.equal(first.metadata.resolutions[0]!.record_state, "stale");
+    assert.deepEqual(first.metadata.resolutions[0]!.stale_reasons, ["finding-identity-missing"]);
+    assert.equal(first.metadata.resolutions[0]!.updated_at, NOW);
+    assert.equal(strategicFitAnalysisInputsFromMetadata(first.metadata, graph).route_assessments, undefined);
+  }
 });

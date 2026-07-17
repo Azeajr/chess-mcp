@@ -86,6 +86,7 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
       resolution_id: "resolution:semantic",
       finding_id: "finding:semantic",
+      semantic_finding_id: "semantic-finding:semantic",
       repertoire_revision: "revision:7",
       state: "keep-intentionally",
       intentional_reason: "strategically-desirable",
@@ -128,7 +129,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
   assert.notEqual(first, second);
   assert.notEqual(first.profile, second.profile);
   assert.equal(first.metadata_kind, "chess-mcp/strategic-fit-document-metadata");
-  assert.equal(first.metadata_version, "1.1.0");
+  assert.equal(first.metadata_version, "1.2.0");
   assert.deepEqual(first.profile, {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "balanced",

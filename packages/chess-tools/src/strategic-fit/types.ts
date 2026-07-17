@@ -407,6 +407,8 @@ export interface SemanticReferences {
 
 export interface StrategicFinding extends StrategicFitVersioned {
   readonly finding_id: string;
+  /** Revision-independent identity used to carry resolutions across harmless repertoire reordering. */
+  readonly semantic_finding_id: string;
   readonly repertoire_revision: string;
   readonly classification: StrategicFitClassification;
   readonly plain_language_category: string;
@@ -441,6 +443,7 @@ export type ResolutionInvalidationRule = (typeof RESOLUTION_INVALIDATION_RULES)[
 export interface FindingResolution extends SchemaVersioned {
   readonly resolution_id: string;
   readonly finding_id: string;
+  readonly semantic_finding_id: string;
   readonly repertoire_revision: string;
   readonly state: TerminalFindingResolutionState;
   readonly intentional_reason: IntentionalResolutionReason | null;

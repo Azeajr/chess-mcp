@@ -38,9 +38,9 @@ import type { RepertoireGraph } from "./graph.js";
 import type { StrategicFitRouteAssessmentInput } from "./analyze.js";
 
 /** This version advances independently from analysis reports and component manifests. */
-export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.1.0";
+export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.2.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
-export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = ["0.1.0", "1.0.0"] as const;
+export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = ["0.1.0", "1.0.0", "1.1.0"] as const;
 
 export const STRATEGIC_FIT_METADATA_RECORD_STATES = ["active", "stale"] as const;
 export type StrategicFitMetadataRecordState = (typeof STRATEGIC_FIT_METADATA_RECORD_STATES)[number];
@@ -52,6 +52,7 @@ export const STRATEGIC_FIT_METADATA_STALE_REASONS = [
   "repertoire-revision-changed",
   "profile-changed",
   "expired",
+  "finding-identity-missing",
 ] as const;
 export type StrategicFitMetadataStaleReason = (typeof STRATEGIC_FIT_METADATA_STALE_REASONS)[number];
 
@@ -81,8 +82,11 @@ export type StrategicFitPersistedExclusionOverride =
   StrategicCohortExclusionOverride & StrategicFitMetadataRecordLifecycle;
 
 export interface StrategicFitPersistedResolution
-  extends Omit<FindingResolution, "state" | "provenance">, StrategicFitMetadataRecordLifecycle {
+  extends Omit<FindingResolution, "state" | "provenance" | "semantic_finding_id">,
+    StrategicFitMetadataRecordLifecycle {
   readonly state: StrategicFitPersistedResolutionState;
+  /** Null only on migrated stale records that predate semantic finding identity. */
+  readonly semantic_finding_id: string | null;
   /** Canonical profile snapshot used only when `profile-changed` invalidation is requested. */
   readonly profile_snapshot: string | null;
 }
@@ -163,6 +167,7 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string,
   Object.freeze({
     "0.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.0.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    "1.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   });
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
@@ -732,6 +737,7 @@ function resolution(
       "schema_version",
       "resolution_id",
       "finding_id",
+      "semantic_finding_id",
       "repertoire_revision",
       "state",
       "intentional_reason",
@@ -754,6 +760,9 @@ function resolution(
   );
   const resolutionId = nonEmptyString(value.resolution_id);
   const findingId = nonEmptyString(value.finding_id);
+  const semanticFindingId = value.semantic_finding_id === null
+    ? null
+    : nonEmptyString(value.semantic_finding_id);
   const repertoireRevision = nonEmptyString(value.repertoire_revision);
   const state = nonEmptyString(value.state);
   const intentionalReason = nullableString(value.intentional_reason);
@@ -765,6 +774,7 @@ function resolution(
   const lifecycle = recordLifecycle(value, path, context);
   if (
     value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION || resolutionId === null || findingId === null ||
+    (semanticFindingId === null && value.semantic_finding_id !== null) ||
     repertoireRevision === null || state === null || !PERSISTED_RESOLUTION_STATES.has(state) ||
     intentionalReason === undefined || intentionalReason !== null && !INTENTIONAL_REASONS.has(intentionalReason) ||
     note === undefined || references === null || expiresAt === undefined || createdAt === null ||
@@ -773,6 +783,14 @@ function resolution(
       references.route_ids.length === 0
   ) {
     issue(context, "invalid-entry", path, "Finding resolution fields do not match the current contract.");
+    return null;
+  }
+  const identityMissing = lifecycle.stale_reasons.includes("finding-identity-missing");
+  if (
+    (semanticFindingId === null && (lifecycle.record_state !== "stale" || !identityMissing)) ||
+    (semanticFindingId !== null && identityMissing)
+  ) {
+    issue(context, "invalid-entry", path, "Finding resolution semantic identity and lifecycle disagree.");
     return null;
   }
   const invalidationRules = stringArray(value.invalidation_rules, `${path}.invalidation_rules`, context);
@@ -794,6 +812,7 @@ function resolution(
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     resolution_id: resolutionId,
     finding_id: findingId,
+    semantic_finding_id: semanticFindingId,
     repertoire_revision: repertoireRevision,
     state: state as StrategicFitPersistedResolutionState,
     intentional_reason: intentionalReason as FindingResolution["intentional_reason"],
@@ -1005,9 +1024,16 @@ function migratedResolutions(value: unknown, profileValue: unknown): unknown[] {
   return migratedRecords(value).map((entry) => {
     if (!isRecord(entry)) return entry;
     const rules = Array.isArray(entry.invalidation_rules) ? entry.invalidation_rules : [];
+    const hasSemanticFindingId = nonEmptyString(entry.semantic_finding_id) !== null;
+    const staleReasons = Array.isArray(entry.stale_reasons) ? entry.stale_reasons : [];
     return {
       ...entry,
+      semantic_finding_id: hasSemanticFindingId ? entry.semantic_finding_id : null,
       profile_snapshot: entry.profile_snapshot ?? (rules.includes("profile-changed") ? snapshot : null),
+      ...(hasSemanticFindingId ? {} : {
+        record_state: "stale",
+        stale_reasons: [...new Set([...staleReasons, "finding-identity-missing"])].sort(),
+      }),
     };
   });
 }
@@ -1035,7 +1061,7 @@ function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): U
     context,
   );
   if (
-    value.metadata_version === "1.0.0" &&
+    value.metadata_version !== "0.1.0" &&
     value.metadata_kind !== STRATEGIC_FIT_DOCUMENT_METADATA_KIND
   ) {
     issue(context, "invalid-field", "$.metadata_kind", "Metadata kind is missing or unsupported.");
@@ -1303,15 +1329,19 @@ export function strategicFitAnalysisInputsFromMetadata(
         provenance: record.provenance,
       });
 
-  const assessmentByRoute = new Map<string, StrategicFitRouteAssessmentInput>();
+  const assessmentByFindingRoute = new Map<string, StrategicFitRouteAssessmentInput>();
   const resolutions = metadata.resolutions
-    .filter((record) => record.record_state === "active")
+    .filter((record) => record.record_state === "active" && record.semantic_finding_id !== null)
     .sort((left, right) => left.updated_at.localeCompare(right.updated_at) ||
       left.resolution_id.localeCompare(right.resolution_id));
   for (const resolution of resolutions) {
+    const semanticFindingId = resolution.semantic_finding_id;
+    if (semanticFindingId === null) continue;
     for (const routeId of resolutionRouteIds(resolution, graph)) {
-      assessmentByRoute.set(routeId, {
+      const assessmentId = `${routeId}\u001f${semanticFindingId}`;
+      assessmentByFindingRoute.set(assessmentId, {
         route_id: routeId,
+        semantic_finding_id: semanticFindingId,
         matches_declared_objective: resolution.state === "keep-intentionally",
         resolution_state: resolution.state === "invalid-comparison"
           ? "insufficient-evidence"
@@ -1325,9 +1355,10 @@ export function strategicFitAnalysisInputsFromMetadata(
       weighting: { mode: "manual", route_weights: routeWeights, decision_weights: decisionWeights },
     }),
     ...(cohortOverrides.length === 0 ? {} : { cohort_overrides: cohortOverrides }),
-    ...(assessmentByRoute.size === 0 ? {} : {
-      route_assessments: [...assessmentByRoute.values()].sort((left, right) =>
-        left.route_id.localeCompare(right.route_id)),
+    ...(assessmentByFindingRoute.size === 0 ? {} : {
+      route_assessments: [...assessmentByFindingRoute.values()].sort((left, right) =>
+        left.route_id.localeCompare(right.route_id) ||
+        (left.semantic_finding_id ?? "").localeCompare(right.semantic_finding_id ?? "")),
     }),
   };
 }

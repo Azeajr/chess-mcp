@@ -126,6 +126,8 @@ export interface StrategicFitFindingPage {
 
 export interface StrategicFitRouteAssessmentInput {
   readonly route_id: string;
+  /** Omitted public inputs apply to every finding on the route; persisted inputs target one finding. */
+  readonly semantic_finding_id?: string;
   readonly matches_declared_objective?: boolean;
   readonly resolution_state?: StrategicFinding["resolution_state"];
   readonly alternative_state?: StrategicAlternativeState;
@@ -354,10 +356,19 @@ function validateOptions(options: AnalyzeStrategicFitOptions): void {
     throw new Error(`strategic_fit_analyze_invalid_page_limit: ${String(limit)}`);
   }
   const seenRouteIds = new Set<string>();
+  const seenAssessmentIds = new Set<string>();
   for (const assessment of options.routeAssessments ?? []) {
-    if (seenRouteIds.has(assessment.route_id)) {
+    const assessmentId = assessment.semantic_finding_id === undefined
+      ? assessment.route_id
+      : `${assessment.route_id}${ID_SEPARATOR}${assessment.semantic_finding_id}`;
+    if (
+      seenAssessmentIds.has(assessmentId) ||
+      (assessment.semantic_finding_id === undefined && seenRouteIds.has(assessment.route_id)) ||
+      (assessment.semantic_finding_id !== undefined && seenAssessmentIds.has(assessment.route_id))
+    ) {
       throw new Error(`strategic_fit_analyze_duplicate_route_assessment: ${assessment.route_id}`);
     }
+    seenAssessmentIds.add(assessmentId);
     seenRouteIds.add(assessment.route_id);
   }
 }
@@ -759,6 +770,25 @@ function expectedFrequency(candidate: FindingCandidate, weights: StrategicRouteW
   return round(clamp(candidate.routeIds.reduce((sum, routeId) => sum + (byRoute.get(routeId) ?? 0), 0)));
 }
 
+function semanticFindingId(candidate: FindingCandidate): string {
+  return semanticId("semantic-finding", [
+    candidate.kind,
+    candidate.cohort?.cohort_id ?? null,
+    [...candidate.routeIds].sort(compareStrings),
+  ]);
+}
+
+function assessmentForCandidate(
+  assessments: readonly StrategicFitRouteAssessmentInput[],
+  candidate: FindingCandidate,
+): StrategicFitRouteAssessmentInput | undefined {
+  const findingIdentity = semanticFindingId(candidate);
+  return assessments.find((assessment) =>
+    candidate.routeIds.includes(assessment.route_id) &&
+    (assessment.semantic_finding_id === undefined || assessment.semantic_finding_id === findingIdentity)
+  );
+}
+
 function findingAssessment(
   context: FindingContext,
   candidate: FindingCandidate,
@@ -799,9 +829,7 @@ function findingAssessment(
     stable_from_ply: difference.stable_from_ply,
   }).score;
   const learningBurden = round(clamp((magnitude + difference.new_concept_count / (difference.new_concept_count + 1)) / 2));
-  const routeAssessment = (context.options.routeAssessments ?? []).find((assessment) =>
-    candidate.routeIds.includes(assessment.route_id)
-  );
+  const routeAssessment = assessmentForCandidate(context.options.routeAssessments ?? [], candidate);
   const selectionIsExplicit = candidate.selectionState === "explicit-target";
   const profileConflict = candidate.kind === "route-exception" && (
     selectionIsExplicit ||
@@ -934,10 +962,9 @@ function findingFromCandidate(context: FindingContext, candidate: FindingCandida
   const routes = candidate.routeIds.map((routeId) => routesById.get(routeId)!).filter(Boolean);
   const difference = findingDifference(candidate, context.concepts);
   const { assessment, learningBurden, confidence } = findingAssessment(context, candidate, difference);
-  const assessmentInput = (context.options.routeAssessments ?? []).find((input) =>
-    candidate.routeIds.includes(input.route_id)
-  );
+  const assessmentInput = assessmentForCandidate(context.options.routeAssessments ?? [], candidate);
   const resolutionState = assessmentInput?.resolution_state ?? "unresolved";
+  const semanticFindingIdentity = semanticFindingId(candidate);
   const findingId = semanticId("finding", [
     context.options.repertoireRevision,
     candidate.kind,
@@ -948,6 +975,7 @@ function findingFromCandidate(context: FindingContext, candidate: FindingCandida
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     finding_id: findingId,
+    semantic_finding_id: semanticFindingIdentity,
     repertoire_revision: context.options.repertoireRevision,
     classification: assessment.classification,
     plain_language_category: category(assessment.classification),

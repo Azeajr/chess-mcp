@@ -54,6 +54,7 @@ function resolutionInput(f: ReturnType<typeof fixture>, state: StrategicFitPersi
   return {
     resolution_id: `resolution:${id}`,
     finding_id: `finding:${id}`,
+    semantic_finding_id: `semantic-finding:${id}`,
     state,
     intentional_reason: state === "keep-intentionally" ? "already-understood" as const : null,
     note: `Decision ${id}`,

@@ -38,6 +38,7 @@ export interface StrategicFitSettingsMutationResult {
 export interface StrategicFitResolutionMutationInput {
   readonly resolution_id: string;
   readonly finding_id: string;
+  readonly semantic_finding_id: string;
   readonly state: StrategicFitPersistedResolutionState;
   readonly references: SemanticReferences;
   readonly intentional_reason?: StrategicFitPersistedResolution["intentional_reason"];
@@ -239,6 +240,10 @@ export function createStrategicFitResolutionState(
       const metadata = boundary.currentMetadata();
       const resolutionId = nonEmpty(input.resolution_id, "strategic_fit_invalid_resolution_id");
       const findingId = nonEmpty(input.finding_id, "strategic_fit_invalid_finding_id");
+      const semanticFindingId = nonEmpty(
+        input.semantic_finding_id,
+        "strategic_fit_invalid_semantic_finding_id",
+      );
       const normalizedReferences = references(input.references);
       const rules = resolutionRules(input, normalizedReferences);
       const existing = metadata.resolutions.find((entry) => entry.resolution_id === resolutionId);
@@ -253,6 +258,7 @@ export function createStrategicFitResolutionState(
         schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
         resolution_id: resolutionId,
         finding_id: findingId,
+        semantic_finding_id: semanticFindingId,
         repertoire_revision: boundary.currentRepertoireRevision(),
         state: input.state,
         intentional_reason: intentionalReason,

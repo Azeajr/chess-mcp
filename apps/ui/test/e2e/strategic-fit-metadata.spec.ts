@@ -92,6 +92,7 @@ async function setDistinctMetadata(page: Page, label: string): Promise<void> {
       schema_version: base.profile.schema_version,
       resolution_id: `resolution:${value}`,
       finding_id: `finding:${value}`,
+      semantic_finding_id: `semantic-finding:${value}`,
       repertoire_revision: "revision:e2e",
       state: "defer",
       intentional_reason: null,
@@ -156,6 +157,7 @@ test("semantic resolutions and overrides persist, isolate, and stale after a ref
   const resolutionState = await chess(page, (api, input) => api.upsertStrategicFitResolution(input), {
     resolution_id: "resolution:e2e-semantic",
     finding_id: "finding:e2e-semantic",
+    semantic_finding_id: "semantic-finding:e2e-semantic",
     state: "keep-intentionally",
     intentional_reason: "already-understood",
     reason: "Confirmed from repertoire review",
@@ -401,7 +403,7 @@ test("corrupt persisted metadata falls back visibly with structured issues and i
   }).toBe(id);
   await putIdbValue(page, `strategicFitMetadata:${id}`, {
     metadata_kind: "wrong-kind",
-    metadata_version: "1.1.0",
+    metadata_version: "1.2.0",
   });
 
   await page.reload();
@@ -418,7 +420,7 @@ test("corrupt persisted metadata falls back visibly with structured issues and i
   await chess(page, (api) => api.flushStrategicFitMetadata());
   expect(await idbValue(page, `strategicFitMetadata:${id}`)).toMatchObject({
     metadata_kind: "chess-mcp/strategic-fit-document-metadata",
-    metadata_version: "1.1.0",
+    metadata_version: "1.2.0",
     resolutions: [],
   });
 });

@@ -30,6 +30,7 @@ function populatedMetadata(label: string): StrategicFitDocumentMetadata {
       schema_version: defaults.profile.schema_version,
       resolution_id: `resolution:${label}`,
       finding_id: `finding:${label}`,
+      semantic_finding_id: `semantic-finding:${label}`,
       repertoire_revision: "revision:7",
       state: "defer",
       intentional_reason: null,
@@ -190,7 +191,7 @@ test("two documents isolate immediate reads and every debounced write by capture
 
 test("corrupt and unsupported records publish defaults, structured warnings, then repair their key", async () => {
   for (const [label, input, warningCode, issueCode] of [
-    ["corrupt", { metadata_version: "1.1.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
+    ["corrupt", { metadata_version: "1.2.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
     ["unsupported", { metadata_version: "99.0.0" }, "unsupported-metadata", "unsupported-version"],
   ] as const) {
     const storage = new MemoryStorage();

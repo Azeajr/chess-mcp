@@ -71,7 +71,7 @@ export interface StrategicFitToolArguments {
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
   readonly explicit_targets?: readonly StrategicFitToolExplicitModeTargetInput[];
-  readonly route_assessments?: readonly StrategicFitRouteAssessmentInput[];
+  readonly route_assessments?: readonly Omit<StrategicFitRouteAssessmentInput, "semantic_finding_id">[];
 }
 
 export interface StrategicFitToolHostMetadata {
