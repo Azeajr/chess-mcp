@@ -5,9 +5,11 @@ import {
   GameTree,
   STRATEGIC_FIT_ANALYSIS_VERSION,
   analyzeStrategicFit,
+  completeStrategicFitReport,
   contractsForHost,
   jsonSchemaForTool,
   projectStrategicFitLegacyResult,
+  strategicFitCompleteAnalysisOptions,
   strategicFitOptionsFromToolArguments,
   toolDefault,
   validateToolArguments,
@@ -175,15 +177,15 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
   const dependencies = {
     ...defaultBrowserCommandDependencies,
     openings: async () => openings,
-    analyzeStrategicFit: async (
+    strategicFitReport: async (
       pgn: string,
       options: Parameters<typeof analyzeStrategicFit>[1],
       execution?: { signal?: AbortSignal; onProgress?: Parameters<typeof analyzeStrategicFit>[1]["onProgress"] },
-    ) => analyzeStrategicFit(GameTree.fromPgn(pgn), {
-      ...options,
+    ) => completeStrategicFitReport(analyzeStrategicFit(GameTree.fromPgn(pgn), {
+      ...strategicFitCompleteAnalysisOptions(options),
       shouldCancel: () => execution?.signal?.aborted ?? false,
       onProgress: execution?.onProgress,
-    }),
+    })),
   };
 
   const browser = await executeDirectBrowserCommand(
@@ -226,6 +228,35 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
   });
   assert.equal(progress.at(-1)?.[0], 6);
   assert.equal(progress.at(-1)?.[1], 6);
+});
+
+test("browser Strategic Fit adapter fails closed when the document changes during analysis", async () => {
+  actions.loadPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+  let currentRevision = 11;
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    currentRevision: () => currentRevision,
+    openings: async () => new Map(),
+    strategicFitReport: async (
+      pgn: string,
+      options: Parameters<typeof analyzeStrategicFit>[1],
+    ) => {
+      const report = completeStrategicFitReport(analyzeStrategicFit(
+        GameTree.fromPgn(pgn),
+        strategicFitCompleteAnalysisOptions(options),
+      ));
+      currentRevision++;
+      return report;
+    },
+  };
+
+  assert.deepEqual(
+    await executeDirectBrowserCommand("analyze_repertoire_congruence", {}, {}, dependencies),
+    {
+      error: "strategic_fit_stale_report",
+      reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
+    },
+  );
 });
 
 test("browser annotation guidance validates pasted PGN only and keeps artifact types distinct", () => {

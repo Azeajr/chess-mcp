@@ -62,12 +62,13 @@ import {
   suggestGapFills,
   opponentPrepResult,
   projectStrategicFitLegacyResult,
+  projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
-import { store, get } from "./handles.js";
+import { store, get, getOrCreateStrategicFitReport } from "./handles.js";
 import { confine, readCappedPgn, MAX_PGN_BYTES } from "./paths.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -942,15 +943,24 @@ server.tool(
     );
     if (!validation.ok) return ok(validation);
     const args = rawArgs as unknown as StrategicFitToolArguments;
-    const report = analyzeStrategicFit(
-      e.tree,
-      strategicFitOptionsFromToolArguments(args, {
-        repertoireColor: e.color,
-        repertoireRevision: e.revision,
-        openingTable: openingsTable,
-      }),
+    const options = strategicFitOptionsFromToolArguments(args, {
+      repertoireColor: e.color,
+      repertoireRevision: e.revision,
+      openingTable: openingsTable,
+    });
+    const completeReport = getOrCreateStrategicFitReport(
+      e,
+      options,
+      (completeOptions) => analyzeStrategicFit(e.tree, completeOptions),
     );
-    return ok(projectStrategicFitLegacyResult(report, { limit: args.limit }));
+    const projection = projectStrategicFitReport(completeReport, {
+      kind: "page",
+      expected_repertoire_revision: e.revision,
+      page: args.page,
+      sort: args.sort,
+    });
+    if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
+    return ok(projectStrategicFitLegacyResult(projection.report, { limit: args.limit }));
   },
 );
 

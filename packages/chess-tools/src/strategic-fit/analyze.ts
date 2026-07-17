@@ -91,6 +91,7 @@ import {
   type StrategicRouteWeightingOptions,
   type StrategicRouteWeightingReport,
 } from "./weights.js";
+import { sortStrategicFitFindings } from "./report-projection.js";
 
 export const STRATEGIC_FIT_DEFAULT_PAGE_LIMIT = 50;
 
@@ -976,27 +977,6 @@ function findingFromCandidate(context: FindingContext, candidate: FindingCandida
   };
 }
 
-function sortedFindings(
-  findings: readonly StrategicFinding[],
-  sort: StrategicFitFindingSort,
-): StrategicFinding[] {
-  const descendingNumber = (left: number | null, right: number | null): number =>
-    (right ?? -1) - (left ?? -1);
-  return [...findings].sort((left, right) => {
-    let primary = 0;
-    if (sort === "replacement-priority") {
-      primary = right.replacement_priority.score - left.replacement_priority.score;
-    } else if (sort === "training-priority") {
-      primary = right.training_priority.score - left.training_priority.score;
-    } else if (sort === "expected-frequency") {
-      primary = descendingNumber(left.expected_frequency, right.expected_frequency);
-    } else if (sort === "opening-scope") {
-      primary = compareStrings(left.opening_scope, right.opening_scope);
-    }
-    return primary || compareStrings(left.finding_id, right.finding_id);
-  });
-}
-
 function reportId(
   options: AnalyzeStrategicFitOptions,
   graph: RepertoireGraph | null,
@@ -1139,7 +1119,7 @@ export function analyzeStrategicFit(
         throw new Error(`strategic_fit_analyze_unknown_assessment_route: ${assessment.route_id}`);
       }
     }
-    const allFindings = sortedFindings(
+    const allFindings = sortStrategicFitFindings(
       candidates(context).map((candidate) => findingFromCandidate(context, candidate)),
       options.sort ?? "replacement-priority",
     );

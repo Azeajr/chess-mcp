@@ -108,6 +108,7 @@ export * from "./strategic-fit/causality.js";
 export * from "./strategic-fit/findings.js";
 export * from "./strategic-fit/metrics.js";
 export * from "./strategic-fit/analyze.js";
+export * from "./strategic-fit/report-projection.js";
 export * from "./strategic-fit/legacy-projection.js";
 export * from "./strategic-fit/tool-adapter.js";
 export * from "./tool-contract.js";

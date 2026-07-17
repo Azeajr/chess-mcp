@@ -21,6 +21,7 @@ import {
   transpositionResult,
   type ExplorerDb,
   projectStrategicFitLegacyResult,
+  projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
@@ -162,13 +163,18 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   analyze_repertoire_congruence: async (args, context) => {
     const openings = await context.openings();
     const toolArgs = args as StrategicFitToolArguments;
-    const report = await context.analyzeStrategicFit(
-      context.currentPgn(),
-      strategicFitOptionsFromToolArguments(toolArgs, {
-        repertoireColor: context.currentColor(),
-        repertoireRevision: `browser:${context.currentRevision()}`,
-        openingTable: openings,
-      }),
+    const pgn = context.currentPgn();
+    const color = context.currentColor();
+    const revision = context.currentRevision();
+    const repertoireRevision = `browser:${revision}`;
+    const options = strategicFitOptionsFromToolArguments(toolArgs, {
+      repertoireColor: color,
+      repertoireRevision,
+      openingTable: openings,
+    });
+    const completeReport = await context.strategicFitReport(
+      pgn,
+      options,
       {
         signal: context.signal,
         onProgress: (progress) => context.onProgress?.(
@@ -179,7 +185,24 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       },
     );
     throwIfAborted(context.signal);
-    return projectStrategicFitLegacyResult(report, { limit: toolArgs.limit });
+    if (
+      context.currentRevision() !== revision ||
+      context.currentColor() !== color ||
+      context.currentPgn() !== pgn
+    ) {
+      return {
+        error: "strategic_fit_stale_report",
+        reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
+      };
+    }
+    const projection = projectStrategicFitReport(completeReport, {
+      kind: "page",
+      expected_repertoire_revision: repertoireRevision,
+      page: toolArgs.page,
+      sort: toolArgs.sort,
+    });
+    if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
+    return projectStrategicFitLegacyResult(projection.report, { limit: toolArgs.limit });
   },
   classify_illustrative_lines: (args, context) => illustrativeLinesResult(context.currentTree(), context.currentColor(), (args.limit as number | undefined) ?? toolDefault("classify_illustrative_lines", "limit", 20)),
   modify_repertoire_line: (args, context) => context.stageEdit(args.action as "add" | "prune" | "reorder", (args.path as string[]) ?? [], {
