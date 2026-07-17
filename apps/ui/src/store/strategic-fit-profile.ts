@@ -15,6 +15,7 @@ import {
   type StrategicFitProfilePreferences,
 } from "@chess-mcp/chess-tools";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
+import { documentId } from "./game";
 import {
   replaceStrategicFitMetadata,
   strategicFitMetadata,
@@ -32,6 +33,7 @@ export interface StrategicFitProfileMutationResult {
 }
 
 export interface StrategicFitProfileStateBoundary {
+  currentDocumentId(): string;
   currentMetadata(): StrategicFitDocumentMetadata;
   replaceMetadata(input: StrategicFitDocumentMetadata): StrategicFitMetadataNormalizationResult;
   invalidateReports(): void;
@@ -175,19 +177,37 @@ export function strategicFitProfileIdentity(profile: StrategicFitProfile): strin
 export function createStrategicFitProfileState(
   boundary: StrategicFitProfileStateBoundary,
 ): StrategicFitProfileState {
+  const inferredProfiles = new Map<string, StrategicFitProfile>();
+  const effectiveProfile = (): StrategicFitProfile => {
+    const id = boundary.currentDocumentId();
+    const persisted = boundary.currentMetadata().profile;
+    // An external metadata restore/import may publish explicit intent while an old session-only
+    // inference exists. Explicit durable intent wins and clears only this document's inference.
+    if (persisted.source === "explicit" || !persisted.provisional) {
+      inferredProfiles.delete(id);
+      return persisted;
+    }
+    return inferredProfiles.get(id) ?? persisted;
+  };
+
   const commit = (next: StrategicFitProfile): StrategicFitProfileMutationResult => {
+    const id = boundary.currentDocumentId();
     const currentMetadata = boundary.currentMetadata();
-    const current = currentMetadata.profile;
-    if (strategicFitProfileIdentity(current) === strategicFitProfileIdentity(next)) {
+    const current = effectiveProfile();
+    if (
+      inferredProfiles.has(id) === false &&
+      strategicFitProfileIdentity(currentMetadata.profile) === strategicFitProfileIdentity(next)
+    ) {
       return { state: "unchanged", profile: cloneProfile(current) };
     }
     const normalized = boundary.replaceMetadata({ ...currentMetadata, profile: next });
+    inferredProfiles.delete(id);
     boundary.invalidateReports();
     return { state: "updated", profile: cloneProfile(normalized.metadata.profile) };
   };
 
   return {
-    profile: () => cloneProfile(boundary.currentMetadata().profile),
+    profile: () => cloneProfile(effectiveProfile()),
 
     select(mode, preferences) {
       const preset = strategicFitPresetProfile(mode);
@@ -197,7 +217,7 @@ export function createStrategicFitProfileState(
     },
 
     updateCustom(preferences) {
-      const current = boundary.currentMetadata().profile;
+      const current = effectiveProfile();
       return commit({
         ...current,
         mode: "custom",
@@ -208,22 +228,29 @@ export function createStrategicFitProfileState(
     },
 
     applyInferred(mode, preferences) {
-      const current = boundary.currentMetadata().profile;
-      if (current.source === "explicit" || !current.provisional) {
-        return { state: "ignored-explicit", profile: cloneProfile(current) };
+      const persisted = boundary.currentMetadata().profile;
+      if (persisted.source === "explicit" || !persisted.provisional) {
+        return { state: "ignored-explicit", profile: cloneProfile(persisted) };
       }
       if (!PROFILE_MODE_SET.has(mode)) throw new Error("strategic_fit_invalid_profile_mode");
-      return commit({
+      const current = effectiveProfile();
+      const next: StrategicFitProfile = {
         schema_version: DEFAULT_PROFILE.schema_version,
         mode,
         source: "inferred",
         provisional: true,
         preferences: normalizeStrategicFitProfilePreferences(preferences, current.preferences),
-      });
+      };
+      if (strategicFitProfileIdentity(current) === strategicFitProfileIdentity(next)) {
+        return { state: "unchanged", profile: cloneProfile(current) };
+      }
+      inferredProfiles.set(boundary.currentDocumentId(), next);
+      boundary.invalidateReports();
+      return { state: "updated", profile: cloneProfile(next) };
     },
 
     confirmInferred() {
-      const current = boundary.currentMetadata().profile;
+      const current = effectiveProfile();
       if (current.source === "explicit" && !current.provisional) {
         return { state: "unchanged", profile: cloneProfile(current) };
       }
@@ -233,6 +260,7 @@ export function createStrategicFitProfileState(
 }
 
 const browserProfileState = createStrategicFitProfileState({
+  currentDocumentId: documentId,
   currentMetadata: strategicFitMetadata,
   replaceMetadata: replaceStrategicFitMetadata,
   invalidateReports: invalidateCachedStrategicFitReports,

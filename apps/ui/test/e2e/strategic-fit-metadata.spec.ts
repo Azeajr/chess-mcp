@@ -199,6 +199,79 @@ test("custom profile preferences persist across reload without changing repertoi
   expect(await chess(page, (api) => api.toPgn())).toBe(before.pgn);
 });
 
+test("provisional inference is session-only and document-scoped until explicit confirmation", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 e5 *", "inference-a.pgn"));
+  const documentA = await chess(page, (api) => api.documentId()) as string;
+  expect(await chess(page, (api) => api.applyInferredStrategicFitProfile("versatile", {
+    preferred_concept_ids: ["concept:document-a"],
+  }))).toMatchObject({ state: "updated" });
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "versatile",
+    source: "inferred",
+    provisional: true,
+    preferences: { preferred_concept_ids: ["concept:document-a"] },
+  });
+  expect(await chess(page, (api) => api.strategicFitMetadata().profile)).toMatchObject({
+    mode: "balanced",
+    source: "inferred",
+    provisional: true,
+  });
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  expect(await idbValue(page, `strategicFitMetadata:${documentA}`)).toBeUndefined();
+
+  const documentB = await chess(page, (api) => {
+    api.newGame();
+    return api.documentId();
+  }) as string;
+  expect(documentB).not.toBe(documentA);
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "balanced",
+    preferences: { preferred_concept_ids: [] },
+  });
+  await chess(page, (api) => api.applyInferredStrategicFitProfile("custom", {
+    preferred_concept_ids: ["concept:document-b"],
+    minimum_opponent_coverage: 0.9,
+  }));
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  await expect.poll(async () => {
+    const saved = await idbValue(page, "workingRepertoire") as { documentId?: string } | undefined;
+    return saved?.documentId;
+  }).toBe(documentB);
+  expect(await idbValue(page, `strategicFitMetadata:${documentB}`)).toBeUndefined();
+
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  expect(await chess(page, (api) => api.documentId())).toBe(documentB);
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "balanced",
+    source: "inferred",
+    provisional: true,
+    preferences: { preferred_concept_ids: [], minimum_opponent_coverage: null },
+  });
+
+  await chess(page, (api) => api.applyInferredStrategicFitProfile("familiar-plans", {
+    preferred_concept_ids: ["concept:confirmed"],
+  }));
+  expect(await chess(page, (api) => api.confirmInferredStrategicFitProfile())).toMatchObject({
+    state: "updated",
+  });
+  expect(await chess(page, (api) => api.strategicFitMetadata().profile)).toMatchObject({
+    mode: "familiar-plans",
+    source: "explicit",
+    provisional: false,
+    preferences: { preferred_concept_ids: ["concept:confirmed"] },
+  });
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "familiar-plans",
+    source: "explicit",
+    provisional: false,
+    preferences: { preferred_concept_ids: ["concept:confirmed"] },
+  });
+});
+
 test("New and import expose defaults immediately without deleting another document record", async ({ page }) => {
   await setDistinctMetadata(page, "original");
   const originalId = await chess(page, (api) => api.documentId()) as string;

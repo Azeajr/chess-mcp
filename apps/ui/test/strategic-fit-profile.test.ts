@@ -23,22 +23,30 @@ import { StrategicFitReportCache } from "../src/application/strategic-fit-report
 import { defaultBrowserCommandDependencies } from "../src/application/browser-commands/default-context.ts";
 
 function memoryProfileState(initial = createDefaultStrategicFitDocumentMetadata()) {
-  let metadata = structuredClone(initial);
+  let documentId = "document:a";
+  const documents = new Map<string, StrategicFitDocumentMetadata>([[documentId, structuredClone(initial)]]);
   let replacements = 0;
   let invalidations = 0;
-  const state = createStrategicFitProfileState({
-    currentMetadata: () => metadata,
+  const boundary = {
+    currentDocumentId: () => documentId,
+    currentMetadata: () => documents.get(documentId) ?? createDefaultStrategicFitDocumentMetadata(),
     replaceMetadata: (input) => {
       replacements++;
       const result = normalizeStrategicFitDocumentMetadata(input);
-      metadata = structuredClone(result.metadata);
+      documents.set(documentId, structuredClone(result.metadata));
       return result;
     },
     invalidateReports: () => { invalidations++; },
-  });
+  };
+  const state = createStrategicFitProfileState(boundary);
   return {
     state,
-    metadata: () => metadata,
+    newSession: () => createStrategicFitProfileState(boundary),
+    switchDocument: (id: string, metadata?: StrategicFitDocumentMetadata) => {
+      documentId = id;
+      if (metadata !== undefined) documents.set(id, structuredClone(metadata));
+    },
+    metadata: (id = documentId) => documents.get(id) ?? createDefaultStrategicFitDocumentMetadata(),
     replacements: () => replacements,
     invalidations: () => invalidations,
   };
@@ -101,6 +109,12 @@ test("inferred profiles remain provisional, confirmation is explicit, and explic
   assert.equal(inferred.state, "updated");
   assert.equal(inferred.profile.source, "inferred");
   assert.equal(inferred.profile.provisional, true);
+  assert.equal(fixture.replacements(), 0, "provisional inference must remain session-only");
+  assert.deepEqual(
+    fixture.metadata().profile,
+    createDefaultStrategicFitDocumentMetadata().profile,
+    "unconfirmed inference must not enter durable metadata",
+  );
 
   const confirmed = fixture.state.confirmInferred();
   assert.equal(confirmed.state, "updated");
@@ -112,8 +126,33 @@ test("inferred profiles remain provisional, confirmation is explicit, and explic
   });
   assert.equal(ignored.state, "ignored-explicit");
   assert.deepEqual(ignored.profile, confirmed.profile);
-  assert.equal(fixture.replacements(), 2);
+  assert.equal(fixture.replacements(), 1);
   assert.equal(fixture.invalidations(), 2);
+});
+
+test("unconfirmed inference is document-scoped in one session and absent from a new session", () => {
+  const fixture = memoryProfileState();
+  fixture.state.applyInferred("familiar-plans", {
+    preferred_concept_ids: ["concept:document-a"],
+  });
+  assert.equal(fixture.state.profile().mode, "familiar-plans");
+
+  fixture.switchDocument("document:b");
+  assert.equal(fixture.state.profile().mode, "balanced");
+  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, []);
+  fixture.state.applyInferred("versatile", {
+    preferred_concept_ids: ["concept:document-b"],
+  });
+  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, ["concept:document-b"]);
+
+  fixture.switchDocument("document:a");
+  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, ["concept:document-a"]);
+  assert.equal(fixture.replacements(), 0);
+  assert.equal(fixture.invalidations(), 2);
+
+  const reloaded = fixture.newSession();
+  assert.equal(reloaded.profile().mode, "balanced");
+  assert.deepEqual(reloaded.profile().preferences.preferred_concept_ids, []);
 });
 
 test("advanced values clamp deterministically while malformed edits preserve siblings and metadata", () => {
