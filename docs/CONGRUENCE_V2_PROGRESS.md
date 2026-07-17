@@ -14,16 +14,16 @@
 | 1.7 | Complete | `d25e5e9` | Phase 1 gate | Strategic trajectories and persistence rules. |
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
 | 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
-| 2.2 | Complete | This commit | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
+| 2.2 | Complete | `e9a895a` | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
 
 ## Coordinator state
 
-- Verified through Task 2.1 at `9a005a0` (`feat: add strategic fit route weights`).
-- Latest implementation gate at `9a005a0`: Strategic Fit 72/72; chess-tools build; monorepo typecheck;
+- Verified through Task 2.2 at `e9a895a` (`feat: add strategic fit cohorts`).
+- Latest implementation gate at `e9a895a`: Strategic Fit 78/78; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.2 — Form hierarchical comparable cohorts. Its Task 1.3, 1.7, and 2.1
-  dependencies are complete.
+- Next task: Task 2.3 — Detect weighted medoids and multimodal profiles. Its Task 2.2 dependency
+  is complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
