@@ -15,6 +15,7 @@
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
 | 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
 | 2.2 | Complete | `e9a895a` | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
+| 2.3 | Complete | This commit | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
 
 ## Coordinator state
 
