@@ -431,6 +431,7 @@ export interface StrategicFinding extends StrategicFitVersioned {
 export const RESOLUTION_INVALIDATION_RULES = [
   "referenced-position-changed",
   "referenced-decision-changed",
+  "referenced-route-changed",
   "repertoire-revision-changed",
   "profile-changed",
   "never",

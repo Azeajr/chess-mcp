@@ -38,6 +38,36 @@ const profileIdentity = (
   profile: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitProfile"]>,
 ) => JSON.stringify(profile);
 
+const effectiveDocumentSettingsIdentity = (
+  args: StrategicFitToolArguments,
+  snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
+) => JSON.stringify({
+  weighting: args.weighting === undefined ? snapshot.inputs.weighting ?? null : args.weighting,
+  cohort_overrides: args.cohort_overrides === undefined
+    ? snapshot.inputs.cohort_overrides ?? null
+    : args.cohort_overrides,
+  route_assessments: args.route_assessments === undefined
+    ? snapshot.inputs.route_assessments ?? null
+    : args.route_assessments,
+});
+
+const injectDocumentAnalysisSettings = (
+  args: StrategicFitToolArguments,
+  options: ReturnType<typeof strategicFitOptionsFromToolArguments>,
+  snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
+) => ({
+  ...options,
+  ...(args.weighting === undefined && snapshot.inputs.weighting !== undefined
+    ? { weighting: snapshot.inputs.weighting }
+    : {}),
+  ...(args.cohort_overrides === undefined && snapshot.inputs.cohort_overrides !== undefined
+    ? { cohorts: { overrides: snapshot.inputs.cohort_overrides } }
+    : {}),
+  ...(args.route_assessments === undefined && snapshot.inputs.route_assessments !== undefined
+    ? { routeAssessments: snapshot.inputs.route_assessments }
+    : {}),
+});
+
 const explorerAuthRequired = () => ({
   error: "explorer_auth_required",
   reason: "the Lichess opening explorer requires authentication; ask the user to add a personal API token (no scopes needed, lichess.org/account/oauth/token) in Settings",
@@ -178,14 +208,17 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const repertoireRevision = `browser:${revision}`;
     const documentProfile = context.currentStrategicFitProfile();
     const documentProfileIdentity = profileIdentity(documentProfile);
+    const documentSettings = context.currentStrategicFitAnalysisSettings();
+    const effectiveSettingsIdentity = effectiveDocumentSettingsIdentity(toolArgs, documentSettings);
     const toolOptions = strategicFitOptionsFromToolArguments(toolArgs, {
       repertoireColor: color,
       repertoireRevision,
       openingTable: openings,
     });
+    const settingsOptions = injectDocumentAnalysisSettings(toolArgs, toolOptions, documentSettings);
     const options = toolArgs.profile === undefined
-      ? { ...toolOptions, profile: documentProfile }
-      : toolOptions;
+      ? { ...settingsOptions, profile: documentProfile }
+      : settingsOptions;
     const completeReport = await context.strategicFitReport(
       pgn,
       options,
@@ -204,12 +237,23 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       context.currentColor() !== color ||
       context.currentPgn() !== pgn ||
       toolArgs.profile === undefined &&
-        profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity
+        profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity ||
+      effectiveDocumentSettingsIdentity(toolArgs, context.currentStrategicFitAnalysisSettings()) !==
+        effectiveSettingsIdentity
     ) {
       if (
         toolArgs.profile === undefined &&
         profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity
       ) return staleProfileResult();
+      if (
+        effectiveDocumentSettingsIdentity(toolArgs, context.currentStrategicFitAnalysisSettings()) !==
+          effectiveSettingsIdentity
+      ) {
+        return {
+          error: "strategic_fit_stale_report",
+          reason: "Document Strategic Fit resolutions or analysis overrides changed while analysis was running; request a fresh report.",
+        };
+      }
       return {
         error: "strategic_fit_stale_report",
         reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
@@ -325,6 +369,8 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const repertoireRevision = `browser:${revision}`;
     const documentProfile = context.currentStrategicFitProfile();
     const documentProfileIdentity = profileIdentity(documentProfile);
+    const documentSettings = context.currentStrategicFitAnalysisSettings();
+    const documentSettingsIdentity = documentSettings.identity;
     const openings = await context.openings();
     const include = args.include as ("audit" | "only_moves" | "gaps" | "congruence")[] | undefined;
     let result: Awaited<ReturnType<typeof annotateRepertoire>>;
@@ -350,6 +396,15 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
                 openingTable: openings,
               }),
               profile: documentProfile,
+              ...(documentSettings.inputs.weighting === undefined
+                ? {}
+                : { weighting: documentSettings.inputs.weighting }),
+              ...(documentSettings.inputs.cohort_overrides === undefined
+                ? {}
+                : { cohorts: { overrides: documentSettings.inputs.cohort_overrides } }),
+              ...(documentSettings.inputs.route_assessments === undefined
+                ? {}
+                : { routeAssessments: documentSettings.inputs.route_assessments }),
             },
             {
               signal: context.signal,
@@ -362,11 +417,20 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
             if (profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity) {
               throw new Error("strategic_fit_stale_profile");
             }
+            if (context.currentStrategicFitAnalysisSettings().identity !== documentSettingsIdentity) {
+              throw new Error("strategic_fit_stale_settings");
+            }
             return report;
           }));
     } catch (error) {
       if (error instanceof Error && error.message === "strategic_fit_stale_profile") {
         return staleProfileResult();
+      }
+      if (error instanceof Error && error.message === "strategic_fit_stale_settings") {
+        return {
+          error: "strategic_fit_stale_report",
+          reason: "Document Strategic Fit resolutions or analysis overrides changed while annotation was running; request a fresh report.",
+        };
       }
       throw error;
     }

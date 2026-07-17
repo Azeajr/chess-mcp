@@ -22,6 +22,19 @@ import {
   strategicFitProfile,
   updateCustomStrategicFitProfile,
 } from "./store/strategic-fit-profile";
+import {
+  reconcileStrategicFitSettings,
+  removeStrategicFitCohortOverride,
+  removeStrategicFitDecisionWeight,
+  removeStrategicFitResolution,
+  removeStrategicFitRouteWeight,
+  reopenStrategicFitResolution,
+  strategicFitAnalysisSettings,
+  upsertStrategicFitCohortOverride,
+  upsertStrategicFitDecisionWeight,
+  upsertStrategicFitResolution,
+  upsertStrategicFitRouteWeight,
+} from "./store/strategic-fit-resolutions";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -63,5 +76,16 @@ if (import.meta.env.DEV) {
     updateCustomStrategicFitProfile,
     applyInferredStrategicFitProfile,
     confirmInferredStrategicFitProfile,
+    upsertStrategicFitResolution,
+    removeStrategicFitResolution,
+    reopenStrategicFitResolution,
+    upsertStrategicFitCohortOverride,
+    removeStrategicFitCohortOverride,
+    upsertStrategicFitRouteWeight,
+    removeStrategicFitRouteWeight,
+    upsertStrategicFitDecisionWeight,
+    removeStrategicFitDecisionWeight,
+    reconcileStrategicFitSettings,
+    strategicFitAnalysisSettings,
   };
 }

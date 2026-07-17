@@ -9,7 +9,6 @@
 import type {
   StrategicCohortExclusionOverride,
   StrategicCohortMergeOverride,
-  StrategicCohortOverride,
   StrategicCohortSplitOverride,
 } from "./cohorts.js";
 import type {
@@ -35,19 +34,66 @@ import {
 } from "./types.js";
 import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightInput } from "./weights.js";
+import type { RepertoireGraph } from "./graph.js";
+import type { StrategicFitRouteAssessmentInput } from "./analyze.js";
 
 /** This version advances independently from analysis reports and component manifests. */
-export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.0.0";
+export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.1.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
-export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = ["0.1.0"] as const;
+export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = ["0.1.0", "1.0.0"] as const;
+
+export const STRATEGIC_FIT_METADATA_RECORD_STATES = ["active", "stale"] as const;
+export type StrategicFitMetadataRecordState = (typeof STRATEGIC_FIT_METADATA_RECORD_STATES)[number];
+
+export const STRATEGIC_FIT_METADATA_STALE_REASONS = [
+  "referenced-position-missing",
+  "referenced-decision-missing",
+  "referenced-route-missing",
+  "repertoire-revision-changed",
+  "profile-changed",
+  "expired",
+] as const;
+export type StrategicFitMetadataStaleReason = (typeof STRATEGIC_FIT_METADATA_STALE_REASONS)[number];
+
+export type StrategicFitPersistedResolutionState =
+  | TerminalFindingResolutionState
+  | "invalid-comparison";
+
+export interface StrategicFitMetadataRecordLifecycle {
+  readonly record_state: StrategicFitMetadataRecordState;
+  readonly stale_reasons: readonly StrategicFitMetadataStaleReason[];
+  readonly reason: string | null;
+  readonly updated_at: string;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
+}
+
+export type StrategicFitPersistedRouteWeight =
+  Omit<StrategicRouteWeightInput, "provenance"> & StrategicFitMetadataRecordLifecycle;
+
+export type StrategicFitPersistedDecisionWeight =
+  Omit<StrategicDecisionWeightInput, "provenance"> & StrategicFitMetadataRecordLifecycle;
+
+export type StrategicFitPersistedStructuralCohortOverride =
+  | (StrategicCohortMergeOverride & StrategicFitMetadataRecordLifecycle)
+  | (StrategicCohortSplitOverride & StrategicFitMetadataRecordLifecycle);
+
+export type StrategicFitPersistedExclusionOverride =
+  StrategicCohortExclusionOverride & StrategicFitMetadataRecordLifecycle;
+
+export interface StrategicFitPersistedResolution
+  extends Omit<FindingResolution, "state" | "provenance">, StrategicFitMetadataRecordLifecycle {
+  readonly state: StrategicFitPersistedResolutionState;
+  /** Canonical profile snapshot used only when `profile-changed` invalidation is requested. */
+  readonly profile_snapshot: string | null;
+}
 
 export type StrategicFitStructuralCohortOverride =
   | StrategicCohortMergeOverride
   | StrategicCohortSplitOverride;
 
 export interface StrategicFitManualWeights {
-  readonly route_weights: readonly StrategicRouteWeightInput[];
-  readonly decision_weights: readonly StrategicDecisionWeightInput[];
+  readonly route_weights: readonly StrategicFitPersistedRouteWeight[];
+  readonly decision_weights: readonly StrategicFitPersistedDecisionWeight[];
 }
 
 /** Archive payloads remain outside this contract; metadata stores semantic references only. */
@@ -75,9 +121,9 @@ export interface StrategicFitDocumentMetadata {
   readonly metadata_version: typeof STRATEGIC_FIT_DOCUMENT_METADATA_VERSION;
   readonly profile: StrategicFitProfile;
   readonly manual_weights: StrategicFitManualWeights;
-  readonly cohort_overrides: readonly StrategicFitStructuralCohortOverride[];
-  readonly exclusions: readonly StrategicCohortExclusionOverride[];
-  readonly resolutions: readonly FindingResolution[];
+  readonly cohort_overrides: readonly StrategicFitPersistedStructuralCohortOverride[];
+  readonly exclusions: readonly StrategicFitPersistedExclusionOverride[];
+  readonly resolutions: readonly StrategicFitPersistedResolution[];
   readonly archive_references: readonly StrategicFitArchiveReference[];
   readonly training_references: readonly StrategicFitTrainingReference[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
@@ -116,6 +162,7 @@ export interface StrategicFitMetadataNormalizationResult {
 export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string, string>> =
   Object.freeze({
     "0.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    "1.0.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   });
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
@@ -146,6 +193,33 @@ const TERMINAL_RESOLUTION_STATES = new Set<string>(
 );
 const INTENTIONAL_REASONS = new Set<string>(INTENTIONAL_RESOLUTION_REASONS);
 const INVALIDATION_RULES = new Set<string>(RESOLUTION_INVALIDATION_RULES);
+const RECORD_STATES = new Set<string>(STRATEGIC_FIT_METADATA_RECORD_STATES);
+const STALE_REASONS = new Set<string>(STRATEGIC_FIT_METADATA_STALE_REASONS);
+const PERSISTED_RESOLUTION_STATES = new Set<string>([
+  ...TERMINAL_RESOLUTION_STATES,
+  "invalid-comparison",
+]);
+
+/** Stable canonical profile snapshot for persisted `profile-changed` invalidation. */
+export function strategicFitProfileSnapshot(profile: StrategicFitProfile): string {
+  return JSON.stringify({
+    schema_version: profile.schema_version,
+    mode: profile.mode,
+    source: profile.source,
+    provisional: profile.provisional,
+    preferences: {
+      maximum_engine_loss_cp: profile.preferences.maximum_engine_loss_cp,
+      opponent_popularity_importance: profile.preferences.opponent_popularity_importance,
+      personal_game_frequency_importance: profile.preferences.personal_game_frequency_importance,
+      manual_weight_importance: profile.preferences.manual_weight_importance,
+      additional_memorization_tolerance: profile.preferences.additional_memorization_tolerance,
+      preferred_concept_ids: [...profile.preferences.preferred_concept_ids],
+      avoided_concept_ids: [...profile.preferences.avoided_concept_ids],
+      preferred_tactical_character: [...profile.preferences.preferred_tactical_character],
+      minimum_opponent_coverage: profile.preferences.minimum_opponent_coverage,
+    },
+  });
+}
 
 function defaultProfile(): StrategicFitProfile {
   return {
@@ -313,6 +387,34 @@ function provenanceArray(
   return result;
 }
 
+function recordLifecycle(
+  value: UnknownRecord,
+  path: string,
+  context: NormalizationContext,
+): StrategicFitMetadataRecordLifecycle | null {
+  const recordState = nonEmptyString(value.record_state);
+  const reason = nullableString(value.reason);
+  const updatedAt = nonEmptyString(value.updated_at);
+  const staleReasons = stringArray(value.stale_reasons, `${path}.stale_reasons`, context);
+  const provenance = provenanceArray(value.provenance, `${path}.provenance`, context);
+  if (
+    recordState === null || !RECORD_STATES.has(recordState) || reason === undefined ||
+    updatedAt === null || staleReasons.some((entry) => !STALE_REASONS.has(entry)) ||
+    (recordState === "active" && staleReasons.length > 0) ||
+    (recordState === "stale" && staleReasons.length === 0) || provenance.length === 0
+  ) {
+    issue(context, "invalid-entry", path, "Metadata record lifecycle fields do not match the current contract.");
+    return null;
+  }
+  return {
+    record_state: recordState as StrategicFitMetadataRecordState,
+    stale_reasons: staleReasons as StrategicFitMetadataStaleReason[],
+    reason,
+    updated_at: updatedAt,
+    provenance,
+  };
+}
+
 function profilePreferences(
   value: unknown,
   path: string,
@@ -399,50 +501,54 @@ function profile(value: unknown, path: string, context: NormalizationContext): S
   };
 }
 
-function optionalProvenance(
-  value: UnknownRecord,
-  path: string,
-  context: NormalizationContext,
-): StrategicFitSourceProvenance[] {
-  return value.provenance === undefined ? [] : provenanceArray(value.provenance, `${path}.provenance`, context);
-}
-
 function routeWeight(
   value: unknown,
   path: string,
   context: NormalizationContext,
-): StrategicRouteWeightInput | null {
+): StrategicFitPersistedRouteWeight | null {
   if (!isRecord(value)) {
     issue(context, "invalid-entry", path, "Expected a route weight object.");
     return null;
   }
-  unknownFields(value, new Set(["route_id", "weight", "provenance"]), path, context);
+  unknownFields(
+    value,
+    new Set(["route_id", "weight", "record_state", "stale_reasons", "reason", "updated_at", "provenance"]),
+    path,
+    context,
+  );
   const routeId = nonEmptyString(value.route_id);
   const weight = finiteNumber(value.weight, 0);
-  if (routeId === null || weight === null) {
+  const lifecycle = recordLifecycle(value, path, context);
+  if (routeId === null || weight === null || lifecycle === null) {
     issue(context, "invalid-entry", path, "Route weight requires a semantic route ID and a non-negative weight.");
     return null;
   }
-  return { route_id: routeId, weight, provenance: optionalProvenance(value, path, context) };
+  return { route_id: routeId, weight, ...lifecycle };
 }
 
 function decisionWeight(
   value: unknown,
   path: string,
   context: NormalizationContext,
-): StrategicDecisionWeightInput | null {
+): StrategicFitPersistedDecisionWeight | null {
   if (!isRecord(value)) {
     issue(context, "invalid-entry", path, "Expected a decision weight object.");
     return null;
   }
-  unknownFields(value, new Set(["decision_id", "weight", "provenance"]), path, context);
+  unknownFields(
+    value,
+    new Set(["decision_id", "weight", "record_state", "stale_reasons", "reason", "updated_at", "provenance"]),
+    path,
+    context,
+  );
   const decisionId = nonEmptyString(value.decision_id);
   const weight = finiteNumber(value.weight, 0);
-  if (decisionId === null || weight === null) {
+  const lifecycle = recordLifecycle(value, path, context);
+  if (decisionId === null || weight === null || lifecycle === null) {
     issue(context, "invalid-entry", path, "Decision weight requires a semantic decision ID and a non-negative weight.");
     return null;
   }
-  return { decision_id: decisionId, weight, provenance: optionalProvenance(value, path, context) };
+  return { decision_id: decisionId, weight, ...lifecycle };
 }
 
 function uniqueEntries<T>(
@@ -482,14 +588,14 @@ function manualWeights(value: unknown, path: string, context: NormalizationConte
     route_weights: uniqueEntries(
       value.route_weights,
       `${path}.route_weights`,
-      (entry: StrategicRouteWeightInput) => entry.route_id,
+      (entry: StrategicFitPersistedRouteWeight) => entry.route_id,
       routeWeight,
       context,
     ),
     decision_weights: uniqueEntries(
       value.decision_weights,
       `${path}.decision_weights`,
-      (entry: StrategicDecisionWeightInput) => entry.decision_id,
+      (entry: StrategicFitPersistedDecisionWeight) => entry.decision_id,
       decisionWeight,
       context,
     ),
@@ -500,19 +606,28 @@ function cohortOverride(
   value: unknown,
   path: string,
   context: NormalizationContext,
-): StrategicCohortOverride | null {
+): StrategicFitPersistedStructuralCohortOverride | StrategicFitPersistedExclusionOverride | null {
   if (!isRecord(value)) {
     issue(context, "invalid-entry", path, "Expected a cohort override object.");
     return null;
   }
   const overrideId = nonEmptyString(value.override_id);
   const kind = nonEmptyString(value.kind);
-  if (overrideId === null || !["merge", "split", "exclude"].includes(kind ?? "")) {
+  const lifecycle = recordLifecycle(value, path, context);
+  if (overrideId === null || !["merge", "split", "exclude"].includes(kind ?? "") || lifecycle === null) {
     issue(context, "invalid-entry", path, "Cohort override identity or kind is invalid.");
     return null;
   }
   if (kind === "merge" || kind === "split") {
-    unknownFields(value, new Set(["override_id", "kind", "route_ids", "provenance"]), path, context);
+    unknownFields(
+      value,
+      new Set([
+        "override_id", "kind", "route_ids", "record_state", "stale_reasons", "reason", "updated_at",
+        "provenance",
+      ]),
+      path,
+      context,
+    );
     const routeIds = stringArray(value.route_ids, `${path}.route_ids`, context);
     if (routeIds.length === 0) {
       issue(context, "invalid-entry", path, "Structural cohort overrides require at least one route.");
@@ -522,12 +637,15 @@ function cohortOverride(
       override_id: overrideId,
       kind,
       route_ids: routeIds,
-      provenance: optionalProvenance(value, path, context),
-    } as StrategicCohortMergeOverride | StrategicCohortSplitOverride;
+      ...lifecycle,
+    } as StrategicFitPersistedStructuralCohortOverride;
   }
   unknownFields(
     value,
-    new Set(["override_id", "kind", "route_ids", "decision_ids", "provenance"]),
+    new Set([
+      "override_id", "kind", "route_ids", "decision_ids", "record_state", "stale_reasons", "reason",
+      "updated_at", "provenance",
+    ]),
     path,
     context,
   );
@@ -544,7 +662,7 @@ function cohortOverride(
     kind: "exclude",
     route_ids: routeIds,
     decision_ids: decisionIds,
-    provenance: optionalProvenance(value, path, context),
+    ...lifecycle,
   };
 }
 
@@ -553,12 +671,12 @@ function exclusionOverrides(
   path: string,
   structuralOverrideIds: ReadonlySet<string>,
   context: NormalizationContext,
-): StrategicCohortExclusionOverride[] {
+): StrategicFitPersistedExclusionOverride[] {
   if (!Array.isArray(value)) {
     issue(context, "invalid-field", path, "Expected an array.");
     return [];
   }
-  const result: StrategicCohortExclusionOverride[] = [];
+  const result: StrategicFitPersistedExclusionOverride[] = [];
   const seen = new Set(structuralOverrideIds);
   for (const [index, entry] of value.entries()) {
     const entryPath = `${path}[${index}]`;
@@ -603,7 +721,7 @@ function resolution(
   value: unknown,
   path: string,
   context: NormalizationContext,
-): FindingResolution | null {
+): StrategicFitPersistedResolution | null {
   if (!isRecord(value)) {
     issue(context, "invalid-entry", path, "Expected a finding resolution object.");
     return null;
@@ -624,6 +742,11 @@ function resolution(
       "linked_training_ids",
       "linked_staged_edit_ids",
       "created_at",
+      "profile_snapshot",
+      "record_state",
+      "stale_reasons",
+      "reason",
+      "updated_at",
       "provenance",
     ]),
     path,
@@ -638,18 +761,33 @@ function resolution(
   const references = semanticReferences(value.references, `${path}.references`, context);
   const expiresAt = nullableString(value.expires_at);
   const createdAt = nonEmptyString(value.created_at);
+  const profileSnapshot = nullableString(value.profile_snapshot);
+  const lifecycle = recordLifecycle(value, path, context);
   if (
     value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION || resolutionId === null || findingId === null ||
-    repertoireRevision === null || state === null || !TERMINAL_RESOLUTION_STATES.has(state) ||
+    repertoireRevision === null || state === null || !PERSISTED_RESOLUTION_STATES.has(state) ||
     intentionalReason === undefined || intentionalReason !== null && !INTENTIONAL_REASONS.has(intentionalReason) ||
-    note === undefined || references === null || expiresAt === undefined || createdAt === null
+    note === undefined || references === null || expiresAt === undefined || createdAt === null ||
+    profileSnapshot === undefined || lifecycle === null ||
+    references.position_ids.length === 0 && references.decision_ids.length === 0 &&
+      references.route_ids.length === 0
   ) {
     issue(context, "invalid-entry", path, "Finding resolution fields do not match the current contract.");
     return null;
   }
   const invalidationRules = stringArray(value.invalidation_rules, `${path}.invalidation_rules`, context);
-  if (invalidationRules.some((rule) => !INVALIDATION_RULES.has(rule))) {
-    issue(context, "invalid-entry", `${path}.invalidation_rules`, "Unknown resolution invalidation rule.");
+  if (
+    invalidationRules.some((rule) => !INVALIDATION_RULES.has(rule)) ||
+    (invalidationRules.includes("never") && invalidationRules.length !== 1) ||
+    (invalidationRules.includes("never") && expiresAt !== null) ||
+    (invalidationRules.includes("profile-changed") && profileSnapshot === null)
+  ) {
+    issue(
+      context,
+      "invalid-entry",
+      `${path}.invalidation_rules`,
+      "Resolution invalidation rules or their required snapshots are invalid.",
+    );
     return null;
   }
   return {
@@ -657,7 +795,7 @@ function resolution(
     resolution_id: resolutionId,
     finding_id: findingId,
     repertoire_revision: repertoireRevision,
-    state: state as TerminalFindingResolutionState,
+    state: state as StrategicFitPersistedResolutionState,
     intentional_reason: intentionalReason as FindingResolution["intentional_reason"],
     note,
     references,
@@ -670,7 +808,8 @@ function resolution(
       context,
     ),
     created_at: createdAt,
-    provenance: provenanceArray(value.provenance, `${path}.provenance`, context),
+    profile_snapshot: profileSnapshot,
+    ...lifecycle,
   };
 }
 
@@ -782,10 +921,11 @@ function normalizedCurrent(
   const structuralOverrides = uniqueEntries(
     value.cohort_overrides,
     "$.cohort_overrides",
-    (entry: StrategicCohortOverride) => entry.override_id,
+    (entry: StrategicFitPersistedStructuralCohortOverride | StrategicFitPersistedExclusionOverride) =>
+      entry.override_id,
     cohortOverride,
     context,
-  ).filter((override): override is StrategicFitStructuralCohortOverride => override.kind !== "exclude");
+  ).filter((override): override is StrategicFitPersistedStructuralCohortOverride => override.kind !== "exclude");
   const exclusions = exclusionOverrides(
     value.exclusions,
     "$.exclusions",
@@ -808,7 +948,7 @@ function normalizedCurrent(
     resolutions: uniqueEntries(
       value.resolutions,
       "$.resolutions",
-      (entry: FindingResolution) => entry.resolution_id,
+      (entry: StrategicFitPersistedResolution) => entry.resolution_id,
       resolution,
       context,
     ),
@@ -830,38 +970,92 @@ function normalizedCurrent(
   };
 }
 
+const MIGRATED_RECORD_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
+  source_id: "strategic-fit:metadata-migration",
+  kind: "user-profile",
+  state: "available",
+  version: STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+  snapshot: null,
+  reason: "Migrated an existing user-authored Strategic Fit metadata record.",
+});
+
+function migrateRecordLifecycle(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const provenance = Array.isArray(value.provenance) && value.provenance.length > 0
+    ? value.provenance
+    : [MIGRATED_RECORD_PROVENANCE];
+  return {
+    ...value,
+    record_state: value.record_state ?? "active",
+    stale_reasons: value.stale_reasons ?? [],
+    reason: value.reason ?? null,
+    updated_at: value.updated_at ?? value.created_at ?? "1970-01-01T00:00:00.000Z",
+    provenance,
+  };
+}
+
+function migratedRecords(value: unknown): unknown[] {
+  return Array.isArray(value) ? value.map(migrateRecordLifecycle) : [];
+}
+
+function migratedResolutions(value: unknown, profileValue: unknown): unknown[] {
+  const snapshot = isRecord(profileValue)
+    ? strategicFitProfileSnapshot(profile(profileValue, "$.profile", { issues: [], fallback: false }))
+    : strategicFitProfileSnapshot(defaultProfile());
+  return migratedRecords(value).map((entry) => {
+    if (!isRecord(entry)) return entry;
+    const rules = Array.isArray(entry.invalidation_rules) ? entry.invalidation_rules : [];
+    return {
+      ...entry,
+      profile_snapshot: entry.profile_snapshot ?? (rules.includes("profile-changed") ? snapshot : null),
+    };
+  });
+}
+
 function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): UnknownRecord {
   unknownFields(
     value,
     new Set([
+      "metadata_kind",
       "metadata_version",
       "profile",
+      "manual_weights",
       "route_weights",
       "decision_weights",
       "cohort_overrides",
       "exclusions",
       "resolutions",
       "archives",
+      "archive_references",
       "training",
+      "training_references",
       "provenance",
     ]),
     "$",
     context,
   );
+  if (
+    value.metadata_version === "1.0.0" &&
+    value.metadata_kind !== STRATEGIC_FIT_DOCUMENT_METADATA_KIND
+  ) {
+    issue(context, "invalid-field", "$.metadata_kind", "Metadata kind is missing or unsupported.");
+  }
   const defaults = createDefaultStrategicFitDocumentMetadata();
+  const legacyManualWeights = isRecord(value.manual_weights) ? value.manual_weights : null;
+  const profileValue = value.profile ?? defaults.profile;
   return {
     metadata_kind: STRATEGIC_FIT_DOCUMENT_METADATA_KIND,
     metadata_version: STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
-    profile: value.profile ?? defaults.profile,
+    profile: profileValue,
     manual_weights: {
-      route_weights: value.route_weights ?? [],
-      decision_weights: value.decision_weights ?? [],
+      route_weights: migratedRecords(legacyManualWeights?.route_weights ?? value.route_weights),
+      decision_weights: migratedRecords(legacyManualWeights?.decision_weights ?? value.decision_weights),
     },
-    cohort_overrides: value.cohort_overrides ?? [],
-    exclusions: value.exclusions ?? [],
-    resolutions: value.resolutions ?? [],
-    archive_references: value.archives ?? [],
-    training_references: value.training ?? [],
+    cohort_overrides: migratedRecords(value.cohort_overrides),
+    exclusions: migratedRecords(value.exclusions),
+    resolutions: migratedResolutions(value.resolutions, profileValue),
+    archive_references: value.archive_references ?? value.archives ?? [],
+    training_references: value.training_references ?? value.training ?? [],
     provenance: value.provenance ?? [],
   };
 }
@@ -925,4 +1119,215 @@ export function normalizeStrategicFitDocumentMetadata(
     `Unsupported Strategic Fit document metadata version: ${sourceVersion}`,
   );
   return fallbackResult(sourceVersion, context.issues);
+}
+
+export interface StrategicFitMetadataReconciliationInput {
+  readonly graph: RepertoireGraph;
+  readonly profile: StrategicFitProfile;
+  readonly repertoire_revision: string;
+  /** Injectable ISO timestamp keeps expiry reconciliation deterministic in tests and hosts. */
+  readonly now: string;
+}
+
+export interface StrategicFitMetadataReconciliationResult {
+  readonly metadata: StrategicFitDocumentMetadata;
+  readonly changed: boolean;
+}
+
+function sortedUniqueStaleReasons(
+  values: readonly StrategicFitMetadataStaleReason[],
+): StrategicFitMetadataStaleReason[] {
+  return [...new Set(values)].sort();
+}
+
+function reconciledLifecycle<T extends StrategicFitMetadataRecordLifecycle>(
+  record: T,
+  reasons: readonly StrategicFitMetadataStaleReason[],
+): T {
+  if (record.record_state === "stale") return record;
+  const staleReasons = sortedUniqueStaleReasons(reasons);
+  if (staleReasons.length === 0) return record;
+  return {
+    ...record,
+    record_state: "stale",
+    stale_reasons: staleReasons,
+  };
+}
+
+function missingReferences(
+  ids: readonly string[] | undefined,
+  available: ReadonlySet<string>,
+  reason: StrategicFitMetadataStaleReason,
+): StrategicFitMetadataStaleReason[] {
+  return (ids ?? []).some((id) => !available.has(id)) ? [reason] : [];
+}
+
+/**
+ * Reconcile persisted identities against one canonical graph.
+ *
+ * Staleness is monotonic: restoring a deleted move cannot silently reactivate old user intent.
+ * The user must explicitly update the record to reaffirm it against the current graph.
+ */
+export function reconcileStrategicFitDocumentMetadata(
+  metadata: StrategicFitDocumentMetadata,
+  input: StrategicFitMetadataReconciliationInput,
+): StrategicFitMetadataReconciliationResult {
+  const positionIds = new Set(input.graph.positions.map((position) => position.position_id));
+  const decisionIds = new Set(input.graph.decisions.map((decision) => decision.decision_id));
+  const routeIds = new Set(input.graph.routes.map((route) => route.route_id));
+  const profileSnapshot = strategicFitProfileSnapshot(input.profile);
+  const now = Date.parse(input.now);
+
+  const routeWeights = metadata.manual_weights.route_weights.map((record) => reconciledLifecycle(
+    record,
+    missingReferences([record.route_id], routeIds, "referenced-route-missing"),
+  ));
+  const decisionWeights = metadata.manual_weights.decision_weights.map((record) => reconciledLifecycle(
+    record,
+    missingReferences([record.decision_id], decisionIds, "referenced-decision-missing"),
+  ));
+  const cohortOverrides = metadata.cohort_overrides.map((record) => reconciledLifecycle(
+    record,
+    missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
+  ));
+  const exclusions = metadata.exclusions.map((record) => reconciledLifecycle(record, [
+    ...missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
+    ...missingReferences(record.decision_ids, decisionIds, "referenced-decision-missing"),
+  ]));
+  const resolutions = metadata.resolutions.map((record) => {
+    if (record.record_state === "stale" || record.invalidation_rules.includes("never")) return record;
+    const reasons: StrategicFitMetadataStaleReason[] = [];
+    if (record.invalidation_rules.includes("referenced-position-changed")) {
+      reasons.push(...missingReferences(
+        record.references.position_ids,
+        positionIds,
+        "referenced-position-missing",
+      ));
+    }
+    if (record.invalidation_rules.includes("referenced-decision-changed")) {
+      reasons.push(...missingReferences(
+        record.references.decision_ids,
+        decisionIds,
+        "referenced-decision-missing",
+      ));
+    }
+    if (record.invalidation_rules.includes("referenced-route-changed")) {
+      reasons.push(...missingReferences(record.references.route_ids, routeIds, "referenced-route-missing"));
+    }
+    if (
+      record.invalidation_rules.includes("repertoire-revision-changed") &&
+      record.repertoire_revision !== input.repertoire_revision
+    ) reasons.push("repertoire-revision-changed");
+    if (
+      record.invalidation_rules.includes("profile-changed") &&
+      record.profile_snapshot !== profileSnapshot
+    ) reasons.push("profile-changed");
+    const expiresAt = record.expires_at === null ? Number.NaN : Date.parse(record.expires_at);
+    if (Number.isFinite(now) && Number.isFinite(expiresAt) && expiresAt <= now) reasons.push("expired");
+    return reconciledLifecycle(record, reasons);
+  });
+
+  const next: StrategicFitDocumentMetadata = {
+    ...metadata,
+    manual_weights: { route_weights: routeWeights, decision_weights: decisionWeights },
+    cohort_overrides: cohortOverrides,
+    exclusions,
+    resolutions,
+  };
+  const changed = JSON.stringify(next) !== JSON.stringify(metadata);
+  return { metadata: changed ? next : metadata, changed };
+}
+
+export interface StrategicFitMetadataAnalysisInputs {
+  readonly weighting?: {
+    readonly mode: "manual";
+    readonly route_weights: readonly StrategicRouteWeightInput[];
+    readonly decision_weights: readonly StrategicDecisionWeightInput[];
+  };
+  readonly cohort_overrides?: readonly (
+    | StrategicCohortMergeOverride
+    | StrategicCohortSplitOverride
+    | StrategicCohortExclusionOverride
+  )[];
+  readonly route_assessments?: readonly StrategicFitRouteAssessmentInput[];
+}
+
+function resolutionRouteIds(
+  resolution: StrategicFitPersistedResolution,
+  graph: RepertoireGraph,
+): string[] {
+  const available = new Set(graph.routes.map((route) => route.route_id));
+  const direct = resolution.references.route_ids.filter((routeId) => available.has(routeId));
+  if (direct.length > 0) return [...new Set(direct)].sort();
+  if (resolution.references.decision_ids.length > 0) {
+    return graph.routes
+      .filter((route) => resolution.references.decision_ids.every((id) => route.decision_ids.includes(id)))
+      .map((route) => route.route_id)
+      .sort();
+  }
+  if (resolution.references.position_ids.length > 0) {
+    return graph.routes
+      .filter((route) => resolution.references.position_ids.every((id) => route.position_ids.includes(id)))
+      .map((route) => route.route_id)
+      .sort();
+  }
+  return [];
+}
+
+/** Project only active persisted settings into the framework-free analyzer contract. */
+export function strategicFitAnalysisInputsFromMetadata(
+  metadata: StrategicFitDocumentMetadata,
+  graph: RepertoireGraph,
+): StrategicFitMetadataAnalysisInputs {
+  const routeWeights = metadata.manual_weights.route_weights
+    .filter((record) => record.record_state === "active")
+    .map(({ route_id, weight, provenance }) => ({ route_id, weight, provenance }));
+  const decisionWeights = metadata.manual_weights.decision_weights
+    .filter((record) => record.record_state === "active")
+    .map(({ decision_id, weight, provenance }) => ({ decision_id, weight, provenance }));
+  const cohortOverrides = [
+    ...metadata.cohort_overrides,
+    ...metadata.exclusions,
+  ].filter((record) => record.record_state === "active").map((record) => record.kind === "exclude"
+    ? {
+        override_id: record.override_id,
+        kind: record.kind,
+        route_ids: [...(record.route_ids ?? [])],
+        decision_ids: [...(record.decision_ids ?? [])],
+        provenance: record.provenance,
+      }
+    : {
+        override_id: record.override_id,
+        kind: record.kind,
+        route_ids: [...record.route_ids],
+        provenance: record.provenance,
+      });
+
+  const assessmentByRoute = new Map<string, StrategicFitRouteAssessmentInput>();
+  const resolutions = metadata.resolutions
+    .filter((record) => record.record_state === "active")
+    .sort((left, right) => left.updated_at.localeCompare(right.updated_at) ||
+      left.resolution_id.localeCompare(right.resolution_id));
+  for (const resolution of resolutions) {
+    for (const routeId of resolutionRouteIds(resolution, graph)) {
+      assessmentByRoute.set(routeId, {
+        route_id: routeId,
+        matches_declared_objective: resolution.state === "keep-intentionally",
+        resolution_state: resolution.state === "invalid-comparison"
+          ? "insufficient-evidence"
+          : resolution.state,
+      });
+    }
+  }
+
+  return {
+    ...(routeWeights.length === 0 && decisionWeights.length === 0 ? {} : {
+      weighting: { mode: "manual", route_weights: routeWeights, decision_weights: decisionWeights },
+    }),
+    ...(cohortOverrides.length === 0 ? {} : { cohort_overrides: cohortOverrides }),
+    ...(assessmentByRoute.size === 0 ? {} : {
+      route_assessments: [...assessmentByRoute.values()].sort((left, right) =>
+        left.route_id.localeCompare(right.route_id)),
+    }),
+  };
 }

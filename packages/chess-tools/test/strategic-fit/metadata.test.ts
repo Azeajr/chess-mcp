@@ -21,6 +21,14 @@ const SOURCE: StrategicFitSourceProvenance = {
   reason: "Confirmed by the user.",
 };
 
+const LIFECYCLE = {
+  record_state: "active" as const,
+  stale_reasons: [],
+  reason: null,
+  updated_at: "2026-07-17T12:00:00.000Z",
+  provenance: [SOURCE],
+};
+
 const REFERENCES: SemanticReferences = {
   position_ids: ["position:semantic"],
   decision_ids: ["decision:semantic"],
@@ -50,21 +58,21 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       },
     },
     manual_weights: {
-      route_weights: [{ route_id: "route:semantic", weight: 2, provenance: [SOURCE] }],
-      decision_weights: [{ decision_id: "decision:semantic", weight: 3, provenance: [SOURCE] }],
+      route_weights: [{ route_id: "route:semantic", weight: 2, ...LIFECYCLE }],
+      decision_weights: [{ decision_id: "decision:semantic", weight: 3, ...LIFECYCLE }],
     },
     cohort_overrides: [
       {
         override_id: "override:merge",
         kind: "merge",
         route_ids: ["route:semantic", "route:other"],
-        provenance: [SOURCE],
+        ...LIFECYCLE,
       },
       {
         override_id: "override:split",
         kind: "split",
         route_ids: ["route:third"],
-        provenance: [SOURCE],
+        ...LIFECYCLE,
       },
     ],
     exclusions: [{
@@ -72,7 +80,7 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       kind: "exclude",
       route_ids: ["route:excluded"],
       decision_ids: ["decision:excluded"],
-      provenance: [SOURCE],
+      ...LIFECYCLE,
     }],
     resolutions: [{
       schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
@@ -88,7 +96,8 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       linked_training_ids: ["training:semantic"],
       linked_staged_edit_ids: [],
       created_at: "2026-07-17T12:00:00.000Z",
-      provenance: [SOURCE],
+      profile_snapshot: null,
+      ...LIFECYCLE,
     }],
     archive_references: [{
       archive_id: "archive:semantic",
@@ -119,7 +128,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
   assert.notEqual(first, second);
   assert.notEqual(first.profile, second.profile);
   assert.equal(first.metadata_kind, "chess-mcp/strategic-fit-document-metadata");
-  assert.equal(first.metadata_version, "1.0.0");
+  assert.equal(first.metadata_version, "1.1.0");
   assert.deepEqual(first.profile, {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "balanced",
@@ -246,12 +255,14 @@ test("cohort override identities stay unique across structural overrides and exc
       override_id: "override:same",
       kind: "split",
       route_ids: ["route:a"],
+      ...LIFECYCLE,
     }],
     exclusions: [null, {
       override_id: "override:same",
       kind: "exclude",
       route_ids: ["route:b"],
       decision_ids: [],
+      ...LIFECYCLE,
     }],
   });
 

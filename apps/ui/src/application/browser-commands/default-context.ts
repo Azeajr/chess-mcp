@@ -14,6 +14,7 @@ import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
 import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
+import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
 import { getCachedStrategicFitReport } from "../strategic-fit-report-cache";
 import type { BrowserCommandDependencies } from "./types";
 
@@ -37,6 +38,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentFileName: fileName,
   currentRevision: version,
   currentStrategicFitProfile: strategicFitProfile,
+  currentStrategicFitAnalysisSettings: strategicFitAnalysisSettings,
   analysisDepth,
   analyse: (atFen, multipv, depth, movetime, signal) => analyseMulti(atFen, multipv, depth, movetime, signal),
   cloudEval,

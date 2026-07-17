@@ -45,7 +45,19 @@ function populatedMetadata(label: string): StrategicFitDocumentMetadata {
       linked_training_ids: [],
       linked_staged_edit_ids: [],
       created_at: "2026-07-17T12:00:00.000Z",
-      provenance: [],
+      profile_snapshot: null,
+      record_state: "active",
+      stale_reasons: [],
+      reason: null,
+      updated_at: "2026-07-17T12:00:00.000Z",
+      provenance: [{
+        source_id: "fixture:user",
+        kind: "user-profile",
+        state: "available",
+        version: defaults.profile.schema_version,
+        snapshot: "revision:7",
+        reason: "Test fixture.",
+      }],
     }],
   };
 }
@@ -178,7 +190,7 @@ test("two documents isolate immediate reads and every debounced write by capture
 
 test("corrupt and unsupported records publish defaults, structured warnings, then repair their key", async () => {
   for (const [label, input, warningCode, issueCode] of [
-    ["corrupt", { metadata_version: "1.0.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
+    ["corrupt", { metadata_version: "1.1.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
     ["unsupported", { metadata_version: "99.0.0" }, "unsupported-metadata", "unsupported-version"],
   ] as const) {
     const storage = new MemoryStorage();
