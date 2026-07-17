@@ -760,6 +760,20 @@ function normalizedCurrent(
     cohortOverride,
     context,
   ).filter((override): override is StrategicCohortExclusionOverride => override.kind === "exclude");
+  const overrideIds = new Set(structuralOverrides.map((override) => override.override_id));
+  const uniqueExclusions = exclusions.filter((override, index) => {
+    if (!overrideIds.has(override.override_id)) {
+      overrideIds.add(override.override_id);
+      return true;
+    }
+    issue(
+      context,
+      "duplicate-id",
+      `$.exclusions[${index}]`,
+      `Duplicate cohort override identity across cohort_overrides and exclusions: ${override.override_id}`,
+    );
+    return false;
+  });
   if (structuralOverrides.length !== (Array.isArray(value.cohort_overrides) ? value.cohort_overrides.length : 0)) {
     const misplaced = Array.isArray(value.cohort_overrides) && value.cohort_overrides.some(
       (entry) => isRecord(entry) && entry.kind === "exclude",
@@ -778,7 +792,7 @@ function normalizedCurrent(
     profile: profile(value.profile, "$.profile", context),
     manual_weights: manualWeights(value.manual_weights, "$.manual_weights", context),
     cohort_overrides: structuralOverrides,
-    exclusions,
+    exclusions: uniqueExclusions,
     resolutions: uniqueEntries(
       value.resolutions,
       "$.resolutions",

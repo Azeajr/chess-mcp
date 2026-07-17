@@ -238,6 +238,33 @@ test("corrupt current data falls back by section and never throws or trusts malf
   assert.equal(result.issues.some((entry) => entry.path === "$.profile"), true);
 });
 
+test("cohort override identities stay unique across structural overrides and exclusions", () => {
+  const input = createDefaultStrategicFitDocumentMetadata();
+  const result = normalizeStrategicFitDocumentMetadata({
+    ...input,
+    cohort_overrides: [{
+      override_id: "override:same",
+      kind: "split",
+      route_ids: ["route:a"],
+    }],
+    exclusions: [{
+      override_id: "override:same",
+      kind: "exclude",
+      route_ids: ["route:b"],
+      decision_ids: [],
+    }],
+  });
+
+  assert.equal(result.state, "fallback");
+  assert.deepEqual(result.metadata.cohort_overrides.map((override) => override.override_id), ["override:same"]);
+  assert.deepEqual(result.metadata.exclusions, []);
+  assert.deepEqual(result.issues, [{
+    code: "duplicate-id",
+    path: "$.exclusions[0]",
+    message: "Duplicate cohort override identity across cohort_overrides and exclusions: override:same",
+  }]);
+});
+
 test("unknown future fields are ignored while every supported field survives", () => {
   const supported = supportedMetadata();
   const input = structuredClone(supported) as unknown as Record<string, any>;
