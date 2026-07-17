@@ -19,6 +19,7 @@
 | 2.4 | Complete | `3d77fbe` | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
 | 2.5 | Complete | `f19f7b5` | Phase 2 gate | Weighted geometric confidence, explicit hard-cap reasons, and separate deterministic difference magnitude. |
 | 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
+| 2.7 | Complete | This commit | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 
 ## Coordinator state
 
