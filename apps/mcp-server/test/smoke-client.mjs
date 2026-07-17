@@ -213,9 +213,43 @@ const congRep = await call(client, "load_repertoire", {
   pgn: "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ ( 4... O-O 5. Bd3 d5 6. Nf3 c5 ) ( 4... b6 5. Bd3 Bb7 6. Nf3 O-O ) 5. bxc3 O-O *",
   color: "white",
 });
-const cong = await call(client, "analyze_repertoire_congruence", { repertoire_id: congRep.repertoire_id });
-console.log("  congruence:", cong.total_flagged, "flagged, clusters", JSON.stringify(cong.clusters));
-ok(cong.leaves_analyzed === 3 && cong.incongruencies.some((i) => i.type === "weakness_inconsistency"), "analyze_repertoire_congruence flags the doubled-pawn outlier");
+const cong = await call(client, "analyze_repertoire_congruence", {
+  repertoire_id: congRep.repertoire_id,
+  profile: {
+    mode: "custom",
+    preferences: { opponent_popularity_importance: 0.6, preferred_concept_ids: ["concept:iqp"] },
+  },
+  weighting: { mode: "equal" },
+  page: { offset: 0, limit: 2 },
+  sort: "finding-id",
+  limit: 2,
+});
+console.log("  strategic fit:", cong.finding_page?.total_count, "findings, report", cong.report_id);
+ok(
+  cong.analysis_version === "2.0.0" &&
+    cong.repertoire_revision?.startsWith("mcp:") &&
+    cong.profile?.mode === "custom" &&
+    cong.profile?.source === "explicit" &&
+    cong.findings?.length <= 2 &&
+    cong.finding_page?.total_count === cong.summary?.unresolved_finding_count &&
+    cong.legacy_projection?.deprecated === true &&
+    cong.incongruencies?.length <= 2,
+  "analyze_repertoire_congruence returns bounded native V2 semantics and the compatibility projection",
+);
+let invalidStrategicFitRejected = false;
+try {
+  const invalid = await client.callTool({
+    name: "analyze_repertoire_congruence",
+    arguments: {
+      repertoire_id: congRep.repertoire_id,
+      profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.5 } },
+    },
+  });
+  invalidStrategicFitRejected = invalid.isError === true;
+} catch {
+  invalidStrategicFitRejected = true;
+}
+ok(invalidStrategicFitRejected, "analyze_repertoire_congruence rejects malformed nested V2 arguments");
 
 console.log("suggest_complementary_lines (engine, depth 10)…");
 const sugRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. c4 e6 3. Nc3 Nf6 *", color: "white" });

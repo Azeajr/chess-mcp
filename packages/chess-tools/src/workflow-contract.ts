@@ -62,7 +62,7 @@ export const WORKFLOW_CONTRACTS: Record<WorkflowFamily, WorkflowContract> = {
     goal: "Pressure-test a branching repertoire for soundness, coverage, memorization cost, structures, and practical opponent preparation.",
     steps: [
       step("Profile", "Use the aggregate structural profile for identity; use structure search to locate lines matching explicit structure, center, theme, or color-complex criteria.", ["get_structural_profile", "find_structures"]),
-      step("Check consistency", "Find thematic outliers within opening systems, then inspect a flagged SAN path with the position-level structural profile.", ["analyze_repertoire_congruence", "get_structural_profile"]),
+      step("Analyze strategic fit", "Run the versioned Strategic Fit report with an explicit profile or the labeled inferred default. Review expected-weight findings and their evidence; never treat difference, uncertainty, forced diversity, or intentional diversity as a defect.", ["analyze_repertoire_congruence", "get_structural_profile"]),
       step("Audit user moves", "Audit prescribed user moves tree-wide and rank centipawn-loss findings. This checks move quality, not missing opponent replies.", ["audit_repertoire_moves"]),
       step("Find gaps", "Scan opponent decision nodes for strong uncovered replies. For a real gap, generate best-evaluation and best-fit fills and let the user choose before staging or applying an edit.", ["find_repertoire_gaps", "suggest_gap_fills", "modify_repertoire_line"]),
       step("Find only moves", "Find sharp user-turn positions where the best move clearly separates from the second. Fix non-best prescriptions through the audit path before producing a drill deck.", ["find_only_moves"]),
@@ -72,7 +72,7 @@ export const WORKFLOW_CONTRACTS: Record<WorkflowFamily, WorkflowContract> = {
       step("Prepare an opponent", "Use opponent preparation for an opponent's games and targets; use repertoire-versus-history for the user's own departures. Do not substitute one report for the other.", ["prep_vs_opponent", "repertoire_vs_history"]),
       step("Export the right artifact", "Use annotated repertoire export for the branching tree and only-move deck export for training. Game annotation is not a repertoire artifact.", ["export_annotated_repertoire", "find_only_moves"]),
     ],
-    report: ["Separate structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.", "Give navigable SAN paths and preserve action/artifact references.", "Present alternatives and tradeoffs; never choose or apply a mutation silently."],
+    report: ["Separate Strategic Fit, structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.", "Keep confidence, strategic difference, objective quality, replacement priority, and training priority distinct.", "Give navigable SAN paths and preserve report, finding, action, and artifact references.", "Present alternatives and tradeoffs; never choose or apply a mutation silently."],
   },
 };
 

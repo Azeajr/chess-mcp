@@ -23,16 +23,17 @@
 | 2.8 | Complete | `15b4a48` | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
 | 2.9 | Complete | `445be49` | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
 | 3.1 | Complete | `5af5039` | Task validation | Deprecated bounded legacy `incongruencies` projection with exhaustive classification mapping and explicit multi-path disclosure. |
+| 3.2 | Complete | This commit | Phase 3 gate | Canonical nested V2 inputs, shared host argument adaptation, worker/in-process analyzer parity, bounded legacy projection, and synchronized public surfaces. |
 | 3.3 | Complete | `8ddeb7e` | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
 
 ## Coordinator state
 
 - Verified Tasks 3.1 at `5af5039` and 3.3 at `8ddeb7e` after their explicitly parallel workstream.
-- Latest combined gate: Strategic Fit 142/142; UI 25/25; chess-tools and UI builds; monorepo
-  typecheck; docs check; game-tree smoke 213/213.
-- No blocker or implementation agent is in flight.
-- Next task: Task 3.2 — Evolve the canonical tool contract and both host adapters. Its Task 3.1
-  dependency is complete; the Task 3.3 worker boundary is also available for the browser adapter.
+- Task 3.2 implementation is complete in this commit and awaits coordinator verification.
+- Task 3.2 validation: Strategic Fit 144/144; UI 27/27; canonical tool-contract inventory and
+  semantics; MCP smoke 76/76 with network disabled; chess-tools/UI builds; monorepo typecheck;
+  docs and synchronized-skills checks.
+- No blocker remains. The coordinator should verify this commit before selecting Task 3.4.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.

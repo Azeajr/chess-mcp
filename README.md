@@ -33,8 +33,10 @@ a no-scope Lichess personal token because the explorer requires authentication.
 - Repertoire: prescribed-move audit, missing replies, coverage, critical moves and drill decks,
   theory depth, structure search, practical-history comparison, opponent preparation, and annotated
   export.
-- Advanced repertoire: thematic congruence, transpositions and shortening, shortcut inspection,
-  engine-vetted replacement or complementary lines, and shared best-eval/best-fit gap fills.
+- Advanced repertoire: transposition-aware Strategic Fit V2 reports with explicit profiles,
+  weighting, paging, provenance, and a temporary legacy projection; transposition shortening,
+  shortcut inspection, engine-vetted replacement or complementary lines, and shared
+  best-eval/best-fit gap fills.
 
 Engine-backed position, game, and repertoire operations default to depth 20. The PWA's analysis
 selector can enable global Deep analysis at depth 30; it warns that bulk work may take minutes and

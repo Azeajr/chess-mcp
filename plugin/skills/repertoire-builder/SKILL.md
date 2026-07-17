@@ -26,7 +26,7 @@ Use the `chess-analysis` MCP on the whole branching tree.
 Pressure-test a branching repertoire for soundness, coverage, memorization cost, structures, and practical opponent preparation.
 
 1. Profile: Use the aggregate structural profile for identity; use structure search to locate lines matching explicit structure, center, theme, or color-complex criteria. Tools: `get_structural_profile`, `find_structures`.
-2. Check consistency: Find thematic outliers within opening systems, then inspect a flagged SAN path with the position-level structural profile. Tools: `analyze_repertoire_congruence`, `get_structural_profile`.
+2. Analyze strategic fit: Run the versioned Strategic Fit report with an explicit profile or the labeled inferred default. Review expected-weight findings and their evidence; never treat difference, uncertainty, forced diversity, or intentional diversity as a defect. Tools: `analyze_repertoire_congruence`, `get_structural_profile`.
 3. Audit user moves: Audit prescribed user moves tree-wide and rank centipawn-loss findings. This checks move quality, not missing opponent replies. Tools: `audit_repertoire_moves`.
 4. Find gaps: Scan opponent decision nodes for strong uncovered replies. For a real gap, generate best-evaluation and best-fit fills and let the user choose before staging or applying an edit. Tools: `find_repertoire_gaps`, `suggest_gap_fills`, `modify_repertoire_line`.
 5. Find only moves: Find sharp user-turn positions where the best move clearly separates from the second. Fix non-best prescriptions through the audit path before producing a drill deck. Tools: `find_only_moves`.
@@ -38,8 +38,9 @@ Pressure-test a branching repertoire for soundness, coverage, memorization cost,
 
 ## Shared report contract
 
-- Separate structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.
-- Give navigable SAN paths and preserve action/artifact references.
+- Separate Strategic Fit, structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.
+- Keep confidence, strategic difference, objective quality, replacement priority, and training priority distinct.
+- Give navigable SAN paths and preserve report, finding, action, and artifact references.
 - Present alternatives and tradeoffs; never choose or apply a mutation silently.
 <!-- END GENERATED WORKFLOW GUIDANCE -->
 

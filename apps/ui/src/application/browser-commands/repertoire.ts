@@ -1,6 +1,5 @@
 import {
   STRUCTURE_NAMES,
-  analyzeCongruence,
   annotateRepertoire,
   auditRepertoireMoves,
   checkShortcutCoverage,
@@ -21,6 +20,9 @@ import {
   toolDefault,
   transpositionResult,
   type ExplorerDb,
+  projectStrategicFitLegacyResult,
+  strategicFitOptionsFromToolArguments,
+  type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
 import type { BrowserCommandHandler } from "./types";
@@ -157,12 +159,28 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     return "error" in result ? { ...base, error: result.error } : { ...base, stubs_resolved: result.resolved, dangling_lines: result.dangling };
   },
   get_structural_profile: (args, context) => structuralProfileResult(context.currentTree(), context.currentColor(), args.variation_path as string[] | undefined),
-  analyze_repertoire_congruence: async (args, context) => analyzeCongruence(context.currentTree(), context.currentColor(), await context.openings(), {
-    minSeverity: args.min_severity as never,
-    limit: args.limit as number | undefined,
-    acknowledgedWeaknesses: args.acknowledged_weaknesses as string[][] | undefined,
-    excludePaths: args.exclude_paths as string[][] | undefined,
-  }),
+  analyze_repertoire_congruence: async (args, context) => {
+    const openings = await context.openings();
+    const toolArgs = args as StrategicFitToolArguments;
+    const report = await context.analyzeStrategicFit(
+      context.currentPgn(),
+      strategicFitOptionsFromToolArguments(toolArgs, {
+        repertoireColor: context.currentColor(),
+        repertoireRevision: `browser:${context.currentRevision()}`,
+        openingTable: openings,
+      }),
+      {
+        signal: context.signal,
+        onProgress: (progress) => context.onProgress?.(
+          progress.phase_index + (progress.state === "completed" ? 1 : 0),
+          progress.phase_count,
+          progress.message,
+        ),
+      },
+    );
+    throwIfAborted(context.signal);
+    return projectStrategicFitLegacyResult(report, { limit: toolArgs.limit });
+  },
   classify_illustrative_lines: (args, context) => illustrativeLinesResult(context.currentTree(), context.currentColor(), (args.limit as number | undefined) ?? toolDefault("classify_illustrative_lines", "limit", 20)),
   modify_repertoire_line: (args, context) => context.stageEdit(args.action as "add" | "prune" | "reorder", (args.path as string[]) ?? [], {
     addMoves: args.add_moves as string[] | undefined,

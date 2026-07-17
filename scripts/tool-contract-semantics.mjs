@@ -31,6 +31,18 @@ assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], surprise: t
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], depth: 12 }, "browser").ok, true);
 assert.equal(validateToolArguments("get_repertoire_coverage", { connect_stubs: true, depth: 30 }, "browser").ok, true);
 assert.equal(validateToolArguments("analyze_repertoire_congruence", { acknowledged_weaknesses: [["e4", 2]] }, "browser").error, "invalid_arguments");
+assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+  profile: { mode: "custom", preferences: { manual_weight_importance: 0.75 } },
+  weighting: { mode: "equal" },
+  page: { offset: 0, limit: 20 },
+  sort: "replacement-priority",
+}, "browser").ok, true);
+assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+  profile: { mode: "custom", preferences: { manual_weight_importance: 2 } },
+}, "browser").error, "invalid_arguments");
+assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+  cohort_overrides: [{ override_id: "override:empty", kind: "exclude" }],
+}, "browser").error, "invalid_arguments");
 
 const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 (2. Nc3 Nf6) Nc6 *");
 assert.equal(transpositionResult(tree, 20).total, tree.transpositions().length);
@@ -65,6 +77,7 @@ assert.equal(gapResult.positions_scanned, 1);
 assert.equal(TOOL_CONTRACTS.every((tool) => tool.input && tool.result), true);
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "export_annotated_pgn").result.kind, "artifact");
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "propose_line").result.kind, "action");
+assert.match(TOOL_CONTRACTS.find((tool) => tool.name === "analyze_repertoire_congruence").result.semantics, /Strategic Fit V2/);
 assert.deepEqual(jsonSchemaForTool("inspect_shortcut", "browser").required, ["line_path", "at_ply", "joins_path"]);
 assert.equal(TOOL_CONTRACTS.find((tool) => tool.name === "inspect_shortcut").hosts.includes("mcp"), false);
 console.log("tool contract semantics: ok");

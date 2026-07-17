@@ -41,11 +41,12 @@ import {
   annotateRepertoire,
   compareShortcutLines,
   checkShortcutCoverage,
-  analyzeCongruence,
+  analyzeStrategicFit,
   type Color,
   type MoveRecord,
   toolContract,
   toolDefault,
+  validateToolArguments,
   groundPosition,
   shapeEvaluation,
   transpositionResult,
@@ -60,6 +61,9 @@ import {
   gapScanOperation,
   suggestGapFills,
   opponentPrepResult,
+  projectStrategicFitLegacyResult,
+  strategicFitOptionsFromToolArguments,
+  type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
@@ -80,6 +84,63 @@ const pgnTooLarge = (pgn: string) =>
 const MAX_COMPARE_MOVES = 64;
 
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" });
+
+const strategicFitIdSchema = () => z.string().max(256);
+const strategicFitIdListSchema = (maximum = 500) => z.array(strategicFitIdSchema()).max(maximum);
+const strategicFitProfileSchema = z.object({
+  mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]),
+  preferences: z.object({
+    maximum_engine_loss_cp: z.number().int().min(0).max(1000).optional(),
+    opponent_popularity_importance: z.number().min(0).max(1).optional(),
+    personal_game_frequency_importance: z.number().min(0).max(1).optional(),
+    manual_weight_importance: z.number().min(0).max(1).optional(),
+    additional_memorization_tolerance: z.number().min(0).max(1).optional(),
+    preferred_concept_ids: strategicFitIdListSchema(128).optional(),
+    avoided_concept_ids: strategicFitIdListSchema(128).optional(),
+    preferred_tactical_character: z.array(z.string().max(128)).max(32).optional(),
+    minimum_opponent_coverage: z.number().min(0).max(1).optional(),
+  }).strict().optional(),
+}).strict();
+const strategicFitWeightingSchema = z.object({
+  mode: z.enum(["equal", "manual", "external"]).optional(),
+  route_weights: z.array(z.object({
+    route_id: strategicFitIdSchema(),
+    weight: z.number().min(0).max(1_000_000),
+  }).strict()).max(500).optional(),
+  decision_weights: z.array(z.object({
+    decision_id: strategicFitIdSchema(),
+    weight: z.number().min(0).max(1_000_000),
+  }).strict()).max(500).optional(),
+}).strict();
+const strategicFitPageSchema = z.object({
+  offset: z.number().int().min(0).max(1_000_000).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+}).strict();
+const strategicFitCohortOverrideSchema = z.object({
+  override_id: strategicFitIdSchema(),
+  kind: z.enum(["merge", "split", "exclude"]),
+  route_ids: strategicFitIdListSchema().min(1).optional(),
+  decision_ids: strategicFitIdListSchema().min(1).optional(),
+}).strict();
+const strategicFitExplicitTargetSchema = z.object({
+  target_id: strategicFitIdSchema(),
+  cohort_id: strategicFitIdSchema(),
+  representative_route_id: strategicFitIdSchema(),
+  supporting_route_ids: strategicFitIdListSchema().min(1).optional(),
+  concept_ids: strategicFitIdListSchema(128).optional(),
+}).strict();
+const strategicFitRouteAssessmentSchema = z.object({
+  route_id: strategicFitIdSchema(),
+  matches_declared_objective: z.boolean().optional(),
+  resolution_state: z.enum([
+    "unresolved", "change-repertoire", "keep-intentionally", "train-as-exception",
+    "reclassify-cohort", "exclude-from-analysis", "defer", "insufficient-evidence",
+    "automatically-resolved-by-another-edit",
+  ]).optional(),
+  alternative_state: z.enum([
+    "viable-more-congruent", "no-acceptable-alternative", "not-assessed",
+  ]).optional(),
+}).strict();
 
 // The opening explorer requires a Lichess login since ~2026-03 (anonymous → 401). A personal API
 // token with no scopes is enough; without one the explorer tools return explorer_auth_required
@@ -859,22 +920,37 @@ server.tool(
   toolContract("analyze_repertoire_congruence").description,
   {
     repertoire_id: z.string(),
+    profile: strategicFitProfileSchema.optional(),
+    weighting: strategicFitWeightingSchema.optional(),
+    page: strategicFitPageSchema.optional(),
+    sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
+    cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
+    explicit_targets: z.array(strategicFitExplicitTargetSchema).max(100).optional(),
+    route_assessments: z.array(strategicFitRouteAssessmentSchema).max(500).optional(),
     min_severity: z.enum(["low", "medium", "high"]).optional(),
     limit: z.number().int().min(1).max(50).optional(),
-    acknowledged_weaknesses: z.array(z.array(z.string())).optional(),
-    exclude_paths: z.array(z.array(z.string())).optional(),
+    acknowledged_weaknesses: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
+    exclude_paths: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
   },
-  ({ repertoire_id, min_severity, limit, acknowledged_weaknesses, exclude_paths }) => {
+  ({ repertoire_id, ...rawArgs }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    return ok(
-      analyzeCongruence(e.tree, e.color, openingsTable, {
-        minSeverity: min_severity,
-        limit,
-        acknowledgedWeaknesses: acknowledged_weaknesses,
-        excludePaths: exclude_paths,
+    const validation = validateToolArguments(
+      "analyze_repertoire_congruence",
+      { repertoire_id, ...rawArgs },
+      "mcp",
+    );
+    if (!validation.ok) return ok(validation);
+    const args = rawArgs as unknown as StrategicFitToolArguments;
+    const report = analyzeStrategicFit(
+      e.tree,
+      strategicFitOptionsFromToolArguments(args, {
+        repertoireColor: e.color,
+        repertoireRevision: e.revision,
+        openingTable: openingsTable,
       }),
     );
+    return ok(projectStrategicFitLegacyResult(report, { limit: args.limit }));
   },
 );
 

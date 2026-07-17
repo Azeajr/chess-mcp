@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { streamChat, type ToolSchema } from "../src/llm/openrouter.ts";
-import { contractsForHost, toolDefault, validateToolArguments } from "@chess-mcp/chess-tools";
+import {
+  GameTree,
+  STRATEGIC_FIT_ANALYSIS_VERSION,
+  analyzeStrategicFit,
+  contractsForHost,
+  jsonSchemaForTool,
+  projectStrategicFitLegacyResult,
+  strategicFitOptionsFromToolArguments,
+  toolDefault,
+  validateToolArguments,
+  type StrategicFitToolArguments,
+} from "@chess-mcp/chess-tools";
 import { actions, currentTree, version } from "../src/store/game.ts";
 import { acceptStagedEdit, rejectStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
 import { artifactById, createArtifact } from "../src/store/artifacts.ts";
@@ -31,6 +42,63 @@ test("canonical browser validation rejects malformed and unknown arguments", () 
   assert.deepEqual(validateToolArguments("propose_line", { moves: ["e4"] }, "mcp"), {
     ok: false, error: "invalid_arguments", reason: "propose_line is not available on the mcp host",
   });
+});
+
+test("canonical Strategic Fit schema validates bounded nested V2 arguments", () => {
+  const valid: StrategicFitToolArguments = {
+    profile: {
+      mode: "custom",
+      preferences: {
+        opponent_popularity_importance: 0.6,
+        personal_game_frequency_importance: 0.2,
+        preferred_concept_ids: ["concept:iqp"],
+      },
+    },
+    weighting: { mode: "equal" },
+    page: { offset: 0, limit: 12 },
+    sort: "expected-frequency",
+    cohort_overrides: [{
+      override_id: "override:exclude",
+      kind: "exclude",
+      decision_ids: ["decision:one"],
+    }],
+    route_assessments: [{
+      route_id: "route:one",
+      resolution_state: "keep-intentionally",
+    }],
+  };
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", valid, "browser").ok, true);
+  assert.equal(
+    validateToolArguments("analyze_repertoire_congruence", {
+      profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.1 } },
+    }, "browser").ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments("analyze_repertoire_congruence", {
+      profile: { mode: "balanced", preferences: { invented: true } },
+    }, "browser").ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments("analyze_repertoire_congruence", {
+      cohort_overrides: [{ override_id: "override:empty", kind: "merge" }],
+    }, "browser").ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments("analyze_repertoire_congruence", {
+      page: { offset: 0, limit: 51 },
+    }, "browser").ok,
+    false,
+  );
+
+  const schema = jsonSchemaForTool("analyze_repertoire_congruence", "browser") as {
+    properties: Record<string, { type: string; additionalProperties?: boolean; maxItems?: number }>;
+  };
+  assert.equal(schema.properties.profile.type, "object");
+  assert.equal(schema.properties.profile.additionalProperties, false);
+  assert.equal(schema.properties.cohort_overrides.maxItems, 100);
 });
 
 test("deep analysis forces every browser engine request to depth 30", () => {
@@ -88,6 +156,76 @@ test("direct and chat adapters share one semantic command result with injected p
     avg_in_book_plies: 2, uncovered_opponent_moves: [],
     lines: [{ name: "Unclassified", eco: null, games: 1, hit_rate: 100, win_rate: 0, draw_rate: 0, loss_rate: 100 }],
   });
+});
+
+test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixture", async () => {
+  actions.loadPgn(
+    "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ " +
+    "(4... O-O 5. Bd3 d5 6. Nf3 c5) (4... b6 5. Bd3 Bb7 6. Nf3 O-O) 5. bxc3 O-O *",
+  );
+  const openings = new Map();
+  const progress: Array<[number, number | undefined, string | undefined]> = [];
+  const args: StrategicFitToolArguments = {
+    profile: { mode: "familiar-plans" },
+    weighting: { mode: "equal" },
+    page: { offset: 0, limit: 2 },
+    sort: "finding-id",
+    limit: 2,
+  };
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    openings: async () => openings,
+    analyzeStrategicFit: async (
+      pgn: string,
+      options: Parameters<typeof analyzeStrategicFit>[1],
+      execution?: { signal?: AbortSignal; onProgress?: Parameters<typeof analyzeStrategicFit>[1]["onProgress"] },
+    ) => analyzeStrategicFit(GameTree.fromPgn(pgn), {
+      ...options,
+      shouldCancel: () => execution?.signal?.aborted ?? false,
+      onProgress: execution?.onProgress,
+    }),
+  };
+
+  const browser = await executeDirectBrowserCommand(
+    "analyze_repertoire_congruence",
+    args as Record<string, unknown>,
+    { onProgress: (done, total, detail) => progress.push([done, total, detail]) },
+    dependencies,
+  );
+  const mcpEquivalent = projectStrategicFitLegacyResult(
+    analyzeStrategicFit(
+      currentTree(),
+      strategicFitOptionsFromToolArguments(args, {
+        repertoireColor: dependencies.currentColor(),
+        repertoireRevision: `browser:${version()}`,
+        openingTable: openings,
+      }),
+    ),
+    { limit: args.limit },
+  );
+
+  assert.deepEqual(browser, mcpEquivalent);
+  assert.equal(mcpEquivalent.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);
+  assert.equal(mcpEquivalent.legacy_projection.deprecated, true);
+  assert.deepEqual(mcpEquivalent.profile, {
+    schema_version: mcpEquivalent.schema_version,
+    mode: "familiar-plans",
+    source: "explicit",
+    provisional: false,
+    preferences: {
+      maximum_engine_loss_cp: null,
+      opponent_popularity_importance: 0,
+      personal_game_frequency_importance: 0,
+      manual_weight_importance: 0,
+      additional_memorization_tolerance: 0.5,
+      preferred_concept_ids: [],
+      avoided_concept_ids: [],
+      preferred_tactical_character: [],
+      minimum_opponent_coverage: null,
+    },
+  });
+  assert.equal(progress.at(-1)?.[0], 6);
+  assert.equal(progress.at(-1)?.[1], 6);
 });
 
 test("browser annotation guidance validates pasted PGN only and keeps artifact types distinct", () => {

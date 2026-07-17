@@ -2,12 +2,18 @@
 export type ToolHost = "mcp" | "browser";
 export type ToolCapability = "position" | "game" | "repertoire" | "engine" | "network" | "artifact" | "action";
 export type InputField = {
-  type: "string" | "integer" | "number" | "boolean" | "array";
+  type: "string" | "integer" | "number" | "boolean" | "array" | "object";
   description?: string;
   enum?: readonly string[];
   items?: InputField;
+  properties?: Readonly<Record<string, InputField>>;
+  required?: readonly string[];
+  additionalProperties?: boolean;
   minimum?: number;
   maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  maxLength?: number;
 };
 export type ToolInput = { properties: Readonly<Record<string, InputField>>; browserProperties?: Readonly<Record<string, InputField>>; mcpProperties?: Readonly<Record<string, InputField>>; required?: readonly string[]; mcpRequired?: readonly string[] };
 export interface ToolContract {
@@ -16,7 +22,11 @@ export interface ToolContract {
   hosts: readonly ToolHost[];
   capabilities: readonly ToolCapability[];
   defaults: Readonly<Record<string, unknown>>;
-  result: Readonly<{ kind: "data" | "artifact" | "action" }>;
+  result: Readonly<{
+    kind: "data" | "artifact" | "action";
+    semantics?: string;
+    compatibility?: string;
+  }>;
   hostAdaptation: Readonly<{
     browserInjects: readonly string[];
     mcpInjects: readonly string[];
@@ -32,23 +42,81 @@ const BROWSER = ["browser"] as const;
 const define = (name: string, description: string, capabilities: ToolCapability[], hosts: readonly ToolHost[] = BOTH, defaults: Record<string, unknown> = {}, input?: ToolInput): ToolContract =>
   ({
     name, description, capabilities, hosts, defaults,
-    result: { kind: capabilities.includes("action") ? "action" : capabilities.includes("artifact") ? "artifact" : "data" },
+    result: {
+      kind: capabilities.includes("action") ? "action" : capabilities.includes("artifact") ? "artifact" : "data",
+      ...(name === "analyze_repertoire_congruence" ? {
+        semantics: "Versioned Strategic Fit V2 report with immutable summary, findings, preflight, paging, and provenance.",
+        compatibility: "Includes a bounded deprecated V1 incongruencies projection until Task 12.5.",
+      } : {}),
+    },
     hostAdaptation: {
-      browserInjects: input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
+      browserInjects: name === "analyze_repertoire_congruence"
+        ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "Strategic Fit Web Worker"]
+        : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
       ],
-      mcpInjects: input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
+      mcpInjects: name === "analyze_repertoire_congruence"
+        ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy"]
+        : input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
       ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
+        : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the same deterministic analyzer in-process. Both return the same native V2 semantics and compatibility projection." }
         : {}),
     },
     ...(input ? { input } : {}),
   });
-const string = (description?: string): InputField => ({ type: "string", ...(description ? { description } : {}) });
+const string = (description?: string, maxLength?: number): InputField => ({ type: "string", ...(description ? { description } : {}), ...(maxLength == null ? {} : { maxLength }) });
 const integer = (minimum?: number, maximum?: number): InputField => ({ type: "integer", ...(minimum == null ? {} : { minimum }), ...(maximum == null ? {} : { maximum }) });
-const array = (items: InputField = string()): InputField => ({ type: "array", items });
+const number = (minimum?: number, maximum?: number): InputField => ({ type: "number", ...(minimum == null ? {} : { minimum }), ...(maximum == null ? {} : { maximum }) });
+const array = (items: InputField = string(), minItems?: number, maxItems?: number): InputField => ({ type: "array", items, ...(minItems == null ? {} : { minItems }), ...(maxItems == null ? {} : { maxItems }) });
+const object = (properties: Readonly<Record<string, InputField>>, required: readonly string[] = []): InputField => ({ type: "object", properties, ...(required.length ? { required } : {}), additionalProperties: false });
+
+const strategicFitId = () => string(undefined, 256);
+const strategicFitIdList = (minimum: number | undefined = undefined, maximum = 500) => array(strategicFitId(), minimum, maximum);
+const strategicFitProfile = object({
+  mode: { type: "string", enum: ["familiar-plans", "balanced", "versatile", "custom"] },
+  preferences: object({
+    maximum_engine_loss_cp: integer(0, 1000),
+    opponent_popularity_importance: number(0, 1),
+    personal_game_frequency_importance: number(0, 1),
+    manual_weight_importance: number(0, 1),
+    additional_memorization_tolerance: number(0, 1),
+    preferred_concept_ids: strategicFitIdList(undefined, 128),
+    avoided_concept_ids: strategicFitIdList(undefined, 128),
+    preferred_tactical_character: array(string(undefined, 128), undefined, 32),
+    minimum_opponent_coverage: number(0, 1),
+  }),
+}, ["mode"]);
+const strategicFitWeighting = object({
+  mode: { type: "string", enum: ["equal", "manual", "external"] },
+  route_weights: array(object({ route_id: strategicFitId(), weight: number(0, 1_000_000) }, ["route_id", "weight"]), undefined, 500),
+  decision_weights: array(object({ decision_id: strategicFitId(), weight: number(0, 1_000_000) }, ["decision_id", "weight"]), undefined, 500),
+});
+const strategicFitPage = object({ offset: integer(0, 1_000_000), limit: integer(1, 50) });
+const strategicFitCohortOverride = object({
+  override_id: strategicFitId(),
+  kind: { type: "string", enum: ["merge", "split", "exclude"] },
+  route_ids: strategicFitIdList(1, 500),
+  decision_ids: strategicFitIdList(1, 500),
+}, ["override_id", "kind"]);
+const strategicFitExplicitTarget = object({
+  target_id: strategicFitId(),
+  cohort_id: strategicFitId(),
+  representative_route_id: strategicFitId(),
+  supporting_route_ids: strategicFitIdList(1, 500),
+  concept_ids: strategicFitIdList(undefined, 128),
+}, ["target_id", "cohort_id", "representative_route_id"]);
+const strategicFitRouteAssessment = object({
+  route_id: strategicFitId(),
+  matches_declared_objective: { type: "boolean" },
+  resolution_state: {
+    type: "string",
+    enum: ["unresolved", "change-repertoire", "keep-intentionally", "train-as-exception", "reclassify-cohort", "exclude-from-analysis", "defer", "insufficient-evidence", "automatically-resolved-by-another-edit"],
+  },
+  alternative_state: { type: "string", enum: ["viable-more-congruent", "no-acceptable-alternative", "not-assessed"] },
+}, ["route_id"]);
 
 export const TOOL_CONTRACTS = [
   define("validate_fen", "Validate a FEN; returns the normalised FEN when legal.", ["position"], BOTH, {}, { properties: { fen: string() }, required: ["fen"] }),
@@ -69,7 +137,30 @@ export const TOOL_CONTRACTS = [
   define("find_pruning_transpositions", "Find sound moves that transpose into another prepared line and shorten memorisation.", ["repertoire", "engine"], BOTH, { limit: 20, multipv: 4, cp_threshold: 50, depth: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100), multipv: integer(1, 8), cp_threshold: integer(0, 500), max_loss_cp: integer(0, 1000), depth: integer(1, 30), movetime_ms: integer(50, 10000), budget: integer(1, 500), leaf_start: integer(0), leaf_count: integer(1, 200), confirm_depth: integer(1, 30) }, mcpRequired: ["repertoire_id"] }),
   define("get_repertoire_coverage", "Report dangling lines and natural frontiers; optionally engine-check whether stubs reconnect.", ["repertoire", "engine"], BOTH, { limit: 20, connect_stubs: false, depth: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100), connect_stubs: { type: "boolean" }, depth: integer(1, 30) }, mcpRequired: ["repertoire_id"] }),
   define("get_structural_profile", "Return a repertoire-wide pawn-structure profile or one position selected by SAN path.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array() }, mcpRequired: ["repertoire_id"] }),
-  define("analyze_repertoire_congruence", "Flag thematic inconsistencies across repertoire lines, clustered by opening system.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), min_severity: { type: "string", enum: ["low", "medium", "high"] }, limit: integer(1, 50), acknowledged_weaknesses: array(array()), exclude_paths: array(array()) }, mcpRequired: ["repertoire_id"] }),
+  define(
+    "analyze_repertoire_congruence",
+    "Analyze Strategic Fit across transposition-aware repertoire routes; returns native V2 evidence plus a temporary legacy projection.",
+    ["repertoire"],
+    BOTH,
+    { profile_mode: "balanced", weighting_mode: "equal", page_limit: 50, legacy_projection_limit: 10 },
+    {
+      properties: {
+        repertoire_id: string("MCP handle; browser injects the current document"),
+        profile: strategicFitProfile,
+        weighting: strategicFitWeighting,
+        page: strategicFitPage,
+        sort: { type: "string", enum: ["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"] },
+        cohort_overrides: array(strategicFitCohortOverride, undefined, 100),
+        explicit_targets: array(strategicFitExplicitTarget, undefined, 100),
+        route_assessments: array(strategicFitRouteAssessment, undefined, 500),
+        min_severity: { type: "string", enum: ["low", "medium", "high"], description: "Deprecated V1 compatibility input." },
+        limit: integer(1, 50),
+        acknowledged_weaknesses: array(array(string(undefined, 128), undefined, 256), undefined, 500),
+        exclude_paths: array(array(string(undefined, 128), undefined, 256), undefined, 500),
+      },
+      mcpRequired: ["repertoire_id"],
+    },
+  ),
   define("classify_illustrative_lines", "Find NAG-marked side lines that can inflate repertoire analysis counts.", ["repertoire"], BOTH, { limit: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100) }, mcpRequired: ["repertoire_id"] }),
   define("modify_repertoire_line", "Apply or preview a prune, add, or reorder edit by SAN path.", ["repertoire", "action"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), action: { type: "string", enum: ["prune", "add", "reorder"] }, path: array(), add_moves: array(), promote_move: string() }, required: ["action", "path"], mcpRequired: ["repertoire_id", "action", "path"] }),
   define("suggest_complementary_lines", "Suggest engine-sound moves ranked for structural fit or imbalance.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 5 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), fen: string("FEN; browser defaults to the current position"), mode: { type: "string", enum: ["low_memorization", "sharp"] }, depth: integer(1, 30), limit: integer(1, 10) }, mcpRequired: ["repertoire_id", "fen"] }),
@@ -124,18 +215,96 @@ export function jsonSchemaForTool(name: string, host: ToolHost): Record<string, 
 
 export type ArgumentsResult = { ok: true; value: Record<string, unknown> } | { ok: false; error: "invalid_arguments"; reason: string };
 function fieldError(field: InputField, candidate: unknown, path: string): string | null {
-  const valid = field.type === "array" ? Array.isArray(candidate) : field.type === "integer" ? Number.isInteger(candidate) : typeof candidate === field.type;
+  const valid = field.type === "array"
+    ? Array.isArray(candidate)
+    : field.type === "object"
+      ? typeof candidate === "object" && candidate !== null && !Array.isArray(candidate)
+      : field.type === "integer"
+        ? Number.isInteger(candidate)
+        : field.type === "number"
+          ? typeof candidate === "number" && Number.isFinite(candidate)
+          : typeof candidate === field.type;
   if (!valid) return `${path} must be ${field.type}`;
   if (typeof candidate === "number" && (candidate < (field.minimum ?? -Infinity) || candidate > (field.maximum ?? Infinity))) return `${path} is outside the allowed range`;
+  if (typeof candidate === "string" && candidate.length > (field.maxLength ?? Infinity)) return `${path} is outside the allowed length`;
   if (field.enum && !field.enum.includes(candidate as string)) return `${path} must be one of: ${field.enum.join(", ")}`;
   if (field.type === "array" && field.items) {
+    if ((candidate as unknown[]).length < (field.minItems ?? 0) || (candidate as unknown[]).length > (field.maxItems ?? Infinity)) {
+      return `${path} is outside the allowed item count`;
+    }
     for (let i = 0; i < (candidate as unknown[]).length; i++) {
       const nested = fieldError(field.items, (candidate as unknown[])[i], `${path}[${i}]`);
       if (nested) return nested;
     }
   }
+  if (field.type === "object") {
+    const value = candidate as Record<string, unknown>;
+    for (const key of field.required ?? []) {
+      if (!(key in value)) return `missing required argument: ${path}.${key}`;
+    }
+    const properties = field.properties ?? {};
+    for (const [key, nestedCandidate] of Object.entries(value)) {
+      const nestedField = properties[key];
+      if (!nestedField && field.additionalProperties === false) return `unknown argument: ${path}.${key}`;
+      if (!nestedField) continue;
+      const nested = fieldError(nestedField, nestedCandidate, `${path}.${key}`);
+      if (nested) return nested;
+    }
+  }
   return null;
 }
+
+function duplicateIdentity(values: readonly unknown[], key: string): string | null {
+  const seen = new Set<unknown>();
+  for (const value of values) {
+    const identity = (value as Record<string, unknown>)[key];
+    if (seen.has(identity)) return String(identity);
+    seen.add(identity);
+  }
+  return null;
+}
+
+function strategicFitArgumentsError(value: Record<string, unknown>): string | null {
+  const weighting = value.weighting as Record<string, unknown> | undefined;
+  for (const [list, identity] of [["route_weights", "route_id"], ["decision_weights", "decision_id"]] as const) {
+    const items = weighting?.[list] as readonly unknown[] | undefined;
+    const duplicate = items && duplicateIdentity(items, identity);
+    if (duplicate) return `weighting.${list} contains duplicate ${identity}: ${duplicate}`;
+  }
+
+  const overrides = value.cohort_overrides as readonly Record<string, unknown>[] | undefined;
+  const duplicateOverride = overrides && duplicateIdentity(overrides, "override_id");
+  if (duplicateOverride) return `cohort_overrides contains duplicate override_id: ${duplicateOverride}`;
+  for (const [index, override] of (overrides ?? []).entries()) {
+    const kind = override.kind;
+    const routeIds = override.route_ids as readonly string[] | undefined;
+    const decisionIds = override.decision_ids as readonly string[] | undefined;
+    if ((kind === "merge" || kind === "split") && !routeIds?.length) {
+      return `cohort_overrides[${index}].route_ids is required for ${kind}`;
+    }
+    if ((kind === "merge" || kind === "split") && decisionIds) {
+      return `cohort_overrides[${index}].decision_ids is only valid for exclude`;
+    }
+    if (kind === "exclude" && !routeIds?.length && !decisionIds?.length) {
+      return `cohort_overrides[${index}] must select route_ids or decision_ids`;
+    }
+  }
+
+  const targets = value.explicit_targets as readonly Record<string, unknown>[] | undefined;
+  const duplicateTarget = targets && duplicateIdentity(targets, "target_id");
+  if (duplicateTarget) return `explicit_targets contains duplicate target_id: ${duplicateTarget}`;
+
+  const assessments = value.route_assessments as readonly Record<string, unknown>[] | undefined;
+  const duplicateAssessment = assessments && duplicateIdentity(assessments, "route_id");
+  if (duplicateAssessment) return `route_assessments contains duplicate route_id: ${duplicateAssessment}`;
+  for (const [index, assessment] of (assessments ?? []).entries()) {
+    if (Object.keys(assessment).every((key) => key === "route_id")) {
+      return `route_assessments[${index}] must contain an assessment`;
+    }
+  }
+  return null;
+}
+
 export function validateToolArguments(name: string, raw: unknown, host: ToolHost): ArgumentsResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
   const contract = TOOL_CONTRACT_BY_NAME.get(name);
@@ -150,6 +319,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
     const field = properties[key];
     if (!field) return { ok: false, error: "invalid_arguments", reason: `unknown argument: ${key}` };
     const reason = fieldError(field, candidate, key);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "analyze_repertoire_congruence") {
+    const reason = strategicFitArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   return { ok: true, value };

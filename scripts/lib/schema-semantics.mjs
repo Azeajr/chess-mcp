@@ -1,4 +1,7 @@
-const SEMANTIC_KEYS = ["type", "enum", "minimum", "maximum", "additionalProperties"];
+const SEMANTIC_KEYS = [
+  "type", "enum", "minimum", "maximum", "minItems", "maxItems", "maxLength",
+  "additionalProperties",
+];
 
 const pointer = (base, key) => `${base}/${String(key).replaceAll("~", "~0").replaceAll("/", "~1")}`;
 const stable = (value) => JSON.stringify(value);
