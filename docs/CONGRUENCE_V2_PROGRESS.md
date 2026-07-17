@@ -18,17 +18,16 @@
 | 2.3 | Complete | `1ee9737` | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
 | 2.4 | Complete | `3d77fbe` | Phase 2 gate | Matched-milestone mixed-feature distance, configurable family weights, and reconciled explainable contributions. |
 | 2.5 | Complete | `f19f7b5` | Phase 2 gate | Weighted geometric confidence, explicit hard-cap reasons, and separate deterministic difference magnitude. |
-| 2.6 | Complete | This commit | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
+| 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
 
 ## Coordinator state
 
-- Verified through Task 2.4 at `3d77fbe` (`feat: add strategic fit distance`).
-- Latest implementation gate at `3d77fbe`: Strategic Fit 93/93; chess-tools build; monorepo typecheck;
+- Verified through Task 2.6 at `474c196` (`feat: add strategic fit causality`).
+- Latest implementation gate at `474c196`: Strategic Fit 111/111; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next tasks: Task 2.5 — Calculate confidence and difference magnitude, and Task 2.6 — Attribute
-  engine-free causal ownership. Their dependencies are complete, and the plan explicitly permits
-  these tasks to run in parallel after Task 2.4.
+- Next task: Task 2.7 — Classify diversity and calculate priorities. Its Task 2.3, 2.5, and 2.6
+  dependencies are complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
