@@ -88,6 +88,9 @@ export class StrategicFitReportCache {
 
 const defaultReportCache = new StrategicFitReportCache();
 
+/** Narrow settings invalidation boundary; repertoire/profile stores do not own cache internals. */
+export const invalidateCachedStrategicFitReports = () => defaultReportCache.clear();
+
 export const getCachedStrategicFitReport = (
   pgn: string,
   options: AnalyzeStrategicFitOptions,

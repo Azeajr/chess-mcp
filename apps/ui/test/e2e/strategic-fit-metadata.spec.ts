@@ -16,6 +16,8 @@ type Metadata = {
 
 type ChessHarness = {
   documentId(): string;
+  version(): number;
+  toPgn(): string;
   loadPgn(pgn: string, name?: string): void;
   newGame(): void;
   strategicFitMetadata(): Metadata;
@@ -25,6 +27,11 @@ type ChessHarness = {
   replaceStrategicFitMetadata(value: unknown): { state: string };
   deleteStrategicFitMetadata(documentId: string): Promise<void>;
   flushStrategicFitMetadata(documentId?: string): Promise<void>;
+  strategicFitProfile(): Metadata["profile"];
+  selectStrategicFitProfile(mode: string, preferences?: Record<string, unknown>): { state: string };
+  updateCustomStrategicFitProfile(preferences: Record<string, unknown>): { state: string };
+  applyInferredStrategicFitProfile(mode: string, preferences?: Record<string, unknown>): { state: string };
+  confirmInferredStrategicFitProfile(): { state: string };
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
@@ -133,6 +140,63 @@ test("profile and resolution metadata survive reload under the same stable docum
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toMatchObject([
     { resolution_id: "resolution:reload", state: "defer" },
   ]);
+});
+
+test("custom profile preferences persist across reload without changing repertoire content or revision", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 c5 2. Nf3 d6 *", "profile.pgn"));
+  const expectedId = await chess(page, (api) => api.documentId()) as string;
+  const before = await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() })) as {
+    pgn: string;
+    version: number;
+  };
+  const selected = await chess(page, (api) => api.selectStrategicFitProfile("custom", {
+    maximum_engine_loss_cp: 120.8,
+    opponent_popularity_importance: 0.9,
+    personal_game_frequency_importance: 0.7,
+    manual_weight_importance: 0.4,
+    additional_memorization_tolerance: 0.2,
+    preferred_concept_ids: ["concept:iqp"],
+    avoided_concept_ids: ["concept:opposite-castling"],
+    preferred_tactical_character: ["forcing"],
+    minimum_opponent_coverage: 0.96,
+  })) as { state: string };
+  expect(selected.state).toBe("updated");
+  expect(await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }))).toEqual(before);
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "custom",
+    source: "explicit",
+    provisional: false,
+    preferences: {
+      maximum_engine_loss_cp: 121,
+      opponent_popularity_importance: 0.9,
+      personal_game_frequency_importance: 0.7,
+      manual_weight_importance: 0.4,
+      additional_memorization_tolerance: 0.2,
+      preferred_concept_ids: ["concept:iqp"],
+      avoided_concept_ids: ["concept:opposite-castling"],
+      preferred_tactical_character: ["forcing"],
+      minimum_opponent_coverage: 0.96,
+    },
+  });
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  await expect.poll(async () => {
+    const saved = await idbValue(page, "workingRepertoire") as { documentId?: string } | undefined;
+    return saved?.documentId;
+  }).toBe(expectedId);
+
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "custom",
+    source: "explicit",
+    provisional: false,
+    preferences: {
+      maximum_engine_loss_cp: 121,
+      minimum_opponent_coverage: 0.96,
+      preferred_concept_ids: ["concept:iqp"],
+    },
+  });
+  expect(await chess(page, (api) => api.toPgn())).toBe(before.pgn);
 });
 
 test("New and import expose defaults immediately without deleting another document record", async ({ page }) => {

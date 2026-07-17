@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
-import { actions, documentId } from "./store/game";
+import { actions, documentId, version } from "./store/game";
 import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { createArtifact, saveArtifact } from "./store/artifacts";
@@ -15,6 +15,13 @@ import {
   strategicFitMetadataStatus,
   strategicFitMetadataWarning,
 } from "./store/strategic-fit-metadata";
+import {
+  applyInferredStrategicFitProfile,
+  confirmInferredStrategicFitProfile,
+  selectStrategicFitProfile,
+  strategicFitProfile,
+  updateCustomStrategicFitProfile,
+} from "./store/strategic-fit-profile";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -27,6 +34,7 @@ if (import.meta.env.DEV) {
   (window as unknown as { __chess?: unknown }).__chess = {
     ...actions,
     documentId,
+    version,
     addSuggestion,
     acceptSuggestion,
     suggestions,
@@ -50,5 +58,10 @@ if (import.meta.env.DEV) {
     replaceStrategicFitMetadata,
     deleteStrategicFitMetadata,
     flushStrategicFitMetadata,
+    strategicFitProfile,
+    selectStrategicFitProfile,
+    updateCustomStrategicFitProfile,
+    applyInferredStrategicFitProfile,
+    confirmInferredStrategicFitProfile,
   };
 }

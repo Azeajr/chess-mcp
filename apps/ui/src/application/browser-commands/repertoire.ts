@@ -29,6 +29,15 @@ import { makeFen } from "chessops/fen";
 import type { BrowserCommandHandler } from "./types";
 import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
+const staleProfileResult = () => ({
+  error: "strategic_fit_stale_report",
+  reason: "The document Strategic Fit profile changed while analysis was running; request a fresh report.",
+});
+
+const profileIdentity = (
+  profile: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitProfile"]>,
+) => JSON.stringify(profile);
+
 const explorerAuthRequired = () => ({
   error: "explorer_auth_required",
   reason: "the Lichess opening explorer requires authentication; ask the user to add a personal API token (no scopes needed, lichess.org/account/oauth/token) in Settings",
@@ -167,11 +176,16 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const color = context.currentColor();
     const revision = context.currentRevision();
     const repertoireRevision = `browser:${revision}`;
-    const options = strategicFitOptionsFromToolArguments(toolArgs, {
+    const documentProfile = context.currentStrategicFitProfile();
+    const documentProfileIdentity = profileIdentity(documentProfile);
+    const toolOptions = strategicFitOptionsFromToolArguments(toolArgs, {
       repertoireColor: color,
       repertoireRevision,
       openingTable: openings,
     });
+    const options = toolArgs.profile === undefined
+      ? { ...toolOptions, profile: documentProfile }
+      : toolOptions;
     const completeReport = await context.strategicFitReport(
       pgn,
       options,
@@ -188,8 +202,14 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     if (
       context.currentRevision() !== revision ||
       context.currentColor() !== color ||
-      context.currentPgn() !== pgn
+      context.currentPgn() !== pgn ||
+      toolArgs.profile === undefined &&
+        profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity
     ) {
+      if (
+        toolArgs.profile === undefined &&
+        profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity
+      ) return staleProfileResult();
       return {
         error: "strategic_fit_stale_report",
         reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
@@ -303,35 +323,53 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const pgn = context.currentPgn();
     const revision = context.currentRevision();
     const repertoireRevision = `browser:${revision}`;
+    const documentProfile = context.currentStrategicFitProfile();
+    const documentProfileIdentity = profileIdentity(documentProfile);
     const openings = await context.openings();
     const include = args.include as ("audit" | "only_moves" | "gaps" | "congruence")[] | undefined;
-    const result = await annotateRepertoire(tree, color, {
-      include,
-      repertoireRevision,
-      depth: requestedDepth(args, context),
-      maxPositions: args.max_positions as number | undefined,
-      minCpLoss: args.min_cp_loss as number | undefined,
-      minMargin: args.min_margin as number | undefined,
-      minSeverity: args.min_severity as never,
-      shouldCancel: () => context.signal?.aborted ?? false,
-      onProgress: (done, total) => context.onProgress?.(done, total, "annotating repertoire"),
-    }, commandAnalyse(context), openings, include?.includes("congruence") === false
-      ? undefined
-      : (control) => context.strategicFitReport(
-          pgn,
-          strategicFitOptionsFromToolArguments({}, {
-            repertoireColor: color,
-            repertoireRevision,
-            openingTable: openings,
-          }),
-          {
-            signal: context.signal,
-            onProgress: (progress) => control.onProgress?.(
-              progress.phase_index + (progress.state === "completed" ? 1 : 0),
-              progress.phase_count,
-            ),
-          },
-        ));
+    let result: Awaited<ReturnType<typeof annotateRepertoire>>;
+    try {
+      result = await annotateRepertoire(tree, color, {
+        include,
+        repertoireRevision,
+        depth: requestedDepth(args, context),
+        maxPositions: args.max_positions as number | undefined,
+        minCpLoss: args.min_cp_loss as number | undefined,
+        minMargin: args.min_margin as number | undefined,
+        minSeverity: args.min_severity as never,
+        shouldCancel: () => context.signal?.aborted ?? false,
+        onProgress: (done, total) => context.onProgress?.(done, total, "annotating repertoire"),
+      }, commandAnalyse(context), openings, include?.includes("congruence") === false
+        ? undefined
+        : (control) => context.strategicFitReport(
+            pgn,
+            {
+              ...strategicFitOptionsFromToolArguments({}, {
+                repertoireColor: color,
+                repertoireRevision,
+                openingTable: openings,
+              }),
+              profile: documentProfile,
+            },
+            {
+              signal: context.signal,
+              onProgress: (progress) => control.onProgress?.(
+                progress.phase_index + (progress.state === "completed" ? 1 : 0),
+                progress.phase_count,
+              ),
+            },
+          ).then((report) => {
+            if (profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity) {
+              throw new Error("strategic_fit_stale_profile");
+            }
+            return report;
+          }));
+    } catch (error) {
+      if (error instanceof Error && error.message === "strategic_fit_stale_profile") {
+        return staleProfileResult();
+      }
+      throw error;
+    }
     throwIfAborted(context.signal);
     if ("error" in result) return result;
     if ("cancelled" in result) return result;

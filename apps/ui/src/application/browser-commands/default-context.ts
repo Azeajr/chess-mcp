@@ -13,6 +13,7 @@ import { actions, color, currentPath, currentTree, fen, fileName, version } from
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
 import { analysisDepth } from "../../store/engine-settings";
+import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { getCachedStrategicFitReport } from "../strategic-fit-report-cache";
 import type { BrowserCommandDependencies } from "./types";
 
@@ -35,6 +36,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentPath,
   currentFileName: fileName,
   currentRevision: version,
+  currentStrategicFitProfile: strategicFitProfile,
   analysisDepth,
   analyse: (atFen, multipv, depth, movetime, signal) => analyseMulti(atFen, multipv, depth, movetime, signal),
   cloudEval,

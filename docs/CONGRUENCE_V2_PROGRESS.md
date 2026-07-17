@@ -31,14 +31,16 @@
 | 4.1 | Complete | `009271c` | Coordinator: metadata 9/9; Strategic Fit 166/166; UI 33/33; Playwright 18/18; worker-boundary build check; Phase 4 gate | Independent `1.0.0` document metadata contract with complete deterministic defaults; canonical profile, manual-weight, cohort override/exclusion, semantic resolution, and provenance types; semantic archive/training references; explicit `0.1.0` migration; structured current-data and unknown-version fallback; recursive whitelist normalization excludes credential fields. Cross-collection override IDs are unique with original-path diagnostics. No persistence or document identity. |
 | 4.2 | Complete | `ecb2996` | Coordinator: document identity Playwright 5/5; UI 38/38; full Playwright 23/23; worker-boundary build check; Phase 4 gate | Secure RFC UUID identity independent of PGN names/content and report revisions; fresh identity for initial/New/successful explicit imports and reopens; valid autosave identity resumes across reload while corrupt/missing identity regenerates safely; navigation, color, edits, and every Save path preserve identity. Failed/cancelled loads leave both identity and active file untouched; replacement state publishes atomically. No Strategic Fit metadata persistence. |
 | 4.3 | Complete | `4826299` | Coordinator: metadata persistence 6/6; UI 44/44; targeted Playwright 3/3; full Playwright 26/26; worker-boundary build check; Phase 4 gate | Document-ID-keyed IndexedDB sidecars with debounced, per-key sequenced writes; restore gating after working-document identity; immediate cross-document isolation; stale read/write rejection; canonical migration and corrupt-record repair after restore settlement; structured visible warnings; explicit targeted cleanup that cannot delete or resurrect another document. No profile semantics or controls. |
+| 4.4 | Implemented; pending coordinator verification | `This commit` | Agent: profile/UI behavioral 51/51; targeted metadata Playwright 4/4; full Playwright 27/27; worker-boundary build check; Phase 4 gate | Balanced canonical default plus Familiar plans, Balanced, Versatile, and Custom state using documented optional defaults; deterministic bounded advanced preferences; provisional inference, explicit confirmation, and explicit-intent precedence; debounced document metadata persistence with non-profile preservation; profile-keyed cache invalidation and late-result rejection; browser analysis/annotation inherit the document profile unless a non-persisted one-off override is supplied. No profile UI or Task 4.5 resolution behavior. |
 
 ## Coordinator state
 
-- Independently verified through Task 4.3 at `4826299` (`feat: persist strategic fit metadata`)
-  after a complete controller, restore/write ordering, migration, isolation, cleanup, warning, and
-  test-coverage audit.
-- Latest coordinator rerun: metadata persistence 6/6 within UI behavioral 44/44; targeted metadata
-  Playwright 3/3; full Playwright 26/26; UI production build with the analyzer absent from the
-  main-thread bundle; and monorepo typecheck. Initial-default and stale-document races, canonical
-  rewrites, reload survival, visible corruption fallback, and targeted deletion are reproduced.
-- No blocker remains. Resume with Task 4.4 — Implement profile and preference state.
+- Independently verified through Task 4.3 at `4826299` (`feat: persist strategic fit metadata`).
+  Task 4.4 is committed separately and awaits coordinator diff/coverage audit plus independent test
+  reproduction.
+- Task 4.4 agent evidence: profile/UI behavioral 51/51; targeted metadata Playwright 4/4; full
+  Playwright 27/27; UI production build with the analyzer absent from the main-thread bundle; and
+  monorepo typecheck. Profile edits preserve repertoire content/revision, reload by document ID,
+  invalidate cached settings, and reject late results after an effective document-profile change.
+- No implementation blocker was found. The coordinator must replace `This commit` only after
+  independently verifying Task 4.4; do not begin Task 4.5 until that verification is settled.
