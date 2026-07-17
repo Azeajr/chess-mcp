@@ -32,7 +32,12 @@ const [storedFileName, setStoredFileName] = createSignal<string | null>(null);
 export { storedFileName };
 
 // Pending PGN load waiting for color selection.
-type PendingLoad = { pgn: string; name?: string; detectedColor: Color | null };
+type PendingLoad = {
+  pgn: string;
+  name?: string;
+  detectedColor: Color | null;
+  sourceHandle?: FilePickerHandle;
+};
 const [pendingLoad, setPendingLoad] = createSignal<PendingLoad | null>(null);
 export { pendingLoad };
 
@@ -51,6 +56,7 @@ export function resolvePendingLoad(color: Color) {
     return; // keep the modal open so the error is visible; Cancel dismisses
   }
   actions.setColor(color);
+  if (p.sourceHandle) remember(p.sourceHandle);
   setLoadError(null);
   setPendingLoad(null);
 }
@@ -74,7 +80,12 @@ export function clearHandle() {
 
 async function loadFromHandle(h: FilePickerHandle) {
   const pgn = await (await h.getFile()).text();
-  setPendingLoad({ pgn, name: h.name, detectedColor: GameTree.detectColorFromPgn(pgn) });
+  setPendingLoad({
+    pgn,
+    name: h.name,
+    detectedColor: GameTree.detectColorFromPgn(pgn),
+    sourceHandle: h,
+  });
 }
 
 export async function openFile() {
@@ -85,7 +96,6 @@ export async function openFile() {
   if (w.showOpenFilePicker) {
     const [h] = await w.showOpenFilePicker({ types: PGN_TYPES });
     if (!h) return;
-    remember(h);
     await loadFromHandle(h);
     return;
   }
@@ -147,7 +157,5 @@ export async function reopenLast() {
   let perm = await h.queryPermission?.({ mode: "readwrite" });
   if (perm !== "granted") perm = await h.requestPermission?.({ mode: "readwrite" });
   if (perm !== "granted") return;
-  handle = h;
   await loadFromHandle(h);
-  setStoredFileName(null);
 }

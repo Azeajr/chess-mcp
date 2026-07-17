@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
-import { actions } from "./store/game";
+import { actions, documentId } from "./store/game";
 import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { createArtifact, saveArtifact } from "./store/artifacts";
@@ -17,6 +17,7 @@ render(() => <App />, root);
 if (import.meta.env.DEV) {
   (window as unknown as { __chess?: unknown }).__chess = {
     ...actions,
+    documentId,
     addSuggestion,
     acceptSuggestion,
     suggestions,

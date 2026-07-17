@@ -3,8 +3,13 @@
  * exposes SolidJS signals. GameTree mutates in place; a `version` signal is bumped after
  * each mutation so derived reads (fen, dests, move list) recompute.
  */
-import { createSignal } from "solid-js";
+import { batch, createSignal } from "solid-js";
 import { GameTree, type Path } from "@chess-mcp/chess-tools";
+import {
+  createBrowserDocumentId,
+  normalizeBrowserDocumentId,
+  type BrowserDocumentId,
+} from "./document-identity";
 
 export type Color = "white" | "black";
 
@@ -14,6 +19,7 @@ const [path, setPath] = createSignal<Path>([]);
 const [color, setColor] = createSignal<Color>("white");
 const [dirty, setDirty] = createSignal(false);
 const [fileName, setFileName] = createSignal<string | null>(null);
+const [documentId, setDocumentId] = createSignal<BrowserDocumentId>(createBrowserDocumentId());
 
 const bump = () => setVersion((v) => v + 1);
 
@@ -38,7 +44,7 @@ export const lastMove = () => {
   return tree().lastMoveAt(path());
 };
 
-export { color, path, dirty, fileName, version };
+export { color, path, dirty, fileName, version, documentId };
 
 /** Read-only handle to the tree for rendering the move list (read version() to subscribe). */
 export const currentTree = () => {
@@ -47,22 +53,39 @@ export const currentTree = () => {
 };
 export const currentPath = path;
 
-export const actions = {
-  loadPgn(pgn: string, name?: string) {
-    setTree(GameTree.fromPgn(pgn));
+function replaceDocument(nextTree: GameTree, name: string | undefined, nextDocumentId: BrowserDocumentId) {
+  // Consumers derive FEN from both tree and path, so publish the replacement atomically. A shorter
+  // imported tree must never be observed with the previous document's deeper navigation path.
+  batch(() => {
+    setTree(nextTree);
     setPath([]);
     setColor("white");
     setDirty(false);
     setFileName(name ?? null);
+    setDocumentId(nextDocumentId);
     bump();
+  });
+}
+
+/** Restore is the sole path allowed to resume an existing document identity. */
+export function restoreDocument(pgn: string, name: string | undefined, savedDocumentId: unknown) {
+  const nextTree = GameTree.fromPgn(pgn);
+  replaceDocument(
+    nextTree,
+    name,
+    normalizeBrowserDocumentId(savedDocumentId) ?? createBrowserDocumentId(),
+  );
+}
+
+export const actions = {
+  loadPgn(pgn: string, name?: string) {
+    // Parse before rotating identity: a failed explicit load leaves the current document intact.
+    const nextTree = GameTree.fromPgn(pgn);
+    replaceDocument(nextTree, name, createBrowserDocumentId());
   },
 
   newGame() {
-    setTree(new GameTree());
-    setPath([]);
-    setDirty(false);
-    setFileName(null);
-    bump();
+    replaceDocument(new GameTree(), undefined, createBrowserDocumentId());
   },
 
   play(orig: string, dest: string, promotion?: string) {

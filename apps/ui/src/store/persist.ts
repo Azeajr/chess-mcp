@@ -6,7 +6,17 @@
  */
 import { createSignal, createEffect, onCleanup } from "solid-js";
 import { idbGet, idbSet } from "./idb";
-import { currentTree, path, color, fileName, dirty, actions, type Color } from "./game";
+import {
+  currentTree,
+  path,
+  color,
+  fileName,
+  dirty,
+  documentId,
+  actions,
+  restoreDocument,
+  type Color,
+} from "./game";
 
 /** A saved path is only trusted if the restored tree can actually resolve it. */
 function probePath(p: unknown): number[] {
@@ -27,6 +37,7 @@ interface Saved {
   path: number[];
   fileName: string | null;
   dirty: boolean;
+  documentId?: unknown;
 }
 
 // Autosaving begins only after the restore attempt completes, so the initial empty tree never
@@ -42,8 +53,16 @@ export function startAutosave() {
     const p = path();
     const fn = fileName();
     const d = dirty();
+    const id = documentId();
     const t = setTimeout(() => {
-      void idbSet(KEY, { pgn: tree.toPgn(), color: c, path: p, fileName: fn, dirty: d } satisfies Saved);
+      void idbSet(KEY, {
+        pgn: tree.toPgn(),
+        color: c,
+        path: p,
+        fileName: fn,
+        dirty: d,
+        documentId: id,
+      } satisfies Saved);
     }, 400);
     onCleanup(() => clearTimeout(t));
   });
@@ -54,7 +73,7 @@ export async function restoreWorking() {
   try {
     const saved = await idbGet<Saved>(KEY);
     if (saved?.pgn) {
-      actions.loadPgn(saved.pgn, saved.fileName ?? undefined);
+      restoreDocument(saved.pgn, saved.fileName ?? undefined, saved.documentId);
       actions.setColor(saved.color);
       actions.goto(probePath(saved.path));
       if (saved.dirty) actions.markDirty();
