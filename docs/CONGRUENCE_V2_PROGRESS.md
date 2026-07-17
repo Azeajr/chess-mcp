@@ -15,16 +15,16 @@
 | 1.8 | Complete | `ce09d6b` | Phase 1 gate | Versioned deterministic concept dictionary and route overlap. |
 | 2.1 | Complete | `9a005a0` | Phase 2 gate | Opponent-decision-normalized route weights, explicit fallbacks, transposition-safe effective sample size, and provenance. |
 | 2.2 | Complete | `e9a895a` | Phase 2 gate | Hierarchical comparable cohorts, descriptive opening containers, deterministic overrides, and exclusion-safe baselines. |
-| 2.3 | Complete | This commit | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
+| 2.3 | Complete | `1ee9737` | Phase 2 gate | Deterministic weighted medoids, multimodal profiles, explicit target precedence, and minimum-sample safeguards. |
 
 ## Coordinator state
 
-- Verified through Task 2.2 at `e9a895a` (`feat: add strategic fit cohorts`).
-- Latest implementation gate at `e9a895a`: Strategic Fit 78/78; chess-tools build; monorepo typecheck;
+- Verified through Task 2.3 at `1ee9737` (`feat: add strategic fit modes`).
+- Latest implementation gate at `1ee9737`: Strategic Fit 86/86; chess-tools build; monorepo typecheck;
   game-tree smoke 213/213.
 - No blocker or implementation agent is in flight.
-- Next task: Task 2.3 — Detect weighted medoids and multimodal profiles. Its Task 2.2 dependency
-  is complete.
+- Next task: Task 2.4 — Implement explainable strategic distance. Its Task 1.8 and 2.3
+  dependencies are complete.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
