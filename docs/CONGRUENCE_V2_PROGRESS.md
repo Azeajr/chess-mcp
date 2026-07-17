@@ -20,6 +20,7 @@
 | 2.5 | Complete | `f19f7b5` | Phase 2 gate | Weighted geometric confidence, explicit hard-cap reasons, and separate deterministic difference magnitude. |
 | 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
 | 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
+| 2.8 | Complete | This commit | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
 
 ## Coordinator state
 

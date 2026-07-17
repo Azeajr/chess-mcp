@@ -106,6 +106,7 @@ export * from "./strategic-fit/distance.js";
 export * from "./strategic-fit/confidence.js";
 export * from "./strategic-fit/causality.js";
 export * from "./strategic-fit/findings.js";
+export * from "./strategic-fit/metrics.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";
