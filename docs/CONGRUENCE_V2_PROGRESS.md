@@ -21,6 +21,7 @@
 | 2.6 | Complete | `474c196` | Phase 2 gate | Engine-free causal ownership with backward feature tracing, irreversible-event evidence, transposition suppression, and explicit uncertainty. |
 | 2.7 | Complete | `f99fb28` | Phase 2 gate | Conservative diversity classification, supported intent/tradeoff evidence, and separate replacement/training priorities. |
 | 2.8 | Complete | `15b4a48` | Phase 2 gate | Expected-weight overview metrics, explicit optional-data states, transposition-safe resilience, and concept centrality. |
+| 2.9 | Complete | This commit | Phase 2 gate | Pure engine-free V2 composition, stable report/finding identities, deterministic sorting and paging, six-phase progress, and cooperative cancellation. |
 
 ## Coordinator state
 
