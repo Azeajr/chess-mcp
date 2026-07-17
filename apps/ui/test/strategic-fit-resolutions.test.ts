@@ -96,6 +96,34 @@ test("every persisted resolution kind adds, updates, removes, and reopens throug
   assert.equal(f.state.reopenResolution("resolution:keep-intentionally").state, "removed");
 });
 
+test("a semantic finding has one replaceable resolution and reopen cannot expose an older decision", () => {
+  const f = fixture();
+  const first = {
+    ...resolutionInput(f, "defer", "a"),
+    semantic_finding_id: "semantic-finding:shared",
+  };
+  const replacement = {
+    ...resolutionInput(f, "train-as-exception", "b"),
+    semantic_finding_id: "semantic-finding:shared",
+  };
+
+  assert.equal(f.state.upsertResolution(first).state, "updated");
+  assert.equal(f.state.upsertResolution(replacement).state, "updated");
+  assert.deepEqual(
+    f.metadata().resolutions.map(({ resolution_id, state }) => ({ resolution_id, state })),
+    [{ resolution_id: "resolution:b", state: "train-as-exception" }],
+  );
+  assert.equal(f.state.removeResolution("resolution:a").state, "missing");
+  assert.equal(f.state.analysisSettings().inputs.route_assessments?.[0]?.resolution_state, "train-as-exception");
+
+  assert.equal(f.state.upsertResolution({ ...replacement, note: "Updated replacement" }).state, "updated");
+  assert.equal(f.metadata().resolutions.length, 1);
+  assert.equal(f.metadata().resolutions[0]?.note, "Updated replacement");
+  assert.equal(f.state.reopenResolution("resolution:b").state, "removed");
+  assert.deepEqual(f.metadata().resolutions, []);
+  assert.equal(f.state.analysisSettings().inputs.route_assessments, undefined);
+});
+
 test("merge, split, exclusion, manual weights, provenance, reasons, and removals round-trip", () => {
   const f = fixture();
   const graph = f.graph();

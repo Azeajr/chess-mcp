@@ -114,6 +114,35 @@ test("mocked storage round-trips non-default profile and resolution metadata", a
   restored.dispose();
 });
 
+test("restore canonicalizes duplicate active resolution IDs for one semantic finding", async () => {
+  const storage = new MemoryStorage();
+  const input = populatedMetadata("duplicate-resolution");
+  const original = input.resolutions[0]!;
+  const replacement = {
+    ...original,
+    resolution_id: "resolution:replacement",
+    state: "train-as-exception" as const,
+    intentional_reason: null,
+    updated_at: "2026-07-17T12:01:00.000Z",
+  };
+  storage.values.set(DOCUMENT_A, { ...input, resolutions: [replacement, original] });
+
+  const controller = createStrategicFitMetadataPersistence({ storage, debounceMs: 5 });
+  await controller.activateDocument(DOCUMENT_A);
+  assert.equal(controller.snapshot().normalization_state, "valid");
+  assert.equal(controller.snapshot().issues.some((entry) => entry.code === "duplicate-id"), true);
+  assert.deepEqual(
+    controller.snapshot().metadata.resolutions.map((entry) => entry.resolution_id),
+    ["resolution:replacement"],
+  );
+  await controller.flush();
+  assert.deepEqual(
+    (storage.values.get(DOCUMENT_A) as StrategicFitDocumentMetadata).resolutions.map((entry) => entry.resolution_id),
+    ["resolution:replacement"],
+  );
+  controller.dispose();
+});
+
 test("the explicit 0.1.0 format migrates and is rewritten as canonical current metadata", async () => {
   const storage = new MemoryStorage();
   const expected = populatedMetadata("migration");

@@ -583,6 +583,43 @@ function uniqueEntries<T>(
   return result;
 }
 
+function compareResolutionPrecedence(
+  left: StrategicFitPersistedResolution,
+  right: StrategicFitPersistedResolution,
+): number {
+  return left.updated_at.localeCompare(right.updated_at) ||
+    left.resolution_id.localeCompare(right.resolution_id);
+}
+
+function singularActiveResolutions(
+  resolutions: readonly StrategicFitPersistedResolution[],
+  path: string,
+  context: NormalizationContext,
+): StrategicFitPersistedResolution[] {
+  const winnerByFinding = new Map<string, StrategicFitPersistedResolution>();
+  for (const record of resolutions) {
+    if (record.record_state !== "active" || record.semantic_finding_id === null) continue;
+    const previous = winnerByFinding.get(record.semantic_finding_id);
+    if (previous === undefined) {
+      winnerByFinding.set(record.semantic_finding_id, record);
+      continue;
+    }
+    const winner = compareResolutionPrecedence(previous, record) > 0 ? previous : record;
+    winnerByFinding.set(record.semantic_finding_id, winner);
+    issue(
+      context,
+      "duplicate-id",
+      path,
+      `Duplicate active semantic finding resolution: ${record.semantic_finding_id}; kept ${winner.resolution_id}.`,
+      false,
+    );
+  }
+  return resolutions.filter((record) =>
+    record.record_state !== "active" || record.semantic_finding_id === null ||
+    winnerByFinding.get(record.semantic_finding_id) === record
+  );
+}
+
 function manualWeights(value: unknown, path: string, context: NormalizationContext): StrategicFitManualWeights {
   if (!isRecord(value)) {
     issue(context, "invalid-field", path, "Expected a manual weights object.");
@@ -957,6 +994,13 @@ function normalizedCurrent(
     );
     if (misplaced) issue(context, "invalid-entry", "$.cohort_overrides", "Exclusions belong in the exclusions field.");
   }
+  const resolutions = singularActiveResolutions(uniqueEntries(
+    value.resolutions,
+    "$.resolutions",
+    (entry: StrategicFitPersistedResolution) => entry.resolution_id,
+    resolution,
+    context,
+  ), "$.resolutions", context);
   return {
     metadata_kind: STRATEGIC_FIT_DOCUMENT_METADATA_KIND,
     metadata_version: STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
@@ -964,13 +1008,7 @@ function normalizedCurrent(
     manual_weights: manualWeights(value.manual_weights, "$.manual_weights", context),
     cohort_overrides: structuralOverrides,
     exclusions,
-    resolutions: uniqueEntries(
-      value.resolutions,
-      "$.resolutions",
-      (entry: StrategicFitPersistedResolution) => entry.resolution_id,
-      resolution,
-      context,
-    ),
+    resolutions,
     archive_references: uniqueEntries(
       value.archive_references,
       "$.archive_references",
@@ -1332,8 +1370,7 @@ export function strategicFitAnalysisInputsFromMetadata(
   const assessmentByFindingRoute = new Map<string, StrategicFitRouteAssessmentInput>();
   const resolutions = metadata.resolutions
     .filter((record) => record.record_state === "active" && record.semantic_finding_id !== null)
-    .sort((left, right) => left.updated_at.localeCompare(right.updated_at) ||
-      left.resolution_id.localeCompare(right.resolution_id));
+    .sort(compareResolutionPrecedence);
   for (const resolution of resolutions) {
     const semanticFindingId = resolution.semantic_finding_id;
     if (semanticFindingId === null) continue;

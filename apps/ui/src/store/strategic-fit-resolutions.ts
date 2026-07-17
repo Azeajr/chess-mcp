@@ -279,6 +279,7 @@ export function createStrategicFitResolutionState(
         provenance: defaultProvenance(boundary, input.provenance),
       };
       if (existing && existing.record_state === "active" &&
+        metadata.resolutions.filter((entry) => entry.semantic_finding_id === semanticFindingId).length === 1 &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
           meaningfulRecord(next as unknown as Record<string, unknown>)) {
         return { state: "unchanged", metadata };
@@ -286,7 +287,9 @@ export function createStrategicFitResolutionState(
       const updated = { ...next, updated_at: now };
       return commit({
         ...metadata,
-        resolutions: [...metadata.resolutions.filter((entry) => entry.resolution_id !== resolutionId), updated]
+        resolutions: [...metadata.resolutions.filter((entry) =>
+          entry.resolution_id !== resolutionId && entry.semantic_finding_id !== semanticFindingId
+        ), updated]
           .sort((left, right) => left.resolution_id.localeCompare(right.resolution_id)),
       });
     },

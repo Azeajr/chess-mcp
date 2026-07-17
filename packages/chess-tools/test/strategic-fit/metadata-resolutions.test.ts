@@ -342,6 +342,42 @@ test("a persisted resolution targets one semantic finding when sibling findings 
   assert.equal(reorderedSibling.resolution_state, "unresolved");
 });
 
+test("normalization deterministically replaces duplicate active resolutions for one semantic finding", () => {
+  const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
+  const original = resolution(graph, {
+    resolution_id: "resolution:a",
+    semantic_finding_id: "semantic-finding:shared",
+    state: "defer",
+  });
+  const replacement = resolution(graph, {
+    resolution_id: "resolution:b",
+    semantic_finding_id: "semantic-finding:shared",
+    state: "train-as-exception",
+    intentional_reason: null,
+    updated_at: "2026-07-17T12:01:00.000Z",
+  });
+  const input = {
+    ...createDefaultStrategicFitDocumentMetadata(),
+    resolutions: [replacement, original],
+  };
+  const first = normalizeStrategicFitDocumentMetadata(input);
+  const reordered = normalizeStrategicFitDocumentMetadata({
+    ...input,
+    resolutions: [original, replacement],
+  });
+
+  assert.equal(first.state, "valid");
+  assert.deepEqual(first.metadata, reordered.metadata);
+  assert.deepEqual(first.metadata.resolutions.map((record) => record.resolution_id), ["resolution:b"]);
+  assert.equal(first.issues.some((entry) => entry.code === "duplicate-id"), true);
+  assert.deepEqual(
+    strategicFitAnalysisInputsFromMetadata(first.metadata, graph).route_assessments?.map((assessment) =>
+      assessment.resolution_state
+    ),
+    ["train-as-exception"],
+  );
+});
+
 test("profile/revision/expiry rules use stored snapshots and exact timestamps", () => {
   const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
   const defaults = createDefaultStrategicFitDocumentMetadata();
