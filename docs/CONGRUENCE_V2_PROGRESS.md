@@ -28,6 +28,7 @@
 | 3.4 | Complete | `e844593` | Phase 3 gate | Immutable revision/content/settings-keyed host report caches with bounded summary, cursor-page, finding, and full projections plus exact report identity, stale-result rejection, and handle-lifecycle cleanup. |
 | 3.5 | Complete | `00f13ca` | Coordinator: UI chat 32/32; targeted Playwright 4/4; Phase 3 gate | Typed Strategic Fit chat card with explicit preflight/report states, separate confidence/difference/replacement/training priority, bounded top findings, safe SAN navigation from semantic findings, compact report/finding references, and legacy projection compatibility. |
 | 3.6 | Complete | `0f4949d` | Coordinator: Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; Playwright 1/1; MCP smoke 79/79; worker-boundary build check; Phase 3 gate | Native V2 repertoire annotations with versioned category, confidence, difference, cohort, and explicit intentional/uncertain status; all-path attachment; revision-safe browser Worker/MCP cache injection; clone-only returned/write artifacts; legacy `annotated.congruence` retained. Browser main bundle excludes the V2 analyzer. |
+| 4.1 | Implemented; awaiting coordinator verification | `This commit` | Agent: metadata 8/8; Strategic Fit 165/165; UI chat 33/33; UI build and worker-boundary check; monorepo typecheck; Playwright 18/18; docs check | Independent `1.0.0` document metadata contract with complete deterministic defaults; canonical profile, manual-weight, cohort override/exclusion, semantic resolution, and provenance types; semantic archive/training references; explicit `0.1.0` migration; structured current-data and unknown-version fallback; recursive whitelist normalization excludes credential fields. No persistence or document identity. |
 
 ## Coordinator state
 
@@ -39,7 +40,9 @@
   inventory and semantics (41 MCP, 39 browser); chess-tools/UI builds; monorepo typecheck; docs
   and synchronized-skills checks. The worker-boundary build check records a 283.42 kB / 92.69 kB
   gzip main index with the analyzer marker absent from main-thread assets.
-- No blocker remains. Resume with Task 4.1 — Define versioned Strategic Fit document metadata.
+- Task 4.1 is implemented at `This commit` and awaits independent coordinator diff/coverage review
+  and gate reproduction before its final hash is recorded. The implementation agent reports no
+  blocker and has not started stable document identity or persistence work.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.

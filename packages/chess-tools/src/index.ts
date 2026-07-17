@@ -113,6 +113,7 @@ export * from "./strategic-fit/report-projection.js";
 export * from "./strategic-fit/legacy-projection.js";
 export * from "./strategic-fit/annotation.js";
 export * from "./strategic-fit/tool-adapter.js";
+export * from "./strategic-fit/metadata.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";
