@@ -29,15 +29,14 @@
 | 3.5 | Complete | `00f13ca` | Coordinator: UI chat 32/32; targeted Playwright 4/4; Phase 3 gate | Typed Strategic Fit chat card with explicit preflight/report states, separate confidence/difference/replacement/training priority, bounded top findings, safe SAN navigation from semantic findings, compact report/finding references, and legacy projection compatibility. |
 | 3.6 | Complete | `0f4949d` | Coordinator: Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; Playwright 1/1; MCP smoke 79/79; worker-boundary build check; Phase 3 gate | Native V2 repertoire annotations with versioned category, confidence, difference, cohort, and explicit intentional/uncertain status; all-path attachment; revision-safe browser Worker/MCP cache injection; clone-only returned/write artifacts; legacy `annotated.congruence` retained. Browser main bundle excludes the V2 analyzer. |
 | 4.1 | Complete | `009271c` | Coordinator: metadata 9/9; Strategic Fit 166/166; UI 33/33; Playwright 18/18; worker-boundary build check; Phase 4 gate | Independent `1.0.0` document metadata contract with complete deterministic defaults; canonical profile, manual-weight, cohort override/exclusion, semantic resolution, and provenance types; semantic archive/training references; explicit `0.1.0` migration; structured current-data and unknown-version fallback; recursive whitelist normalization excludes credential fields. Cross-collection override IDs are unique with original-path diagnostics. No persistence or document identity. |
-| 4.2 | Awaiting coordinator verification | `This commit` | Agent: document identity 5/5; UI 38/38; full Playwright 23/23; worker-boundary build check; Phase 4 gate | Secure RFC UUID identity independent of PGN names/content and report revisions; fresh identity for initial/New/successful explicit imports and reopens; valid autosave identity resumes across reload while corrupt/missing identity regenerates safely; navigation, color, edits, and every Save path preserve identity. Failed/cancelled loads leave both identity and active file untouched; replacement state publishes atomically. No Strategic Fit metadata persistence. |
+| 4.2 | Complete | `ecb2996` | Coordinator: document identity Playwright 5/5; UI 38/38; full Playwright 23/23; worker-boundary build check; Phase 4 gate | Secure RFC UUID identity independent of PGN names/content and report revisions; fresh identity for initial/New/successful explicit imports and reopens; valid autosave identity resumes across reload while corrupt/missing identity regenerates safely; navigation, color, edits, and every Save path preserve identity. Failed/cancelled loads leave both identity and active file untouched; replacement state publishes atomically. No Strategic Fit metadata persistence. |
 
 ## Coordinator state
 
-- Independently verified through Task 4.1 at `009271c` (`fix: preserve strategic fit metadata issue
-  paths`). Task 4.2 implementation is committed separately and awaits coordinator diff/coverage
-  audit plus independent test reproduction.
-- Task 4.2 agent evidence: document-identity Playwright 5/5; UI behavioral 38/38; full Playwright
+- Independently verified through Task 4.2 at `ecb2996` (`feat: add stable browser document
+  identity`) after a complete lifecycle, persistence-boundary, file-handle, and test-coverage audit.
+- Latest coordinator rerun: document-identity Playwright 5/5; UI behavioral 38/38; full Playwright
   23/23; UI production build with the analyzer absent from the main-thread bundle; and monorepo
-  typecheck. No public tool contract, Strategic Fit metadata persistence, or Task 4.3 work changed.
-- No design blocker was found. The coordinator must replace `This commit` only after independently
-  verifying Task 4.2; do not begin Task 4.3 until that verification is settled.
+  typecheck. Initial/New/import isolation, edit/Save stability, autosave resume, failed/cancelled
+  load safety, and corrupt/missing saved-ID regeneration are independently reproduced.
+- No blocker remains. Resume with Task 4.3 — Persist Strategic Fit metadata in IndexedDB.
