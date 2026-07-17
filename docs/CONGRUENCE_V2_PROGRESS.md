@@ -27,22 +27,19 @@
 | 3.3 | Complete | `8ddeb7e` | Task validation | Dedicated typed Web Worker with deterministic core parity, six-phase progress, structured errors, abort termination, and stale-result discard. |
 | 3.4 | Complete | `e844593` | Phase 3 gate | Immutable revision/content/settings-keyed host report caches with bounded summary, cursor-page, finding, and full projections plus exact report identity, stale-result rejection, and handle-lifecycle cleanup. |
 | 3.5 | Complete | `00f13ca` | Coordinator: UI chat 32/32; targeted Playwright 4/4; Phase 3 gate | Typed Strategic Fit chat card with explicit preflight/report states, separate confidence/difference/replacement/training priority, bounded top findings, safe SAN navigation from semantic findings, compact report/finding references, and legacy projection compatibility. |
-| 3.6 | Complete | `This commit` | Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; Playwright 1/1; MCP smoke 79/79; worker-boundary build check; Phase 3 gate | Native V2 repertoire annotations with versioned category, confidence, difference, cohort, and explicit intentional/uncertain status; all-path attachment; revision-safe browser Worker/MCP cache injection; clone-only returned/write artifacts; legacy `annotated.congruence` retained. Browser main bundle excludes the V2 analyzer. Awaiting independent coordinator verification. |
+| 3.6 | Complete | `0f4949d` | Coordinator: Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; Playwright 1/1; MCP smoke 79/79; worker-boundary build check; Phase 3 gate | Native V2 repertoire annotations with versioned category, confidence, difference, cohort, and explicit intentional/uncertain status; all-path attachment; revision-safe browser Worker/MCP cache injection; clone-only returned/write artifacts; legacy `annotated.congruence` retained. Browser main bundle excludes the V2 analyzer. |
 
 ## Coordinator state
 
-- Verified through Task 3.5 at `00f13ca` (`feat: render strategic fit chat results`) after an
-  independent implementation and coverage audit plus coordinator task/gate reruns.
-- Latest coordinator rerun: UI chat 32/32; targeted Strategic Fit chat Playwright 4/4; canonical
-  tool-contract inventory and semantics (41 MCP, 39 browser); MCP smoke 76/76 with network
-  disabled; chess-tools/UI builds; monorepo typecheck; docs and synchronized-skills checks.
-- Task 3.6 implementation is recorded as `This commit` and awaits independent coordinator review.
-  Implementer validation: Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; targeted
+- Verified through Task 3.6 at `0f4949d` (`fix: keep strategic fit analysis in worker`) after an
+  independent implementation/coverage audit, one coordinator-found bundle-boundary remediation,
+  and complete coordinator task/gate reruns.
+- Latest coordinator rerun: Strategic Fit 157/157; annotation/perftools 40/40; UI 33/33; targeted
   annotation Playwright 1/1; MCP smoke 79/79 with network disabled; canonical tool-contract
   inventory and semantics (41 MCP, 39 browser); chess-tools/UI builds; monorepo typecheck; docs
-  and synchronized-skills checks. The UI build is 283.42 kB / 92.69 kB gzip for the main index,
-  with the analyzer marker present only in the 217.57 kB Strategic Fit Worker asset.
-- No blocker remains. Do not begin Task 4.1 until Task 3.6 is independently verified.
+  and synchronized-skills checks. The worker-boundary build check records a 283.42 kB / 92.69 kB
+  gzip main index with the analyzer marker absent from main-thread assets.
+- No blocker remains. Resume with Task 4.1 — Define versioned Strategic Fit document metadata.
 - Continue in the plan's numbered/recommended order through Task 12.5. Implement one task per
   focused commit, verify it before selecting another, and parallelize only where the dependency
   graph explicitly permits.
