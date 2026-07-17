@@ -13,6 +13,7 @@ import { actions, color, currentPath, currentTree, fen, fileName, version } from
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
 import { analysisDepth } from "../../store/engine-settings";
+import { analyzeStrategicFitInWorker } from "../strategic-fit-worker";
 import type { BrowserCommandDependencies } from "./types";
 
 let openingsPromise: Promise<OpeningTable> | null = null;
@@ -43,6 +44,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   lichessGames,
   chesscomGames,
   openings,
+  analyzeStrategicFit: analyzeStrategicFitInWorker,
   createArtifact,
   stageEdit,
   proposeLine: addSuggestion,

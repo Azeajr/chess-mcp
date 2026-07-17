@@ -8,6 +8,9 @@ import type {
   GameTree,
   OpeningTable,
   Path,
+  AnalyzeStrategicFitOptions,
+  StrategicFitAnalysisResult,
+  StrategicFitProgress,
   TablebaseResult,
 } from "@chess-mcp/chess-tools";
 
@@ -52,6 +55,11 @@ export type BrowserCommandDependencies = {
   lichessGames: (username: string, maxGames: number, openingEco?: string, includePgn?: boolean, signal?: AbortSignal) => Promise<GameMeta[] | null>;
   chesscomGames: (username: string, year: number, month: number, openingEco?: string, includePgn?: boolean, signal?: AbortSignal) => Promise<GameMeta[] | null>;
   openings: () => Promise<OpeningTable>;
+  analyzeStrategicFit: (
+    pgn: string,
+    options: AnalyzeStrategicFitOptions,
+    execution?: { signal?: AbortSignal; onProgress?: (progress: StrategicFitProgress) => void },
+  ) => Promise<StrategicFitAnalysisResult>;
   createArtifact: (format: "pgn" | "csv", content: string, name: string) => unknown;
   stageEdit: (action: "add" | "prune" | "reorder", path: string[], options?: { addMoves?: string[]; promoteMove?: string }) => unknown;
   proposeLine: (moves: string[], comment?: string) => unknown;
