@@ -548,6 +548,39 @@ function cohortOverride(
   };
 }
 
+function exclusionOverrides(
+  value: unknown,
+  path: string,
+  structuralOverrideIds: ReadonlySet<string>,
+  context: NormalizationContext,
+): StrategicCohortExclusionOverride[] {
+  if (!Array.isArray(value)) {
+    issue(context, "invalid-field", path, "Expected an array.");
+    return [];
+  }
+  const result: StrategicCohortExclusionOverride[] = [];
+  const seen = new Set(structuralOverrideIds);
+  for (const [index, entry] of value.entries()) {
+    const entryPath = `${path}[${index}]`;
+    const parsed = cohortOverride(entry, entryPath, context);
+    if (parsed === null) continue;
+    if (parsed.kind !== "exclude") {
+      issue(context, "invalid-entry", entryPath, "Only exclusion overrides belong in exclusions.");
+      continue;
+    }
+    if (seen.has(parsed.override_id)) {
+      const message = structuralOverrideIds.has(parsed.override_id)
+        ? `Duplicate cohort override identity across cohort_overrides and exclusions: ${parsed.override_id}`
+        : `Duplicate metadata identity: ${parsed.override_id}`;
+      issue(context, "duplicate-id", entryPath, message);
+      continue;
+    }
+    seen.add(parsed.override_id);
+    result.push(parsed);
+  }
+  return result;
+}
+
 function semanticReferences(
   value: unknown,
   path: string,
@@ -753,38 +786,17 @@ function normalizedCurrent(
     cohortOverride,
     context,
   ).filter((override): override is StrategicFitStructuralCohortOverride => override.kind !== "exclude");
-  const exclusions = uniqueEntries(
+  const exclusions = exclusionOverrides(
     value.exclusions,
     "$.exclusions",
-    (entry: StrategicCohortOverride) => entry.override_id,
-    cohortOverride,
+    new Set(structuralOverrides.map((override) => override.override_id)),
     context,
-  ).filter((override): override is StrategicCohortExclusionOverride => override.kind === "exclude");
-  const overrideIds = new Set(structuralOverrides.map((override) => override.override_id));
-  const uniqueExclusions = exclusions.filter((override, index) => {
-    if (!overrideIds.has(override.override_id)) {
-      overrideIds.add(override.override_id);
-      return true;
-    }
-    issue(
-      context,
-      "duplicate-id",
-      `$.exclusions[${index}]`,
-      `Duplicate cohort override identity across cohort_overrides and exclusions: ${override.override_id}`,
-    );
-    return false;
-  });
+  );
   if (structuralOverrides.length !== (Array.isArray(value.cohort_overrides) ? value.cohort_overrides.length : 0)) {
     const misplaced = Array.isArray(value.cohort_overrides) && value.cohort_overrides.some(
       (entry) => isRecord(entry) && entry.kind === "exclude",
     );
     if (misplaced) issue(context, "invalid-entry", "$.cohort_overrides", "Exclusions belong in the exclusions field.");
-  }
-  if (exclusions.length !== (Array.isArray(value.exclusions) ? value.exclusions.length : 0)) {
-    const misplaced = Array.isArray(value.exclusions) && value.exclusions.some(
-      (entry) => isRecord(entry) && entry.kind !== "exclude",
-    );
-    if (misplaced) issue(context, "invalid-entry", "$.exclusions", "Only exclusion overrides belong in exclusions.");
   }
   return {
     metadata_kind: STRATEGIC_FIT_DOCUMENT_METADATA_KIND,
@@ -792,7 +804,7 @@ function normalizedCurrent(
     profile: profile(value.profile, "$.profile", context),
     manual_weights: manualWeights(value.manual_weights, "$.manual_weights", context),
     cohort_overrides: structuralOverrides,
-    exclusions: uniqueExclusions,
+    exclusions,
     resolutions: uniqueEntries(
       value.resolutions,
       "$.resolutions",

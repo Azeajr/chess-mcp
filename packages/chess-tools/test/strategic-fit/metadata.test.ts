@@ -247,7 +247,7 @@ test("cohort override identities stay unique across structural overrides and exc
       kind: "split",
       route_ids: ["route:a"],
     }],
-    exclusions: [{
+    exclusions: [null, {
       override_id: "override:same",
       kind: "exclude",
       route_ids: ["route:b"],
@@ -258,11 +258,18 @@ test("cohort override identities stay unique across structural overrides and exc
   assert.equal(result.state, "fallback");
   assert.deepEqual(result.metadata.cohort_overrides.map((override) => override.override_id), ["override:same"]);
   assert.deepEqual(result.metadata.exclusions, []);
-  assert.deepEqual(result.issues, [{
-    code: "duplicate-id",
-    path: "$.exclusions[0]",
-    message: "Duplicate cohort override identity across cohort_overrides and exclusions: override:same",
-  }]);
+  assert.deepEqual(result.issues, [
+    {
+      code: "invalid-entry",
+      path: "$.exclusions[0]",
+      message: "Expected a cohort override object.",
+    },
+    {
+      code: "duplicate-id",
+      path: "$.exclusions[1]",
+      message: "Duplicate cohort override identity across cohort_overrides and exclusions: override:same",
+    },
+  ]);
 });
 
 test("unknown future fields are ignored while every supported field survives", () => {
