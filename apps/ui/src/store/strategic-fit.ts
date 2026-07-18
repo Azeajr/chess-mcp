@@ -443,7 +443,6 @@ export function createStrategicFitLifecycleState(
           ...previous,
           status: "stale",
           progress: null,
-          phase_history: stopPhaseHistory(previous.phase_history),
           error: null,
           stale_reason: staleReason(completed.request_snapshot, current),
           current_result: null,

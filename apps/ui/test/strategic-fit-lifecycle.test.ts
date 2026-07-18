@@ -120,6 +120,7 @@ test("navigation-equivalent synchronization stays current while every analysis i
   assert.match(subject.state.snapshot().stale_reason ?? "", /profile changed/i);
   assert.equal(subject.state.snapshot().current_result, null);
   assert.equal(subject.state.snapshot().last_completed?.report_id, "report:current");
+  assert.ok(subject.state.snapshot().phase_history.every((phase) => phase.state === "completed"));
 
   for (const patch of [
     { repertoire_revision: 2, repertoire_pgn: "1. d4 d5 *" },
@@ -146,6 +147,9 @@ test("an identity edit during analysis aborts the command and discards its late 
 
   assert.equal(subject.calls[0]!.options.signal?.aborted, true);
   assert.equal(subject.state.snapshot().status, "stale");
+  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
+    "completed", "cancelled", "pending", "pending", "pending", "pending",
+  ]);
   subject.calls[0]!.options.onProgress?.(6, 6);
   subject.calls[0]!.result.resolve(report("report:late", "browser:1"));
   await pending;
@@ -274,6 +278,13 @@ test("blocked preflight completes normalization only and leaves dependent phases
   await pending;
 
   assert.equal(subject.state.snapshot().status, "completed");
+  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
+    "completed", "pending", "pending", "pending", "pending", "pending",
+  ]);
+
+  subject.patchSnapshot({ profile_identity: "profile:versatile" });
+  subject.state.synchronize();
+  assert.equal(subject.state.snapshot().status, "stale");
   assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
     "completed", "pending", "pending", "pending", "pending", "pending",
   ]);

@@ -9,8 +9,20 @@ function completedCount(state: StrategicFitLifecycleSnapshot): number {
   return state.phase_history.filter((phase) => phase.state === "completed").length;
 }
 
+function phaseReport(state: StrategicFitLifecycleSnapshot) {
+  if (state.current_result) return state.current_result;
+  if (
+    state.status === "stale" &&
+    state.request_id !== null &&
+    state.last_completed?.request_id === state.request_id
+  ) {
+    return state.last_completed;
+  }
+  return null;
+}
+
 function blocked(state: StrategicFitLifecycleSnapshot): boolean {
-  return state.current_result?.result.preflight.state === "blocked";
+  return phaseReport(state)?.result.preflight.state === "blocked";
 }
 
 export function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapshot): string {
@@ -26,6 +38,9 @@ export function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapsho
   }
   if (state.status === "failed") {
     return `Analysis stopped${cancelled ? ` during ${STRATEGIC_FIT_PHASE_LABELS[cancelled.phase]}` : ""}. ${completed} of six phases completed.`;
+  }
+  if (state.status === "stale" && blocked(state)) {
+    return "The out-of-date report was blocked after normalization. One of six phases completed; five dependent phases were not run.";
   }
   if (state.status === "stale") {
     return cancelled

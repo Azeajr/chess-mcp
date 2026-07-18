@@ -2,6 +2,7 @@ import { expect, test, type Page } from "playwright/test";
 
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
+  setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
@@ -237,6 +238,18 @@ test("empty input blocks after normalization and never claims dependent phases r
   await expect(dialog.getByText(/five dependent phases were not run/i).first()).toBeVisible();
   await expect(dialog.getByRole("definition").nth(0)).toHaveText("0");
   await expectNoQualityVerdict(dialog);
+
+  await chess(page, (api) => api.setColor("black"));
+  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
+  await expect(phases.nth(0)).toHaveAttribute("data-phase-state", "completed");
+  for (let index = 1; index < 6; index++) {
+    await expect(phases.nth(index)).toHaveAttribute("data-phase-state", "pending");
+    await expect(phases.nth(index)).toContainText("Not run — blocked by preflight");
+  }
+  await expect(dialog.locator("[data-phase-state='cancelled']")).toHaveCount(0);
+  await expect(dialog.getByRole("status")).toContainText(
+    "The out-of-date report was blocked after normalization. One of six phases completed; five dependent phases were not run.",
+  );
 });
 
 test("small, shallow, incomplete, and insufficient evidence remains a meaningful degraded report", async ({ page }) => {
