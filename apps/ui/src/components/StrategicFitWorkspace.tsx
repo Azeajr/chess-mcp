@@ -5,15 +5,22 @@ import ProfileSetup, {
 import AnalysisLifecycle, {
   STRATEGIC_FIT_LIFECYCLE_LABELS,
 } from "./strategic-fit/AnalysisLifecycle";
+import StrategicOverview, {
+  type StrategicOverviewItemId,
+} from "./strategic-fit/StrategicOverview";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
 import { strategicFitLifecycle } from "../store/strategic-fit";
 import {
+  openStrategicFitFindingQueue,
   setStrategicFitWorkspaceOpen,
   setStrategicFitWorkspaceStage,
+  strategicFitFindingQueueFilterKey,
+  strategicFitFindingQueueIntent,
   strategicFitWorkspaceRegions,
   strategicFitWorkspaceStage,
+  type StrategicFitFindingQueueFilter,
   type StrategicFitWorkspaceRegionState,
   type StrategicFitWorkspaceStage,
 } from "../store/ui";
@@ -98,6 +105,35 @@ export default function StrategicFitWorkspace() {
       ? "Inferred · provisional"
       : "Explicit";
     return `${STRATEGIC_FIT_PROFILE_LABELS[profile.mode]} · ${intent}`;
+  };
+  const currentOverview = () => {
+    const lifecycle = strategicFitLifecycle();
+    return lifecycle.status === "completed" && lifecycle.current_result &&
+      strategicFitWorkspaceRegions().overview.status === "empty"
+      ? lifecycle.current_result
+      : null;
+  };
+  const currentQueueIntent = () => {
+    const lifecycle = strategicFitLifecycle();
+    const intent = strategicFitFindingQueueIntent();
+    return lifecycle.current_result && intent?.report_id === lifecycle.current_result.report_id
+      ? intent
+      : null;
+  };
+  const reviewOverviewItem = (
+    source: StrategicOverviewItemId,
+    label: string,
+    filter: StrategicFitFindingQueueFilter,
+  ) => {
+    const report = currentOverview();
+    if (!report) return;
+    openStrategicFitFindingQueue({
+      report_id: report.report_id,
+      source,
+      label,
+      filter,
+    });
+    queueMicrotask(() => dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus());
   };
   const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
     .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
@@ -209,20 +245,45 @@ export default function StrategicFitWorkspace() {
               <span>Overview</span>
               <h2 id="strategic-fit-pane-overview-title">Strategic map</h2>
             </div>
-            <RegionState region="overview" state={strategicFitWorkspaceRegions().overview} />
+            <Show
+              when={currentOverview()}
+              fallback={<RegionState region="overview" state={strategicFitWorkspaceRegions().overview} />}
+            >
+              {(report) => (
+                <StrategicOverview report={report().result} onReview={reviewOverviewItem} />
+              )}
+            </Show>
           </section>
 
           <section
             id="strategic-fit-pane-findings"
             class="strategic-fit-workspace-pane strategic-fit-findings-pane"
             aria-labelledby="strategic-fit-pane-findings-title"
+            data-queue-filter={currentQueueIntent()
+              ? strategicFitFindingQueueFilterKey(currentQueueIntent()!.filter)
+              : "none"}
             tabIndex={0}
           >
             <div class="strategic-fit-pane-heading">
               <span>Review queue</span>
               <h2 id="strategic-fit-pane-findings-title">Findings</h2>
             </div>
-            <RegionState region="findings" state={strategicFitWorkspaceRegions().findings} />
+            <Show
+              when={strategicFitWorkspaceRegions().findings.status === "empty" && currentQueueIntent()}
+              fallback={<RegionState region="findings" state={strategicFitWorkspaceRegions().findings} />}
+            >
+              {(intent) => (
+                <div class="strategic-fit-region-state strategic-fit-queue-intent" role="status">
+                  <div>
+                    <strong>{intent().label}</strong>
+                    <p>
+                      The finding queue is focused from the overview for this report. No repertoire
+                      change was made.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </Show>
           </section>
 
           <section

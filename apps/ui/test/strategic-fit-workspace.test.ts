@@ -4,9 +4,13 @@ import test from "node:test";
 import { actions, color, currentPath, documentId, version } from "../src/store/game.ts";
 import { commandStates } from "../src/store/commands.ts";
 import {
+  openStrategicFitFindingQueue,
   setStrategicFitWorkspaceOpen,
   setStrategicFitWorkspaceRegionState,
   setStrategicFitWorkspaceStage,
+  setStrategicFitFindingQueueIntent,
+  strategicFitFindingQueueFilterKey,
+  strategicFitFindingQueueIntent,
   strategicFitWorkspaceOpen,
   strategicFitWorkspaceRegions,
   strategicFitWorkspaceStage,
@@ -18,6 +22,7 @@ const REGIONS: readonly StrategicFitWorkspaceStage[] = ["overview", "findings", 
 function resetWorkspaceChrome() {
   setStrategicFitWorkspaceOpen(false);
   setStrategicFitWorkspaceStage("overview");
+  setStrategicFitFindingQueueIntent(null);
   for (const region of REGIONS) setStrategicFitWorkspaceRegionState(region, { status: "empty" });
 }
 
@@ -31,6 +36,29 @@ test("Strategic Fit workspace chrome defaults to an honest empty overview", () =
     evidence: { status: "empty" },
     resolution: { status: "empty" },
   });
+});
+
+test("overview queue intents stay report-bound and carry an explicit future filter", () => {
+  resetWorkspaceChrome();
+  openStrategicFitFindingQueue({
+    report_id: "report:overview",
+    source: "forced-diversity-floor",
+    label: "Review opponent-forced findings",
+    filter: { kind: "classification", classification: "forced-diversity" },
+  });
+
+  assert.equal(strategicFitWorkspaceStage(), "findings");
+  assert.deepEqual(strategicFitFindingQueueIntent(), {
+    report_id: "report:overview",
+    source: "forced-diversity-floor",
+    label: "Review opponent-forced findings",
+    filter: { kind: "classification", classification: "forced-diversity" },
+  });
+  assert.equal(
+    strategicFitFindingQueueFilterKey(strategicFitFindingQueueIntent()!.filter),
+    "classification:forced-diversity",
+  );
+  resetWorkspaceChrome();
 });
 
 test("presentational loading and error states remain region-scoped", () => {

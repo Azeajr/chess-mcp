@@ -111,6 +111,15 @@ async function installStrategicWorkerFixture(page: Page, mode: "phase-stall" | "
               return;
             }
             const profile = message.payload.options.profile;
+            const unavailableMetric = (metricId: string, unit: string) => ({
+              analysis_version: "2.0.0",
+              metric_id: metricId,
+              state: "unavailable",
+              value: null,
+              unit,
+              reason: "Strategic Fit metrics are unavailable because preflight blocked position analysis.",
+              provenance: [],
+            });
             controlled.onmessage?.({
               data: {
                 type: "result",
@@ -157,7 +166,31 @@ async function installStrategicWorkerFixture(page: Page, mode: "phase-stall" | "
                   },
                   trajectories: [],
                   cohorts: [],
-                  summary: {},
+                  summary: {
+                    analysis_version: "2.0.0",
+                    workload: "unavailable",
+                    strategic_family_count: 0,
+                    expected_concept_burden: null,
+                    intentional_exception_count: 0,
+                    unresolved_finding_count: 0,
+                    insufficient_evidence_branch_count: 0,
+                    metrics: {
+                      analysis_version: "2.0.0",
+                      strategic_entropy: unavailableMetric("strategic-entropy", "entropy"),
+                      concept_reuse: unavailableMetric("concept-reuse", "fraction"),
+                      exception_burden: unavailableMetric("exception-burden", "composite"),
+                      forced_diversity_floor: unavailableMetric("forced-diversity-floor", "fraction"),
+                      homogenization_cost: unavailableMetric("homogenization-cost", "composite"),
+                      familiarity_adjusted_coverage: unavailableMetric(
+                        "familiarity-adjusted-coverage",
+                        "fraction",
+                      ),
+                      training_adjusted_workload: unavailableMetric("training-adjusted-workload", "score"),
+                      repertoire_regret: unavailableMetric("repertoire-regret", "score"),
+                      move_order_resilience: unavailableMetric("move-order-resilience", "fraction"),
+                      concept_centrality: unavailableMetric("concept-centrality", "composite"),
+                    },
+                  },
                   findings: [],
                   finding_page: {
                     offset: 0,

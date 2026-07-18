@@ -29,6 +29,34 @@ export const [strategicFitWorkspaceStage, setStrategicFitWorkspaceStage] =
 export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] =
   createSignal(emptyStrategicFitWorkspaceRegions());
 
+export type StrategicFitFindingQueueFilter =
+  | { readonly kind: "all" }
+  | { readonly kind: "classification"; readonly classification: "forced-diversity" | "intentional-diversity" }
+  | { readonly kind: "resolution"; readonly resolution: "unresolved" }
+  | { readonly kind: "evidence"; readonly evidence: "insufficient" };
+
+export interface StrategicFitFindingQueueIntent {
+  readonly report_id: string;
+  readonly source: string;
+  readonly label: string;
+  readonly filter: StrategicFitFindingQueueFilter;
+}
+
+export const [strategicFitFindingQueueIntent, setStrategicFitFindingQueueIntent] =
+  createSignal<StrategicFitFindingQueueIntent | null>(null);
+
+export function strategicFitFindingQueueFilterKey(filter: StrategicFitFindingQueueFilter): string {
+  if (filter.kind === "classification") return `classification:${filter.classification}`;
+  if (filter.kind === "resolution") return `resolution:${filter.resolution}`;
+  if (filter.kind === "evidence") return `evidence:${filter.evidence}`;
+  return "all";
+}
+
+export function openStrategicFitFindingQueue(intent: StrategicFitFindingQueueIntent) {
+  setStrategicFitFindingQueueIntent(intent);
+  setStrategicFitWorkspaceStage("findings");
+}
+
 export function setStrategicFitWorkspaceRegionState(
   region: StrategicFitWorkspaceStage,
   state: StrategicFitWorkspaceRegionState,
