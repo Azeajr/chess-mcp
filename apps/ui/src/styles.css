@@ -2703,6 +2703,335 @@ img,
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+.strategic-fit-evidence {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  color: #c9d0d9;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+.strategic-fit-evidence > section,
+.strategic-fit-evidence-expert {
+  min-width: 0;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid #4c535d;
+  border-radius: 8px;
+  background: #202329;
+}
+.strategic-fit-evidence h3,
+.strategic-fit-evidence h4,
+.strategic-fit-evidence h5,
+.strategic-fit-evidence p {
+  margin-top: 0;
+}
+.strategic-fit-evidence h4 {
+  margin-bottom: 0.5rem;
+  color: #e1e7ee;
+  font-size: 0.74rem;
+}
+.strategic-fit-evidence h5 {
+  margin-bottom: 0.4rem;
+  color: #dce3ec;
+  font-size: 0.68rem;
+}
+.strategic-fit-evidence-header {
+  padding: 0.15rem 0.1rem;
+}
+.strategic-fit-evidence-header > span {
+  color: #91a7c1;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.strategic-fit-evidence-header h3 {
+  margin: 0.2rem 0 0;
+  color: #f0f4f9;
+  font-size: 0.96rem;
+}
+.strategic-fit-evidence-header p {
+  margin: 0.25rem 0 0;
+  color: #aeb8c4;
+}
+.strategic-fit-comparison-table-wrap,
+.strategic-fit-expert-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.strategic-fit-concept-comparison table,
+.strategic-fit-expert-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.strategic-fit-concept-comparison th,
+.strategic-fit-concept-comparison td,
+.strategic-fit-expert-table-wrap th,
+.strategic-fit-expert-table-wrap td {
+  padding: 0.4rem;
+  border: 1px solid #484f59;
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+.strategic-fit-concept-comparison thead th,
+.strategic-fit-expert-table-wrap thead th {
+  background: #272b32;
+  color: #bac5d2;
+  font-size: 0.57rem;
+}
+.strategic-fit-concept-comparison tbody th {
+  color: #dce3eb;
+  font-size: 0.61rem;
+}
+.strategic-fit-concept-comparison tbody th span {
+  display: block;
+  margin-top: 0.15rem;
+  color: #93a4b8;
+  font-size: 0.53rem;
+  font-weight: 500;
+}
+.strategic-fit-concept-comparison td {
+  color: #c9d0d9;
+  font-size: 0.61rem;
+}
+.strategic-fit-concept-comparison td[data-value-state="unavailable"] {
+  color: #9ca5b0;
+  font-style: italic;
+}
+.strategic-fit-contribution-reconciliation {
+  margin: 0.5rem 0 0;
+  padding-left: 0.45rem;
+  border-left: 2px solid #6988ae;
+  color: #b9c7d9;
+  font-size: 0.61rem;
+}
+.strategic-fit-contribution-reconciliation[data-reconciliation-state="partial"],
+.strategic-fit-contribution-reconciliation[data-reconciliation-state="unavailable"] {
+  border-left-color: #a57b4f;
+  color: #d6c1a5;
+}
+.strategic-fit-comparison-basis dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+.strategic-fit-comparison-basis dl > div {
+  min-width: 0;
+  padding: 0.4rem;
+  border: 1px solid #454c56;
+  border-radius: 5px;
+  background: #1b1e23;
+}
+.strategic-fit-comparison-basis dt {
+  color: #939eaa;
+  font-size: 0.54rem;
+}
+.strategic-fit-comparison-basis dd {
+  margin: 0.12rem 0 0;
+  color: #e0e5ec;
+  font-size: 0.65rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-confidence > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.strategic-fit-confidence > header h4 {
+  margin-bottom: 0.18rem;
+}
+.strategic-fit-confidence > header strong {
+  color: #dce8f7;
+  font-size: 0.66rem;
+}
+.strategic-fit-confidence > header > span {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #64758a;
+  border-radius: 999px;
+  color: #e4ebf4;
+  font-size: 0.61rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.strategic-fit-confidence > p {
+  margin: 0.45rem 0 0;
+  color: #b9c1cc;
+}
+.strategic-fit-confidence-caps {
+  margin-top: 0.55rem;
+  padding: 0.55rem;
+  border: 1px solid #806542;
+  border-radius: 6px;
+  background: #2c261e;
+}
+.strategic-fit-confidence-caps > strong {
+  color: #efd1a6;
+  font-size: 0.62rem;
+}
+.strategic-fit-confidence-caps ul,
+.strategic-fit-data-quality ul,
+.strategic-fit-evidence-sources ul,
+.strategic-fit-evidence-expert ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+.strategic-fit-confidence-caps li + li,
+.strategic-fit-data-quality li + li,
+.strategic-fit-evidence-expert li + li {
+  margin-top: 0.35rem;
+}
+.strategic-fit-confidence-caps li strong,
+.strategic-fit-confidence-caps li span {
+  display: block;
+}
+.strategic-fit-confidence-caps li span {
+  margin-top: 0.1rem;
+  color: #d5c2a8;
+}
+.strategic-fit-confidence-no-cap {
+  color: #abcbb6 !important;
+}
+.strategic-fit-objective[data-objective-state="available"] {
+  border-left: 3px solid #668c73;
+}
+.strategic-fit-objective[data-objective-state="partial"] {
+  border-left: 3px solid #a47a48;
+}
+.strategic-fit-objective[data-objective-state="unavailable"] {
+  border-left: 3px solid #6d747e;
+}
+.strategic-fit-objective > strong {
+  color: #d9e2ec;
+  font-size: 0.65rem;
+}
+.strategic-fit-objective > p {
+  margin: 0.3rem 0 0;
+}
+.strategic-fit-evidence-reason,
+.strategic-fit-evidence-unavailable {
+  color: #aeb7c2 !important;
+  font-style: italic;
+}
+.strategic-fit-evidence-paths ol {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+.strategic-fit-evidence-paths li + li {
+  margin-top: 0.3rem;
+}
+.strategic-fit-evidence-paths code,
+.strategic-fit-evidence-expert code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-data-quality > p {
+  margin: 0;
+}
+.strategic-fit-data-quality li {
+  color: #d2c2a9;
+}
+.strategic-fit-evidence-sources > ul {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0;
+  list-style: none;
+}
+.strategic-fit-evidence-sources li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.08rem 0.4rem;
+  padding: 0.4rem;
+  border: 1px solid #454c56;
+  border-radius: 5px;
+  background: #1b1e23;
+}
+.strategic-fit-evidence-sources li > span {
+  grid-column: 1 / -1;
+  color: #8f9aa7;
+  font-size: 0.53rem;
+}
+.strategic-fit-evidence-sources li > strong {
+  color: #d4dce6;
+  font-size: 0.61rem;
+}
+.strategic-fit-evidence-sources li > em {
+  color: #b9c8da;
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 700;
+}
+.strategic-fit-evidence-sources li[data-source-state="partial"] > em,
+.strategic-fit-evidence-sources li[data-source-state="unavailable"] > em,
+.strategic-fit-evidence-sources li[data-source-state="stale"] > em {
+  color: #e1bc86;
+}
+.strategic-fit-evidence-sources li > p {
+  grid-column: 1 / -1;
+  margin: 0.18rem 0 0;
+  color: #aeb7c2;
+  font-size: 0.57rem;
+}
+.strategic-fit-evidence-expert {
+  padding: 0;
+}
+.strategic-fit-evidence-expert > summary {
+  min-height: 38px;
+  padding: 0.65rem 0.7rem;
+  cursor: pointer;
+  color: #c7d9ef;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.strategic-fit-evidence-expert > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.strategic-fit-evidence-expert > div {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border-top: 1px solid #454c56;
+}
+.strategic-fit-evidence-expert section + section {
+  padding-top: 0.7rem;
+  border-top: 1px solid #454c56;
+}
+.strategic-fit-evidence-expert p {
+  color: #adb7c3;
+}
+.strategic-fit-expert-table-wrap {
+  font-size: 0.56rem;
+}
+.strategic-fit-expert-table-wrap th,
+.strategic-fit-expert-table-wrap td {
+  padding: 0.32rem;
+}
+.strategic-fit-evidence-expert dl {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+}
+.strategic-fit-evidence-expert dt {
+  color: #99a5b3;
+}
+.strategic-fit-evidence-expert dd {
+  min-width: 0;
+  margin: 0;
+  color: #d0d7e0;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-evidence-expert li span {
+  display: block;
+  color: #adb7c3;
+}
 .strategic-fit-region-state {
   display: flex;
   align-items: flex-start;
@@ -2836,6 +3165,16 @@ img,
     align-items: stretch;
     flex-direction: column;
   }
+  .strategic-fit-comparison-basis dl {
+    grid-template-columns: 1fr;
+  }
+  .strategic-fit-concept-comparison th,
+  .strategic-fit-concept-comparison td {
+    padding: 0.32rem;
+  }
+  .strategic-fit-evidence-expert > summary {
+    min-height: 42px;
+  }
   .strategic-fit-analysis-phase-list {
     grid-template-columns: 1fr;
   }
@@ -2886,7 +3225,8 @@ img,
   }
   .strategic-fit-analysis-progress-card *,
   .strategic-fit-preflight *,
-  .strategic-fit-overview * {
+  .strategic-fit-overview *,
+  .strategic-fit-evidence * {
     animation: none !important;
     transition: none !important;
   }

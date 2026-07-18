@@ -9,10 +9,12 @@ import StrategicOverview, {
   type StrategicOverviewItemId,
 } from "./strategic-fit/StrategicOverview";
 import FindingQueue from "./strategic-fit/FindingQueue";
+import EvidencePanel from "./strategic-fit/EvidencePanel";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
 import { strategicFitLifecycle } from "../store/strategic-fit";
+import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
 import {
   openStrategicFitFindingQueue,
   setStrategicFitWorkspaceOpen,
@@ -127,6 +129,26 @@ export default function StrategicFitWorkspace() {
     return lifecycle.current_result && intent?.report_id === lifecycle.current_result.report_id
       ? intent
       : null;
+  };
+  const currentEvidence = () => {
+    const lifecycle = strategicFitLifecycle();
+    const current = lifecycle.current_result;
+    const queue = strategicFitFindingQueue.snapshot();
+    if (
+      lifecycle.status !== "completed" ||
+      current === null ||
+      strategicFitWorkspaceRegions().evidence.status !== "empty" ||
+      queue.report_id !== current.report_id ||
+      queue.selected_finding_id === null
+    ) return null;
+    const finding = queue.findings.find((candidate) =>
+      candidate.finding_id === queue.selected_finding_id
+    );
+    return finding === undefined ? null : {
+      finding,
+      preflightIssues: current.result.preflight.issues,
+      repertoireColor: current.request_snapshot.repertoire_color,
+    };
   };
   const reviewOverviewItem = (
     source: StrategicOverviewItemId,
@@ -294,7 +316,18 @@ export default function StrategicFitWorkspace() {
               <span>Branch review</span>
               <h2 id="strategic-fit-pane-evidence-title">Evidence / comparison</h2>
             </div>
-            <RegionState region="evidence" state={strategicFitWorkspaceRegions().evidence} />
+            <Show
+              when={currentEvidence()}
+              fallback={<RegionState region="evidence" state={strategicFitWorkspaceRegions().evidence} />}
+            >
+              {(evidence) => (
+                <EvidencePanel
+                  finding={evidence().finding}
+                  preflightIssues={evidence().preflightIssues}
+                  repertoireColor={evidence().repertoireColor}
+                />
+              )}
+            </Show>
           </section>
 
           <section

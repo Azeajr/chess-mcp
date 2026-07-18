@@ -3,6 +3,8 @@ import { expect, test, type Page } from "playwright/test";
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
   toPgn(): string;
+  currentPath(): number[];
+  setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
@@ -78,6 +80,28 @@ async function installFindingWorkerFixture(page: Page) {
               "Sicilian · Alapin", "Ruy Lopez · Berlin", "Queen's Gambit · Exchange",
               "French · Advance", "Caro-Kann · Classical", "English · Four Knights",
             ];
+            const confidenceComponents = [
+              "classifier-confidence",
+              "checkpoint-completeness",
+              "effective-sample-size",
+              "temporal-persistence",
+              "cohort-coherence",
+              "opening-data-quality",
+              "causal-attribution-quality",
+            ];
+            const source = (
+              sourceId: string,
+              kind: string,
+              state: "available" | "partial" | "unavailable" = "available",
+              reason: string | null = null,
+            ) => ({
+              source_id: sourceId,
+              kind,
+              state,
+              version: "2.0.0",
+              snapshot: "e2e-fixture",
+              reason,
+            });
             const finding = (index: number) => {
               const id = `finding:${String(index + 1).padStart(2, "0")}`;
               const classification = classifications[index]!;
@@ -112,15 +136,30 @@ async function installFindingWorkerFixture(page: Page) {
                 learning_burden: 0.4,
                 confidence: {
                   analysis_version: analysisVersion,
-                  score: 90 - index,
-                  label: index < 4 ? "high" : index < 8 ? "moderate" : "low",
-                  components: [],
-                  applied_caps: [],
-                  explanation: "Fixture confidence.",
+                  score: index === 1 ? 39 : 90 - index * 5,
+                  label: index === 1 || index >= 8 ? "low" : index < 4 ? "high" : "moderate",
+                  components: confidenceComponents
+                    .slice(0, index === 1 ? 5 : confidenceComponents.length)
+                    .map((component, componentIndex) => ({
+                      component,
+                      score: 0.92 - componentIndex * 0.06,
+                      weight: 1,
+                      explanation: `Fixture explanation for ${component}.`,
+                    })),
+                  applied_caps: index === 1
+                    ? [{
+                        reason: "effective-sample-below-four",
+                        maximum_score: 39,
+                        explanation: "Effective sample size is below four, so confidence cannot exceed 39.",
+                      }]
+                    : [],
+                  explanation: index === 1
+                    ? "Low confidence: the component score is limited by a small comparison set."
+                    : "High-confidence fixture comparison supported across the reported components.",
                 },
                 difference: {
                   analysis_version: analysisVersion,
-                  distance: 0.8 - index * 0.02,
+                  distance: index === 0 ? 0.6 : 0.8 - index * 0.02,
                   magnitude: index < 4 ? "major" : index < 8 ? "moderate" : "minor",
                   persistence: 0.8,
                   new_concept_count: 1,
@@ -138,7 +177,12 @@ async function installFindingWorkerFixture(page: Page) {
                       database_performance: null,
                       theoretical_status: null,
                       reason: "No engine verification was requested for this base scan.",
-                      provenance: [],
+                      provenance: [source(
+                        "engine:fixture",
+                        "engine",
+                        "unavailable",
+                        "No engine verification was requested for this base scan.",
+                      )],
                     }
                   : {
                       analysis_version: analysisVersion,
@@ -151,7 +195,7 @@ async function installFindingWorkerFixture(page: Page) {
                       database_performance: null,
                       theoretical_status: null,
                       reason: null,
-                      provenance: [],
+                      provenance: [source("engine:fixture", "engine")],
                     },
                 replacement_priority: {
                   analysis_version: analysisVersion,
@@ -182,13 +226,51 @@ async function installFindingWorkerFixture(page: Page) {
                   cohort_id: "cohort:fixture",
                   baseline_mode_ids: ["mode:fixture"],
                   representative_route_ids: [`route:${id}:a`],
-                  dimensions: [],
+                  dimensions: index === 0
+                    ? [
+                        {
+                          dimension_id: "center-dynamics.center-state",
+                          typical_value: "open-iqp",
+                          affected_value: "closed",
+                          contribution: 0.3,
+                          explanation: "Center state contributes 30% of normalized distance.",
+                        },
+                        {
+                          dimension_id: "center-dynamics.primary-break",
+                          typical_value: "d4-d5",
+                          affected_value: "f2-f4",
+                          contribution: 0.2,
+                          explanation: "Primary break contributes 20% of normalized distance.",
+                        },
+                        {
+                          dimension_id: "king-and-piece-setup.king-setup",
+                          typical_value: "short-castling",
+                          affected_value: "long-castling",
+                          contribution: 0.1,
+                          explanation: "King setup contributes 10% of normalized distance.",
+                        },
+                      ]
+                    : index === 1
+                      ? [{
+                          dimension_id: "learning-concepts.unique-concepts",
+                          typical_value: null,
+                          affected_value: ["new-plan"],
+                          contribution: 0.2,
+                          explanation: "Available concept evidence contributes 20%.",
+                        }]
+                      : [{
+                          dimension_id: "dynamic-character.tactical-level",
+                          typical_value: "moderate",
+                          affected_value: "high",
+                          contribution: 0.8 - index * 0.02,
+                          explanation: "Tactical character accounts for the reported distance.",
+                        }],
                   comparison_basis: {
-                    effective_branches: 4,
-                    weighted_reference_games: null,
-                    structural_classification_coverage: 1,
+                    effective_branches: index === 1 ? 2 : 14,
+                    weighted_reference_games: index === 1 ? null : 2840,
+                    structural_classification_coverage: index === 1 ? 0.72 : 0.91,
                     analysis_window: [10, 20],
-                    taxonomy_version: "1.0.0",
+                    taxonomy_version: index === 1 ? null : "opening-taxonomy:1.0.0",
                     profile_mode: "balanced",
                   },
                   causality: {
@@ -201,12 +283,26 @@ async function installFindingWorkerFixture(page: Page) {
                     timeline: [],
                     explanation: "Fixture attribution.",
                   },
-                  data_quality_issue_ids: [],
-                  provenance: [],
+                  data_quality_issue_ids: index === 1 ? ["issue:opening-evidence"] : [],
+                  provenance: index === 1
+                    ? [source(
+                        "structure:fixture",
+                        "structure-classifier",
+                        "partial",
+                        "One affected route has partial structural evidence.",
+                      )]
+                    : [source("structure:fixture", "structure-classifier")],
                 },
                 resolution_state: resolutions[index],
                 provisional: false,
-                provenance: { generated_at: "2026-07-18T00:00:00.000Z", sources: [] },
+                provenance: {
+                  schema_version: "1.0.0",
+                  analysis_version: analysisVersion,
+                  repertoire_revision: message.payload.metadata.repertoire_revision,
+                  generated_at: "2026-07-18T00:00:00.000Z",
+                  deterministic: true,
+                  sources: [source("core:fixture", "deterministic-core")],
+                },
               };
             };
             const findings = Array.from({ length: 12 }, (_, index) => finding(index));
@@ -236,8 +332,19 @@ async function installFindingWorkerFixture(page: Page) {
                   profile: message.payload.options.profile,
                   preflight: {
                     analysis_version: analysisVersion,
-                    state: "ready",
-                    issues: [],
+                    state: "degraded",
+                    issues: [{
+                      analysis_version: analysisVersion,
+                      issue_id: "issue:opening-evidence",
+                      code: "missing-opening-classification",
+                      kind: "evidence-limitation",
+                      severity: "degraded",
+                      message: "Opening classification is incomplete for one affected route.",
+                      affected_route_ids: ["route:finding:02:a"],
+                      affected_source_paths: [["e4", "e5"]],
+                      details: {},
+                      provenance: [],
+                    }],
                     route_count: 12,
                     comparable_route_count: 12,
                     incomplete_route_count: 0,
@@ -294,23 +401,25 @@ async function installFindingWorkerFixture(page: Page) {
   });
 }
 
-async function bootstrap(page: Page) {
+async function bootstrap(page: Page, repertoireColor: "white" | "black" = "white") {
   await installFindingWorkerFixture(page);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "finding-queue.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api, color) => api.setColor(color), repertoireColor);
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   const before = await chess(page, (api) => api.toPgn());
+  const pathBefore = await chess(page, (api) => [...api.currentPath()]);
   await page.getByRole("button", { name: "Open workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
-  return { dialog, before };
+  return { dialog, before, pathBefore };
 }
 
 test("finding queue renders frozen card fields, stable pages, composed filters, and keyboard selection", async ({ page }) => {
-  const { dialog, before } = await bootstrap(page);
+  const { dialog, before, pathBefore } = await bootstrap(page);
   const pane = dialog.locator("#strategic-fit-pane-findings");
   const queue = pane.getByRole("region", { name: "Strategic Fit finding queue" });
   await expect(queue).toHaveAttribute("data-queue-status", "ready");
@@ -343,6 +452,37 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await expect(unavailable).toContainText("Objective soundness unavailable");
   await expect(unavailable).toContainText("No engine verification was requested");
 
+  await first.locator("[data-finding-select]").click();
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidencePane).toBeFocused();
+  const firstEvidence = evidencePane.locator("[data-evidence-finding-id='finding:01']");
+  await expect(firstEvidence).toBeVisible();
+  await expect(firstEvidence.locator("[data-dimension-id]")).toHaveCount(3);
+  await expect(firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"))
+    .toContainText("Open iqp");
+  await expect(firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"))
+    .toContainText("Closed");
+  await expect(firstEvidence.locator("[data-reconciliation-state='reconciled']"))
+    .toContainText("60% strategic distance");
+  await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("14");
+  await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("2,840");
+  await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("91%");
+  await expect(firstEvidence.locator("[data-confidence-label='high']")).toHaveText("High confidence");
+  await expect(firstEvidence.locator(".strategic-fit-evidence-paths li")).toHaveCount(3);
+  await expect(firstEvidence.locator(".strategic-fit-evidence-sources")).toContainText(
+    "Deterministic analysis",
+  );
+  await expect(firstEvidence.locator(".strategic-fit-evidence-sources")).toContainText("Available");
+
+  const expert = firstEvidence.locator(".strategic-fit-evidence-expert");
+  await expect(expert.getByText("White repertoire POV evaluation", { exact: true })).toBeHidden();
+  await expert.getByText("Expert evidence values and provenance", { exact: true }).click();
+  await expect(expert.getByText("White repertoire POV evaluation", { exact: true })).toBeVisible();
+  await expect(expert).toContainText("+20 cp");
+  await expect(expert).toContainText("semantic:finding:01");
+  await expect(expert).toContainText("core:fixture");
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+
   await first.locator("[data-finding-select]").focus();
   await page.keyboard.press("ArrowDown");
   const secondSelect = queue.locator("[data-finding-id='finding:02'] [data-finding-select]");
@@ -352,6 +492,24 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
     "data-finding-selected",
     "true",
   );
+  await page.keyboard.press("Enter");
+  await expect(evidencePane).toBeFocused();
+  const secondEvidence = evidencePane.locator("[data-evidence-finding-id='finding:02']");
+  await expect(secondEvidence).toBeVisible();
+  await expect(secondEvidence.locator("[data-confidence-label='low']")).toHaveText("Low confidence");
+  await expect(secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"))
+    .toContainText("Small comparison set");
+  await expect(secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"))
+    .toContainText("confidence cannot exceed 39");
+  await expect(secondEvidence).toContainText("2 of 7 confidence components are unavailable");
+  await expect(secondEvidence.locator("[data-value-state='unavailable']")).toHaveText("Unavailable");
+  await expect(secondEvidence.locator("[data-reconciliation-state='partial']"))
+    .toContainText("gap is not assigned");
+  await expect(secondEvidence.locator(".strategic-fit-data-quality")).toContainText(
+    "Opening classification is incomplete for one affected route.",
+  );
+  await expect(secondEvidence.locator(".strategic-fit-evidence-sources"))
+    .toContainText("One affected route has partial structural evidence.");
 
   await queue.getByRole("button", { name: "Next findings" }).click();
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
@@ -369,6 +527,29 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
     cards.map((card) => card.getAttribute("data-finding-id"))
   )).toEqual(["finding:01", "finding:07"]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+});
+
+test("Black repertoire evidence labels every engine value from the repertoire point of view", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page, "black");
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidencePane).toBeFocused();
+  const evidence = evidencePane.locator("[data-evidence-finding-id='finding:01']");
+  await expect(evidence).toContainText("The line is objectively sound for the Black repertoire.");
+  await expect(evidence.getByText("White repertoire POV evaluation", { exact: true })).toHaveCount(0);
+
+  const expert = evidence.locator(".strategic-fit-evidence-expert");
+  await expect(expert.getByText("Black repertoire POV evaluation", { exact: true })).toBeHidden();
+  await expert.getByText("Expert evidence values and provenance", { exact: true }).click();
+  await expect(expert.getByText("Black repertoire POV evaluation", { exact: true })).toBeVisible();
+  await expect(expert).toContainText("+20 cp");
+  await expect(expert).toContainText("Positive values favor the Black repertoire");
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
 test("overview intents filter only the current report queue and can return to all findings", async ({ page }) => {
@@ -403,7 +584,7 @@ test("overview intents filter only the current report queue and can return to al
 
 test("phone finding queue stays inside the single frozen Findings stage", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { dialog, before } = await bootstrap(page);
+  const { dialog, before, pathBefore } = await bootstrap(page);
   await dialog.getByRole("tab", { name: "Findings" }).click();
 
   const pane = dialog.locator("#strategic-fit-pane-findings");
@@ -413,5 +594,16 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(queue.getByLabel("Sort findings")).toBeVisible();
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const evidenceTab = dialog.getByRole("tab", { name: "Evidence" });
+  await expect(evidenceTab).toHaveAttribute("aria-selected", "true");
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidencePane).toBeVisible();
+  await expect(evidencePane).toBeFocused();
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
+  await expect(evidencePane.locator("[data-evidence-finding-id='finding:01']")).toBeVisible();
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });

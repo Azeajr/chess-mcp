@@ -13,6 +13,7 @@ import {
 } from "../../store/strategic-fit-finding-queue";
 import {
   setStrategicFitFindingQueueIntent,
+  setStrategicFitWorkspaceStage,
   type StrategicFitFindingQueueIntent,
 } from "../../store/ui";
 import FindingCard from "./FindingCard";
@@ -68,6 +69,12 @@ export default function FindingQueue(props: {
   };
   const hasActiveFilters = () => state().intent !== null ||
     state().priority_filter !== "all" || state().opening_filter !== "";
+  const selectFinding = (findingId: string, focusEvidence: boolean) => {
+    strategicFitFindingQueue.selectFinding(findingId);
+    if (!focusEvidence) return;
+    setStrategicFitWorkspaceStage("evidence");
+    queueMicrotask(() => document.querySelector<HTMLElement>("#strategic-fit-pane-evidence")?.focus());
+  };
   const selectedFindingLabel = () => state().findings.find((finding) =>
     finding.finding_id === state().selected_finding_id
   )?.plain_language_category ?? null;
@@ -197,7 +204,7 @@ export default function FindingQueue(props: {
                 <FindingCard
                   finding={finding}
                   selected={state().selected_finding_id === finding.finding_id}
-                  onSelect={(findingId) => strategicFitFindingQueue.selectFinding(findingId)}
+                  onSelect={selectFinding}
                 />
               </li>
             )}</For>

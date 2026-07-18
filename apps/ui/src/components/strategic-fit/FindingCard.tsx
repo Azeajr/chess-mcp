@@ -97,7 +97,10 @@ export function buildFindingCardPresentation(
   };
 }
 
-function selectWithKeyboard(event: KeyboardEvent, onSelect: (id: string) => void) {
+function selectWithKeyboard(
+  event: KeyboardEvent,
+  onSelect: (id: string, focusEvidence: boolean) => void,
+) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   const queue = event.currentTarget instanceof HTMLElement
     ? event.currentTarget.closest("[data-finding-list]")
@@ -117,13 +120,13 @@ function selectWithKeyboard(event: KeyboardEvent, onSelect: (id: string) => void
   const target = buttons[nextIndex]!;
   target.focus();
   const targetId = target.dataset.findingSelect;
-  if (targetId) onSelect(targetId);
+  if (targetId) onSelect(targetId, false);
 }
 
 export default function FindingCard(props: {
   finding: StrategicFinding;
   selected: boolean;
-  onSelect: (findingId: string) => void;
+  onSelect: (findingId: string, focusEvidence: boolean) => void;
 }) {
   const presentation = () => buildFindingCardPresentation(props.finding);
   return (
@@ -197,7 +200,7 @@ export default function FindingCard(props: {
         class="strategic-fit-finding-select"
         data-finding-select={props.finding.finding_id}
         aria-pressed={props.selected}
-        onClick={() => props.onSelect(props.finding.finding_id)}
+        onClick={() => props.onSelect(props.finding.finding_id, true)}
         onKeyDown={(event) => selectWithKeyboard(event, props.onSelect)}
       >
         {props.selected ? "Selected for review" : "Select finding"}
