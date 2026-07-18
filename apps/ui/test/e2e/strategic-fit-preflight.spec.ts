@@ -342,6 +342,13 @@ test("custom-start and malformed blocking evidence is explicit and withholds uns
   await expect(dialog.getByText("Route counts are withheld because the input could not be enumerated safely."))
     .toBeVisible();
   await expect(dialog.getByLabel("Preflight route evidence counts")).toHaveCount(0);
+  const incompleteOverview = dialog.locator("[data-overview-item='incomplete-branches']");
+  await expect(incompleteOverview).toHaveAttribute("data-metric-state", "unavailable");
+  await expect(incompleteOverview.locator("[data-overview-value]")).toHaveText("Unavailable");
+  await expect(incompleteOverview).toContainText(
+    "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.",
+  );
+  await expect(incompleteOverview).not.toContainText("0");
   await expect(dialog.locator("[data-phase-state='completed']")).toHaveCount(1);
   await expect(dialog.locator("[data-phase-state='pending']")).toHaveCount(5);
   await expectNoQualityVerdict(dialog);

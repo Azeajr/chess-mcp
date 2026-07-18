@@ -5,6 +5,7 @@ import type {
   StrategicFitMetric,
 } from "@chess-mcp/chess-tools";
 import type { StrategicFitFindingQueueFilter } from "../../store/ui";
+import { preflightCountsAreMeaningful } from "./PreflightResults";
 
 export type StrategicOverviewItemId =
   | "strategic-workload"
@@ -52,6 +53,8 @@ export interface StrategicOverviewPresentation {
 }
 
 const BLOCKED_REASON = "Preflight blocked position analysis, so this report value is unavailable.";
+const UNSAFE_ROUTE_ENUMERATION_REASON =
+  "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.";
 
 const METRIC_STATE_LABELS: Readonly<Record<MetricState, string>> = {
   available: "Available",
@@ -96,10 +99,10 @@ function metricValue(
 
 function countValue(
   value: number,
-  blocked: boolean,
+  unavailableReason: string | null,
 ): Pick<StrategicOverviewItemPresentation, "value" | "report_value" | "state" | "reason"> {
-  return blocked
-    ? { value: "Unavailable", report_value: "", state: "unavailable", reason: BLOCKED_REASON }
+  return unavailableReason
+    ? { value: "Unavailable", report_value: "", state: "unavailable", reason: unavailableReason }
     : { value: String(value), report_value: String(value), state: "available", reason: null };
 }
 
@@ -121,12 +124,15 @@ export function buildStrategicOverviewPresentation(
         state: "available" as const,
         reason: null,
       };
-  const families = countValue(summary.strategic_family_count, blocked);
+  const families = countValue(summary.strategic_family_count, blocked ? BLOCKED_REASON : null);
   const conceptReuse = metricValue(summary.metrics.concept_reuse, formatPercent);
   const forcedFloor = metricValue(summary.metrics.forced_diversity_floor, formatPercent);
-  const intentional = countValue(summary.intentional_exception_count, blocked);
-  const unresolved = countValue(summary.unresolved_finding_count, blocked);
-  const incomplete = countValue(summary.insufficient_evidence_branch_count, false);
+  const intentional = countValue(summary.intentional_exception_count, blocked ? BLOCKED_REASON : null);
+  const unresolved = countValue(summary.unresolved_finding_count, blocked ? BLOCKED_REASON : null);
+  const incomplete = countValue(
+    summary.insufficient_evidence_branch_count,
+    preflightCountsAreMeaningful(report.preflight) ? null : UNSAFE_ROUTE_ENUMERATION_REASON,
+  );
   const familiarCoverage = metricValue(summary.metrics.familiarity_adjusted_coverage, formatPercent);
   const items: StrategicOverviewItemPresentation[] = [
     {
@@ -186,10 +192,10 @@ export function buildStrategicOverviewPresentation(
       label: "Incomplete branches",
       ...incomplete,
       description: "Branches that did not provide enough comparable strategic checkpoints.",
-      review_filter: summary.insufficient_evidence_branch_count > 0
+      review_filter: incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
         ? { kind: "evidence", evidence: "insufficient" }
         : null,
-      review_label: summary.insufficient_evidence_branch_count > 0
+      review_label: incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
         ? "Review insufficient-evidence findings"
         : null,
     },

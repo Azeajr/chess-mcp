@@ -165,6 +165,46 @@ test("blocked reports do not present unavailable overview sentinels as zero", ()
   assert.doesNotMatch(presentation.screen_reader_summary, /Unavailable[^.]*: 0/);
 });
 
+test("unsafe blocked route enumeration withholds the incomplete-branch sentinel", () => {
+  const unsafe = structuredClone(report()) as StrategicOverviewReport;
+  Object.assign(unsafe.preflight, {
+    state: "blocked",
+    route_count: 0,
+    comparable_route_count: 0,
+    incomplete_route_count: 0,
+    issues: [{ code: "unsupported-custom-start" }],
+  });
+  Object.assign(unsafe.summary, {
+    workload: "unavailable",
+    strategic_family_count: 0,
+    expected_concept_burden: null,
+    intentional_exception_count: 0,
+    unresolved_finding_count: 0,
+    insufficient_evidence_branch_count: 0,
+  });
+
+  const presentation = buildStrategicOverviewPresentation(unsafe);
+  const incomplete = byId(presentation, "incomplete-branches");
+  assert.deepEqual(
+    {
+      value: incomplete.value,
+      report_value: incomplete.report_value,
+      state: incomplete.state,
+      reason: incomplete.reason,
+      review_filter: incomplete.review_filter,
+    },
+    {
+      value: "Unavailable",
+      report_value: "",
+      state: "unavailable",
+      reason: "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.",
+      review_filter: null,
+    },
+  );
+  assert.match(presentation.screen_reader_summary, /Incomplete-branch count is unavailable/);
+  assert.doesNotMatch(presentation.screen_reader_summary, /Incomplete branches: 0/);
+});
+
 test("calibrated familiar-plan coverage is rendered as report percentage rather than availability copy", () => {
   const personalized = report();
   Object.assign(personalized.summary.metrics.familiarity_adjusted_coverage, {
