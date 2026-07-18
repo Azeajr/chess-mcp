@@ -14,6 +14,7 @@ import {
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { color, currentTree, documentId, version } from "./game";
 import { normalizeBrowserDocumentId } from "./document-identity";
+import { flushWorkingRepertoire } from "./persist";
 import {
   flushStrategicFitMetadata,
   replaceStrategicFitMetadata,
@@ -224,7 +225,12 @@ const browserImportState = createStrategicFitSidecarImportState({
   },
   replaceMetadata: replaceStrategicFitMetadata,
   invalidateReports: invalidateCachedStrategicFitReports,
-  flush: flushStrategicFitMetadata,
+  flush: async (targetDocumentId) => {
+    // Metadata is keyed by the working-document UUID. Confirm only after both the binding and the
+    // imported record are durable, otherwise a fast reload can restore a different document key.
+    await flushWorkingRepertoire();
+    await flushStrategicFitMetadata(targetDocumentId);
+  },
 });
 
 const [previewSignal, setPreviewSignal] = createSignal<StrategicFitSidecarImportPreview | null>(null);

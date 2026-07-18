@@ -31,6 +31,22 @@ async function waitForMetadata(page: Page) {
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
 }
 
+async function indexedDbValue(page: Page, key: string): Promise<unknown> {
+  return page.evaluate(async (requestedKey) => new Promise<unknown>((resolve, reject) => {
+    const open = indexedDB.open("chess-repertoire", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const request = db.transaction("kv", "readonly").objectStore("kv").get(requestedKey);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        db.close();
+        resolve(request.result);
+      };
+    };
+  }), key);
+}
+
 async function portability(page: Page) {
   const section = page.getByText("Strategic Fit portability", { exact: true });
   await section.click();
@@ -115,6 +131,8 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
     pgn: initial.pgn,
     version: initial.version,
   });
+  const savedWorking = await indexedDbValue(page, "workingRepertoire") as { documentId?: string } | undefined;
+  expect(savedWorking?.documentId).toBe(initial.documentId);
   await page.reload();
   await waitForMetadata(page);
   expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual(["concept:imported"]);
