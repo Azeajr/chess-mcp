@@ -387,6 +387,17 @@ test("overview intents filter only the current report queue and can return to al
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(pane).toHaveAttribute("data-queue-filter", "none");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText("of 12 matching findings");
+
+  await dialog.getByRole("button", { name: "Return to repertoire" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Open workspace" }).click();
+  const reopened = page.getByRole("dialog", { name: "Strategic Fit" });
+  const reopenedQueue = reopened.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await expect(reopenedQueue).toHaveAttribute("data-queue-status", "ready");
+  await expect(reopenedQueue.locator("[data-finding-id]")).toHaveCount(6);
+  await expect(reopenedQueue.locator(".strategic-fit-queue-summary p"))
+    .toContainText("of 12 matching findings");
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 

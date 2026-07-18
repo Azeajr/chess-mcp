@@ -1,4 +1,4 @@
-import { For, Show, createEffect } from "solid-js";
+import { For, Show, createEffect, onCleanup } from "solid-js";
 import {
   STRATEGIC_FIT_FINDING_SORTS,
   type FindingPriorityKind,
@@ -53,6 +53,7 @@ export default function FindingQueue(props: {
   createEffect(() => {
     void strategicFitFindingQueue.synchronize(props.report, props.intent);
   });
+  onCleanup(() => strategicFitFindingQueue.dispose());
 
   const state = () => strategicFitFindingQueue.snapshot();
   const view = () => strategicFitFindingQueue.view();

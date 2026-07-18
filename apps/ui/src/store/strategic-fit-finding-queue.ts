@@ -345,6 +345,7 @@ export function createStrategicFitFindingQueueState(
       activeController?.abort();
       activeController = null;
       loadSequence++;
+      setState(initialSnapshot());
     },
   };
 }

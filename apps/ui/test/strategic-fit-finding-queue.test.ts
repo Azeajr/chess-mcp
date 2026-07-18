@@ -377,3 +377,71 @@ test("a new report aborts and discards an older report page without leaking filt
   assert.equal(queue.snapshot().selected_finding_id, null);
   assert.equal(queue.snapshot().page_offset, 0);
 });
+
+test("dispose aborts an unmounted page load, discards it, and lets the same report restart", async () => {
+  let resolveFirstPage!: (value: unknown) => void;
+  const firstPage = new Promise<unknown>((resolve) => { resolveFirstPage = resolve; });
+  const all = [finding("finding:dispose-a"), finding("finding:dispose-b")];
+  const calls: Array<{ options: { signal?: AbortSignal }; invocation: number }> = [];
+  let invocation = 0;
+  const queue = createStrategicFitFindingQueueState({
+    execute: async (_command, args, options) => {
+      invocation++;
+      calls.push({ options, invocation });
+      if (invocation === 1) return firstPage;
+      const page = args.page as { offset: number; limit: number };
+      const items = all.slice(page.offset, page.offset + page.limit);
+      return report("report:dispose", items, {
+        offset: page.offset,
+        limit: page.limit,
+        total_count: all.length,
+        has_more: page.offset + items.length < all.length,
+      });
+    },
+  });
+  const lifecyclePage = report("report:dispose", all.slice(0, 1), {
+    offset: 0,
+    limit: 1,
+    total_count: all.length,
+    has_more: true,
+  });
+
+  const abandoned = queue.synchronize(lifecyclePage);
+  assert.equal(queue.snapshot().status, "loading");
+  assert.equal(calls[0]?.options.signal?.aborted, false);
+  queue.dispose();
+  assert.equal(calls[0]?.options.signal?.aborted, true);
+  assert.deepEqual(queue.snapshot(), {
+    report_id: null,
+    repertoire_revision: null,
+    status: "empty",
+    findings: [],
+    canonical_total_count: 0,
+    error: null,
+    sort: "replacement-priority",
+    priority_kind: "replacement",
+    priority_filter: "all",
+    opening_filter: "",
+    intent: null,
+    page_offset: 0,
+    selected_finding_id: null,
+  });
+
+  resolveFirstPage(report("report:dispose", all, {
+    offset: 0,
+    limit: 50,
+    total_count: all.length,
+    has_more: false,
+  }));
+  await abandoned;
+  assert.equal(queue.snapshot().status, "empty");
+  assert.equal(queue.snapshot().findings.length, 0);
+
+  await queue.synchronize(lifecyclePage);
+  assert.equal(calls.length, 2);
+  assert.equal(queue.snapshot().status, "ready");
+  assert.equal(queue.snapshot().report_id, "report:dispose");
+  assert.deepEqual(queue.snapshot().findings.map((item) => item.finding_id), [
+    "finding:dispose-a", "finding:dispose-b",
+  ]);
+});
