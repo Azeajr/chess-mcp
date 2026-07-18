@@ -23,6 +23,11 @@ import {
   updateCustomStrategicFitProfile,
 } from "./store/strategic-fit-profile";
 import {
+  completeStrategicFitProfileSetup,
+  skipStrategicFitProfileSetup,
+  strategicFitProfileSetupRequired,
+} from "./store/strategic-fit-profile-setup";
+import {
   reconcileStrategicFitSettings,
   removeStrategicFitCohortOverride,
   removeStrategicFitDecisionWeight,
@@ -96,6 +101,9 @@ if (import.meta.env.DEV) {
     updateCustomStrategicFitProfile,
     applyInferredStrategicFitProfile,
     confirmInferredStrategicFitProfile,
+    strategicFitProfileSetupRequired,
+    skipStrategicFitProfileSetup,
+    completeStrategicFitProfileSetup,
     upsertStrategicFitResolution,
     removeStrategicFitResolution,
     reopenStrategicFitResolution,

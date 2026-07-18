@@ -1,4 +1,10 @@
 import { For, Show, onCleanup, onMount } from "solid-js";
+import ProfileSetup, {
+  STRATEGIC_FIT_PROFILE_LABELS,
+} from "./strategic-fit/ProfileSetup";
+import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
+import { strategicFitProfile } from "../store/strategic-fit-profile";
+import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
 import {
   setStrategicFitWorkspaceOpen,
   setStrategicFitWorkspaceStage,
@@ -80,6 +86,15 @@ export default function StrategicFitWorkspace() {
   let returnFocus: HTMLElement | null = null;
 
   const close = () => setStrategicFitWorkspaceOpen(false);
+  const profileReady = () => strategicFitMetadataStatus() === "ready";
+  const setupRequired = () => profileReady() && strategicFitProfileSetupRequired();
+  const profileSummary = () => {
+    const profile = strategicFitProfile();
+    const intent = profile.source === "inferred" && profile.provisional
+      ? "Inferred · provisional"
+      : "Explicit";
+    return `${STRATEGIC_FIT_PROFILE_LABELS[profile.mode]} · ${intent}`;
+  };
   const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
     .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
 
@@ -140,6 +155,9 @@ export default function StrategicFitWorkspace() {
             <p id="strategic-fit-workspace-description">
               Review strategic workload without changing the working repertoire.
             </p>
+            <p class="strategic-fit-workspace-profile" aria-live="polite">
+              <span>Profile</span> {profileSummary()}
+            </p>
           </div>
           <div class="strategic-fit-workspace-header-actions">
             <span class="strategic-fit-workspace-status">Analysis not started</span>
@@ -147,22 +165,33 @@ export default function StrategicFitWorkspace() {
           </div>
         </header>
 
-        <nav class="strategic-fit-stage-nav" aria-label="Strategic Fit stages" role="tablist">
-          <For each={STAGES}>{(stage) => (
-            <button
-              id={`strategic-fit-stage-${stage.id}`}
-              type="button"
-              role="tab"
-              aria-controls={`strategic-fit-pane-${stage.id}`}
-              aria-selected={strategicFitWorkspaceStage() === stage.id}
-              tabIndex={strategicFitWorkspaceStage() === stage.id ? 0 : -1}
-              class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
-              onClick={() => setStrategicFitWorkspaceStage(stage.id)}
-            >{stage.label}</button>
-          )}</For>
-        </nav>
+        <Show when={profileReady()} fallback={(
+          <main class="strategic-fit-profile-loading" role="status" aria-live="polite">
+            <span class="strategic-fit-region-spinner" aria-hidden="true" />
+            <div>
+              <strong>Loading profile settings</strong>
+              <p>Waiting for this repertoire's saved Strategic Fit preferences.</p>
+            </div>
+          </main>
+        )}>
+          <Show when={setupRequired()} fallback={(
+            <>
+              <nav class="strategic-fit-stage-nav" aria-label="Strategic Fit stages" role="tablist">
+                <For each={STAGES}>{(stage) => (
+                  <button
+                    id={`strategic-fit-stage-${stage.id}`}
+                    type="button"
+                    role="tab"
+                    aria-controls={`strategic-fit-pane-${stage.id}`}
+                    aria-selected={strategicFitWorkspaceStage() === stage.id}
+                    tabIndex={strategicFitWorkspaceStage() === stage.id ? 0 : -1}
+                    class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
+                    onClick={() => setStrategicFitWorkspaceStage(stage.id)}
+                  >{stage.label}</button>
+                )}</For>
+              </nav>
 
-        <main class="strategic-fit-workspace-body" data-stage={strategicFitWorkspaceStage()}>
+              <main class="strategic-fit-workspace-body" data-stage={strategicFitWorkspaceStage()}>
           <section
             id="strategic-fit-pane-overview"
             class="strategic-fit-workspace-pane strategic-fit-overview-pane"
@@ -214,7 +243,12 @@ export default function StrategicFitWorkspace() {
             </div>
             <RegionState region="resolution" state={strategicFitWorkspaceRegions().resolution} />
           </section>
-        </main>
+              </main>
+            </>
+          )}>
+            <ProfileSetup />
+          </Show>
+        </Show>
       </section>
     </div>
   );

@@ -23,6 +23,8 @@ type ChessHarness = {
   fileName(): string | null;
   commandStates(): unknown;
   strategicFitMetadata(): unknown;
+  strategicFitMetadataStatus(): string;
+  selectStrategicFitProfile(mode: "balanced"): unknown;
   flushStrategicFitMetadata(): Promise<void>;
   setStrategicFitWorkspaceRegionState(region: Region, state: RegionState): void;
 };
@@ -83,6 +85,8 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
 });
 
 test("desktop shell opens and closes without analysis, mutation, or state loss", async ({ page }) => {
@@ -93,6 +97,8 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
     api.setColor("black");
     api.stagePreviewLine([], ["d4", "d5"]);
   });
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   await chess(page, (api) => api.flushStrategicFitMetadata());
   const before = await snapshot(page);
   const persistedBefore = await persistedStrategicFitMetadata(page, before.document_id);
