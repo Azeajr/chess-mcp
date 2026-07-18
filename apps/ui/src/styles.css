@@ -47,6 +47,11 @@ img,
 }
 
 .app {
+  height: 100vh; /* fallback */
+  height: 100dvh;
+}
+
+.app-main {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100vh; /* fallback */
@@ -1531,4 +1536,274 @@ img,
   margin: 0.4rem 0;
   color: #f0a8ac;
   font-size: 0.72rem;
+}
+
+.strategic-fit-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.45rem 0 0.65rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #4d6487;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(61, 92, 135, 0.22), rgba(38, 38, 43, 0.45));
+}
+.strategic-fit-entry-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.strategic-fit-entry-copy {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+.strategic-fit-open-button {
+  flex: 0 0 auto;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.38rem 0.62rem;
+  background: #263a57;
+  color: #eaf2ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+}
+.strategic-fit-open-button:hover,
+.strategic-fit-open-button:focus-visible {
+  background: #304c72;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.35);
+}
+
+/* Task 5.1: additive Strategic Fit workspace shell. Later tasks replace region placeholders. */
+.strategic-fit-workspace-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(8, 10, 14, 0.82);
+  backdrop-filter: blur(5px);
+}
+.strategic-fit-workspace {
+  display: flex;
+  flex-direction: column;
+  width: min(92rem, 100%);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #4a5160;
+  border-radius: 14px;
+  background: #1b1d22;
+  box-shadow: 0 24px 80px #000b;
+}
+.strategic-fit-workspace:focus {
+  outline: none;
+}
+.strategic-fit-workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--border);
+  background: #24272e;
+}
+.strategic-fit-workspace-kicker,
+.strategic-fit-pane-heading > span {
+  color: #91acd3;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.strategic-fit-workspace-header h1 {
+  margin: 0.14rem 0 0;
+  font-size: clamp(1.2rem, 2vw, 1.65rem);
+}
+.strategic-fit-workspace-header p {
+  margin: 0.22rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.strategic-fit-workspace-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.strategic-fit-workspace-status {
+  border: 1px solid #5d6470;
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  color: #bdc3cc;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.strategic-fit-workspace-header button,
+.strategic-fit-stage-nav button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #31343c;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.strategic-fit-workspace-header button {
+  padding: 0.48rem 0.75rem;
+  white-space: nowrap;
+}
+.strategic-fit-workspace-header button:hover,
+.strategic-fit-workspace-header button:focus-visible,
+.strategic-fit-stage-nav button:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+.strategic-fit-stage-nav {
+  display: none;
+}
+.strategic-fit-workspace-body {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.75fr) minmax(17rem, 1fr) minmax(19rem, 1.2fr);
+  flex: 1 1 0;
+  min-height: 0;
+}
+.strategic-fit-workspace-pane {
+  min-width: 0;
+  overflow: auto;
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+  outline: none;
+  overscroll-behavior: contain;
+}
+.strategic-fit-evidence-pane {
+  border-right: 0;
+}
+.strategic-fit-workspace-pane:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.strategic-fit-findings-pane {
+  background: #202228;
+}
+.strategic-fit-resolution-pane {
+  display: none;
+}
+.strategic-fit-pane-heading {
+  min-height: 3.4rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.strategic-fit-pane-heading h2 {
+  margin: 0.22rem 0 0;
+  font-size: 1rem;
+}
+.strategic-fit-region-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px dashed #4c515d;
+  border-radius: 9px;
+  background: #181a1f;
+  color: #c4c7ce;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.strategic-fit-region-state p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+.strategic-fit-region-error {
+  border-color: #9a5058;
+  background: #2c1d21;
+  color: #ffc9cd;
+}
+.strategic-fit-region-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  border: 2px solid #4b5360;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: strategic-fit-region-spin 0.8s linear infinite;
+}
+@keyframes strategic-fit-region-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 820px) {
+  .strategic-fit-entry {
+    align-items: flex-start;
+  }
+  .strategic-fit-workspace-backdrop {
+    padding: 0;
+  }
+  .strategic-fit-workspace {
+    border: 0;
+    border-radius: 0;
+  }
+  .strategic-fit-workspace-header {
+    align-items: flex-start;
+    padding: calc(0.75rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right)) 0.75rem calc(0.75rem + env(safe-area-inset-left));
+  }
+  .strategic-fit-workspace-header p,
+  .strategic-fit-workspace-status {
+    display: none;
+  }
+  .strategic-fit-workspace-header-actions {
+    margin-left: auto;
+  }
+  .strategic-fit-workspace-header button {
+    padding: 0.44rem 0.58rem;
+    font-size: 0.76rem;
+  }
+  .strategic-fit-stage-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem;
+    padding: 0.55rem calc(0.55rem + env(safe-area-inset-right)) 0.55rem calc(0.55rem + env(safe-area-inset-left));
+    border-bottom: 1px solid var(--border);
+    background: #202228;
+  }
+  .strategic-fit-stage-nav button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 0.38rem 0.15rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+  .strategic-fit-stage-nav button.active {
+    border-color: var(--accent);
+    background: #294466;
+    color: #f0f6ff;
+  }
+  .strategic-fit-workspace-body {
+    display: block;
+    overflow: hidden;
+  }
+  .strategic-fit-workspace-pane {
+    display: none;
+    height: 100%;
+    padding: 0.9rem calc(0.9rem + env(safe-area-inset-right)) calc(0.9rem + env(safe-area-inset-bottom)) calc(0.9rem + env(safe-area-inset-left));
+    border-right: 0;
+  }
+  .strategic-fit-workspace-body[data-stage="overview"] .strategic-fit-overview-pane,
+  .strategic-fit-workspace-body[data-stage="findings"] .strategic-fit-findings-pane,
+  .strategic-fit-workspace-body[data-stage="evidence"] .strategic-fit-evidence-pane,
+  .strategic-fit-workspace-body[data-stage="resolution"] .strategic-fit-resolution-pane {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strategic-fit-region-spinner {
+    animation: none;
+  }
 }

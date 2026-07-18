@@ -60,6 +60,7 @@ import { commandStates, executeCommand, cancelCommand, type DirectCommand } from
 import { saveArtifact } from "../store/artifacts";
 import { analysisDepth } from "../store/engine-settings";
 import StrategicFitTransfer from "./StrategicFitTransfer";
+import { setStrategicFitWorkspaceOpen } from "../store/ui";
 
 function gapEval(g: Gap): string {
   if (g.mate !== null) return `M${Math.abs(g.mate)}`;
@@ -159,6 +160,19 @@ export default function RepertoirePanel() {
     <div class="rep-panel">
       <div class="outcome-label">Repertoire</div>
       <div class="scope-note">Engine-backed operations use depth {analysisDepth()}.</div>
+      <section class="strategic-fit-entry" aria-labelledby="strategic-fit-entry-title">
+        <div>
+          <div id="strategic-fit-entry-title" class="strategic-fit-entry-title">Strategic Fit</div>
+          <div class="strategic-fit-entry-copy">
+            Explore the review workspace. Opening it does not analyze or change this repertoire.
+          </div>
+        </div>
+        <button
+          type="button"
+          class="strategic-fit-open-button"
+          onClick={() => setStrategicFitWorkspaceOpen(true)}
+        >Open workspace</button>
+      </section>
       <Show when={preview()}>{(active) => (
         <div class="rep-preview" role="status" aria-label="Staged repertoire line">
           <div class="rep-preview-label">Staged line</div>

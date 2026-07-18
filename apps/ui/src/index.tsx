@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
-import { actions, documentId, version } from "./store/game";
+import { actions, color, currentPath, dirty, documentId, fileName, version } from "./store/game";
 import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
@@ -42,6 +42,13 @@ import {
   strategicFitSidecarImportError,
   strategicFitSidecarImportPreview,
 } from "./store/strategic-fit-sidecar";
+import { commandStates } from "./store/commands";
+import {
+  setStrategicFitWorkspaceRegionState,
+  strategicFitWorkspaceOpen,
+  strategicFitWorkspaceRegions,
+  strategicFitWorkspaceStage,
+} from "./store/ui";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -55,6 +62,11 @@ if (import.meta.env.DEV) {
     ...actions,
     documentId,
     version,
+    color,
+    currentPath,
+    dirty,
+    fileName,
+    commandStates,
     addSuggestion,
     acceptSuggestion,
     suggestions,
@@ -100,5 +112,9 @@ if (import.meta.env.DEV) {
     prepareStrategicFitSidecarImport,
     confirmStrategicFitSidecarImport,
     cancelStrategicFitSidecarImport,
+    strategicFitWorkspaceOpen,
+    strategicFitWorkspaceStage,
+    strategicFitWorkspaceRegions,
+    setStrategicFitWorkspaceRegionState,
   };
 }
