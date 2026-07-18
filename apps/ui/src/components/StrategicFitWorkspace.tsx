@@ -8,6 +8,7 @@ import AnalysisLifecycle, {
 import StrategicOverview, {
   type StrategicOverviewItemId,
 } from "./strategic-fit/StrategicOverview";
+import FindingQueue from "./strategic-fit/FindingQueue";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
@@ -111,6 +112,13 @@ export default function StrategicFitWorkspace() {
     return lifecycle.status === "completed" && lifecycle.current_result &&
       strategicFitWorkspaceRegions().overview.status === "empty"
       ? lifecycle.current_result
+      : null;
+  };
+  const currentFindings = () => {
+    const lifecycle = strategicFitLifecycle();
+    return lifecycle.status === "completed" && lifecycle.current_result &&
+      strategicFitWorkspaceRegions().findings.status === "empty"
+      ? lifecycle.current_result.result
       : null;
   };
   const currentQueueIntent = () => {
@@ -269,20 +277,10 @@ export default function StrategicFitWorkspace() {
               <h2 id="strategic-fit-pane-findings-title">Findings</h2>
             </div>
             <Show
-              when={strategicFitWorkspaceRegions().findings.status === "empty" && currentQueueIntent()}
+              when={currentFindings()}
               fallback={<RegionState region="findings" state={strategicFitWorkspaceRegions().findings} />}
             >
-              {(intent) => (
-                <div class="strategic-fit-region-state strategic-fit-queue-intent" role="status">
-                  <div>
-                    <strong>{intent().label}</strong>
-                    <p>
-                      The finding queue is focused from the overview for this report. No repertoire
-                      change was made.
-                    </p>
-                  </div>
-                </div>
-              )}
+              {(report) => <FindingQueue report={report()} intent={currentQueueIntent()} />}
             </Show>
           </section>
 
