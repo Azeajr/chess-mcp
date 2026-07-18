@@ -188,6 +188,13 @@ test("reconciliation stales changed semantic references, invalidates cache, and 
   const invalidations = f.invalidations();
   f.edit();
 
+  assert.equal(typeof f.state.analysisSettingsIdentity(), "string");
+  assert.equal(
+    f.metadata().resolutions[0]!.record_state,
+    "active",
+    "read-only lifecycle identity checks must not consume explicit reconciliation",
+  );
+  assert.equal(f.invalidations(), invalidations);
   assert.equal(f.state.reconcile().state, "updated");
   assert.equal(f.metadata().resolutions[0]!.record_state, "stale");
   assert.ok(f.metadata().resolutions[0]!.stale_reasons.includes("referenced-decision-missing"));

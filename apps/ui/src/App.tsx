@@ -20,12 +20,14 @@ import {
   startStrategicFitMetadataPersistence,
   strategicFitMetadataWarning,
 } from "./store/strategic-fit-metadata";
+import { startStrategicFitLifecycle } from "./store/strategic-fit";
 import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
 import { resizeSide, resizeSideChat, effSideWidth, effChatWidth, persistLayout, boardSize, setBoardSize, persistBoard } from "./store/layout";
 
 export default function App() {
   startAutosave();
   startStrategicFitMetadataPersistence();
+  startStrategicFitLifecycle();
 
   onMount(() => {
     void (async () => {

@@ -2,9 +2,13 @@ import { For, Show, onCleanup, onMount } from "solid-js";
 import ProfileSetup, {
   STRATEGIC_FIT_PROFILE_LABELS,
 } from "./strategic-fit/ProfileSetup";
+import AnalysisLifecycle, {
+  STRATEGIC_FIT_LIFECYCLE_LABELS,
+} from "./strategic-fit/AnalysisLifecycle";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
+import { strategicFitLifecycle } from "../store/strategic-fit";
 import {
   setStrategicFitWorkspaceOpen,
   setStrategicFitWorkspaceStage,
@@ -160,7 +164,9 @@ export default function StrategicFitWorkspace() {
             </p>
           </div>
           <div class="strategic-fit-workspace-header-actions">
-            <span class="strategic-fit-workspace-status">Analysis not started</span>
+            <span class="strategic-fit-workspace-status">
+              {STRATEGIC_FIT_LIFECYCLE_LABELS[strategicFitLifecycle().status]}
+            </span>
             <button ref={closeButton} type="button" onClick={close}>Return to repertoire</button>
           </div>
         </header>
@@ -176,6 +182,7 @@ export default function StrategicFitWorkspace() {
         )}>
           <Show when={setupRequired()} fallback={(
             <>
+              <AnalysisLifecycle />
               <nav class="strategic-fit-stage-nav" aria-label="Strategic Fit stages" role="tablist">
                 <For each={STAGES}>{(stage) => (
                   <button

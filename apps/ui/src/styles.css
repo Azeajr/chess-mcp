@@ -1922,6 +1922,85 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
+.strategic-fit-analysis-lifecycle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: #202228;
+}
+.strategic-fit-analysis-lifecycle-copy {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.28rem 0.65rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.strategic-fit-analysis-lifecycle-copy > strong {
+  color: #dde3eb;
+  font-size: 0.78rem;
+}
+.strategic-fit-analysis-completed .strategic-fit-analysis-lifecycle-copy > strong {
+  color: #a8ddb5;
+}
+.strategic-fit-analysis-failed .strategic-fit-analysis-lifecycle-copy > strong,
+.strategic-fit-analysis-stale .strategic-fit-analysis-lifecycle-copy > strong {
+  color: #f0bd82;
+}
+.strategic-fit-analysis-report-id,
+.strategic-fit-previous-report {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-analysis-lifecycle code {
+  color: #c8d8ee;
+  font-size: 0.68rem;
+}
+.strategic-fit-previous-report {
+  flex-basis: 100%;
+  padding-left: 0.55rem;
+  border-left: 2px solid #7d8490;
+  color: #b8bec8;
+}
+.strategic-fit-analysis-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.strategic-fit-analysis-progress progress {
+  width: min(11rem, 28vw);
+  height: 0.55rem;
+  accent-color: var(--accent);
+}
+.strategic-fit-analysis-actions {
+  flex: 0 0 auto;
+}
+.strategic-fit-analysis-actions button {
+  min-height: 38px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: #31547d;
+  color: #eef5ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.73rem;
+  white-space: nowrap;
+}
+.strategic-fit-analysis-actions button.secondary {
+  border-color: #69717d;
+  background: #343840;
+}
+.strategic-fit-analysis-actions button:hover,
+.strategic-fit-analysis-actions button:focus-visible {
+  outline: 2px solid rgba(110, 168, 254, 0.4);
+  outline-offset: 2px;
+}
 .strategic-fit-workspace-body {
   display: grid;
   grid-template-columns: minmax(13rem, 0.75fr) minmax(17rem, 1fr) minmax(19rem, 1.2fr);
@@ -2050,6 +2129,25 @@ img,
   .strategic-fit-profile-setup-actions {
     display: grid;
     grid-template-columns: 1fr 1.4fr;
+  }
+  .strategic-fit-analysis-lifecycle {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.65rem calc(0.75rem + env(safe-area-inset-right)) 0.65rem calc(0.75rem + env(safe-area-inset-left));
+  }
+  .strategic-fit-analysis-lifecycle-copy {
+    display: flex;
+  }
+  .strategic-fit-analysis-actions button {
+    width: 100%;
+    min-height: 42px;
+  }
+  .strategic-fit-analysis-progress {
+    flex-basis: 100%;
+  }
+  .strategic-fit-analysis-progress progress {
+    width: min(13rem, 58vw);
   }
   .strategic-fit-stage-nav button {
     min-width: 0;

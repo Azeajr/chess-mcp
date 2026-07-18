@@ -94,6 +94,7 @@ export interface StrategicFitResolutionState {
   removeDecisionWeight(decisionId: string): StrategicFitSettingsMutationResult;
   reconcile(): StrategicFitSettingsMutationResult;
   analysisSettings(): StrategicFitAnalysisSettingsSnapshot;
+  analysisSettingsIdentity(): string;
 }
 
 const PERSISTED_RESOLUTION_STATES = new Set<StrategicFitPersistedResolutionState>([
@@ -232,6 +233,33 @@ export function createStrategicFitResolutionState(
     }
     const result = commit(update(next));
     return { ...result, state: result.state === "updated" ? "removed" : result.state };
+  };
+
+  const analysisSettingsSnapshot = (persistReconciliation: boolean): StrategicFitAnalysisSettingsSnapshot => {
+    const before = boundary.currentMetadata();
+    if (!hasAnalysisRecords(before)) return { identity: settingsIdentity({}), inputs: {} };
+    let graph: RepertoireGraph;
+    try {
+      graph = boundary.currentGraph();
+    } catch {
+      return { identity: JSON.stringify(before), inputs: {} };
+    }
+    const reconciliation = reconcileStrategicFitDocumentMetadata(before, {
+      graph,
+      profile: boundary.currentProfile(),
+      repertoire_revision: boundary.currentRepertoireRevision(),
+      now: boundary.now(),
+    });
+    if (persistReconciliation && reconciliation.changed) commit(reconciliation.metadata);
+    const inputs = strategicFitAnalysisInputsFromMetadata(
+      reconciliation.changed
+        ? persistReconciliation
+          ? boundary.currentMetadata()
+          : reconciliation.metadata
+        : before,
+      graph,
+    );
+    return { identity: settingsIdentity(inputs), inputs };
   };
 
   return {
@@ -481,26 +509,11 @@ export function createStrategicFitResolutionState(
     },
 
     analysisSettings() {
-      const before = boundary.currentMetadata();
-      if (!hasAnalysisRecords(before)) return { identity: settingsIdentity({}), inputs: {} };
-      let graph: RepertoireGraph;
-      try {
-        graph = boundary.currentGraph();
-      } catch {
-        return { identity: JSON.stringify(before), inputs: {} };
-      }
-      const reconciliation = reconcileStrategicFitDocumentMetadata(before, {
-        graph,
-        profile: boundary.currentProfile(),
-        repertoire_revision: boundary.currentRepertoireRevision(),
-        now: boundary.now(),
-      });
-      if (reconciliation.changed) commit(reconciliation.metadata);
-      const inputs = strategicFitAnalysisInputsFromMetadata(
-        reconciliation.changed ? boundary.currentMetadata() : before,
-        graph,
-      );
-      return { identity: settingsIdentity(inputs), inputs };
+      return analysisSettingsSnapshot(true);
+    },
+
+    analysisSettingsIdentity() {
+      return analysisSettingsSnapshot(false).identity;
     },
   };
 }
@@ -535,3 +548,5 @@ export const removeStrategicFitDecisionWeight = (decisionId: string) =>
   browserResolutionState.removeDecisionWeight(decisionId);
 export const reconcileStrategicFitSettings = () => browserResolutionState.reconcile();
 export const strategicFitAnalysisSettings = () => browserResolutionState.analysisSettings();
+export const strategicFitAnalysisSettingsIdentity = () =>
+  browserResolutionState.analysisSettingsIdentity();

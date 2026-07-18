@@ -108,7 +108,8 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("Analysis not started")).toBeVisible();
+  await expect(dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"))
+    .toBeVisible();
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(3);
   await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Findings" })).toBeVisible();
@@ -140,6 +141,8 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await expect(evidence).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(overview).toBeFocused();
 

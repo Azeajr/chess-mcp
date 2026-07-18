@@ -28,6 +28,12 @@ import {
   strategicFitProfileSetupRequired,
 } from "./store/strategic-fit-profile-setup";
 import {
+  analyzeStrategicFit,
+  cancelStrategicFitAnalysis,
+  retryStrategicFitAnalysis,
+  strategicFitLifecycle,
+} from "./store/strategic-fit";
+import {
   reconcileStrategicFitSettings,
   removeStrategicFitCohortOverride,
   removeStrategicFitDecisionWeight,
@@ -104,6 +110,10 @@ if (import.meta.env.DEV) {
     strategicFitProfileSetupRequired,
     skipStrategicFitProfileSetup,
     completeStrategicFitProfileSetup,
+    strategicFitLifecycle,
+    analyzeStrategicFit,
+    cancelStrategicFitAnalysis,
+    retryStrategicFitAnalysis,
     upsertStrategicFitResolution,
     removeStrategicFitResolution,
     reopenStrategicFitResolution,

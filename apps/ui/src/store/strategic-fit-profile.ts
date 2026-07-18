@@ -14,6 +14,7 @@ import {
   type StrategicFitProfileMode,
   type StrategicFitProfilePreferences,
 } from "@chess-mcp/chess-tools";
+import { createSignal } from "solid-js";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { documentId } from "./game";
 import {
@@ -178,7 +179,9 @@ export function createStrategicFitProfileState(
   boundary: StrategicFitProfileStateBoundary,
 ): StrategicFitProfileState {
   const inferredProfiles = new Map<string, StrategicFitProfile>();
+  const [inferenceRevision, setInferenceRevision] = createSignal(0);
   const effectiveProfile = (): StrategicFitProfile => {
+    inferenceRevision();
     const id = boundary.currentDocumentId();
     const persisted = boundary.currentMetadata().profile;
     // An external metadata restore/import may publish explicit intent while an old session-only
@@ -245,6 +248,7 @@ export function createStrategicFitProfileState(
         return { state: "unchanged", profile: cloneProfile(current) };
       }
       inferredProfiles.set(boundary.currentDocumentId(), next);
+      setInferenceRevision((revision) => revision + 1);
       boundary.invalidateReports();
       return { state: "updated", profile: cloneProfile(next) };
     },
