@@ -4,9 +4,13 @@ type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
   toPgn(): string;
   currentPath(): number[];
+  version(): number;
+  dirty(): boolean;
+  preview(): unknown;
+  strategicFitMetadata(): unknown;
   setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
-  selectStrategicFitProfile(mode: "balanced"): unknown;
+  selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
@@ -102,6 +106,82 @@ async function installFindingWorkerFixture(page: Page) {
               snapshot: "e2e-fixture",
               reason,
             });
+            const boardFens = [
+              "rnbqkbnr/pp1ppppp/5n2/2p5/4P3/2P5/PP1P1PPP/RNBQKBNR w KQkq - 1 3",
+              "r1bqkb1r/pp1ppppp/2n2n2/2p5/4P3/2P2N2/PP1P1PPP/RNBQKB1R w KQkq - 3 4",
+              "r1bqk2r/pp1pbppp/2n1pn2/2p5/3PP3/2P2N2/PP3PPP/RNBQKB1R w KQkq - 1 6",
+              "r1bq1rk1/pp1pbppp/2n1pn2/2p5/3PP3/2P1BN2/PP3PPP/RN1QKB1R w KQ - 3 7",
+            ];
+            const snapshot = (
+              routeId: string,
+              kind: string,
+              ply: number,
+              fenIndex: number,
+              comparability: "comparable" | "incomplete" | "not-comparable" = "comparable",
+            ) => ({
+              analysis_version: analysisVersion,
+              snapshot_id: `snapshot:${routeId}:${kind}:${ply}`,
+              route_id: routeId,
+              position_id: `position:${routeId}:${ply}`,
+              fen: boardFens[fenIndex % boardFens.length],
+              checkpoint: {
+                analysis_version: analysisVersion,
+                checkpoint_id: `checkpoint:${routeId}:${kind}:${ply}`,
+                kind,
+                ply,
+                reason: `${kind} fixture evidence for ${routeId}.`,
+                comparability,
+              },
+              signals: [],
+              classifier_confidence: 0.9,
+              provenance: [source("trajectory:fixture", "deterministic-core")],
+            });
+            const trajectory = (
+              routeId: string,
+              state: "complete" | "incomplete",
+              snapshots: any[],
+              missingCheckpoints: any[] = [],
+            ) => ({
+              analysis_version: analysisVersion,
+              trajectory_id: `trajectory:${routeId}`,
+              route_id: routeId,
+              state,
+              snapshots,
+              missing_checkpoints: missingCheckpoints,
+              evidence_coverage: state === "complete" ? 1 : 0.5,
+              stable_signal_ids: [],
+              transient_signal_ids: [],
+              provenance: [source("trajectory:fixture", "deterministic-core")],
+            });
+            const comparisonTrajectories = [
+              trajectory("route:finding:01:a", "complete", [
+                snapshot("route:finding:01:a", "opening-exit", 4, 0),
+                snapshot("route:finding:01:a", "central-resolution", 8, 1),
+                snapshot("route:finding:01:a", "irreversible-transformation", 10, 2),
+                snapshot("route:finding:01:a", "configured-ply", 12, 3),
+                snapshot("route:finding:01:a", "final-valid-position", 14, 3, "not-comparable"),
+              ]),
+              trajectory("route:finding:01:b", "incomplete", [
+                snapshot("route:finding:01:b", "opening-exit", 4, 0),
+                snapshot("route:finding:01:b", "central-resolution", 8, 1, "incomplete"),
+                snapshot("route:finding:01:b", "configured-ply", 14, 3),
+              ], [{
+                kind: "irreversible-transformation",
+                reason: "This affected route ends before an irreversible checkpoint is available.",
+              }]),
+              trajectory("route:baseline:01:a", "complete", [
+                snapshot("route:baseline:01:a", "opening-exit", 6, 0),
+                snapshot("route:baseline:01:a", "central-resolution", 10, 1),
+                snapshot("route:baseline:01:a", "irreversible-transformation", 10, 2),
+                snapshot("route:baseline:01:a", "configured-ply", 12, 3),
+                snapshot("route:baseline:01:a", "final-valid-position", 16, 3, "not-comparable"),
+              ]),
+              trajectory("route:baseline:01:b", "complete", [
+                snapshot("route:baseline:01:b", "opening-exit", 6, 0),
+                snapshot("route:baseline:01:b", "central-resolution", 10, 2),
+                snapshot("route:baseline:01:b", "configured-ply", 12, 3),
+              ]),
+            ];
             const finding = (index: number) => {
               const id = `finding:${String(index + 1).padStart(2, "0")}`;
               const classification = classifications[index]!;
@@ -128,6 +208,11 @@ async function installFindingWorkerFixture(page: Page) {
                         ["e4", "c5", "c3", "Nf6"],
                         ["e4", "c5", "Nf3", "e6", "c3"],
                         ["e4", "c5", "c3", "d5"],
+                        ["e4", "e5", "Nf3", "Nc6"],
+                        [
+                          "e4", "c5", "c3", "Nf6", "e5", "Nd5", "d4", "cxd4",
+                          "Nf3", "Nc6", "cxd4", "d6", "Bc4", "Nb6", "Bb5", "dxe5",
+                        ],
                       ]
                     : [["e4", "e5", `fixture-${index + 1}`]],
                 },
@@ -225,7 +310,9 @@ async function installFindingWorkerFixture(page: Page) {
                   analysis_version: analysisVersion,
                   cohort_id: "cohort:fixture",
                   baseline_mode_ids: ["mode:fixture"],
-                  representative_route_ids: [`route:${id}:a`],
+                  representative_route_ids: index === 0
+                    ? ["route:baseline:01:a", "route:baseline:01:b"]
+                    : [`route:${id}:a`],
                   dimensions: index === 0
                     ? [
                         {
@@ -280,7 +367,64 @@ async function installFindingWorkerFixture(page: Page) {
                     player_contribution: 0.8,
                     opponent_contribution: 0.2,
                     likely_causal_decision_ids: [`decision:${id}:a`],
-                    timeline: [],
+                    timeline: index === 0
+                      ? [
+                          {
+                            event_id: "event:opponent-divergence",
+                            kind: "opponent-divergence",
+                            ply: 2,
+                            position_id: "position:finding:01:opponent",
+                            decision_id: "decision:finding:01:opponent",
+                            san: "c5",
+                            explanation: "The opponent chooses the Sicilian structure.",
+                          },
+                          {
+                            event_id: "event:player-decision",
+                            kind: "player-decision",
+                            ply: 3,
+                            position_id: "position:finding:01:player",
+                            decision_id: "decision:finding:01:a",
+                            san: "c3",
+                            explanation: "The repertoire chooses the Alapin setup.",
+                          },
+                          {
+                            event_id: "event:irreversible",
+                            kind: "irreversible-event",
+                            ply: 7,
+                            position_id: "position:finding:01:irreversible",
+                            decision_id: "decision:finding:01:b",
+                            san: "d4",
+                            explanation: "The central pawn commitment cannot be reversed.",
+                          },
+                          {
+                            event_id: "event:first-difference",
+                            kind: "first-strategic-difference",
+                            ply: 8,
+                            position_id: "position:finding:01:difference",
+                            decision_id: null,
+                            san: "cxd4",
+                            explanation: "The first persistent center-state difference appears.",
+                          },
+                          {
+                            event_id: "event:stable",
+                            kind: "difference-stable",
+                            ply: 12,
+                            position_id: "position:finding:01:stable",
+                            decision_id: null,
+                            san: "d6",
+                            explanation: "The difference remains stable at the matched checkpoint.",
+                          },
+                          {
+                            event_id: "event:transposition",
+                            kind: "transposition",
+                            ply: 14,
+                            position_id: "position:finding:01:transposition",
+                            decision_id: null,
+                            san: null,
+                            explanation: "Another move order reaches this canonical position.",
+                          },
+                        ]
+                      : [],
                     explanation: "Fixture attribution.",
                   },
                   data_quality_issue_ids: index === 1 ? ["issue:opening-evidence"] : [],
@@ -349,7 +493,7 @@ async function installFindingWorkerFixture(page: Page) {
                     comparable_route_count: 12,
                     incomplete_route_count: 0,
                   },
-                  trajectories: [],
+                  trajectories: comparisonTrajectories,
                   cohorts: [],
                   summary: {
                     analysis_version: analysisVersion,
@@ -440,11 +584,13 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await expect(first).toContainText("Mostly player-controlled");
   await expect(first).toContainText("Verified: objectively sound");
   await expect(first).toContainText("Unresolved");
-  await first.getByText("3 source lines").click();
+  await first.getByText("5 source lines").click();
   await expect(first.locator(".strategic-fit-finding-paths li")).toHaveText([
     "e4 c5 c3 Nf6",
     "e4 c5 Nf3 e6 c3",
     "e4 c5 c3 d5",
+    "e4 e5 Nf3 Nc6",
+    "e4 c5 c3 Nf6 e5 Nd5 d4 cxd4 Nf3 Nc6 cxd4 d6 Bc4 Nb6 Bb5 dxe5",
   ]);
 
   const unavailable = queue.locator("[data-finding-id='finding:02']");
@@ -468,7 +614,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("2,840");
   await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("91%");
   await expect(firstEvidence.locator("[data-confidence-label='high']")).toHaveText("High confidence");
-  await expect(firstEvidence.locator(".strategic-fit-evidence-paths li")).toHaveCount(3);
+  await expect(firstEvidence.locator(".strategic-fit-evidence-paths li")).toHaveCount(5);
   await expect(firstEvidence.locator(".strategic-fit-evidence-sources")).toContainText(
     "Deterministic analysis",
   );
@@ -530,6 +676,119 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
+test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const initialVersion = await chess(page, (api) => api.version());
+  const initialDirty = await chess(page, (api) => api.dirty());
+  const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
+  const initialMetadata = await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()));
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const evidence = dialog.locator("[data-evidence-finding-id='finding:01']");
+  const comparison = evidence.locator(".strategic-fit-comparison-boards");
+  await expect(comparison.locator("[data-board-read-only='true']")).toHaveCount(2);
+  await expect(comparison.locator("[data-board-orientation='white']")).toHaveCount(2);
+  await expect(comparison.getByLabel("Affected branch route").locator("option")).toHaveCount(2);
+  await expect(comparison.getByLabel("Typical cohort route").locator("option")).toHaveCount(2);
+  await expect(comparison.getByLabel("Affected source line").locator("option")).toHaveCount(5);
+  const sync = comparison.locator(".strategic-fit-comparison-sync-status");
+  await expect(sync).toHaveAttribute("data-milestone-key", "opening-exit");
+  await expect(sync).toHaveAttribute("data-milestone-state", "matched");
+  await expect(sync).toContainText("Matched strategic milestone");
+  await expect(sync).toContainText("Affected route 1 with Typical route 1 at Opening exit");
+
+  await comparison.getByLabel("Affected branch route").selectOption("route:finding:01:b");
+  await comparison.getByLabel("Strategic milestone").selectOption("central-resolution");
+  await expect(sync).toHaveAttribute("data-milestone-state", "incomplete");
+  await expect(sync).toContainText("Incomplete checkpoint evidence");
+  await comparison.getByLabel("Strategic milestone").selectOption("irreversible-transformation");
+  await expect(sync).toHaveAttribute("data-milestone-state", "incomplete");
+  await expect(sync).toContainText("affected branch is missing");
+  await expect(comparison.locator("[data-board-role='affected'] .strategic-fit-comparison-board-missing"))
+    .toContainText("Board unavailable at this milestone");
+
+  await comparison.getByLabel("Affected branch route").selectOption("route:finding:01:a");
+  await comparison.getByLabel("Typical cohort route").selectOption("route:baseline:01:b");
+  await expect(sync).toHaveAttribute("data-milestone-state", "mismatched");
+  await expect(sync).toContainText("typical cohort is missing");
+  await comparison.getByLabel("Typical cohort route").selectOption("route:baseline:01:a");
+  await comparison.getByLabel("Strategic milestone").selectOption("configured-ply:12");
+  await expect(sync).toHaveAttribute("data-milestone-state", "matched");
+  await expect(sync).toContainText("Configured checkpoint at ply 12");
+
+  const timeline = evidence.locator(".strategic-fit-causal-timeline");
+  await expect(timeline.locator("[data-causal-event]")).toHaveCount(6);
+  await expect(timeline.locator("[data-causal-event='opponent-divergence']"))
+    .toContainText("Opponent divergence");
+  await expect(timeline.locator("[data-causal-event='player-decision']")).toContainText("Player decision");
+  await expect(timeline.locator("[data-causal-event='irreversible-event']"))
+    .toContainText("Irreversible event");
+  await expect(timeline.locator("[data-causal-event='first-strategic-difference']"))
+    .toContainText("First strategic difference");
+  await expect(timeline.locator("[data-causal-event='difference-stable']"))
+    .toContainText("Difference becomes stable");
+  await expect(timeline.locator("[data-causal-event='transposition']")).toContainText("Transposition");
+  await expect(timeline).toContainText("Dotted marker");
+  await expect(timeline).toContainText("Striped marker");
+
+  const sourceLine = comparison.getByLabel("Affected source line");
+  await sourceLine.selectOption("4");
+  const goToLine = comparison.getByRole("button", { name: "Go to line" });
+  await expect(goToLine).toBeDisabled();
+  await expect(comparison.locator(".strategic-fit-line-navigation code"))
+    .toContainText("Bb5 dxe5");
+  expect(await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.version())).toBe(initialVersion);
+  expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
+  expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
+  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(initialMetadata);
+
+  await sourceLine.selectOption("3");
+  await expect(goToLine).toBeEnabled();
+  await goToLine.click();
+  expect(await chess(page, (api) => api.currentPath())).toEqual([0, 0, 0, 0]);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.version())).toBe(initialVersion);
+  expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
+  expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
+  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(initialMetadata);
+});
+
+test("stale and replacement reports clear comparison selection and local route state", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidencePane.locator("[data-board-read-only='true']")).toHaveCount(2);
+  await evidencePane.getByLabel("Affected branch route").selectOption("route:finding:01:b");
+  await evidencePane.getByLabel("Strategic milestone").selectOption("central-resolution");
+  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
+    .toHaveAttribute("data-milestone-state", "incomplete");
+
+  await chess(page, (api) => api.selectStrategicFitProfile("familiar-plans"));
+  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
+  await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Retry analysis" }).click();
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
+  await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
+
+  const refreshedQueue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
+    .toHaveAttribute("data-milestone-key", "opening-exit");
+  await expect(evidencePane.getByLabel("Affected branch route"))
+    .toHaveValue("route:finding:01:a");
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+});
+
 test("Black repertoire evidence labels every engine value from the repertoire point of view", async ({ page }) => {
   const { dialog, before, pathBefore } = await bootstrap(page, "black");
   const queue = dialog.locator("#strategic-fit-pane-findings")
@@ -541,6 +800,8 @@ test("Black repertoire evidence labels every engine value from the repertoire po
   const evidence = evidencePane.locator("[data-evidence-finding-id='finding:01']");
   await expect(evidence).toContainText("The line is objectively sound for the Black repertoire.");
   await expect(evidence.getByText("White repertoire POV evaluation", { exact: true })).toHaveCount(0);
+  await expect(evidence.locator("[data-board-orientation='black']")).toHaveCount(2);
+  await expect(evidence.locator("[data-board-read-only='true']")).toHaveCount(2);
 
   const expert = evidence.locator(".strategic-fit-evidence-expert");
   await expect(expert.getByText("Black repertoire POV evaluation", { exact: true })).toBeHidden();
@@ -603,6 +864,13 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   await expect(evidencePane).toBeFocused();
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(evidencePane.locator("[data-evidence-finding-id='finding:01']")).toBeVisible();
+  const boardCards = evidencePane.locator(".strategic-fit-comparison-board-card");
+  await expect(boardCards).toHaveCount(2);
+  const firstBoard = await boardCards.nth(0).boundingBox();
+  const secondBoard = await boardCards.nth(1).boundingBox();
+  expect(firstBoard).not.toBeNull();
+  expect(secondBoard).not.toBeNull();
+  expect(secondBoard!.y).toBeGreaterThan(firstBoard!.y + firstBoard!.height - 1);
   expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);

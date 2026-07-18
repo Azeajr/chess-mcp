@@ -15,6 +15,7 @@ import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
 import { strategicFitLifecycle } from "../store/strategic-fit";
 import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
+import { actions, color, currentTree, documentId, version } from "../store/game";
 import {
   openStrategicFitFindingQueue,
   setStrategicFitWorkspaceOpen,
@@ -145,10 +146,37 @@ export default function StrategicFitWorkspace() {
       candidate.finding_id === queue.selected_finding_id
     );
     return finding === undefined ? null : {
+      reportId: current.report_id,
       finding,
+      trajectories: current.result.trajectories,
       preflightIssues: current.result.preflight.issues,
       repertoireColor: current.request_snapshot.repertoire_color,
     };
+  };
+  const resolveCurrentEvidenceLine = (
+    reportId: string,
+    findingId: string,
+    path: readonly string[],
+  ) => {
+    const lifecycle = strategicFitLifecycle();
+    const current = lifecycle.current_result;
+    const queue = strategicFitFindingQueue.snapshot();
+    if (
+      lifecycle.status !== "completed" ||
+      current === null ||
+      current.report_id !== reportId ||
+      current.request_snapshot.document_id !== documentId() ||
+      current.request_snapshot.repertoire_revision !== version() ||
+      current.request_snapshot.repertoire_pgn !== actions.toPgn() ||
+      current.request_snapshot.repertoire_color !== color() ||
+      queue.report_id !== reportId ||
+      queue.selected_finding_id !== findingId
+    ) return null;
+    try {
+      return currentTree().indexPathOfSan([...path]) ?? null;
+    } catch {
+      return null;
+    }
   };
   const reviewOverviewItem = (
     source: StrategicOverviewItemId,
@@ -322,9 +350,26 @@ export default function StrategicFitWorkspace() {
             >
               {(evidence) => (
                 <EvidencePanel
+                  reportId={evidence().reportId}
                   finding={evidence().finding}
+                  trajectories={evidence().trajectories}
                   preflightIssues={evidence().preflightIssues}
                   repertoireColor={evidence().repertoireColor}
+                  canNavigateToLine={(path) => resolveCurrentEvidenceLine(
+                    evidence().reportId,
+                    evidence().finding.finding_id,
+                    path,
+                  ) !== null}
+                  onGoToLine={(path) => {
+                    const target = resolveCurrentEvidenceLine(
+                      evidence().reportId,
+                      evidence().finding.finding_id,
+                      path,
+                    );
+                    if (target === null) return false;
+                    actions.goto(target);
+                    return true;
+                  }}
                 />
               )}
             </Show>

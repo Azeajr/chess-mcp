@@ -6,6 +6,7 @@ import {
   type StrategicFitProfileMode,
   type StrategicFitSourceKind,
   type StrategicFitSourceProvenance,
+  type StrategicTrajectory,
 } from "@chess-mcp/chess-tools";
 import ConceptComparison, {
   buildConceptComparisonPresentation,
@@ -13,6 +14,8 @@ import ConceptComparison, {
 import ConfidenceDetails, {
   ConfidenceExpertValues,
 } from "./ConfidenceDetails";
+import ComparisonBoards from "./ComparisonBoards";
+import CausalTimeline from "./CausalTimeline";
 
 const PROFILE_LABELS: Readonly<Record<StrategicFitProfileMode, string>> = {
   "familiar-plans": "Familiar plans",
@@ -201,9 +204,13 @@ export function buildEvidencePresentation(
 }
 
 export default function EvidencePanel(props: {
+  reportId: string;
   finding: StrategicFinding;
+  trajectories: readonly StrategicTrajectory[];
   preflightIssues: readonly PreflightIssue[];
   repertoireColor: Color;
+  canNavigateToLine: (path: readonly string[]) => boolean;
+  onGoToLine: (path: readonly string[]) => boolean;
 }) {
   const presentation = () => buildEvidencePresentation(
     props.finding,
@@ -227,6 +234,15 @@ export default function EvidencePanel(props: {
         <p>{props.finding.opening_scope} · {props.finding.affected_line_summary}</p>
       </header>
 
+      <ComparisonBoards
+        reportId={props.reportId}
+        finding={props.finding}
+        trajectories={props.trajectories}
+        repertoireColor={props.repertoireColor}
+        canNavigateToLine={props.canNavigateToLine}
+        onGoToLine={props.onGoToLine}
+      />
+
       <ConceptComparison finding={props.finding} />
 
       <section class="strategic-fit-comparison-basis" aria-labelledby="strategic-fit-basis-title">
@@ -240,6 +256,8 @@ export default function EvidencePanel(props: {
           <div><dt>Review profile</dt><dd>{presentation().profile}</dd></div>
         </dl>
       </section>
+
+      <CausalTimeline causality={props.finding.evidence.causality} />
 
       <ConfidenceDetails confidence={props.finding.confidence} />
 
