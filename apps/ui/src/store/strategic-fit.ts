@@ -1,5 +1,10 @@
 import { createEffect, createSignal, untrack } from "solid-js";
-import type { StrategicFitAnalysisResult } from "@chess-mcp/chess-tools";
+import {
+  STRATEGIC_FIT_PROGRESS_PHASES,
+  type StrategicFitAnalysisResult,
+  type StrategicFitProgressPhase,
+  type StrategicFitProgressState,
+} from "@chess-mcp/chess-tools";
 import { executeDirectBrowserCommand } from "./commands";
 import { actions, color, documentId, version } from "./game";
 import {
@@ -30,8 +35,22 @@ export interface StrategicFitRequestSnapshot {
 export interface StrategicFitLifecycleProgress {
   readonly done: number;
   readonly total?: number;
-  /** Retained for Task 5.4's detailed phase UI; Task 5.3 presents only generic progress. */
+  /** Canonical adapter message for the active/completed analysis phase. */
   readonly detail?: string;
+}
+
+export const STRATEGIC_FIT_PHASE_LABELS: Readonly<Record<StrategicFitProgressPhase, string>> = {
+  "normalizing-move-orders": "Normalizing move orders",
+  "identifying-comparable-branches": "Identifying comparable branches",
+  "extracting-strategic-patterns": "Extracting strategic patterns",
+  "measuring-learning-burden": "Measuring learning burden",
+  "attributing-differences-to-decisions": "Attributing differences to decisions",
+  "ranking-findings": "Ranking findings",
+};
+
+export interface StrategicFitLifecyclePhase {
+  readonly phase: StrategicFitProgressPhase;
+  readonly state: StrategicFitProgressState;
 }
 
 export interface StrategicFitLifecycleError {
@@ -52,6 +71,7 @@ export interface StrategicFitLifecycleSnapshot {
   readonly request_id: string | null;
   readonly request_snapshot: StrategicFitRequestSnapshot | null;
   readonly progress: StrategicFitLifecycleProgress | null;
+  readonly phase_history: readonly StrategicFitLifecyclePhase[];
   readonly error: StrategicFitLifecycleError | null;
   readonly stale_reason: string | null;
   readonly current_result: StrategicFitCompletedResult | null;
@@ -87,11 +107,70 @@ const initialSnapshot = (): StrategicFitLifecycleSnapshot => ({
   request_id: null,
   request_snapshot: null,
   progress: null,
+  phase_history: pendingPhaseHistory(),
   error: null,
   stale_reason: null,
   current_result: null,
   last_completed: null,
 });
+
+function pendingPhaseHistory(): StrategicFitLifecyclePhase[] {
+  return STRATEGIC_FIT_PROGRESS_PHASES.map((phase) => ({ phase, state: "pending" }));
+}
+
+function phaseIndexFromProgress(done: number, detail: string | undefined): number {
+  if (detail !== undefined) {
+    const fromMessage = STRATEGIC_FIT_PROGRESS_PHASES.findIndex((phase) => {
+      const label = STRATEGIC_FIT_PHASE_LABELS[phase];
+      return detail === label || detail === `${label} cancelled`;
+    });
+    if (fromMessage >= 0) return fromMessage;
+  }
+  return Math.min(STRATEGIC_FIT_PROGRESS_PHASES.length - 1, Math.max(0, done));
+}
+
+function advancePhaseHistory(
+  history: readonly StrategicFitLifecyclePhase[],
+  done: number,
+  detail: string | undefined,
+): StrategicFitLifecyclePhase[] {
+  const previousActiveIndex = history.findIndex((entry) => entry.state === "running");
+  const activeIndex = Math.max(phaseIndexFromProgress(done, detail), previousActiveIndex);
+  return STRATEGIC_FIT_PROGRESS_PHASES.map((phase, index) => {
+    const previous = history[index]?.state ?? "pending";
+    if (
+      previous === "completed" ||
+      index < done ||
+      index < activeIndex ||
+      (index === activeIndex && done > index)
+    ) {
+      return { phase, state: "completed" };
+    }
+    if (index === activeIndex) return { phase, state: "running" };
+    return { phase, state: "pending" };
+  });
+}
+
+function stopPhaseHistory(
+  history: readonly StrategicFitLifecyclePhase[],
+): StrategicFitLifecyclePhase[] {
+  const runningIndex = history.findIndex((entry) => entry.state === "running");
+  const stoppedIndex = runningIndex >= 0
+    ? runningIndex
+    : history.findIndex((entry) => entry.state === "pending");
+  return history.map((entry, index) => index === stoppedIndex
+    ? { ...entry, state: "cancelled" }
+    : entry.state === "running"
+      ? { ...entry, state: "pending" }
+      : entry);
+}
+
+function completedPhaseHistory(blocked: boolean): StrategicFitLifecyclePhase[] {
+  return STRATEGIC_FIT_PROGRESS_PHASES.map((phase, index) => ({
+    phase,
+    state: blocked && index > 0 ? "pending" : "completed",
+  }));
+}
 
 function sameSnapshot(left: StrategicFitRequestSnapshot, right: StrategicFitRequestSnapshot): boolean {
   return left.document_id === right.document_id
@@ -178,6 +257,7 @@ export function createStrategicFitLifecycleState(
       request_id: request.id,
       request_snapshot: request.snapshot,
       progress: null,
+      phase_history: stopPhaseHistory(previous.phase_history),
       error: null,
       stale_reason: staleReason(request.snapshot, current),
       current_result: null,
@@ -202,6 +282,7 @@ export function createStrategicFitLifecycleState(
       request_id: request.id,
       request_snapshot: request.snapshot,
       progress: null,
+      phase_history: pendingPhaseHistory(),
       error: null,
       stale_reason: null,
       current_result: null,
@@ -222,18 +303,24 @@ export function createStrategicFitLifecycleState(
             const boundedDone = Math.max(0, Math.floor(Number.isFinite(done) ? done : 0));
             const nextDone = Math.max(previous.progress?.done ?? 0, boundedDone);
             const nextTotal = boundedTotal ?? previous.progress?.total;
+            const nextPhaseHistory = advancePhaseHistory(previous.phase_history, nextDone, detail);
+            const currentPhase = nextPhaseHistory.find((phase) => phase.state === "running");
+            const nextDetail = currentPhase === undefined
+              ? detail
+              : STRATEGIC_FIT_PHASE_LABELS[currentPhase.phase];
             return {
               ...previous,
               status: "provisional",
               progress: {
                 done: nextTotal === undefined ? nextDone : Math.min(nextDone, nextTotal),
                 ...(nextTotal === undefined ? {} : { total: nextTotal }),
-                ...(typeof detail === "string" && detail.length > 0
-                  ? { detail }
+                ...(typeof nextDetail === "string" && nextDetail.length > 0
+                  ? { detail: nextDetail }
                   : previous.progress?.detail === undefined
                     ? {}
                     : { detail: previous.progress.detail }),
               },
+              phase_history: nextPhaseHistory,
             };
           });
         },
@@ -253,6 +340,7 @@ export function createStrategicFitLifecycleState(
           ...previous,
           status: error.code === "strategic_fit_stale_report" ? "stale" : "failed",
           progress: null,
+          phase_history: stopPhaseHistory(previous.phase_history),
           error: error.code === "strategic_fit_stale_report" ? null : error,
           stale_reason: error.code === "strategic_fit_stale_report" ? error.message : null,
           current_result: null,
@@ -267,6 +355,7 @@ export function createStrategicFitLifecycleState(
           ...previous,
           status: "failed",
           progress: null,
+          phase_history: stopPhaseHistory(previous.phase_history),
           error: {
             code: "strategic_fit_invalid_result",
             message: "Strategic Fit returned an invalid analysis result.",
@@ -290,6 +379,7 @@ export function createStrategicFitLifecycleState(
         request_id: request.id,
         request_snapshot: request.snapshot,
         progress: null,
+        phase_history: completedPhaseHistory(result.preflight.state === "blocked"),
         error: null,
         stale_reason: null,
         current_result: completed,
@@ -303,6 +393,7 @@ export function createStrategicFitLifecycleState(
           ...previous,
           status: "cancelled",
           progress: null,
+          phase_history: stopPhaseHistory(previous.phase_history),
           error: null,
           stale_reason: null,
           current_result: null,
@@ -313,6 +404,7 @@ export function createStrategicFitLifecycleState(
         ...previous,
         status: "failed",
         progress: null,
+        phase_history: stopPhaseHistory(previous.phase_history),
         error: thrownError(error),
         stale_reason: null,
         current_result: null,
@@ -332,6 +424,7 @@ export function createStrategicFitLifecycleState(
         ...previous,
         status: "cancelled",
         progress: null,
+        phase_history: stopPhaseHistory(previous.phase_history),
         error: null,
         stale_reason: null,
         current_result: null,
@@ -350,6 +443,7 @@ export function createStrategicFitLifecycleState(
           ...previous,
           status: "stale",
           progress: null,
+          phase_history: stopPhaseHistory(previous.phase_history),
           error: null,
           stale_reason: staleReason(completed.request_snapshot, current),
           current_result: null,

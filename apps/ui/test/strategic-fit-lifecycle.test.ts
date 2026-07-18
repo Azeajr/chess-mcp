@@ -21,6 +21,14 @@ function deferred<T>() {
 const report = (id: string, revision = "browser:1", extra: Record<string, unknown> = {}) => ({
   report_id: id,
   repertoire_revision: revision,
+  preflight: {
+    analysis_version: "2.0.0",
+    state: "ready",
+    issues: [],
+    route_count: 2,
+    comparable_route_count: 2,
+    incomplete_route_count: 0,
+  },
   ...extra,
 }) as unknown as StrategicFitAnalysisResult;
 
@@ -68,19 +76,24 @@ test("idle, running, provisional, and completed transitions use the canonical co
   assert.deepEqual(subject.calls[0]!.args, {});
   assert.equal(subject.state.snapshot().status, "running");
 
-  subject.calls[0]!.options.onProgress?.(0, 0, "phase details belong to Task 5.4");
+  subject.calls[0]!.options.onProgress?.(0, 0, "Normalizing move orders");
   assert.deepEqual(subject.state.snapshot().progress, {
     done: 0,
-    detail: "phase details belong to Task 5.4",
+    detail: "Normalizing move orders",
   });
   assert.equal(subject.state.snapshot().status, "provisional");
+  assert.equal(subject.state.snapshot().phase_history[0]?.state, "running");
+  assert.ok(subject.state.snapshot().phase_history.slice(1).every((phase) => phase.state === "pending"));
   subject.calls[0]!.options.onProgress?.(3, 6);
-  subject.calls[0]!.options.onProgress?.(2, 6);
+  subject.calls[0]!.options.onProgress?.(2, 6, "Extracting strategic patterns");
   assert.deepEqual(subject.state.snapshot().progress, {
     done: 3,
     total: 6,
-    detail: "phase details belong to Task 5.4",
+    detail: "Measuring learning burden",
   });
+  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
+    "completed", "completed", "completed", "running", "pending", "pending",
+  ]);
 
   subject.calls[0]!.result.resolve(report("report:one"));
   await pending;
@@ -88,6 +101,7 @@ test("idle, running, provisional, and completed transitions use the canonical co
   assert.equal(subject.state.snapshot().current_result?.report_id, "report:one");
   assert.equal(subject.state.snapshot().last_completed?.report_id, "report:one");
   assert.equal(subject.state.snapshot().progress, null);
+  assert.ok(subject.state.snapshot().phase_history.every((phase) => phase.state === "completed"));
 });
 
 test("navigation-equivalent synchronization stays current while every analysis identity change stales", async () => {
@@ -152,6 +166,9 @@ test("cancellation retains the last completed report as previous and never publi
   assert.equal(subject.state.snapshot().status, "cancelled");
   assert.equal(subject.state.snapshot().current_result, null);
   assert.equal(subject.state.snapshot().last_completed?.report_id, "report:first");
+  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
+    "completed", "completed", "cancelled", "pending", "pending", "pending",
+  ]);
 
   subject.calls[1]!.result.resolve(report("report:cancelled-late"));
   await cancelled;
@@ -214,8 +231,12 @@ test("native degraded reports are completed evidence, not fabricated failures or
   const pending = subject.state.analyze();
   subject.calls[0]!.result.resolve(report("report:degraded", "browser:1", {
     preflight: {
+      analysis_version: "2.0.0",
       state: "degraded",
       issues: [{ code: "missing-opening-classification" }],
+      route_count: 2,
+      comparable_route_count: 2,
+      incomplete_route_count: 0,
     },
   }));
   await pending;
@@ -223,6 +244,37 @@ test("native degraded reports are completed evidence, not fabricated failures or
   assert.equal(subject.state.snapshot().status, "completed");
   assert.deepEqual(
     subject.state.snapshot().current_result?.result.preflight,
-    { state: "degraded", issues: [{ code: "missing-opening-classification" }] },
+    {
+      analysis_version: "2.0.0",
+      state: "degraded",
+      issues: [{ code: "missing-opening-classification" }],
+      route_count: 2,
+      comparable_route_count: 2,
+      incomplete_route_count: 0,
+    },
   );
+  assert.ok(subject.state.snapshot().phase_history.every((phase) => phase.state === "completed"));
+});
+
+test("blocked preflight completes normalization only and leaves dependent phases not run", async () => {
+  const subject = fixture();
+  const pending = subject.state.analyze();
+  subject.calls[0]!.options.onProgress?.(0, 6, "Normalizing move orders");
+  subject.calls[0]!.options.onProgress?.(1, 6, "Normalizing move orders");
+  subject.calls[0]!.result.resolve(report("report:blocked", "browser:1", {
+    preflight: {
+      analysis_version: "2.0.0",
+      state: "blocked",
+      issues: [{ code: "empty-repertoire", kind: "error", severity: "blocking" }],
+      route_count: 0,
+      comparable_route_count: 0,
+      incomplete_route_count: 0,
+    },
+  }));
+  await pending;
+
+  assert.equal(subject.state.snapshot().status, "completed");
+  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
+    "completed", "pending", "pending", "pending", "pending", "pending",
+  ]);
 });

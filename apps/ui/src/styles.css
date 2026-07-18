@@ -1924,12 +1924,20 @@ img,
 }
 .strategic-fit-analysis-lifecycle {
   display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  max-height: min(52vh, 36rem);
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  background: #202228;
+  overscroll-behavior: contain;
+}
+.strategic-fit-analysis-lifecycle-main {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--border);
-  background: #202228;
 }
 .strategic-fit-analysis-lifecycle-copy {
   display: flex;
@@ -1967,16 +1975,6 @@ img,
   border-left: 2px solid #7d8490;
   color: #b8bec8;
 }
-.strategic-fit-analysis-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-.strategic-fit-analysis-progress progress {
-  width: min(11rem, 28vw);
-  height: 0.55rem;
-  accent-color: var(--accent);
-}
 .strategic-fit-analysis-actions {
   flex: 0 0 auto;
 }
@@ -2000,6 +1998,263 @@ img,
 .strategic-fit-analysis-actions button:focus-visible {
   outline: 2px solid rgba(110, 168, 254, 0.4);
   outline-offset: 2px;
+}
+.strategic-fit-analysis-progress-card,
+.strategic-fit-preflight {
+  padding: 0.85rem 1rem;
+  border-top: 1px solid #3f444e;
+  background: #1c1f25;
+}
+.strategic-fit-analysis-progress-card > header,
+.strategic-fit-preflight > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.strategic-fit-analysis-progress-card > header span:first-child,
+.strategic-fit-preflight > header span:first-child {
+  color: #91acd3;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.strategic-fit-analysis-progress-card h2,
+.strategic-fit-preflight h2 {
+  margin: 0.12rem 0 0;
+  font-size: 0.9rem;
+}
+.strategic-fit-analysis-progress-count {
+  color: #bdc5d0;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.strategic-fit-analysis-progress-card > progress {
+  display: block;
+  width: 100%;
+  height: 0.55rem;
+  margin-top: 0.65rem;
+  accent-color: var(--accent);
+}
+.strategic-fit-analysis-progress-live {
+  margin: 0.42rem 0 0;
+  color: #c4cbd5;
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+.strategic-fit-analysis-phase-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.strategic-fit-analysis-phase-list li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.1rem 0.42rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.48rem 0.52rem;
+  border: 1px solid #484e59;
+  border-radius: 7px;
+  background: #24272d;
+}
+.strategic-fit-analysis-phase-marker {
+  display: inline-grid;
+  grid-row: 1 / span 2;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 1px solid #68717f;
+  border-radius: 50%;
+  color: #c7ced8;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+.strategic-fit-analysis-phase-name {
+  min-width: 0;
+  color: #dce2ea;
+  font-size: 0.69rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.strategic-fit-analysis-phase-status {
+  color: #969fac;
+  font-size: 0.62rem;
+  line-height: 1.25;
+}
+.strategic-fit-analysis-phase-list li[data-phase-state="completed"] {
+  border-color: #486d57;
+  background: #1e2b24;
+}
+.strategic-fit-analysis-phase-list li[data-phase-state="completed"] .strategic-fit-analysis-phase-marker {
+  border-color: #69a27b;
+  color: #bde7c8;
+}
+.strategic-fit-analysis-phase-list li[data-phase-state="running"] {
+  border-color: #6ea8fe;
+  background: #21334a;
+  box-shadow: inset 3px 0 #6ea8fe;
+}
+.strategic-fit-analysis-phase-list li[data-phase-state="cancelled"] {
+  border-color: #ad7c50;
+  background: #32271e;
+}
+.strategic-fit-analysis-phase-list li[data-phase-state="cancelled"] .strategic-fit-analysis-phase-marker {
+  border-color: #d49a64;
+  color: #f1c28f;
+}
+.strategic-fit-preflight-state-label {
+  border: 1px solid #69717d;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  color: #dce3ec;
+  font-size: 0.67rem;
+  white-space: nowrap;
+}
+.strategic-fit-preflight-state-ready .strategic-fit-preflight-state-label {
+  border-color: #568367;
+  color: #bde7c8;
+}
+.strategic-fit-preflight-state-degraded .strategic-fit-preflight-state-label {
+  border-color: #9d7c50;
+  color: #f1c78f;
+}
+.strategic-fit-preflight-state-blocked .strategic-fit-preflight-state-label {
+  border-color: #a25d64;
+  color: #ffc1c6;
+}
+.strategic-fit-preflight-summary,
+.strategic-fit-preflight-counts-unavailable {
+  margin: 0.48rem 0 0;
+  color: #c2c8d1;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.strategic-fit-preflight-counts-unavailable {
+  padding-left: 0.55rem;
+  border-left: 2px solid #a25d64;
+}
+.strategic-fit-preflight-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0.65rem 0 0;
+}
+.strategic-fit-preflight-counts > div {
+  padding: 0.48rem 0.55rem;
+  border: 1px solid #464c56;
+  border-radius: 6px;
+  background: #22252b;
+}
+.strategic-fit-preflight-counts dt {
+  color: #9fa7b2;
+  font-size: 0.62rem;
+}
+.strategic-fit-preflight-counts dd {
+  margin: 0.12rem 0 0;
+  color: #e1e7ef;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.strategic-fit-preflight-issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: 0.55rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.strategic-fit-preflight-issue {
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid #515762;
+  border-left-width: 3px;
+  border-radius: 7px;
+  background: #24272d;
+}
+.strategic-fit-preflight-issue.strategic-fit-preflight-blocking { border-left-color: #d87982; }
+.strategic-fit-preflight-issue.strategic-fit-preflight-degraded { border-left-color: #d6a361; }
+.strategic-fit-preflight-issue.strategic-fit-preflight-informational { border-left-color: #77a8d9; }
+.strategic-fit-preflight-issue-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.42rem;
+}
+.strategic-fit-preflight-issue-heading > strong {
+  margin-right: auto;
+  color: #e3e8ef;
+  font-size: 0.73rem;
+}
+.strategic-fit-preflight-severity,
+.strategic-fit-preflight-kind {
+  border: 1px solid #636b77;
+  border-radius: 999px;
+  padding: 0.1rem 0.32rem;
+  color: #c8ced7;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+.strategic-fit-preflight-issue > p,
+.strategic-fit-preflight-evidence p {
+  margin: 0.42rem 0 0;
+  color: #b9c0ca;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+.strategic-fit-preflight-evidence {
+  margin-top: 0.5rem;
+  border-top: 1px solid #444a54;
+  padding-top: 0.42rem;
+}
+.strategic-fit-preflight-evidence > summary {
+  min-height: 28px;
+  cursor: pointer;
+  color: #aecaef;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.strategic-fit-preflight-evidence > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.strategic-fit-preflight-evidence h4 {
+  margin: 0.4rem 0 0.25rem;
+  color: #cfd5de;
+  font-size: 0.65rem;
+}
+.strategic-fit-preflight-evidence ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #b8c1ce;
+  font-size: 0.64rem;
+}
+.strategic-fit-preflight-evidence code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.strategic-fit-preflight-evidence dl {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: 0.22rem 0.5rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.63rem;
+}
+.strategic-fit-preflight-evidence dt {
+  color: #9fa8b5;
+  text-transform: capitalize;
+}
+.strategic-fit-preflight-evidence dd {
+  min-width: 0;
+  margin: 0;
+  color: #cbd2dc;
+  overflow-wrap: anywhere;
 }
 .strategic-fit-workspace-body {
   display: grid;
@@ -2131,10 +2386,18 @@ img,
     grid-template-columns: 1fr 1.4fr;
   }
   .strategic-fit-analysis-lifecycle {
+    max-height: 58vh;
+  }
+  .strategic-fit-analysis-lifecycle-main,
+  .strategic-fit-analysis-progress-card,
+  .strategic-fit-preflight {
+    padding-right: calc(0.75rem + env(safe-area-inset-right));
+    padding-left: calc(0.75rem + env(safe-area-inset-left));
+  }
+  .strategic-fit-analysis-lifecycle-main {
     align-items: stretch;
     flex-direction: column;
     gap: 0.55rem;
-    padding: 0.65rem calc(0.75rem + env(safe-area-inset-right)) 0.65rem calc(0.75rem + env(safe-area-inset-left));
   }
   .strategic-fit-analysis-lifecycle-copy {
     display: flex;
@@ -2143,11 +2406,19 @@ img,
     width: 100%;
     min-height: 42px;
   }
-  .strategic-fit-analysis-progress {
-    flex-basis: 100%;
+  .strategic-fit-analysis-phase-list {
+    grid-template-columns: 1fr;
   }
-  .strategic-fit-analysis-progress progress {
-    width: min(13rem, 58vw);
+  .strategic-fit-preflight > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .strategic-fit-preflight-counts {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .strategic-fit-preflight-counts > div {
+    padding: 0.42rem;
   }
   .strategic-fit-stage-nav button {
     min-width: 0;
@@ -2182,5 +2453,10 @@ img,
 @media (prefers-reduced-motion: reduce) {
   .strategic-fit-region-spinner {
     animation: none;
+  }
+  .strategic-fit-analysis-progress-card *,
+  .strategic-fit-preflight * {
+    animation: none !important;
+    transition: none !important;
   }
 }
