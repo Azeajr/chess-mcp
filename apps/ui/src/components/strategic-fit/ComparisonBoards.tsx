@@ -296,17 +296,20 @@ function BoardCard(props: {
   orientation: Color;
   missing: string;
 }) {
+  const role = props.title === "Typical cohort" ? "baseline" : "affected";
+  const titleId = `strategic-fit-comparison-${role}-title`;
   return (
     <article
       class="strategic-fit-comparison-board-card"
-      data-board-role={props.title === "Typical cohort" ? "baseline" : "affected"}
+      data-board-role={role}
+      aria-labelledby={titleId}
     >
       <header>
-        <strong>{props.title}</strong>
+        <h5 id={titleId}>{props.title}</h5>
         <span>{props.route?.label ?? "Route unavailable"}</span>
       </header>
       <Show when={props.snapshot} fallback={(
-        <div class="strategic-fit-comparison-board-missing" role="status">
+        <div class="strategic-fit-comparison-board-missing">
           <strong>Board unavailable at this milestone</strong>
           <p>{props.missing}</p>
         </div>
@@ -394,10 +397,16 @@ export default function ComparisonBoards(props: {
   };
 
   return (
-    <section class="strategic-fit-comparison-boards" aria-labelledby="strategic-fit-boards-title">
+    <section
+      class="strategic-fit-comparison-boards"
+      aria-labelledby="strategic-fit-boards-title"
+      aria-describedby="strategic-fit-boards-help"
+    >
       <header>
         <h4 id="strategic-fit-boards-title">Matched position comparison</h4>
-        <p>Both boards use report snapshots. Changing these controls does not navigate or edit the repertoire.</p>
+        <p id="strategic-fit-boards-help">
+          Both boards use report snapshots. Changing these controls does not navigate or edit the repertoire.
+        </p>
       </header>
       <div class="strategic-fit-comparison-controls">
         <label>
@@ -451,7 +460,7 @@ export default function ComparisonBoards(props: {
         <div
           class="strategic-fit-comparison-sync-status"
           role="status"
-          aria-live="polite"
+          aria-atomic="true"
           data-milestone-key={current().key}
           data-milestone-state={current().state}
         >
@@ -499,10 +508,13 @@ export default function ComparisonBoards(props: {
         )}>
           {(source) => (
             <>
-              <code>{source().path.length === 0 ? "Start position" : source().path.join(" ")}</code>
+              <code id="strategic-fit-selected-source-line">
+                {source().path.length === 0 ? "Start position" : source().path.join(" ")}
+              </code>
               <button
                 type="button"
                 disabled={!props.canNavigateToLine(source().path)}
+                aria-describedby="strategic-fit-selected-source-line"
                 onClick={navigate}
               >Go to line</button>
               <Show when={!props.canNavigateToLine(source().path)}>

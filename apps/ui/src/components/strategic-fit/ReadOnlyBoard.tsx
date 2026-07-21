@@ -19,6 +19,7 @@ export default function ReadOnlyBoard(props: {
       animation: { enabled: false },
       draggable: { enabled: false },
       selectable: { enabled: false },
+      drawable: { enabled: false, visible: false },
       movable: {
         free: false,
         color: undefined,
@@ -33,6 +34,7 @@ export default function ReadOnlyBoard(props: {
       fen: props.fen,
       orientation: props.orientation,
       viewOnly: true,
+      drawable: { enabled: false, visible: false },
       movable: { color: undefined, showDests: false },
     });
   });

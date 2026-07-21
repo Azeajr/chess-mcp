@@ -59,7 +59,7 @@ function optionalNumber(value: string, scale = 1): number | null {
   return Number.isFinite(parsed) ? parsed / scale : null;
 }
 
-export default function ProfileSetup() {
+export default function ProfileSetup(props: { onComplete?: () => void }) {
   const initial = strategicFitProfile();
   const [selectedMode, setSelectedMode] = createSignal<StrategicFitProfileMode>(initial.mode);
   const [preferences, setPreferences] = createSignal(clonePreferences(initial.preferences));
@@ -81,6 +81,7 @@ export default function ProfileSetup() {
     event.preventDefault();
     const mode = selectedMode();
     completeStrategicFitProfileSetup(mode, mode === "custom" ? preferences() : undefined);
+    props.onComplete?.();
   };
 
   return (
@@ -292,7 +293,14 @@ export default function ProfileSetup() {
             and does not save that inference.
           </p>
           <div class="strategic-fit-profile-setup-actions">
-            <button type="button" class="secondary" onClick={() => skipStrategicFitProfileSetup()}>
+            <button
+              type="button"
+              class="secondary"
+              onClick={() => {
+                skipStrategicFitProfileSetup();
+                props.onComplete?.();
+              }}
+            >
               Skip for now
             </button>
             <button type="submit" class="primary">

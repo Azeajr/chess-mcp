@@ -113,7 +113,7 @@ function PreflightIssueResult(props: { issue: PreflightIssue }) {
           <summary>Evidence details</summary>
           <Show when={evidence().paths.length > 0}>
             <div>
-              <h4>Affected repertoire paths</h4>
+              <h3>Affected repertoire paths</h3>
               <ol>
                 <For each={evidence().paths}>{(path) => <li><code>{sourcePath(path)}</code></li>}</For>
               </ol>

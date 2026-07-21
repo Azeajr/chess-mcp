@@ -1,4 +1,4 @@
-import { For, Show, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import ProfileSetup, {
   STRATEGIC_FIT_PROFILE_LABELS,
 } from "./strategic-fit/ProfileSetup";
@@ -61,6 +61,8 @@ const FOCUSABLE = [
   "input:not([disabled])",
   "select:not([disabled])",
   "textarea:not([disabled])",
+  "summary",
+  "[contenteditable='true']",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
@@ -74,7 +76,6 @@ function RegionState(props: {
       class={`strategic-fit-region-state strategic-fit-region-${props.state.status}`}
       data-region-state={props.state.status}
       role={props.state.status === "error" ? "alert" : props.state.status === "loading" ? "status" : undefined}
-      aria-live={props.state.status === "loading" ? "polite" : undefined}
     >
       <Show when={props.state.status === "empty"}>
         <strong>{copy().title}</strong>
@@ -99,6 +100,7 @@ export default function StrategicFitWorkspace() {
   let dialog!: HTMLElement;
   let closeButton!: HTMLButtonElement;
   let returnFocus: HTMLElement | null = null;
+  const [usesStageTabs, setUsesStageTabs] = createSignal(false);
 
   const close = () => setStrategicFitWorkspaceOpen(false);
   const profileReady = () => strategicFitMetadataStatus() === "ready";
@@ -195,9 +197,34 @@ export default function StrategicFitWorkspace() {
   };
   const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
     .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
+  const selectStageFromKeyboard = (
+    event: KeyboardEvent,
+    currentStage: StrategicFitWorkspaceStage,
+  ) => {
+    if (!usesStageTabs() || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const currentIndex = STAGES.findIndex((stage) => stage.id === currentStage);
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? STAGES.length - 1
+        : event.key === "ArrowRight"
+          ? (currentIndex + 1) % STAGES.length
+          : (currentIndex - 1 + STAGES.length) % STAGES.length;
+    const nextStage = STAGES[nextIndex]!;
+    setStrategicFitWorkspaceStage(nextStage.id);
+    queueMicrotask(() => dialog.querySelector<HTMLElement>(`#strategic-fit-stage-${nextStage.id}`)?.focus());
+  };
+  const focusAnalysisAction = () => queueMicrotask(() =>
+    dialog.querySelector<HTMLElement>("[data-strategic-fit-analysis-action]")?.focus()
+  );
 
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const compactQuery = window.matchMedia("(max-width: 820px)");
+    const updateStageSemantics = () => setUsesStageTabs(compactQuery.matches);
+    updateStageSemantics();
+    compactQuery.addEventListener("change", updateStageSemantics);
 
     const trapFocus = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -230,6 +257,7 @@ export default function StrategicFitWorkspace() {
     closeButton.focus();
     onCleanup(() => {
       document.removeEventListener("keydown", trapFocus, true);
+      compactQuery.removeEventListener("change", updateStageSemantics);
       queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus());
     });
   });
@@ -266,7 +294,7 @@ export default function StrategicFitWorkspace() {
         </header>
 
         <Show when={profileReady()} fallback={(
-          <main class="strategic-fit-profile-loading" role="status" aria-live="polite">
+          <main class="strategic-fit-profile-loading" role="status">
             <span class="strategic-fit-region-spinner" aria-hidden="true" />
             <div>
               <strong>Loading profile settings</strong>
@@ -277,17 +305,26 @@ export default function StrategicFitWorkspace() {
           <Show when={setupRequired()} fallback={(
             <>
               <AnalysisLifecycle />
-              <nav class="strategic-fit-stage-nav" aria-label="Strategic Fit stages" role="tablist">
+              <nav
+                class="strategic-fit-stage-nav"
+                aria-label="Strategic Fit stages"
+                role={usesStageTabs() ? "tablist" : undefined}
+              >
                 <For each={STAGES}>{(stage) => (
                   <button
                     id={`strategic-fit-stage-${stage.id}`}
                     type="button"
-                    role="tab"
+                    role={usesStageTabs() ? "tab" : undefined}
                     aria-controls={`strategic-fit-pane-${stage.id}`}
-                    aria-selected={strategicFitWorkspaceStage() === stage.id}
-                    tabIndex={strategicFitWorkspaceStage() === stage.id ? 0 : -1}
+                    aria-selected={usesStageTabs()
+                      ? strategicFitWorkspaceStage() === stage.id
+                      : undefined}
+                    tabIndex={usesStageTabs()
+                      ? strategicFitWorkspaceStage() === stage.id ? 0 : -1
+                      : 0}
                     class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
                     onClick={() => setStrategicFitWorkspaceStage(stage.id)}
+                    onKeyDown={(event) => selectStageFromKeyboard(event, stage.id)}
                   >{stage.label}</button>
                 )}</For>
               </nav>
@@ -296,7 +333,10 @@ export default function StrategicFitWorkspace() {
           <section
             id="strategic-fit-pane-overview"
             class="strategic-fit-workspace-pane strategic-fit-overview-pane"
-            aria-labelledby="strategic-fit-pane-overview-title"
+            role={usesStageTabs() ? "tabpanel" : "region"}
+            aria-labelledby={usesStageTabs()
+              ? "strategic-fit-stage-overview"
+              : "strategic-fit-pane-overview-title"}
             tabIndex={0}
           >
             <div class="strategic-fit-pane-heading">
@@ -316,7 +356,10 @@ export default function StrategicFitWorkspace() {
           <section
             id="strategic-fit-pane-findings"
             class="strategic-fit-workspace-pane strategic-fit-findings-pane"
-            aria-labelledby="strategic-fit-pane-findings-title"
+            role={usesStageTabs() ? "tabpanel" : "region"}
+            aria-labelledby={usesStageTabs()
+              ? "strategic-fit-stage-findings"
+              : "strategic-fit-pane-findings-title"}
             data-queue-filter={currentQueueIntent()
               ? strategicFitFindingQueueFilterKey(currentQueueIntent()!.filter)
               : "none"}
@@ -337,7 +380,10 @@ export default function StrategicFitWorkspace() {
           <section
             id="strategic-fit-pane-evidence"
             class="strategic-fit-workspace-pane strategic-fit-evidence-pane"
-            aria-labelledby="strategic-fit-pane-evidence-title"
+            role={usesStageTabs() ? "tabpanel" : "region"}
+            aria-labelledby={usesStageTabs()
+              ? "strategic-fit-stage-evidence"
+              : "strategic-fit-pane-evidence-title"}
             tabIndex={0}
           >
             <div class="strategic-fit-pane-heading">
@@ -378,7 +424,10 @@ export default function StrategicFitWorkspace() {
           <section
             id="strategic-fit-pane-resolution"
             class="strategic-fit-workspace-pane strategic-fit-resolution-pane"
-            aria-labelledby="strategic-fit-pane-resolution-title"
+            role={usesStageTabs() ? "tabpanel" : "region"}
+            aria-labelledby={usesStageTabs()
+              ? "strategic-fit-stage-resolution"
+              : "strategic-fit-pane-resolution-title"}
             tabIndex={0}
           >
             <div class="strategic-fit-pane-heading">
@@ -390,7 +439,7 @@ export default function StrategicFitWorkspace() {
               </main>
             </>
           )}>
-            <ProfileSetup />
+            <ProfileSetup onComplete={focusAnalysisAction} />
           </Show>
         </Show>
       </section>

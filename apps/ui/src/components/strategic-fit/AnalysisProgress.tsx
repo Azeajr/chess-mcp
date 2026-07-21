@@ -95,7 +95,7 @@ export default function AnalysisProgress(props: { state: StrategicFitLifecycleSn
         value={completed()}
         max={6}
       />
-      <p class="strategic-fit-analysis-progress-live" role="status" aria-live="polite">
+      <p class="strategic-fit-analysis-progress-live" role="status" aria-atomic="true">
         {analysisProgressAnnouncement(props.state)}
       </p>
       <ol class="strategic-fit-analysis-phase-list">

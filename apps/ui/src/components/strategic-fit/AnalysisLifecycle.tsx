@@ -79,9 +79,16 @@ export default function AnalysisLifecycle() {
 
         <div class="strategic-fit-analysis-actions">
           <Show when={isActive(state().status)} fallback={(
-            <button type="button" onClick={run}>{actionLabel(state().status)}</button>
+            <button type="button" data-strategic-fit-analysis-action onClick={run}>
+              {actionLabel(state().status)}
+            </button>
           )}>
-            <button type="button" class="secondary" onClick={cancelStrategicFitAnalysis}>
+            <button
+              type="button"
+              class="secondary"
+              data-strategic-fit-analysis-action
+              onClick={cancelStrategicFitAnalysis}
+            >
               Cancel analysis
             </button>
           </Show>

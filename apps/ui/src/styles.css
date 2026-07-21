@@ -1605,6 +1605,14 @@ img,
 .strategic-fit-workspace:focus {
   outline: none;
 }
+.strategic-fit-workspace :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.strategic-fit-workspace :is(code, pre) {
+  -webkit-user-select: text;
+  user-select: text;
+}
 .strategic-fit-workspace-header {
   display: flex;
   align-items: center;
@@ -1789,6 +1797,9 @@ img,
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.45;
+}
+.strategic-fit-profile-option.selected .strategic-fit-profile-option-description {
+  color: #b4becb;
 }
 .strategic-fit-profile-advanced {
   margin-top: 0.8rem;
@@ -2224,7 +2235,7 @@ img,
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.strategic-fit-preflight-evidence h4 {
+.strategic-fit-preflight-evidence h3 {
   margin: 0.4rem 0 0.25rem;
   color: #cfd5de;
   font-size: 0.65rem;
@@ -2265,6 +2276,7 @@ img,
 .strategic-fit-workspace-pane {
   min-width: 0;
   overflow: auto;
+  overflow-wrap: anywhere;
   padding: 1rem;
   border-right: 1px solid var(--border);
   outline: none;
@@ -3117,7 +3129,8 @@ img,
   gap: 0.08rem;
   margin-bottom: 0.35rem;
 }
-.strategic-fit-comparison-board-card > header strong {
+.strategic-fit-comparison-board-card > header h5 {
+  margin: 0;
   color: #e0e6ed;
   font-size: 0.62rem;
 }
@@ -3294,6 +3307,7 @@ img,
   margin-top: 0.08rem;
   color: #98a7b8;
   font-size: 0.54rem;
+  overflow-wrap: anywhere;
 }
 .strategic-fit-causal-timeline li p {
   margin: 0.24rem 0 0;
@@ -3361,6 +3375,7 @@ img,
     margin-left: auto;
   }
   .strategic-fit-workspace-header button {
+    min-height: 44px;
     padding: 0.44rem 0.58rem;
     font-size: 0.76rem;
   }
@@ -3393,6 +3408,14 @@ img,
     display: grid;
     grid-template-columns: 1fr 1.4fr;
   }
+  .strategic-fit-profile-advanced > summary,
+  .strategic-fit-profile-fields input[type="number"],
+  .strategic-fit-profile-fields input[type="text"],
+  .strategic-fit-range-row,
+  .strategic-fit-range-row input,
+  .strategic-fit-profile-setup-actions button {
+    min-height: 44px;
+  }
   .strategic-fit-analysis-lifecycle {
     max-height: 58vh;
   }
@@ -3412,20 +3435,23 @@ img,
   }
   .strategic-fit-analysis-actions button {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
   }
   .strategic-fit-overview-item button,
   .strategic-fit-overview-entropy > summary,
+  .strategic-fit-preflight-evidence > summary,
+  .strategic-fit-finding-paths > summary,
   .strategic-fit-finding-select,
   .strategic-fit-queue-pagination button,
-  .strategic-fit-queue-intent-banner button {
-    min-height: 42px;
+  .strategic-fit-queue-intent-banner button,
+  .strategic-fit-queue-summary button {
+    min-height: 44px;
   }
   .strategic-fit-queue-controls {
     grid-template-columns: 1fr;
   }
   .strategic-fit-queue-controls select {
-    min-height: 42px;
+    min-height: 44px;
   }
   .strategic-fit-queue-intent-banner,
   .strategic-fit-queue-summary {
@@ -3445,14 +3471,14 @@ img,
   .strategic-fit-comparison-controls select,
   .strategic-fit-line-navigation select,
   .strategic-fit-line-navigation button {
-    min-height: 42px;
+    min-height: 44px;
   }
   .strategic-fit-concept-comparison th,
   .strategic-fit-concept-comparison td {
     padding: 0.32rem;
   }
   .strategic-fit-evidence-expert > summary {
-    min-height: 42px;
+    min-height: 44px;
   }
   .strategic-fit-analysis-phase-list {
     grid-template-columns: 1fr;
@@ -3470,9 +3496,9 @@ img,
   }
   .strategic-fit-stage-nav button {
     min-width: 0;
-    min-height: 42px;
+    min-height: 44px;
     padding: 0.38rem 0.15rem;
-    color: var(--muted);
+    color: #a7abb3;
     font-size: 0.72rem;
   }
   .strategic-fit-stage-nav button.active {
@@ -3498,15 +3524,27 @@ img,
   }
 }
 
+@media (pointer: coarse) {
+  .strategic-fit-workspace :is(
+    button,
+    select,
+    summary,
+    input[type="number"],
+    input[type="text"],
+    input[type="range"]
+  ) {
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .strategic-fit-region-spinner {
     animation: none;
   }
-  .strategic-fit-analysis-progress-card *,
-  .strategic-fit-preflight *,
-  .strategic-fit-overview *,
-  .strategic-fit-evidence * {
+  .strategic-fit-workspace,
+  .strategic-fit-workspace * {
     animation: none !important;
+    scroll-behavior: auto !important;
     transition: none !important;
   }
 }

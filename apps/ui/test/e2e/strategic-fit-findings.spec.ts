@@ -1,4 +1,9 @@
 import { expect, test, type Page } from "playwright/test";
+import {
+  contrastViolations,
+  expectBasicAccessibility,
+  touchTargetViolations,
+} from "./helpers/accessibility";
 
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
@@ -103,7 +108,7 @@ async function installFindingWorkerFixture(page: Page) {
               kind,
               state,
               version: "2.0.0",
-              snapshot: "e2e-fixture",
+              snapshot: "e2e-fixture:strategic-fit-classifier-snapshot-with-a-deliberately-long-unbroken-provenance-identifier-0123456789abcdef",
               reason,
             });
             const boardFens = [
@@ -331,8 +336,14 @@ async function installFindingWorkerFixture(page: Page) {
                         },
                         {
                           dimension_id: "king-and-piece-setup.king-setup",
-                          typical_value: "short-castling",
-                          affected_value: "long-castling",
+                          typical_value: {
+                            setup: "short-castling",
+                            classifier_snapshot_id: "snapshot_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz",
+                          },
+                          affected_value: {
+                            setup: "long-castling",
+                            classifier_snapshot_id: "snapshot_abcdefghijklmnopqrstuvwxyz9876543210ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                          },
                           contribution: 0.1,
                           explanation: "King setup contributes 10% of normalized distance.",
                         },
@@ -874,4 +885,146 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+});
+
+test("phone can complete the full review journey with the keyboard only and return safely", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFindingWorkerFixture(page);
+  await page.goto("/");
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "keyboard-review.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+
+  const opener = page.getByRole("button", { name: "Open workspace" });
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
+  await expect(dialog.getByRole("button", { name: "Return to repertoire" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("radio", { name: /Balanced/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByText("Advanced preferences", { exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Skip for now" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Use Balanced profile" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  const analyze = dialog.getByRole("button", { name: "Analyze strategic fit" });
+  await expect(analyze).toBeFocused();
+  const settledBefore = await chess(page, (api) => ({
+    pgn: api.toPgn(),
+    version: api.version(),
+    dirty: api.dirty(),
+    preview: JSON.stringify(api.preview()),
+    metadata: JSON.stringify(api.strategicFitMetadata()),
+  }));
+  await page.keyboard.press("Enter");
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
+
+  const overviewTab = dialog.getByRole("tab", { name: "Overview" });
+  for (let index = 0; index < 6 && !(await overviewTab.evaluate((element) => element === document.activeElement)); index++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(overviewTab).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  const findingsTab = dialog.getByRole("tab", { name: "Findings" });
+  await expect(findingsTab).toBeFocused();
+  await expect(dialog.locator("#strategic-fit-pane-findings")).toBeVisible();
+
+  const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
+  for (let index = 0; index < 12 && !(await firstFinding.evaluate((element) => element === document.activeElement)); index++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(firstFinding).toBeFocused();
+  await page.keyboard.press("Enter");
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidencePane).toBeVisible();
+  await expect(evidencePane).toBeFocused();
+  await expect(dialog.locator("[data-board-read-only='true']")).toHaveCount(2);
+
+  const sourceLine = evidencePane.getByRole("combobox", {
+    name: "Affected source line",
+    exact: true,
+  });
+  for (let index = 0; index < 8 && !(await sourceLine.evaluate((element) => element === document.activeElement)); index++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(sourceLine).toBeFocused();
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowUp");
+  await expect(sourceLine).toHaveValue("3");
+  await page.keyboard.press("Tab");
+  const goToLine = evidencePane.getByRole("button", { name: "Go to line" });
+  await expect(goToLine).toBeFocused();
+  await page.keyboard.press("Enter");
+  expect(await chess(page, (api) => api.currentPath())).toEqual([0, 0, 0, 0]);
+  expect(await chess(page, (api) => ({
+    pgn: api.toPgn(),
+    version: api.version(),
+    dirty: api.dirty(),
+    preview: JSON.stringify(api.preview()),
+    metadata: JSON.stringify(api.strategicFitMetadata()),
+  }))).toEqual(settledBefore);
+
+  const evidenceTab = dialog.getByRole("tab", { name: "Evidence" });
+  for (let index = 0; index < 8 && !(await evidenceTab.evaluate((element) => element === document.activeElement)); index++) {
+    await page.keyboard.press("Shift+Tab");
+  }
+  await expect(evidenceTab).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(overviewTab).toBeFocused();
+  const close = dialog.getByRole("button", { name: "Return to repertoire" });
+  for (let index = 0; index < 6 && !(await close.evaluate((element) => element === document.activeElement)); index++) {
+    await page.keyboard.press("Shift+Tab");
+  }
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
+test("completed desktop and phone review pass accessibility, overflow, and visual baselines", async ({ page }) => {
+  const { dialog } = await bootstrap(page);
+  const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
+  await firstFinding.click();
+  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+  const expert = evidencePane.locator(".strategic-fit-evidence-expert");
+
+  const close = dialog.getByRole("button", { name: "Return to repertoire" });
+  await close.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(expert.locator("summary")).toBeFocused();
+  expect(await expert.locator("summary").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
+  })).toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+
+  await expert.locator("summary").click();
+  await evidencePane.getByRole("combobox", {
+    name: "Affected source line",
+    exact: true,
+  }).selectOption("4");
+  await expectBasicAccessibility(dialog);
+  expect(await contrastViolations(dialog)).toEqual([]);
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(dialog).toHaveScreenshot("strategic-fit-review-desktop.png", {
+    animations: "disabled",
+    caret: "hide",
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
+  await expectBasicAccessibility(dialog);
+  expect(await touchTargetViolations(dialog)).toEqual([]);
+  expect(await contrastViolations(dialog)).toEqual([]);
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(dialog).toHaveScreenshot("strategic-fit-review-phone.png", {
+    animations: "disabled",
+    caret: "hide",
+  });
 });

@@ -87,7 +87,7 @@ export default function FindingQueue(props: {
       data-queue-status={state().status}
     >
       <Show when={state().status === "loading"}>
-        <div class="strategic-fit-region-state" role="status" aria-live="polite">
+        <div class="strategic-fit-region-state" role="status">
           <span class="strategic-fit-region-spinner" aria-hidden="true" />
           <div>
             <strong>Loading the complete finding queue</strong>

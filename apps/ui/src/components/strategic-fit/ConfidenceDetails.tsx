@@ -150,6 +150,7 @@ export function ConfidenceExpertValues(props: { confidence: FindingConfidence })
       </p>
       <div class="strategic-fit-expert-table-wrap">
         <table>
+          <caption class="sr-only">Confidence components, weights, and report explanations</caption>
           <thead>
             <tr>
               <th scope="col">Component</th>
