@@ -20,10 +20,7 @@ async function markdownFiles(directory = rootUrl, prefix = "") {
 }
 
 const files = await markdownFiles();
-const currentFiles = files.filter((file) =>
-  !file.startsWith("docs/archive/")
-  && file !== "docs/TOOL_CATALOG.md"
-);
+const currentFiles = files.filter((file) => file !== "docs/TOOL_CATALOG.md");
 const problems = [];
 const semanticRules = [
   [/\b(?:get_current_line|get_document_summary|expand_capabilities)\b/, "removed browser command"],

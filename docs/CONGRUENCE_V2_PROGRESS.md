@@ -44,92 +44,28 @@
 | 5.8 | Complete | `a6fd89f` | Coordinator: comparison/evidence/queue/workspace behavioral 19/19; targeted findings/comparison Playwright 6/6; UI behavioral 106/106; full Playwright 60/60; UI production build with worker-boundary check; monorepo typecheck; Phase 5 gate | Current-report-only evidence comparison with two synchronized read-only Chessground boards for the affected branch and typical cohort, preserving every affected and representative route ID plus every source SAN path. Canonical matched milestones synchronize honestly while mismatched, incomplete, missing, not-comparable, and unavailable checkpoints remain explicit; White and Black repertoire orientation is correct. The causal timeline presents all six canonical event kinds with text, distinct icons, and visible pattern names so it does not depend on color. Passive route, milestone, source-path, and timeline controls preserve navigation and repertoire state; only the explicit accessible Go to line action invokes canonical navigation after report, finding, document, revision, PGN, color, and SAN-path validation. Navigation preserves repertoire content, revision, metadata, and staged actions. Report replacement/staleness resets local comparison state, phone boards stack, and long SAN paths remain contained. No Task 5.9 resolution mutation UI. The implementation agent reported the same green gate independently. |
 | 5.9 | Complete | `b460d99` | Implementer and role-separated same-session coordinator: targeted accessibility/findings Playwright 11/11; UI behavioral 106/106; full Playwright 65/65; UI production build with worker-boundary check; monorepo typecheck; Phase 5 gate | Complete Phase 5 accessibility and mobile hardening with coherent phone-only tab/tabpanel semantics, keyboard stage movement and full setup-to-review journey, exact focus transfer/restoration and disclosure trapping, de-duplicated atomic live regions, corrected headings and board relationships, visible focus, 44px phone/coarse-pointer targets, contrast corrections, long SAN/provenance containment, selectable evidence text, and workspace-wide reduced motion. Dependency-free DOM/name/relationship, contrast, target-size, overflow, immutability, and deterministic desktop/phone screenshot assertions cover the completed workflow. Read-only comparison boards disable unused drawing SVGs so multiple boards cannot introduce duplicate document IDs. The coordinator phase was performed by the same session at the user's direction, after the implementation commit, and reproduced the complete gate from committed state. No Task 6.1 resolution work. |
 
-## Coordinator state
+## Current handoff
 
-- Independently verified through Task 5.1 at `a44259b` (`feat: add strategic fit workspace shell`).
-- Latest coordinator rerun: `pnpm exec tsx --test apps/ui/test/strategic-fit-workspace.test.ts`
-  passed 3/3; `pnpm exec playwright test --config apps/ui/playwright.config.ts
-  apps/ui/test/e2e/strategic-fit-workspace.spec.ts` passed 4/4; `pnpm --filter @chess-mcp/ui
-  test:chat` passed 71/71; `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent
-  from the main-thread bundle; `pnpm exec playwright test --config apps/ui/playwright.config.ts`
-  passed 36/36; and `pnpm -r typecheck` passed all three projects. Desktop and phone shells,
-  empty/loading/error regions, bidirectional focus trapping, exact opener restoration, state
-  preservation, and absence of analysis/Worker startup are reproduced.
-- Independently verified through Task 5.2 at `17e2d01` (`feat: add strategic fit profile setup`).
-- Latest coordinator rerun: `pnpm exec tsx --test
-  apps/ui/test/strategic-fit-profile-setup.test.ts` passed 4/4; targeted setup/workspace Playwright
-  passed 8/8; `pnpm --filter @chess-mcp/ui test:chat` passed 75/75; `pnpm --filter
-  @chess-mcp/ui build` passed with the analyzer absent from the main-thread bundle; full
-  Playwright passed 40/40; and `pnpm -r typecheck` passed all three projects. First-run defaults,
-  session-only skip/inference, explicit/custom persistence, bounded accessible inputs, responsive
-  layout, state preservation, and absence of analysis/Worker startup are reproduced.
-- Independently verified through Task 5.3 at `b36df3d` (`fix: flush sidecar document binding before
-  reload`), following the lifecycle implementation at `4c2d134`.
-- Latest coordinator rerun: lifecycle/settings behavioral tests passed 13/13; targeted
-  lifecycle/setup/workspace Playwright passed 13/13; the formerly timing-sensitive sidecar
-  import/reload passed 12/12 repeated runs; `pnpm --filter @chess-mcp/ui test:chat` passed 82/82;
-  `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent from the main-thread bundle;
-  full Playwright passed 45/45; and `pnpm -r typecheck` passed all three projects. Registry-only
-  execution, lifecycle races, read-only settings identity, stale/current/previous semantics,
-  native degraded evidence, and sequenced document-binding durability are reproduced.
-- Independently verified through Task 5.4 at `6492f71` (`fix: preserve blocked preflight phase
-  history`), following the phase/preflight implementation at `27892de`.
-- Latest coordinator rerun: phase/preflight behavioral tests passed 11/11; targeted
-  preflight/lifecycle Playwright passed 11/11; `pnpm --filter @chess-mcp/ui test:chat` passed
-  86/86; `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent from the main-thread
-  bundle; full Playwright passed 51/51; and `pnpm -r typecheck` passed all three projects. Frozen
-  phase ordering, blocked/degraded/ready evidence, safe count withholding, cache/cancel/stale
-  history, the blocked-completed-to-stale regression, reduced motion, and registry-only execution
-  are reproduced.
-- Independently verified through Task 5.5 at `ca9880c` (`fix: withhold unsafe overview branch
-  counts`), following the strategic-overview implementation at `3bccbeb`.
-- Latest coordinator rerun: overview/workspace behavioral tests passed 8/8; targeted
-  overview/preflight/workspace Playwright passed 13/13; `pnpm --filter @chess-mcp/ui test:chat`
-  passed 91/91; `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent from the
-  main-thread bundle; full Playwright passed 54/54; and `pnpm -r typecheck` passed all three
-  projects. Canonical value reconciliation, partial/unavailable reasons, meaningful versus unsafe
-  zero counts, entropy qualification, complete screen-reader summary, report-bound queue intent,
-  focus transfer, and repertoire immutability are reproduced.
-- Independently verified through Task 5.6 at `0bf5eeb` (`fix: reset finding queue on workspace
-  close`), following the finding-queue implementation at `f5676fd`.
-- Latest coordinator rerun: queue/card/overview/workspace behavioral tests passed 16/16; targeted
-  findings/overview/workspace Playwright passed 10/10; `pnpm --filter @chess-mcp/ui test:chat`
-  passed 99/99; `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent from the
-  main-thread bundle; full Playwright passed 57/57, including the sidecar case that was transient
-  in the agent's first gate; and `pnpm -r typecheck` passed all three projects. Frozen card fields,
-  every classification, missing optional evidence, multi-path fidelity, canonical sorting/paging,
-  composed filters, keyboard selection, report/reset isolation, unmount abort, late-page discard,
-  same-report reopen, and repertoire immutability are reproduced.
-- Independently verified through Task 5.7 at `6322f96` (`feat: add strategic fit evidence
-  inspector`).
-- Latest coordinator rerun: evidence behavioral tests passed 4/4 and focused
-  queue/overview/workspace behavioral tests passed 16/16; targeted findings/evidence Playwright
-  passed 4/4; `pnpm --filter @chess-mcp/ui test:chat` passed 103/103; `pnpm --filter
-  @chess-mcp/ui build` passed with the analyzer absent from the main-thread bundle; full
-  Playwright passed 58/58; and `pnpm -r typecheck` passed all three projects. Typical-versus-branch
-  values, honest contribution reconciliation, high/moderate/low confidence, all cap labels,
-  missing components, comparison basis, source paths, limitations, exact provenance, one-step
-  expert disclosure, explicit Black repertoire POV, selection focus/reset, responsive Evidence
-  flow, navigation preservation, and repertoire immutability are reproduced.
-- Independently verified through Task 5.8 at `a6fd89f` (`feat: add strategic fit boards and
-  timeline`).
-- Latest coordinator rerun: comparison/evidence/queue/workspace behavioral tests passed 19/19;
-  targeted findings/comparison Playwright passed 6/6; `pnpm --filter @chess-mcp/ui test:chat`
-  passed 106/106; `pnpm --filter @chess-mcp/ui build` passed with the analyzer absent from the
-  main-thread bundle; full Playwright passed 60/60; and `pnpm -r typecheck` passed all three
-  projects. Canonical milestone synchronization, explicit mismatch/incomplete/missing states,
-  affected/baseline route and all-path preservation, genuinely read-only White/Black-oriented
-  boards, all six no-color timeline events, guarded explicit-only navigation, stale/report reset,
-  phone stacking, long-path containment, metadata/staged-state preservation, and repertoire
-  immutability are reproduced.
-- Verified Task 5.9 at `b460d99` (`feat: complete strategic fit accessibility`).
-- Latest coordinator rerun: targeted accessibility/findings Playwright passed 11/11; `pnpm --filter
-  @chess-mcp/ui test:chat` passed 106/106; `pnpm --filter @chess-mcp/ui build` passed with the
-  analyzer absent from the main-thread bundle; full Playwright passed 65/65; `pnpm -r typecheck`
-  passed all three projects; and `pnpm docs:check` passed. Phone-only tabs and panels, full
-  keyboard setup/review/navigation/return, exact focus behavior, live-region and heading semantics,
-  duplicate-ID prevention, contrast, touch targets, long-content containment, reduced motion,
-  deterministic desktop/phone screenshots, navigation-only behavior, and repertoire/metadata/staged
-  state immutability are reproduced. Per the user's direction, this coordinator verification was a
-  role-separated second pass by the same session after the implementation commit.
-- No blocker remains. No Task 6.1 work has started.
+- Verified scope: Tasks 0.1 through 5.9 are complete. Task 5.9 implementation is `b460d99` and its
+  separate verification record is `fdff21f`. The table above is the retained task-by-task ledger;
+  Git history preserves the removed coordinator chronology.
+- Next boundary: Task 6.1, **Implement the finding resolution state machine**, from
+  `docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`. Dependencies 4.5 and 5.6 are complete.
+- Required role split: the new main session acts only as coordinator, launches exactly one separate
+  implementation agent, and keeps the shared worktree read-only while that agent owns the task.
+  Do not combine implementation and validation by switching hats.
+- Ground truth: confirm branch, `HEAD`, upstream, clean worktree, recent commits, and active agents
+  before delegation. Repository evidence overrides this snapshot. Old session logs are not needed
+  unless current repository evidence leaves a specific conflict unresolved.
+- Task 6.1 scope: reversible keep-intentionally, defer, exclude, invalid-comparison,
+  reopen, and automatically-resolved transitions with optional structured reasons/notes. Changes
+  are metadata-only, use semantic finding/decision identity, update the queue without mutating the
+  repertoire, and visibly block stale actions.
+- Required Task 6.1 coverage: every transition, undo/reopen, persistence, stale semantic reference,
+  and queue-count updates. Do not begin Task 6.2 cohort adjustment, Task 6.3 training, Task 6.4
+  reanalysis, or Task 6.5 review summary work.
+- Practical Phase 6 gate: `pnpm test:strategic-fit`, `pnpm --filter @chess-mcp/ui test:chat`,
+  `pnpm exec playwright test --config apps/ui/playwright.config.ts`, and
+  `pnpm --filter @chess-mcp/ui build`, plus focused Task 6.1 checks identified from the implementation.
+- No blocker is recorded, no Task 6.1 work has started, and nothing has been pushed, tagged, or
+  released as part of Tasks 5.1–5.9.

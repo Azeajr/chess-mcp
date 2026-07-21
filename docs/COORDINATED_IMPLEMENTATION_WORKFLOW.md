@@ -10,6 +10,10 @@ The workflow is deliberately task-agnostic. The repository, governing design doc
 implementation plan, and progress ledger determine the next task. A handoff summary is only a hint;
 the actual Git state and current sources of truth always win.
 
+The current task snapshot belongs only in the `Current handoff` section of the initiative progress
+ledger. Old chat/session logs are non-authoritative recovery evidence and should not be read during a
+normal handoff unless the repository cannot resolve a concrete ambiguity.
+
 For Congruence 2.0 work, the required governing documents are:
 
 - `AGENTS.md`
@@ -30,6 +34,10 @@ version, or creating a release.
 The coordinator owns task selection, delegation, review, independent verification, and the final
 progress record. The coordinator does not act as the implementation agent and does not write or
 repair production code or tests for the delegated task.
+
+This is real role separation, not a narrative “hat switch.” If a session cannot launch a separate
+implementation agent, it must stop before implementation and report that the required workflow is
+unavailable.
 
 The coordinator must:
 
@@ -97,6 +105,10 @@ The coordinator starts with read-only inspection:
 - inspect the progress ledger for completed and pending work;
 - compare the ledger with commits and the actual implementation;
 - identify dependencies and any unfinished correction or verification work.
+
+The coordinator should not reconstruct routine state from old Codex/Claude session logs. Consult
+them only when Git, the current sources, tests, and the progress ledger leave a specific conflict
+unresolved, and record why they were needed.
 
 If a handoff names a task that conflicts with repository evidence, the coordinator resolves the
 conflict before delegation and reports the result to the user.
@@ -217,11 +229,14 @@ coordinator pauses before delegation and asks the user how to proceed.
 
 ## Starting a new session
 
-A task-specific handoff prompt is unnecessary. The user can direct a new session with:
+A task-specific copied summary is unnecessary. The user can direct a new session with:
 
-> Read `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md` completely and follow it for the next incomplete
-> task recorded by the repository.
+> Read `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md` completely and act only as coordinator. Read all
+> governing documents, confirm actual Git/worktree/agent state, take the next task from the current
+> progress-ledger handoff, launch exactly one separate implementation agent, keep the main session
+> read-only while it works, independently review and reproduce verification from its commit, record
+> verification in a separate docs commit, and stop at that task boundary.
 
 That single instruction is sufficient. The workflow itself requires the coordinator to read
 `AGENTS.md` and every initiative-specific governing document it names, confirm the actual Git state,
-and derive the task from current repository evidence.
+derive the task from current repository evidence, and preserve the coordinator/implementer split.

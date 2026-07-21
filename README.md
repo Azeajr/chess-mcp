@@ -95,4 +95,6 @@ Use `pnpm docs:generate` after changing the canonical registry; do not edit the 
 - [Tool catalog](docs/TOOL_CATALOG.md): generated host inventories and contract metadata.
 - [PWA product](docs/PWA_PRODUCT.md): conversation, direct analysis, actions, and artifacts.
 - [Roadmap](ROADMAP.md): unshipped work only.
-- [Archive](docs/archive/README.md): superseded design rationale and review records.
+- [Strategic Fit progress](docs/CONGRUENCE_V2_PROGRESS.md): verified task ledger and current handoff.
+- [Coordinated workflow](docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md): required coordinator and
+  implementation-agent procedure for the next Strategic Fit task.
