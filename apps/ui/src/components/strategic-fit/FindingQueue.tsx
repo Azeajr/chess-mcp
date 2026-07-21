@@ -53,6 +53,7 @@ export default function FindingQueue(props: {
   intent: StrategicFitFindingQueueIntent | null;
   resolutionState?: (finding: StrategicFitAnalysisResult["findings"][number]) =>
     StrategicFitDisplayedResolutionState;
+  cohortName?: (finding: StrategicFitAnalysisResult["findings"][number]) => string;
 }) {
   createEffect(() => {
     void strategicFitFindingQueue.synchronize(props.report, props.intent);
@@ -213,6 +214,7 @@ export default function FindingQueue(props: {
                 <FindingCard
                   finding={finding}
                   resolutionState={props.resolutionState?.(finding)}
+                  cohortName={props.cohortName?.(finding)}
                   selected={state().selected_finding_id === finding.finding_id}
                   onSelect={selectFinding}
                 />

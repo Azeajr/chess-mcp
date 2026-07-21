@@ -51,6 +51,7 @@ export interface StrategicFitSidecarMetadataPresence {
   readonly decision_weights: boolean;
   readonly cohort_overrides: boolean;
   readonly exclusions: boolean;
+  readonly cohort_labels: boolean;
   readonly resolutions: boolean;
   readonly archive_references: boolean;
   readonly training_references: boolean;
@@ -134,6 +135,7 @@ function completePartialMetadata(value: RecordLike): {
     decision_weights: manual !== null && Object.hasOwn(manual, "decision_weights"),
     cohort_overrides: Object.hasOwn(value, "cohort_overrides"),
     exclusions: Object.hasOwn(value, "exclusions"),
+    cohort_labels: Object.hasOwn(value, "cohort_labels"),
     resolutions: Object.hasOwn(value, "resolutions"),
     archive_references: Object.hasOwn(value, "archive_references"),
     training_references: Object.hasOwn(value, "training_references"),
@@ -153,6 +155,7 @@ function completePartialMetadata(value: RecordLike): {
           },
       cohort_overrides: presence.cohort_overrides ? value.cohort_overrides : [],
       exclusions: presence.exclusions ? value.exclusions : [],
+      cohort_labels: presence.cohort_labels ? value.cohort_labels : [],
       resolutions: presence.resolutions ? value.resolutions : [],
       archive_references: presence.archive_references ? value.archive_references : [],
       training_references: presence.training_references ? value.training_references : [],
@@ -200,7 +203,8 @@ export function parseStrategicFitSidecar(
   }
   const allowedMetadata = new Set([
     "metadata_kind", "metadata_version", "profile", "manual_weights", "cohort_overrides",
-    "exclusions", "resolutions", "archive_references", "training_references", "provenance",
+    "exclusions", "cohort_labels", "resolutions", "archive_references", "training_references",
+    "provenance",
   ]);
   const unknownMetadata = Object.keys(value.metadata).sort().find((key) => !allowedMetadata.has(key));
   if (unknownMetadata !== undefined) {
@@ -260,6 +264,7 @@ export interface StrategicFitSidecarMergePreview {
     readonly route_weights: StrategicFitSidecarCollectionPreview;
     readonly decision_weights: StrategicFitSidecarCollectionPreview;
     readonly overrides: StrategicFitSidecarCollectionPreview;
+    readonly cohort_labels: StrategicFitSidecarCollectionPreview;
     readonly resolutions: StrategicFitSidecarCollectionPreview;
     readonly archive_references: StrategicFitSidecarCollectionPreview;
     readonly training_references: StrategicFitSidecarCollectionPreview;
@@ -321,6 +326,11 @@ export function previewStrategicFitSidecarMerge(
     ...(parsed.presence.exclusions ? incoming.exclusions : []),
   ];
   const overrides = mergedRecords(localOverrides, incomingOverrides, (entry) => entry.override_id);
+  const cohortLabels = mergedRecords(
+    local.cohort_labels,
+    parsed.presence.cohort_labels ? incoming.cohort_labels : [],
+    (entry) => entry.label_id,
+  );
   const resolutions = mergedRecords(
     local.resolutions,
     parsed.presence.resolutions ? incoming.resolutions : [],
@@ -350,6 +360,7 @@ export function previewStrategicFitSidecarMerge(
     },
     cohort_overrides: overrides.records.filter((entry) => entry.kind !== "exclude"),
     exclusions: overrides.records.filter((entry) => entry.kind === "exclude"),
+    cohort_labels: cohortLabels.records,
     resolutions: resolutions.records,
     archive_references: archives.records,
     training_references: training.records,
@@ -369,6 +380,7 @@ export function previewStrategicFitSidecarMerge(
       route_weights: routeWeights.preview,
       decision_weights: decisionWeights.preview,
       overrides: overrides.preview,
+      cohort_labels: cohortLabels.preview,
       resolutions: resolutions.preview,
       archive_references: archives.preview,
       training_references: training.preview,

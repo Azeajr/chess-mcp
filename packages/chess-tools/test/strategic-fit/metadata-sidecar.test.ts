@@ -92,6 +92,16 @@ function metadata(label: string): StrategicFitDocumentMetadata {
       }],
       decision_weights: [],
     },
+    cohort_labels: [{
+      label_id: "cohort-label:shared",
+      cohort_id: "cohort:shared",
+      display_name: label === "incoming" ? "Incoming name" : "Local name",
+      record_state: "active",
+      stale_reasons: [],
+      reason: label,
+      updated_at: "2026-07-17T12:00:00.000Z",
+      provenance: [SOURCE],
+    }],
     resolutions: [resolution("semantic:shared", `resolution:${label}`)],
     provenance: [{ ...SOURCE, source_id: `sidecar:${label}` }],
   };
@@ -111,6 +121,7 @@ test("sidecar export is deterministic, round-trips, and strips malicious secrets
   if (!("ok" in parsed)) return;
   assert.deepEqual(parsed.sidecar.metadata, metadata("local"));
   assert.equal(parsed.presence.resolutions, true);
+  assert.equal(parsed.presence.cohort_labels, true);
 });
 
 test("untrusted sidecars return stable structured errors for malformed, malicious, and incompatible data", () => {
@@ -215,6 +226,7 @@ test("merge preview replaces durable identities, preserves unmatched records, an
   assert.deepEqual(preview.collections.route_weights.added, ["route:added"]);
   assert.deepEqual(preview.collections.decision_weights.replaced, ["decision:shared"]);
   assert.deepEqual(preview.collections.overrides.replaced, ["override:shared"]);
+  assert.deepEqual(preview.collections.cohort_labels.replaced, ["cohort-label:shared"]);
   assert.deepEqual(preview.collections.resolutions.replaced, ["semantic-finding:semantic:shared"]);
   assert.deepEqual(preview.collections.archive_references.replaced, ["archive:shared"]);
   assert.deepEqual(preview.collections.training_references.replaced, ["training:shared"]);
@@ -224,6 +236,7 @@ test("merge preview replaces durable identities, preserves unmatched records, an
   assert.equal(preview.merged_metadata.resolutions.find((entry) => entry.semantic_finding_id === "semantic:stale")?.record_state, "stale");
   assert.equal(preview.merged_metadata.exclusions[0]?.override_id, "override:shared");
   assert.equal(preview.merged_metadata.cohort_overrides.length, 0);
+  assert.equal(preview.merged_metadata.cohort_labels[0]?.display_name, "Incoming name");
   assert.equal(preview.merged_metadata.training_references[0]?.finding_id, "finding:incoming");
 });
 
@@ -248,6 +261,7 @@ test("missing incoming collections preserve local records while a supplied profi
   assert.equal(preview.profile.changed, true);
   assert.equal(preview.merged_metadata.profile.preferences.preferred_concept_ids[0], "concept:incoming");
   assert.deepEqual(preview.merged_metadata.resolutions, local.resolutions);
+  assert.deepEqual(preview.merged_metadata.cohort_labels, local.cohort_labels);
   assert.deepEqual(preview.collections.resolutions.preserved, ["semantic-finding:semantic:shared"]);
 });
 

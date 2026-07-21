@@ -206,6 +206,7 @@ export function buildEvidencePresentation(
 export default function EvidencePanel(props: {
   reportId: string;
   finding: StrategicFinding;
+  cohortName: string;
   trajectories: readonly StrategicTrajectory[];
   preflightIssues: readonly PreflightIssue[];
   repertoireColor: Color;
@@ -232,6 +233,7 @@ export default function EvidencePanel(props: {
         <span>Selected finding</span>
         <h3>{props.finding.plain_language_category}</h3>
         <p>{props.finding.opening_scope} · {props.finding.affected_line_summary}</p>
+        <p>Cohort: <strong>{props.cohortName}</strong></p>
       </header>
 
       <ComparisonBoards

@@ -17,6 +17,7 @@ type ChessHarness = {
   setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
+  strategicFitLifecycle(): any;
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
@@ -481,6 +482,61 @@ async function installFindingWorkerFixture(page: Page) {
               };
             };
             const findings = Array.from({ length: 12 }, (_, index) => finding(index));
+            const routeA = "route:d0915031cdecff76";
+            const routeB = "route:e93bfad5d54ea7a2";
+            const requestedOverrides = message.payload.options.cohorts?.overrides ?? [];
+            const requestedKind = requestedOverrides.at(-1)?.kind ?? "automatic";
+            const cohort = (
+              cohortId: string,
+              routeIds: string[],
+              excludedRouteIds: string[] = [],
+            ) => ({
+              analysis_version: analysisVersion,
+              cohort_id: cohortId,
+              state: routeIds.length > 1 ? "actionable" : "insufficient-evidence",
+              opening_scope_ids: [`opening:${cohortId}`],
+              decision_scope_ids: [
+                "decision:e4e5e82a5c33c5ff",
+                "decision:c355600852e94946",
+              ],
+              route_ids: routeIds,
+              excluded_route_ids: excludedRouteIds,
+              route_weights: routeIds.map((routeId) => ({
+                route_id: routeId,
+                normalized_weight: 1 / routeIds.length,
+              })),
+              effective_sample_size: routeIds.length,
+              modes: routeIds.length === 0 ? [] : [{
+                analysis_version: analysisVersion,
+                mode_id: `mode:${cohortId}`,
+                cohort_id: cohortId,
+                representative_route_id: routeIds[0],
+                supporting_route_ids: routeIds,
+                concept_ids: [],
+                normalized_weight: 1,
+                effective_sample_size: routeIds.length,
+                source: "inferred-medoid",
+                provenance: [source("cohort:fixture", "deterministic-core")],
+              }],
+              override_ids: requestedOverrides.map((entry: any) => entry.override_id),
+              provenance: [source("cohort:fixture", "deterministic-core")],
+            });
+            const cohorts = requestedKind === "merge"
+              ? [cohort("cohort:merged", [routeA, routeB])]
+              : requestedKind === "split"
+                ? [cohort("cohort:split:a", [routeA]), cohort("cohort:split:b", [routeB])]
+                : requestedKind === "exclude"
+                  ? [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [], [routeB])]
+                  : [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [routeB])];
+            const effectiveFindings = findings.map((entry, index) => ({
+              ...entry,
+              evidence: {
+                ...entry.evidence,
+                cohort_id: requestedKind === "merge"
+                  ? "cohort:merged"
+                  : index === 0 ? cohorts[0].cohort_id : cohorts.at(-1).cohort_id,
+              },
+            }));
             const metric = (metricId: string, unit: string, value: unknown) => ({
               analysis_version: analysisVersion,
               metric_id: metricId,
@@ -497,7 +553,7 @@ async function installFindingWorkerFixture(page: Page) {
                 result: {
                   schema_version: "1.0.0",
                   analysis_version: analysisVersion,
-                  report_id: `report:findings:${message.payload.metadata.repertoire_revision}`,
+                  report_id: `report:findings:${message.payload.metadata.repertoire_revision}:${requestedKind}`,
                   repertoire_revision: message.payload.metadata.repertoire_revision,
                   manifest: {
                     schema_version: "1.0.0",
@@ -525,7 +581,7 @@ async function installFindingWorkerFixture(page: Page) {
                     incomplete_route_count: 0,
                   },
                   trajectories: comparisonTrajectories,
-                  cohorts: [],
+                  cohorts,
                   summary: {
                     analysis_version: analysisVersion,
                     workload: "moderate",
@@ -555,12 +611,12 @@ async function installFindingWorkerFixture(page: Page) {
                       concept_centrality: metric("concept-centrality", "composite", []),
                     },
                   },
-                  findings,
+                  findings: effectiveFindings,
                   finding_page: {
                     offset: 0,
-                    limit: findings.length,
-                    total_count: findings.length,
-                    returned_count: findings.length,
+                    limit: effectiveFindings.length,
+                    total_count: effectiveFindings.length,
+                    returned_count: effectiveFindings.length,
                     has_more: false,
                   },
                   provenance: { generated_at: "2026-07-18T00:00:00.000Z", sources: [] },
@@ -794,6 +850,115 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   await expect(restoredDialog.locator("[data-resolution-blocked]")).toContainText(
     "Resolution actions are blocked while this report is stale",
   );
+});
+
+test("cohort adjustments preview exact impact, persist metadata-only, reanalyze, reset, and block stale confirmation", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const initialVersion = await chess(page, (api) => api.version());
+  const initialDirty = await chess(page, (api) => api.dirty());
+  const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  const selectFirst = async () => {
+    await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+    await expect(dialog.locator("[data-cohort-editor]")).toBeVisible();
+    return dialog.locator("[data-cohort-editor]");
+  };
+
+  let editor = await selectFirst();
+  await editor.getByRole("button", { name: "Preview adjustment" }).click();
+  await expect(editor.getByRole("alert")).toContainText("Choose routes from the cohorts to merge");
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
+
+  await editor.locator("input[value='route:d0915031cdecff76']").check();
+  await editor.locator("input[value='route:e93bfad5d54ea7a2']").check();
+  await editor.getByLabel("Optional reason").fill("These routes share one practical repertoire plan.");
+  await editor.getByRole("button", { name: "Preview adjustment" }).click();
+  const mergePreview = editor.locator(".strategic-fit-cohort-preview");
+  await expect(mergePreview).toContainText("Exact impact before confirmation");
+  await expect(mergePreview.locator("dl > div", { hasText: "Current cohorts" })).toContainText("2");
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText("1");
+  await expect(mergePreview.locator("dl > div", { hasText: "Affected routes" })).toContainText("2");
+  await expect(mergePreview).toContainText("route:d0915031cdecff76");
+  await expect(mergePreview).toContainText("route:e93bfad5d54ea7a2");
+  await expect(mergePreview.locator("dl > div", { hasText: "Current baselines" })).toContainText("2");
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed baselines" })).toContainText("1");
+  await expect(mergePreview.locator("dl > div", { hasText: "Current findings" })).toContainText("12");
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed findings" })).toContainText("12");
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
+
+  await mergePreview.getByRole("button", { name: "Confirm and analyze again" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.report_id ?? null
+  )).toContain(":merge");
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toMatchObject([{
+    kind: "merge",
+    route_ids: ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"],
+    record_state: "active",
+  }]);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => api.version())).toBe(initialVersion);
+  expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
+  expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
+
+  editor = await selectFirst();
+  await editor.getByRole("radio", { name: /Restore automatic cohorts/ }).check();
+  await editor.getByLabel("Saved adjustment to remove").selectOption({ index: 1 });
+  await editor.getByRole("button", { name: "Preview adjustment" }).click();
+  await expect(editor.locator(".strategic-fit-cohort-preview")).toContainText("cohort:fixture");
+  await editor.getByRole("button", { name: "Confirm and analyze again" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.report_id ?? null
+  )).toContain(":automatic");
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
+
+  editor = await selectFirst();
+  await editor.getByRole("radio", { name: /Rename cohort/ }).check();
+  await editor.getByRole("textbox", { name: "User-facing name", exact: true })
+    .fill("Unified e4 repertoire");
+  await editor.getByRole("button", { name: "Preview adjustment" }).click();
+  const renamePreview = editor.locator(".strategic-fit-cohort-preview");
+  await expect(renamePreview.locator("dl > div", { hasText: "Current cohorts" })).toContainText("cohort:fixture");
+  await expect(renamePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText("cohort:fixture");
+  await renamePreview.getByRole("button", { name: "Confirm and analyze again" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitMetadata().cohort_labels[0]?.display_name ?? null
+  )).toBe("Unified e4 repertoire");
+  await expect(queue.locator("[data-finding-id='finding:01']")).toContainText("Unified e4 repertoire");
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await page.getByRole("button", { name: "Open workspace" }).click();
+  const restored = page.getByRole("dialog", { name: "Strategic Fit" });
+  await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
+  await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
+  const restoredQueue = restored.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await expect(restoredQueue.locator("[data-finding-id='finding:01']"))
+    .toContainText("Unified e4 repertoire");
+  await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const restoredEditor = restored.locator("[data-cohort-editor]");
+  await restoredEditor.getByRole("radio", { name: /Restore automatic cohorts/ }).check();
+  await restoredEditor.getByLabel("Saved adjustment to remove").selectOption({ index: 1 });
+  await restoredEditor.getByRole("button", { name: "Preview adjustment" }).click();
+  await restoredEditor.getByRole("button", { name: "Confirm and analyze again" }).click();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadata().cohort_labels.length)).toBe(0);
+
+  await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const staleEditor = restored.locator("[data-cohort-editor]");
+  await staleEditor.locator("input[value='route:d0915031cdecff76']").check();
+  await staleEditor.locator("input[value='route:e93bfad5d54ea7a2']").check();
+  await staleEditor.getByRole("button", { name: "Preview adjustment" }).click();
+  await expect(staleEditor.locator(".strategic-fit-cohort-preview")).toBeVisible();
+  await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
+  await expect(restored.locator("[data-analysis-state='stale']")).toBeVisible();
+  await expect(restored.locator("[data-resolution-blocked]")).toContainText(
+    "Cohort adjustment actions are also blocked",
+  );
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 });
 
 test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({ page }) => {
@@ -1138,9 +1303,9 @@ test("completed desktop and phone review pass accessibility, overflow, and visua
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
   await close.focus();
   await page.keyboard.press("Shift+Tab");
-  const saveResolution = dialog.getByRole("button", { name: "Save resolution" });
-  await expect(saveResolution).toBeFocused();
-  expect(await saveResolution.evaluate((element) => {
+  const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
+  await expect(previewAdjustment).toBeFocused();
+  expect(await previewAdjustment.evaluate((element) => {
     const style = getComputedStyle(element);
     return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
   })).toBe(true);

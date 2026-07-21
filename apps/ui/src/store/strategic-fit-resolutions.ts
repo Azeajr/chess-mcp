@@ -20,6 +20,7 @@ import {
   type StrategicFitMetadataAnalysisInputs,
   type StrategicFitMetadataNormalizationResult,
   type StrategicFitPersistedResolution,
+  type StrategicFitPersistedCohortLabel,
   type StrategicFitPersistedResolutionState,
   type StrategicFitSourceProvenance,
 } from "@chess-mcp/chess-tools";
@@ -67,6 +68,14 @@ export interface StrategicFitManualWeightMutationInput {
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
+export interface StrategicFitCohortLabelMutationInput {
+  readonly label_id: string;
+  readonly cohort_id: string;
+  readonly display_name: string;
+  readonly reason?: string | null;
+  readonly provenance?: readonly StrategicFitSourceProvenance[];
+}
+
 export interface StrategicFitAnalysisSettingsSnapshot {
   readonly identity: string;
   readonly inputs: StrategicFitMetadataAnalysisInputs;
@@ -88,6 +97,8 @@ export interface StrategicFitResolutionState {
   reopenResolution(resolutionId: string): StrategicFitSettingsMutationResult;
   upsertCohortOverride(input: StrategicFitCohortOverrideMutationInput): StrategicFitSettingsMutationResult;
   removeCohortOverride(overrideId: string): StrategicFitSettingsMutationResult;
+  upsertCohortLabel(input: StrategicFitCohortLabelMutationInput): StrategicFitSettingsMutationResult;
+  removeCohortLabel(labelId: string): StrategicFitSettingsMutationResult;
   upsertRouteWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
   removeRouteWeight(routeId: string): StrategicFitSettingsMutationResult;
   upsertDecisionWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
@@ -400,6 +411,52 @@ export function createStrategicFitResolutionState(
       return { ...result, state: result.state === "updated" ? "removed" : result.state };
     },
 
+    upsertCohortLabel(input) {
+      const metadata = boundary.currentMetadata();
+      const labelId = nonEmpty(input.label_id, "strategic_fit_invalid_cohort_label_id");
+      const cohortId = nonEmpty(input.cohort_id, "strategic_fit_invalid_cohort_id");
+      const displayName = nonEmpty(input.display_name, "strategic_fit_invalid_cohort_display_name");
+      if (displayName.length > 120) throw new Error("strategic_fit_cohort_display_name_too_long");
+      const existing = metadata.cohort_labels.find((entry) =>
+        entry.label_id === labelId || entry.cohort_id === cohortId
+      );
+      const now = boundary.now();
+      const next: StrategicFitPersistedCohortLabel = {
+        label_id: labelId,
+        cohort_id: cohortId,
+        display_name: displayName,
+        record_state: "active",
+        stale_reasons: [],
+        reason: optionalText(input.reason),
+        updated_at: existing?.updated_at ?? now,
+        provenance: defaultProvenance(boundary, input.provenance),
+      };
+      if (
+        existing?.record_state === "active" &&
+        metadata.cohort_labels.filter((entry) => entry.cohort_id === cohortId).length === 1 &&
+        meaningfulRecord(existing as unknown as Record<string, unknown>) ===
+          meaningfulRecord(next as unknown as Record<string, unknown>)
+      ) return { state: "unchanged", metadata };
+      return commit({
+        ...metadata,
+        cohort_labels: [
+          ...metadata.cohort_labels.filter((entry) =>
+            entry.label_id !== labelId && entry.cohort_id !== cohortId
+          ),
+          { ...next, updated_at: now },
+        ].sort((left, right) => left.label_id.localeCompare(right.label_id)),
+      });
+    },
+
+    removeCohortLabel(labelId) {
+      const metadata = boundary.currentMetadata();
+      return remove(
+        metadata.cohort_labels,
+        (entry) => entry.label_id === labelId,
+        (cohortLabels) => ({ ...metadata, cohort_labels: cohortLabels }),
+      );
+    },
+
     upsertRouteWeight(input) {
       const metadata = boundary.currentMetadata();
       const routeId = nonEmpty(input.target_id, "strategic_fit_invalid_route_id");
@@ -538,6 +595,10 @@ export const upsertStrategicFitCohortOverride = (input: StrategicFitCohortOverri
   browserResolutionState.upsertCohortOverride(input);
 export const removeStrategicFitCohortOverride = (overrideId: string) =>
   browserResolutionState.removeCohortOverride(overrideId);
+export const upsertStrategicFitCohortLabel = (input: StrategicFitCohortLabelMutationInput) =>
+  browserResolutionState.upsertCohortLabel(input);
+export const removeStrategicFitCohortLabel = (labelId: string) =>
+  browserResolutionState.removeCohortLabel(labelId);
 export const upsertStrategicFitRouteWeight = (input: StrategicFitManualWeightMutationInput) =>
   browserResolutionState.upsertRouteWeight(input);
 export const removeStrategicFitRouteWeight = (routeId: string) =>

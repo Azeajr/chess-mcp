@@ -135,6 +135,7 @@ function selectWithKeyboard(
 export default function FindingCard(props: {
   finding: StrategicFinding;
   resolutionState?: StrategicFitDisplayedResolutionState;
+  cohortName?: string;
   selected: boolean;
   onSelect: (findingId: string, focusEvidence: boolean) => void;
 }) {
@@ -164,6 +165,10 @@ export default function FindingCard(props: {
         <div>
           <dt>Opening / system</dt>
           <dd>{props.finding.opening_scope}</dd>
+        </div>
+        <div>
+          <dt>Cohort</dt>
+          <dd>{props.cohortName ?? props.finding.evidence.cohort_id}</dd>
         </div>
         <div>
           <dt>Affected line</dt>

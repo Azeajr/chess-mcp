@@ -2707,6 +2707,172 @@ img,
 .strategic-fit-resolution-actions :is(button, select, textarea, .strategic-fit-resolution-choice) {
   min-height: 44px;
 }
+.strategic-fit-review-actions {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.strategic-fit-cohort-editor {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid #596473;
+  border-radius: 9px;
+  background: #20242a;
+}
+.strategic-fit-cohort-editor > header > span {
+  color: #9da9b7;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.strategic-fit-cohort-editor h3,
+.strategic-fit-cohort-editor h4 {
+  margin: 0.22rem 0 0;
+  color: #eef3f9;
+}
+.strategic-fit-cohort-editor h3 { font-size: 0.9rem; }
+.strategic-fit-cohort-editor h4 { font-size: 0.78rem; }
+.strategic-fit-cohort-editor p {
+  margin: 0.35rem 0 0;
+  color: #b9c2cd;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-cohort-editor form,
+.strategic-fit-cohort-editor fieldset,
+.strategic-fit-cohort-options,
+.strategic-fit-cohort-preview,
+.strategic-fit-cohort-preview dl {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.strategic-fit-cohort-editor fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.strategic-fit-cohort-editor legend,
+.strategic-fit-cohort-field {
+  color: #d8e0e9;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.strategic-fit-cohort-choice,
+.strategic-fit-cohort-options > label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid #4f5966;
+  border-radius: 7px;
+  background: #252a31;
+  color: #dbe3ec;
+  cursor: pointer;
+}
+.strategic-fit-cohort-choice:has(input:checked),
+.strategic-fit-cohort-options > label:has(input:checked) {
+  border-color: #6ea8fe;
+  background: #293545;
+}
+.strategic-fit-cohort-choice span,
+.strategic-fit-cohort-options > label > span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.strategic-fit-cohort-choice strong { font-size: 0.72rem; }
+.strategic-fit-cohort-choice small,
+.strategic-fit-cohort-options small {
+  color: #aeb8c4;
+  font-size: 0.64rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-cohort-options code,
+.strategic-fit-cohort-preview code {
+  font-size: 0.62rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.strategic-fit-cohort-field {
+  display: grid;
+  gap: 0.3rem;
+}
+.strategic-fit-cohort-field :is(input, select, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #5b6674;
+  border-radius: 6px;
+  background: #181c21;
+  color: #eef3f8;
+}
+.strategic-fit-cohort-field :is(input, textarea) { padding: 0.45rem; }
+.strategic-fit-cohort-field textarea { resize: vertical; }
+.strategic-fit-cohort-preview {
+  padding: 0.7rem;
+  border: 1px solid #6b7888;
+  border-radius: 8px;
+  background: #1a1e23;
+}
+.strategic-fit-cohort-preview dl { margin: 0; }
+.strategic-fit-cohort-preview dl > div {
+  min-width: 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid #3d4651;
+}
+.strategic-fit-cohort-preview dt {
+  color: #aab5c2;
+  font-size: 0.63rem;
+  font-weight: 700;
+}
+.strategic-fit-cohort-preview dd {
+  margin: 0.2rem 0 0;
+  color: #dce4ed;
+  font-size: 0.66rem;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-cohort-preview ul {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.3rem 0 0;
+  padding-left: 1rem;
+}
+.strategic-fit-cohort-preview [data-impact-state="unavailable"],
+.strategic-fit-cohort-options [data-impact-state="unavailable"] { color: #e6c995; }
+.strategic-fit-cohort-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.strategic-fit-cohort-feedback {
+  padding: 0.65rem;
+  border: 1px solid #62866f;
+  border-radius: 7px;
+  background: #223129;
+  color: #d2ead9 !important;
+}
+.strategic-fit-cohort-feedback[role="alert"] {
+  border-color: #9d765a;
+  background: #382a24;
+  color: #f1d5bf !important;
+}
+.strategic-fit-cohort-editor :is(
+  button,
+  select,
+  textarea,
+  input[type="text"],
+  .strategic-fit-cohort-choice,
+  .strategic-fit-cohort-options > label
+) {
+  min-height: 44px;
+}
 .strategic-fit-finding-scope {
   display: grid;
   gap: 0.35rem;

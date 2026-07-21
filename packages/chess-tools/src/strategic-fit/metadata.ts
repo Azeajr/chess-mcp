@@ -38,9 +38,14 @@ import type { RepertoireGraph } from "./graph.js";
 import type { StrategicFitRouteAssessmentInput } from "./analyze.js";
 
 /** This version advances independently from analysis reports and component manifests. */
-export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.2.0";
+export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.3.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
-export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = ["0.1.0", "1.0.0", "1.1.0"] as const;
+export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = [
+  "0.1.0",
+  "1.0.0",
+  "1.1.0",
+  "1.2.0",
+] as const;
 
 export const STRATEGIC_FIT_METADATA_RECORD_STATES = ["active", "stale"] as const;
 export type StrategicFitMetadataRecordState = (typeof STRATEGIC_FIT_METADATA_RECORD_STATES)[number];
@@ -80,6 +85,13 @@ export type StrategicFitPersistedStructuralCohortOverride =
 
 export type StrategicFitPersistedExclusionOverride =
   StrategicCohortExclusionOverride & StrategicFitMetadataRecordLifecycle;
+
+/** Display-only user label for one canonical cohort. It never changes analyzer grouping. */
+export interface StrategicFitPersistedCohortLabel extends StrategicFitMetadataRecordLifecycle {
+  readonly label_id: string;
+  readonly cohort_id: string;
+  readonly display_name: string;
+}
 
 export interface StrategicFitPersistedResolution
   extends Omit<FindingResolution, "state" | "provenance" | "semantic_finding_id">,
@@ -127,6 +139,7 @@ export interface StrategicFitDocumentMetadata {
   readonly manual_weights: StrategicFitManualWeights;
   readonly cohort_overrides: readonly StrategicFitPersistedStructuralCohortOverride[];
   readonly exclusions: readonly StrategicFitPersistedExclusionOverride[];
+  readonly cohort_labels: readonly StrategicFitPersistedCohortLabel[];
   readonly resolutions: readonly StrategicFitPersistedResolution[];
   readonly archive_references: readonly StrategicFitArchiveReference[];
   readonly training_references: readonly StrategicFitTrainingReference[];
@@ -168,6 +181,7 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string,
     "0.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.0.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    "1.2.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   });
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
@@ -250,6 +264,7 @@ export function createDefaultStrategicFitDocumentMetadata(): StrategicFitDocumen
     manual_weights: { route_weights: [], decision_weights: [] },
     cohort_overrides: [],
     exclusions: [],
+    cohort_labels: [],
     resolutions: [],
     archive_references: [],
     training_references: [],
@@ -620,6 +635,41 @@ function singularActiveResolutions(
   );
 }
 
+function compareCohortLabelPrecedence(
+  left: StrategicFitPersistedCohortLabel,
+  right: StrategicFitPersistedCohortLabel,
+): number {
+  return left.updated_at.localeCompare(right.updated_at) || left.label_id.localeCompare(right.label_id);
+}
+
+function singularActiveCohortLabels(
+  labels: readonly StrategicFitPersistedCohortLabel[],
+  path: string,
+  context: NormalizationContext,
+): StrategicFitPersistedCohortLabel[] {
+  const winnerByCohort = new Map<string, StrategicFitPersistedCohortLabel>();
+  for (const record of labels) {
+    if (record.record_state !== "active") continue;
+    const previous = winnerByCohort.get(record.cohort_id);
+    if (previous === undefined) {
+      winnerByCohort.set(record.cohort_id, record);
+      continue;
+    }
+    const winner = compareCohortLabelPrecedence(previous, record) > 0 ? previous : record;
+    winnerByCohort.set(record.cohort_id, winner);
+    issue(
+      context,
+      "duplicate-id",
+      path,
+      `Duplicate active label for cohort ${record.cohort_id}; kept ${winner.label_id}.`,
+      false,
+    );
+  }
+  return labels.filter((record) =>
+    record.record_state !== "active" || winnerByCohort.get(record.cohort_id) === record
+  );
+}
+
 function manualWeights(value: unknown, path: string, context: NormalizationContext): StrategicFitManualWeights {
   if (!isRecord(value)) {
     issue(context, "invalid-field", path, "Expected a manual weights object.");
@@ -739,6 +789,38 @@ function exclusionOverrides(
     result.push(parsed);
   }
   return result;
+}
+
+function cohortLabel(
+  value: unknown,
+  path: string,
+  context: NormalizationContext,
+): StrategicFitPersistedCohortLabel | null {
+  if (!isRecord(value)) {
+    issue(context, "invalid-entry", path, "Expected a cohort label object.");
+    return null;
+  }
+  unknownFields(
+    value,
+    new Set([
+      "label_id", "cohort_id", "display_name", "record_state", "stale_reasons", "reason",
+      "updated_at", "provenance",
+    ]),
+    path,
+    context,
+  );
+  const labelId = nonEmptyString(value.label_id);
+  const cohortId = nonEmptyString(value.cohort_id);
+  const displayName = typeof value.display_name === "string" ? value.display_name.trim() : "";
+  const lifecycle = recordLifecycle(value, path, context);
+  if (
+    labelId === null || cohortId === null || displayName.length === 0 ||
+    displayName.length > 120 || lifecycle === null
+  ) {
+    issue(context, "invalid-entry", path, "Cohort label fields do not match the current contract.");
+    return null;
+  }
+  return { label_id: labelId, cohort_id: cohortId, display_name: displayName, ...lifecycle };
 }
 
 function semanticReferences(
@@ -963,6 +1045,7 @@ function normalizedCurrent(
       "manual_weights",
       "cohort_overrides",
       "exclusions",
+      "cohort_labels",
       "resolutions",
       "archive_references",
       "training_references",
@@ -1008,6 +1091,17 @@ function normalizedCurrent(
     manual_weights: manualWeights(value.manual_weights, "$.manual_weights", context),
     cohort_overrides: structuralOverrides,
     exclusions,
+    cohort_labels: singularActiveCohortLabels(
+      uniqueEntries(
+        value.cohort_labels,
+        "$.cohort_labels",
+        (entry: StrategicFitPersistedCohortLabel) => entry.label_id,
+        cohortLabel,
+        context,
+      ),
+      "$.cohort_labels",
+      context,
+    ),
     resolutions,
     archive_references: uniqueEntries(
       value.archive_references,
@@ -1088,6 +1182,7 @@ function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): U
       "decision_weights",
       "cohort_overrides",
       "exclusions",
+      "cohort_labels",
       "resolutions",
       "archives",
       "archive_references",
@@ -1117,6 +1212,7 @@ function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): U
     },
     cohort_overrides: migratedRecords(value.cohort_overrides),
     exclusions: migratedRecords(value.exclusions),
+    cohort_labels: migratedRecords(value.cohort_labels),
     resolutions: migratedResolutions(value.resolutions, profileValue),
     archive_references: value.archive_references ?? value.archives ?? [],
     training_references: value.training_references ?? value.training ?? [],

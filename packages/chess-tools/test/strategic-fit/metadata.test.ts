@@ -82,6 +82,12 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       decision_ids: ["decision:excluded"],
       ...LIFECYCLE,
     }],
+    cohort_labels: [{
+      label_id: "cohort-label:semantic",
+      cohort_id: "cohort:semantic",
+      display_name: "My familiar Sicilian",
+      ...LIFECYCLE,
+    }],
     resolutions: [{
       schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
       resolution_id: "resolution:semantic",
@@ -129,7 +135,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
   assert.notEqual(first, second);
   assert.notEqual(first.profile, second.profile);
   assert.equal(first.metadata_kind, "chess-mcp/strategic-fit-document-metadata");
-  assert.equal(first.metadata_version, "1.2.0");
+  assert.equal(first.metadata_version, "1.3.0");
   assert.deepEqual(first.profile, {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "balanced",
@@ -151,6 +157,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
     manual_weights: first.manual_weights,
     cohort_overrides: first.cohort_overrides,
     exclusions: first.exclusions,
+    cohort_labels: first.cohort_labels,
     resolutions: first.resolutions,
     archive_references: first.archive_references,
     training_references: first.training_references,
@@ -159,6 +166,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
     manual_weights: { route_weights: [], decision_weights: [] },
     cohort_overrides: [],
     exclusions: [],
+    cohort_labels: [],
     resolutions: [],
     archive_references: [],
     training_references: [],
@@ -179,7 +187,34 @@ test("supported metadata round-trips without losing canonical semantic IDs", () 
   assert.deepEqual(result.metadata, supported);
   assert.equal(result.metadata.resolutions[0]?.references.position_ids[0], "position:semantic");
   assert.equal(result.metadata.exclusions[0]?.decision_ids?.[0], "decision:excluded");
+  assert.equal(result.metadata.cohort_labels[0]?.cohort_id, "cohort:semantic");
   assert.equal(result.metadata.archive_references[0]?.references.route_ids[0], "route:semantic");
+});
+
+test("normalization deterministically keeps one active display label per canonical cohort", () => {
+  const supported = supportedMetadata();
+  const original = supported.cohort_labels[0]!;
+  const replacement = {
+    ...original,
+    label_id: "cohort-label:replacement",
+    display_name: "Replacement cohort name",
+    updated_at: "2026-07-17T12:01:00.000Z",
+  };
+  const first = normalizeStrategicFitDocumentMetadata({
+    ...supported,
+    cohort_labels: [replacement, original],
+  });
+  const reordered = normalizeStrategicFitDocumentMetadata({
+    ...supported,
+    cohort_labels: [original, replacement],
+  });
+
+  assert.equal(first.state, "valid");
+  assert.deepEqual(first.metadata, reordered.metadata);
+  assert.deepEqual(first.metadata.cohort_labels.map((entry) => entry.label_id), [
+    "cohort-label:replacement",
+  ]);
+  assert.equal(first.issues.some((entry) => entry.code === "duplicate-id"), true);
 });
 
 test("the explicit 0.1.0 migration maps draft flat collections deterministically", () => {
@@ -191,6 +226,7 @@ test("the explicit 0.1.0 migration maps draft flat collections deterministically
     decision_weights: supported.manual_weights.decision_weights,
     cohort_overrides: supported.cohort_overrides,
     exclusions: supported.exclusions,
+    cohort_labels: supported.cohort_labels,
     resolutions: supported.resolutions,
     archives: supported.archive_references,
     training: supported.training_references,
@@ -207,6 +243,21 @@ test("the explicit 0.1.0 migration maps draft flat collections deterministically
   assert.deepEqual(first.metadata, supported);
   assert.equal(minimal.state, "migrated");
   assert.deepEqual(minimal.metadata, createDefaultStrategicFitDocumentMetadata());
+});
+
+test("the 1.2.0 migration adds empty cohort labels without changing analysis settings", () => {
+  const supported = supportedMetadata();
+  const legacy = structuredClone(supported) as unknown as Record<string, unknown>;
+  legacy.metadata_version = "1.2.0";
+  delete legacy.cohort_labels;
+
+  const result = normalizeStrategicFitDocumentMetadata(legacy);
+  assert.equal(result.state, "migrated");
+  assert.deepEqual(result.metadata.cohort_labels, []);
+  assert.deepEqual(
+    { ...result.metadata, cohort_labels: supported.cohort_labels },
+    supported,
+  );
 });
 
 test("unknown and corrupt versions fall back wholesale with structured evidence", () => {
@@ -319,6 +370,7 @@ test("explicit whitelists prevent credentials and secret-bearing fields from sur
   input.manual_weights.route_weights[0].access_token = secret;
   input.cohort_overrides[0].credentials = { password: secret };
   input.exclusions[0].apiKey = secret;
+  input.cohort_labels[0].credentials = { password: secret };
   input.resolutions[0].secret = secret;
   input.resolutions[0].references.bearer = secret;
   input.archive_references[0].token = secret;

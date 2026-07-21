@@ -220,7 +220,7 @@ test("two documents isolate immediate reads and every debounced write by capture
 
 test("corrupt and unsupported records publish defaults, structured warnings, then repair their key", async () => {
   for (const [label, input, warningCode, issueCode] of [
-    ["corrupt", { metadata_version: "1.2.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
+    ["corrupt", { metadata_version: "1.3.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
     ["unsupported", { metadata_version: "99.0.0" }, "unsupported-metadata", "unsupported-version"],
   ] as const) {
     const storage = new MemoryStorage();

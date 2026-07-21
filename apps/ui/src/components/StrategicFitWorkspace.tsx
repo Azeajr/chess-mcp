@@ -11,6 +11,7 @@ import StrategicOverview, {
 import FindingQueue from "./strategic-fit/FindingQueue";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
 import ResolutionActions from "./strategic-fit/ResolutionActions";
+import CohortEditor from "./strategic-fit/CohortEditor";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
@@ -22,6 +23,10 @@ import {
   strategicFitFindingResolutionUnresolvedCount,
   synchronizeStrategicFitFindingResolutionReview,
 } from "../store/strategic-fit-finding-resolutions";
+import {
+  strategicFitCohortDisplayName,
+  synchronizeStrategicFitCohortAdjustment,
+} from "../store/strategic-fit-cohort-adjustments";
 import { actions, color, currentTree, documentId, version } from "../store/game";
 import {
   openStrategicFitFindingQueue,
@@ -131,6 +136,9 @@ export default function StrategicFitWorkspace() {
     synchronizeStrategicFitFindingResolutionReview(
       lifecycle.status === "completed" ? lifecycle.current_result?.report_id ?? null : null,
     );
+    synchronizeStrategicFitCohortAdjustment(
+      lifecycle.status === "completed" ? lifecycle.current_result?.report_id ?? null : null,
+    );
   });
   const currentFindings = () => {
     const lifecycle = strategicFitLifecycle();
@@ -166,6 +174,10 @@ export default function StrategicFitWorkspace() {
       trajectories: current.result.trajectories,
       preflightIssues: current.result.preflight.issues,
       repertoireColor: current.request_snapshot.repertoire_color,
+      cohortName: strategicFitCohortDisplayName(
+        finding.evidence.cohort_id,
+        finding.evidence.cohort_id,
+      ),
     };
   };
   const currentResolution = () => {
@@ -186,14 +198,18 @@ export default function StrategicFitWorkspace() {
     const finding = queue.findings.find((candidate) =>
       candidate.finding_id === findingId
     );
-    return finding === undefined ? null : { reportId: current.report_id, finding };
+    return finding === undefined ? null : {
+      reportId: current.report_id,
+      report: current.result,
+      finding,
+    };
   };
   const resolutionFallbackState = (): StrategicFitWorkspaceRegionState => {
     const lifecycle = strategicFitLifecycle();
     if (lifecycle.status === "stale") {
       return {
         status: "error",
-        message: "Resolution actions are blocked while this report is stale. Analyze again before recording a decision.",
+        message: "Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.",
       };
     }
     return strategicFitWorkspaceRegions().resolution;
@@ -425,6 +441,10 @@ export default function StrategicFitWorkspace() {
                   report={report()}
                   intent={currentQueueIntent()}
                   resolutionState={displayStrategicFitFindingResolution}
+                  cohortName={(finding) => strategicFitCohortDisplayName(
+                    finding.evidence.cohort_id,
+                    finding.evidence.cohort_id,
+                  )}
                 />
               )}
             </Show>
@@ -451,6 +471,7 @@ export default function StrategicFitWorkspace() {
                 <EvidencePanel
                   reportId={evidence().reportId}
                   finding={evidence().finding}
+                  cohortName={evidence().cohortName}
                   trajectories={evidence().trajectories}
                   preflightIssues={evidence().preflightIssues}
                   repertoireColor={evidence().repertoireColor}
@@ -474,15 +495,22 @@ export default function StrategicFitWorkspace() {
             </Show>
             <Show when={!usesStageTabs() && currentResolution()}>
               {(resolution) => (
-                <ResolutionActions
-                  reportId={resolution().reportId}
-                  finding={resolution().finding}
-                />
+                <div class="strategic-fit-review-actions">
+                  <ResolutionActions
+                    reportId={resolution().reportId}
+                    finding={resolution().finding}
+                  />
+                  <CohortEditor
+                    reportId={resolution().reportId}
+                    report={resolution().report}
+                    finding={resolution().finding}
+                  />
+                </div>
               )}
             </Show>
             <Show when={!usesStageTabs() && strategicFitLifecycle().status === "stale"}>
               <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>
-                Resolution actions are blocked while this report is stale. Analyze again before recording a decision.
+                Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.
               </div>
             </Show>
           </section>
@@ -505,10 +533,17 @@ export default function StrategicFitWorkspace() {
               fallback={<RegionState region="resolution" state={resolutionFallbackState()} />}
             >
               {(resolution) => (
-                <ResolutionActions
-                  reportId={resolution().reportId}
-                  finding={resolution().finding}
-                />
+                <div class="strategic-fit-review-actions">
+                  <ResolutionActions
+                    reportId={resolution().reportId}
+                    finding={resolution().finding}
+                  />
+                  <CohortEditor
+                    reportId={resolution().reportId}
+                    report={resolution().report}
+                    finding={resolution().finding}
+                  />
+                </div>
               )}
             </Show>
           </section>

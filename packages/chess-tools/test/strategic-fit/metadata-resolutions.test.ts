@@ -422,7 +422,7 @@ test("legacy records without semantic finding identity migrate deterministically
   ]) {
     delete oldResolution[field];
   }
-  for (const metadataVersion of ["1.0.0", "1.1.0"]) {
+  for (const metadataVersion of ["1.0.0", "1.1.0", "1.2.0"]) {
     const old = {
       ...current,
       metadata_version: metadataVersion,

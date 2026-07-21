@@ -181,6 +181,47 @@ test("merge, split, exclusion, manual weights, provenance, reasons, and removals
   assert.equal(f.state.removeDecisionWeight(decisionId).state, "removed");
 });
 
+test("user-facing cohort labels persist without changing analyzer inputs and reset independently", () => {
+  const f = fixture();
+  const beforeInputs = f.state.analysisSettings().inputs;
+
+  assert.equal(f.state.upsertCohortLabel({
+    label_id: "cohort-label:semantic",
+    cohort_id: "cohort:semantic",
+    display_name: "  Quiet anti-Sicilian  ",
+    reason: "Useful repertoire label",
+  }).state, "updated");
+  assert.deepEqual(f.metadata().cohort_labels.map((entry) => ({
+    label_id: entry.label_id,
+    cohort_id: entry.cohort_id,
+    display_name: entry.display_name,
+    reason: entry.reason,
+  })), [{
+    label_id: "cohort-label:semantic",
+    cohort_id: "cohort:semantic",
+    display_name: "Quiet anti-Sicilian",
+    reason: "Useful repertoire label",
+  }]);
+  assert.deepEqual(f.state.analysisSettings().inputs, beforeInputs);
+  assert.equal(f.state.upsertCohortLabel({
+    label_id: "cohort-label:semantic",
+    cohort_id: "cohort:semantic",
+    display_name: "Quiet anti-Sicilian",
+    reason: "Useful repertoire label",
+  }).state, "unchanged");
+  assert.equal(f.state.upsertCohortLabel({
+    label_id: "cohort-label:replacement",
+    cohort_id: "cohort:semantic",
+    display_name: "Rossolimo structures",
+  }).state, "updated");
+  assert.deepEqual(f.metadata().cohort_labels.map((entry) => entry.label_id), [
+    "cohort-label:replacement",
+  ]);
+  assert.equal(f.state.removeCohortLabel("cohort-label:semantic").state, "missing");
+  assert.equal(f.state.removeCohortLabel("cohort-label:replacement").state, "removed");
+  assert.deepEqual(f.metadata().cohort_labels, []);
+});
+
 test("reconciliation stales changed semantic references, invalidates cache, and never mutates a repertoire", () => {
   const f = fixture();
   const originalPgn = PGN;
