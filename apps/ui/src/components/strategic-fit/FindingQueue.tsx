@@ -11,6 +11,7 @@ import {
   strategicFitFindingQueue,
   type StrategicFitQueuePriorityFilter,
 } from "../../store/strategic-fit-finding-queue";
+import type { StrategicFitDisplayedResolutionState } from "../../store/strategic-fit-finding-resolutions";
 import {
   setStrategicFitFindingQueueIntent,
   setStrategicFitWorkspaceStage,
@@ -50,6 +51,8 @@ const PRIORITY_FILTERS: readonly StrategicFitQueuePriorityFilter[] = [
 export default function FindingQueue(props: {
   report: StrategicFitAnalysisResult;
   intent: StrategicFitFindingQueueIntent | null;
+  resolutionState?: (finding: StrategicFitAnalysisResult["findings"][number]) =>
+    StrategicFitDisplayedResolutionState;
 }) {
   createEffect(() => {
     void strategicFitFindingQueue.synchronize(props.report, props.intent);
@@ -57,7 +60,13 @@ export default function FindingQueue(props: {
   onCleanup(() => strategicFitFindingQueue.dispose());
 
   const state = () => strategicFitFindingQueue.snapshot();
-  const view = () => strategicFitFindingQueue.view();
+  const view = () => strategicFitFindingQueue.view(props.resolutionState);
+  createEffect(() => {
+    const selected = state().selected_finding_id;
+    if (selected !== null && view().selected_finding_id === null) {
+      strategicFitFindingQueue.selectFinding(null);
+    }
+  });
   const range = () => view().page.total_count === 0
     ? "0"
     : `${view().page.offset + 1}–${view().page.offset + view().page.returned_count}`;
@@ -203,6 +212,7 @@ export default function FindingQueue(props: {
               <li>
                 <FindingCard
                   finding={finding}
+                  resolutionState={props.resolutionState?.(finding)}
                   selected={state().selected_finding_id === finding.finding_id}
                   onSelect={selectFinding}
                 />

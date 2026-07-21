@@ -138,6 +138,33 @@ test("navigation-equivalent synchronization stays current while every analysis i
   }
 });
 
+test("a completed evidence report can be rebound only after a resolution-only settings change", async () => {
+  const subject = fixture();
+  const pending = subject.state.analyze();
+  subject.calls[0]!.result.resolve(report("report:resolution"));
+  await pending;
+
+  assert.equal(subject.state.retainCompletedReportAfterResolution("report:resolution"), false);
+  assert.equal(subject.state.prepareCompletedReportForResolution("report:resolution"), true);
+  subject.patchSnapshot({ settings_identity: "settings:resolution" });
+  subject.state.synchronize();
+  assert.equal(subject.state.snapshot().status, "completed");
+  assert.equal(subject.state.retainCompletedReportAfterResolution("report:resolution"), true);
+  assert.equal(subject.state.snapshot().status, "completed");
+  assert.equal(
+    subject.state.snapshot().current_result?.request_snapshot.settings_identity,
+    "settings:resolution",
+  );
+
+  assert.equal(subject.state.prepareCompletedReportForResolution("report:resolution"), true);
+  subject.patchSnapshot({ profile_identity: "profile:versatile" });
+  subject.state.synchronize();
+  assert.equal(subject.state.snapshot().status, "stale");
+  assert.equal(subject.state.retainCompletedReportAfterResolution("report:resolution"), false);
+  assert.equal(subject.state.prepareCompletedReportForResolution("report:resolution"), false);
+  assert.equal(subject.state.retainCompletedReportAfterResolution("report:other"), false);
+});
+
 test("an identity edit during analysis aborts the command and discards its late result", async () => {
   const subject = fixture();
   const pending = subject.state.analyze();

@@ -281,6 +281,32 @@ test("overview classification, resolution, and insufficient-evidence intents are
   })).findings.map((item) => item.finding_id), ["finding:uncertain"]);
 });
 
+test("resolution projections remove acknowledged findings only from the unresolved queue", () => {
+  const acknowledged = finding("finding:acknowledged");
+  const open = finding("finding:open");
+  const all = buildStrategicFitFindingQueueView(
+    queueSnapshot([acknowledged, open]),
+    (candidate) => candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
+  );
+  assert.deepEqual(all.findings.map((item) => item.finding_id).sort(), [
+    "finding:acknowledged",
+    "finding:open",
+  ]);
+
+  const unresolved = buildStrategicFitFindingQueueView(
+    queueSnapshot([acknowledged, open], {
+      intent: {
+        report_id: "report:queue",
+        source: "test",
+        label: "Unresolved",
+        filter: { kind: "resolution", resolution: "unresolved" },
+      },
+    }),
+    (candidate) => candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
+  );
+  assert.deepEqual(unresolved.findings.map((item) => item.finding_id), ["finding:open"]);
+});
+
 test("presentation paging reports exact filtered metadata and retains deterministic selection only on-page", () => {
   const findings = Array.from({ length: 14 }, (_, index) =>
     finding(`finding:${String(index).padStart(2, "0")}`, { replacementScore: 1 - index / 100 })

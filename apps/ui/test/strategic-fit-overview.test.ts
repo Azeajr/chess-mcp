@@ -125,6 +125,18 @@ test("overview presentation uses canonical summary values, metric states, and un
   assert.match(presentation.screen_reader_summary, /Lower entropy is not universally better/);
 });
 
+test("review resolution projection updates the unresolved count without changing the report", () => {
+  const source = report();
+  const before = structuredClone(source);
+  const presentation = buildStrategicOverviewPresentation(source, 3);
+  assert.deepEqual(byId(presentation, "unresolved-findings"), {
+    ...byId(buildStrategicOverviewPresentation(source), "unresolved-findings"),
+    value: "3",
+    report_value: "3",
+  });
+  assert.deepEqual(source, before);
+});
+
 test("blocked reports do not present unavailable overview sentinels as zero", () => {
   const blocked = structuredClone(report()) as StrategicOverviewReport;
   Object.assign(blocked.preflight, { state: "blocked", route_count: 0, comparable_route_count: 0 });

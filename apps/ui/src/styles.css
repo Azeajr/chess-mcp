@@ -2580,6 +2580,133 @@ img,
   border-color: #a16e55;
   color: #f2c5a5;
 }
+.strategic-fit-finding-resolution[data-resolution="invalid-comparison"] {
+  border-color: #9a8560;
+  color: #ead8ad;
+}
+.strategic-fit-resolution-actions {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border: 1px solid #596473;
+  border-radius: 9px;
+  background: #20242a;
+}
+.strategic-fit-resolution-actions > header > span {
+  color: #9da9b7;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.strategic-fit-resolution-actions h3 {
+  margin: 0.22rem 0 0;
+  color: #eef3f9;
+  font-size: 0.9rem;
+}
+.strategic-fit-resolution-actions header p,
+.strategic-fit-resolution-actions form > p,
+.strategic-fit-resolution-current p,
+.strategic-fit-resolution-blocked p {
+  margin: 0.35rem 0 0;
+  color: #b9c2cd;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+.strategic-fit-resolution-actions form,
+.strategic-fit-resolution-actions fieldset,
+.strategic-fit-resolution-current {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.strategic-fit-resolution-actions fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.strategic-fit-resolution-actions legend,
+.strategic-fit-resolution-field {
+  color: #d8e0e9;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.strategic-fit-resolution-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid #4f5966;
+  border-radius: 7px;
+  background: #252a31;
+  cursor: pointer;
+}
+.strategic-fit-resolution-choice:has(input:checked) {
+  border-color: #6ea8fe;
+  background: #293545;
+}
+.strategic-fit-resolution-choice input {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+.strategic-fit-resolution-choice span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.strategic-fit-resolution-choice strong {
+  color: #e7edf5;
+  font-size: 0.72rem;
+}
+.strategic-fit-resolution-choice small {
+  color: #aeb8c4;
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+.strategic-fit-resolution-field {
+  display: grid;
+  gap: 0.3rem;
+}
+.strategic-fit-resolution-field select,
+.strategic-fit-resolution-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #5b6674;
+  border-radius: 6px;
+  background: #181c21;
+  color: #eef3f8;
+}
+.strategic-fit-resolution-field textarea {
+  min-height: 5rem;
+  padding: 0.45rem;
+  resize: vertical;
+}
+.strategic-fit-resolution-note {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.strategic-fit-resolution-blocked,
+.strategic-fit-resolution-feedback {
+  padding: 0.65rem;
+  border: 1px solid #9d765a;
+  border-radius: 7px;
+  background: #382a24;
+  color: #f1d5bf;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+.strategic-fit-resolution-feedback[role="status"] {
+  border-color: #62866f;
+  background: #223129;
+  color: #d2ead9;
+}
+.strategic-fit-resolution-actions :is(button, select, textarea, .strategic-fit-resolution-choice) {
+  min-height: 44px;
+}
 .strategic-fit-finding-scope {
   display: grid;
   gap: 0.35rem;
@@ -3529,6 +3656,8 @@ img,
     button,
     select,
     summary,
+    textarea,
+    .strategic-fit-resolution-choice,
     input[type="number"],
     input[type="text"],
     input[type="range"]

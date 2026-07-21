@@ -113,6 +113,7 @@ function itemSummary(item: StrategicOverviewItemPresentation): string {
 
 export function buildStrategicOverviewPresentation(
   report: StrategicOverviewReport,
+  unresolvedFindingCount = report.summary.unresolved_finding_count,
 ): StrategicOverviewPresentation {
   const summary = report.summary;
   const blocked = report.preflight.state === "blocked";
@@ -128,7 +129,7 @@ export function buildStrategicOverviewPresentation(
   const conceptReuse = metricValue(summary.metrics.concept_reuse, formatPercent);
   const forcedFloor = metricValue(summary.metrics.forced_diversity_floor, formatPercent);
   const intentional = countValue(summary.intentional_exception_count, blocked ? BLOCKED_REASON : null);
-  const unresolved = countValue(summary.unresolved_finding_count, blocked ? BLOCKED_REASON : null);
+  const unresolved = countValue(unresolvedFindingCount, blocked ? BLOCKED_REASON : null);
   const incomplete = countValue(
     summary.insufficient_evidence_branch_count,
     preflightCountsAreMeaningful(report.preflight) ? null : UNSAFE_ROUTE_ENUMERATION_REASON,
@@ -183,7 +184,7 @@ export function buildStrategicOverviewPresentation(
       id: "unresolved-findings",
       label: "Unresolved findings",
       ...unresolved,
-      description: "Findings whose canonical report resolution state is still unresolved.",
+      description: "Findings whose current review resolution state is still unresolved.",
       review_filter: unresolved.state === "unavailable" ? null : { kind: "resolution", resolution: "unresolved" },
       review_label: unresolved.state === "unavailable" ? null : "Review unresolved findings",
     },
@@ -239,13 +240,17 @@ export function buildStrategicOverviewPresentation(
 
 export default function StrategicOverview(props: {
   report: StrategicOverviewReport;
+  unresolvedFindingCount?: number;
   onReview: (
     source: StrategicOverviewItemId,
     label: string,
     filter: StrategicFitFindingQueueFilter,
   ) => void;
 }) {
-  const presentation = () => buildStrategicOverviewPresentation(props.report);
+  const presentation = () => buildStrategicOverviewPresentation(
+    props.report,
+    props.unresolvedFindingCount,
+  );
   const summaryId = () => `strategic-fit-overview-summary-${presentation().report_id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (

@@ -5,6 +5,7 @@ import type {
   StrategicFinding,
   StrategicFitClassification,
 } from "@chess-mcp/chess-tools";
+import type { StrategicFitDisplayedResolutionState } from "../../store/strategic-fit-finding-resolutions";
 
 export const STRATEGIC_FIT_CLASSIFICATION_LABELS: Readonly<
   Record<StrategicFitClassification, string>
@@ -38,6 +39,13 @@ export const STRATEGIC_FIT_RESOLUTION_LABELS: Readonly<Record<FindingResolutionS
   "automatically-resolved-by-another-edit": "Resolved by another edit",
 };
 
+export const STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS: Readonly<
+  Record<StrategicFitDisplayedResolutionState, string>
+> = {
+  ...STRATEGIC_FIT_RESOLUTION_LABELS,
+  "invalid-comparison": "Invalid comparison",
+};
+
 const PRIORITY_LABELS = {
   "review-now": "Review now",
   "review-later": "Review later",
@@ -65,6 +73,7 @@ export interface FindingCardPresentation {
 
 export function buildFindingCardPresentation(
   finding: StrategicFinding,
+  resolutionState: StrategicFitDisplayedResolutionState = finding.resolution_state,
 ): FindingCardPresentation {
   const objective = finding.objective_quality;
   let objectiveSoundness = "Objective soundness unavailable";
@@ -88,7 +97,7 @@ export function buildFindingCardPresentation(
     causal_ownership: STRATEGIC_FIT_CAUSAL_LABELS[finding.evidence.causality.label],
     objective_soundness: objectiveSoundness,
     objective_reason: objective.reason,
-    resolution: STRATEGIC_FIT_RESOLUTION_LABELS[finding.resolution_state],
+    resolution: STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS[resolutionState],
     replacement_priority: `Replacement: ${PRIORITY_LABELS[finding.replacement_priority.label]}`,
     training_priority: `Training: ${PRIORITY_LABELS[finding.training_priority.label]}`,
     source_paths: finding.references.source_san_paths.map((path) =>
@@ -125,10 +134,12 @@ function selectWithKeyboard(
 
 export default function FindingCard(props: {
   finding: StrategicFinding;
+  resolutionState?: StrategicFitDisplayedResolutionState;
   selected: boolean;
   onSelect: (findingId: string, focusEvidence: boolean) => void;
 }) {
-  const presentation = () => buildFindingCardPresentation(props.finding);
+  const resolutionState = () => props.resolutionState ?? props.finding.resolution_state;
+  const presentation = () => buildFindingCardPresentation(props.finding, resolutionState());
   return (
     <article
       class="strategic-fit-finding-card"
@@ -144,7 +155,7 @@ export default function FindingCard(props: {
             {props.finding.plain_language_category}
           </h3>
         </div>
-        <span class="strategic-fit-finding-resolution" data-resolution={props.finding.resolution_state}>
+        <span class="strategic-fit-finding-resolution" data-resolution={resolutionState()}>
           {presentation().resolution}
         </span>
       </header>

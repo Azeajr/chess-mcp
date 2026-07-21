@@ -10,6 +10,7 @@ import {
   type StrategicFitFindingSort,
 } from "@chess-mcp/chess-tools";
 import type { BrowserCommandExecutionOptions } from "../application/browser-commands/types";
+import type { StrategicFitDisplayedResolutionState } from "./strategic-fit-finding-resolutions";
 import { executeDirectBrowserCommand } from "./commands";
 import {
   strategicFitFindingQueueFilterKey,
@@ -57,7 +58,9 @@ export interface StrategicFitFindingQueueBoundary {
 
 export interface StrategicFitFindingQueueState {
   snapshot(): StrategicFitFindingQueueSnapshot;
-  view(): StrategicFitFindingQueueView;
+  view(
+    resolutionState?: (finding: StrategicFinding) => StrategicFitDisplayedResolutionState,
+  ): StrategicFitFindingQueueView;
   synchronize(
     report: StrategicFitAnalysisResult | null,
     intent?: StrategicFitFindingQueueIntent | null,
@@ -90,13 +93,17 @@ const initialSnapshot = (): StrategicFitFindingQueueSnapshot => ({
 const compareStrings = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
-function matchesIntent(finding: StrategicFinding, filter: StrategicFitFindingQueueFilter): boolean {
+function matchesIntent(
+  finding: StrategicFinding,
+  filter: StrategicFitFindingQueueFilter,
+  resolutionState: StrategicFitDisplayedResolutionState,
+): boolean {
   if (filter.kind === "classification") return finding.classification === filter.classification;
-  if (filter.kind === "resolution") return finding.resolution_state === filter.resolution;
+  if (filter.kind === "resolution") return resolutionState === filter.resolution;
   if (filter.kind === "evidence") {
     return finding.classification === "uncertain" ||
       finding.classification === "data-quality-issue" ||
-      finding.resolution_state === "insufficient-evidence" ||
+      resolutionState === "insufficient-evidence" ||
       finding.replacement_priority.label === "insufficient-evidence" ||
       finding.training_priority.label === "insufficient-evidence";
   }
@@ -105,10 +112,12 @@ function matchesIntent(finding: StrategicFinding, filter: StrategicFitFindingQue
 
 export function buildStrategicFitFindingQueueView(
   state: StrategicFitFindingQueueSnapshot,
+  resolutionState: (finding: StrategicFinding) => StrategicFitDisplayedResolutionState =
+    (finding) => finding.resolution_state,
 ): StrategicFitFindingQueueView {
   const intentFilter = state.intent?.filter ?? { kind: "all" as const };
   const filtered = state.findings.filter((finding) =>
-    matchesIntent(finding, intentFilter) &&
+    matchesIntent(finding, intentFilter, resolutionState(finding)) &&
     (state.priority_filter === "all" ||
       (state.priority_kind === "replacement"
         ? finding.replacement_priority.label
@@ -316,7 +325,7 @@ export function createStrategicFitFindingQueueState(
 
   return {
     snapshot: state,
-    view: () => buildStrategicFitFindingQueueView(state()),
+    view: (resolutionState) => buildStrategicFitFindingQueueView(state(), resolutionState),
     synchronize,
     setSort: (sort) => resetPageAndSelection({ sort }),
     setPriorityKind: (priority_kind) => resetPageAndSelection({ priority_kind }),

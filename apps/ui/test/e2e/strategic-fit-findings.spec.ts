@@ -12,7 +12,8 @@ type ChessHarness = {
   version(): number;
   dirty(): boolean;
   preview(): unknown;
-  strategicFitMetadata(): unknown;
+  strategicFitMetadata(): any;
+  flushStrategicFitMetadata(): Promise<void>;
   setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
@@ -159,17 +160,17 @@ async function installFindingWorkerFixture(page: Page) {
               provenance: [source("trajectory:fixture", "deterministic-core")],
             });
             const comparisonTrajectories = [
-              trajectory("route:finding:01:a", "complete", [
-                snapshot("route:finding:01:a", "opening-exit", 4, 0),
-                snapshot("route:finding:01:a", "central-resolution", 8, 1),
-                snapshot("route:finding:01:a", "irreversible-transformation", 10, 2),
-                snapshot("route:finding:01:a", "configured-ply", 12, 3),
-                snapshot("route:finding:01:a", "final-valid-position", 14, 3, "not-comparable"),
+              trajectory("route:d0915031cdecff76", "complete", [
+                snapshot("route:d0915031cdecff76", "opening-exit", 4, 0),
+                snapshot("route:d0915031cdecff76", "central-resolution", 8, 1),
+                snapshot("route:d0915031cdecff76", "irreversible-transformation", 10, 2),
+                snapshot("route:d0915031cdecff76", "configured-ply", 12, 3),
+                snapshot("route:d0915031cdecff76", "final-valid-position", 14, 3, "not-comparable"),
               ]),
-              trajectory("route:finding:01:b", "incomplete", [
-                snapshot("route:finding:01:b", "opening-exit", 4, 0),
-                snapshot("route:finding:01:b", "central-resolution", 8, 1, "incomplete"),
-                snapshot("route:finding:01:b", "configured-ply", 14, 3),
+              trajectory("route:e93bfad5d54ea7a2", "incomplete", [
+                snapshot("route:e93bfad5d54ea7a2", "opening-exit", 4, 0),
+                snapshot("route:e93bfad5d54ea7a2", "central-resolution", 8, 1, "incomplete"),
+                snapshot("route:e93bfad5d54ea7a2", "configured-ply", 14, 3),
               ], [{
                 kind: "irreversible-transformation",
                 reason: "This affected route ends before an irreversible checkpoint is available.",
@@ -205,9 +206,28 @@ async function installFindingWorkerFixture(page: Page) {
                   ? "This branch produces a closed center while the weighted baseline produces an open IQP position."
                   : `Plain-language explanation for fixture finding ${index + 1}.`,
                 references: {
-                  position_ids: [`position:${id}:a`, `position:${id}:b`],
-                  decision_ids: [`decision:${id}:a`, `decision:${id}:b`],
-                  route_ids: [`route:${id}:a`, `route:${id}:b`],
+                  position_ids: index === 0
+                    ? [
+                        "position:e7550032f70614fc",
+                        "position:2b1fd1b2aadfbfa3",
+                        "position:5022598b73716fd2",
+                        "position:373d8f8d0de0d9bf",
+                        "position:27ed4375501ec11a",
+                        "position:38fa52ee143b5f1a",
+                      ]
+                    : [`position:${id}:a`, `position:${id}:b`],
+                  decision_ids: index === 0
+                    ? [
+                        "decision:e4e5e82a5c33c5ff",
+                        "decision:c355600852e94946",
+                        "decision:a191661d710d7004",
+                        "decision:42f4ab66c74a8a67",
+                        "decision:ae1f88a65ccff091",
+                      ]
+                    : [`decision:${id}:a`, `decision:${id}:b`],
+                  route_ids: index === 0
+                    ? ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"]
+                    : [`route:${id}:a`, `route:${id}:b`],
                   source_san_paths: index === 0
                     ? [
                         ["e4", "c5", "c3", "Nf6"],
@@ -560,7 +580,10 @@ async function bootstrap(page: Page, repertoireColor: "white" | "black" = "white
   await installFindingWorkerFixture(page);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
-  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "finding-queue.pgn"));
+  await chess(page, (api) => api.loadPgn(
+    "1. e4 e5 (1... c5) 2. Nf3 Nc6 *",
+    "finding-queue.pgn",
+  ));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await chess(page, (api, color) => api.setColor(color), repertoireColor);
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
@@ -687,6 +710,92 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
+test("finding resolutions are reversible, persistent, count-aware, and visibly stale-safe", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const initialVersion = await chess(page, (api) => api.version());
+  const initialDirty = await chess(page, (api) => api.dirty());
+  const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  const first = queue.locator("[data-finding-id='finding:01']");
+  await first.locator("[data-finding-select]").click();
+
+  const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
+  await expect(actions).toBeVisible();
+  await actions.getByRole("radio", { name: /Keep intentionally/ }).check();
+  await actions.getByLabel("Optional keep-intentionally reason").selectOption("objectively-strongest");
+  await actions.getByLabel("Optional note").fill("Best practical choice for this repertoire.");
+  await actions.getByRole("button", { name: "Save resolution" }).click();
+
+  await expect(actions).toHaveAttribute("data-resolution-state", "keep-intentionally");
+  await expect(actions.getByRole("status")).toContainText("The repertoire was not changed");
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
+  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
+    .toHaveText("2");
+  await dialog.getByRole("button", { name: "Review unresolved findings" }).click();
+  await expect(queue.locator("[data-finding-id='finding:01']")).toHaveCount(0);
+  await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
+    "of 2 matching findings · 12 in this report",
+  );
+  await queue.getByRole("button", { name: "Show all report findings" }).click();
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
+  const persistedKeep = await chess(page, (api) => api.strategicFitMetadata().resolutions);
+  expect(persistedKeep).toMatchObject([{
+    state: "keep-intentionally",
+    intentional_reason: "objectively-strongest",
+    note: "Best practical choice for this repertoire.",
+    record_state: "active",
+    semantic_finding_id: "semantic:finding:01",
+  }]);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => api.version())).toBe(initialVersion);
+  expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
+  expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
+
+  await actions.getByRole("button", { name: "Reopen finding" }).click();
+  await expect(actions).toHaveAttribute("data-resolution-state", "unresolved");
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Unresolved");
+  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
+    .toHaveText("3");
+  expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toEqual([]);
+
+  await actions.getByRole("radio", { name: /Defer/ }).check();
+  await actions.getByLabel("Optional note").fill("Review after the next event.");
+  await actions.getByRole("button", { name: "Save resolution" }).click();
+  await expect(actions).toHaveAttribute("data-resolution-state", "defer");
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Deferred");
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await page.getByRole("button", { name: "Open workspace" }).click();
+  const restoredDialog = page.getByRole("dialog", { name: "Strategic Fit" });
+  await restoredDialog.getByRole("button", { name: "Analyze strategic fit" }).click();
+  await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
+  const restoredQueue = restoredDialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await expect(restoredQueue.locator("[data-finding-id='finding:01'] .strategic-fit-finding-resolution"))
+    .toHaveText("Deferred");
+  await expect(restoredDialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
+    .toHaveText("2");
+
+  await restoredQueue.locator("[data-finding-id='finding:02'] [data-finding-select]").click();
+  const staleSemantic = restoredDialog.locator("[data-resolution-finding-id='finding:02']");
+  await expect(staleSemantic.locator("[data-resolution-blocked]")).toContainText(
+    "semantic position referenced by this finding no longer belongs",
+  );
+  await expect(staleSemantic.getByRole("button", { name: "Save resolution" })).toHaveCount(0);
+  expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toHaveLength(1);
+
+  await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
+  await expect(restoredDialog.locator("[data-analysis-state='stale']")).toBeVisible();
+  await expect(restoredDialog.locator("[data-resolution-blocked]")).toContainText(
+    "Resolution actions are blocked while this report is stale",
+  );
+});
+
 test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({ page }) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
@@ -710,7 +819,7 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   await expect(sync).toContainText("Matched strategic milestone");
   await expect(sync).toContainText("Affected route 1 with Typical route 1 at Opening exit");
 
-  await comparison.getByLabel("Affected branch route").selectOption("route:finding:01:b");
+  await comparison.getByLabel("Affected branch route").selectOption("route:e93bfad5d54ea7a2");
   await comparison.getByLabel("Strategic milestone").selectOption("central-resolution");
   await expect(sync).toHaveAttribute("data-milestone-state", "incomplete");
   await expect(sync).toContainText("Incomplete checkpoint evidence");
@@ -720,7 +829,7 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   await expect(comparison.locator("[data-board-role='affected'] .strategic-fit-comparison-board-missing"))
     .toContainText("Board unavailable at this milestone");
 
-  await comparison.getByLabel("Affected branch route").selectOption("route:finding:01:a");
+  await comparison.getByLabel("Affected branch route").selectOption("route:d0915031cdecff76");
   await comparison.getByLabel("Typical cohort route").selectOption("route:baseline:01:b");
   await expect(sync).toHaveAttribute("data-milestone-state", "mismatched");
   await expect(sync).toContainText("typical cohort is missing");
@@ -777,7 +886,7 @@ test("stale and replacement reports clear comparison selection and local route s
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
   await expect(evidencePane.locator("[data-board-read-only='true']")).toHaveCount(2);
-  await evidencePane.getByLabel("Affected branch route").selectOption("route:finding:01:b");
+  await evidencePane.getByLabel("Affected branch route").selectOption("route:e93bfad5d54ea7a2");
   await evidencePane.getByLabel("Strategic milestone").selectOption("central-resolution");
   await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
     .toHaveAttribute("data-milestone-state", "incomplete");
@@ -795,7 +904,7 @@ test("stale and replacement reports clear comparison selection and local route s
   await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
     .toHaveAttribute("data-milestone-key", "opening-exit");
   await expect(evidencePane.getByLabel("Affected branch route"))
-    .toHaveValue("route:finding:01:a");
+    .toHaveValue("route:d0915031cdecff76");
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
@@ -883,6 +992,41 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   expect(secondBoard).not.toBeNull();
   expect(secondBoard!.y).toBeGreaterThan(firstBoard!.y + firstBoard!.height - 1);
   expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+});
+
+test("phone resolution controls are keyboard-operable, accessible, and touch-sized", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  await dialog.getByRole("tab", { name: "Findings" }).click();
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const resolutionTab = dialog.getByRole("tab", { name: "Resolution" });
+  await resolutionTab.focus();
+  await page.keyboard.press("Enter");
+  await expect(resolutionTab).toHaveAttribute("aria-selected", "true");
+  const pane = dialog.locator("#strategic-fit-pane-resolution");
+  const actions = pane.locator("[data-resolution-finding-id='finding:01']");
+  await expect(actions).toBeVisible();
+
+  const keep = actions.getByRole("radio", { name: /Keep intentionally/ });
+  await keep.focus();
+  await page.keyboard.press("ArrowDown");
+  const defer = actions.getByRole("radio", { name: /Defer/ });
+  await expect(defer).toBeChecked();
+  await actions.getByLabel("Optional note").focus();
+  await page.keyboard.type("Keyboard and phone review note.");
+  const save = actions.getByRole("button", { name: "Save resolution" });
+  await save.focus();
+  await page.keyboard.press("Enter");
+  await expect(actions).toHaveAttribute("data-resolution-state", "defer");
+  await expect(actions.getByRole("button", { name: "Reopen finding" })).toBeVisible();
+
+  await expectBasicAccessibility(dialog);
+  expect(await touchTargetViolations(pane)).toEqual([]);
+  expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
@@ -994,8 +1138,9 @@ test("completed desktop and phone review pass accessibility, overflow, and visua
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
   await close.focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(expert.locator("summary")).toBeFocused();
-  expect(await expert.locator("summary").evaluate((element) => {
+  const saveResolution = dialog.getByRole("button", { name: "Save resolution" });
+  await expect(saveResolution).toBeFocused();
+  expect(await saveResolution.evaluate((element) => {
     const style = getComputedStyle(element);
     return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
   })).toBe(true);

@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import ProfileSetup, {
   STRATEGIC_FIT_PROFILE_LABELS,
 } from "./strategic-fit/ProfileSetup";
@@ -10,11 +10,18 @@ import StrategicOverview, {
 } from "./strategic-fit/StrategicOverview";
 import FindingQueue from "./strategic-fit/FindingQueue";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
+import ResolutionActions from "./strategic-fit/ResolutionActions";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
 import { strategicFitLifecycle } from "../store/strategic-fit";
 import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
+import {
+  displayStrategicFitFindingResolution,
+  strategicFitFindingResolutionReview,
+  strategicFitFindingResolutionUnresolvedCount,
+  synchronizeStrategicFitFindingResolutionReview,
+} from "../store/strategic-fit-finding-resolutions";
 import { actions, color, currentTree, documentId, version } from "../store/game";
 import {
   openStrategicFitFindingQueue,
@@ -119,6 +126,12 @@ export default function StrategicFitWorkspace() {
       ? lifecycle.current_result
       : null;
   };
+  createEffect(() => {
+    const lifecycle = strategicFitLifecycle();
+    synchronizeStrategicFitFindingResolutionReview(
+      lifecycle.status === "completed" ? lifecycle.current_result?.report_id ?? null : null,
+    );
+  });
   const currentFindings = () => {
     const lifecycle = strategicFitLifecycle();
     return lifecycle.status === "completed" && lifecycle.current_result &&
@@ -154,6 +167,36 @@ export default function StrategicFitWorkspace() {
       preflightIssues: current.result.preflight.issues,
       repertoireColor: current.request_snapshot.repertoire_color,
     };
+  };
+  const currentResolution = () => {
+    const lifecycle = strategicFitLifecycle();
+    const current = lifecycle.current_result;
+    const queue = strategicFitFindingQueue.snapshot();
+    if (
+      lifecycle.status !== "completed" ||
+      current === null ||
+      strategicFitWorkspaceRegions().resolution.status !== "empty" ||
+      queue.report_id !== current.report_id
+    ) return null;
+    const findingId = queue.selected_finding_id ??
+      (strategicFitFindingResolutionReview().report_id === current.report_id
+        ? strategicFitFindingResolutionReview().finding_id
+        : null);
+    if (findingId === null) return null;
+    const finding = queue.findings.find((candidate) =>
+      candidate.finding_id === findingId
+    );
+    return finding === undefined ? null : { reportId: current.report_id, finding };
+  };
+  const resolutionFallbackState = (): StrategicFitWorkspaceRegionState => {
+    const lifecycle = strategicFitLifecycle();
+    if (lifecycle.status === "stale") {
+      return {
+        status: "error",
+        message: "Resolution actions are blocked while this report is stale. Analyze again before recording a decision.",
+      };
+    }
+    return strategicFitWorkspaceRegions().resolution;
   };
   const resolveCurrentEvidenceLine = (
     reportId: string,
@@ -348,7 +391,11 @@ export default function StrategicFitWorkspace() {
               fallback={<RegionState region="overview" state={strategicFitWorkspaceRegions().overview} />}
             >
               {(report) => (
-                <StrategicOverview report={report().result} onReview={reviewOverviewItem} />
+                <StrategicOverview
+                  report={report().result}
+                  unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(report().result)}
+                  onReview={reviewOverviewItem}
+                />
               )}
             </Show>
           </section>
@@ -373,7 +420,13 @@ export default function StrategicFitWorkspace() {
               when={currentFindings()}
               fallback={<RegionState region="findings" state={strategicFitWorkspaceRegions().findings} />}
             >
-              {(report) => <FindingQueue report={report()} intent={currentQueueIntent()} />}
+              {(report) => (
+                <FindingQueue
+                  report={report()}
+                  intent={currentQueueIntent()}
+                  resolutionState={displayStrategicFitFindingResolution}
+                />
+              )}
             </Show>
           </section>
 
@@ -419,6 +472,19 @@ export default function StrategicFitWorkspace() {
                 />
               )}
             </Show>
+            <Show when={!usesStageTabs() && currentResolution()}>
+              {(resolution) => (
+                <ResolutionActions
+                  reportId={resolution().reportId}
+                  finding={resolution().finding}
+                />
+              )}
+            </Show>
+            <Show when={!usesStageTabs() && strategicFitLifecycle().status === "stale"}>
+              <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>
+                Resolution actions are blocked while this report is stale. Analyze again before recording a decision.
+              </div>
+            </Show>
           </section>
 
           <section
@@ -434,7 +500,17 @@ export default function StrategicFitWorkspace() {
               <span>Next step</span>
               <h2 id="strategic-fit-pane-resolution-title">Resolution</h2>
             </div>
-            <RegionState region="resolution" state={strategicFitWorkspaceRegions().resolution} />
+            <Show
+              when={usesStageTabs() && currentResolution()}
+              fallback={<RegionState region="resolution" state={resolutionFallbackState()} />}
+            >
+              {(resolution) => (
+                <ResolutionActions
+                  reportId={resolution().reportId}
+                  finding={resolution().finding}
+                />
+              )}
+            </Show>
           </section>
               </main>
             </>

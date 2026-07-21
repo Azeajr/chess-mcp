@@ -94,6 +94,8 @@ export interface StrategicFitLifecycleState {
   cancel(): void;
   retry(): Promise<void>;
   synchronize(current?: StrategicFitRequestSnapshot): void;
+  prepareCompletedReportForResolution(reportId: string): boolean;
+  retainCompletedReportAfterResolution(reportId: string): boolean;
 }
 
 interface ActiveRequest {
@@ -247,6 +249,7 @@ export function createStrategicFitLifecycleState(
   const [state, setState] = createSignal<StrategicFitLifecycleSnapshot>(initialSnapshot());
   let requestSequence = 0;
   let active: ActiveRequest | null = null;
+  let preparedResolutionReportId: string | null = null;
 
   const finishAsStale = (request: ActiveRequest, current: StrategicFitRequestSnapshot) => {
     if (active === request) active = null;
@@ -265,6 +268,7 @@ export function createStrategicFitLifecycleState(
   };
 
   const analyze = async () => {
+    preparedResolutionReportId = null;
     const previousActive = active;
     if (previousActive) {
       active = null;
@@ -431,6 +435,52 @@ export function createStrategicFitLifecycleState(
       }));
     },
     retry: analyze,
+    prepareCompletedReportForResolution(reportId) {
+      if (active !== null || state().current_result?.report_id !== reportId) return false;
+      preparedResolutionReportId = reportId;
+      return true;
+    },
+    retainCompletedReportAfterResolution(reportId) {
+      const wasPrepared = preparedResolutionReportId === reportId;
+      if (wasPrepared) preparedResolutionReportId = null;
+      if (!wasPrepared) return false;
+      const previous = state();
+      const completed = previous.current_result?.report_id === reportId
+        ? previous.current_result
+        : previous.last_completed?.report_id === reportId
+          ? previous.last_completed
+          : null;
+      if (completed === null || active !== null) return false;
+      const current = boundary.currentSnapshot();
+      const snapshot = completed.request_snapshot;
+      if (
+        snapshot.document_id !== current.document_id ||
+        snapshot.repertoire_revision !== current.repertoire_revision ||
+        snapshot.repertoire_pgn !== current.repertoire_pgn ||
+        snapshot.repertoire_color !== current.repertoire_color ||
+        snapshot.profile_identity !== current.profile_identity
+      ) return false;
+
+      // A review resolution changes analyzer settings but not the immutable evidence in the
+      // completed report. Task 6.4 owns the later affected-cohort reanalysis. Rebind only the
+      // settings snapshot here so the current evidence remains available for reversible review.
+      const rebound: StrategicFitCompletedResult = {
+        ...completed,
+        request_snapshot: current,
+      };
+      setState({
+        ...previous,
+        status: "completed",
+        request_id: rebound.request_id,
+        request_snapshot: current,
+        progress: null,
+        error: null,
+        stale_reason: null,
+        current_result: rebound,
+        last_completed: rebound,
+      });
+      return true;
+    },
     synchronize(suppliedCurrent) {
       const current = suppliedCurrent ?? boundary.currentSnapshot();
       if (active && !sameSnapshot(active.snapshot, current)) {
@@ -439,6 +489,15 @@ export function createStrategicFitLifecycleState(
       }
       const completed = state().current_result;
       if (completed && !sameSnapshot(completed.request_snapshot, current)) {
+        const snapshot = completed.request_snapshot;
+        if (
+          preparedResolutionReportId === completed.report_id &&
+          snapshot.document_id === current.document_id &&
+          snapshot.repertoire_revision === current.repertoire_revision &&
+          snapshot.repertoire_pgn === current.repertoire_pgn &&
+          snapshot.repertoire_color === current.repertoire_color &&
+          snapshot.profile_identity === current.profile_identity
+        ) return;
         setState((previous) => ({
           ...previous,
           status: "stale",
@@ -487,3 +546,7 @@ export const strategicFitLifecycle = () => browserLifecycle.snapshot();
 export const analyzeStrategicFit = () => browserLifecycle.analyze();
 export const cancelStrategicFitAnalysis = () => browserLifecycle.cancel();
 export const retryStrategicFitAnalysis = () => browserLifecycle.retry();
+export const prepareCompletedStrategicFitReportForResolution = (reportId: string) =>
+  browserLifecycle.prepareCompletedReportForResolution(reportId);
+export const retainCompletedStrategicFitReportAfterResolution = (reportId: string) =>
+  browserLifecycle.retainCompletedReportAfterResolution(reportId);
