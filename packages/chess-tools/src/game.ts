@@ -8,6 +8,7 @@ import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
 import { parsePgn } from "chessops/pgn";
+import { makeUci } from "chessops/util";
 import { positionKey, type Color } from "./congruence.js";
 import { rejectFenSetup } from "./pgn.js";
 
@@ -15,6 +16,7 @@ export interface MainlineMove {
   ply: number;
   color: Color;
   san: string;
+  uci: string;
   fenBefore: string;
   fenAfter: string;
 }
@@ -35,9 +37,10 @@ export function mainline(pgn: string): MainlineMove[] {
     const fenBefore = makeFen(pos.toSetup());
     const color = pos.turn;
     const san = makeSan(pos, move);
+    const uci = makeUci(move);
     pos.play(move);
     ply++;
-    out.push({ ply, color, san, fenBefore, fenAfter: makeFen(pos.toSetup()) });
+    out.push({ ply, color, san, uci, fenBefore, fenAfter: makeFen(pos.toSetup()) });
     node = child;
   }
   return out;

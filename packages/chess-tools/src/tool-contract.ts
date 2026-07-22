@@ -58,18 +58,18 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         : name === "export_strategic_fit_intent_pgn"
         ? ["current PGN", "current GameTree", "stable document ID", "document revision", "normalized Strategic Fit metadata", "current Strategic Fit report"]
         : name === "analyze_repertoire_congruence"
-        ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "optional explorer credentials", "Strategic Fit Web Worker"]
+        ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs", "Strategic Fit Web Worker"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
       ],
       mcpInjects: name === "analyze_repertoire_congruence"
-        ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy", "optional explorer credentials"]
+        ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs"]
         : input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
       ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
-        : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence before that shared analyzer boundary." }
+        : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
         : {}),
     },
     ...(input ? { input } : {}),
@@ -113,6 +113,13 @@ const strategicFitPopularity = object({
   ...explorerPopulationFilters,
   max_positions: integer(1, 120),
 });
+const strategicFitPersonalHistory = object({
+  username: string("Username on the selected game platform.", 128),
+  platform: { type: "string", enum: ["lichess", "chesscom"] },
+  max_games: integer(1, 100),
+  year: integer(1900, 9999),
+  month: integer(1, 12),
+}, ["username"]);
 const strategicFitPage = object({ offset: integer(0, 1_000_000), limit: integer(1, 50) });
 const strategicFitCohortOverride = object({
   override_id: strategicFitId(),
@@ -158,16 +165,17 @@ export const TOOL_CONTRACTS = [
   define("get_structural_profile", "Return a repertoire-wide pawn-structure profile or one position selected by SAN path.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array() }, mcpRequired: ["repertoire_id"] }),
   define(
     "analyze_repertoire_congruence",
-    "Analyze Strategic Fit across transposition-aware repertoire routes; returns native V2 evidence plus a temporary legacy projection.",
-    ["repertoire", "network"],
+    "Analyze Strategic Fit across transposition-aware repertoire routes with optional population and personal-history frequency; returns native V2 evidence plus a temporary legacy projection.",
+    ["repertoire", "game", "network"],
     BOTH,
-    { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, page_limit: 50, legacy_projection_limit: 10 },
+    { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, personal_history_platform: "lichess", personal_history_max_games: 30, page_limit: 50, legacy_projection_limit: 10 },
     {
       properties: {
         repertoire_id: string("MCP handle; browser injects the current document"),
         profile: strategicFitProfile,
         weighting: strategicFitWeighting,
         popularity: strategicFitPopularity,
+        personal_history: strategicFitPersonalHistory,
         page: strategicFitPage,
         sort: { type: "string", enum: ["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"] },
         cohort_overrides: array(strategicFitCohortOverride, undefined, 100),
@@ -305,11 +313,31 @@ function strategicFitArgumentsError(value: Record<string, unknown>): string | nu
   if (value.popularity !== undefined && value.weighting !== undefined) {
     return "popularity and weighting are alternative route-weight sources and cannot be combined";
   }
+  if (value.personal_history !== undefined && value.weighting !== undefined) {
+    return "personal_history cannot be combined with explicit weighting before enriched-source composition";
+  }
   const popularityReason = explorerPopulationArgumentsError(
     value.popularity as Record<string, unknown> | undefined,
     "popularity",
   );
   if (popularityReason) return popularityReason;
+
+  const personalHistory = value.personal_history as Record<string, unknown> | undefined;
+  if (personalHistory !== undefined) {
+    const username = personalHistory.username as string;
+    if (username.trim().length === 0) return "personal_history.username must not be blank";
+    const platform = personalHistory.platform ?? "lichess";
+    if (platform === "chesscom") {
+      if (personalHistory.year === undefined || personalHistory.month === undefined) {
+        return "personal_history for chesscom requires year and month";
+      }
+      if (personalHistory.max_games !== undefined) {
+        return "personal_history.max_games is only supported for lichess";
+      }
+    } else if (personalHistory.year !== undefined || personalHistory.month !== undefined) {
+      return "personal_history year and month are only supported for chesscom";
+    }
+  }
 
   const weighting = value.weighting as Record<string, unknown> | undefined;
   for (const [list, identity] of [["route_weights", "route_id"], ["decision_weights", "decision_id"]] as const) {

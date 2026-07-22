@@ -4,6 +4,7 @@ import {
   auditRepertoireMoves,
   buildRepertoireGraph,
   checkShortcutCoverage,
+  collectStrategicPersonalHistoryWeights,
   collectStrategicPopularityWeights,
   compareShortcutLines,
   findOnlyMoves,
@@ -25,6 +26,7 @@ import {
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
+  strategicPersonalHistorySourceFromToolArguments,
   strategicPopularityOptionsFromToolArguments,
   serializeStrategicFitSidecar,
   exportStrategicFitIntentPgn,
@@ -50,10 +52,11 @@ const effectiveDocumentSettingsIdentity = (
   args: StrategicFitToolArguments,
   snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
 ) => JSON.stringify({
-  weighting: args.popularity !== undefined
+  weighting: args.popularity !== undefined || args.personal_history !== undefined
     ? null
     : args.weighting === undefined ? snapshot.inputs.weighting ?? null : args.weighting,
   popularity: args.popularity ?? null,
+  personal_history: args.personal_history ?? null,
   cohort_overrides: args.cohort_overrides === undefined
     ? snapshot.inputs.cohort_overrides ?? null
     : args.cohort_overrides,
@@ -68,7 +71,8 @@ const injectDocumentAnalysisSettings = (
   snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
 ) => ({
   ...options,
-  ...(args.weighting === undefined && args.popularity === undefined && snapshot.inputs.weighting !== undefined
+  ...(args.weighting === undefined && args.popularity === undefined &&
+      args.personal_history === undefined && snapshot.inputs.weighting !== undefined
     ? { weighting: snapshot.inputs.weighting }
     : {}),
   ...(args.cohort_overrides === undefined && snapshot.inputs.cohort_overrides !== undefined
@@ -232,47 +236,88 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     let options = toolArgs.profile === undefined
       ? { ...settingsOptions, profile: documentProfile }
       : settingsOptions;
-    let popularityProgressTotal = 0;
     const popularityOptions = strategicPopularityOptionsFromToolArguments(toolArgs);
-    if (popularityOptions) {
-      let graph: ReturnType<typeof buildRepertoireGraph> | null;
+    const personalHistorySource = strategicPersonalHistorySourceFromToolArguments(toolArgs);
+    let graph: ReturnType<typeof buildRepertoireGraph> | null = null;
+    if (popularityOptions || personalHistorySource) {
       try {
         graph = buildRepertoireGraph(context.currentTree(), color);
       } catch {
         // The analyzer owns structured preflight for unsupported or malformed trees. Optional
-        // population evidence must never replace that base report with an adapter exception.
-        graph = null;
+        // external evidence must never replace that base report with an adapter exception.
       }
-      if (graph) {
-        const collection = await collectStrategicPopularityWeights(
-          graph,
-          {
-            ...popularityOptions,
-            availability: context.hasExplorerToken() ? "available" : "authentication-required",
-            shouldCancel: () => context.signal?.aborted ?? false,
-            onProgress: (done, total) => {
-              popularityProgressTotal = total;
-              context.onProgress?.(
-                done,
-                total + STRATEGIC_FIT_PROGRESS_PHASES.length,
-                "Collecting opening popularity",
-              );
-            },
+    }
+    let popularityProgressTotal = 0;
+    const personalHistoryProgressTotal = personalHistorySource && graph ? 1 : 0;
+    if (popularityOptions && graph) {
+      const collection = await collectStrategicPopularityWeights(
+        graph,
+        {
+          ...popularityOptions,
+          availability: context.hasExplorerToken() ? "available" : "authentication-required",
+          shouldCancel: () => context.signal?.aborted ?? false,
+          onProgress: (done, total) => {
+            popularityProgressTotal = total;
+            context.onProgress?.(
+              done,
+              total + personalHistoryProgressTotal + STRATEGIC_FIT_PROGRESS_PHASES.length,
+              "Collecting opening popularity",
+            );
           },
-          context.hasExplorerToken()
-            ? (fen) => context.explorerPosition(
-                fen,
-                { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
-                context.signal,
-              )
-            : undefined,
-        );
-        throwIfAborted(context.signal);
-        if (collection.state === "cancelled") {
-          throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
-        }
-        options = { ...options, weighting: collection.weighting };
+        },
+        context.hasExplorerToken()
+          ? (fen) => context.explorerPosition(
+              fen,
+              { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
+              context.signal,
+            )
+          : undefined,
+      );
+      throwIfAborted(context.signal);
+      if (collection.state === "cancelled") {
+        throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
       }
+      options = { ...options, weighting: collection.weighting };
+    }
+    if (personalHistorySource && graph) {
+      const total = popularityProgressTotal + personalHistoryProgressTotal +
+        STRATEGIC_FIT_PROGRESS_PHASES.length;
+      context.onProgress?.(
+        popularityProgressTotal,
+        total,
+        "Fetching personal game history",
+      );
+      const games = personalHistorySource.platform === "chesscom"
+        ? await context.chesscomGames(
+            personalHistorySource.username,
+            personalHistorySource.year!,
+            personalHistorySource.month!,
+            undefined,
+            true,
+            context.signal,
+          )
+        : await context.lichessGames(
+            personalHistorySource.username,
+            personalHistorySource.max_games!,
+            undefined,
+            true,
+            context.signal,
+          );
+      throwIfAborted(context.signal);
+      const collection = collectStrategicPersonalHistoryWeights(graph, games, {
+        source: personalHistorySource,
+        population: options.weighting,
+        shouldCancel: () => context.signal?.aborted ?? false,
+      });
+      if (collection.state === "cancelled") {
+        throw new DOMException("Strategic Fit personal-history collection cancelled", "AbortError");
+      }
+      context.onProgress?.(
+        popularityProgressTotal + 1,
+        total,
+        "Mapped personal game history",
+      );
+      options = { ...options, weighting: collection.weighting };
     }
     const completeReport = await context.strategicFitReport(
       pgn,
@@ -280,8 +325,9 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       {
         signal: context.signal,
         onProgress: (progress) => context.onProgress?.(
-          popularityProgressTotal + progress.phase_index + (progress.state === "completed" ? 1 : 0),
-          popularityProgressTotal + progress.phase_count,
+          popularityProgressTotal + personalHistoryProgressTotal + progress.phase_index +
+            (progress.state === "completed" ? 1 : 0),
+          popularityProgressTotal + personalHistoryProgressTotal + progress.phase_count,
           progress.message,
         ),
       },

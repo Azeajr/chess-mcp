@@ -24,6 +24,10 @@ import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 import type {
   StrategicPopularityCollectionOptions,
 } from "./popularity.js";
+import {
+  STRATEGIC_PERSONAL_HISTORY_DEFAULT_MAX_GAMES,
+  type StrategicPersonalHistorySource,
+} from "./personal-history.js";
 import type {
   StrategicDecisionWeightInput,
   StrategicRouteWeightInput,
@@ -73,6 +77,14 @@ export interface StrategicFitToolPopularityInput {
   readonly max_positions?: number;
 }
 
+export interface StrategicFitToolPersonalHistoryInput {
+  readonly username: string;
+  readonly platform?: "lichess" | "chesscom";
+  readonly max_games?: number;
+  readonly year?: number;
+  readonly month?: number;
+}
+
 export interface StrategicFitToolArguments {
   /** Legacy V1 inputs remain accepted until the final cutover. */
   readonly min_severity?: "low" | "medium" | "high";
@@ -84,6 +96,8 @@ export interface StrategicFitToolArguments {
   readonly weighting?: StrategicFitToolWeightingInput;
   /** Optional host-collected population evidence. The deterministic core never performs I/O. */
   readonly popularity?: StrategicFitToolPopularityInput;
+  /** Optional host-fetched PGNs mapped to semantic route frequency outside the analyzer. */
+  readonly personal_history?: StrategicFitToolPersonalHistoryInput;
   readonly page?: StrategicFitFindingPageInput;
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
@@ -100,6 +114,22 @@ export function strategicPopularityOptionsFromToolArguments(
   return {
     filters,
     ...(maxPositions === undefined ? {} : { maxPositions }),
+  };
+}
+
+/** Resolve the public personal-history request into one deterministic host fetch identity. */
+export function strategicPersonalHistorySourceFromToolArguments(
+  args: StrategicFitToolArguments,
+): StrategicPersonalHistorySource | null {
+  const input = args.personal_history;
+  if (input === undefined) return null;
+  const platform = input.platform ?? "lichess";
+  return {
+    platform,
+    username: input.username.trim(),
+    ...(platform === "lichess"
+      ? { max_games: input.max_games ?? STRATEGIC_PERSONAL_HISTORY_DEFAULT_MAX_GAMES }
+      : { year: input.year, month: input.month }),
   };
 }
 

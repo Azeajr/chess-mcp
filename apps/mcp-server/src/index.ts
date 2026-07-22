@@ -45,6 +45,7 @@ import {
   checkShortcutCoverage,
   analyzeStrategicFit,
   buildRepertoireGraph,
+  collectStrategicPersonalHistoryWeights,
   collectStrategicPopularityWeights,
   STRATEGIC_FIT_PROGRESS_PHASES,
   STRATEGIC_POPULARITY_MOVE_LIMIT,
@@ -70,6 +71,7 @@ import {
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
+  strategicPersonalHistorySourceFromToolArguments,
   strategicPopularityOptionsFromToolArguments,
   type ExplorerFilters,
   type StrategicFitToolArguments,
@@ -135,6 +137,13 @@ const strategicFitPopularitySchema = z.object({
   since: explorerRecencySchema().optional(),
   until: explorerRecencySchema().optional(),
   max_positions: z.number().int().min(1).max(120).optional(),
+}).strict();
+const strategicFitPersonalHistorySchema = z.object({
+  username: z.string().max(128),
+  platform: z.enum(["lichess", "chesscom"]).optional(),
+  max_games: z.number().int().min(1).max(100).optional(),
+  year: z.number().int().min(1900).max(9999).optional(),
+  month: z.number().int().min(1).max(12).optional(),
 }).strict();
 const strategicFitPageSchema = z.object({
   offset: z.number().int().min(0).max(1_000_000).optional(),
@@ -989,6 +998,7 @@ server.tool(
     profile: strategicFitProfileSchema.optional(),
     weighting: strategicFitWeightingSchema.optional(),
     popularity: strategicFitPopularitySchema.optional(),
+    personal_history: strategicFitPersonalHistorySchema.optional(),
     page: strategicFitPageSchema.optional(),
     sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
     cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
@@ -1014,7 +1024,6 @@ server.tool(
       repertoireRevision: e.revision,
       openingTable: openingsTable,
     });
-    let popularityProgressTotal = 0;
     const progressToken = extra._meta?.progressToken;
     const notifyProgress = (done: number, total: number, message: string) => {
       if (progressToken === undefined) return;
@@ -1024,46 +1033,87 @@ server.tool(
       });
     };
     const popularityOptions = strategicPopularityOptionsFromToolArguments(args);
-    if (popularityOptions) {
-      let graph: ReturnType<typeof buildRepertoireGraph> | null;
+    const personalHistorySource = strategicPersonalHistorySourceFromToolArguments(args);
+    let graph: ReturnType<typeof buildRepertoireGraph> | null = null;
+    if (popularityOptions || personalHistorySource) {
       try {
         graph = buildRepertoireGraph(e.tree, e.color);
       } catch {
         // Preserve the analyzer's structured preflight result for unsupported or malformed trees.
-        graph = null;
       }
-      if (graph) {
-        const collection = await collectStrategicPopularityWeights(
-          graph,
-          {
-            ...popularityOptions,
-            availability: hasExplorerToken() ? "available" : "authentication-required",
-            shouldCancel: () => extra.signal.aborted,
-            onProgress: (done, total) => {
-              popularityProgressTotal = total;
-              notifyProgress(done, total + STRATEGIC_FIT_PROGRESS_PHASES.length, "Collecting opening popularity");
-            },
+    }
+    let popularityProgressTotal = 0;
+    const personalHistoryProgressTotal = personalHistorySource && graph ? 1 : 0;
+    if (popularityOptions && graph) {
+      const collection = await collectStrategicPopularityWeights(
+        graph,
+        {
+          ...popularityOptions,
+          availability: hasExplorerToken() ? "available" : "authentication-required",
+          shouldCancel: () => extra.signal.aborted,
+          onProgress: (done, total) => {
+            popularityProgressTotal = total;
+            notifyProgress(
+              done,
+              total + personalHistoryProgressTotal + STRATEGIC_FIT_PROGRESS_PHASES.length,
+              "Collecting opening popularity",
+            );
           },
-          hasExplorerToken()
-            ? (fen) => explorerPosition(
-                fen,
-                { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
-                extra.signal,
-              )
-            : undefined,
-        );
-        if (extra.signal.aborted || collection.state === "cancelled") {
-          throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
-        }
-        options = { ...options, weighting: collection.weighting };
+        },
+        hasExplorerToken()
+          ? (fen) => explorerPosition(
+              fen,
+              { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
+              extra.signal,
+            )
+          : undefined,
+      );
+      if (extra.signal.aborted || collection.state === "cancelled") {
+        throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
       }
+      options = { ...options, weighting: collection.weighting };
+    }
+    if (personalHistorySource && graph) {
+      const total = popularityProgressTotal + personalHistoryProgressTotal +
+        STRATEGIC_FIT_PROGRESS_PHASES.length;
+      notifyProgress(popularityProgressTotal, total, "Fetching personal game history");
+      const games = personalHistorySource.platform === "chesscom"
+        ? await chesscomGames(
+            personalHistorySource.username,
+            personalHistorySource.year!,
+            personalHistorySource.month!,
+            undefined,
+            true,
+            extra.signal,
+          )
+        : await lichessGames(
+            personalHistorySource.username,
+            personalHistorySource.max_games!,
+            undefined,
+            true,
+            extra.signal,
+          );
+      if (extra.signal.aborted) {
+        throw new DOMException("Strategic Fit personal-history fetch cancelled", "AbortError");
+      }
+      const collection = collectStrategicPersonalHistoryWeights(graph, games, {
+        source: personalHistorySource,
+        population: options.weighting,
+        shouldCancel: () => extra.signal.aborted,
+      });
+      if (collection.state === "cancelled") {
+        throw new DOMException("Strategic Fit personal-history collection cancelled", "AbortError");
+      }
+      notifyProgress(popularityProgressTotal + 1, total, "Mapped personal game history");
+      options = { ...options, weighting: collection.weighting };
     }
     options = {
       ...options,
       shouldCancel: () => extra.signal.aborted,
       onProgress: (progress) => notifyProgress(
-        popularityProgressTotal + progress.phase_index + (progress.state === "completed" ? 1 : 0),
-        popularityProgressTotal + progress.phase_count,
+        popularityProgressTotal + personalHistoryProgressTotal + progress.phase_index +
+          (progress.state === "completed" ? 1 : 0),
+        popularityProgressTotal + personalHistoryProgressTotal + progress.phase_count,
         progress.message,
       ),
     };

@@ -93,6 +93,13 @@ requested, each host first walks canonical opponent decision positions under a h
 deduplicates transpositions, and injects external decision weights into the existing report cache
 and analyzer boundary. Missing authentication or connectivity yields unavailable provenance and
 equal fallback weights; budget exhaustion or a later lookup failure yields partial provenance.
+When optional personal history is requested, the host reuses the existing Lichess or Chess.com
+full-PGN fetch boundary, excludes games played from the wrong repertoire color, and maps played
+positions, semantic decisions, transpositions, and player departures without mutating the
+repertoire. Per-position personal opponent-choice counts use a 20-game empirical prior drawn from
+the requested population evidence, or an equal prior when population data was not requested.
+Missing PGN metadata, invalid samples, no matching color, and fetch failure remain explicit
+insufficient, partial, or unavailable provenance while the base report remains usable.
 
 ## Safety and result conventions
 

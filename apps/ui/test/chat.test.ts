@@ -98,8 +98,28 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
     popularity: { db: "lichess", since: "2024" },
   }, "browser").ok, false);
   assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    personal_history: { username: "SampleUser", max_games: 40 },
+  }, "browser").ok, true);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    popularity: { db: "lichess" },
+    personal_history: { username: "SampleUser", platform: "chesscom", year: 2026, month: 7 },
+  }, "browser").ok, true);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    personal_history: { username: "SampleUser", platform: "chesscom" },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    personal_history: { username: "SampleUser", platform: "lichess", year: 2026, month: 7 },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    personal_history: { username: "   " },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
     weighting: { mode: "equal" },
     popularity: { db: "lichess" },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    weighting: { mode: "equal" },
+    personal_history: { username: "SampleUser" },
   }, "browser").ok, false);
   assert.equal(
     validateToolArguments("analyze_repertoire_congruence", {
@@ -131,6 +151,7 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
   };
   assert.equal(schema.properties.profile.type, "object");
   assert.equal(schema.properties.popularity.type, "object");
+  assert.equal(schema.properties.personal_history.type, "object");
   assert.equal(schema.properties.profile.additionalProperties, false);
   assert.equal(schema.properties.cohort_overrides.maxItems, 100);
 });

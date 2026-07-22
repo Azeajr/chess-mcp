@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   STRATEGIC_FIT_SCHEMA_VERSION,
   strategicFitOptionsFromToolArguments,
+  strategicPersonalHistorySourceFromToolArguments,
   strategicPopularityOptionsFromToolArguments,
   type StrategicFitToolArguments,
 } from "../../src/index.ts";
@@ -118,4 +119,28 @@ test("public popularity arguments map to bounded host collection options without
     repertoireRevision: "revision:popularity",
   });
   assert.equal(options.weighting, undefined, "hosts inject collected evidence after argument adaptation");
+});
+
+test("public personal-history arguments resolve platform-specific host fetch identities", () => {
+  assert.deepEqual(strategicPersonalHistorySourceFromToolArguments({
+    personal_history: { username: "  SampleUser  ", max_games: 45 },
+  }), {
+    platform: "lichess",
+    username: "SampleUser",
+    max_games: 45,
+  });
+  assert.deepEqual(strategicPersonalHistorySourceFromToolArguments({
+    personal_history: {
+      username: "SampleUser",
+      platform: "chesscom",
+      year: 2026,
+      month: 7,
+    },
+  }), {
+    platform: "chesscom",
+    username: "SampleUser",
+    year: 2026,
+    month: 7,
+  });
+  assert.equal(strategicPersonalHistorySourceFromToolArguments({}), null);
 });

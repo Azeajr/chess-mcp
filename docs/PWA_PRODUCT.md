@@ -50,6 +50,10 @@ Direct local analysis does not need an OpenRouter key. Network operations still 
 and, for Lichess opening explorer, a personal token entered in Settings. An explicitly requested
 Strategic Fit popularity enrichment remains a usable base report without that token and labels the
 population source unavailable rather than reporting zero popularity.
+Optional Strategic Fit personal-history enrichment fetches full PGNs from the selected Lichess or
+Chess.com account, uses only games played from the repertoire color, and shrinks sparse personal
+branch counts toward the population or equal baseline. Missing PGNs and unavailable history remain
+explicitly insufficient or unavailable rather than becoming zero frequency.
 
 ## Persistence
 

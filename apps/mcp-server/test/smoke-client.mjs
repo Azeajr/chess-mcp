@@ -252,6 +252,16 @@ try {
 }
 ok(invalidStrategicFitRejected, "analyze_repertoire_congruence rejects malformed nested V2 arguments");
 
+const invalidPersonalHistory = await call(client, "analyze_repertoire_congruence", {
+  repertoire_id: congRep.repertoire_id,
+  personal_history: { username: "SampleUser", platform: "chesscom" },
+});
+ok(
+  invalidPersonalHistory.error === "invalid_arguments" &&
+    /requires year and month/.test(invalidPersonalHistory.reason ?? ""),
+  "analyze_repertoire_congruence validates the MCP personal-history source before fetching",
+);
+
 if (!process.env.LICHESS_TOKEN) {
   const unavailablePopularity = await call(client, "analyze_repertoire_congruence", {
     repertoire_id: congRep.repertoire_id,

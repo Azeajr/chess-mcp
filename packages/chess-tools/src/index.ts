@@ -127,6 +127,7 @@ export * from "./strategic-fit/trajectory.js";
 export * from "./strategic-fit/concepts.js";
 export * from "./strategic-fit/weights.js";
 export * from "./strategic-fit/popularity.js";
+export * from "./strategic-fit/personal-history.js";
 export * from "./strategic-fit/cohorts.js";
 export * from "./strategic-fit/modes.js";
 export * from "./strategic-fit/distance.js";
