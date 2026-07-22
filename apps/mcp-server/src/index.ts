@@ -19,6 +19,8 @@ import {
   cloudEval,
   tablebaseLookup,
   explorerPosition,
+  EXPLORER_RATING_BUCKETS,
+  EXPLORER_SPEEDS,
   theoryDepth,
   setExplorerToken,
   hasExplorerToken,
@@ -42,6 +44,10 @@ import {
   compareShortcutLines,
   checkShortcutCoverage,
   analyzeStrategicFit,
+  buildRepertoireGraph,
+  collectStrategicPopularityWeights,
+  STRATEGIC_FIT_PROGRESS_PHASES,
+  STRATEGIC_POPULARITY_MOVE_LIMIT,
   type Color,
   type MoveRecord,
   toolContract,
@@ -64,6 +70,8 @@ import {
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
+  strategicPopularityOptionsFromToolArguments,
+  type ExplorerFilters,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
@@ -112,6 +120,21 @@ const strategicFitWeightingSchema = z.object({
     decision_id: strategicFitIdSchema(),
     weight: z.number().min(0).max(1_000_000),
   }).strict()).max(500).optional(),
+}).strict();
+const explorerSpeedSchema = z.enum(EXPLORER_SPEEDS);
+const explorerRatingSchema = z.number().int().min(0).max(2500).refine(
+  (rating): rating is (typeof EXPLORER_RATING_BUCKETS)[number] =>
+    (EXPLORER_RATING_BUCKETS as readonly number[]).includes(rating),
+  "unsupported explorer rating bucket",
+);
+const explorerRecencySchema = () => z.string().max(7).regex(/^(?:\d{4}|\d{4}-(?:0[1-9]|1[0-2]))$/);
+const strategicFitPopularitySchema = z.object({
+  db: z.enum(["lichess", "masters"]).optional(),
+  speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
+  ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
+  since: explorerRecencySchema().optional(),
+  until: explorerRecencySchema().optional(),
+  max_positions: z.number().int().min(1).max(120).optional(),
 }).strict();
 const strategicFitPageSchema = z.object({
   offset: z.number().int().min(0).max(1_000_000).optional(),
@@ -207,13 +230,33 @@ server.tool(
   {
     fen: z.string(),
     db: z.enum(["lichess", "masters"]).optional(),
+    speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
+    ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
+    since: explorerRecencySchema().optional(),
+    until: explorerRecencySchema().optional(),
     top_moves: z.number().int().min(0).max(30).optional(),
   },
-  async ({ fen, db, top_moves }) => {
+  async ({ fen, db, speeds, ratings, since, until, top_moves }, extra) => {
+    const rawFilters = Object.fromEntries(Object.entries({
+      fen,
+      db,
+      speeds,
+      ratings,
+      since,
+      until,
+      top_moves,
+    }).filter(([, value]) => value !== undefined));
+    const validation = validateToolArguments(
+      "position_popularity",
+      rawFilters,
+      "mcp",
+    );
+    if (!validation.ok) return ok(validation);
     const v = validateFen(fen);
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (!hasExplorerToken()) return explorerAuthRequired();
-    const res = await explorerPosition(v.fen!, { db, movesLimit: top_moves });
+    const filters: ExplorerFilters = { db, speeds, ratings, since, until, movesLimit: top_moves };
+    const res = await explorerPosition(v.fen!, filters, extra.signal);
     return ok(res ? { fen: v.fen, db: db ?? toolDefault("position_popularity", "db", "lichess"), ...res } : { fen: v.fen, available: false });
   },
 );
@@ -945,6 +988,7 @@ server.tool(
     repertoire_id: z.string(),
     profile: strategicFitProfileSchema.optional(),
     weighting: strategicFitWeightingSchema.optional(),
+    popularity: strategicFitPopularitySchema.optional(),
     page: strategicFitPageSchema.optional(),
     sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
     cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
@@ -955,7 +999,7 @@ server.tool(
     acknowledged_weaknesses: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
     exclude_paths: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
   },
-  ({ repertoire_id, ...rawArgs }) => {
+  async ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const validation = validateToolArguments(
@@ -965,11 +1009,64 @@ server.tool(
     );
     if (!validation.ok) return ok(validation);
     const args = rawArgs as unknown as StrategicFitToolArguments;
-    const options = strategicFitOptionsFromToolArguments(args, {
+    let options = strategicFitOptionsFromToolArguments(args, {
       repertoireColor: e.color,
       repertoireRevision: e.revision,
       openingTable: openingsTable,
     });
+    let popularityProgressTotal = 0;
+    const progressToken = extra._meta?.progressToken;
+    const notifyProgress = (done: number, total: number, message: string) => {
+      if (progressToken === undefined) return;
+      void extra.sendNotification({
+        method: "notifications/progress",
+        params: { progressToken, progress: done, total, message },
+      });
+    };
+    const popularityOptions = strategicPopularityOptionsFromToolArguments(args);
+    if (popularityOptions) {
+      let graph: ReturnType<typeof buildRepertoireGraph> | null;
+      try {
+        graph = buildRepertoireGraph(e.tree, e.color);
+      } catch {
+        // Preserve the analyzer's structured preflight result for unsupported or malformed trees.
+        graph = null;
+      }
+      if (graph) {
+        const collection = await collectStrategicPopularityWeights(
+          graph,
+          {
+            ...popularityOptions,
+            availability: hasExplorerToken() ? "available" : "authentication-required",
+            shouldCancel: () => extra.signal.aborted,
+            onProgress: (done, total) => {
+              popularityProgressTotal = total;
+              notifyProgress(done, total + STRATEGIC_FIT_PROGRESS_PHASES.length, "Collecting opening popularity");
+            },
+          },
+          hasExplorerToken()
+            ? (fen) => explorerPosition(
+                fen,
+                { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
+                extra.signal,
+              )
+            : undefined,
+        );
+        if (extra.signal.aborted || collection.state === "cancelled") {
+          throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
+        }
+        options = { ...options, weighting: collection.weighting };
+      }
+    }
+    options = {
+      ...options,
+      shouldCancel: () => extra.signal.aborted,
+      onProgress: (progress) => notifyProgress(
+        popularityProgressTotal + progress.phase_index + (progress.state === "completed" ? 1 : 0),
+        popularityProgressTotal + progress.phase_count,
+        progress.message,
+      ),
+    };
     const completeReport = getOrCreateStrategicFitReport(
       e,
       options,

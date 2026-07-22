@@ -38,6 +38,8 @@ export interface StrategicRouteWeightingOptions {
   readonly route_weights?: readonly StrategicRouteWeightInput[];
   /** Raw sibling weights, normalized at each opponent-owned source position. */
   readonly decision_weights?: readonly StrategicDecisionWeightInput[];
+  /** Source-level evidence retained even when no usable per-route weight was available. */
+  readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
 export type StrategicWeightResolution = "equal" | "supplied" | "equal-fallback";
@@ -460,6 +462,7 @@ export function calculateStrategicRouteWeights(
   }
 
   const inputProvenance = [
+    ...(options.provenance ?? []),
     ...routeInputs.flatMap((input) => input.provenance ?? []),
     ...decisionInputs.flatMap((input) => input.provenance ?? []),
   ];

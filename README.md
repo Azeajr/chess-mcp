@@ -28,15 +28,15 @@ a no-scope Lichess personal token because the explorer requires authentication.
 ## Product capabilities
 
 - Position: legal-move grounding, local and cloud evaluation, candidate comparison, ECO lookup,
-  opening popularity, and tablebase lookup.
+  population-filtered opening popularity, and tablebase lookup.
 - Game: summary and move review, annotated PGN, batch review, and Lichess/Chess.com history.
 - Repertoire: prescribed-move audit, missing replies, coverage, critical moves and drill decks,
   theory depth, structure search, practical-history comparison, opponent preparation, and annotated
   export, secret-free Strategic Fit JSON sidecars, and clone-only portable intent PGNs.
 - Advanced repertoire: transposition-aware Strategic Fit V2 reports with explicit profiles,
-  weighting, paging, provenance, and a temporary legacy projection; transposition shortening,
-  shortcut inspection, engine-vetted replacement or complementary lines, and shared
-  best-eval/best-fit gap fills.
+  weighting, optional bounded population-popularity evidence, paging, provenance, and a temporary
+  legacy projection; transposition shortening, shortcut inspection, engine-vetted replacement or
+  complementary lines, and shared best-eval/best-fit gap fills.
 
 Engine-backed position, game, and repertoire operations default to depth 20. The PWA's analysis
 selector can enable global Deep analysis at depth 30; it warns that bulk work may take minutes and

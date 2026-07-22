@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   STRATEGIC_FIT_SCHEMA_VERSION,
   strategicFitOptionsFromToolArguments,
+  strategicPopularityOptionsFromToolArguments,
   type StrategicFitToolArguments,
 } from "../../src/index.ts";
 
@@ -89,4 +90,32 @@ test("omitted public profile and weighting preserve analyzer inference defaults"
   assert.equal(options.weighting, undefined);
   assert.equal(options.page, undefined);
   assert.equal(options.repertoireRevision, "revision:legacy");
+});
+
+test("public popularity arguments map to bounded host collection options without entering the pure analyzer", () => {
+  const args: StrategicFitToolArguments = {
+    popularity: {
+      db: "lichess",
+      speeds: ["blitz", "rapid"],
+      ratings: [1600, 1800],
+      since: "2024-01",
+      until: "2026-06",
+      max_positions: 24,
+    },
+  };
+  assert.deepEqual(strategicPopularityOptionsFromToolArguments(args), {
+    filters: {
+      db: "lichess",
+      speeds: ["blitz", "rapid"],
+      ratings: [1600, 1800],
+      since: "2024-01",
+      until: "2026-06",
+    },
+    maxPositions: 24,
+  });
+  const options = strategicFitOptionsFromToolArguments(args, {
+    repertoireColor: "white",
+    repertoireRevision: "revision:popularity",
+  });
+  assert.equal(options.weighting, undefined, "hosts inject collected evidence after argument adaptation");
 });

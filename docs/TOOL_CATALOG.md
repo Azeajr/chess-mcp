@@ -22,7 +22,7 @@ changing that contract; CI uses `pnpm docs:check` to reject drift.
 | `compare_moves` | Rank candidate SAN moves by local Stockfish (mover POV); illegal moves are returned separately. | `mcp`, `browser` | `position`, `engine` | `data` |
 | `cloud_eval` | Lichess cloud evaluation (white-POV) for a FEN, or unavailable. | `mcp`, `browser` | `position`, `network` | `data` |
 | `tablebase_lookup` | Lichess tablebase result for a seven-piece-or-fewer FEN, or unavailable. | `mcp`, `browser` | `position`, `network` | `data` |
-| `position_popularity` | Lichess opening-explorer statistics at a FEN, including move frequencies and white-POV results. | `mcp`, `browser` | `position`, `network` | `data` |
+| `position_popularity` | Lichess opening-explorer statistics for a configured game population, including move frequencies and white-POV results. | `mcp`, `browser` | `position`, `network` | `data` |
 | `identify_opening` | Name the deepest ECO opening reached by a PGN. | `mcp`, `browser` | `position`, `game` | `data` |
 | `find_repertoire_gaps` | Scan decision nodes for uncovered strong opponent replies, ranked by severity. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
 | `suggest_gap_fills` | Build best-evaluation and best-fit repertoire lines for one uncovered opponent move. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
@@ -31,7 +31,7 @@ changing that contract; CI uses `pnpm docs:check` to reject drift.
 | `find_pruning_transpositions` | Find sound moves that transpose into another prepared line and shorten memorisation. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
 | `get_repertoire_coverage` | Report dangling lines and natural frontiers; optionally engine-check whether stubs reconnect. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
 | `get_structural_profile` | Return a repertoire-wide pawn-structure profile or one position selected by SAN path. | `mcp`, `browser` | `repertoire` | `data` |
-| `analyze_repertoire_congruence` | Analyze Strategic Fit across transposition-aware repertoire routes; returns native V2 evidence plus a temporary legacy projection. | `mcp`, `browser` | `repertoire` | `data` |
+| `analyze_repertoire_congruence` | Analyze Strategic Fit across transposition-aware repertoire routes; returns native V2 evidence plus a temporary legacy projection. | `mcp`, `browser` | `repertoire`, `network` | `data` |
 | `classify_illustrative_lines` | Find NAG-marked side lines that can inflate repertoire analysis counts. | `mcp`, `browser` | `repertoire` | `data` |
 | `modify_repertoire_line` | Apply or preview a prune, add, or reorder edit by SAN path. | `mcp`, `browser` | `repertoire`, `action` | `action` |
 | `suggest_complementary_lines` | Suggest engine-sound moves ranked for structural fit or imbalance. | `mcp`, `browser` | `repertoire`, `engine` | `data` |

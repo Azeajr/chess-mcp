@@ -44,6 +44,17 @@ test("canonical browser validation rejects malformed and unknown arguments", () 
   assert.deepEqual(validateToolArguments("propose_line", { moves: ["e4"] }, "mcp"), {
     ok: false, error: "invalid_arguments", reason: "propose_line is not available on the mcp host",
   });
+  assert.equal(validateToolArguments("position_popularity", {
+    db: "lichess",
+    speeds: ["rapid"],
+    ratings: [1600, 1800],
+    since: "2024-01",
+    until: "2026-06",
+  }, "browser").ok, true);
+  assert.equal(validateToolArguments("position_popularity", {
+    db: "masters",
+    ratings: [2200],
+  }, "browser").ok, false);
 });
 
 test("canonical Strategic Fit schema validates bounded nested V2 arguments", () => {
@@ -70,6 +81,26 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
     }],
   };
   assert.equal(validateToolArguments("analyze_repertoire_congruence", valid, "browser").ok, true);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    popularity: {
+      db: "lichess",
+      speeds: ["blitz", "rapid"],
+      ratings: [1600, 1800],
+      since: "2024-01",
+      until: "2026-06",
+      max_positions: 40,
+    },
+  }, "browser").ok, true);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    popularity: { db: "masters", speeds: ["rapid"] },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    popularity: { db: "lichess", since: "2024" },
+  }, "browser").ok, false);
+  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
+    weighting: { mode: "equal" },
+    popularity: { db: "lichess" },
+  }, "browser").ok, false);
   assert.equal(
     validateToolArguments("analyze_repertoire_congruence", {
       profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.1 } },
@@ -99,6 +130,7 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
     properties: Record<string, { type: string; additionalProperties?: boolean; maxItems?: number }>;
   };
   assert.equal(schema.properties.profile.type, "object");
+  assert.equal(schema.properties.popularity.type, "object");
   assert.equal(schema.properties.profile.additionalProperties, false);
   assert.equal(schema.properties.cohort_overrides.maxItems, 100);
 });

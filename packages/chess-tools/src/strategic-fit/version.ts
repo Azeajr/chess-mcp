@@ -19,6 +19,7 @@ export const STRATEGIC_FIT_ANALYSIS_MANIFEST: StrategicFitAnalysisManifest = Obj
     trajectory: "1.0.0",
     concepts: "1.0.0",
     weights: "1.0.0",
+    popularity: "1.0.0",
     cohorts: "1.0.0",
     modes: "1.0.0",
     distance: "1.0.0",

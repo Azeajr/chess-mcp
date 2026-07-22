@@ -252,6 +252,23 @@ try {
 }
 ok(invalidStrategicFitRejected, "analyze_repertoire_congruence rejects malformed nested V2 arguments");
 
+if (!process.env.LICHESS_TOKEN) {
+  const unavailablePopularity = await call(client, "analyze_repertoire_congruence", {
+    repertoire_id: congRep.repertoire_id,
+    popularity: { db: "lichess", speeds: ["rapid"], ratings: [1600, 1800], since: "2024-01", max_positions: 2 },
+    page: { limit: 1 },
+  });
+  const popularitySource = unavailablePopularity.provenance?.sources?.find((source) => source.kind === "opening-explorer");
+  ok(
+    !unavailablePopularity.error &&
+      popularitySource?.state === "unavailable" &&
+      /requires authentication/.test(popularitySource.reason ?? ""),
+    "Strategic Fit popularity without a token preserves the base report with unavailable provenance",
+  );
+} else {
+  skip("Strategic Fit no-token popularity fallback (token present)");
+}
+
 const annotatedFit = await call(client, "export_annotated_repertoire", {
   repertoire_id: congRep.repertoire_id,
   include: ["congruence"],

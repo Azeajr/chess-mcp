@@ -5,6 +5,7 @@
  * but both map the same bounded JSON input into the same deterministic analyzer options here.
  */
 import type { Color } from "../congruence.js";
+import type { ExplorerDb, ExplorerRatingBucket, ExplorerSpeed } from "../explorer.js";
 import type { OpeningTable } from "../openings.js";
 import type {
   AnalyzeStrategicFitOptions,
@@ -20,6 +21,9 @@ import type {
   StrategicFitSourceProvenance,
 } from "./types.js";
 import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
+import type {
+  StrategicPopularityCollectionOptions,
+} from "./popularity.js";
 import type {
   StrategicDecisionWeightInput,
   StrategicRouteWeightInput,
@@ -58,6 +62,17 @@ export interface StrategicFitToolWeightingInput {
   readonly decision_weights?: readonly StrategicFitToolDecisionWeightInput[];
 }
 
+export interface StrategicFitToolPopularityInput {
+  readonly db?: ExplorerDb;
+  readonly speeds?: readonly ExplorerSpeed[];
+  readonly ratings?: readonly ExplorerRatingBucket[];
+  /** Lichess uses YYYY-MM; masters uses YYYY. */
+  readonly since?: string;
+  /** Lichess uses YYYY-MM; masters uses YYYY. */
+  readonly until?: string;
+  readonly max_positions?: number;
+}
+
 export interface StrategicFitToolArguments {
   /** Legacy V1 inputs remain accepted until the final cutover. */
   readonly min_severity?: "low" | "medium" | "high";
@@ -67,11 +82,25 @@ export interface StrategicFitToolArguments {
   readonly exclude_paths?: readonly (readonly string[])[];
   readonly profile?: StrategicFitToolProfileInput;
   readonly weighting?: StrategicFitToolWeightingInput;
+  /** Optional host-collected population evidence. The deterministic core never performs I/O. */
+  readonly popularity?: StrategicFitToolPopularityInput;
   readonly page?: StrategicFitFindingPageInput;
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
   readonly explicit_targets?: readonly StrategicFitToolExplicitModeTargetInput[];
   readonly route_assessments?: readonly Omit<StrategicFitRouteAssessmentInput, "semantic_finding_id">[];
+}
+
+/** Map the public snake-case popularity request into the host-neutral bounded collector options. */
+export function strategicPopularityOptionsFromToolArguments(
+  args: StrategicFitToolArguments,
+): StrategicPopularityCollectionOptions | null {
+  if (args.popularity === undefined) return null;
+  const { max_positions: maxPositions, ...filters } = args.popularity;
+  return {
+    filters,
+    ...(maxPositions === undefined ? {} : { maxPositions }),
+  };
 }
 
 export interface StrategicFitToolHostMetadata {

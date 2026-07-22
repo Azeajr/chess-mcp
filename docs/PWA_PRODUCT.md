@@ -47,7 +47,9 @@ compose canonical commands. These are documented exceptions to one-command equiv
 duplicate domain implementations.
 
 Direct local analysis does not need an OpenRouter key. Network operations still need connectivity
-and, for Lichess opening explorer, a personal token entered in Settings.
+and, for Lichess opening explorer, a personal token entered in Settings. An explicitly requested
+Strategic Fit popularity enrichment remains a usable base report without that token and labels the
+population source unavailable rather than reporting zero popularity.
 
 ## Persistence
 

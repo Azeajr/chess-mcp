@@ -2,7 +2,9 @@ import {
   STRUCTURE_NAMES,
   annotateRepertoire,
   auditRepertoireMoves,
+  buildRepertoireGraph,
   checkShortcutCoverage,
+  collectStrategicPopularityWeights,
   compareShortcutLines,
   findOnlyMoves,
   gapScanOperation,
@@ -23,9 +25,12 @@ import {
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitOptionsFromToolArguments,
+  strategicPopularityOptionsFromToolArguments,
   serializeStrategicFitSidecar,
   exportStrategicFitIntentPgn,
   STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+  STRATEGIC_FIT_PROGRESS_PHASES,
+  STRATEGIC_POPULARITY_MOVE_LIMIT,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
@@ -45,7 +50,10 @@ const effectiveDocumentSettingsIdentity = (
   args: StrategicFitToolArguments,
   snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
 ) => JSON.stringify({
-  weighting: args.weighting === undefined ? snapshot.inputs.weighting ?? null : args.weighting,
+  weighting: args.popularity !== undefined
+    ? null
+    : args.weighting === undefined ? snapshot.inputs.weighting ?? null : args.weighting,
+  popularity: args.popularity ?? null,
   cohort_overrides: args.cohort_overrides === undefined
     ? snapshot.inputs.cohort_overrides ?? null
     : args.cohort_overrides,
@@ -60,7 +68,7 @@ const injectDocumentAnalysisSettings = (
   snapshot: ReturnType<Parameters<BrowserCommandHandler>[1]["currentStrategicFitAnalysisSettings"]>,
 ) => ({
   ...options,
-  ...(args.weighting === undefined && snapshot.inputs.weighting !== undefined
+  ...(args.weighting === undefined && args.popularity === undefined && snapshot.inputs.weighting !== undefined
     ? { weighting: snapshot.inputs.weighting }
     : {}),
   ...(args.cohort_overrides === undefined && snapshot.inputs.cohort_overrides !== undefined
@@ -221,17 +229,59 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       openingTable: openings,
     });
     const settingsOptions = injectDocumentAnalysisSettings(toolArgs, toolOptions, documentSettings);
-    const options = toolArgs.profile === undefined
+    let options = toolArgs.profile === undefined
       ? { ...settingsOptions, profile: documentProfile }
       : settingsOptions;
+    let popularityProgressTotal = 0;
+    const popularityOptions = strategicPopularityOptionsFromToolArguments(toolArgs);
+    if (popularityOptions) {
+      let graph: ReturnType<typeof buildRepertoireGraph> | null;
+      try {
+        graph = buildRepertoireGraph(context.currentTree(), color);
+      } catch {
+        // The analyzer owns structured preflight for unsupported or malformed trees. Optional
+        // population evidence must never replace that base report with an adapter exception.
+        graph = null;
+      }
+      if (graph) {
+        const collection = await collectStrategicPopularityWeights(
+          graph,
+          {
+            ...popularityOptions,
+            availability: context.hasExplorerToken() ? "available" : "authentication-required",
+            shouldCancel: () => context.signal?.aborted ?? false,
+            onProgress: (done, total) => {
+              popularityProgressTotal = total;
+              context.onProgress?.(
+                done,
+                total + STRATEGIC_FIT_PROGRESS_PHASES.length,
+                "Collecting opening popularity",
+              );
+            },
+          },
+          context.hasExplorerToken()
+            ? (fen) => context.explorerPosition(
+                fen,
+                { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
+                context.signal,
+              )
+            : undefined,
+        );
+        throwIfAborted(context.signal);
+        if (collection.state === "cancelled") {
+          throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
+        }
+        options = { ...options, weighting: collection.weighting };
+      }
+    }
     const completeReport = await context.strategicFitReport(
       pgn,
       options,
       {
         signal: context.signal,
         onProgress: (progress) => context.onProgress?.(
-          progress.phase_index + (progress.state === "completed" ? 1 : 0),
-          progress.phase_count,
+          popularityProgressTotal + progress.phase_index + (progress.state === "completed" ? 1 : 0),
+          popularityProgressTotal + progress.phase_count,
           progress.message,
         ),
       },

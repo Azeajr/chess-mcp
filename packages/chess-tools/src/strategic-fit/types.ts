@@ -609,6 +609,7 @@ export const STRATEGIC_FIT_MANIFEST_COMPONENTS = [
   "trajectory",
   "concepts",
   "weights",
+  "popularity",
   "cohorts",
   "modes",
   "distance",

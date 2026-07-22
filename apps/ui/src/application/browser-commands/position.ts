@@ -8,6 +8,9 @@ import {
   validateLine,
   validatePgn,
   type ExplorerDb,
+  type ExplorerFilters,
+  type ExplorerRatingBucket,
+  type ExplorerSpeed,
 } from "@chess-mcp/chess-tools";
 import type { BrowserCommandHandler } from "./types";
 import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
@@ -80,7 +83,15 @@ export const positionCommands = {
     if (!checked.valid) return { error: "invalid_fen", reason: checked.reason };
     if (!context.hasExplorerToken()) return explorerAuthRequired();
     const db = (args.db as ExplorerDb | undefined) ?? toolDefault("position_popularity", "db", "lichess");
-    const result = await context.explorerPosition(checked.fen!, { db, movesLimit: args.top_moves as number | undefined }, context.signal);
+    const filters: ExplorerFilters = {
+      db,
+      speeds: args.speeds as ExplorerSpeed[] | undefined,
+      ratings: args.ratings as ExplorerRatingBucket[] | undefined,
+      since: args.since as string | undefined,
+      until: args.until as string | undefined,
+      movesLimit: args.top_moves as number | undefined,
+    };
+    const result = await context.explorerPosition(checked.fen!, filters, context.signal);
     throwIfAborted(context.signal);
     return result ? { fen: checked.fen, db, ...result } : { fen: checked.fen, available: false };
   },

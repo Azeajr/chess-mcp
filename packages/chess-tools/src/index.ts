@@ -38,8 +38,33 @@ export { validateLine, legalMoves, validateFen, validatePgn, isPromotion } from 
 export type { LineCheck } from "./validate.js";
 export { tablebaseLookup } from "./tablebase.js";
 export type { TablebaseResult } from "./tablebase.js";
-export { explorerPosition, theoryDepth, setExplorerToken, hasExplorerToken } from "./explorer.js";
-export type { ExplorerDb, ExplorerFilters, ExplorerMove, ExplorerPosition, ExplorerLookup, TheoryDepthOptions, TheoryLine, TheoryDepthResult } from "./explorer.js";
+export {
+  EXPLORER_RATING_BUCKETS,
+  EXPLORER_SPEEDS,
+  DEFAULT_EXPLORER_RATINGS,
+  DEFAULT_EXPLORER_SPEEDS,
+  explorerFilterKey,
+  explorerPosition,
+  explorerRequest,
+  hasExplorerToken,
+  normalizeExplorerFilters,
+  setExplorerToken,
+  theoryDepth,
+} from "./explorer.js";
+export type {
+  ExplorerDb,
+  ExplorerFilters,
+  ExplorerLookup,
+  ExplorerMove,
+  ExplorerPosition,
+  ExplorerRatingBucket,
+  ExplorerRequest,
+  ExplorerSpeed,
+  NormalizedExplorerFilters,
+  TheoryDepthOptions,
+  TheoryDepthResult,
+  TheoryLine,
+} from "./explorer.js";
 export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, PlayerDeviation, UncoveredOpponent, RepertoireMoveMap } from "./game.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
@@ -101,6 +126,7 @@ export * from "./strategic-fit/position-signals.js";
 export * from "./strategic-fit/trajectory.js";
 export * from "./strategic-fit/concepts.js";
 export * from "./strategic-fit/weights.js";
+export * from "./strategic-fit/popularity.js";
 export * from "./strategic-fit/cohorts.js";
 export * from "./strategic-fit/modes.js";
 export * from "./strategic-fit/distance.js";

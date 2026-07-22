@@ -83,8 +83,16 @@ Each engine process keeps a warm transposition table, so fixed depth is preferre
 tie-breaking matters.
 
 Pure placement-dependent structure calculations are bounded and memoized. Explorer results use an
-in-memory cache because source data changes; rate limiting is shared, and a 429 starts the requested
-cooldown. Explorer operations require a Lichess personal token.
+in-memory cache because source data changes. Keys include database, rating buckets, speeds,
+database-supported recency, move limit, and the transposition-safe position key. Rate limiting is
+shared, and a 429 starts the requested cooldown. Explorer operations require a Lichess personal
+token.
+
+Strategic Fit remains network-free inside the analyzer. When its optional popularity input is
+requested, each host first walks canonical opponent decision positions under a hard query budget,
+deduplicates transpositions, and injects external decision weights into the existing report cache
+and analyzer boundary. Missing authentication or connectivity yields unavailable provenance and
+equal fallback weights; budget exhaustion or a later lookup failure yields partial provenance.
 
 ## Safety and result conventions
 

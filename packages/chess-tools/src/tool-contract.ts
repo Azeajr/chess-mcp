@@ -1,10 +1,12 @@
 /** Dependency-free application contract consumed by the MCP and browser hosts. */
+import { EXPLORER_RATING_BUCKETS, EXPLORER_SPEEDS } from "./explorer.js";
+
 export type ToolHost = "mcp" | "browser";
 export type ToolCapability = "position" | "game" | "repertoire" | "engine" | "network" | "artifact" | "action";
 export type InputField = {
   type: "string" | "integer" | "number" | "boolean" | "array" | "object";
   description?: string;
-  enum?: readonly string[];
+  enum?: readonly (string | number)[];
   items?: InputField;
   properties?: Readonly<Record<string, InputField>>;
   required?: readonly string[];
@@ -14,6 +16,7 @@ export type InputField = {
   minItems?: number;
   maxItems?: number;
   maxLength?: number;
+  pattern?: string;
 };
 export type ToolInput = { properties: Readonly<Record<string, InputField>>; browserProperties?: Readonly<Record<string, InputField>>; mcpProperties?: Readonly<Record<string, InputField>>; required?: readonly string[]; mcpRequired?: readonly string[] };
 export interface ToolContract {
@@ -55,23 +58,23 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         : name === "export_strategic_fit_intent_pgn"
         ? ["current PGN", "current GameTree", "stable document ID", "document revision", "normalized Strategic Fit metadata", "current Strategic Fit report"]
         : name === "analyze_repertoire_congruence"
-        ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "Strategic Fit Web Worker"]
+        ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "optional explorer credentials", "Strategic Fit Web Worker"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
       ],
       mcpInjects: name === "analyze_repertoire_congruence"
-        ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy"]
+        ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy", "optional explorer credentials"]
         : input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
       ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
-        : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the same deterministic analyzer in-process. Both return the same native V2 semantics and compatibility projection." }
+        : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence before that shared analyzer boundary." }
         : {}),
     },
     ...(input ? { input } : {}),
   });
-const string = (description?: string, maxLength?: number): InputField => ({ type: "string", ...(description ? { description } : {}), ...(maxLength == null ? {} : { maxLength }) });
+const string = (description?: string, maxLength?: number, pattern?: string): InputField => ({ type: "string", ...(description ? { description } : {}), ...(maxLength == null ? {} : { maxLength }), ...(pattern == null ? {} : { pattern }) });
 const integer = (minimum?: number, maximum?: number): InputField => ({ type: "integer", ...(minimum == null ? {} : { minimum }), ...(maximum == null ? {} : { maximum }) });
 const number = (minimum?: number, maximum?: number): InputField => ({ type: "number", ...(minimum == null ? {} : { minimum }), ...(maximum == null ? {} : { maximum }) });
 const array = (items: InputField = string(), minItems?: number, maxItems?: number): InputField => ({ type: "array", items, ...(minItems == null ? {} : { minItems }), ...(maxItems == null ? {} : { maxItems }) });
@@ -97,6 +100,18 @@ const strategicFitWeighting = object({
   mode: { type: "string", enum: ["equal", "manual", "external"] },
   route_weights: array(object({ route_id: strategicFitId(), weight: number(0, 1_000_000) }, ["route_id", "weight"]), undefined, 500),
   decision_weights: array(object({ decision_id: strategicFitId(), weight: number(0, 1_000_000) }, ["decision_id", "weight"]), undefined, 500),
+});
+const explorerRecency = string("Lichess: YYYY-MM; masters: YYYY", 7, "^(?:\\d{4}|\\d{4}-(?:0[1-9]|1[0-2]))$");
+const explorerPopulationFilters = {
+  db: { type: "string", enum: ["lichess", "masters"] },
+  speeds: array({ type: "string", enum: EXPLORER_SPEEDS }, 1, EXPLORER_SPEEDS.length),
+  ratings: array(integer(0, 2500), 1, EXPLORER_RATING_BUCKETS.length),
+  since: explorerRecency,
+  until: explorerRecency,
+} as const satisfies Readonly<Record<string, InputField>>;
+const strategicFitPopularity = object({
+  ...explorerPopulationFilters,
+  max_positions: integer(1, 120),
 });
 const strategicFitPage = object({ offset: integer(0, 1_000_000), limit: integer(1, 50) });
 const strategicFitCohortOverride = object({
@@ -132,7 +147,7 @@ export const TOOL_CONTRACTS = [
   define("compare_moves", "Rank candidate SAN moves by local Stockfish (mover POV); illegal moves are returned separately.", ["position", "engine"], BOTH, { depth: 20 }, { properties: { fen: string("FEN; browser defaults to the current position"), moves: array(), depth: integer(1, 30) }, required: ["moves"], mcpRequired: ["fen", "moves"] }),
   define("cloud_eval", "Lichess cloud evaluation (white-POV) for a FEN, or unavailable.", ["position", "network"], BOTH, {}, { properties: { fen: string("FEN; browser defaults to the current position") }, mcpRequired: ["fen"] }),
   define("tablebase_lookup", "Lichess tablebase result for a seven-piece-or-fewer FEN, or unavailable.", ["position", "network"], BOTH, {}, { properties: { fen: string("FEN; browser defaults to the current position") }, mcpRequired: ["fen"] }),
-  define("position_popularity", "Lichess opening-explorer statistics at a FEN, including move frequencies and white-POV results.", ["position", "network"], BOTH, { db: "lichess", top_moves: 12 }, { properties: { fen: string("FEN; browser defaults to the current position"), db: { type: "string", enum: ["lichess", "masters"] }, top_moves: integer(0, 30) }, mcpRequired: ["fen"] }),
+  define("position_popularity", "Lichess opening-explorer statistics for a configured game population, including move frequencies and white-POV results.", ["position", "network"], BOTH, { db: "lichess", top_moves: 12 }, { properties: { fen: string("FEN; browser defaults to the current position"), ...explorerPopulationFilters, top_moves: integer(0, 30) }, mcpRequired: ["fen"] }),
   define("identify_opening", "Name the deepest ECO opening reached by a PGN.", ["position", "game"], BOTH, {}, { properties: { pgn: string("PGN; browser defaults to the current working line") }, mcpRequired: ["pgn"] }),
   define("find_repertoire_gaps", "Scan decision nodes for uncovered strong opponent replies, ranked by severity.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 20, popularity_db: "lichess" }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), depth: integer(1, 30), min_severity: { type: "string", enum: ["low", "medium", "high"] }, max_positions: integer(1, 60), limit: integer(1, 50), popularity: { type: "boolean" }, popularity_db: { type: "string", enum: ["lichess", "masters"] } }, mcpRequired: ["repertoire_id"] }),
   define("suggest_gap_fills", "Build best-evaluation and best-fit repertoire lines for one uncovered opponent move.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 4 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array(), uncovered_move: string(), depth: integer(1, 30), limit: integer(2, 10), target_plies: integer(2, 200) }, required: ["variation_path", "uncovered_move"], mcpRequired: ["repertoire_id", "variation_path", "uncovered_move"] }),
@@ -144,14 +159,15 @@ export const TOOL_CONTRACTS = [
   define(
     "analyze_repertoire_congruence",
     "Analyze Strategic Fit across transposition-aware repertoire routes; returns native V2 evidence plus a temporary legacy projection.",
-    ["repertoire"],
+    ["repertoire", "network"],
     BOTH,
-    { profile_mode: "balanced", weighting_mode: "equal", page_limit: 50, legacy_projection_limit: 10 },
+    { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, page_limit: 50, legacy_projection_limit: 10 },
     {
       properties: {
         repertoire_id: string("MCP handle; browser injects the current document"),
         profile: strategicFitProfile,
         weighting: strategicFitWeighting,
+        popularity: strategicFitPopularity,
         page: strategicFitPage,
         sort: { type: "string", enum: ["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"] },
         cohort_overrides: array(strategicFitCohortOverride, undefined, 100),
@@ -247,7 +263,8 @@ function fieldError(field: InputField, candidate: unknown, path: string): string
   if (!valid) return `${path} must be ${field.type}`;
   if (typeof candidate === "number" && (candidate < (field.minimum ?? -Infinity) || candidate > (field.maximum ?? Infinity))) return `${path} is outside the allowed range`;
   if (typeof candidate === "string" && candidate.length > (field.maxLength ?? Infinity)) return `${path} is outside the allowed length`;
-  if (field.enum && !field.enum.includes(candidate as string)) return `${path} must be one of: ${field.enum.join(", ")}`;
+  if (typeof candidate === "string" && field.pattern && !new RegExp(field.pattern).test(candidate)) return `${path} has an invalid format`;
+  if (field.enum && !field.enum.includes(candidate as never)) return `${path} must be one of: ${field.enum.join(", ")}`;
   if (field.type === "array" && field.items) {
     if ((candidate as unknown[]).length < (field.minItems ?? 0) || (candidate as unknown[]).length > (field.maxItems ?? Infinity)) {
       return `${path} is outside the allowed item count`;
@@ -285,6 +302,15 @@ function duplicateIdentity(values: readonly unknown[], key: string): string | nu
 }
 
 function strategicFitArgumentsError(value: Record<string, unknown>): string | null {
+  if (value.popularity !== undefined && value.weighting !== undefined) {
+    return "popularity and weighting are alternative route-weight sources and cannot be combined";
+  }
+  const popularityReason = explorerPopulationArgumentsError(
+    value.popularity as Record<string, unknown> | undefined,
+    "popularity",
+  );
+  if (popularityReason) return popularityReason;
+
   const weighting = value.weighting as Record<string, unknown> | undefined;
   for (const [list, identity] of [["route_weights", "route_id"], ["decision_weights", "decision_id"]] as const) {
     const items = weighting?.[list] as readonly unknown[] | undefined;
@@ -325,6 +351,34 @@ function strategicFitArgumentsError(value: Record<string, unknown>): string | nu
   return null;
 }
 
+function explorerPopulationArgumentsError(
+  filters: Record<string, unknown> | undefined,
+  path: string,
+): string | null {
+  if (!filters) return null;
+  const db = filters.db ?? "lichess";
+  const ratings = filters.ratings as readonly unknown[] | undefined;
+  if (ratings?.some((rating) =>
+    typeof rating !== "number" || !(EXPLORER_RATING_BUCKETS as readonly number[]).includes(rating)
+  )) return `${path}.ratings contains an unsupported explorer rating bucket`;
+  if (db === "masters" && (filters.speeds !== undefined || filters.ratings !== undefined)) {
+    return `${path}.speeds and ${path}.ratings apply only to the lichess database`;
+  }
+  const pattern = db === "masters" ? /^\d{4}$/ : /^\d{4}-(0[1-9]|1[0-2])$/;
+  for (const key of ["since", "until"] as const) {
+    const candidate = filters[key];
+    if (typeof candidate === "string" && !pattern.test(candidate)) {
+      return `${path}.${key} has an invalid format for ${String(db)}`;
+    }
+  }
+  if (
+    typeof filters.since === "string" &&
+    typeof filters.until === "string" &&
+    filters.since > filters.until
+  ) return `${path}.since must not be after ${path}.until`;
+  return null;
+}
+
 export function validateToolArguments(name: string, raw: unknown, host: ToolHost): ArgumentsResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
   const contract = TOOL_CONTRACT_BY_NAME.get(name);
@@ -343,6 +397,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "analyze_repertoire_congruence") {
     const reason = strategicFitArgumentsError(value);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "position_popularity") {
+    const reason = explorerPopulationArgumentsError(value, "position_popularity");
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   return { ok: true, value };
