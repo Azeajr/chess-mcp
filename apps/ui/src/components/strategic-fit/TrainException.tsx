@@ -5,6 +5,7 @@ import { displayStrategicFitFindingResolution } from "../../store/strategic-fit-
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
   createStrategicFitTrainingItem,
+  exportStrategicFitTrainingItem,
   type StrategicFitTrainingCreationResult,
 } from "../../store/strategic-fit-training";
 
@@ -46,6 +47,11 @@ export default function TrainException(props: {
     user_notes: notes(),
   });
   const create = () => setResult(createStrategicFitTrainingItem(input()));
+  const savePersisted = () => {
+    const exported = exportStrategicFitTrainingItem(input());
+    setResult(exported);
+    if (exported.artifact_id !== null) saveArtifact(exported.artifact_id);
+  };
 
   return (
     <Show when={resolution() === "unresolved" || resolution() === "train-as-exception"}>
@@ -69,12 +75,15 @@ export default function TrainException(props: {
           <div class="strategic-fit-training-current" data-training-record-id={activeReference()?.training_id}>
             <p><strong>Training item saved.</strong> The finding remains on the strategic map.</p>
             <Show when={activeReference()}>{(reference) => (
-              <dl>
-                <dt>Semantic positions</dt>
-                <dd>{reference().references.position_ids.length}</dd>
-                <dt>Created</dt>
-                <dd>{reference().created_at}</dd>
-              </dl>
+              <>
+                <dl>
+                  <dt>Semantic positions</dt>
+                  <dd>{reference().references.position_ids.length}</dd>
+                  <dt>Created</dt>
+                  <dd>{reference().created_at}</dd>
+                </dl>
+                <button type="button" onClick={savePersisted}>Save basic drill JSON</button>
+              </>
             )}</Show>
           </div>
         )}>

@@ -14,11 +14,15 @@ import { executeDirectBrowserCommand } from "./commands";
 import { strategicFitFindingQueue } from "./strategic-fit-finding-queue";
 import { strategicFitMetadata } from "./strategic-fit-metadata";
 import {
-  analyzeStrategicFit,
+  reanalyzeStrategicFit,
   strategicFitLifecycle,
   type StrategicFitCompletedResult,
   type StrategicFitRequestSnapshot,
 } from "./strategic-fit";
+import {
+  affectedCohortReanalysisRequest,
+  type StrategicFitReanalysisRequest,
+} from "./strategic-fit-reanalysis";
 import {
   removeStrategicFitCohortLabel,
   removeStrategicFitCohortOverride,
@@ -112,7 +116,7 @@ export interface StrategicFitCohortAdjustmentBoundary {
   removeOverride(overrideId: string): StrategicFitSettingsMutationResult;
   upsertLabel(input: StrategicFitCohortLabelMutationInput): StrategicFitSettingsMutationResult;
   removeLabel(labelId: string): StrategicFitSettingsMutationResult;
-  analyze(): Promise<void>;
+  analyze(request?: StrategicFitReanalysisRequest): Promise<void>;
 }
 
 export interface StrategicFitCohortAdjustmentState {
@@ -663,7 +667,11 @@ export function createStrategicFitCohortAdjustmentState(
         else if (mutation.removeOverrideId !== null) boundary.removeOverride(mutation.removeOverrideId);
         else if (mutation.removeLabelId !== null) boundary.removeLabel(mutation.removeLabelId);
         else throw new Error("strategic_fit_cohort_adjustment_missing_mutation");
-        await boundary.analyze();
+        await boundary.analyze(affectedCohortReanalysisRequest(
+          "cohort-override",
+          [...preview.current_cohorts.ids, ...preview.proposed_cohorts.ids],
+          "A confirmed cohort adjustment changed these current or proposed cohort identities.",
+        ));
         setState({
           report_id: boundary.currentReport()?.report_id ?? null,
           status: "applied",
@@ -718,7 +726,11 @@ const browserCohortAdjustments = createStrategicFitCohortAdjustmentState({
   removeOverride: removeStrategicFitCohortOverride,
   upsertLabel: upsertStrategicFitCohortLabel,
   removeLabel: removeStrategicFitCohortLabel,
-  analyze: analyzeStrategicFit,
+  analyze: (request) => reanalyzeStrategicFit(request ?? affectedCohortReanalysisRequest(
+    "cohort-override",
+    [],
+    "A cohort adjustment did not provide an affected cohort identity.",
+  )),
 });
 
 export const strategicFitCohortAdjustment = () => browserCohortAdjustments.snapshot();

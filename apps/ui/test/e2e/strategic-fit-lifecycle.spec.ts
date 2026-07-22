@@ -14,6 +14,11 @@ type Lifecycle = {
   error: { code: string; message: string } | null;
   current_result: {
     report_id: string;
+    reanalysis?: {
+      trigger: string;
+      scope: { kind: string; cohort_ids: string[] };
+      resolving_revision: string;
+    } | null;
     result: {
       report_id: string;
       preflight: { state: string; issues: Array<{ code: string }> };
@@ -159,12 +164,16 @@ test("opening workspace and completing setup remain idle until the explicit Anal
 
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  const beforeProfile = await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id);
   await chess(page, (api) => api.applyInferredStrategicFitProfile("versatile"));
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await expect(dialog.getByText(/profile changed/i)).toBeVisible();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("profile-change");
+  expect(await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id))
+    .not.toBe(beforeProfile);
 });
 
-test("real canonical analysis stays current through navigation and stales for profile, settings, and edits", async ({ page }) => {
+test("real canonical analysis stays current through navigation and refreshes profile and document changes", async ({ page }) => {
   await bootstrap(page);
   await loadExplicitProfile(page);
   await chess(page, (api) => {
@@ -185,9 +194,9 @@ test("real canonical analysis stays current through navigation and stales for pr
   await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status)).toBe("completed");
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("profile-change");
   const profileRefreshed = await chess(page, (api) => api.strategicFitLifecycle());
   expect(profileRefreshed.current_result?.report_id).not.toBe(first.current_result?.report_id);
 
@@ -205,12 +214,10 @@ test("real canonical analysis stays current through navigation and stales for pr
     ok: boolean;
   };
   expect(edited.ok).toBe(true);
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await expect(dialog.getByText(/Previous report—not current/)).toBeVisible();
   const currentRevision = await chess(page, (api) => api.version());
-
-  await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("document-change");
   const refreshed = await chess(page, (api) => api.strategicFitLifecycle());
   expect(refreshed.request_snapshot?.repertoire_revision).toBe(currentRevision);
   expect(refreshed.current_result?.report_id).not.toBe(first.current_result?.report_id);
@@ -227,8 +234,6 @@ test("cancelling an active canonical command aborts its Worker and retains the l
   expect(firstReportId).toBeTruthy();
 
   await chess(page, (api) => api.setColor("black"));
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await dialog.getByRole("button", { name: "Retry analysis" }).click();
   await expect.poll(() => page.evaluate(() =>
     ((window as unknown as { __strategicFitControlledMessages: Array<{ type?: string }> })
       .__strategicFitControlledMessages ?? []).some((message) => message.type === "analyze"),

@@ -60,6 +60,23 @@ export default function AnalysisLifecycle() {
               Current report <code>{state().current_result!.report_id}</code>
             </span>
           </Show>
+          <Show when={state().status === "completed" && state().current_result?.reanalysis}>
+            {(summary) => (
+              <span
+                class="strategic-fit-reanalysis-summary"
+                data-reanalysis-scope={summary().scope.kind}
+                data-resolving-revision={summary().resolving_revision}
+              >
+                Reconciled {summary().scope.kind === "full-scan"
+                  ? "the full report"
+                  : `${summary().scope.cohort_ids.length} affected cohort(s)`} at revision{" "}
+                <code>{summary().resolving_revision}</code>: {summary().auto_resolved_semantic_finding_ids.length}{" "}
+                disappeared finding(s) resolved, {summary().changed_evidence_semantic_finding_ids.length}{" "}
+                changed-evidence finding(s) reopened, and {summary().reappeared_semantic_finding_ids.length}{" "}
+                finding(s) reappeared.
+              </span>
+            )}
+          </Show>
           <Show when={state().status === "cancelled"}>
             <span>Cancelled work was not published as a completed report.</span>
           </Show>

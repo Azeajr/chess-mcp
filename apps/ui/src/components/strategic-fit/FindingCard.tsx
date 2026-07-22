@@ -136,6 +136,7 @@ export default function FindingCard(props: {
   finding: StrategicFinding;
   resolutionState?: StrategicFitDisplayedResolutionState;
   cohortName?: string;
+  changedEvidence?: boolean;
   selected: boolean;
   onSelect: (findingId: string, focusEvidence: boolean) => void;
 }) {
@@ -160,6 +161,12 @@ export default function FindingCard(props: {
           {presentation().resolution}
         </span>
       </header>
+
+      <Show when={props.changedEvidence}>
+        <p class="strategic-fit-finding-changed-evidence" data-finding-changed-evidence="true">
+          Evidence changed after reanalysis. Review this finding again.
+        </p>
+      </Show>
 
       <dl class="strategic-fit-finding-scope">
         <div>

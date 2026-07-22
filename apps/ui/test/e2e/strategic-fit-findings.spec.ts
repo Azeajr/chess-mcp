@@ -230,7 +230,9 @@ async function installFindingWorkerFixture(page: Page) {
                 opening_scope: openings[index],
                 affected_line_summary: index === 0 ? "Alapin, 6...Nf6 branch" : `Fixture line ${index + 1}`,
                 explanation: index === 0
-                  ? "This branch produces a closed center while the weighted baseline produces an open IQP position."
+                  ? message.payload.options.profile?.mode === "familiar-plans"
+                    ? "Fresh evidence shows a familiar closed center against the weighted baseline."
+                    : "This branch produces a closed center while the weighted baseline produces an open IQP position."
                   : `Plain-language explanation for fixture finding ${index + 1}.`,
                 references: {
                   position_ids: index === 0
@@ -792,7 +794,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("finding resolutions are reversible, persistent, count-aware, and visibly stale-safe", async ({ page }) => {
+test("finding resolutions are reversible, persistent, count-aware, and automatically reconciled", async ({ page }) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
@@ -809,8 +811,11 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   await actions.getByLabel("Optional note").fill("Best practical choice for this repertoire.");
   await actions.getByRole("button", { name: "Save resolution" }).click();
 
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("resolution-change");
+  await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "keep-intentionally");
-  await expect(actions.getByRole("status")).toContainText("The repertoire was not changed");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
   await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
     .toHaveText("2");
@@ -821,6 +826,7 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   );
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
+  await first.locator("[data-finding-select]").click();
   const persistedKeep = await chess(page, (api) => api.strategicFitMetadata().resolutions);
   expect(persistedKeep).toMatchObject([{
     state: "keep-intentionally",
@@ -835,16 +841,30 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
   expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
 
+  const beforeReopenRequest = await chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.request_id ?? null
+  );
   await actions.getByRole("button", { name: "Reopen finding" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.request_id ?? null
+  )).not.toBe(beforeReopenRequest);
+  await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "unresolved");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Unresolved");
   await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
     .toHaveText("3");
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toEqual([]);
 
+  const beforeDeferRequest = await chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.request_id ?? null
+  );
   await actions.getByRole("radio", { name: /Defer/ }).check();
   await actions.getByLabel("Optional note").fill("Review after the next event.");
   await actions.getByRole("button", { name: "Save resolution" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.request_id ?? null
+  )).not.toBe(beforeDeferRequest);
+  await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "defer");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Deferred");
   await chess(page, (api) => api.flushStrategicFitMetadata());
@@ -872,10 +892,10 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toHaveLength(1);
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect(restoredDialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await expect(restoredDialog.locator("[data-resolution-blocked]")).toContainText(
-    "Resolution actions are blocked while this report is stale",
-  );
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("profile-change");
+  await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
 });
 
 test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({ page }) => {
@@ -891,8 +911,11 @@ test("training items persist semantic references, keep findings visible, and exp
   await expect(training).toBeVisible();
   await training.getByLabel("Optional training notes").fill("Practice Nf3 from the matched checkpoints.");
   await training.getByRole("button", { name: "Create training item" }).click();
-  await expect(training.getByRole("status")).toContainText("repertoire was not changed");
-  await expect(training).toContainText("legal drill positions");
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("resolution-change");
+  await first.locator("[data-finding-select]").click();
+  await expect(dialog.locator("[data-training-finding-id='finding:01']")).toContainText("Semantic positions2");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Train as an exception");
   await expect(first).toBeVisible();
   await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
@@ -1053,10 +1076,10 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   await staleEditor.getByRole("button", { name: "Preview adjustment" }).click();
   await expect(staleEditor.locator(".strategic-fit-cohort-preview")).toBeVisible();
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect(restored.locator("[data-analysis-state='stale']")).toBeVisible();
-  await expect(restored.locator("[data-resolution-blocked]")).toContainText(
-    "Cohort adjustment actions are also blocked",
-  );
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("profile-change");
+  await expect(staleEditor.locator(".strategic-fit-cohort-preview")).toHaveCount(0);
   expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 });
 
@@ -1143,7 +1166,7 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(initialMetadata);
 });
 
-test("stale and replacement reports clear comparison selection and local route state", async ({ page }) => {
+test("automatic replacement reports clear comparison selection and local route state", async ({ page }) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const queue = dialog.locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
@@ -1156,15 +1179,16 @@ test("stale and replacement reports clear comparison selection and local route s
     .toHaveAttribute("data-milestone-state", "incomplete");
 
   await chess(page, (api) => api.selectStrategicFitProfile("familiar-plans"));
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
-  await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("profile-change");
   await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
 
   const refreshedQueue = dialog.locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await expect(refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-changed-evidence='true']"))
+    .toContainText("Review this finding again");
   await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
     .toHaveAttribute("data-milestone-key", "opening-exit");
   await expect(evidencePane.getByLabel("Affected branch route"))
@@ -1285,6 +1309,12 @@ test("phone resolution controls are keyboard-operable, accessible, and touch-siz
   const save = actions.getByRole("button", { name: "Save resolution" });
   await save.focus();
   await page.keyboard.press("Enter");
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("resolution-change");
+  await dialog.getByRole("tab", { name: "Findings" }).click();
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog.getByRole("tab", { name: "Resolution" }).click();
   await expect(actions).toHaveAttribute("data-resolution-state", "defer");
   await expect(actions.getByRole("button", { name: "Reopen finding" })).toBeVisible();
 

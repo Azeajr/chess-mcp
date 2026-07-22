@@ -442,6 +442,8 @@ export default function StrategicFitWorkspace() {
                   report={report()}
                   intent={currentQueueIntent()}
                   resolutionState={displayStrategicFitFindingResolution}
+                  changedEvidenceSemanticIds={strategicFitLifecycle().current_result?.reanalysis
+                    ?.changed_evidence_semantic_finding_ids ?? []}
                   cohortName={(finding) => strategicFitCohortDisplayName(
                     finding.evidence.cohort_id,
                     finding.evidence.cohort_id,

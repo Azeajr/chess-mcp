@@ -513,3 +513,28 @@ const browserTraining = createStrategicFitTrainingState({
 
 export const createStrategicFitTrainingItem = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.create(input);
+
+/** Rebuild a saved deterministic drill from current canonical evidence for portable export. */
+export function exportStrategicFitTrainingItem(
+  input: StrategicFitTrainingCreationInput,
+): StrategicFitTrainingCreationResult {
+  try {
+    const record = browserTraining.buildCurrent(input);
+    if (record === null) throw new Error("strategic_fit_training_stale_report");
+    const artifact = createArtifact(
+      "json",
+      serializeStrategicFitTrainingArtifact(record),
+      `${record.training_id.replace(/[^a-z0-9-]+/gi, "-")}.json`,
+    );
+    return {
+      state: "unchanged",
+      code: null,
+      message: "Saved training item rebuilt from current canonical evidence.",
+      record,
+      artifact_id: artifactId(artifact),
+    };
+  } catch (error) {
+    const failure = friendlyBuildError(error);
+    return { state: "blocked", ...failure, record: null, artifact_id: null };
+  }
+}

@@ -1465,7 +1465,11 @@ export function strategicFitAnalysisInputsFromMetadata(
 
   const assessmentByFindingRoute = new Map<string, StrategicFitRouteAssessmentInput>();
   const resolutions = metadata.resolutions
-    .filter((record) => record.record_state === "active" && record.semantic_finding_id !== null)
+    .filter((record) =>
+      record.record_state === "active" &&
+      record.semantic_finding_id !== null &&
+      record.state !== "automatically-resolved-by-another-edit"
+    )
     .sort(compareResolutionPrecedence);
   for (const resolution of resolutions) {
     const semanticFindingId = resolution.semantic_finding_id;

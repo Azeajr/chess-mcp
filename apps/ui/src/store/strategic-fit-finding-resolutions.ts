@@ -22,10 +22,12 @@ import {
 import {
   prepareCompletedStrategicFitReportForResolution,
   retainCompletedStrategicFitReportAfterResolution,
+  scheduleStrategicFitReanalysis,
   strategicFitLifecycle,
   type StrategicFitCompletedResult,
   type StrategicFitRequestSnapshot,
 } from "./strategic-fit";
+import { affectedCohortReanalysisRequest } from "./strategic-fit-reanalysis";
 
 export const STRATEGIC_FIT_REVIEW_RESOLUTION_STATES = [
   "keep-intentionally",
@@ -99,6 +101,7 @@ export interface StrategicFitFindingResolutionBoundary {
   reopenResolution(resolutionId: string): StrategicFitSettingsMutationResult;
   prepareReport(reportId: string): boolean;
   retainReport(reportId: string): boolean;
+  reanalyze?(cohortId: string): void;
 }
 
 export interface StrategicFitFindingResolutionState {
@@ -383,6 +386,7 @@ export function createStrategicFitFindingResolutionState(
         throw error;
       }
       boundary.retainReport(input.report_id);
+      if (result.state === "updated") boundary.reanalyze?.(checked.finding.evidence.cohort_id);
       const message = `${actionLabel(input.state)}. The repertoire was not changed.`;
       project(input.report_id, checked.finding, input.state, message);
       return {
@@ -429,6 +433,7 @@ export function createStrategicFitFindingResolutionState(
       }
       const message = "Finding reopened. The repertoire was not changed.";
       project(input.report_id, checked.finding, "unresolved", message);
+      boundary.reanalyze?.(checked.finding.evidence.cohort_id);
       return { state: "reopened", code: null, message, resolution: "unresolved" };
     },
   };
@@ -462,6 +467,11 @@ const browserFindingResolutionState = createStrategicFitFindingResolutionState({
   reopenResolution: reopenStrategicFitResolution,
   prepareReport: prepareCompletedStrategicFitReportForResolution,
   retainReport: retainCompletedStrategicFitReportAfterResolution,
+  reanalyze: (cohortId) => scheduleStrategicFitReanalysis(affectedCohortReanalysisRequest(
+    "resolution-change",
+    [cohortId],
+    "A finding resolution changed the analyzer projection for this cohort.",
+  )),
 });
 
 export const strategicFitFindingResolutionReview = () => browserFindingResolutionState.snapshot();

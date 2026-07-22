@@ -54,6 +54,7 @@ export default function FindingQueue(props: {
   resolutionState?: (finding: StrategicFitAnalysisResult["findings"][number]) =>
     StrategicFitDisplayedResolutionState;
   cohortName?: (finding: StrategicFitAnalysisResult["findings"][number]) => string;
+  changedEvidenceSemanticIds?: readonly string[];
 }) {
   createEffect(() => {
     void strategicFitFindingQueue.synchronize(props.report, props.intent);
@@ -215,6 +216,9 @@ export default function FindingQueue(props: {
                   finding={finding}
                   resolutionState={props.resolutionState?.(finding)}
                   cohortName={props.cohortName?.(finding)}
+                  changedEvidence={props.changedEvidenceSemanticIds?.includes(
+                    finding.semantic_finding_id,
+                  )}
                   selected={state().selected_finding_id === finding.finding_id}
                   onSelect={selectFinding}
                 />

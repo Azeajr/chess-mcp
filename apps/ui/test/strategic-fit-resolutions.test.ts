@@ -8,6 +8,7 @@ import {
   createDefaultStrategicFitDocumentMetadata,
   normalizeStrategicFitDocumentMetadata,
   type StrategicFitDocumentMetadata,
+  type StrategicFinding,
   type StrategicFitPersistedResolutionState,
 } from "@chess-mcp/chess-tools";
 import {
@@ -266,6 +267,35 @@ test("active settings project into analyzer inputs while stale records stay dura
   assert.equal(second.inputs.cohort_overrides, undefined);
   assert.equal(second.inputs.route_assessments, undefined);
   assert.equal(f.metadata().resolutions[0]!.record_state, "stale");
+});
+
+test("report reconciliation records exact automatic resolutions and removes them on reappearance", () => {
+  const f = fixture();
+  const route = f.graph().routes[0]!;
+  const disappeared = {
+    finding_id: "finding:gone",
+    semantic_finding_id: "semantic-finding:gone",
+    references: {
+      position_ids: [...route.position_ids],
+      decision_ids: [...route.decision_ids],
+      route_ids: [route.route_id],
+      source_san_paths: route.source_san_paths,
+    },
+  } as unknown as StrategicFinding;
+
+  assert.equal(f.state.reconcileReportFindings({
+    automatically_resolve: [disappeared],
+    reopen_semantic_finding_ids: [],
+  }).state, "updated");
+  assert.equal(f.metadata().resolutions[0]!.state, "automatically-resolved-by-another-edit");
+  assert.equal(f.metadata().resolutions[0]!.repertoire_revision, "browser:1");
+  assert.deepEqual(f.state.analysisSettings().inputs.route_assessments, undefined);
+
+  assert.equal(f.state.reconcileReportFindings({
+    automatically_resolve: [],
+    reopen_semantic_finding_ids: ["semantic-finding:gone"],
+  }).state, "updated");
+  assert.deepEqual(f.metadata().resolutions, []);
 });
 
 test("normalized records remain JSON-safe with explicit schema provenance", () => {

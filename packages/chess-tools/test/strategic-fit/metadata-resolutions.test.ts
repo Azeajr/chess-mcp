@@ -188,7 +188,7 @@ test("transposition position references resolve to every current navigation rout
   ));
 });
 
-test("every persisted terminal decision projects to a terminal analyzer assessment", () => {
+test("user decisions project terminal assessments while automatic disappearance remains observable", () => {
   const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
   const states = [
     "change-repertoire",
@@ -207,6 +207,10 @@ test("every persisted terminal decision projects to a terminal analyzer assessme
       intentional_reason: state === "keep-intentionally" ? "already-understood" : null,
     });
     const assessment = strategicFitAnalysisInputsFromMetadata(metadata, graph).route_assessments?.[0];
+    if (state === "automatically-resolved-by-another-edit") {
+      assert.equal(assessment, undefined);
+      continue;
+    }
     assert.equal(
       assessment?.resolution_state,
       state === "invalid-comparison" ? "insufficient-evidence" : state,

@@ -1972,9 +1972,16 @@ img,
   color: #f0bd82;
 }
 .strategic-fit-analysis-report-id,
+.strategic-fit-reanalysis-summary,
 .strategic-fit-previous-report {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.strategic-fit-reanalysis-summary {
+  flex-basis: 100%;
+  padding-left: 0.55rem;
+  border-left: 2px solid #79a786;
+  color: #bfd2c4;
 }
 .strategic-fit-analysis-lifecycle code {
   color: #c8d8ee;
@@ -2990,6 +2997,17 @@ img,
   border-left: 2px solid #707986;
   color: #aeb6c0;
   font-size: 0.59rem;
+  line-height: 1.4;
+}
+.strategic-fit-finding-changed-evidence {
+  margin: 0.42rem 0 0;
+  padding: 0.38rem 0.48rem;
+  border: 1px solid #a87945;
+  border-radius: 4px;
+  background: #30251a;
+  color: #f0c793;
+  font-size: 0.62rem;
+  font-weight: 700;
   line-height: 1.4;
 }
 .strategic-fit-finding-priorities {

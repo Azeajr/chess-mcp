@@ -16,6 +16,7 @@ import {
   type RepertoireGraph,
   type ResolutionInvalidationRule,
   type SemanticReferences,
+  type StrategicFinding,
   type StrategicFitDocumentMetadata,
   type StrategicFitMetadataAnalysisInputs,
   type StrategicFitMetadataNormalizationResult,
@@ -86,6 +87,11 @@ export interface StrategicFitTrainingReferenceMutationInput {
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
+export interface StrategicFitReportReconciliationMutationInput {
+  readonly automatically_resolve: readonly StrategicFinding[];
+  readonly reopen_semantic_finding_ids: readonly string[];
+}
+
 export interface StrategicFitAnalysisSettingsSnapshot {
   readonly identity: string;
   readonly inputs: StrategicFitMetadataAnalysisInputs;
@@ -111,6 +117,9 @@ export interface StrategicFitResolutionState {
   removeCohortLabel(labelId: string): StrategicFitSettingsMutationResult;
   upsertTrainingReference(input: StrategicFitTrainingReferenceMutationInput): StrategicFitSettingsMutationResult;
   removeTrainingReference(trainingId: string): StrategicFitSettingsMutationResult;
+  reconcileReportFindings(
+    input: StrategicFitReportReconciliationMutationInput,
+  ): StrategicFitSettingsMutationResult;
   upsertRouteWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
   removeRouteWeight(routeId: string): StrategicFitSettingsMutationResult;
   upsertDecisionWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
@@ -517,6 +526,59 @@ export function createStrategicFitResolutionState(
       );
     },
 
+    reconcileReportFindings(input) {
+      const metadata = boundary.currentMetadata();
+      const reopenIds = new Set(stringList(input.reopen_semantic_finding_ids));
+      const retained = metadata.resolutions.filter((resolution) =>
+        resolution.semantic_finding_id === null || !reopenIds.has(resolution.semantic_finding_id)
+      );
+      const retainedSemanticIds = new Set(retained
+        .filter((resolution) => resolution.record_state === "active")
+        .flatMap((resolution) => resolution.semantic_finding_id === null
+          ? []
+          : [resolution.semantic_finding_id]));
+      const now = boundary.now();
+      const automaticallyResolved = [...input.automatically_resolve]
+        .sort((left, right) => left.semantic_finding_id.localeCompare(right.semantic_finding_id))
+        .flatMap((finding): StrategicFitPersistedResolution[] => {
+          if (retainedSemanticIds.has(finding.semantic_finding_id)) return [];
+          const normalizedReferences = references(finding.references);
+          if (
+            normalizedReferences.position_ids.length === 0 &&
+            normalizedReferences.decision_ids.length === 0 &&
+            normalizedReferences.route_ids.length === 0
+          ) return [];
+          retainedSemanticIds.add(finding.semantic_finding_id);
+          return [{
+            schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+            resolution_id: `strategic-fit-resolution:${finding.semantic_finding_id}`,
+            finding_id: finding.finding_id,
+            semantic_finding_id: finding.semantic_finding_id,
+            repertoire_revision: boundary.currentRepertoireRevision(),
+            state: "automatically-resolved-by-another-edit",
+            intentional_reason: null,
+            note: null,
+            references: normalizedReferences,
+            invalidation_rules: ["never"],
+            expires_at: null,
+            linked_training_ids: [],
+            linked_staged_edit_ids: [],
+            created_at: now,
+            profile_snapshot: null,
+            record_state: "active",
+            stale_reasons: [],
+            reason: "A fresh Strategic Fit report no longer contains this semantic finding.",
+            updated_at: now,
+            provenance: defaultProvenance(boundary, undefined),
+          }];
+        });
+      return commit({
+        ...metadata,
+        resolutions: [...retained, ...automaticallyResolved]
+          .sort((left, right) => left.resolution_id.localeCompare(right.resolution_id)),
+      });
+    },
+
     upsertRouteWeight(input) {
       const metadata = boundary.currentMetadata();
       const routeId = nonEmpty(input.target_id, "strategic_fit_invalid_route_id");
@@ -663,6 +725,9 @@ export const upsertStrategicFitTrainingReference = (input: StrategicFitTrainingR
   browserResolutionState.upsertTrainingReference(input);
 export const removeStrategicFitTrainingReference = (trainingId: string) =>
   browserResolutionState.removeTrainingReference(trainingId);
+export const reconcileStrategicFitReportFindings = (
+  input: StrategicFitReportReconciliationMutationInput,
+) => browserResolutionState.reconcileReportFindings(input);
 export const upsertStrategicFitRouteWeight = (input: StrategicFitManualWeightMutationInput) =>
   browserResolutionState.upsertRouteWeight(input);
 export const removeStrategicFitRouteWeight = (routeId: string) =>

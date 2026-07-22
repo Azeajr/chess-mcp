@@ -1,6 +1,8 @@
 import { createEffect, createSignal, untrack } from "solid-js";
 import {
+  STRATEGIC_FIT_MAX_PAGE_SIZE,
   STRATEGIC_FIT_PROGRESS_PHASES,
+  type StrategicFinding,
   type StrategicFitAnalysisResult,
   type StrategicFitProgressPhase,
   type StrategicFitProgressState,
@@ -11,7 +13,18 @@ import {
   strategicFitProfile,
   strategicFitProfileIdentity,
 } from "./strategic-fit-profile";
-import { strategicFitAnalysisSettingsIdentity } from "./strategic-fit-resolutions";
+import {
+  reconcileStrategicFitReportFindings,
+  strategicFitAnalysisSettingsIdentity,
+} from "./strategic-fit-resolutions";
+import { strategicFitMetadata } from "./strategic-fit-metadata";
+import {
+  planStrategicFitReanalysis,
+  reconcileStrategicFitReanalysis,
+  type StrategicFitReanalysisRequest,
+  type StrategicFitReanalysisSummary,
+} from "./strategic-fit-reanalysis";
+import { strategicFitWorkspaceOpen } from "./ui";
 import type { BrowserCommandExecutionOptions } from "../application/browser-commands/types";
 
 export type StrategicFitLifecycleStatus =
@@ -64,6 +77,9 @@ export interface StrategicFitCompletedResult {
   readonly request_snapshot: StrategicFitRequestSnapshot;
   readonly result: StrategicFitAnalysisResult;
   readonly completed_at: string;
+  /** Complete canonical finding identity snapshot, independent of the visible report page. */
+  readonly findings_snapshot?: readonly StrategicFinding[];
+  readonly reanalysis?: StrategicFitReanalysisSummary | null;
 }
 
 export interface StrategicFitLifecycleSnapshot {
@@ -86,6 +102,17 @@ export interface StrategicFitLifecycleBoundary {
     options: BrowserCommandExecutionOptions,
   ): Promise<unknown>;
   now(): string;
+  reconcileReports?(
+    previous: StrategicFitCompletedResult,
+    next: StrategicFitAnalysisResult,
+    nextFindings: readonly StrategicFinding[],
+    request: StrategicFitReanalysisRequest,
+  ): {
+    readonly result: StrategicFitAnalysisResult;
+    readonly findings: readonly StrategicFinding[];
+    readonly summary: StrategicFitReanalysisSummary;
+    readonly requires_follow_up: boolean;
+  };
 }
 
 export interface StrategicFitLifecycleState {
@@ -93,6 +120,7 @@ export interface StrategicFitLifecycleState {
   analyze(): Promise<void>;
   cancel(): void;
   retry(): Promise<void>;
+  reanalyze(request: StrategicFitReanalysisRequest): Promise<void>;
   synchronize(current?: StrategicFitRequestSnapshot): void;
   prepareCompletedReportForResolution(reportId: string): boolean;
   retainCompletedReportAfterResolution(reportId: string): boolean;
@@ -102,6 +130,8 @@ interface ActiveRequest {
   readonly id: string;
   readonly controller: AbortController;
   readonly snapshot: StrategicFitRequestSnapshot;
+  readonly reanalysis: StrategicFitReanalysisRequest | null;
+  reconciling: boolean;
 }
 
 const initialSnapshot = (): StrategicFitLifecycleSnapshot => ({
@@ -239,6 +269,34 @@ function analysisResult(value: unknown): StrategicFitAnalysisResult | null {
     : null;
 }
 
+function sameSnapshotExceptSettings(
+  left: StrategicFitRequestSnapshot,
+  right: StrategicFitRequestSnapshot,
+): boolean {
+  return left.document_id === right.document_id &&
+    left.repertoire_revision === right.repertoire_revision &&
+    left.repertoire_pgn === right.repertoire_pgn &&
+    left.repertoire_color === right.repertoire_color &&
+    left.profile_identity === right.profile_identity;
+}
+
+function validFindingPage(
+  value: unknown,
+  report: StrategicFitAnalysisResult,
+  offset: number,
+): StrategicFitAnalysisResult {
+  const page = analysisResult(value);
+  if (
+    page === null || page.report_id !== report.report_id ||
+    page.repertoire_revision !== report.repertoire_revision ||
+    page.finding_page.offset !== offset ||
+    page.finding_page.total_count !== report.finding_page.total_count ||
+    page.finding_page.returned_count !== page.findings.length ||
+    page.finding_page.returned_count <= 0
+  ) throw new Error("strategic_fit_reanalysis_invalid_finding_page");
+  return page;
+}
+
 /**
  * Lifecycle orchestration only. The injected command remains responsible for opening data,
  * profile/settings injection, Worker/cache use, projection, and its own final stale-result guard.
@@ -267,8 +325,45 @@ export function createStrategicFitLifecycleState(
     }));
   };
 
-  const analyze = async () => {
+  const loadFindingSnapshot = async (
+    report: StrategicFitAnalysisResult,
+    request: ActiveRequest,
+  ): Promise<StrategicFinding[]> => {
+    // The browser contract always supplies canonical paging. Keeping lifecycle-only test/custom
+    // boundaries tolerant of a report shell preserves the orchestration boundary's narrow scope.
+    if (!Array.isArray(report.findings) || report.finding_page === undefined) return [];
+    if (report.finding_page.total_count === 0) return [];
+    if (
+      report.finding_page.offset === 0 &&
+      report.finding_page.returned_count === report.finding_page.total_count &&
+      report.findings.length === report.finding_page.total_count
+    ) return [...report.findings].sort((left, right) => left.finding_id.localeCompare(right.finding_id));
+
+    const findings: StrategicFinding[] = [];
+    const seen = new Set<string>();
+    let offset = 0;
+    while (offset < report.finding_page.total_count) {
+      const value = await boundary.execute("analyze_repertoire_congruence", {
+        sort: "finding-id",
+        page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
+      }, { signal: request.controller.signal });
+      if (active !== request || request.controller.signal.aborted) return [];
+      const pageError = commandError(value);
+      if (pageError !== null) throw Object.assign(new Error(pageError.message), { code: pageError.code });
+      const page = validFindingPage(value, report, offset);
+      for (const finding of page.findings) {
+        if (seen.has(finding.finding_id)) throw new Error("strategic_fit_reanalysis_duplicate_finding");
+        seen.add(finding.finding_id);
+        findings.push(finding);
+      }
+      offset += page.finding_page.returned_count;
+    }
+    return findings;
+  };
+
+  const analyzeRequest = async (reanalysis: StrategicFitReanalysisRequest | null = null) => {
     preparedResolutionReportId = null;
+    const previousCompleted = state().current_result ?? state().last_completed;
     const previousActive = active;
     if (previousActive) {
       active = null;
@@ -279,6 +374,8 @@ export function createStrategicFitLifecycleState(
       id: `strategic-fit-lifecycle:${++requestSequence}`,
       controller: new AbortController(),
       snapshot: boundary.currentSnapshot(),
+      reanalysis,
+      reconciling: false,
     };
     active = request;
     setState((previous) => ({
@@ -352,7 +449,7 @@ export function createStrategicFitLifecycleState(
         return;
       }
 
-      const result = analysisResult(value);
+      let result = analysisResult(value);
       if (!result) {
         active = null;
         setState((previous) => ({
@@ -370,18 +467,75 @@ export function createStrategicFitLifecycleState(
         return;
       }
 
+      let findingSnapshot = await loadFindingSnapshot(result, request);
+      if (active !== request || request.controller.signal.aborted) return;
+      const afterFindingSnapshot = boundary.currentSnapshot();
+      if (!sameSnapshot(request.snapshot, afterFindingSnapshot)) {
+        finishAsStale(request, afterFindingSnapshot);
+        return;
+      }
+      let reanalysisSummary: StrategicFitReanalysisSummary | null = null;
+      let completedSnapshot = request.snapshot;
+      if (reanalysis !== null && previousCompleted !== null && boundary.reconcileReports !== undefined) {
+        request.reconciling = true;
+        let reconciled: ReturnType<NonNullable<StrategicFitLifecycleBoundary["reconcileReports"]>>;
+        try {
+          reconciled = boundary.reconcileReports(
+            previousCompleted,
+            result,
+            findingSnapshot,
+            reanalysis,
+          );
+        } finally {
+          request.reconciling = false;
+        }
+        result = reconciled.result;
+        findingSnapshot = [...reconciled.findings];
+        reanalysisSummary = reconciled.summary;
+        const afterReconciliation = boundary.currentSnapshot();
+        if (!sameSnapshotExceptSettings(request.snapshot, afterReconciliation)) {
+          finishAsStale(request, afterReconciliation);
+          return;
+        }
+        completedSnapshot = afterReconciliation;
+        if (reconciled.requires_follow_up) {
+          const followUpSnapshot = afterReconciliation;
+          const followUpValue = await boundary.execute("analyze_repertoire_congruence", {}, {
+            signal: request.controller.signal,
+          });
+          if (active !== request || request.controller.signal.aborted) return;
+          const followUpError = commandError(followUpValue);
+          if (followUpError !== null) {
+            throw Object.assign(new Error(followUpError.message), { code: followUpError.code });
+          }
+          const followUp = analysisResult(followUpValue);
+          if (followUp === null) throw new Error("strategic_fit_invalid_result");
+          result = followUp;
+          findingSnapshot = await loadFindingSnapshot(followUp, request);
+          if (active !== request || request.controller.signal.aborted) return;
+          reanalysisSummary = { ...reanalysisSummary, report_id: followUp.report_id };
+          completedSnapshot = boundary.currentSnapshot();
+          if (!sameSnapshot(followUpSnapshot, completedSnapshot)) {
+            finishAsStale(request, completedSnapshot);
+            return;
+          }
+        }
+      }
+
       active = null;
       const completed: StrategicFitCompletedResult = {
         request_id: request.id,
         report_id: result.report_id,
-        request_snapshot: request.snapshot,
+        request_snapshot: completedSnapshot,
         result,
         completed_at: boundary.now(),
+        findings_snapshot: findingSnapshot,
+        reanalysis: reanalysisSummary,
       };
       setState({
         status: "completed",
         request_id: request.id,
-        request_snapshot: request.snapshot,
+        request_snapshot: completedSnapshot,
         progress: null,
         phase_history: completedPhaseHistory(result.preflight.state === "blocked"),
         error: null,
@@ -418,7 +572,8 @@ export function createStrategicFitLifecycleState(
 
   return {
     snapshot: state,
-    analyze,
+    analyze: () => analyzeRequest(null),
+    reanalyze: (request) => analyzeRequest(request),
     cancel() {
       const request = active;
       if (!request) return;
@@ -434,7 +589,7 @@ export function createStrategicFitLifecycleState(
         current_result: null,
       }));
     },
-    retry: analyze,
+    retry: () => analyzeRequest(null),
     prepareCompletedReportForResolution(reportId) {
       if (active !== null || state().current_result?.report_id !== reportId) return false;
       preparedResolutionReportId = reportId;
@@ -483,7 +638,10 @@ export function createStrategicFitLifecycleState(
     },
     synchronize(suppliedCurrent) {
       const current = suppliedCurrent ?? boundary.currentSnapshot();
-      if (active && !sameSnapshot(active.snapshot, current)) {
+      if (
+        active && !sameSnapshot(active.snapshot, current) &&
+        !(active.reconciling && sameSnapshotExceptSettings(active.snapshot, current))
+      ) {
         finishAsStale(active, current);
         return;
       }
@@ -528,8 +686,88 @@ const browserLifecycle = createStrategicFitLifecycleState({
   currentSnapshot: currentBrowserSnapshot,
   execute: (command, args, options) => executeDirectBrowserCommand(command, args, options),
   now: () => new Date().toISOString(),
+  reconcileReports(previous, next, nextFindings, request) {
+    const metadata = strategicFitMetadata();
+    const reconciliation = reconcileStrategicFitReanalysis(
+      previous.report_id,
+      previous.findings_snapshot ?? previous.result.findings,
+      next,
+      nextFindings,
+      metadata,
+      request,
+    );
+    const reopenIds = new Set(reconciliation.actions.reopen_semantic_finding_ids);
+    const requiresFollowUp = metadata.resolutions.some((resolution) =>
+      resolution.record_state === "active" &&
+      resolution.semantic_finding_id !== null &&
+      reopenIds.has(resolution.semantic_finding_id) &&
+      resolution.state !== "automatically-resolved-by-another-edit"
+    );
+    reconcileStrategicFitReportFindings(reconciliation.actions);
+    const reconciledBySemanticId = new Map(reconciliation.findings.map((finding) =>
+      [finding.semantic_finding_id, finding]
+    ));
+    const findings = next.findings.map((finding) =>
+      reconciledBySemanticId.get(finding.semantic_finding_id) ?? finding
+    );
+    return {
+      result: {
+        ...next,
+        findings,
+        summary: {
+          ...next.summary,
+          unresolved_finding_count: reconciliation.findings.filter((finding) =>
+            finding.resolution_state === "unresolved"
+          ).length,
+        },
+      },
+      findings: reconciliation.findings,
+      summary: reconciliation.summary,
+      requires_follow_up: requiresFollowUp,
+    };
+  },
 });
 let lifecycleWatcherStarted = false;
+let observedBrowserSnapshot: StrategicFitRequestSnapshot | null = null;
+let pendingBrowserReanalysis: StrategicFitReanalysisRequest | null = null;
+let browserReanalysisQueued = false;
+
+function mergeReanalysisRequests(
+  previous: StrategicFitReanalysisRequest | null,
+  next: StrategicFitReanalysisRequest,
+): StrategicFitReanalysisRequest {
+  if (previous === null) return next;
+  const cohortIds = [...new Set([
+    ...previous.scope.cohort_ids,
+    ...next.scope.cohort_ids,
+  ])].sort();
+  return {
+    trigger: next.trigger,
+    scope: {
+      kind: previous.scope.kind === "full-scan" || next.scope.kind === "full-scan"
+        ? "full-scan"
+        : "affected-cohorts",
+      cohort_ids: cohortIds,
+      reason: previous.scope.reason === next.scope.reason
+        ? next.scope.reason
+        : `${previous.scope.reason} ${next.scope.reason}`,
+    },
+  };
+}
+
+export function scheduleStrategicFitReanalysis(request: StrategicFitReanalysisRequest): void {
+  pendingBrowserReanalysis = mergeReanalysisRequests(pendingBrowserReanalysis, request);
+  if (browserReanalysisQueued) return;
+  browserReanalysisQueued = true;
+  queueMicrotask(() => {
+    browserReanalysisQueued = false;
+    const pending = pendingBrowserReanalysis;
+    pendingBrowserReanalysis = null;
+    const lifecycle = browserLifecycle.snapshot();
+    if (pending === null || !strategicFitWorkspaceOpen() || lifecycle.last_completed === null) return;
+    void browserLifecycle.reanalyze(pending);
+  });
+}
 
 /** Install the current-document/settings watcher once from the App component's reactive owner. */
 export function startStrategicFitLifecycle(): void {
@@ -537,13 +775,44 @@ export function startStrategicFitLifecycle(): void {
   lifecycleWatcherStarted = true;
   createEffect(() => {
     const current = currentBrowserSnapshot();
+    const workspaceOpen = strategicFitWorkspaceOpen();
     // Lifecycle state/progress writes must not retrigger graph/settings identity construction.
-    untrack(() => browserLifecycle.synchronize(current));
+    untrack(() => {
+      const previous = observedBrowserSnapshot;
+      observedBrowserSnapshot = current;
+      browserLifecycle.synchronize(current);
+      if (!workspaceOpen || previous === null || previous.document_id !== current.document_id) return;
+      const completed = browserLifecycle.snapshot().last_completed;
+      if (completed === null) return;
+      if (previous.profile_identity !== current.profile_identity) {
+        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
+          completed.result,
+          completed.request_snapshot,
+          current,
+          "profile-change",
+        ));
+        return;
+      }
+      if (
+        previous.repertoire_revision !== current.repertoire_revision ||
+        previous.repertoire_pgn !== current.repertoire_pgn ||
+        previous.repertoire_color !== current.repertoire_color
+      ) {
+        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
+          completed.result,
+          completed.request_snapshot,
+          current,
+          "document-change",
+        ));
+      }
+    });
   });
 }
 
 export const strategicFitLifecycle = () => browserLifecycle.snapshot();
 export const analyzeStrategicFit = () => browserLifecycle.analyze();
+export const reanalyzeStrategicFit = (request: StrategicFitReanalysisRequest) =>
+  browserLifecycle.reanalyze(request);
 export const cancelStrategicFitAnalysis = () => browserLifecycle.cancel();
 export const retryStrategicFitAnalysis = () => browserLifecycle.retry();
 export const prepareCompletedStrategicFitReportForResolution = (reportId: string) =>
