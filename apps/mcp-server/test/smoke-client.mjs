@@ -3,7 +3,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { readFile, unlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { TOOL_CONTRACTS, jsonSchemaForTool } from "../../../packages/chess-tools/dist/index.js";
 import { schemaSemanticDifferences } from "../../../scripts/lib/schema-semantics.mjs";
 
@@ -11,6 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = resolve(here, "..");
 const repoRoot = resolve(pkgDir, "..", "..");
 const entry = join(pkgDir, "src", "index.ts");
+const smokeRepertoireDir = await mkdtemp(join(tmpdir(), "chess-mcp-smoke-"));
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const TRAP = "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qg6 *";
@@ -49,6 +51,7 @@ const transport = new DiagnosticStdioTransport({
     ...getDefaultEnvironment(),
     ...(process.env.LICHESS_TOKEN ? { LICHESS_TOKEN: process.env.LICHESS_TOKEN } : {}),
     ...(process.env.EVAL_CACHE_DIR ? { EVAL_CACHE_DIR: process.env.EVAL_CACHE_DIR } : {}),
+    REPERTOIRE_DIR: smokeRepertoireDir,
   },
   stderr: "pipe",
 });
@@ -368,4 +371,5 @@ if (NET) {
 
 console.log(`\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} network group(s) skipped` : ""}`);
 await client.close();
+await rm(smokeRepertoireDir, { recursive: true, force: true });
 process.exit(fail ? 1 : 0);
