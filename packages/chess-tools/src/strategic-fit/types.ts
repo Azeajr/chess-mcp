@@ -611,6 +611,7 @@ export const STRATEGIC_FIT_MANIFEST_COMPONENTS = [
   "weights",
   "popularity",
   "personal-history",
+  "training-performance",
   "cohorts",
   "modes",
   "distance",

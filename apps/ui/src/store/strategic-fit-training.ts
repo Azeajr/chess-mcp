@@ -1,9 +1,18 @@
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
+import { createEffect, createSignal } from "solid-js";
 import {
   STRATEGIC_FIT_SCHEMA_VERSION,
+  STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
   buildRepertoireGraph,
+  createStrategicFitTrainingPerformanceData,
+  deriveStrategicFitTrainingMastery,
+  mergeStrategicFitTrainingPerformance,
+  parseStrategicFitTrainingPerformance,
+  recordStrategicFitTrainingAttempt,
+  serializeStrategicFitTrainingPerformance,
+  upsertStrategicFitTrainingTarget,
   type RepertoireGraph,
   type RepertoireGraphDecision,
   type RepertoireGraphRoute,
@@ -13,9 +22,14 @@ import {
   type StrategicFitDocumentMetadata,
   type StrategicFitReport,
   type StrategicFitSourceProvenance,
+  type StrategicFitTrainingAttemptInput,
+  type StrategicFitTrainingMasteryReport,
+  type StrategicFitTrainingPerformanceData,
+  type StrategicFitTrainingPerformanceError,
 } from "@chess-mcp/chess-tools";
 import { createArtifact } from "./artifacts";
-import { color, currentTree } from "./game";
+import { color, currentTree, documentId } from "./game";
+import { idbGet, idbSet } from "./idb";
 import { strategicFitFindingQueue } from "./strategic-fit-finding-queue";
 import {
   strategicFitFindingResolutionAvailability,
@@ -37,7 +51,7 @@ import {
 
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND =
   "chess-mcp/strategic-fit-basic-drill";
-export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.0.0";
+export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.1.0";
 
 export interface StrategicFitTrainingCheckpoint {
   readonly checkpoint_id: string;
@@ -59,6 +73,7 @@ export interface StrategicFitTrainingMove {
 export interface StrategicFitBasicDrill {
   readonly drill_id: string;
   readonly position_id: string;
+  readonly decision_id: string;
   readonly fen: string;
   readonly expected_san: string;
   readonly source_san_path: readonly string[];
@@ -134,6 +149,7 @@ export interface StrategicFitTrainingBoundary {
     readonly note: string | null;
     readonly linked_training_ids: readonly string[];
   }): StrategicFitFindingResolutionTransitionResult;
+  upsertPerformanceTargets(record: StrategicFitTrainingRecord): void;
   createArtifact(format: "json", content: string, name: string): unknown;
   now(): string;
 }
@@ -271,6 +287,7 @@ export function buildStrategicFitTrainingRecord(
   const drills: StrategicFitBasicDrill[] = [];
   const addDrill = (
     positionId: string,
+    decisionId: string,
     fen: string,
     san: string,
     ply: number,
@@ -283,6 +300,7 @@ export function buildStrategicFitTrainingRecord(
     drills.push({
       drill_id: `strategic-fit-drill:${stableHash(identity)}`,
       position_id: positionId,
+      decision_id: decisionId,
       fen,
       expected_san: san,
       source_san_path: route.san_moves.slice(0, ply),
@@ -293,13 +311,22 @@ export function buildStrategicFitTrainingRecord(
     });
   };
   if (causal !== null) {
-    addDrill(causal.position_id, causal.fen, causal.san, causal.ply, "causal-move", null);
+    addDrill(
+      causal.position_id,
+      causal.decision_id,
+      causal.fen,
+      causal.san,
+      causal.ply,
+      "causal-move",
+      null,
+    );
   }
   for (const checkpoint of checkpoints) {
     const decision = routeDecision(graph, route, checkpoint.ply);
     if (decision !== null) {
       addDrill(
         checkpoint.position_id,
+        decision.decision_id,
         checkpoint.fen,
         decision.san,
         checkpoint.ply,
@@ -473,6 +500,7 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
           artifact_id: null,
         };
       }
+      boundary.upsertPerformanceTargets(record);
       const artifact = boundary.createArtifact(
         "json",
         serializeStrategicFitTrainingArtifact(record),
@@ -491,6 +519,352 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
   };
 }
 
+export const STRATEGIC_FIT_TRAINING_PERFORMANCE_STORAGE_KEY_PREFIX =
+  "strategicFitTrainingPerformance:";
+
+export interface StrategicFitTrainingPerformanceMutationResult {
+  readonly state: "updated" | "unchanged" | "blocked";
+  readonly code: string | null;
+  readonly message: string;
+  readonly data: StrategicFitTrainingPerformanceData;
+  readonly mastery: StrategicFitTrainingMasteryReport | null;
+  readonly artifact_id: string | null;
+  readonly error: StrategicFitTrainingPerformanceError | null;
+}
+
+export interface StrategicFitTrainingPerformanceBoundary {
+  currentDocumentId(): string;
+  currentData(): StrategicFitTrainingPerformanceData;
+  currentGraph(): RepertoireGraph;
+  replaceData(data: StrategicFitTrainingPerformanceData): void;
+  createArtifact(format: "json", content: string, name: string): unknown;
+  now(): string;
+}
+
+/**
+ * Host state for Task 7.3. Registering targets and recording attempts are intentionally separate:
+ * creating a drill establishes an explicit untrained state, while only a real attempt supplies
+ * recall, response-time, lapse, confidence, or spacing evidence.
+ */
+export function createStrategicFitTrainingPerformanceState(
+  boundary: StrategicFitTrainingPerformanceBoundary,
+) {
+  const unchanged = (
+    data: StrategicFitTrainingPerformanceData,
+    message: string,
+  ): StrategicFitTrainingPerformanceMutationResult => ({
+    state: "unchanged",
+    code: null,
+    message,
+    data,
+    mastery: deriveStrategicFitTrainingMastery(data, boundary.currentGraph(), boundary.now()),
+    artifact_id: null,
+    error: null,
+  });
+
+  return {
+    register(record: StrategicFitTrainingRecord): StrategicFitTrainingPerformanceMutationResult {
+      const before = boundary.currentData();
+      let next = before;
+      for (const drill of record.drills) {
+        next = upsertStrategicFitTrainingTarget(next, {
+          training_id: record.training_id,
+          position_id: drill.position_id,
+          decision_id: drill.decision_id,
+          concept_ids: drill.concept_ids,
+          created_at: record.created_at,
+          provenance: record.provenance,
+        });
+      }
+      if (JSON.stringify(next) === JSON.stringify(before)) {
+        return unchanged(before, "Training targets were already registered.");
+      }
+      boundary.replaceData(next);
+      return {
+        state: "updated",
+        code: null,
+        message: "Training targets registered as untrained until an attempt is recorded.",
+        data: next,
+        mastery: deriveStrategicFitTrainingMastery(next, boundary.currentGraph(), boundary.now()),
+        artifact_id: null,
+        error: null,
+      };
+    },
+
+    recordAttempt(input: StrategicFitTrainingAttemptInput): StrategicFitTrainingPerformanceMutationResult {
+      const before = boundary.currentData();
+      try {
+        const next = recordStrategicFitTrainingAttempt(before, input);
+        if (next === before) return unchanged(before, "This exact training attempt was already recorded.");
+        boundary.replaceData(next);
+        return {
+          state: "updated",
+          code: null,
+          message: "Training attempt recorded without changing the repertoire.",
+          data: next,
+          mastery: deriveStrategicFitTrainingMastery(next, boundary.currentGraph(), boundary.now()),
+          artifact_id: null,
+          error: null,
+        };
+      } catch (caught) {
+        return {
+          state: "blocked",
+          code: caught instanceof Error ? caught.message : "strategic_fit_training_attempt_failed",
+          message: "The training attempt is invalid or no longer references a known target.",
+          data: before,
+          mastery: null,
+          artifact_id: null,
+          error: null,
+        };
+      }
+    },
+
+    mastery(): StrategicFitTrainingMasteryReport {
+      return deriveStrategicFitTrainingMastery(
+        boundary.currentData(),
+        boundary.currentGraph(),
+        boundary.now(),
+      );
+    },
+
+    export(): StrategicFitTrainingPerformanceMutationResult {
+      const data = boundary.currentData();
+      const artifact = boundary.createArtifact(
+        "json",
+        serializeStrategicFitTrainingPerformance(data),
+        `strategic-fit-training-performance-${data.document_id}.json`,
+      );
+      return {
+        state: "unchanged",
+        code: null,
+        message: `Version ${STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION} training data exported.`,
+        data,
+        mastery: deriveStrategicFitTrainingMastery(data, boundary.currentGraph(), boundary.now()),
+        artifact_id: artifactId(artifact),
+        error: null,
+      };
+    },
+
+    import(input: string | unknown): StrategicFitTrainingPerformanceMutationResult {
+      const before = boundary.currentData();
+      const parsed = parseStrategicFitTrainingPerformance(input);
+      if (!("ok" in parsed)) {
+        return {
+          state: "blocked",
+          code: parsed.code,
+          message: parsed.reason,
+          data: before,
+          mastery: null,
+          artifact_id: null,
+          error: parsed,
+        };
+      }
+      if (parsed.data.document_id !== boundary.currentDocumentId()) {
+        return {
+          state: "blocked",
+          code: "strategic_fit_training_document_mismatch",
+          message: "Training data belongs to a different document.",
+          data: before,
+          mastery: null,
+          artifact_id: null,
+          error: null,
+        };
+      }
+      const next = mergeStrategicFitTrainingPerformance(before, parsed.data);
+      if (JSON.stringify(next) === JSON.stringify(before)) {
+        return unchanged(before, "The imported training data is already present.");
+      }
+      boundary.replaceData(next);
+      return {
+        state: "updated",
+        code: null,
+        message: `Version ${parsed.data.training_performance_version} training data imported.`,
+        data: next,
+        mastery: deriveStrategicFitTrainingMastery(next, boundary.currentGraph(), boundary.now()),
+        artifact_id: null,
+        error: null,
+      };
+    },
+  };
+}
+
+export interface StrategicFitTrainingPerformanceStorage {
+  get(documentId: string): Promise<unknown>;
+  set(documentId: string, data: StrategicFitTrainingPerformanceData): Promise<void>;
+}
+
+interface BrowserTrainingPerformanceSnapshot {
+  readonly document_id: string | null;
+  readonly status: "idle" | "loading" | "ready";
+  readonly data: StrategicFitTrainingPerformanceData;
+  readonly warning: string | null;
+}
+
+function performanceStorageKey(id: string): string {
+  return `${STRATEGIC_FIT_TRAINING_PERFORMANCE_STORAGE_KEY_PREFIX}${id}`;
+}
+
+export function createIndexedDbStrategicFitTrainingPerformanceStorage(): StrategicFitTrainingPerformanceStorage {
+  return {
+    get: (id) => idbGet(performanceStorageKey(id)),
+    set: (id, data) => idbSet(performanceStorageKey(id), data),
+  };
+}
+
+const [browserPerformanceSnapshot, setBrowserPerformanceSnapshot] =
+  createSignal<BrowserTrainingPerformanceSnapshot>({
+    document_id: null,
+    status: "idle",
+    data: createStrategicFitTrainingPerformanceData("unbound"),
+    warning: null,
+  });
+const [performanceRestoreSettled, setPerformanceRestoreSettled] = createSignal(false);
+const browserPerformanceStorage = createIndexedDbStrategicFitTrainingPerformanceStorage();
+const performanceWriteTails = new Map<string, Promise<void>>();
+const pendingPerformanceWrites = new Map<string, {
+  readonly data: StrategicFitTrainingPerformanceData;
+  timer: ReturnType<typeof setTimeout> | null;
+}>();
+let performanceActivation = 0;
+let performanceEffectStarted = false;
+let performanceActiveLoad: Promise<void> = Promise.resolve();
+
+function executePendingPerformanceWrite(id: string): Promise<void> {
+  const pending = pendingPerformanceWrites.get(id);
+  if (!pending) return performanceWriteTails.get(id) ?? Promise.resolve();
+  if (pending.timer !== null) clearTimeout(pending.timer);
+  pendingPerformanceWrites.delete(id);
+  const previous = performanceWriteTails.get(id) ?? Promise.resolve();
+  const next = previous.catch(() => undefined)
+    .then(() => browserPerformanceStorage.set(id, pending.data))
+    .catch(() => {
+      const snapshot = browserPerformanceSnapshot();
+      if (snapshot.document_id === id) {
+        setBrowserPerformanceSnapshot({
+          ...snapshot,
+          warning: "Strategic Fit training performance could not be saved.",
+        });
+      }
+    });
+  performanceWriteTails.set(id, next);
+  return next;
+}
+
+function replaceBrowserTrainingPerformance(data: StrategicFitTrainingPerformanceData): void {
+  const id = documentId();
+  const parsed = parseStrategicFitTrainingPerformance(data);
+  if (!("ok" in parsed) || parsed.data.document_id !== id) {
+    throw new Error("strategic_fit_training_invalid_current_document_data");
+  }
+  // An explicit attempt/import wins over any older IndexedDB read still in flight.
+  performanceActivation += 1;
+  performanceActiveLoad = Promise.resolve();
+  setBrowserPerformanceSnapshot({ document_id: id, status: "ready", data: parsed.data, warning: null });
+  const pending = pendingPerformanceWrites.get(id);
+  if (pending?.timer !== null && pending?.timer !== undefined) clearTimeout(pending.timer);
+  const next = { data: parsed.data, timer: null as ReturnType<typeof setTimeout> | null };
+  next.timer = setTimeout(() => { void executePendingPerformanceWrite(id); }, 400);
+  pendingPerformanceWrites.set(id, next);
+}
+
+function activateBrowserTrainingPerformance(id: string): Promise<void> {
+  const current = browserPerformanceSnapshot();
+  if (current.document_id === id && current.status !== "idle") return performanceActiveLoad;
+  const token = ++performanceActivation;
+  setBrowserPerformanceSnapshot({
+    document_id: id,
+    status: "loading",
+    data: createStrategicFitTrainingPerformanceData(id),
+    warning: null,
+  });
+  performanceActiveLoad = (async () => {
+    try {
+      const raw = await browserPerformanceStorage.get(id);
+      if (token !== performanceActivation || documentId() !== id) return;
+      if (raw === undefined) {
+        setBrowserPerformanceSnapshot({
+          document_id: id,
+          status: "ready",
+          data: createStrategicFitTrainingPerformanceData(id),
+          warning: null,
+        });
+        return;
+      }
+      const parsed = parseStrategicFitTrainingPerformance(raw);
+      setBrowserPerformanceSnapshot({
+        document_id: id,
+        status: "ready",
+        data: "ok" in parsed ? parsed.data : createStrategicFitTrainingPerformanceData(id),
+        warning: "ok" in parsed ? null : "Saved Strategic Fit training performance was invalid and was not loaded.",
+      });
+    } catch {
+      if (token !== performanceActivation || documentId() !== id) return;
+      setBrowserPerformanceSnapshot({
+        document_id: id,
+        status: "ready",
+        data: createStrategicFitTrainingPerformanceData(id),
+        warning: "Strategic Fit training performance could not be restored.",
+      });
+    }
+  })();
+  return performanceActiveLoad;
+}
+
+export function startStrategicFitTrainingPerformancePersistence(): void {
+  if (performanceEffectStarted) return;
+  performanceEffectStarted = true;
+  createEffect(() => {
+    const ready = performanceRestoreSettled();
+    const id = documentId();
+    if (ready) void activateBrowserTrainingPerformance(id);
+  });
+}
+
+export async function restoreStrategicFitTrainingPerformance(): Promise<void> {
+  setPerformanceRestoreSettled(true);
+  await activateBrowserTrainingPerformance(documentId());
+}
+
+export function strategicFitTrainingPerformance(): StrategicFitTrainingPerformanceData {
+  const id = documentId();
+  const snapshot = browserPerformanceSnapshot();
+  return snapshot.document_id === id
+    ? snapshot.data
+    : createStrategicFitTrainingPerformanceData(id);
+}
+
+export function strategicFitTrainingPerformanceWarning(): string | null {
+  const id = documentId();
+  const snapshot = browserPerformanceSnapshot();
+  return snapshot.document_id === id ? snapshot.warning : null;
+}
+
+export async function flushStrategicFitTrainingPerformance(targetDocumentId?: string): Promise<void> {
+  if (targetDocumentId !== undefined) {
+    await executePendingPerformanceWrite(targetDocumentId);
+    await (performanceWriteTails.get(targetDocumentId) ?? Promise.resolve());
+    return;
+  }
+  for (const id of [...pendingPerformanceWrites.keys()]) await executePendingPerformanceWrite(id);
+  await Promise.all([...performanceWriteTails.values()]);
+}
+
+const browserTrainingPerformance = createStrategicFitTrainingPerformanceState({
+  currentDocumentId: documentId,
+  currentData: strategicFitTrainingPerformance,
+  currentGraph: () => buildRepertoireGraph(currentTree(), color()),
+  replaceData: replaceBrowserTrainingPerformance,
+  createArtifact,
+  now: () => new Date().toISOString(),
+});
+
+export const recordStrategicFitTrainingPerformanceAttempt = (input: StrategicFitTrainingAttemptInput) =>
+  browserTrainingPerformance.recordAttempt(input);
+export const strategicFitTrainingMastery = () => browserTrainingPerformance.mastery();
+export const exportStrategicFitTrainingPerformance = () => browserTrainingPerformance.export();
+export const importStrategicFitTrainingPerformance = (input: string | unknown) =>
+  browserTrainingPerformance.import(input);
+
 const browserTraining = createStrategicFitTrainingState({
   currentReport: () => {
     const lifecycle = strategicFitLifecycle();
@@ -507,6 +881,7 @@ const browserTraining = createStrategicFitTrainingState({
   upsertTrainingReference: upsertStrategicFitTrainingReference,
   removeTrainingReference: removeStrategicFitTrainingReference,
   transitionResolution: transitionStrategicFitFindingResolution,
+  upsertPerformanceTargets: (record) => { browserTrainingPerformance.register(record); },
   createArtifact,
   now: () => new Date().toISOString(),
 });

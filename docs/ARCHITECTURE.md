@@ -101,6 +101,14 @@ the requested population evidence, or an equal prior when population data was no
 Missing PGN metadata, invalid samples, no matching color, and fetch failure remain explicit
 insufficient, partial, or unavailable provenance while the base report remains usable.
 
+Training performance is a separate versioned, document-keyed browser record rather than analyzer
+state or a field added to the canonical metadata sidecar. Deterministic drill targets bind semantic
+positions, decisions, and concepts; attempts retain recall, measured response time, explicit lapses,
+optional confidence, and UTC spacing timestamps. Mastery uses only supplied observations, preserves
+untrained as distinct from failure, and excludes stale semantic targets from current metric evidence
+without deleting their historical provenance. Task 7.4 owns injecting that evidence into personalized
+report weights and metrics.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game

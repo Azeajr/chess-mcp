@@ -54,6 +54,10 @@ Optional Strategic Fit personal-history enrichment fetches full PGNs from the se
 Chess.com account, uses only games played from the repertoire color, and shrinks sparse personal
 branch counts toward the population or equal baseline. Missing PGNs and unavailable history remain
 explicitly insufficient or unavailable rather than becoming zero frequency.
+Strategic Fit training attempts are stored per document in a separate versioned IndexedDB record and
+can be imported or exported as strict JSON. Registered drills remain explicitly untrained until an
+attempt records recall; missing response time or confidence stays missing, while stale semantic
+targets retain history but do not contribute current mastery evidence.
 
 ## Persistence
 

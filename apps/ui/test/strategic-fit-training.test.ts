@@ -8,10 +8,13 @@ import {
   GameTree,
   buildRepertoireGraph,
   createDefaultStrategicFitDocumentMetadata,
+  createStrategicFitTrainingPerformanceData,
   normalizeStrategicFitDocumentMetadata,
+  serializeStrategicFitTrainingPerformance,
   type StrategicFinding,
   type StrategicFitAnalysisResult,
   type StrategicFitDocumentMetadata,
+  type StrategicFitTrainingPerformanceData,
 } from "@chess-mcp/chess-tools";
 import {
   createStrategicFitResolutionState,
@@ -19,6 +22,7 @@ import {
 } from "../src/store/strategic-fit-resolutions.ts";
 import {
   STRATEGIC_FIT_TRAINING_ARTIFACT_KIND,
+  createStrategicFitTrainingPerformanceState,
   createStrategicFitTrainingState,
   type StrategicFitTrainingArtifact,
   type StrategicFitTrainingBoundary,
@@ -165,6 +169,19 @@ function fixture(options: { staleRoute?: boolean } = {}) {
   };
   const low = createStrategicFitResolutionState(lowBoundary);
   const artifacts: Array<{ content: string; name: string }> = [];
+  let performance: StrategicFitTrainingPerformanceData =
+    createStrategicFitTrainingPerformanceData("document:training");
+  const performanceState = createStrategicFitTrainingPerformanceState({
+    currentDocumentId: () => "document:training",
+    currentData: () => performance,
+    currentGraph: () => graph,
+    replaceData: (next) => { performance = next; },
+    createArtifact: (_format, content, name) => {
+      artifacts.push({ content, name });
+      return { artifact_id: `artifact:${artifacts.length}` };
+    },
+    now: () => "2026-07-23T14:00:00.000Z",
+  });
   const boundary: StrategicFitTrainingBoundary = {
     currentReport: () => completed,
     currentFinding: (reportId, findingId) =>
@@ -196,6 +213,7 @@ function fixture(options: { staleRoute?: boolean } = {}) {
         resolution: "train-as-exception",
       };
     },
+    upsertPerformanceTargets: (record) => { performanceState.register(record); },
     createArtifact: (_format, content, name) => {
       artifacts.push({ content, name });
       return { artifact_id: `artifact:${artifacts.length}` };
@@ -209,6 +227,8 @@ function fixture(options: { staleRoute?: boolean } = {}) {
     finding,
     report,
     state: createStrategicFitTrainingState(boundary),
+    performanceState,
+    performance: () => performance,
     metadata: () => metadata,
     artifacts,
     invalidations: () => invalidations,
@@ -229,6 +249,7 @@ test("training creation deterministically links checkpoints, concepts, causal mo
   assert.match(created.record?.training_id ?? "", /^strategic-fit-training:/);
   assert.deepEqual(created.record?.concept_ids, ["concept:causal-plan", "concept:center-control"]);
   assert.equal(created.record?.causal_move?.san, "Nf3");
+  assert.ok(created.record?.drills.every((drill) => drill.decision_id.length > 0));
   assert.deepEqual(created.record?.checkpoints.map((checkpoint) => checkpoint.position_id), [
     subject.route.position_ids[0],
     subject.route.position_ids[2],
@@ -243,6 +264,10 @@ test("training creation deterministically links checkpoints, concepts, causal mo
   assert.equal(subject.report.findings.length, 1, "accepted training keeps the immutable finding visible");
   assert.equal(subject.tree.toPgn(), before, "training must not edit repertoire lines");
   assert.equal(subject.invalidations(), 1, "the training reference alone is not an analysis setting");
+  assert.ok(subject.performance().targets.length >= 2);
+  assert.ok(subject.performanceState.mastery().decision_mastery.every((entry) =>
+    entry.state === "untrained" && entry.mastery === null
+  ));
 });
 
 test("repeated creation deduplicates one durable training identity and survives metadata reload", () => {
@@ -305,5 +330,48 @@ test("a stale semantic route blocks training without metadata, artifact, or repe
   assert.deepEqual(subject.metadata().training_references, []);
   assert.deepEqual(subject.metadata().resolutions, []);
   assert.deepEqual(subject.artifacts, []);
+  assert.deepEqual(subject.performance().targets, []);
   assert.equal(subject.tree.toPgn(), before);
+});
+
+test("browser training state records performance and round-trips versioned imports without report invalidation", () => {
+  const subject = fixture();
+  const created = subject.state.create({
+    report_id: subject.report.report_id,
+    finding_id: subject.finding.finding_id,
+    semantic_finding_id: subject.finding.semantic_finding_id,
+  });
+  assert.equal(created.state, "created");
+  const target = subject.performance().targets[0]!;
+  const beforeInvalidations = subject.invalidations();
+  const attempt = subject.performanceState.recordAttempt({
+    target_id: target.target_id,
+    attempted_at: "2026-07-22T12:00:00-04:00",
+    recalled: false,
+    response_time_ms: 12_000,
+    lapse: true,
+    confidence: 0.3,
+    scheduled_at: "2026-07-22T11:55:00-04:00",
+    next_due_at: "2026-07-22T18:00:00-04:00",
+  });
+
+  assert.equal(attempt.state, "updated");
+  assert.equal(attempt.mastery?.decision_mastery.find((entry) =>
+    entry.identity_id === target.decision_id
+  )?.state, "observed");
+  assert.equal(subject.invalidations(), beforeInvalidations, "Task 7.4 owns metric reanalysis wiring");
+
+  const exported = subject.performanceState.export();
+  assert.equal(exported.artifact_id, `artifact:${subject.artifacts.length}`);
+  const bytes = serializeStrategicFitTrainingPerformance(subject.performance());
+  const imported = subject.performanceState.import(bytes);
+  assert.equal(imported.state, "unchanged");
+  assert.equal(imported.data.attempts[0]?.attempted_at, "2026-07-22T16:00:00.000Z");
+
+  const incompatible = JSON.parse(bytes) as Record<string, unknown>;
+  incompatible.training_performance_version = "2.0.0";
+  const rejected = subject.performanceState.import(incompatible);
+  assert.equal(rejected.state, "blocked");
+  assert.equal(rejected.code, "unsupported-version");
+  assert.equal(subject.performance().attempts.length, 1);
 });

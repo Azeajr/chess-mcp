@@ -21,18 +21,25 @@ import {
   strategicFitMetadataWarning,
 } from "./store/strategic-fit-metadata";
 import { startStrategicFitLifecycle } from "./store/strategic-fit";
+import {
+  restoreStrategicFitTrainingPerformance,
+  startStrategicFitTrainingPerformancePersistence,
+  strategicFitTrainingPerformanceWarning,
+} from "./store/strategic-fit-training";
 import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
 import { resizeSide, resizeSideChat, effSideWidth, effChatWidth, persistLayout, boardSize, setBoardSize, persistBoard } from "./store/layout";
 
 export default function App() {
   startAutosave();
   startStrategicFitMetadataPersistence();
+  startStrategicFitTrainingPerformancePersistence();
   startStrategicFitLifecycle();
 
   onMount(() => {
     void (async () => {
       await restoreWorking();
       await restoreStrategicFitMetadata();
+      await restoreStrategicFitTrainingPerformance();
       void restoreLastFile();
     })();
     const onKey = (e: KeyboardEvent) => {
@@ -68,6 +75,9 @@ export default function App() {
         <TopBar />
         <Show when={strategicFitMetadataWarning()}>
           {(warning) => <div class="strategic-fit-metadata-warning" role="alert">{warning().message}</div>}
+        </Show>
+        <Show when={strategicFitTrainingPerformanceWarning()}>
+          {(warning) => <div class="strategic-fit-metadata-warning" role="alert">{warning()}</div>}
         </Show>
         <div
           class="workspace"
