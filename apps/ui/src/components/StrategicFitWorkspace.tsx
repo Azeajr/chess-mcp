@@ -12,6 +12,7 @@ import FindingQueue from "./strategic-fit/FindingQueue";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
 import ResolutionActions from "./strategic-fit/ResolutionActions";
 import CohortEditor from "./strategic-fit/CohortEditor";
+import TrainException from "./strategic-fit/TrainException";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
@@ -500,6 +501,11 @@ export default function StrategicFitWorkspace() {
                     reportId={resolution().reportId}
                     finding={resolution().finding}
                   />
+                  <TrainException
+                    reportId={resolution().reportId}
+                    report={resolution().report}
+                    finding={resolution().finding}
+                  />
                   <CohortEditor
                     reportId={resolution().reportId}
                     report={resolution().report}
@@ -536,6 +542,11 @@ export default function StrategicFitWorkspace() {
                 <div class="strategic-fit-review-actions">
                   <ResolutionActions
                     reportId={resolution().reportId}
+                    finding={resolution().finding}
+                  />
+                  <TrainException
+                    reportId={resolution().reportId}
+                    report={resolution().report}
                     finding={resolution().finding}
                   />
                   <CohortEditor

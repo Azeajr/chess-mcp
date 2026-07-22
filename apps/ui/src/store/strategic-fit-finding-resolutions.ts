@@ -36,6 +36,9 @@ export const STRATEGIC_FIT_REVIEW_RESOLUTION_STATES = [
 ] as const;
 export type StrategicFitReviewResolutionState =
   (typeof STRATEGIC_FIT_REVIEW_RESOLUTION_STATES)[number];
+export type StrategicFitFindingResolutionStateInput =
+  | StrategicFitReviewResolutionState
+  | "train-as-exception";
 export type StrategicFitDisplayedResolutionState =
   | StrategicFinding["resolution_state"]
   | "invalid-comparison";
@@ -67,9 +70,10 @@ export interface StrategicFitFindingResolutionTransitionInput {
   readonly report_id: string;
   readonly finding_id: string;
   readonly semantic_finding_id: string;
-  readonly state: StrategicFitReviewResolutionState;
+  readonly state: StrategicFitFindingResolutionStateInput;
   readonly intentional_reason?: IntentionalResolutionReason | null;
   readonly note?: string | null;
+  readonly linked_training_ids?: readonly string[];
 }
 
 export interface StrategicFitFindingResolutionReopenInput {
@@ -166,15 +170,16 @@ function missingSemanticReference(
   return null;
 }
 
-function actionLabel(state: StrategicFitReviewResolutionState): string {
+function actionLabel(state: StrategicFitFindingResolutionStateInput): string {
   if (state === "keep-intentionally") return "Kept intentionally";
+  if (state === "train-as-exception") return "Training item created";
   if (state === "defer") return "Deferred";
   if (state === "exclude-from-analysis") return "Excluded from analysis";
   if (state === "invalid-comparison") return "Marked as an invalid comparison";
   return "Resolved by another edit";
 }
 
-function persistedReason(state: StrategicFitReviewResolutionState): string {
+function persistedReason(state: StrategicFitFindingResolutionStateInput): string {
   if (state === "automatically-resolved-by-another-edit") {
     return "Strategic Fit recorded that another edit resolved this finding.";
   }
@@ -319,7 +324,10 @@ export function createStrategicFitFindingResolutionState(
       );
     },
     transition(input) {
-      const allowed = new Set<StrategicFitPersistedResolutionState>(STRATEGIC_FIT_REVIEW_RESOLUTION_STATES);
+      const allowed = new Set<StrategicFitPersistedResolutionState>([
+        ...STRATEGIC_FIT_REVIEW_RESOLUTION_STATES,
+        "train-as-exception",
+      ]);
       if (!allowed.has(input.state)) {
         return blocked(input.finding_id, "strategic_fit_resolution_invalid_transition", "That resolution transition is not supported.");
       }
@@ -328,6 +336,16 @@ export function createStrategicFitFindingResolutionState(
         return blocked(input.finding_id, checked.code!, checked.message!);
       }
       const note = input.note?.trim() || null;
+      const linkedTrainingIds = [...new Set(
+        (input.linked_training_ids ?? []).map((id) => id.trim()).filter(Boolean),
+      )].sort();
+      if (input.state === "train-as-exception" && linkedTrainingIds.length === 0) {
+        return blocked(
+          input.finding_id,
+          "strategic_fit_training_resolution_requires_record",
+          "Create a semantic training record before accepting this training resolution.",
+        );
+      }
       const intentionalReason = input.state === "keep-intentionally"
         ? input.intentional_reason ?? null
         : null;
@@ -358,6 +376,7 @@ export function createStrategicFitFindingResolutionState(
           intentional_reason: intentionalReason,
           note,
           reason: persistedReason(input.state),
+          linked_training_ids: linkedTrainingIds,
         });
       } catch (error) {
         boundary.retainReport(input.report_id);

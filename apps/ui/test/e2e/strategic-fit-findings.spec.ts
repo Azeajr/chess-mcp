@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Download, type Page } from "playwright/test";
 import {
   contrastViolations,
   expectBasicAccessibility,
@@ -19,6 +19,13 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   strategicFitLifecycle(): any;
 };
+
+async function downloadText(download: Download): Promise<string> {
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
   ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
@@ -118,6 +125,8 @@ async function installFindingWorkerFixture(page: Page) {
               "r1bqkb1r/pp1ppppp/2n2n2/2p5/4P3/2P2N2/PP1P1PPP/RNBQKB1R w KQkq - 3 4",
               "r1bqk2r/pp1pbppp/2n1pn2/2p5/3PP3/2P2N2/PP3PPP/RNBQKB1R w KQkq - 1 6",
               "r1bq1rk1/pp1pbppp/2n1pn2/2p5/3PP3/2P1BN2/PP3PPP/RN1QKB1R w KQ - 3 7",
+              "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+              "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
             ];
             const snapshot = (
               routeId: string,
@@ -125,11 +134,12 @@ async function installFindingWorkerFixture(page: Page) {
               ply: number,
               fenIndex: number,
               comparability: "comparable" | "incomplete" | "not-comparable" = "comparable",
+              positionId?: string,
             ) => ({
               analysis_version: analysisVersion,
               snapshot_id: `snapshot:${routeId}:${kind}:${ply}`,
               route_id: routeId,
-              position_id: `position:${routeId}:${ply}`,
+              position_id: positionId ?? `position:${routeId}:${ply}`,
               fen: boardFens[fenIndex % boardFens.length],
               checkpoint: {
                 analysis_version: analysisVersion,
@@ -162,6 +172,22 @@ async function installFindingWorkerFixture(page: Page) {
             });
             const comparisonTrajectories = [
               trajectory("route:d0915031cdecff76", "complete", [
+                snapshot(
+                  "route:d0915031cdecff76",
+                  "configured-ply",
+                  0,
+                  4,
+                  "comparable",
+                  "position:e7550032f70614fc",
+                ),
+                snapshot(
+                  "route:d0915031cdecff76",
+                  "configured-ply",
+                  2,
+                  5,
+                  "comparable",
+                  "position:5022598b73716fd2",
+                ),
                 snapshot("route:d0915031cdecff76", "opening-exit", 4, 0),
                 snapshot("route:d0915031cdecff76", "central-resolution", 8, 1),
                 snapshot("route:d0915031cdecff76", "irreversible-transformation", 10, 2),
@@ -849,6 +875,79 @@ test("finding resolutions are reversible, persistent, count-aware, and visibly s
   await expect(restoredDialog.locator("[data-analysis-state='stale']")).toBeVisible();
   await expect(restoredDialog.locator("[data-resolution-blocked]")).toContainText(
     "Resolution actions are blocked while this report is stale",
+  );
+});
+
+test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const initialVersion = await chess(page, (api) => api.version());
+  const initialDirty = await chess(page, (api) => api.dirty());
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  const first = queue.locator("[data-finding-id='finding:01']");
+  await first.locator("[data-finding-select]").click();
+
+  const training = dialog.locator("[data-training-finding-id='finding:01']");
+  await expect(training).toBeVisible();
+  await training.getByLabel("Optional training notes").fill("Practice Nf3 from the matched checkpoints.");
+  await training.getByRole("button", { name: "Create training item" }).click();
+  await expect(training.getByRole("status")).toContainText("repertoire was not changed");
+  await expect(training).toContainText("legal drill positions");
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Train as an exception");
+  await expect(first).toBeVisible();
+  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
+    .toHaveText("2");
+
+  const persisted = await chess(page, (api) => api.strategicFitMetadata());
+  expect(persisted.training_references).toHaveLength(1);
+  expect(persisted.training_references[0].references.position_ids).toEqual([
+    "position:5022598b73716fd2",
+    "position:e7550032f70614fc",
+  ]);
+  expect(persisted.resolutions).toMatchObject([{
+    state: "train-as-exception",
+    semantic_finding_id: "semantic:finding:01",
+    note: "Practice Nf3 from the matched checkpoints.",
+    linked_training_ids: [persisted.training_references[0].training_id],
+  }]);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => api.version())).toBe(initialVersion);
+  expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
+
+  const downloadEvent = page.waitForEvent("download");
+  await training.getByRole("button", { name: "Save basic drill JSON" }).click();
+  const download = await downloadEvent;
+  const artifact = JSON.parse(await downloadText(download));
+  expect(artifact.artifact_kind).toBe("chess-mcp/strategic-fit-basic-drill");
+  expect(artifact.drills).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      expected_san: "e4",
+      source_san_path: [],
+    }),
+    expect.objectContaining({
+      fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      expected_san: "Nf3",
+      source_san_path: ["e4", "e5"],
+    }),
+  ]));
+
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await page.getByRole("button", { name: "Open workspace" }).click();
+  const restored = page.getByRole("dialog", { name: "Strategic Fit" });
+  await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
+  await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
+  const restoredQueue = restored.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await expect(restored.locator("[data-training-finding-id='finding:01']"))
+    .toContainText("Training item saved");
+  await expect(restored.locator("[data-training-record-id]")).toHaveAttribute(
+    "data-training-record-id",
+    persisted.training_references[0].training_id,
   );
 });
 

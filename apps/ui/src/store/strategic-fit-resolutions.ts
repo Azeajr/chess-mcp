@@ -23,6 +23,7 @@ import {
   type StrategicFitPersistedCohortLabel,
   type StrategicFitPersistedResolutionState,
   type StrategicFitSourceProvenance,
+  type StrategicFitTrainingReference,
 } from "@chess-mcp/chess-tools";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { color, currentTree, version } from "./game";
@@ -76,6 +77,15 @@ export interface StrategicFitCohortLabelMutationInput {
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
+export interface StrategicFitTrainingReferenceMutationInput {
+  readonly training_id: string;
+  readonly finding_id: string | null;
+  readonly repertoire_revision: string;
+  readonly references: SemanticReferences;
+  readonly created_at?: string;
+  readonly provenance?: readonly StrategicFitSourceProvenance[];
+}
+
 export interface StrategicFitAnalysisSettingsSnapshot {
   readonly identity: string;
   readonly inputs: StrategicFitMetadataAnalysisInputs;
@@ -99,6 +109,8 @@ export interface StrategicFitResolutionState {
   removeCohortOverride(overrideId: string): StrategicFitSettingsMutationResult;
   upsertCohortLabel(input: StrategicFitCohortLabelMutationInput): StrategicFitSettingsMutationResult;
   removeCohortLabel(labelId: string): StrategicFitSettingsMutationResult;
+  upsertTrainingReference(input: StrategicFitTrainingReferenceMutationInput): StrategicFitSettingsMutationResult;
+  removeTrainingReference(trainingId: string): StrategicFitSettingsMutationResult;
   upsertRouteWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
   removeRouteWeight(routeId: string): StrategicFitSettingsMutationResult;
   upsertDecisionWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
@@ -225,11 +237,12 @@ export function createStrategicFitResolutionState(
   const commit = (
     next: StrategicFitDocumentMetadata,
     unchanged: StrategicFitSettingsMutationState = "unchanged",
+    invalidateReports = true,
   ): StrategicFitSettingsMutationResult => {
     const current = boundary.currentMetadata();
     if (JSON.stringify(current) === JSON.stringify(next)) return { state: unchanged, metadata: current };
     const result = boundary.replaceMetadata(next);
-    boundary.invalidateReports();
+    if (invalidateReports) boundary.invalidateReports();
     return { state: "updated", metadata: result.metadata };
   };
 
@@ -237,12 +250,13 @@ export function createStrategicFitResolutionState(
     collection: readonly T[],
     matches: (entry: T) => boolean,
     update: (next: T[]) => StrategicFitDocumentMetadata,
+    invalidateReports = true,
   ): StrategicFitSettingsMutationResult => {
     const next = collection.filter((entry) => !matches(entry));
     if (next.length === collection.length) {
       return { state: "missing", metadata: boundary.currentMetadata() };
     }
-    const result = commit(update(next));
+    const result = commit(update(next), "unchanged", invalidateReports);
     return { ...result, state: result.state === "updated" ? "removed" : result.state };
   };
 
@@ -457,6 +471,52 @@ export function createStrategicFitResolutionState(
       );
     },
 
+    upsertTrainingReference(input) {
+      const metadata = boundary.currentMetadata();
+      const trainingId = nonEmpty(input.training_id, "strategic_fit_invalid_training_id");
+      const findingId = input.finding_id === null
+        ? null
+        : nonEmpty(input.finding_id, "strategic_fit_invalid_finding_id");
+      const repertoireRevision = nonEmpty(
+        input.repertoire_revision,
+        "strategic_fit_invalid_repertoire_revision",
+      );
+      const normalizedReferences = references(input.references);
+      if (normalizedReferences.position_ids.length === 0) {
+        throw new Error("strategic_fit_training_requires_semantic_position");
+      }
+      const existing = metadata.training_references.find((entry) => entry.training_id === trainingId);
+      const createdAt = existing?.created_at ?? input.created_at ?? boundary.now();
+      const next: StrategicFitTrainingReference = {
+        training_id: trainingId,
+        finding_id: findingId,
+        repertoire_revision: repertoireRevision,
+        references: normalizedReferences,
+        created_at: createdAt,
+        provenance: defaultProvenance(boundary, input.provenance),
+      };
+      if (existing && JSON.stringify(existing) === JSON.stringify(next)) {
+        return { state: "unchanged", metadata };
+      }
+      return commit({
+        ...metadata,
+        training_references: [
+          ...metadata.training_references.filter((entry) => entry.training_id !== trainingId),
+          next,
+        ].sort((left, right) => left.training_id.localeCompare(right.training_id)),
+      }, "unchanged", false);
+    },
+
+    removeTrainingReference(trainingId) {
+      const metadata = boundary.currentMetadata();
+      return remove(
+        metadata.training_references,
+        (entry) => entry.training_id === trainingId,
+        (trainingReferences) => ({ ...metadata, training_references: trainingReferences }),
+        false,
+      );
+    },
+
     upsertRouteWeight(input) {
       const metadata = boundary.currentMetadata();
       const routeId = nonEmpty(input.target_id, "strategic_fit_invalid_route_id");
@@ -599,6 +659,10 @@ export const upsertStrategicFitCohortLabel = (input: StrategicFitCohortLabelMuta
   browserResolutionState.upsertCohortLabel(input);
 export const removeStrategicFitCohortLabel = (labelId: string) =>
   browserResolutionState.removeCohortLabel(labelId);
+export const upsertStrategicFitTrainingReference = (input: StrategicFitTrainingReferenceMutationInput) =>
+  browserResolutionState.upsertTrainingReference(input);
+export const removeStrategicFitTrainingReference = (trainingId: string) =>
+  browserResolutionState.removeTrainingReference(trainingId);
 export const upsertStrategicFitRouteWeight = (input: StrategicFitManualWeightMutationInput) =>
   browserResolutionState.upsertRouteWeight(input);
 export const removeStrategicFitRouteWeight = (routeId: string) =>

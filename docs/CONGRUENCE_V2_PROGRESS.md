@@ -45,31 +45,32 @@
 | 5.9 | Complete | `b460d99` | Implementer and role-separated same-session coordinator: targeted accessibility/findings Playwright 11/11; UI behavioral 106/106; full Playwright 65/65; UI production build with worker-boundary check; monorepo typecheck; Phase 5 gate | Complete Phase 5 accessibility and mobile hardening with coherent phone-only tab/tabpanel semantics, keyboard stage movement and full setup-to-review journey, exact focus transfer/restoration and disclosure trapping, de-duplicated atomic live regions, corrected headings and board relationships, visible focus, 44px phone/coarse-pointer targets, contrast corrections, long SAN/provenance containment, selectable evidence text, and workspace-wide reduced motion. Dependency-free DOM/name/relationship, contrast, target-size, overflow, immutability, and deterministic desktop/phone screenshot assertions cover the completed workflow. Read-only comparison boards disable unused drawing SVGs so multiple boards cannot introduce duplicate document IDs. The coordinator phase was performed by the same session at the user's direction, after the implementation commit, and reproduced the complete gate from committed state. No Task 6.1 resolution work. |
 | 6.1 | Complete | `7f2154d` | Coordinator: focused resolution/queue/lifecycle/overview behavioral 26/26; targeted findings/resolution Playwright 10/10; Strategic Fit 180/180; UI behavioral 112/112; full Playwright 67/67; UI production build with worker-boundary check; monorepo typecheck; Phase 6 gate | Report-bound reversible keep-intentionally, defer, finding exclusion, invalid-comparison, automatic-resolution, and reopen transitions persist through the canonical document metadata boundary with exact semantic finding/position/decision/route validation, the seven frozen optional keep reasons, custom and general notes, deterministic one-active-decision replacement, and explicit blocked stale states. Metadata-only lifecycle retention preserves immutable evidence while invalidating future analysis caches; acknowledged findings stay visible in the current strategic context while projected badges, unresolved filters, and counts update immediately. Reload persistence, raw-ID/semantic/report/document/revision/profile/settings staleness, repertoire and surrounding application-state immutability, desktop/mobile keyboard behavior, touch targets, accessibility, overflow, and deterministic screenshots are covered. The coordinator independently reviewed the complete committed diff and reproduced the focused checks and practical Phase 6 gate from `7f2154d`; the implementation agent reported the same green gate independently. No Task 6.2 cohort adjustment, Task 6.3 training, Task 6.4 reanalysis, or Task 6.5 summary work. |
 | 6.2 | Complete | `f565691` | Coordinator: focused cohort adjustment 4/4; targeted findings Playwright 11/11; Strategic Fit 182/182; UI behavioral 117/117; full Playwright 68/68; UI production build with worker-boundary check; monorepo typecheck; docs and synchronized skills checks; Phase 6 gate | Report-bound merge, split, display-only rename, and decision-subtree exclusion use canonical cohort/route/decision identities and deterministic non-mutating previews that disclose exact current/proposed cohort, route, baseline, and finding IDs/counts or an explicit unavailable reason. Structural previews compose the exhaustive browser command registry with the complete proposed override set, while core overlap and cohort semantics reject empty, duplicate, invalid, and conflicting changes before persistence. Confirmation rechecks immutable report/document/revision/profile/settings/metadata bindings, writes only versioned `1.3.0` document metadata, and starts a fresh canonical full analysis; automatic grouping and custom names can be restored independently. Cohort labels round-trip through persistence and sidecars, remain excluded from analyzer grouping identity, and normalize to one deterministic active label per canonical cohort. Reload, stale blocking, repertoire/surrounding-state immutability, keyboard, mobile touch targets, accessibility, overflow, and visual baselines are covered. The coordinator independently reviewed the complete committed diff and reproduced the focused checks, practical Phase 6 gate, typecheck, documentation, and synchronized-skills checks from `f565691`; the implementation agent reported the same green gate independently. No Task 6.3 training, Task 6.4 affected-cohort reconciliation/automatic resolution, Task 6.5 summary, or public MCP surface change. |
+| 6.3 | Complete | `This commit` | Focused training/resolution/metadata behavioral tests; Findings Playwright 12/12 plus focused reload/export rerun; UI typecheck; UI production build with worker-boundary check | Deterministic metadata-only “Train the exception” records select current semantic routes and legal report checkpoints, preserve concept IDs, causal-move evidence when available, user notes, and stable deduplicated training identities. One durable training reference is linked to a reversible `train-as-exception` resolution without making the reference an analyzer setting; findings remain visible while unresolved projections update immediately. Creation emits a portable versioned JSON drill with revalidated legal FEN/SAN pairs and canonical source paths, while stale routes, missing checkpoints, and unavailable legal moves block without metadata, artifact, or repertoire mutation. Reload restores the semantic training reference, linked resolution, and notes through the existing document sidecar contract. No metadata-version or public MCP surface change. |
 
 ## Current handoff
 
-- Verified scope: Tasks 0.1 through 6.2 are complete. Task 6.2 implementation is `f565691`; its
-  previously reproduced evidence is recorded above. The table remains the retained task-by-task
-  ledger, while Git history is authoritative for implementation and verification chronology.
-  Historical coordinator/implementer wording records the procedure used at the time; it is not the
-  current execution policy.
-- Next boundary: Task 6.3, **Implement “Train the exception” records and basic drills**, from
-  `docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`. Dependencies 1.8, 4.5, and 6.1 are complete.
+- Verified scope: Tasks 0.1 through 6.3 are complete. Task 6.3 is recorded in the focused
+  implementation commit represented by `This commit`; its verification evidence is recorded above.
+  The table remains the retained task-by-task ledger, while Git history is authoritative for
+  implementation and verification chronology. Historical coordinator/implementer wording records
+  the procedure used at the time; it is not the current execution policy.
+- Next boundary: Task 6.4, **Reanalyze affected cohorts and auto-resolve findings**, from
+  `docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`. Dependencies 3.4, 5.3, 6.1, and 6.2 are complete.
 - Execution model: use the direct single-session workflow in
   `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md`. No separate implementation agent, duplicated
   verification run, or verification-only documentation commit is required.
 - Ground truth: confirm branch, `HEAD`, upstream, worktree, and recent relevant commits before
   editing. Repository evidence overrides this snapshot. Old session logs are not needed unless
   current repository evidence leaves a specific conflict unresolved.
-- Task 6.3 scope: deterministic training records from finding checkpoints, concepts, causal move,
-  and user notes plus a portable basic drill artifact without AI. Training stays metadata-only,
-  uses semantic position identity, leaves accepted findings visible, and must not modify repertoire
-  lines. Do not begin Task 6.4 affected-cohort reconciliation, Task 6.5 summary, or later-phase work.
-- Required Task 6.3 coverage: record creation, deduplication, stale-route handling, legal FEN/SAN
-  artifact export, reload persistence, and focused regressions for the affected metadata and UI
-  boundaries. The complete Phase 6 gate is due after Task 6.5, not after this intermediate task,
-  unless Task 6.3 review exposes a broader risk.
-- Commit Task 6.3 implementation, tests, and its progress-ledger update together; use `This commit`
-  in the ledger row and do not add a verification-only commit. Stop after Task 6.3 unless the user
-  explicitly authorizes a wider boundary. No blocker is recorded; push, tag, and release require an
-  explicit request.
+- Task 6.4 scope: identify affected cohorts after profile, override, resolution, or document changes;
+  run a fresh canonical analysis; reconcile semantic findings; automatically resolve disappeared
+  findings at the resolving revision; preserve unaffected resolutions; and flag materially changed
+  evidence for review. Unknown scope must fall back to a full scan, and stale or cancelled work must
+  never appear current. Do not begin Task 6.5 summary behavior until Task 6.4 is committed.
+- Required Task 6.4 coverage: local and unrelated edits, profile changes, cohort overrides,
+  disappearance and reappearance, full-scan fallback, and race/cancellation behavior. Run focused
+  lifecycle, cache, resolution, cohort, and UI regressions. The complete Phase 6 gate remains due
+  after Task 6.5 unless Task 6.4 review exposes a broader risk.
+- Commit Task 6.4 implementation, tests, and this ledger update together using `This commit`, then
+  continue to Task 6.5 under the current user-authorized Phase 6 boundary. No blocker is recorded;
+  push, tag, and release remain out of scope.
