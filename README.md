@@ -96,5 +96,5 @@ Use `pnpm docs:generate` after changing the canonical registry; do not edit the 
 - [PWA product](docs/PWA_PRODUCT.md): conversation, direct analysis, actions, and artifacts.
 - [Roadmap](ROADMAP.md): unshipped work only.
 - [Strategic Fit progress](docs/CONGRUENCE_V2_PROGRESS.md): verified task ledger and current handoff.
-- [Coordinated workflow](docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md): required coordinator and
-  implementation-agent procedure for the next Strategic Fit task.
+- [Implementation workflow](docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md): single-user, risk-tiered
+  task execution and phase verification.

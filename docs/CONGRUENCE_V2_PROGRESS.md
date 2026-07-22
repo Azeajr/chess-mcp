@@ -49,22 +49,27 @@
 ## Current handoff
 
 - Verified scope: Tasks 0.1 through 6.2 are complete. Task 6.2 implementation is `f565691`; its
-  coordinator-reproduced evidence is recorded above in a separate documentation-only verification
-  commit. The table remains the retained task-by-task ledger, while Git history preserves the full
-  implementation and coordinator chronology.
+  previously reproduced evidence is recorded above. The table remains the retained task-by-task
+  ledger, while Git history is authoritative for implementation and verification chronology.
+  Historical coordinator/implementer wording records the procedure used at the time; it is not the
+  current execution policy.
 - Next boundary: Task 6.3, **Implement “Train the exception” records and basic drills**, from
   `docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`. Dependencies 1.8, 4.5, and 6.1 are complete.
-- Required role split: the next main session acts only as coordinator, launches exactly one separate
-  implementation agent, and keeps the shared worktree read-only while that agent owns the task. Do
-  not combine implementation and validation by switching hats.
-- Ground truth: confirm branch, `HEAD`, upstream, clean worktree, recent commits, and active agents
-  before delegation. Repository evidence overrides this snapshot. Old session logs are not needed
-  unless current repository evidence leaves a specific conflict unresolved.
+- Execution model: use the direct single-session workflow in
+  `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md`. No separate implementation agent, duplicated
+  verification run, or verification-only documentation commit is required.
+- Ground truth: confirm branch, `HEAD`, upstream, worktree, and recent relevant commits before
+  editing. Repository evidence overrides this snapshot. Old session logs are not needed unless
+  current repository evidence leaves a specific conflict unresolved.
 - Task 6.3 scope: deterministic training records from finding checkpoints, concepts, causal move,
   and user notes plus a portable basic drill artifact without AI. Training stays metadata-only,
   uses semantic position identity, leaves accepted findings visible, and must not modify repertoire
   lines. Do not begin Task 6.4 affected-cohort reconciliation, Task 6.5 summary, or later-phase work.
 - Required Task 6.3 coverage: record creation, deduplication, stale-route handling, legal FEN/SAN
-  artifact export, reload persistence, focused checks, and the practical Phase 6 gate.
-- No blocker is recorded. The coordinator is authorized to push the Task 6.2 implementation and
-  verification commits together after this record; no tag or release is authorized.
+  artifact export, reload persistence, and focused regressions for the affected metadata and UI
+  boundaries. The complete Phase 6 gate is due after Task 6.5, not after this intermediate task,
+  unless Task 6.3 review exposes a broader risk.
+- Commit Task 6.3 implementation, tests, and its progress-ledger update together; use `This commit`
+  in the ledger row and do not add a verification-only commit. Stop after Task 6.3 unless the user
+  explicitly authorizes a wider boundary. No blocker is recorded; push, tag, and release require an
+  explicit request.

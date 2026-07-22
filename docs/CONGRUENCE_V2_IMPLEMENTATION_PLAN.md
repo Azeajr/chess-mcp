@@ -1,27 +1,39 @@
 # Congruence 2.0: Strategic Fit — Implementation Plan
 
-Status: **Frozen implementation plan**  
+Status: **Frozen product and architecture plan; execution workflow remains maintainable**
+
 Authoritative product specification: [CONGRUENCE_V2_DESIGN.md](CONGRUENCE_V2_DESIGN.md)
 
 ## 1. Purpose and execution rules
 
 This plan converts the frozen Congruence 2.0 design into independently implementable engineering tasks. It intentionally builds a new Strategic Fit pipeline beside the current congruence implementation, migrates hosts and UI incrementally, and removes the legacy path only after the V2 workflow is complete and verified.
 
-The implementation must not redesign the feature. If a task exposes a genuine blocker or contradiction in the product specification, the implementing agent must record it in `docs/CONGRUENCE_V2_PROGRESS.md` and stop before making a product decision.
+The implementation must not redesign the feature. If a task exposes a genuine blocker or contradiction in the product specification, record it in `docs/CONGRUENCE_V2_PROGRESS.md` and stop before making a product decision.
 
-### Agent execution contract
+### Task execution contract
+
+This repository has one operator and one intended user. Follow the risk-tiered single-user procedure in
+[`COORDINATED_IMPLEMENTATION_WORKFLOW.md`](COORDINATED_IMPLEMENTATION_WORKFLOW.md); its historical
+filename does not require coordinator/implementer role separation.
 
 For every task:
 
-1. Read the design document and this task in full.
-2. Inspect the existing implementation before editing.
+1. Read `AGENTS.md`, the current handoff, this task in full, and the design sections and frozen
+   decisions relevant to it. Read the complete design and plan when entering a new area or resolving
+   ambiguity, not mechanically before every routine task.
+2. Confirm Git ground truth and inspect the existing implementation and tests before editing.
 3. Implement only the named task and its required compatibility work.
 4. Keep the application buildable and existing behavior operational.
-5. Add the tests listed by the task.
-6. Run the task-specific tests plus the phase gate when practical.
-7. Commit with one focused commit message and no `Co-Authored-By` trailer.
-8. Update `docs/CONGRUENCE_V2_PROGRESS.md` with task status, commit, tests, and blockers.
-9. Stop.
+5. Add the behavioral and integration tests listed by the task, including relevant failure and
+   non-mutation cases.
+6. Run the task-specific checks and focused regressions. Run the complete phase gate when the final
+   task in that phase is complete, or earlier when an affected shared boundary or elevated risk
+   warrants it.
+7. Review the full diff, then update `docs/CONGRUENCE_V2_PROGRESS.md` in the same focused commit with
+   task status, meaningful test evidence, blockers, and `This commit` as the self-reference.
+8. Do not create a second documentation commit merely to backfill the hash or duplicate verification.
+9. Stop at the user-authorized task or phase boundary. Do not push, tag, or release unless explicitly
+   requested.
 
 Before the first implementation task, initialize `docs/CONGRUENCE_V2_PROGRESS.md` with a table containing `Task`, `Status`, `Commit`, `Tests`, and `Notes`. The progress file is coordination state, not a substitute for tests or acceptance criteria.
 

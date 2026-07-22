@@ -1,242 +1,145 @@
-# Coordinated Implementation Workflow
+# Single-User Implementation Workflow
 
-## Purpose
+> The filename is retained so existing links and handoff prompts remain valid. The former mandatory
+> coordinator/implementation-agent split is retired.
 
-This document is the durable handoff for implementation work that uses a coordinator and a separate
-implementation agent. A new session should follow it instead of relying on a copied prompt or an old
-task summary.
+## Purpose and operating assumption
 
-The workflow is deliberately task-agnostic. The repository, governing design documents,
-implementation plan, and progress ledger determine the next task. A handoff summary is only a hint;
-the actual Git state and current sources of truth always win.
+This repository currently serves one operator and one user. The workflow therefore optimizes for
+short feedback loops, clear task boundaries, recoverable changes, and protection of that user's
+data. It does not require team-oriented ceremony merely to prove that two roles touched the same
+change.
 
-The current task snapshot belongs only in the `Current handoff` section of the initiative progress
-ledger. Old chat/session logs are non-authoritative recovery evidence and should not be read during a
-normal handoff unless the repository cannot resolve a concrete ambiguity.
+For Congruence 2.0, product behavior is governed by
+`docs/CONGRUENCE_V2_DESIGN.md`, task scope and ordering by
+`docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`, and current task state by
+`docs/CONGRUENCE_V2_PROGRESS.md`. This document governs how that work is executed.
 
-For Congruence 2.0 work, the required governing documents are:
+## Sources to read
 
-- `AGENTS.md`
-- `docs/CONGRUENCE_V2_DESIGN.md`
-- `docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`
-- `docs/CONGRUENCE_V2_PROGRESS.md`
+Every implementation session must read:
 
-## Roles
+- `AGENTS.md`;
+- the `Current handoff` in the applicable progress ledger;
+- the complete current task, its dependencies, acceptance criteria, required tests, and phase gate;
+- the design sections and frozen decisions that constrain the task; and
+- the relevant implementation and tests before editing.
 
-### User
+Read an initiative's complete design and plan when starting it, entering a materially different
+area, resolving an ambiguity, or changing product or architecture decisions. Routine task work does
+not require rereading both long documents from beginning to end when the relevant requirements are
+already unambiguous.
 
-The user sets the overall scope and authorizes any material expansion of it. Unless explicitly
-requested, completing a task does not authorize starting the next task, pushing commits, tagging a
-version, or creating a release.
+Git, current code, tests, and authoritative contracts override a stale handoff. Old session logs are
+non-authoritative recovery evidence and should be consulted only when the repository leaves a
+specific conflict unresolved.
 
-### Coordinator
+## Default execution model
 
-The coordinator owns task selection, delegation, review, independent verification, and the final
-progress record. The coordinator does not act as the implementation agent and does not write or
-repair production code or tests for the delegated task.
+The active session selects, implements, reviews, verifies, and records the current task directly.
+There is no required coordinator role, separate implementation agent, read-only waiting period,
+duplicated test run, or verification-only documentation commit.
 
-This is real role separation, not a narrative “hat switch.” If a session cannot launch a separate
-implementation agent, it must stop before implementation and report that the required workflow is
-unavailable.
+A second agent is used only when the user requests one. A separate review pass in the active session
+is optional and is useful when an elevated-risk change warrants more scrutiny.
 
-The coordinator must:
+Unless the user explicitly expands the boundary, completing one task does not authorize starting the
+next task, pushing commits, tagging a version, or creating a release.
 
-1. Read every governing document completely. This responsibility cannot be delegated or replaced by
-   an agent's summary.
-2. Confirm the branch, `HEAD`, worktree status, recent commits, and active agents before trusting any
-   session handoff.
-3. Determine the next incomplete task from the current implementation plan, progress ledger, Git
-   history, dependencies, and existing implementation.
-4. Inspect the task's acceptance criteria, frozen architectural decisions, affected boundaries, and
-   required verification before delegating it.
-5. Preserve unrelated worktree changes and record their presence for the implementation agent.
-6. Launch one implementation agent with a bounded assignment for the selected task.
-7. Keep the shared worktree read-only while the implementation agent owns the task. The coordinator
-   may inspect files and Git state, but must not edit, format, stage, or commit concurrently.
-8. Keep the user informed with concise status updates at meaningful transitions.
-9. After the agent commits, inspect the complete diff and test coverage rather than relying on the
-   agent's summary.
-10. Independently rerun the task-specific checks and the practical phase gate required by the plan.
-11. Send defects back to the same implementation agent with concrete evidence. The coordinator does
-    not repair implementation defects directly.
-12. Repeat review and verification after every correction commit until the task passes or a genuine
-    design blocker is documented.
-13. After successful verification, replace the progress ledger's temporary `This commit` reference
-    with the final implementation commit hash and record the coordinator's reproduced evidence.
-14. Commit that ledger update separately as a documentation-only verification commit.
-15. Confirm the final Git state, ensure no implementation agent remains active, and stop at the
-    delegated task boundary.
-
-The coordinator may update coordination documentation and the progress ledger when no implementation
-agent is modifying the worktree. Those documentation duties do not authorize implementation changes.
-
-### Implementation agent
-
-The implementation agent owns the code, tests, generated artifacts required by the task, and the
-initial progress-ledger entry. Its assignment must instruct the agent to:
-
-1. Read every governing document completely before editing.
-2. Reconfirm the relevant task definition, dependencies, acceptance criteria, and current Git state.
-3. Implement only the delegated task and compatibility work strictly required to satisfy it.
-4. Honor repository sources of truth and architectural boundaries, including canonical contracts,
-   host-adapter responsibilities, and the exhaustive browser command registry where applicable.
-5. Preserve unrelated changes and avoid opportunistic refactors or work belonging to a later task.
-6. Add every behavioral, contract, integration, and end-to-end test required by the task and its
-   acceptance criteria.
-7. Run the task-specific checks and the practical phase gate specified by the implementation plan.
-8. Update the progress ledger with implementation and test evidence, using `This commit` as the
-   implementation reference while coordinator verification is pending.
-9. Create focused commits without a `Co-Authored-By` trailer. The first implementation commit should
-   contain the completed task; later commits, if requested, should contain only focused corrections.
-10. Stop after the delegated task. It must not begin the next task, push, tag, or release.
-11. Report a genuine design blocker before making a product or architecture decision not settled by
-    the governing documents.
-12. Return the commit hash, changed-file summary, test evidence, and any remaining risks to the
-    coordinator.
-
-## Workflow
+## Task workflow
 
 ### 1. Establish ground truth
 
-The coordinator starts with read-only inspection:
+Before editing:
 
-- read the governing documents in full;
-- inspect branch tracking, `HEAD`, worktree changes, and recent history;
-- inspect the progress ledger for completed and pending work;
-- compare the ledger with commits and the actual implementation;
-- identify dependencies and any unfinished correction or verification work.
+- inspect the branch, `HEAD`, upstream, worktree, and recent relevant history;
+- preserve unrelated worktree changes;
+- reconcile the progress ledger with Git and the implementation; and
+- confirm that the current task's dependencies are complete.
 
-The coordinator should not reconstruct routine state from old Codex/Claude session logs. Consult
-them only when Git, the current sources, tests, and the progress ledger leave a specific conflict
-unresolved, and record why they were needed.
+If the handoff conflicts with repository evidence, resolve and report the discrepancy before relying
+on either one.
 
-If a handoff names a task that conflicts with repository evidence, the coordinator resolves the
-conflict before delegation and reports the result to the user.
+### 2. Bound the change
 
-### 2. Define the bounded assignment
+Write down the task identifier, acceptance criteria, affected boundaries, required tests, and explicit
+non-goals. Implement only that task and compatibility work necessary to keep existing behavior
+operational. Do not make an unsettled product or architecture decision merely to keep moving.
 
-The coordinator gives the implementation agent a self-contained assignment containing:
+### 3. Implement with tests
 
-- the exact task identifier and title derived from the plan;
-- all governing documents it must read;
-- acceptance criteria and frozen decisions that constrain the work;
-- known dependencies and relevant existing implementation;
-- required behavioral and end-to-end coverage;
-- task-specific commands and the applicable practical phase gate;
-- progress-ledger and commit requirements;
-- explicit stop conditions and blocker-reporting expectations;
-- any unrelated dirty-worktree files that must be preserved.
+Change production code, tests, and required generated artifacts together. Preserve canonical
+contracts and host boundaries. Add behavioral coverage for success, failure, stale-input, and
+non-mutation cases that are relevant to the task; avoid unrelated refactors and later-task work.
 
-The assignment should not delegate task selection or leave product decisions implicit.
+### 4. Verify proportionately
 
-### 3. Give the agent exclusive implementation ownership
+For an intermediate task, run:
 
-Only one implementation agent works on a task at a time. While it is active, the coordinator may
-monitor messages and perform read-only review preparation, but it must not change the shared
-worktree. If the user changes scope, the coordinator must stop or redirect the agent before making
-conflicting changes.
+- the tests named by the task;
+- focused regression tests for the affected behavior and boundary; and
+- build, typecheck, documentation, contract, or synchronization checks when the files changed make
+  them relevant.
 
-### 4. Require an implementation checkpoint
+Review the complete diff and test assertions before accepting the task. A successful test run does
+not need to be repeated by a second role. Rerun a check when its result is uncertain, the committed
+state differs from the tested state, or review reveals a relevant defect.
 
-The implementation agent finishes with a commit and reports:
+Do not routinely run the complete phase gate after every intermediate task. Run the exact phase gate
+once when the phase's final task is complete. Run part or all of it earlier only when shared-boundary
+changes, elevated risk, or failures justify the cost.
 
-- commit hash and subject;
-- files changed and behavior implemented;
-- tests added or changed;
-- exact commands run and their results;
-- progress-ledger update;
-- known limitations, risks, or blockers.
+### 5. Record and commit once
 
-Uncommitted implementation is not ready for coordinator acceptance.
+Update the progress ledger in the same focused commit as the implementation and tests. Record the
+task status, meaningful checks, limitations, and a concise scope summary.
 
-### 5. Review independently
+Because a commit cannot contain its own final hash, use `This commit` in its ledger row. Do not create
+a separate documentation-only commit solely to replace that marker or duplicate verification
+evidence. A later ordinary ledger edit may replace it with the hash; Git history remains the
+authoritative mapping.
 
-The coordinator reviews the committed state against the plan, not merely for code style. Review must
-cover:
+Do not add `Co-Authored-By` trailers. If the user requested uncommitted edits, leave them uncommitted.
+Push, tag, and release only when explicitly requested.
 
-- every acceptance criterion;
-- frozen product and architecture decisions;
-- canonical contracts and adapter boundaries;
-- error and compatibility behavior;
-- behavioral assertions, including negative and failure paths;
-- end-to-end coverage required by the task;
-- generated documentation or synchronized artifacts when public contracts changed;
-- accidental scope expansion and unrelated file changes;
-- accuracy of the progress-ledger claims.
+### 6. Stop at the authorized boundary
 
-### 6. Reproduce verification
+Report the task result, commit if any, checks run, worktree state, and remaining risk. Stop after the
+current task unless the user's request explicitly covers additional tasks or the rest of the phase.
 
-The coordinator independently runs the smallest sufficient task-specific checks plus the practical
-phase gate. It must reproduce results from the committed state; the implementation agent's test
-report is supporting context, not acceptance evidence.
+## Elevated-risk changes
 
-When a full gate is impractical because of an external dependency, the coordinator runs every local
-portion, records the exact limitation, and follows the governing plan's blocker rules. A skipped gate
-must never be reported as passing.
+Use additional safeguards when a change can be hard to reverse for the single user, especially:
 
-### 7. Correct defects through the same agent
+- destructive repertoire or filesystem operations;
+- migration or reinterpretation of existing persisted user data;
+- archive, restore, undo, or atomic change-set behavior;
+- credential handling, path confinement, or other security boundaries;
+- public MCP/tool contract changes or host-parity claims;
+- concurrency, cancellation, or cache races that can present stale data as current; and
+- pushes, tags, releases, or other external publication.
 
-For each defect, the coordinator sends the implementation agent:
+Choose safeguards that match the risk: clone or back up data, prove rollback, add failure-path and
+round-trip tests, run the relevant broader gate, inspect the committed diff, or ask for an independent
+review. Obtain explicit user approval before a destructive action or external publication. These
+safeguards do not automatically require a separate implementation agent or duplicate every routine
+check.
 
-- the violated requirement;
-- concrete file, behavior, test, or command evidence;
-- the expected outcome;
-- the required verification to rerun.
+## Blockers
 
-The same agent makes and commits the correction. The coordinator then reviews the cumulative diff and
-reruns affected checks and gates. This loop continues until acceptance or a genuine blocker.
+A genuine blocker exists when current sources of truth leave a material product or architecture
+choice unresolved, required user data or authority is unavailable, or overlapping unrelated changes
+cannot be preserved safely. Stop and ask the user with the concrete evidence and alternatives.
 
-### 8. Record independent verification
-
-After acceptance, and only after the implementation agent has stopped modifying the worktree, the
-coordinator updates the progress ledger:
-
-- replace `This commit` with the final implementation commit hash;
-- distinguish implementation-agent evidence from coordinator-reproduced evidence;
-- list the exact checks and gate results;
-- record any non-blocking limitations accurately.
-
-The coordinator makes a separate documentation-only commit for this verification record. The docs
-commit is not part of the implementation hash recorded in the ledger.
-
-### 9. Close the task boundary
-
-Before yielding, the coordinator confirms:
-
-- the implementation and verification commits exist on the expected branch;
-- the worktree has no unexpected changes;
-- the progress ledger matches Git history and verification evidence;
-- no implementation agent remains active;
-- no work from the next task was started;
-- nothing was pushed, tagged, or released unless the user explicitly requested it.
-
-The final report gives the implementation commit, verification commit, reproduced checks, worktree
-state, and any remaining risk. It does not silently continue into another task.
-
-## Blockers and exceptions
-
-A design blocker exists when the task requires a product or architecture decision that is not
-settled by current sources of truth and materially different choices would change user-visible
-behavior or public contracts. The implementation agent stops before making that decision and reports
-the conflict. The coordinator verifies the conflict, documents the alternatives and evidence, and
-asks the user for direction.
-
-Test failures, difficult implementation, missing coverage, or fixable contract mismatches are not
-design blockers. They stay in the implementation-and-correction loop.
-
-If unrelated worktree changes overlap the delegated task and cannot be safely preserved, the
-coordinator pauses before delegation and asks the user how to proceed.
+Test failures, difficult implementation, and fixable contract mismatches are not blockers. Fix them
+within the current task and rerun the affected checks.
 
 ## Starting a new session
 
-A task-specific copied summary is unnecessary. The user can direct a new session with:
+A concise handoff prompt is sufficient:
 
-> Read `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md` completely and act only as coordinator. Read all
-> governing documents, confirm actual Git/worktree/agent state, take the next task from the current
-> progress-ledger handoff, launch exactly one separate implementation agent, keep the main session
-> read-only while it works, independently review and reproduce verification from its commit, record
-> verification in a separate docs commit, and stop at that task boundary.
-
-That single instruction is sufficient. The workflow itself requires the coordinator to read
-`AGENTS.md` and every initiative-specific governing document it names, confirm the actual Git state,
-derive the task from current repository evidence, and preserve the coordinator/implementer split.
+> Read `AGENTS.md`, `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md`, the current progress-ledger
+> handoff, the complete next task, and the relevant design sections. Confirm Git ground truth,
+> implement that task directly, run targeted verification, update the ledger in the same focused
+> commit, and stop at the requested boundary. Run the full phase gate only at the phase boundary or
+> when the change's risk warrants it.

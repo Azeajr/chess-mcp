@@ -63,6 +63,9 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 
 - Preserve unrelated dirty-worktree changes.
 - Use `rg`/`rg --files` for discovery and `apply_patch` for edits.
+- Planned initiative work follows `docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md` (historical filename):
+  direct single-session implementation is the default, focused checks run per task, complete gates
+  run at phase boundaries, and separate-agent review is used only when explicitly requested.
 - Add behavioral tests with contract changes; update generated catalog, skills, README summary, and
   plugin versions together when the public MCP surface changes.
 - No `Co-Authored-By` trailers.
