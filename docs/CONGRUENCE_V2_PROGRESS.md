@@ -72,4 +72,9 @@
   population composition, host fetch selection, combined progress, cancellation, public argument
   validation, provenance, fallback behavior, and cache-bound analyzer injection. The complete
   implementation and integration diff were reviewed before creating the focused commit.
+- Post-task CI correction: the clean-checkout run for Task 7.1 exposed that the MCP smoke artifact
+  assertion depended on the gitignored `repertoires/` directory already existing. Commit `64abea8`
+  gives the smoke harness its own temporary confined `REPERTOIRE_DIR`; the CI-equivalent rerun passes
+  81/81 and the confinement unit suite passes 10/10 without changing the server's fail-closed path
+  policy.
 - Stop after this boundary. Do not begin Task 7.3; push, tag, and release remain out of scope.
