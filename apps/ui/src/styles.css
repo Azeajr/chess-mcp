@@ -1983,6 +1983,96 @@ img,
   border-left: 2px solid #79a786;
   color: #bfd2c4;
 }
+.strategic-fit-review-summary {
+  margin-top: 0.7rem;
+  padding: 0.65rem;
+  border: 1px solid #4b5562;
+  border-radius: 6px;
+  background: #191d22;
+  color: #c7cfda;
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+.strategic-fit-review-summary > header span {
+  color: #94a4b8;
+  font-size: 0.57rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.strategic-fit-review-summary h3,
+.strategic-fit-review-summary h4 {
+  margin: 0.15rem 0 0.4rem;
+  color: #e0e6ee;
+}
+.strategic-fit-review-summary p {
+  margin: 0.35rem 0;
+}
+.strategic-fit-review-incomplete,
+.strategic-fit-review-feedback,
+.strategic-fit-review-provenance {
+  padding-left: 0.45rem;
+  border-left: 2px solid #9b7046;
+}
+.strategic-fit-review-completed {
+  margin-top: 0.55rem;
+}
+.strategic-fit-review-counts,
+.strategic-fit-review-metrics {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0.65rem;
+}
+.strategic-fit-review-counts {
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+}
+.strategic-fit-review-counts > div,
+.strategic-fit-review-metrics > div {
+  padding: 0.38rem;
+  border: 1px solid #424b56;
+  border-radius: 4px;
+  background: #20252b;
+}
+.strategic-fit-review-counts dt,
+.strategic-fit-review-metrics dt {
+  color: #9eacbd;
+}
+.strategic-fit-review-counts dd,
+.strategic-fit-review-metrics dd {
+  margin: 0.12rem 0 0;
+  color: #e0e6ee;
+  font-weight: 700;
+}
+.strategic-fit-review-resolutions {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.55rem;
+  padding: 0;
+  list-style: none;
+}
+.strategic-fit-review-resolutions li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.strategic-fit-review-resolutions code,
+.strategic-fit-review-history code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.strategic-fit-review-history {
+  margin-top: 0.5rem;
+}
+.strategic-fit-review-history ol {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1.2rem;
+}
+.strategic-fit-review-history button,
+.strategic-fit-review-resolutions button {
+  margin-left: auto;
+}
 .strategic-fit-analysis-lifecycle code {
   color: #c8d8ee;
   font-size: 0.68rem;

@@ -17,6 +17,7 @@ type ChessHarness = {
   setColor(color: "white" | "black"): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
+  upsertStrategicFitResolution(input: any): unknown;
   strategicFitLifecycle(): any;
 };
 
@@ -896,6 +897,81 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
     api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
   )).toBe("profile-change");
   await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
+});
+
+test("review completion blocks unreviewed findings, exports provenance, and records reopen history", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  const review = dialog.locator("[data-review-state]");
+  await expect(review).toHaveAttribute("data-review-state", "incomplete");
+  await expect(review.getByRole("button", { name: "Complete review" })).toHaveCount(0);
+  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute("data-unreviewed-count", "3");
+
+  await chess(page, (api) => {
+    for (const suffix of ["10", "12"]) {
+      api.upsertStrategicFitResolution({
+        resolution_id: `resolution:review:${suffix}`,
+        finding_id: `finding:${suffix}`,
+        semantic_finding_id: `semantic:finding:${suffix}`,
+        state: "defer",
+        note: `Deferred review finding ${suffix}.`,
+        references: {
+          position_ids: ["position:e7550032f70614fc"],
+          decision_ids: ["decision:e4e5e82a5c33c5ff"],
+          route_ids: ["route:d0915031cdecff76"],
+          source_san_paths: [["e4", "c5", "c3", "Nf6"]],
+        },
+      });
+    }
+  });
+  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
+  await dialog.getByRole("button", { name: "Retry analysis" }).click();
+  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute("data-unreviewed-count", "1");
+
+  const deferFinding = async (findingId: string) => {
+    const beforeRequest = await chess(page, (api) =>
+      api.strategicFitLifecycle().current_result?.request_id ?? null
+    );
+    await queue.locator(`[data-finding-id='${findingId}'] [data-finding-select]`).click();
+    const actions = dialog.locator(`[data-resolution-finding-id='${findingId}']`);
+    await actions.getByRole("radio", { name: /Defer/ }).check();
+    await actions.getByRole("button", { name: "Save resolution" }).click();
+    await expect.poll(() => chess(page, (api) =>
+      api.strategicFitLifecycle().current_result?.request_id ?? null
+    )).not.toBe(beforeRequest);
+  };
+  await deferFinding("finding:01");
+
+  await expect(review).toHaveAttribute("data-review-state", "ready");
+  await review.getByRole("button", { name: "Complete review" }).click();
+  await expect(review).toHaveAttribute("data-review-state", "completed");
+  await expect(review.locator("[data-review-summary-id]")).toContainText("revision browser:1");
+  await expect(review.locator("[data-review-metric='coverage']")).toContainText("70% → 70%");
+
+  const downloadEvent = page.waitForEvent("download");
+  await review.getByRole("button", { name: "Save review summary JSON" }).click();
+  const artifact = JSON.parse(await downloadText(await downloadEvent));
+  expect(artifact.artifact_kind).toBe("chess-mcp/strategic-fit-review-summary");
+  expect(artifact.summary.repertoire_revision).toBe("browser:1");
+  expect(artifact.summary.source_report_provenance.generated_at).toBe("2026-07-18T00:00:00.000Z");
+  expect(artifact.summary.deferred_semantic_finding_ids).toEqual([
+    "semantic:finding:01",
+    "semantic:finding:05",
+    "semantic:finding:10",
+    "semantic:finding:12",
+  ]);
+
+  await review.getByRole("button", { name: "Reopen semantic:finding:01" }).click();
+  await expect.poll(() => chess(page, (api) =>
+    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
+  )).toBe("resolution-change");
+  await expect(review).toHaveAttribute("data-review-state", "incomplete");
+  await review.getByText(/Review history/).click();
+  await expect(review.locator("[data-history-state='reopened']")).toBeVisible();
+  await expect(review.getByRole("button", { name: "Complete review" })).toHaveCount(0);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
 test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({ page }) => {

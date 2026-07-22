@@ -55,7 +55,10 @@ async function openWorkspace(page: Page) {
 }
 
 async function analyze(dialog: ReturnType<Page["getByRole"]>) {
-  await dialog.getByRole("button", { name: /Analyze strategic fit|Retry analysis/ }).click();
+  const action = dialog.getByRole("button", {
+    name: /Analyze strategic fit|Retry analysis|Analyze again/,
+  });
+  if (await action.isVisible()) await action.click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
 }
 
@@ -273,7 +276,8 @@ test("empty input blocks after normalization and never claims dependent phases r
   await expectNoQualityVerdict(dialog);
 
   await chess(page, (api) => api.setColor("black"));
-  await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-reanalysis-scope='full-scan']")).toBeVisible();
   await expect(phases.nth(0)).toHaveAttribute("data-phase-state", "completed");
   for (let index = 1; index < 6; index++) {
     await expect(phases.nth(index)).toHaveAttribute("data-phase-state", "pending");
@@ -281,7 +285,7 @@ test("empty input blocks after normalization and never claims dependent phases r
   }
   await expect(dialog.locator("[data-phase-state='cancelled']")).toHaveCount(0);
   await expect(dialog.getByRole("status")).toContainText(
-    "The out-of-date report was blocked after normalization. One of six phases completed; five dependent phases were not run.",
+    "Preflight blocked analysis after normalization. One of six phases completed; five dependent phases were not run.",
   );
 });
 

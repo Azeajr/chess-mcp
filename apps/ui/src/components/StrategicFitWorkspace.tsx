@@ -9,6 +9,7 @@ import StrategicOverview, {
   type StrategicOverviewItemId,
 } from "./strategic-fit/StrategicOverview";
 import FindingQueue from "./strategic-fit/FindingQueue";
+import ReviewSummary from "./strategic-fit/ReviewSummary";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
 import ResolutionActions from "./strategic-fit/ResolutionActions";
 import CohortEditor from "./strategic-fit/CohortEditor";
@@ -415,6 +416,7 @@ export default function StrategicFitWorkspace() {
                 />
               )}
             </Show>
+            <ReviewSummary />
           </section>
 
           <section
