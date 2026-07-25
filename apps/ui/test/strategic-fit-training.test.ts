@@ -153,6 +153,7 @@ function fixture(options: { staleRoute?: boolean } = {}) {
   } satisfies StrategicFitCompletedResult;
   let metadata: StrategicFitDocumentMetadata = createDefaultStrategicFitDocumentMetadata();
   let invalidations = 0;
+  let metricInvalidations = 0;
   let tick = 0;
   const lowBoundary: StrategicFitResolutionStateBoundary = {
     currentMetadata: () => metadata,
@@ -181,6 +182,7 @@ function fixture(options: { staleRoute?: boolean } = {}) {
       return { artifact_id: `artifact:${artifacts.length}` };
     },
     now: () => "2026-07-23T14:00:00.000Z",
+    onMetricEvidenceChanged: () => { metricInvalidations++; },
   });
   const boundary: StrategicFitTrainingBoundary = {
     currentReport: () => completed,
@@ -232,6 +234,7 @@ function fixture(options: { staleRoute?: boolean } = {}) {
     metadata: () => metadata,
     artifacts,
     invalidations: () => invalidations,
+    metricInvalidations: () => metricInvalidations,
   };
 }
 
@@ -334,7 +337,7 @@ test("a stale semantic route blocks training without metadata, artifact, or repe
   assert.equal(subject.tree.toPgn(), before);
 });
 
-test("browser training state records performance and round-trips versioned imports without report invalidation", () => {
+test("browser training state invalidates metrics only when observed mastery changes and round-trips imports", () => {
   const subject = fixture();
   const created = subject.state.create({
     report_id: subject.report.report_id,
@@ -359,13 +362,15 @@ test("browser training state records performance and round-trips versioned impor
   assert.equal(attempt.mastery?.decision_mastery.find((entry) =>
     entry.identity_id === target.decision_id
   )?.state, "observed");
-  assert.equal(subject.invalidations(), beforeInvalidations, "Task 7.4 owns metric reanalysis wiring");
+  assert.equal(subject.invalidations(), beforeInvalidations, "training attempts do not mutate document metadata");
+  assert.equal(subject.metricInvalidations(), 1);
 
   const exported = subject.performanceState.export();
   assert.equal(exported.artifact_id, `artifact:${subject.artifacts.length}`);
   const bytes = serializeStrategicFitTrainingPerformance(subject.performance());
   const imported = subject.performanceState.import(bytes);
   assert.equal(imported.state, "unchanged");
+  assert.equal(subject.metricInvalidations(), 1, "an identical import does not invalidate metrics again");
   assert.equal(imported.data.attempts[0]?.attempted_at, "2026-07-22T16:00:00.000Z");
 
   const incompatible = JSON.parse(bytes) as Record<string, unknown>;

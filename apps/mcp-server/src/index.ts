@@ -75,6 +75,7 @@ import {
   strategicPopularityOptionsFromToolArguments,
   type ExplorerFilters,
   type StrategicFitToolArguments,
+  type StrategicRouteWeightingOptions,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
@@ -1043,6 +1044,7 @@ server.tool(
       }
     }
     let popularityProgressTotal = 0;
+    let populationWeighting: StrategicRouteWeightingOptions | undefined;
     const personalHistoryProgressTotal = personalHistorySource && graph ? 1 : 0;
     if (popularityOptions && graph) {
       const collection = await collectStrategicPopularityWeights(
@@ -1071,7 +1073,21 @@ server.tool(
       if (extra.signal.aborted || collection.state === "cancelled") {
         throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
       }
-      options = { ...options, weighting: collection.weighting };
+      populationWeighting = collection.weighting;
+      options = {
+        ...options,
+        weighting: {
+          ...options.weighting,
+          mode: options.weighting?.mode ?? "external",
+          market: {
+            state: collection.state === "complete"
+              ? "available"
+              : collection.state === "partial" ? "partial" : "unavailable",
+            decision_weights: collection.decision_weights,
+            provenance: collection.provenance,
+          },
+        },
+      };
     }
     if (personalHistorySource && graph) {
       const total = popularityProgressTotal + personalHistoryProgressTotal +
@@ -1098,14 +1114,27 @@ server.tool(
       }
       const collection = collectStrategicPersonalHistoryWeights(graph, games, {
         source: personalHistorySource,
-        population: options.weighting,
+        population: populationWeighting,
         shouldCancel: () => extra.signal.aborted,
       });
       if (collection.state === "cancelled") {
         throw new DOMException("Strategic Fit personal-history collection cancelled", "AbortError");
       }
       notifyProgress(popularityProgressTotal + 1, total, "Mapped personal game history");
-      options = { ...options, weighting: collection.weighting };
+      options = {
+        ...options,
+        weighting: {
+          ...options.weighting,
+          mode: options.weighting?.mode ?? "external",
+          personal: {
+            state: collection.state === "complete"
+              ? "available"
+              : collection.state === "partial" ? "partial" : "unavailable",
+            decision_weights: collection.decision_weights,
+            provenance: collection.provenance,
+          },
+        },
+      };
     }
     options = {
       ...options,

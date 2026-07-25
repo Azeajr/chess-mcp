@@ -18,7 +18,7 @@ export const STRATEGIC_FIT_ANALYSIS_MANIFEST: StrategicFitAnalysisManifest = Obj
     "position-signals": "1.0.0",
     trajectory: "1.0.0",
     concepts: "1.0.0",
-    weights: "1.0.0",
+    weights: "1.1.0",
     popularity: "1.0.0",
     "personal-history": "1.0.0",
     "training-performance": "1.0.0",
@@ -28,6 +28,6 @@ export const STRATEGIC_FIT_ANALYSIS_MANIFEST: StrategicFitAnalysisManifest = Obj
     confidence: "1.0.0",
     causality: "1.0.0",
     findings: "1.0.0",
-    metrics: "1.0.0",
+    metrics: "1.1.0",
   }),
 });

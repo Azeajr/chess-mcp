@@ -9,6 +9,7 @@ import {
   STRATEGIC_FIT_SCHEMA_VERSION,
   StrategicFitAnalysisCancelledError,
   analyzeStrategicFit,
+  buildRepertoireGraph,
   type StrategicFitProgress,
 } from "../../src/index.ts";
 import {
@@ -54,6 +55,57 @@ test("one engine-free call composes a versioned, provenance-bearing V2 report", 
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("the analyzer applies profile source coefficients before cohort and metric calculation", () => {
+  const tree = parseStrategicFitFixture(BLACK_REPERTOIRE_FIXTURE);
+  const graph = buildRepertoireGraph(tree, "black");
+  const rootDecisions = graph.decisions.filter((decision) =>
+    decision.owner === "opponent" && decision.from_position_id === graph.root_position_id
+  );
+  const report = analyzeStrategicFit(tree, {
+    repertoireColor: "black",
+    repertoireRevision: "revision:profile-weighting",
+    profile: {
+      schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+      mode: "custom",
+      source: "explicit",
+      provisional: false,
+      preferences: {
+        maximum_engine_loss_cp: null,
+        opponent_popularity_importance: 0.75,
+        personal_game_frequency_importance: 0.25,
+        manual_weight_importance: 0,
+        additional_memorization_tolerance: 0.5,
+        preferred_concept_ids: [],
+        avoided_concept_ids: [],
+        preferred_tactical_character: [],
+        minimum_opponent_coverage: null,
+      },
+    },
+    weighting: {
+      mode: "external",
+      market: {
+        state: "available",
+        decision_weights: rootDecisions.map((decision, index) => ({
+          decision_id: decision.decision_id,
+          weight: index === 0 ? 8 : 1,
+        })),
+      },
+      personal: {
+        state: "available",
+        decision_weights: rootDecisions.map((decision, index) => ({
+          decision_id: decision.decision_id,
+          weight: index === 1 ? 8 : 1,
+        })),
+      },
+    },
+  });
+
+  const composition = report.provenance.sources.find((source) =>
+    source.source_id === "strategic-fit:weight-composition"
+  );
+  assert.equal(composition?.snapshot, "market=0.75:used,personal=0.25:used,manual=0:unavailable");
 });
 
 test("progress traverses the six frozen phases monotonically", () => {

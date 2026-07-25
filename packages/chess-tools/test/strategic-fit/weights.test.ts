@@ -39,6 +39,24 @@ const EXTERNAL_PROVENANCE: StrategicFitSourceProvenance = {
   reason: null,
 };
 
+const PERSONAL_PROVENANCE: StrategicFitSourceProvenance = {
+  source_id: "fixture:personal-history",
+  kind: "personal-history",
+  state: "available",
+  version: "fixture-1",
+  snapshot: "five-games",
+  reason: null,
+};
+
+const MANUAL_PROVENANCE: StrategicFitSourceProvenance = {
+  source_id: "fixture:manual",
+  kind: "user-profile",
+  state: "available",
+  version: "fixture-1",
+  snapshot: null,
+  reason: null,
+};
+
 function blackGraph(): RepertoireGraph {
   return buildRepertoireGraph(parseStrategicFitFixture(BLACK_REPERTOIRE_FIXTURE), "black");
 }
@@ -188,4 +206,169 @@ test("effective sample size follows the frozen sum-squared formula", () => {
     () => calculateEffectiveSampleSize([1, -1]),
     /strategic_fit_weights_invalid_weight/,
   );
+});
+
+test("profile coefficients compose market, personal, and manual estimates after independent normalization", () => {
+  const graph = blackGraph();
+  const routes = ["e4", "d4", "c4"].map((san) => routeByFirstSan(graph, san));
+  const rootDecisions = routes.map((route) => graph.decisions.find((decision) =>
+    decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0]
+  )!);
+  const report = calculateStrategicRouteWeights(graph, {
+    mode: "external",
+    source_coefficients: { market: 0.5, personal: 0.3, manual: 0.2 },
+    market: {
+      state: "available",
+      decision_weights: rootDecisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: [8, 1, 1][index]!,
+        provenance: [EXTERNAL_PROVENANCE],
+      })),
+      provenance: [EXTERNAL_PROVENANCE],
+    },
+    personal: {
+      state: "available",
+      decision_weights: rootDecisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: [2, 6, 2][index]!,
+        provenance: [PERSONAL_PROVENANCE],
+      })),
+      provenance: [PERSONAL_PROVENANCE],
+    },
+    route_weights: routes.map((route, index) => ({
+      route_id: route.route_id,
+      weight: [1, 1, 8][index]!,
+      provenance: [MANUAL_PROVENANCE],
+    })),
+  });
+
+  const byRoute = new Map(report.routes.map((route) => [route.route_id, route.normalized_weight]));
+  close(byRoute.get(routes[0]!.route_id)!, 0.48);
+  close(byRoute.get(routes[1]!.route_id)!, 0.25);
+  close(byRoute.get(routes[2]!.route_id)!, 0.27);
+  assert.deepEqual(report.evidence_sources.map((source) => [
+    source.kind,
+    source.resolution,
+    source.normalized_coefficient,
+  ]), [
+    ["market", "used", 0.5],
+    ["personal", "used", 0.3],
+    ["manual", "used", 0.2],
+  ]);
+  assert.match(
+    report.provenance.find((source) => source.source_id === "strategic-fit:weight-composition")!.reason!,
+    /unavailable sources contribute zero/,
+  );
+  assert.deepEqual(calculateStrategicRouteWeights(graph, {
+    mode: "external",
+    source_coefficients: { market: 0.5, personal: 0.3, manual: 0.2 },
+    market: {
+      state: "available",
+      decision_weights: rootDecisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: [8, 1, 1][index]!,
+        provenance: [EXTERNAL_PROVENANCE],
+      })),
+      provenance: [EXTERNAL_PROVENANCE],
+    },
+    personal: {
+      state: "available",
+      decision_weights: rootDecisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: [2, 6, 2][index]!,
+        provenance: [PERSONAL_PROVENANCE],
+      })),
+      provenance: [PERSONAL_PROVENANCE],
+    },
+    route_weights: routes.map((route, index) => ({
+      route_id: route.route_id,
+      weight: [1, 1, 8][index]!,
+      provenance: [MANUAL_PROVENANCE],
+    })),
+  }), report);
+});
+
+test("every source subset normalizes usable coefficients and unavailable evidence cannot dilute", () => {
+  const graph = blackGraph();
+  const routes = ["e4", "d4", "c4"].map((san) => routeByFirstSan(graph, san));
+  const rootDecisions = routes.map((route) => graph.decisions.find((decision) =>
+    decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0]
+  )!);
+  const decisionWeights = rootDecisions.map((decision, index) => ({
+    decision_id: decision.decision_id,
+    weight: [7, 2, 1][index]!,
+  }));
+
+  for (let mask = 1; mask < 8; mask++) {
+    const report = calculateStrategicRouteWeights(graph, {
+      mode: "external",
+      source_coefficients: { market: 0, personal: 0, manual: 0 },
+      ...(mask & 1 ? { market: { state: "available" as const, decision_weights: decisionWeights } } : {}),
+      ...(mask & 2 ? { personal: { state: "available" as const, decision_weights: decisionWeights } } : {}),
+      ...(mask & 4 ? {
+        route_weights: routes.map((route, index) => ({ route_id: route.route_id, weight: [7, 2, 1][index]! })),
+      } : {}),
+    });
+    close(report.evidence_sources.reduce(
+      (sum, source) => sum + source.normalized_coefficient,
+      0,
+    ), 1);
+    close(report.routes.reduce((sum, route) => sum + route.normalized_weight, 0), 1);
+  }
+
+  const unavailable = calculateStrategicRouteWeights(graph, {
+    mode: "external",
+    source_coefficients: { market: 0.9, personal: 0.1, manual: 0 },
+    market: {
+      state: "unavailable",
+      provenance: [{ ...EXTERNAL_PROVENANCE, state: "unavailable", reason: "offline" }],
+    },
+    personal: { state: "available", decision_weights: decisionWeights },
+  });
+  assert.deepEqual(unavailable.evidence_sources.map((source) => [
+    source.kind,
+    source.resolution,
+    source.normalized_coefficient,
+  ]), [
+    ["market", "unavailable", 0],
+    ["personal", "used", 1],
+    ["manual", "unavailable", 0],
+  ]);
+});
+
+test("equal mode reports and ignores every enrichment", () => {
+  const graph = blackGraph();
+  const decisions = graph.decisions.filter((decision) =>
+    decision.owner === "opponent" && decision.from_position_id === graph.root_position_id
+  );
+  const enriched = calculateStrategicRouteWeights(graph, {
+    mode: "equal",
+    source_coefficients: { market: 1, personal: 1, manual: 1 },
+    market: {
+      state: "available",
+      decision_weights: decisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: index === 0 ? 100 : 1,
+      })),
+    },
+    personal: {
+      state: "available",
+      decision_weights: decisions.map((decision, index) => ({
+        decision_id: decision.decision_id,
+        weight: index === 1 ? 100 : 1,
+      })),
+    },
+    route_weights: graph.routes.map((route, index) => ({
+      route_id: route.route_id,
+      weight: index === 2 ? 100 : 1,
+    })),
+  });
+  const equal = calculateStrategicRouteWeights(graph);
+  assert.deepEqual(
+    enriched.routes.map((route) => route.normalized_weight),
+    equal.routes.map((route) => route.normalized_weight),
+  );
+  assert.ok(enriched.evidence_sources.every((source) =>
+    source.resolution === "ignored-equal" && source.normalized_coefficient === 0
+  ));
 });

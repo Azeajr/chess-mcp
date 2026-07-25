@@ -83,7 +83,10 @@ test("browser report cache misses on edits, reused revisions with changed conten
   await cache.getReport(`${PGN}\n`, options("browser:2"));
   await cache.getReport(PGN, options("browser:2", { repertoireColor: "black" }));
   await cache.getReport(PGN, options("browser:2", { weighting: { mode: "manual" } }));
-  assert.equal(analyses, 5);
+  await cache.getReport(PGN, options("browser:2", {
+    training: { concept_mastery: [{ concept_id: "concept:center-control", mastery: 0.75 }] },
+  }));
+  assert.equal(analyses, 6);
 });
 
 test("browser report cache is bounded and removes rejected analyses", async () => {

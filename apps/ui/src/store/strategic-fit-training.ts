@@ -45,9 +45,12 @@ import {
   type StrategicFitTrainingReferenceMutationInput,
 } from "./strategic-fit-resolutions";
 import {
+  scheduleStrategicFitReanalysis,
   strategicFitLifecycle,
   type StrategicFitCompletedResult,
 } from "./strategic-fit";
+import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
+import { registerStrategicFitTrainingEvidenceProvider } from "../application/strategic-fit-training-evidence";
 
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND =
   "chess-mcp/strategic-fit-basic-drill";
@@ -539,6 +542,8 @@ export interface StrategicFitTrainingPerformanceBoundary {
   replaceData(data: StrategicFitTrainingPerformanceData): void;
   createArtifact(format: "json", content: string, name: string): unknown;
   now(): string;
+  /** Called only when observed concept mastery supplied to report metrics actually changes. */
+  onMetricEvidenceChanged?(): void;
 }
 
 /**
@@ -596,13 +601,20 @@ export function createStrategicFitTrainingPerformanceState(
       try {
         const next = recordStrategicFitTrainingAttempt(before, input);
         if (next === before) return unchanged(before, "This exact training attempt was already recorded.");
+        const generatedAt = boundary.now();
+        const graph = boundary.currentGraph();
+        const beforeMastery = deriveStrategicFitTrainingMastery(before, graph, generatedAt);
+        const nextMastery = deriveStrategicFitTrainingMastery(next, graph, generatedAt);
         boundary.replaceData(next);
+        if (JSON.stringify(beforeMastery.metric_evidence) !== JSON.stringify(nextMastery.metric_evidence)) {
+          boundary.onMetricEvidenceChanged?.();
+        }
         return {
           state: "updated",
           code: null,
           message: "Training attempt recorded without changing the repertoire.",
           data: next,
-          mastery: deriveStrategicFitTrainingMastery(next, boundary.currentGraph(), boundary.now()),
+          mastery: nextMastery,
           artifact_id: null,
           error: null,
         };
@@ -674,13 +686,20 @@ export function createStrategicFitTrainingPerformanceState(
       if (JSON.stringify(next) === JSON.stringify(before)) {
         return unchanged(before, "The imported training data is already present.");
       }
+      const generatedAt = boundary.now();
+      const graph = boundary.currentGraph();
+      const beforeMastery = deriveStrategicFitTrainingMastery(before, graph, generatedAt);
+      const nextMastery = deriveStrategicFitTrainingMastery(next, graph, generatedAt);
       boundary.replaceData(next);
+      if (JSON.stringify(beforeMastery.metric_evidence) !== JSON.stringify(nextMastery.metric_evidence)) {
+        boundary.onMetricEvidenceChanged?.();
+      }
       return {
         state: "updated",
         code: null,
         message: `Version ${parsed.data.training_performance_version} training data imported.`,
         data: next,
-        mastery: deriveStrategicFitTrainingMastery(next, boundary.currentGraph(), boundary.now()),
+        mastery: nextMastery,
         artifact_id: null,
         error: null,
       };
@@ -856,11 +875,28 @@ const browserTrainingPerformance = createStrategicFitTrainingPerformanceState({
   replaceData: replaceBrowserTrainingPerformance,
   createArtifact,
   now: () => new Date().toISOString(),
+  onMetricEvidenceChanged: () => {
+    invalidateCachedStrategicFitReports();
+    const completed = strategicFitLifecycle().last_completed;
+    if (completed === null) return;
+    scheduleStrategicFitReanalysis({
+      trigger: "training-change",
+      scope: {
+        kind: "affected-cohorts",
+        cohort_ids: completed.result.cohorts.map((cohort) => cohort.cohort_id).sort(),
+        reason: "Observed training mastery changed personalized metrics for the current cohorts.",
+      },
+    });
+  },
 });
 
 export const recordStrategicFitTrainingPerformanceAttempt = (input: StrategicFitTrainingAttemptInput) =>
   browserTrainingPerformance.recordAttempt(input);
 export const strategicFitTrainingMastery = () => browserTrainingPerformance.mastery();
+registerStrategicFitTrainingEvidenceProvider(() => {
+  const evidence = strategicFitTrainingMastery().metric_evidence;
+  return evidence.concept_mastery.length > 0 ? evidence : null;
+});
 export const exportStrategicFitTrainingPerformance = () => browserTrainingPerformance.export();
 export const importStrategicFitTrainingPerformance = (input: string | unknown) =>
   browserTrainingPerformance.import(input);

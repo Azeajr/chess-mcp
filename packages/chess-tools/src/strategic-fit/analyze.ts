@@ -1077,7 +1077,17 @@ export function analyzeStrategicFit(
 
   const comparable = runPhase(options, runId, 1, () => {
     const taxonomy = buildOpeningTaxonomy(graph, options.openingTable);
-    const weights = calculateStrategicRouteWeights(graph, options.weighting);
+    const weighting = options.weighting === undefined
+      ? undefined
+      : {
+          ...options.weighting,
+          source_coefficients: {
+            market: profile.preferences.opponent_popularity_importance,
+            personal: profile.preferences.personal_game_frequency_importance,
+            manual: profile.preferences.manual_weight_importance,
+          },
+        };
+    const weights = calculateStrategicRouteWeights(graph, weighting);
     const trajectories = buildStrategicTrajectories(graph, {
       ...options.trajectory,
       openingTable: options.openingTable,
@@ -1128,6 +1138,8 @@ export function analyzeStrategicFit(
       patterns.modes.provenance,
       distances.provenance,
       causality.provenance,
+      options.training?.provenance ?? [],
+      ...(options.training?.concept_mastery ?? []).map((concept) => concept.provenance ?? []),
       [profileSource(profile)],
     ));
     const context: FindingContext = {
@@ -1159,6 +1171,7 @@ export function analyzeStrategicFit(
       concepts: patterns.concepts,
       findings: allFindings,
       training: options.training,
+      profile,
     });
     const findingPage = pageInfo(allFindings.length, options);
     return {

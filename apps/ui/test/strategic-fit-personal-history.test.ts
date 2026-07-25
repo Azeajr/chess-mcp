@@ -109,8 +109,10 @@ test("browser blends fetched Lichess PGNs with population weights before the Wor
       route.route_id === weighted.route_id && route.san_moves[1] === reply
     )
   )!.normalized_weight;
-  assert.equal(byReply("e5"), 0.72);
-  assert.equal(byReply("c5"), 0.28);
+  // The all-zero default preference vector means no source preference, so the independently
+  // normalized 90/10 market and 72/28 shrunk-personal estimates receive equal coefficients.
+  assert.equal(byReply("e5"), 0.81);
+  assert.equal(byReply("c5"), 0.19);
   assert.equal(result.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "available");
   assert.equal(result.provenance.sources.find((source) => source.kind === "personal-history")?.state, "available");
   assert.deepEqual(progress.slice(0, 4), [

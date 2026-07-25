@@ -99,15 +99,20 @@ positions, semantic decisions, transpositions, and player departures without mut
 repertoire. Per-position personal opponent-choice counts use a 20-game empirical prior drawn from
 the requested population evidence, or an equal prior when population data was not requested.
 Missing PGN metadata, invalid samples, no matching color, and fetch failure remain explicit
-insufficient, partial, or unavailable provenance while the base report remains usable.
+insufficient, partial, or unavailable provenance while the base report remains usable. The
+deterministic weighting layer keeps market, empirically shrunk personal, and manual estimates
+independent, normalizes the usable profile coefficients, and assigns unavailable sources zero
+effective coefficient. Equal mode reports but ignores every enrichment.
 
 Training performance is a separate versioned, document-keyed browser record rather than analyzer
 state or a field added to the canonical metadata sidecar. Deterministic drill targets bind semantic
 positions, decisions, and concepts; attempts retain recall, measured response time, explicit lapses,
 optional confidence, and UTC spacing timestamps. Mastery uses only supplied observations, preserves
 untrained as distinct from failure, and excludes stale semantic targets from current metric evidence
-without deleting their historical provenance. Task 7.4 owns injecting that evidence into personalized
-report weights and metrics.
+without deleting their historical provenance. The browser injects observed concept mastery through
+the clone-safe Worker/cache boundary. Familiarity-adjusted coverage, training-adjusted workload, and
+repertoire regret report the exact expected-route coverage of their market, mastery, and viable-
+replacement components; missing observations never become zero mastery or failed training.
 
 ## Safety and result conventions
 

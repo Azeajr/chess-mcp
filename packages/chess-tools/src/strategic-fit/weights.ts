@@ -31,6 +31,25 @@ export interface StrategicDecisionWeightInput {
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
+export const STRATEGIC_WEIGHT_EVIDENCE_KINDS = ["market", "personal", "manual"] as const;
+export type StrategicWeightEvidenceKind = (typeof STRATEGIC_WEIGHT_EVIDENCE_KINDS)[number];
+
+export type StrategicWeightEvidenceState = "available" | "partial" | "unavailable";
+
+/** One independently normalized route-frequency estimate supplied outside the analyzer. */
+export interface StrategicWeightEvidenceInput {
+  readonly state: StrategicWeightEvidenceState;
+  readonly route_weights?: readonly StrategicRouteWeightInput[];
+  readonly decision_weights?: readonly StrategicDecisionWeightInput[];
+  readonly provenance?: readonly StrategicFitSourceProvenance[];
+}
+
+export interface StrategicWeightSourceCoefficients {
+  readonly market: number;
+  readonly personal: number;
+  readonly manual: number;
+}
+
 export interface StrategicRouteWeightingOptions {
   /** Equal weighting is the deterministic engine-free default. */
   readonly mode?: StrategicRouteWeightingMode;
@@ -40,6 +59,12 @@ export interface StrategicRouteWeightingOptions {
   readonly decision_weights?: readonly StrategicDecisionWeightInput[];
   /** Source-level evidence retained even when no usable per-route weight was available. */
   readonly provenance?: readonly StrategicFitSourceProvenance[];
+  /** Population estimate collected by a host. It remains separate until profile composition. */
+  readonly market?: StrategicWeightEvidenceInput;
+  /** Empirically shrunk personal estimate collected by a host. */
+  readonly personal?: StrategicWeightEvidenceInput;
+  /** Profile preferences applied by the analyzer; usable coefficients are normalized to one. */
+  readonly source_coefficients?: StrategicWeightSourceCoefficients;
 }
 
 export type StrategicWeightResolution = "equal" | "supplied" | "equal-fallback";
@@ -90,6 +115,23 @@ export interface StrategicWeightFallback {
 
 export type StrategicRouteWeightingState = "complete" | "partial" | "fallback";
 
+export type StrategicWeightEvidenceResolution =
+  | "used"
+  | "ignored-equal"
+  | "unavailable"
+  | "zero-coefficient";
+
+export interface StrategicWeightEvidenceCoverage {
+  readonly kind: StrategicWeightEvidenceKind;
+  readonly state: StrategicWeightEvidenceState;
+  readonly resolution: StrategicWeightEvidenceResolution;
+  readonly requested_coefficient: number;
+  readonly normalized_coefficient: number;
+  readonly route_weight_count: number;
+  readonly decision_weight_count: number;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
+}
+
 export interface StrategicRouteWeightingReport {
   readonly schema_version: string;
   readonly analysis_version: string;
@@ -102,6 +144,8 @@ export interface StrategicRouteWeightingReport {
   readonly weighting_units: readonly StrategicRouteWeightingUnit[];
   readonly effective_sample_size: number;
   readonly fallbacks: readonly StrategicWeightFallback[];
+  /** Deterministic source coverage and the effective normalized profile mix. */
+  readonly evidence_sources: readonly StrategicWeightEvidenceCoverage[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
@@ -131,8 +175,18 @@ const CORE_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
   reason: null,
 });
 
+const DEFAULT_SOURCE_COEFFICIENTS: StrategicWeightSourceCoefficients = Object.freeze({
+  market: 0,
+  personal: 0,
+  manual: 0,
+});
+
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function round(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function total(values: readonly number[]): number {
@@ -143,6 +197,13 @@ function validateWeight(weight: number, identity: string): void {
   if (!Number.isFinite(weight) || weight < 0) {
     throw new Error(`strategic_fit_weights_invalid_weight: ${identity}`);
   }
+}
+
+function validateCoefficient(value: number, kind: StrategicWeightEvidenceKind): number {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`strategic_fit_weights_invalid_coefficient: ${kind}`);
+  }
+  return value;
 }
 
 function suppliedWeights<T extends { readonly weight: number }>(
@@ -337,7 +398,7 @@ function reportState(
  * weights apply only to opponent-owned sibling decisions. Missing or unusable supplied evidence
  * resolves to equal weighting and is always disclosed in `fallbacks`.
  */
-export function calculateStrategicRouteWeights(
+function calculateBaseStrategicRouteWeights(
   graph: RepertoireGraph,
   options: StrategicRouteWeightingOptions = {},
 ): StrategicRouteWeightingReport {
@@ -480,6 +541,277 @@ export function calculateStrategicRouteWeights(
       weightingUnits.map((unit) => unit.normalized_weight),
     ),
     fallbacks,
+    evidence_sources: [],
     provenance: mergeProvenance([CORE_PROVENANCE], inputProvenance),
   };
+}
+
+interface PreparedEvidence {
+  readonly kind: StrategicWeightEvidenceKind;
+  readonly input: StrategicWeightEvidenceInput;
+  readonly requestedCoefficient: number;
+  readonly usable: boolean;
+}
+
+function hasPositiveEvidence(input: StrategicWeightEvidenceInput): boolean {
+  return [...(input.route_weights ?? []), ...(input.decision_weights ?? [])]
+    .some((weight) => weight.weight > 0);
+}
+
+function manualEvidence(options: StrategicRouteWeightingOptions): StrategicWeightEvidenceInput {
+  const routeWeights = options.route_weights ?? [];
+  const decisionWeights = options.decision_weights ?? [];
+  return {
+    state: routeWeights.length > 0 || decisionWeights.length > 0 ? "available" : "unavailable",
+    route_weights: routeWeights,
+    decision_weights: decisionWeights,
+    provenance: mergeProvenance(
+      options.provenance ?? [],
+      ...routeWeights.map((weight) => weight.provenance ?? []),
+      ...decisionWeights.map((weight) => weight.provenance ?? []),
+    ),
+  };
+}
+
+function preparedEvidence(options: StrategicRouteWeightingOptions): PreparedEvidence[] {
+  const coefficients = options.source_coefficients ?? DEFAULT_SOURCE_COEFFICIENTS;
+  const inputs: Readonly<Record<StrategicWeightEvidenceKind, StrategicWeightEvidenceInput>> = {
+    market: options.market ?? { state: "unavailable" },
+    personal: options.personal ?? { state: "unavailable" },
+    manual: manualEvidence(options),
+  };
+  return STRATEGIC_WEIGHT_EVIDENCE_KINDS.map((kind) => {
+    const input = inputs[kind];
+    return {
+      kind,
+      input,
+      requestedCoefficient: validateCoefficient(coefficients[kind], kind),
+      usable: input.state !== "unavailable" && hasPositiveEvidence(input),
+    };
+  });
+}
+
+function normalizedCoefficients(
+  prepared: readonly PreparedEvidence[],
+): ReadonlyMap<StrategicWeightEvidenceKind, number> {
+  const usable = prepared.filter((source) => source.usable);
+  const requestedTotal = total(usable.map((source) => source.requestedCoefficient));
+  return new Map(prepared.map((source) => [
+    source.kind,
+    !source.usable
+      ? 0
+      : requestedTotal > 0
+        ? source.requestedCoefficient / requestedTotal
+        : 1 / usable.length,
+  ]));
+}
+
+function evidenceCoverage(
+  prepared: readonly PreparedEvidence[],
+  coefficients: ReadonlyMap<StrategicWeightEvidenceKind, number>,
+  equal: boolean,
+): StrategicWeightEvidenceCoverage[] {
+  return prepared.map((source) => {
+    const normalized = equal ? 0 : coefficients.get(source.kind) ?? 0;
+    return {
+      kind: source.kind,
+      state: source.input.state,
+      resolution: equal
+        ? "ignored-equal"
+        : !source.usable
+          ? "unavailable"
+          : normalized <= 0
+            ? "zero-coefficient"
+            : "used",
+      requested_coefficient: source.requestedCoefficient,
+      normalized_coefficient: normalized,
+      route_weight_count: source.input.route_weights?.length ?? 0,
+      decision_weight_count: source.input.decision_weights?.length ?? 0,
+      provenance: mergeProvenance(source.input.provenance ?? []),
+    };
+  });
+}
+
+function compositionProvenance(
+  coverage: readonly StrategicWeightEvidenceCoverage[],
+): StrategicFitSourceProvenance {
+  const snapshot = coverage.map((source) =>
+    `${source.kind}=${source.normalized_coefficient}:${source.resolution}`
+  ).join(",");
+  return {
+    source_id: "strategic-fit:weight-composition",
+    kind: "user-profile",
+    state: "available",
+    version: STRATEGIC_FIT_ANALYSIS_MANIFEST.components.weights,
+    snapshot,
+    reason: "Usable profile coefficients are normalized to one; unavailable sources contribute zero weight.",
+  };
+}
+
+function uniqueFallbacks(
+  reports: readonly StrategicRouteWeightingReport[],
+): StrategicWeightFallback[] {
+  const seen = new Set<string>();
+  return reports.flatMap((report) => report.fallbacks).filter((fallback) => {
+    const identity = JSON.stringify(fallback);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+function calculateComposedStrategicRouteWeights(
+  graph: RepertoireGraph,
+  options: StrategicRouteWeightingOptions,
+): StrategicRouteWeightingReport {
+  const mode = options.mode ?? "equal";
+  const prepared = preparedEvidence(options);
+  const coefficients = normalizedCoefficients(prepared);
+  const coverage = evidenceCoverage(prepared, coefficients, mode === "equal");
+  const sourceProvenance = prepared.flatMap((source) => source.input.provenance ?? []);
+  const composition = compositionProvenance(coverage);
+
+  if (mode === "equal") {
+    const report = calculateBaseStrategicRouteWeights(graph, {
+      mode: "equal",
+      provenance: mergeProvenance(options.provenance ?? [], sourceProvenance, [composition]),
+    });
+    return { ...report, evidence_sources: coverage };
+  }
+
+  const used = prepared.filter((source) => (coefficients.get(source.kind) ?? 0) > 0);
+  if (used.length === 0) {
+    const report = calculateBaseStrategicRouteWeights(graph, {
+      mode,
+      provenance: mergeProvenance(options.provenance ?? [], sourceProvenance, [composition]),
+    });
+    return { ...report, evidence_sources: coverage };
+  }
+
+  const reports = used.map((source) => ({
+    source,
+    coefficient: coefficients.get(source.kind)!,
+    report: calculateBaseStrategicRouteWeights(graph, {
+      mode: source.kind === "manual" ? "manual" : "external",
+      route_weights: source.input.route_weights,
+      decision_weights: source.input.decision_weights,
+      provenance: source.input.provenance,
+    }),
+  }));
+  const routeBySource = reports.map(({ report }) =>
+    new Map(report.routes.map((route) => [route.route_id, route]))
+  );
+  const decisionBySource = reports.map(({ report }) =>
+    new Map(report.opponent_decisions.map((decision) => [decision.decision_id, decision]))
+  );
+
+  const opponentDecisions = graphOpponentDecisionResults(graph, reports, decisionBySource, composition);
+  const opponentById = new Map(opponentDecisions.map((decision) => [decision.decision_id, decision]));
+  const routes: StrategicNormalizedRouteWeight[] = graph.routes.map((route): StrategicNormalizedRouteWeight => {
+    const normalizedWeight = reports.reduce((sum, entry, index) =>
+      sum + entry.coefficient * routeBySource[index]!.get(route.route_id)!.normalized_weight, 0
+    );
+    const opponentProbability = route.decision_ids.reduce((probability, decisionId) =>
+      probability * (opponentById.get(decisionId)?.normalized_weight ?? 1), 1
+    );
+    return {
+      route_id: route.route_id,
+      terminal_position_id: route.terminal_position_id,
+      weighting_unit_id: route.terminal_position_id,
+      opponent_probability: round(opponentProbability),
+      route_factor: round(opponentProbability > 0 ? normalizedWeight / opponentProbability : normalizedWeight),
+      normalized_weight: normalizedWeight,
+      resolution: "supplied",
+      provenance: mergeProvenance(
+        [CORE_PROVENANCE, composition],
+        ...reports.map((entry, index) =>
+          routeBySource[index]!.get(route.route_id)!.provenance
+        ),
+      ),
+    };
+  }).sort((left, right) => compareStrings(left.route_id, right.route_id));
+  const unitMembers = new Map<string, StrategicNormalizedRouteWeight[]>();
+  for (const route of routes) {
+    const members = unitMembers.get(route.weighting_unit_id) ?? [];
+    members.push(route);
+    unitMembers.set(route.weighting_unit_id, members);
+  }
+  const weightingUnits = [...unitMembers.entries()].map(([unitId, members]) => ({
+    weighting_unit_id: unitId,
+    terminal_position_id: unitId,
+    route_ids: members.map((route) => route.route_id).sort(compareStrings),
+    normalized_weight: total(members.map((route) => route.normalized_weight)),
+  })).sort((left, right) => compareStrings(left.weighting_unit_id, right.weighting_unit_id));
+  const fallbacks = uniqueFallbacks(reports.map((entry) => entry.report));
+  const partial = reports.some((entry) =>
+    entry.source.input.state === "partial" || entry.report.state !== "complete"
+  );
+  const provenance = mergeProvenance(
+    [CORE_PROVENANCE, composition],
+    options.provenance ?? [],
+    sourceProvenance,
+    ...reports.map((entry) => entry.report.provenance),
+  );
+  return {
+    schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+    analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+    weighting_version: STRATEGIC_FIT_ANALYSIS_MANIFEST.components.weights,
+    graph_id: graph.graph_id,
+    requested_mode: mode,
+    state: partial ? "partial" : "complete",
+    routes,
+    opponent_decisions: opponentDecisions,
+    weighting_units: weightingUnits,
+    effective_sample_size: calculateEffectiveSampleSize(
+      weightingUnits.map((unit) => unit.normalized_weight),
+    ),
+    fallbacks,
+    evidence_sources: coverage,
+    provenance,
+  };
+}
+
+function graphOpponentDecisionResults(
+  graph: RepertoireGraph,
+  reports: readonly {
+    readonly coefficient: number;
+    readonly report: StrategicRouteWeightingReport;
+  }[],
+  decisionBySource: readonly ReadonlyMap<string, StrategicNormalizedDecisionWeight>[],
+  composition: StrategicFitSourceProvenance,
+): StrategicNormalizedDecisionWeight[] {
+  return groupOpponentDecisions(graph.decisions).flatMap(([positionId, siblings]) =>
+    siblings.map((decision): StrategicNormalizedDecisionWeight => {
+      const normalizedWeight = reports.reduce((sum, entry, index) =>
+        sum + entry.coefficient * decisionBySource[index]!.get(decision.decision_id)!.normalized_weight, 0
+      );
+      return {
+        decision_id: decision.decision_id,
+        from_position_id: positionId,
+        raw_weight: round(normalizedWeight),
+        normalized_weight: normalizedWeight,
+        resolution: "supplied",
+        provenance: mergeProvenance(
+          [CORE_PROVENANCE, composition],
+          ...reports.map((entry, index) =>
+            decisionBySource[index]!.get(decision.decision_id)!.provenance
+          ),
+        ),
+      };
+    })
+  ).sort((left, right) => compareStrings(left.decision_id, right.decision_id));
+}
+
+/**
+ * Calculate route weights, optionally composing independently normalized market, personal, and
+ * manual estimates under the current profile. Equal mode deliberately ignores every enrichment.
+ */
+export function calculateStrategicRouteWeights(
+  graph: RepertoireGraph,
+  options: StrategicRouteWeightingOptions = {},
+): StrategicRouteWeightingReport {
+  if (options.market || options.personal || options.source_coefficients) {
+    return calculateComposedStrategicRouteWeights(graph, options);
+  }
+  return calculateBaseStrategicRouteWeights(graph, options);
 }

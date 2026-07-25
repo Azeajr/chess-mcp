@@ -201,6 +201,7 @@ function finding(
   routeIds: readonly string[],
   classification: StrategicFitMetricFinding["classification"] = "forced-diversity",
   learningBurden = 0.8,
+  replacementActionability?: number,
 ): StrategicFitMetricFinding {
   const provenance: StrategicFitProvenance = {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
@@ -215,6 +216,9 @@ function finding(
     classification,
     references: { route_ids: routeIds },
     learning_burden: learningBurden,
+    ...(replacementActionability === undefined
+      ? {}
+      : { replacement_priority: { actionability: replacementActionability } }),
     resolution_state: "unresolved",
     provenance,
   };
@@ -376,11 +380,76 @@ test("optional mastery produces familiarity and training-adjusted workload input
   close(metrics.familiarity_adjusted_coverage.value!, 0.5);
   assert.equal(metrics.training_adjusted_workload.state, "available");
   close(metrics.training_adjusted_workload.value!, 0.2);
+  assert.match(metrics.training_adjusted_workload.reason!, /100% of relevant expected route weight/);
+  assert.match(metrics.familiarity_adjusted_coverage.reason!, /100% of relevant expected route weight/);
   assert.deepEqual(metrics.exception_burden.value, {
     expected_frequency: 0.5,
     training_cost: 0.2,
   });
   assert.ok(metrics.training_adjusted_workload.provenance.some((source) =>
+    source.source_id === TRAINING_SOURCE.source_id
+  ));
+});
+
+test("hand-calculated personalized metrics disclose market, training, and replacement coverage", () => {
+  const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
+  const groups = branchGroups(graph);
+  const rootBranches = graph.decisions.filter((decision) =>
+    decision.owner === "opponent" && decision.from_position_id ===
+      graph.decisions.find((candidate) => candidate.san === "e5")!.from_position_id
+  );
+  const marketSource: StrategicFitSourceProvenance = {
+    source_id: "fixture:market",
+    kind: "opening-explorer",
+    state: "available",
+    version: "fixture-1",
+    snapshot: "market-snapshot",
+    reason: null,
+  };
+  const weights = calculateStrategicRouteWeights(graph, {
+    mode: "external",
+    source_coefficients: { market: 1, personal: 0, manual: 0 },
+    market: {
+      state: "available",
+      decision_weights: rootBranches.map((decision) => ({
+        decision_id: decision.decision_id,
+        weight: decision.san === "e5" ? 8 : 2,
+        provenance: [marketSource],
+      })),
+      provenance: [marketSource],
+    },
+  });
+  const metrics = calculateStrategicFitMetrics(input(
+    graph,
+    weights,
+    [groups.e5, groups.c5],
+    groups.concepts,
+    {
+      selectedCandidateIndexes: [0],
+      findings: [finding(groups.c5, "genuine-inconsistency", 0.8, 1)],
+      training: {
+        concept_mastery: [
+          { concept_id: "plan.e5", mastery: 1, provenance: [TRAINING_SOURCE] },
+          { concept_id: "plan.c5", mastery: 0.5, provenance: [TRAINING_SOURCE] },
+        ],
+        provenance: [TRAINING_SOURCE],
+      },
+    },
+  ));
+
+  assert.equal(metrics.familiarity_adjusted_coverage.state, "available");
+  close(metrics.familiarity_adjusted_coverage.value!, 0.8);
+  assert.equal(metrics.training_adjusted_workload.state, "available");
+  close(metrics.training_adjusted_workload.value!, 0.08);
+  assert.equal(metrics.repertoire_regret.state, "available");
+  close(metrics.repertoire_regret.value!, 0.072);
+  assert.match(metrics.repertoire_regret.reason!, /100% training coverage/);
+  assert.match(metrics.repertoire_regret.reason!, /100% viable-replacement coverage/);
+  assert.match(metrics.repertoire_regret.reason!, /available market weighting/);
+  assert.ok(metrics.repertoire_regret.provenance.some((source) =>
+    source.source_id === marketSource.source_id
+  ));
+  assert.ok(metrics.repertoire_regret.provenance.some((source) =>
     source.source_id === TRAINING_SOURCE.source_id
   ));
 });

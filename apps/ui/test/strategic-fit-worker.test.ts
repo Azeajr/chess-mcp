@@ -104,7 +104,21 @@ test("worker forwards the six core progress phases in frozen order", () => {
 test("typed client serializes clone-safe inputs and waits for its worker result", async () => {
   const worker = new FakeWorker();
   const client = new StrategicFitWorkerClient(() => worker);
-  const pending = client.analyze(PGN, OPTIONS);
+  const options: AnalyzeStrategicFitOptions = {
+    ...OPTIONS,
+    training: {
+      concept_mastery: [{ concept_id: "concept:center-control", mastery: 0.75 }],
+      provenance: [{
+        source_id: "fixture:worker-training",
+        kind: "training-metadata",
+        state: "available",
+        version: "fixture-1",
+        snapshot: "attempt:1",
+        reason: null,
+      }],
+    },
+  };
+  const pending = client.analyze(PGN, options);
 
   assert.equal(worker.posted.length, 1);
   const request = worker.posted[0]!;
@@ -120,13 +134,14 @@ test("typed client serializes clone-safe inputs and waits for its worker result"
   });
   assert.equal("shouldCancel" in request.payload.options, false);
   assert.equal("onProgress" in request.payload.options, false);
+  assert.deepEqual(request.payload.options.training, options.training);
 
   let settled = false;
   void pending.finally(() => { settled = true; });
   await Promise.resolve();
   assert.equal(settled, false, "the client does not run the analyzer on the caller's thread");
 
-  const report = analyzeStrategicFit(GameTree.fromPgn(PGN), OPTIONS);
+  const report = analyzeStrategicFit(GameTree.fromPgn(PGN), options);
   worker.emit({ type: "result", request_id: request.request_id, result: report });
   assert.deepEqual(await pending, report);
   assert.equal(worker.terminated, true);

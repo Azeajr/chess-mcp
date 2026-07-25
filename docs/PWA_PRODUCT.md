@@ -53,11 +53,15 @@ population source unavailable rather than reporting zero popularity.
 Optional Strategic Fit personal-history enrichment fetches full PGNs from the selected Lichess or
 Chess.com account, uses only games played from the repertoire color, and shrinks sparse personal
 branch counts toward the population or equal baseline. Missing PGNs and unavailable history remain
-explicitly insufficient or unavailable rather than becoming zero frequency.
+explicitly insufficient or unavailable rather than becoming zero frequency. Population, personal,
+and manual estimates can be combined: the current profile's usable coefficients are normalized,
+unavailable sources contribute zero, and equal mode ignores enrichments.
 Strategic Fit training attempts are stored per document in a separate versioned IndexedDB record and
 can be imported or exported as strict JSON. Registered drills remain explicitly untrained until an
 attempt records recall; missing response time or confidence stays missing, while stale semantic
-targets retain history but do not contribute current mastery evidence.
+targets retain history but do not contribute current mastery evidence. Observed mastery is injected
+into browser reports so familiarity-adjusted coverage, training-adjusted workload, and repertoire
+regret show their source coverage instead of treating absent observations as failure.
 
 ## Persistence
 

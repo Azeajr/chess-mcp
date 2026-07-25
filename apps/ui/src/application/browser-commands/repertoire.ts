@@ -34,6 +34,7 @@ import {
   STRATEGIC_FIT_PROGRESS_PHASES,
   STRATEGIC_POPULARITY_MOVE_LIMIT,
   type StrategicFitToolArguments,
+  type StrategicRouteWeightingOptions,
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
 import type { BrowserCommandHandler } from "./types";
@@ -227,6 +228,8 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const documentProfileIdentity = profileIdentity(documentProfile);
     const documentSettings = context.currentStrategicFitAnalysisSettings();
     const effectiveSettingsIdentity = effectiveDocumentSettingsIdentity(toolArgs, documentSettings);
+    const trainingEvidence = context.currentStrategicFitTrainingEvidence?.() ?? null;
+    const trainingEvidenceIdentity = JSON.stringify(trainingEvidence);
     const toolOptions = strategicFitOptionsFromToolArguments(toolArgs, {
       repertoireColor: color,
       repertoireRevision,
@@ -236,6 +239,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     let options = toolArgs.profile === undefined
       ? { ...settingsOptions, profile: documentProfile }
       : settingsOptions;
+    if (trainingEvidence !== null) options = { ...options, training: trainingEvidence };
     const popularityOptions = strategicPopularityOptionsFromToolArguments(toolArgs);
     const personalHistorySource = strategicPersonalHistorySourceFromToolArguments(toolArgs);
     let graph: ReturnType<typeof buildRepertoireGraph> | null = null;
@@ -248,6 +252,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       }
     }
     let popularityProgressTotal = 0;
+    let populationWeighting: StrategicRouteWeightingOptions | undefined;
     const personalHistoryProgressTotal = personalHistorySource && graph ? 1 : 0;
     if (popularityOptions && graph) {
       const collection = await collectStrategicPopularityWeights(
@@ -277,7 +282,21 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       if (collection.state === "cancelled") {
         throw new DOMException("Strategic Fit popularity collection cancelled", "AbortError");
       }
-      options = { ...options, weighting: collection.weighting };
+      populationWeighting = collection.weighting;
+      options = {
+        ...options,
+        weighting: {
+          ...options.weighting,
+          mode: options.weighting?.mode ?? "external",
+          market: {
+            state: collection.state === "complete"
+              ? "available"
+              : collection.state === "partial" ? "partial" : "unavailable",
+            decision_weights: collection.decision_weights,
+            provenance: collection.provenance,
+          },
+        },
+      };
     }
     if (personalHistorySource && graph) {
       const total = popularityProgressTotal + personalHistoryProgressTotal +
@@ -306,7 +325,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       throwIfAborted(context.signal);
       const collection = collectStrategicPersonalHistoryWeights(graph, games, {
         source: personalHistorySource,
-        population: options.weighting,
+        population: populationWeighting,
         shouldCancel: () => context.signal?.aborted ?? false,
       });
       if (collection.state === "cancelled") {
@@ -317,7 +336,20 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
         total,
         "Mapped personal game history",
       );
-      options = { ...options, weighting: collection.weighting };
+      options = {
+        ...options,
+        weighting: {
+          ...options.weighting,
+          mode: options.weighting?.mode ?? "external",
+          personal: {
+            state: collection.state === "complete"
+              ? "available"
+              : collection.state === "partial" ? "partial" : "unavailable",
+            decision_weights: collection.decision_weights,
+            provenance: collection.provenance,
+          },
+        },
+      };
     }
     const completeReport = await context.strategicFitReport(
       pgn,
@@ -340,7 +372,8 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       toolArgs.profile === undefined &&
         profileIdentity(context.currentStrategicFitProfile()) !== documentProfileIdentity ||
       effectiveDocumentSettingsIdentity(toolArgs, context.currentStrategicFitAnalysisSettings()) !==
-        effectiveSettingsIdentity
+        effectiveSettingsIdentity ||
+      JSON.stringify(context.currentStrategicFitTrainingEvidence?.() ?? null) !== trainingEvidenceIdentity
     ) {
       if (
         toolArgs.profile === undefined &&
@@ -353,6 +386,15 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
         return {
           error: "strategic_fit_stale_report",
           reason: "Document Strategic Fit resolutions or analysis overrides changed while analysis was running; request a fresh report.",
+        };
+      }
+      if (
+        JSON.stringify(context.currentStrategicFitTrainingEvidence?.() ?? null) !==
+          trainingEvidenceIdentity
+      ) {
+        return {
+          error: "strategic_fit_stale_report",
+          reason: "Strategic Fit training evidence changed while analysis was running; request a fresh report.",
         };
       }
       return {

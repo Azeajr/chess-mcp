@@ -116,11 +116,11 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
   assert.equal(validateToolArguments("analyze_repertoire_congruence", {
     weighting: { mode: "equal" },
     popularity: { db: "lichess" },
-  }, "browser").ok, false);
+  }, "browser").ok, true);
   assert.equal(validateToolArguments("analyze_repertoire_congruence", {
     weighting: { mode: "equal" },
     personal_history: { username: "SampleUser" },
-  }, "browser").ok, false);
+  }, "browser").ok, true);
   assert.equal(
     validateToolArguments("analyze_repertoire_congruence", {
       profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.1 } },
@@ -310,6 +310,40 @@ test("browser Strategic Fit adapter fails closed when the document changes durin
       reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
     },
   );
+});
+
+test("browser Strategic Fit injects training evidence and rejects an in-flight mastery change", async () => {
+  actions.loadPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *");
+  let mastery = 0.5;
+  let receivedMastery: number | undefined;
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    openings: async () => new Map(),
+    currentStrategicFitTrainingEvidence: () => ({
+      concept_mastery: [{ concept_id: "concept:center-control", mastery }],
+    }),
+    strategicFitReport: async (
+      pgn: string,
+      options: Parameters<typeof analyzeStrategicFit>[1],
+    ) => {
+      receivedMastery = options.training?.concept_mastery[0]?.mastery;
+      const report = completeStrategicFitReport(analyzeStrategicFit(
+        GameTree.fromPgn(pgn),
+        strategicFitCompleteAnalysisOptions(options),
+      ));
+      mastery = 0.75;
+      return report;
+    },
+  };
+
+  assert.deepEqual(
+    await executeDirectBrowserCommand("analyze_repertoire_congruence", {}, {}, dependencies),
+    {
+      error: "strategic_fit_stale_report",
+      reason: "Strategic Fit training evidence changed while analysis was running; request a fresh report.",
+    },
+  );
+  assert.equal(receivedMastery, 0.5);
 });
 
 test("Strategic Fit chat state preserves incomplete and blocked evidence semantics", () => {

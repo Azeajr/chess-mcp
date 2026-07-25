@@ -14,6 +14,7 @@ import type {
   StrategicFitMetadataAnalysisInputs,
   StrategicFitDocumentMetadata,
   StrategicFitReport,
+  StrategicTrainingMetricEvidence,
   TablebaseResult,
 } from "@chess-mcp/chess-tools";
 
@@ -56,6 +57,8 @@ export type BrowserCommandDependencies = {
     readonly identity: string;
     readonly inputs: StrategicFitMetadataAnalysisInputs;
   };
+  /** Optional browser-local mastery evidence, injected before crossing the analysis Worker boundary. */
+  currentStrategicFitTrainingEvidence?: () => StrategicTrainingMetricEvidence | null;
   /** Browser preference: depth 20 normally, or 30 when the user enables Deep analysis. */
   analysisDepth: () => number;
   analyse: (fen: string, multipv: number, depth: number, movetime?: number, signal?: AbortSignal) => Promise<EngineLine[] | null>;

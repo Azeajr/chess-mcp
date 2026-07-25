@@ -34,8 +34,9 @@ a no-scope Lichess personal token because the explorer requires authentication.
   theory depth, structure search, practical-history comparison, opponent preparation, and annotated
   export, secret-free Strategic Fit JSON sidecars, and clone-only portable intent PGNs.
 - Advanced repertoire: transposition-aware Strategic Fit V2 reports with explicit profiles,
-  weighting, optional bounded population-popularity evidence, empirically shrunk Lichess/Chess.com
-  personal-history frequency, paging, provenance, and a temporary legacy projection; transposition
+  profile-composed manual/population/personal weighting, empirically shrunk Lichess/Chess.com
+  personal-history frequency, browser-local training-adjusted metrics with source coverage, paging,
+  provenance, and a temporary legacy projection; transposition
   shortening, shortcut inspection, engine-vetted replacement or complementary lines, and shared
   best-eval/best-fit gap fills.
 

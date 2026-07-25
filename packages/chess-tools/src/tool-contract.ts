@@ -165,7 +165,7 @@ export const TOOL_CONTRACTS = [
   define("get_structural_profile", "Return a repertoire-wide pawn-structure profile or one position selected by SAN path.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array() }, mcpRequired: ["repertoire_id"] }),
   define(
     "analyze_repertoire_congruence",
-    "Analyze Strategic Fit across transposition-aware repertoire routes with optional population and personal-history frequency; returns native V2 evidence plus a temporary legacy projection.",
+    "Analyze Strategic Fit across transposition-aware repertoire routes with profile-composed manual, population, and personal-history frequency plus browser-local training mastery; returns native V2 evidence and a temporary legacy projection.",
     ["repertoire", "game", "network"],
     BOTH,
     { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, personal_history_platform: "lichess", personal_history_max_games: 30, page_limit: 50, legacy_projection_limit: 10 },
@@ -310,12 +310,6 @@ function duplicateIdentity(values: readonly unknown[], key: string): string | nu
 }
 
 function strategicFitArgumentsError(value: Record<string, unknown>): string | null {
-  if (value.popularity !== undefined && value.weighting !== undefined) {
-    return "popularity and weighting are alternative route-weight sources and cannot be combined";
-  }
-  if (value.personal_history !== undefined && value.weighting !== undefined) {
-    return "personal_history cannot be combined with explicit weighting before enriched-source composition";
-  }
   const popularityReason = explorerPopulationArgumentsError(
     value.popularity as Record<string, unknown> | undefined,
     "popularity",

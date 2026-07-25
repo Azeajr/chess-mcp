@@ -17,6 +17,7 @@ import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import { getCachedStrategicFitReport } from "../strategic-fit-report-cache";
+import { currentStrategicFitTrainingEvidence } from "../strategic-fit-training-evidence";
 import type { BrowserCommandDependencies } from "./types";
 
 let openingsPromise: Promise<OpeningTable> | null = null;
@@ -42,6 +43,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentStrategicFitMetadata: strategicFitMetadata,
   currentStrategicFitProfile: strategicFitProfile,
   currentStrategicFitAnalysisSettings: strategicFitAnalysisSettings,
+  currentStrategicFitTrainingEvidence,
   analysisDepth,
   analyse: (atFen, multipv, depth, movetime, signal) => analyseMulti(atFen, multipv, depth, movetime, signal),
   cloudEval,
