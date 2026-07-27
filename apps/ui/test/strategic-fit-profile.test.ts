@@ -67,6 +67,14 @@ test("Balanced is canonical and all four profile modes use the documented option
     avoided_concept_ids: [],
     preferred_tactical_character: [],
     minimum_opponent_coverage: null,
+    feature_family_weights: {
+      "pawn-topology": 1,
+      "center-dynamics": 1,
+      "king-and-piece-setup": 1,
+      "space-and-files": 1,
+      "dynamic-character": 1,
+      "learning-concepts": 1,
+    },
   });
 
   for (const mode of ["familiar-plans", "balanced", "versatile", "custom"] as const) {
@@ -198,6 +206,14 @@ test("advanced values clamp deterministically while malformed edits preserve sib
     avoided_concept_ids: [],
     preferred_tactical_character: ["sharp", "quiet"],
     minimum_opponent_coverage: 0,
+    feature_family_weights: {
+      "pawn-topology": 1,
+      "center-dynamics": 1,
+      "king-and-piece-setup": 1,
+      "space-and-files": 1,
+      "dynamic-character": 1,
+      "learning-concepts": 1,
+    },
   });
 
   fixture.state.updateCustom({

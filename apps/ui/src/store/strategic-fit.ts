@@ -25,6 +25,10 @@ import {
   type StrategicFitReanalysisSummary,
 } from "./strategic-fit-reanalysis";
 import { strategicFitWorkspaceOpen } from "./ui";
+import {
+  strategicFitDataSourceCommandArguments,
+  strategicFitDataSourceIdentity,
+} from "./strategic-fit-data-sources";
 import type { BrowserCommandExecutionOptions } from "../application/browser-commands/types";
 
 export type StrategicFitLifecycleStatus =
@@ -96,6 +100,7 @@ export interface StrategicFitLifecycleSnapshot {
 
 export interface StrategicFitLifecycleBoundary {
   currentSnapshot(): StrategicFitRequestSnapshot;
+  currentCommandArguments?(): Record<string, unknown>;
   execute(
     command: "analyze_repertoire_congruence",
     args: Record<string, unknown>,
@@ -131,6 +136,7 @@ interface ActiveRequest {
   readonly controller: AbortController;
   readonly snapshot: StrategicFitRequestSnapshot;
   readonly reanalysis: StrategicFitReanalysisRequest | null;
+  readonly commandArguments: Record<string, unknown>;
   reconciling: boolean;
 }
 
@@ -226,7 +232,7 @@ function staleReason(
   if (previous.profile_identity !== current.profile_identity) {
     return "The Strategic Fit profile changed.";
   }
-  return "Strategic Fit resolutions or analysis overrides changed.";
+  return "Strategic Fit data sources, resolutions, or analysis overrides changed.";
 }
 
 function commandError(value: unknown): StrategicFitLifecycleError | null {
@@ -344,6 +350,7 @@ export function createStrategicFitLifecycleState(
     let offset = 0;
     while (offset < report.finding_page.total_count) {
       const value = await boundary.execute("analyze_repertoire_congruence", {
+        ...request.commandArguments,
         sort: "finding-id",
         page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
       }, { signal: request.controller.signal });
@@ -375,6 +382,7 @@ export function createStrategicFitLifecycleState(
       controller: new AbortController(),
       snapshot: boundary.currentSnapshot(),
       reanalysis,
+      commandArguments: boundary.currentCommandArguments?.() ?? {},
       reconciling: false,
     };
     active = request;
@@ -391,7 +399,7 @@ export function createStrategicFitLifecycleState(
     }));
 
     try {
-      const value = await boundary.execute("analyze_repertoire_congruence", {}, {
+      const value = await boundary.execute("analyze_repertoire_congruence", request.commandArguments, {
         signal: request.controller.signal,
         onProgress: (done, total, detail) => {
           if (active !== request || request.controller.signal.aborted) return;
@@ -500,9 +508,13 @@ export function createStrategicFitLifecycleState(
         completedSnapshot = afterReconciliation;
         if (reconciled.requires_follow_up) {
           const followUpSnapshot = afterReconciliation;
-          const followUpValue = await boundary.execute("analyze_repertoire_congruence", {}, {
+          const followUpValue = await boundary.execute(
+            "analyze_repertoire_congruence",
+            boundary.currentCommandArguments?.() ?? {},
+            {
             signal: request.controller.signal,
-          });
+            },
+          );
           if (active !== request || request.controller.signal.aborted) return;
           const followUpError = commandError(followUpValue);
           if (followUpError !== null) {
@@ -684,6 +696,7 @@ function currentBrowserSnapshot(): StrategicFitRequestSnapshot {
 
 const browserLifecycle = createStrategicFitLifecycleState({
   currentSnapshot: currentBrowserSnapshot,
+  currentCommandArguments: strategicFitDataSourceCommandArguments,
   execute: (command, args, options) => executeDirectBrowserCommand(command, args, options),
   now: () => new Date().toISOString(),
   reconcileReports(previous, next, nextFindings, request) {
@@ -729,6 +742,7 @@ const browserLifecycle = createStrategicFitLifecycleState({
 });
 let lifecycleWatcherStarted = false;
 let observedBrowserSnapshot: StrategicFitRequestSnapshot | null = null;
+let observedBrowserDataSourceIdentity: string | null = null;
 let pendingBrowserReanalysis: StrategicFitReanalysisRequest | null = null;
 let browserReanalysisQueued = false;
 
@@ -775,11 +789,14 @@ export function startStrategicFitLifecycle(): void {
   lifecycleWatcherStarted = true;
   createEffect(() => {
     const current = currentBrowserSnapshot();
+    const dataSourceIdentity = strategicFitDataSourceIdentity();
     const workspaceOpen = strategicFitWorkspaceOpen();
     // Lifecycle state/progress writes must not retrigger graph/settings identity construction.
     untrack(() => {
       const previous = observedBrowserSnapshot;
+      const previousDataSourceIdentity = observedBrowserDataSourceIdentity;
       observedBrowserSnapshot = current;
+      observedBrowserDataSourceIdentity = dataSourceIdentity;
       browserLifecycle.synchronize(current);
       if (!workspaceOpen || previous === null || previous.document_id !== current.document_id) return;
       const completed = browserLifecycle.snapshot().last_completed;
@@ -790,6 +807,18 @@ export function startStrategicFitLifecycle(): void {
           completed.request_snapshot,
           current,
           "profile-change",
+        ));
+        return;
+      }
+      if (
+        previousDataSourceIdentity !== null
+        && previousDataSourceIdentity !== dataSourceIdentity
+      ) {
+        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
+          completed.result,
+          completed.request_snapshot,
+          current,
+          "source-change",
         ));
         return;
       }

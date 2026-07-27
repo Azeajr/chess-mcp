@@ -37,6 +37,8 @@ export interface StrategicFitProfilePreferences {
   readonly avoided_concept_ids: readonly string[];
   readonly preferred_tactical_character: readonly string[];
   readonly minimum_opponent_coverage: number | null;
+  /** Relative importance of each explainable feature family in strategic distance. */
+  readonly feature_family_weights: Readonly<Record<StrategicSignalFamily, number>>;
 }
 
 export interface StrategicFitProfile extends SchemaVersioned {

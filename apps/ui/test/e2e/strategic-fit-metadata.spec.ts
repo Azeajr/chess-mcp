@@ -420,7 +420,7 @@ test("corrupt persisted metadata falls back visibly with structured issues and i
   await chess(page, (api) => api.flushStrategicFitMetadata());
   expect(await idbValue(page, `strategicFitMetadata:${id}`)).toMatchObject({
     metadata_kind: "chess-mcp/strategic-fit-document-metadata",
-    metadata_version: "1.3.0",
+    metadata_version: "1.5.0",
     resolutions: [],
   });
 });

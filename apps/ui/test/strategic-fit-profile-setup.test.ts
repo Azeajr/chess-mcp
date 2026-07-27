@@ -119,6 +119,14 @@ test("Custom forwards every advanced preference through the existing canonical p
     avoided_concept_ids: ["isolated-queen-pawn"],
     preferred_tactical_character: ["forcing", "sharp"],
     minimum_opponent_coverage: 0.9,
+    feature_family_weights: {
+      "pawn-topology": 2,
+      "center-dynamics": 1,
+      "king-and-piece-setup": 0.5,
+      "space-and-files": 1,
+      "dynamic-character": 1.5,
+      "learning-concepts": 3,
+    },
   };
 
   fixture.state.complete("custom", preferences);

@@ -18,6 +18,7 @@ import type { StrategicExplicitModeTarget } from "./modes.js";
 import type {
   StrategicFitProfileMode,
   StrategicFitProfilePreferences,
+  StrategicSignalFamily,
   StrategicFitSourceProvenance,
 } from "./types.js";
 import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
@@ -44,6 +45,7 @@ export interface StrategicFitToolProfilePreferencesInput {
   readonly avoided_concept_ids?: readonly string[];
   readonly preferred_tactical_character?: readonly string[];
   readonly minimum_opponent_coverage?: number;
+  readonly feature_family_weights?: Partial<Readonly<Record<StrategicSignalFamily, number>>>;
 }
 
 export interface StrategicFitToolProfileInput {
@@ -159,6 +161,14 @@ const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freez
   avoided_concept_ids: [],
   preferred_tactical_character: [],
   minimum_opponent_coverage: null,
+  feature_family_weights: {
+    "pawn-topology": 1,
+    "center-dynamics": 1,
+    "king-and-piece-setup": 1,
+    "space-and-files": 1,
+    "dynamic-character": 1,
+    "learning-concepts": 1,
+  },
 });
 
 function profilePreferences(
@@ -172,6 +182,10 @@ function profilePreferences(
     avoided_concept_ids: [...(input?.avoided_concept_ids ?? [])],
     preferred_tactical_character: [...(input?.preferred_tactical_character ?? [])],
     minimum_opponent_coverage: input?.minimum_opponent_coverage ?? null,
+    feature_family_weights: {
+      ...DEFAULT_PROFILE_PREFERENCES.feature_family_weights,
+      ...(input?.feature_family_weights ?? {}),
+    },
   };
 }
 

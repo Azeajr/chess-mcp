@@ -24,7 +24,7 @@ export const STRATEGIC_FIT_ANALYSIS_MANIFEST: StrategicFitAnalysisManifest = Obj
     "training-performance": "1.0.0",
     cohorts: "1.0.0",
     modes: "1.0.0",
-    distance: "1.0.0",
+    distance: "1.1.0",
     confidence: "1.0.0",
     causality: "1.0.0",
     findings: "1.0.0",

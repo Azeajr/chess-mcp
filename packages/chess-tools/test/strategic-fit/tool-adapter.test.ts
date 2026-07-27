@@ -69,6 +69,14 @@ test("public Strategic Fit arguments map deterministically to shared analyzer op
       avoided_concept_ids: [],
       preferred_tactical_character: [],
       minimum_opponent_coverage: null,
+      feature_family_weights: {
+        "pawn-topology": 1,
+        "center-dynamics": 1,
+        "king-and-piece-setup": 1,
+        "space-and-files": 1,
+        "dynamic-character": 1,
+        "learning-concepts": 1,
+      },
     },
   });
   assert.equal(options.weighting?.route_weights?.[0]?.provenance?.[0]?.source_id, "strategic-fit:tool-input");

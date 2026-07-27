@@ -1,7 +1,9 @@
 import { For, createSignal } from "solid-js";
-import type {
-  StrategicFitProfileMode,
-  StrategicFitProfilePreferences,
+import {
+  STRATEGIC_SIGNAL_FAMILIES,
+  type StrategicSignalFamily,
+  type StrategicFitProfileMode,
+  type StrategicFitProfilePreferences,
 } from "@chess-mcp/chess-tools";
 import {
   completeStrategicFitProfileSetup,
@@ -40,12 +42,22 @@ const PROFILE_OPTIONS: readonly {
   },
 ];
 
+const FAMILY_LABELS: Readonly<Record<StrategicSignalFamily, string>> = {
+  "pawn-topology": "Pawn structure",
+  "center-dynamics": "Center dynamics",
+  "king-and-piece-setup": "King and piece setup",
+  "space-and-files": "Space and open files",
+  "dynamic-character": "Dynamic character",
+  "learning-concepts": "Learning concepts",
+};
+
 function clonePreferences(preferences: StrategicFitProfilePreferences): StrategicFitProfilePreferences {
   return {
     ...preferences,
     preferred_concept_ids: [...preferences.preferred_concept_ids],
     avoided_concept_ids: [...preferences.avoided_concept_ids],
     preferred_tactical_character: [...preferences.preferred_tactical_character],
+    feature_family_weights: { ...preferences.feature_family_weights },
   };
 }
 
@@ -133,6 +145,21 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
           </p>
 
           <div class="strategic-fit-profile-fields">
+            <For each={STRATEGIC_SIGNAL_FAMILIES}>{(family) => (
+              <label>
+                <span>{FAMILY_LABELS[family]} weight</span>
+                <span class="strategic-fit-field-help">0 ignores this family; 1 is standard; 3 gives it the strongest influence on strategic distance.</span>
+                <div class="strategic-fit-range-row">
+                  <input type="range" min="0" max="3" step="0.25"
+                    value={preferences().feature_family_weights[family]}
+                    onInput={(event) => updatePreference("feature_family_weights", {
+                      ...preferences().feature_family_weights,
+                      [family]: Number(event.currentTarget.value),
+                    })} />
+                  <output>{preferences().feature_family_weights[family].toFixed(2)}</output>
+                </div>
+              </label>
+            )}</For>
             <label>
               <span>Maximum acceptable engine loss</span>
               <span class="strategic-fit-field-help" id="strategic-fit-engine-loss-help">

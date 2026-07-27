@@ -6,6 +6,7 @@
  * wired through Task 4.3's debounced metadata boundary.
  */
 import {
+  STRATEGIC_SIGNAL_FAMILIES,
   STRATEGIC_FIT_PROFILE_MODES,
   createDefaultStrategicFitDocumentMetadata,
   type StrategicFitDocumentMetadata,
@@ -13,6 +14,7 @@ import {
   type StrategicFitProfile,
   type StrategicFitProfileMode,
   type StrategicFitProfilePreferences,
+  type StrategicSignalFamily,
 } from "@chess-mcp/chess-tools";
 import { createSignal } from "solid-js";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
@@ -63,6 +65,7 @@ function clonePreferences(preferences: StrategicFitProfilePreferences): Strategi
     preferred_concept_ids: [...preferences.preferred_concept_ids],
     avoided_concept_ids: [...preferences.avoided_concept_ids],
     preferred_tactical_character: [...preferences.preferred_tactical_character],
+    feature_family_weights: { ...preferences.feature_family_weights },
   };
 }
 
@@ -103,6 +106,19 @@ function stringList(value: unknown, fallback: readonly string[]): string[] {
     result.push(normalized);
   }
   return result;
+}
+
+function featureFamilyWeights(
+  value: unknown,
+  fallback: Readonly<Record<StrategicSignalFamily, number>>,
+): Record<StrategicSignalFamily, number> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return { ...fallback };
+  const candidate = value as Record<string, unknown>;
+  const result = Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [
+    family,
+    boundedNumber(candidate[family], fallback[family], 0, 3),
+  ])) as Record<StrategicSignalFamily, number>;
+  return Object.values(result).every((weight) => weight === 0) ? { ...fallback } : result;
 }
 
 /** Normalize an advanced preference patch without allowing one malformed value to reset siblings. */
@@ -154,6 +170,10 @@ export function normalizeStrategicFitProfilePreferences(
       base.minimum_opponent_coverage,
       0,
       1,
+    ),
+    feature_family_weights: featureFamilyWeights(
+      patch.feature_family_weights,
+      base.feature_family_weights,
     ),
   };
 }

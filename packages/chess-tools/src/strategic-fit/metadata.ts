@@ -18,6 +18,7 @@ import type {
   StrategicFitProfileMode,
   StrategicFitProfilePreferences,
   StrategicFitProfileSource,
+  StrategicSignalFamily,
   StrategicFitSourceKind,
   StrategicFitSourceProvenance,
   StrategicFitSourceState,
@@ -31,6 +32,7 @@ import {
   STRATEGIC_FIT_PROFILE_SOURCES,
   STRATEGIC_FIT_SOURCE_KINDS,
   STRATEGIC_FIT_SOURCE_STATES,
+  STRATEGIC_SIGNAL_FAMILIES,
 } from "./types.js";
 import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightInput } from "./weights.js";
@@ -46,7 +48,7 @@ import {
 } from "./intent-comments.js";
 
 /** This version advances independently from analysis reports and component manifests. */
-export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.4.0";
+export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.5.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = [
   "0.1.0",
@@ -54,6 +56,7 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = [
   "1.1.0",
   "1.2.0",
   "1.3.0",
+  "1.4.0",
 ] as const;
 
 export const STRATEGIC_FIT_METADATA_RECORD_STATES = ["active", "stale"] as const;
@@ -216,7 +219,12 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string,
     "1.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.2.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.3.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    "1.4.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   });
+
+const DEFAULT_FEATURE_FAMILY_WEIGHTS: Readonly<Record<StrategicSignalFamily, number>> =
+  Object.freeze(Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [family, 1])) as
+    Record<StrategicSignalFamily, number>);
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
   maximum_engine_loss_cp: null,
@@ -228,6 +236,7 @@ const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freez
   avoided_concept_ids: Object.freeze([]),
   preferred_tactical_character: Object.freeze([]),
   minimum_opponent_coverage: null,
+  feature_family_weights: DEFAULT_FEATURE_FAMILY_WEIGHTS,
 });
 
 interface NormalizationContext {
@@ -273,6 +282,7 @@ export function strategicFitProfileSnapshot(profile: StrategicFitProfile): strin
       avoided_concept_ids: [...profile.preferences.avoided_concept_ids],
       preferred_tactical_character: [...profile.preferences.preferred_tactical_character],
       minimum_opponent_coverage: profile.preferences.minimum_opponent_coverage,
+      feature_family_weights: { ...profile.preferences.feature_family_weights },
     },
   });
 }
@@ -288,6 +298,7 @@ function defaultProfile(): StrategicFitProfile {
       preferred_concept_ids: [],
       avoided_concept_ids: [],
       preferred_tactical_character: [],
+      feature_family_weights: { ...DEFAULT_FEATURE_FAMILY_WEIGHTS },
     },
   };
 }
@@ -494,6 +505,7 @@ function profilePreferences(
       "avoided_concept_ids",
       "preferred_tactical_character",
       "minimum_opponent_coverage",
+      "feature_family_weights",
     ]),
     path,
     context,
@@ -508,10 +520,30 @@ function profilePreferences(
   const minimumCoverage = value.minimum_opponent_coverage === null
     ? null
     : finiteNumber(value.minimum_opponent_coverage, 0, 1);
+  let familyWeights: Record<StrategicSignalFamily, number | null> | null;
+  const rawFamilyWeights = value.feature_family_weights;
+  if (isRecord(rawFamilyWeights)) {
+    unknownFields(
+      rawFamilyWeights,
+      new Set(STRATEGIC_SIGNAL_FAMILIES),
+      `${path}.feature_family_weights`,
+      context,
+    );
+    familyWeights = Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [
+      family,
+      finiteNumber(rawFamilyWeights[family], 0, 3),
+    ])) as Record<StrategicSignalFamily, number | null>;
+  } else {
+    familyWeights = rawFamilyWeights === undefined
+      ? { ...DEFAULT_FEATURE_FAMILY_WEIGHTS }
+      : null;
+  }
   if (
     maximumEngineLoss === null && value.maximum_engine_loss_cp !== null ||
     opponentPopularity === null || personalFrequency === null || manualWeight === null ||
-    memorizationTolerance === null || minimumCoverage === null && value.minimum_opponent_coverage !== null
+    memorizationTolerance === null || minimumCoverage === null && value.minimum_opponent_coverage !== null ||
+    familyWeights === null || Object.values(familyWeights).some((weight) => weight === null) ||
+    familyWeights !== null && Object.values(familyWeights).every((weight) => weight === 0)
   ) {
     issue(context, "invalid-field", path, "Profile preference numbers are outside the supported ranges.");
     return null;
@@ -530,6 +562,7 @@ function profilePreferences(
       context,
     ),
     minimum_opponent_coverage: minimumCoverage,
+    feature_family_weights: familyWeights as Record<StrategicSignalFamily, number>,
   };
 }
 

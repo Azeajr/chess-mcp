@@ -56,6 +56,15 @@ branch counts toward the population or equal baseline. Missing PGNs and unavaila
 explicitly insufficient or unavailable rather than becoming zero frequency. Population, personal,
 and manual estimates can be combined: the current profile's usable coefficients are normalized,
 unavailable sources contribute zero, and equal mode ignores enrichments.
+After first-run setup, the workspace keeps Familiar plans, Balanced, and Versatile as one-click
+presets and exposes Custom through progressive disclosure. Custom settings cover bounded
+feature-family weights, engine-loss tolerance, minimum coverage, memorization tolerance, explicit
+preferred/avoided concepts, population filters, and a Lichess or Chess.com personal-history source.
+Every advanced value explains its current impact; evaluation and coverage constraints are labeled
+as later-alternative constraints rather than pretending to change the engine-free base scan. A
+visible source-status grid distinguishes ready, off, unavailable, and unobserved evidence. Before
+saving, an affected-metrics preview explains which frequency, distance, priority, or training metrics
+will be recalculated. Saving invalidates/reanalyzes immutable reports and never edits the tree.
 Strategic Fit training attempts are stored per document in a separate versioned IndexedDB record and
 can be imported or exported as strict JSON. Registered drills remain explicitly untrained until an
 attempt records recall; missing response time or confidence stays missing, while stale semantic
@@ -73,5 +82,6 @@ become versioned structured document metadata that round-trips through the canon
 ## Persistence
 
 The current document autosaves in IndexedDB. Browser file APIs open and save PGN without routing
-content through the model. Settings keep model and token configuration locally. The production
+content through the model. Settings keep model, token, and Strategic Fit source-filter configuration
+locally; the canonical document sidecar keeps the profile itself. The production
 build is an installable PWA and packages browser Stockfish assets during build.

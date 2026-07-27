@@ -28,6 +28,12 @@ import {
   strategicFitProfileSetupRequired,
 } from "./store/strategic-fit-profile-setup";
 import {
+  strategicFitDataSourceCommandArguments,
+  strategicFitDataSourceIdentity,
+  strategicFitDataSourceSettings,
+  updateStrategicFitDataSourceSettings,
+} from "./store/strategic-fit-data-sources";
+import {
   analyzeStrategicFit,
   cancelStrategicFitAnalysis,
   retryStrategicFitAnalysis,
@@ -110,6 +116,10 @@ if (import.meta.env.DEV) {
     strategicFitProfileSetupRequired,
     skipStrategicFitProfileSetup,
     completeStrategicFitProfileSetup,
+    strategicFitDataSourceSettings,
+    strategicFitDataSourceIdentity,
+    strategicFitDataSourceCommandArguments,
+    updateStrategicFitDataSourceSettings,
     strategicFitLifecycle,
     analyzeStrategicFit,
     cancelStrategicFitAnalysis,

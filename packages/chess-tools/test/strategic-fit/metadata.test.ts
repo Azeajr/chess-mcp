@@ -55,6 +55,14 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
         avoided_concept_ids: ["concept:opposite-castling"],
         preferred_tactical_character: ["quiet"],
         minimum_opponent_coverage: 0.94,
+        feature_family_weights: {
+          "pawn-topology": 2,
+          "center-dynamics": 1.5,
+          "king-and-piece-setup": 1,
+          "space-and-files": 0.75,
+          "dynamic-character": 0.5,
+          "learning-concepts": 2.5,
+        },
       },
     },
     manual_weights: {
@@ -152,7 +160,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
   assert.notEqual(first, second);
   assert.notEqual(first.profile, second.profile);
   assert.equal(first.metadata_kind, "chess-mcp/strategic-fit-document-metadata");
-  assert.equal(first.metadata_version, "1.4.0");
+  assert.equal(first.metadata_version, "1.5.0");
   assert.deepEqual(first.profile, {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "balanced",
@@ -168,6 +176,14 @@ test("empty metadata defaults are complete, deterministic, and independently all
       avoided_concept_ids: [],
       preferred_tactical_character: [],
       minimum_opponent_coverage: null,
+      feature_family_weights: {
+        "pawn-topology": 1,
+        "center-dynamics": 1,
+        "king-and-piece-setup": 1,
+        "space-and-files": 1,
+        "dynamic-character": 1,
+        "learning-concepts": 1,
+      },
     },
   });
   assert.deepEqual({
@@ -293,6 +309,27 @@ test("the 1.3.0 migration adds empty PGN comment intent decisions", () => {
   assert.deepEqual(result.metadata, { ...supported, comment_intents: [] });
 });
 
+test("the 1.4.0 migration adds equal feature-family weights without losing profile intent", () => {
+  const supported = supportedMetadata();
+  const legacy = structuredClone(supported) as unknown as Record<string, any>;
+  legacy.metadata_version = "1.4.0";
+  delete legacy.profile.preferences.feature_family_weights;
+
+  const result = normalizeStrategicFitDocumentMetadata(legacy);
+  assert.equal(result.state, "migrated");
+  assert.equal(result.source_version, "1.4.0");
+  assert.deepEqual(result.metadata.profile.preferences.feature_family_weights, {
+    "pawn-topology": 1,
+    "center-dynamics": 1,
+    "king-and-piece-setup": 1,
+    "space-and-files": 1,
+    "dynamic-character": 1,
+    "learning-concepts": 1,
+  });
+  assert.equal(result.metadata.profile.preferences.maximum_engine_loss_cp, 32);
+  assert.deepEqual(result.metadata.profile.preferences.preferred_concept_ids, ["concept:iqp"]);
+});
+
 test("legacy metadata cannot smuggle comment intent decisions into the new collection", () => {
   const supported = supportedMetadata();
   const result = normalizeStrategicFitDocumentMetadata({
@@ -386,6 +423,7 @@ test("unknown future fields are ignored while every supported field survives", (
   input.future_summary = { format: 2 };
   input.profile.future_profile_setting = true;
   input.profile.preferences.future_weight = 0.9;
+  input.profile.preferences.feature_family_weights.future_family = 2;
   input.manual_weights.route_weights[0].future_source = "new-provider";
   input.resolutions[0].references.future_position_alias = "alias:1";
 
@@ -412,6 +450,7 @@ test("explicit whitelists prevent credentials and secret-bearing fields from sur
   input.token = secret;
   input.profile.authorization = secret;
   input.profile.preferences.openrouter_api_key = secret;
+  input.profile.preferences.feature_family_weights.access_token = secret;
   input.manual_weights.route_weights[0].access_token = secret;
   input.cohort_overrides[0].credentials = { password: secret };
   input.exclusions[0].apiKey = secret;

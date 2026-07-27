@@ -78,6 +78,22 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
   expect(await contrastViolations(dialog)).toEqual([]);
 });
 
+test("custom profile settings remain accessible and overflow-free on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { dialog } = await openWorkspace(page, true);
+  const customize = dialog.getByRole("button", { name: "Customize" });
+  await expect(customize).toHaveAttribute("aria-expanded", "false");
+  await customize.click();
+  await expect(dialog.getByRole("button", { name: "Close custom settings" })).toHaveAttribute("aria-expanded", "true");
+  await expect(dialog.getByLabel("Center dynamics weight")).toBeVisible();
+  await dialog.getByText("Data sources and weighting", { exact: true }).click();
+  await expect(dialog.getByLabel("Data-source status")).toBeVisible();
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expectBasicAccessibility(dialog);
+  expect(await touchTargetViolations(dialog)).toEqual([]);
+  expect(await contrastViolations(dialog)).toEqual([]);
+});
+
 test("reduced-motion preference disables workspace animation and transition", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const { dialog } = await openWorkspace(page, true);

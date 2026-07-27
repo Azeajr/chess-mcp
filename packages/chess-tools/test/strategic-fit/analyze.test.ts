@@ -9,6 +9,7 @@ import {
   STRATEGIC_FIT_SCHEMA_VERSION,
   StrategicFitAnalysisCancelledError,
   analyzeStrategicFit,
+  strategicFitProfileDistanceOptions,
   buildRepertoireGraph,
   type StrategicFitProgress,
 } from "../../src/index.ts";
@@ -81,6 +82,14 @@ test("the analyzer applies profile source coefficients before cohort and metric 
         avoided_concept_ids: [],
         preferred_tactical_character: [],
         minimum_opponent_coverage: null,
+        feature_family_weights: {
+          "pawn-topology": 3,
+          "center-dynamics": 2,
+          "king-and-piece-setup": 1,
+          "space-and-files": 0.5,
+          "dynamic-character": 0.25,
+          "learning-concepts": 0,
+        },
       },
     },
     weighting: {
@@ -106,6 +115,14 @@ test("the analyzer applies profile source coefficients before cohort and metric 
     source.source_id === "strategic-fit:weight-composition"
   );
   assert.equal(composition?.snapshot, "market=0.75:used,personal=0.25:used,manual=0:unavailable");
+  assert.deepEqual(strategicFitProfileDistanceOptions(report.profile).feature_family_weights, {
+    "pawn-topology": 3,
+    "center-dynamics": 2,
+    "king-and-piece-setup": 1,
+    "space-and-files": 0.5,
+    "dynamic-character": 0.25,
+    "learning-concepts": 0,
+  });
 });
 
 test("progress traverses the six frozen phases monotonically", () => {

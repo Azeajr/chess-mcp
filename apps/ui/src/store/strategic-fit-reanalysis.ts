@@ -11,6 +11,7 @@ import type { StrategicFitRequestSnapshot } from "./strategic-fit";
 export type StrategicFitReanalysisTrigger =
   | "document-change"
   | "profile-change"
+  | "source-change"
   | "training-change"
   | "resolution-change"
   | "cohort-override"

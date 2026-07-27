@@ -154,6 +154,14 @@ export interface AnalyzeStrategicFitOptions {
   readonly onProgress?: (progress: StrategicFitProgress) => void;
 }
 
+/** Resolve profile feature weights unless an explicit one-off analyzer override was supplied. */
+export function strategicFitProfileDistanceOptions(
+  profile: StrategicFitProfile,
+  override?: StrategicDistanceOptions,
+): StrategicDistanceOptions {
+  return override ?? { feature_family_weights: profile.preferences.feature_family_weights };
+}
+
 /** A page is a projection of one immutable logical report, not a separate analysis result. */
 export interface StrategicFitAnalysisResult extends StrategicFitReport {
   readonly finding_page: StrategicFitFindingPage;
@@ -323,6 +331,14 @@ function defaultProfile(): StrategicFitProfile {
       avoided_concept_ids: [],
       preferred_tactical_character: [],
       minimum_opponent_coverage: null,
+      feature_family_weights: {
+        "pawn-topology": 1,
+        "center-dynamics": 1,
+        "king-and-piece-setup": 1,
+        "space-and-files": 1,
+        "dynamic-character": 1,
+        "learning-concepts": 1,
+      },
     },
   };
 }
@@ -1112,7 +1128,7 @@ export function analyzeStrategicFit(
       patterns.modes,
       comparable.trajectories,
       patterns.concepts,
-      options.distance,
+      strategicFitProfileDistanceOptions(profile, options.distance),
     )
   );
 

@@ -61,6 +61,14 @@ const profile = {
     avoided_concept_ids: [],
     preferred_tactical_character: [],
     minimum_opponent_coverage: null,
+    feature_family_weights: {
+      "pawn-topology": 1,
+      "center-dynamics": 1,
+      "king-and-piece-setup": 1,
+      "space-and-files": 1,
+      "dynamic-character": 1,
+      "learning-concepts": 1,
+    },
   },
 } satisfies StrategicFitProfile;
 

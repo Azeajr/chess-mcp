@@ -111,6 +111,14 @@ const strategicFitProfileSchema = z.object({
     avoided_concept_ids: strategicFitIdListSchema(128).optional(),
     preferred_tactical_character: z.array(z.string().max(128)).max(32).optional(),
     minimum_opponent_coverage: z.number().min(0).max(1).optional(),
+    feature_family_weights: z.object({
+      "pawn-topology": z.number().min(0).max(3).optional(),
+      "center-dynamics": z.number().min(0).max(3).optional(),
+      "king-and-piece-setup": z.number().min(0).max(3).optional(),
+      "space-and-files": z.number().min(0).max(3).optional(),
+      "dynamic-character": z.number().min(0).max(3).optional(),
+      "learning-concepts": z.number().min(0).max(3).optional(),
+    }).strict().optional(),
   }).strict().optional(),
 }).strict();
 const strategicFitWeightingSchema = z.object({

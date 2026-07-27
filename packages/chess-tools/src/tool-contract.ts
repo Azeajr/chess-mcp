@@ -94,6 +94,14 @@ const strategicFitProfile = object({
     avoided_concept_ids: strategicFitIdList(undefined, 128),
     preferred_tactical_character: array(string(undefined, 128), undefined, 32),
     minimum_opponent_coverage: number(0, 1),
+    feature_family_weights: object({
+      "pawn-topology": number(0, 3),
+      "center-dynamics": number(0, 3),
+      "king-and-piece-setup": number(0, 3),
+      "space-and-files": number(0, 3),
+      "dynamic-character": number(0, 3),
+      "learning-concepts": number(0, 3),
+    }),
   }),
 }, ["mode"]);
 const strategicFitWeighting = object({
@@ -165,7 +173,7 @@ export const TOOL_CONTRACTS = [
   define("get_structural_profile", "Return a repertoire-wide pawn-structure profile or one position selected by SAN path.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array() }, mcpRequired: ["repertoire_id"] }),
   define(
     "analyze_repertoire_congruence",
-    "Analyze Strategic Fit across transposition-aware repertoire routes with profile-composed manual, population, and personal-history frequency plus browser-local training mastery; returns native V2 evidence and a temporary legacy projection.",
+    "Analyze Strategic Fit across transposition-aware repertoire routes with bounded custom feature-family weights, profile-composed manual/population/personal-history frequency, source filters, and browser-local training mastery; returns native V2 evidence and a temporary legacy projection.",
     ["repertoire", "game", "network"],
     BOTH,
     { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, personal_history_platform: "lichess", personal_history_max_games: 30, page_limit: 50, legacy_projection_limit: 10 },

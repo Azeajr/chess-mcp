@@ -114,9 +114,18 @@ the clone-safe Worker/cache boundary. Familiarity-adjusted coverage, training-ad
 repertoire regret report the exact expected-route coverage of their market, mastery, and viable-
 replacement components; missing observations never become zero mastery or failed training.
 
+The browser Strategic Fit workspace owns a persisted, host-local source-settings record. It turns
+the selected popularity population and personal-history account into canonical command arguments;
+the pure analyzer still receives only injected evidence. Source-settings identity joins profile,
+document, resolution, and training identity in stale-result rejection and cache invalidation. The
+document profile now carries bounded per-family distance weights, which the analyzer applies unless
+an explicit one-off distance override is supplied. Profile metadata `1.5.0` migrates older profiles
+to equal family weights while preserving every prior explicit preference. Settings drafts preview
+affected metrics and never mutate the repertoire tree.
+
 PGN intent detection is a pure, deterministic read of game- and move-level comments plus the
 canonical repertoire graph. Supported tags and phrases produce exact-source, SAN-path, and semantic
-reference suggestions; the browser alone presents confirmation. The metadata `1.4.0` collection
+reference suggestions; the browser alone presents confirmation. The metadata `1.5.0` collection
 stores confirmed or rejected decisions by exact suggestion identity and the JSON sidecar merges
 them by that identity. Detection and decisions never mutate PGN comments, and changed text produces
 a new pending identity instead of inheriting an old rejection.

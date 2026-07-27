@@ -15,6 +15,7 @@ type StrategicFitProfile = {
     avoided_concept_ids: string[];
     preferred_tactical_character: string[];
     minimum_opponent_coverage: number | null;
+    feature_family_weights: Record<string, number>;
   };
 };
 
@@ -37,6 +38,9 @@ type ChessHarness = {
   strategicFitProfile(): StrategicFitProfile;
   strategicFitProfileSetupRequired(): boolean;
   flushStrategicFitMetadata(): Promise<void>;
+  strategicFitDataSourceSettings(): any;
+  strategicFitDataSourceCommandArguments(): Record<string, unknown>;
+  strategicFitLifecycle(): { status: string; current_result: { report_id: string } | null };
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
@@ -300,4 +304,74 @@ test("setup has a keyboard-safe phone layout and accessible advanced controls", 
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']")))).toBe(true);
   }
+});
+
+test("post-setup custom settings preview, clamp, persist, invalidate reports, and never edit the tree", async ({ page }) => {
+  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *", "custom-settings.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  const before = await appSnapshot(page);
+  const { dialog } = await openWorkspace(page);
+  await dialog.getByRole("button", { name: "Use Balanced profile" }).click();
+
+  await expect(dialog.getByRole("heading", { name: "Profile and evidence" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
+  await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 }).toBe("completed");
+  const reportBefore = await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id);
+
+  await dialog.getByRole("button", { name: "Versatile" }).click();
+  await expect.poll(() => chess(page, (api) => api.strategicFitProfile().mode)).toBe("versatile");
+  await dialog.getByRole("button", { name: "Customize" }).click();
+  await expect(dialog.getByText(/Weights are relative/)).toBeVisible();
+  await dialog.getByLabel("Center dynamics weight").fill("2.5");
+
+  await dialog.getByText("Constraints, workload, and concept intent", { exact: true }).click();
+  await dialog.getByLabel("Evaluation tolerance").fill("1500");
+  await dialog.getByLabel("Minimum opponent coverage").fill("92");
+  await dialog.getByLabel("Memorization tolerance").fill("0.2");
+  await dialog.getByLabel("Preferred concepts").fill("minority attack, space");
+  await dialog.getByLabel("Avoided concepts").fill("isolated queen pawn");
+
+  await dialog.getByText("Data sources and weighting", { exact: true }).click();
+  await expect(dialog.getByLabel("Data-source status").getByText("Opening popularity", { exact: true })).toBeVisible();
+  await dialog.getByLabel("Use opening-explorer popularity").check();
+  await expect(dialog.getByLabel("Popularity time controls")).toBeVisible();
+  await expect(dialog.getByLabel("Popularity rating buckets")).toBeVisible();
+  await dialog.getByRole("combobox", { name: /Population/ }).selectOption("masters");
+  await dialog.getByLabel("Maximum positions (1–120)").fill("500");
+  await dialog.getByLabel("Use personal game history").check();
+  await expect(dialog.getByLabel("Data-source status").getByText("Unavailable", { exact: true })).toHaveCount(2);
+  await expect(dialog.getByText(/Expected frequency and every frequency-weighted metric/)).toBeVisible();
+  await expect(dialog.getByText(/engine-free base metrics do not fabricate an effect/)).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Save custom settings" }).click();
+  await expect(dialog.locator(".strategic-fit-settings-announcement")).toContainText("repertoire tree was not edited");
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "custom",
+    preferences: {
+      maximum_engine_loss_cp: 1000,
+      minimum_opponent_coverage: 0.92,
+      additional_memorization_tolerance: 0.2,
+      preferred_concept_ids: ["minority attack", "space"],
+      avoided_concept_ids: ["isolated queen pawn"],
+      feature_family_weights: { "center-dynamics": 2.5 },
+    },
+  });
+  expect(await chess(page, (api) => api.strategicFitDataSourceCommandArguments())).toEqual({
+    popularity: { db: "masters", max_positions: 120 },
+  });
+  expect(await appSnapshot(page)).toEqual(before);
+  await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 }).toBe("completed");
+  expect(await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id)).not.toBe(reportBefore);
+
+  await chess(page, (api) => api.flushStrategicFitMetadata());
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
+    mode: "custom",
+    preferences: { feature_family_weights: { "center-dynamics": 2.5 } },
+  });
+  expect(await chess(page, (api) => api.strategicFitDataSourceSettings())).toMatchObject({
+    popularity: { enabled: true, db: "masters", max_positions: 120 },
+    personal_history: { enabled: true, username: "" },
+  });
 });

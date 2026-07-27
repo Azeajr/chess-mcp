@@ -28,6 +28,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { color, currentTree, version } from "./game";
+import { strategicFitDataSourceIdentity } from "./strategic-fit-data-sources";
 import { replaceStrategicFitMetadata, strategicFitMetadata } from "./strategic-fit-metadata";
 import { strategicFitProfile } from "./strategic-fit-profile";
 
@@ -737,6 +738,17 @@ export const upsertStrategicFitDecisionWeight = (input: StrategicFitManualWeight
 export const removeStrategicFitDecisionWeight = (decisionId: string) =>
   browserResolutionState.removeDecisionWeight(decisionId);
 export const reconcileStrategicFitSettings = () => browserResolutionState.reconcile();
-export const strategicFitAnalysisSettings = () => browserResolutionState.analysisSettings();
-export const strategicFitAnalysisSettingsIdentity = () =>
-  browserResolutionState.analysisSettingsIdentity();
+export const strategicFitAnalysisSettings = (): StrategicFitAnalysisSettingsSnapshot => {
+  const snapshot = browserResolutionState.analysisSettings();
+  return {
+    ...snapshot,
+    identity: JSON.stringify({
+      analysis: snapshot.identity,
+      data_sources: strategicFitDataSourceIdentity(),
+    }),
+  };
+};
+export const strategicFitAnalysisSettingsIdentity = () => JSON.stringify({
+  analysis: browserResolutionState.analysisSettingsIdentity(),
+  data_sources: strategicFitDataSourceIdentity(),
+});

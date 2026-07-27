@@ -33,7 +33,10 @@ const report = (id: string, revision = "browser:1", extra: Record<string, unknow
   ...extra,
 }) as unknown as StrategicFitAnalysisResult;
 
-function fixture(reconcileReports?: StrategicFitLifecycleBoundary["reconcileReports"]) {
+function fixture(
+  reconcileReports?: StrategicFitLifecycleBoundary["reconcileReports"],
+  currentCommandArguments?: () => Record<string, unknown>,
+) {
   let snapshot: StrategicFitRequestSnapshot = {
     document_id: "document:a",
     repertoire_revision: 1,
@@ -51,6 +54,7 @@ function fixture(reconcileReports?: StrategicFitLifecycleBoundary["reconcileRepo
   }> = [];
   const state = createStrategicFitLifecycleState({
     currentSnapshot: () => ({ ...snapshot }),
+    ...(currentCommandArguments === undefined ? {} : { currentCommandArguments }),
     execute: (command, args, options) => {
       const result = deferred<unknown>();
       calls.push({ command, args, options, result });
@@ -104,6 +108,19 @@ test("idle, running, provisional, and completed transitions use the canonical co
   assert.equal(subject.state.snapshot().last_completed?.report_id, "report:one");
   assert.equal(subject.state.snapshot().progress, null);
   assert.ok(subject.state.snapshot().phase_history.every((phase) => phase.state === "completed"));
+});
+
+test("configured data-source arguments are captured with the request and reach the canonical command", async () => {
+  const sourceArgs = {
+    popularity: { db: "masters", max_positions: 20 },
+    personal_history: { platform: "lichess", username: "player", max_games: 30 },
+  };
+  const subject = fixture(undefined, () => structuredClone(sourceArgs));
+  const pending = subject.state.analyze();
+  assert.deepEqual(subject.calls[0]!.args, sourceArgs);
+  subject.calls[0]!.result.resolve(report("report:sources"));
+  await pending;
+  assert.equal(subject.state.snapshot().status, "completed");
 });
 
 test("reanalysis atomically reconciles settings and publishes the exact resolving revision", async () => {
