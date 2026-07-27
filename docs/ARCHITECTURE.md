@@ -152,6 +152,20 @@ valid, illegal, or stale result. Opponent-controlled and unsupported findings re
 non-actionable results. Selection is read-only, and SAN paths remain navigation references rather
 than pivot identity.
 
+Replacement candidate generation is another pure framework-free layer. It consumes only a validated
+actionable pivot, searches every legal move from that semantic position for prepared graph outcomes,
+and distinguishes existing decisions from graph-supported move-order shortcuts. Hosts may inject
+completed opening-database evidence, including exact population filters and snapshot provenance; the
+domain performs no network access and revalidates each SAN/UCI pair from the pivot position. Missing,
+offline, unavailable, partial, stale, rejected, and illegal evidence remains explicit per source or
+item while usable local candidates survive. Candidates deduplicate by canonical outcome position,
+merge all source kinds and provenance, and deterministically apply the request candidate limit.
+Existing preparation carries only a low-memory rank hint, not later Strategic Fit scoring. Outputs
+are versioned candidate seeds with an explicit `full-subtree-required` expansion state; they cannot
+satisfy the mandatory `ReplacementCandidateSubtree` contract until Phase 8 expansion work covers
+important and forcing opponent replies. Source repertoire, graph, pivot result, and injected evidence
+remain immutable. Public tools, hosts, generated guidance, and Replacement Lab UI are still unchanged.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
