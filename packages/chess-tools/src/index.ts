@@ -147,6 +147,7 @@ export * from "./strategic-fit/intent-comments.js";
 export * from "./strategic-fit/replacement-types.js";
 export * from "./strategic-fit/replacement-pivot.js";
 export * from "./strategic-fit/replacement-candidates.js";
+export * from "./strategic-fit/replacement-engine.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";

@@ -172,7 +172,10 @@ export interface ReplacementCandidateSeed extends StrategicFitReplacementVersion
   readonly outcome_fen: string;
   readonly existing_preparation: boolean;
   readonly memory_class: ReplacementCandidateMemoryClass;
-  readonly rank_hint: "low-memory-existing-preparation" | "database-popularity";
+  readonly rank_hint:
+    | "low-memory-existing-preparation"
+    | "database-popularity"
+    | "engine-objective-quality";
   readonly maximum_database_popularity: number | null;
   readonly source_kinds: readonly ReplacementCandidateSourceKind[];
   /** Navigation only; candidate identity is pivot plus semantic outcome. */

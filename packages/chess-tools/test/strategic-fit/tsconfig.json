@@ -7,5 +7,5 @@
     "sourceMap": false,
     "types": []
   },
-  "include": ["types.compile.ts", "replacement-types.compile.ts", "replacement-pivot.compile.ts", "replacement-candidates.compile.ts"]
+  "include": ["types.compile.ts", "replacement-types.compile.ts", "replacement-pivot.compile.ts", "replacement-candidates.compile.ts", "replacement-engine.compile.ts"]
 }

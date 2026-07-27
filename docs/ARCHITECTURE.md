@@ -166,6 +166,25 @@ satisfy the mandatory `ReplacementCandidateSubtree` contract until Phase 8 expan
 important and forcing opponent replies. Source repertoire, graph, pivot result, and injected evidence
 remain immutable. Public tools, hosts, generated guidance, and Replacement Lab UI are still unchanged.
 
+Replacement engine generation is a separate framework-free enrichment layer over the validated
+pivot and current bounded candidate-seed result. A host-injected provider receives the exact
+semantic pivot position, depth (including 30), bounded MultiPV width, and cancellation signal. Every
+returned root UCI and full PV is replayed legally from that position. White-POV centipawn and mate
+transport stays distinct from repertoire-POV evaluation, mate direction, loss from best, and
+tolerance verdicts. Inspectable engine observations provide tactical volatility, evaluation
+sensitivity, forcing density, king-safety risk, viable-move width, and uncertainty; absent
+observations remain unavailable.
+Engine alternatives merge with local and database seeds by canonical outcome before the global
+candidate limit, while rejected, illegal, malformed, stale, partial, cancelled, unavailable, and
+unverified evidence remains structured per item and source. Read-only cache evidence uses semantic
+position below the 50-move boundary, exact FEN at or above it, and full engine identity/configuration.
+Only complete evidence with every requested legal rank at sufficient depth permits
+deeper-to-shallower and wider-to-narrower reuse. Outputs remain `full-subtree-required` seeds: no PV
+is presented as a coverage-aware candidate before Task 8.5. Source graph, pivot, Task 8.3
+candidates, engine evidence, and cache inputs remain immutable. No Node/browser adapter, public
+tool, generated guidance, plugin, UI, or `suggest_replacement_line` behavior changes at this
+boundary.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
