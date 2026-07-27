@@ -142,6 +142,16 @@ cannot return a partially changed tree on failure. These additive domain types d
 the live `suggest_replacement_line` contract or enable Replacement Lab UI; Phase 8 safety work must
 complete first.
 
+Pivot selection is a pure framework-free refinement over one current finding, its current cohort,
+and the semantic repertoire graph. Automatic selection accepts only one repertoire-owned causal
+decision supported across every affected route; shared, interacting, and multi-path evidence returns
+explicit alternatives without choosing a navigation path. User-selected semantic decisions are
+revalidated against the finding, cohort, revision, color, and graph. Each user SAN line is then
+validated from the selected pivot position with deterministic chess logic and receives an independent
+valid, illegal, or stale result. Opponent-controlled and unsupported findings remain versioned
+non-actionable results. Selection is read-only, and SAN paths remain navigation references rather
+than pivot identity.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
