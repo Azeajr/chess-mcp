@@ -130,6 +130,18 @@ stores confirmed or rejected decisions by exact suggestion identity and the JSON
 them by that identity. Detection and decisions never mutate PGN comments, and changed text produces
 a new pending identity instead of inheriting an old rejection.
 
+Replacement Lab domain transport starts with a framework-free `1.0.0` schema in `chess-tools`.
+Requests bind report, finding, cohort, profile, semantic pivot selection, repertoire color and
+revision, candidate sources, evaluation/coverage constraints, and bounded expansion budgets.
+Candidates always carry a bounded subtree with routes and opponent replies, causal-pivot evidence,
+per-source availability/provenance, separate objective and strategic scores, coverage effects,
+Pareto status, unresolved risks, and explicit archive/prune choices. Engine transport fields name
+White POV explicitly; candidate verdicts and user-facing evaluation fields name repertoire POV.
+Atomic change-set contracts describe ordered clone operations and use a success/failure union that
+cannot return a partially changed tree on failure. These additive domain types do not yet replace
+the live `suggest_replacement_line` contract or enable Replacement Lab UI; Phase 8 safety work must
+complete first.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
