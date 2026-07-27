@@ -55,6 +55,7 @@ export interface StrategicFitSidecarMetadataPresence {
   readonly resolutions: boolean;
   readonly archive_references: boolean;
   readonly training_references: boolean;
+  readonly comment_intents: boolean;
   readonly provenance: boolean;
 }
 
@@ -139,6 +140,7 @@ function completePartialMetadata(value: RecordLike): {
     resolutions: Object.hasOwn(value, "resolutions"),
     archive_references: Object.hasOwn(value, "archive_references"),
     training_references: Object.hasOwn(value, "training_references"),
+    comment_intents: Object.hasOwn(value, "comment_intents"),
     provenance: Object.hasOwn(value, "provenance"),
   };
   return {
@@ -159,6 +161,9 @@ function completePartialMetadata(value: RecordLike): {
       resolutions: presence.resolutions ? value.resolutions : [],
       archive_references: presence.archive_references ? value.archive_references : [],
       training_references: presence.training_references ? value.training_references : [],
+      ...(value.metadata_version === STRATEGIC_FIT_DOCUMENT_METADATA_VERSION
+        ? { comment_intents: presence.comment_intents ? value.comment_intents : [] }
+        : {}),
       provenance: presence.provenance ? value.provenance : [],
     },
   };
@@ -204,7 +209,7 @@ export function parseStrategicFitSidecar(
   const allowedMetadata = new Set([
     "metadata_kind", "metadata_version", "profile", "manual_weights", "cohort_overrides",
     "exclusions", "cohort_labels", "resolutions", "archive_references", "training_references",
-    "provenance",
+    "comment_intents", "provenance",
   ]);
   const unknownMetadata = Object.keys(value.metadata).sort().find((key) => !allowedMetadata.has(key));
   if (unknownMetadata !== undefined) {
@@ -268,6 +273,7 @@ export interface StrategicFitSidecarMergePreview {
     readonly resolutions: StrategicFitSidecarCollectionPreview;
     readonly archive_references: StrategicFitSidecarCollectionPreview;
     readonly training_references: StrategicFitSidecarCollectionPreview;
+    readonly comment_intents: StrategicFitSidecarCollectionPreview;
     readonly provenance: StrategicFitSidecarCollectionPreview;
   };
   readonly merged_metadata: StrategicFitDocumentMetadata;
@@ -346,6 +352,11 @@ export function previewStrategicFitSidecarMerge(
     parsed.presence.training_references ? incoming.training_references : [],
     (entry) => entry.training_id,
   );
+  const commentIntents = mergedRecords(
+    local.comment_intents,
+    parsed.presence.comment_intents ? incoming.comment_intents : [],
+    (entry) => entry.suggestion_id,
+  );
   const provenance = mergedRecords(
     local.provenance,
     parsed.presence.provenance ? incoming.provenance : [],
@@ -364,6 +375,7 @@ export function previewStrategicFitSidecarMerge(
     resolutions: resolutions.records,
     archive_references: archives.records,
     training_references: training.records,
+    comment_intents: commentIntents.records,
     provenance: provenance.records,
   });
   return {
@@ -384,6 +396,7 @@ export function previewStrategicFitSidecarMerge(
       resolutions: resolutions.preview,
       archive_references: archives.preview,
       training_references: training.preview,
+      comment_intents: commentIntents.preview,
       provenance: provenance.preview,
     },
     merged_metadata: merged,

@@ -103,6 +103,23 @@ function metadata(label: string): StrategicFitDocumentMetadata {
       provenance: [SOURCE],
     }],
     resolutions: [resolution("semantic:shared", `resolution:${label}`)],
+    comment_intents: [{
+      decision_id: `comment-intent-decision:${label}`,
+      suggestion_id: "comment-intent:shared",
+      disposition: label === "incoming" ? "confirmed" as const : "rejected" as const,
+      kind: "tournament-weapon" as const,
+      intent_value: "tournament-specific",
+      detection: "phrase" as const,
+      source_comment: "Tournament weapon for team events",
+      source_match: "Tournament weapon",
+      source_comment_index: 0,
+      source_match_index: 0,
+      source_san_path: ["e4", "e5"],
+      references: resolution("semantic:intent", "resolution:intent").references,
+      created_at: "2026-07-17T12:04:00.000Z",
+      updated_at: "2026-07-17T12:04:00.000Z",
+      provenance: [SOURCE],
+    }],
     provenance: [{ ...SOURCE, source_id: `sidecar:${label}` }],
   };
 }
@@ -122,6 +139,7 @@ test("sidecar export is deterministic, round-trips, and strips malicious secrets
   assert.deepEqual(parsed.sidecar.metadata, metadata("local"));
   assert.equal(parsed.presence.resolutions, true);
   assert.equal(parsed.presence.cohort_labels, true);
+  assert.equal(parsed.presence.comment_intents, true);
 });
 
 test("untrusted sidecars return stable structured errors for malformed, malicious, and incompatible data", () => {
@@ -147,6 +165,21 @@ test("untrusted sidecars return stable structured errors for malformed, maliciou
   const invalidCollection = structuredClone(valid) as { metadata: Record<string, unknown> };
   invalidCollection.metadata.manual_weights = "not-an-object";
   assert.equal(parseStrategicFitSidecar(invalidCollection).code, "invalid-metadata");
+});
+
+test("a legacy 1.3.0 sidecar migrates with an empty comment-intent collection", () => {
+  const legacy = JSON.parse(
+    serializeStrategicFitSidecar("document:legacy", metadata("local")),
+  ) as { metadata: Record<string, unknown> };
+  legacy.metadata.metadata_version = "1.3.0";
+  delete legacy.metadata.comment_intents;
+
+  const parsed = parseStrategicFitSidecar(legacy);
+  assert.ok("ok" in parsed);
+  if (!("ok" in parsed)) return;
+  assert.equal(parsed.metadata_state, "migrated");
+  assert.deepEqual(parsed.sidecar.metadata.comment_intents, []);
+  assert.equal(parsed.presence.comment_intents, false);
 });
 
 test("merge preview replaces durable identities, preserves unmatched records, and never reactivates stale imports", () => {
@@ -230,6 +263,7 @@ test("merge preview replaces durable identities, preserves unmatched records, an
   assert.deepEqual(preview.collections.resolutions.replaced, ["semantic-finding:semantic:shared"]);
   assert.deepEqual(preview.collections.archive_references.replaced, ["archive:shared"]);
   assert.deepEqual(preview.collections.training_references.replaced, ["training:shared"]);
+  assert.deepEqual(preview.collections.comment_intents.replaced, ["comment-intent:shared"]);
   assert.deepEqual(preview.collections.resolutions.incoming_stale, ["semantic-finding:semantic:stale"]);
   assert.equal(preview.merged_metadata.manual_weights.route_weights.find((entry) => entry.route_id === "route:shared")?.weight, 9);
   assert.equal(preview.merged_metadata.resolutions.find((entry) => entry.semantic_finding_id === "semantic:shared")?.resolution_id, "resolution:incoming");
@@ -238,6 +272,7 @@ test("merge preview replaces durable identities, preserves unmatched records, an
   assert.equal(preview.merged_metadata.cohort_overrides.length, 0);
   assert.equal(preview.merged_metadata.cohort_labels[0]?.display_name, "Incoming name");
   assert.equal(preview.merged_metadata.training_references[0]?.finding_id, "finding:incoming");
+  assert.equal(preview.merged_metadata.comment_intents[0]?.disposition, "confirmed");
 });
 
 test("missing incoming collections preserve local records while a supplied profile replaces only after preview", () => {

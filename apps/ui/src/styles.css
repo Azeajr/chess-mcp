@@ -2532,6 +2532,109 @@ img,
   grid-column: 1 / -1;
 }
 .strategic-fit-overview-entropy > p:last-child { margin-bottom: 0.7rem; }
+.strategic-fit-intent-suggestions {
+  margin-top: 0.7rem;
+  border: 1px solid #52647c;
+  border-radius: 8px;
+  background: #1d232c;
+}
+.strategic-fit-intent-suggestions > summary {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.62rem 0.7rem;
+  cursor: pointer;
+  color: #d8e7fa;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+.strategic-fit-intent-suggestions > summary span {
+  border: 1px solid #687a91;
+  border-radius: 999px;
+  padding: 0.08rem 0.35rem;
+  color: #b9c9dc;
+  font-size: 0.55rem;
+}
+.strategic-fit-intent-suggestions > summary:focus-visible,
+.strategic-fit-intent-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.strategic-fit-intent-suggestions > p {
+  margin: 0;
+  padding: 0 0.7rem 0.65rem;
+  color: #aeb9c7;
+  font-size: 0.63rem;
+  line-height: 1.45;
+}
+.strategic-fit-intent-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0.7rem 0.7rem;
+}
+.strategic-fit-intent-list article {
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid #475362;
+  border-left: 3px solid #c79a59;
+  border-radius: 7px;
+  background: #20262e;
+}
+.strategic-fit-intent-list article[data-intent-disposition="confirmed"] { border-left-color: #68977a; }
+.strategic-fit-intent-list article[data-intent-disposition="rejected"] { border-left-color: #737b87; }
+.strategic-fit-intent-list article > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
+  color: #dfe8f2;
+  font-size: 0.65rem;
+}
+.strategic-fit-intent-list article > header span,
+.strategic-fit-intent-path,
+.strategic-fit-intent-match,
+.strategic-fit-intent-status {
+  color: #aeb9c7;
+  font-size: 0.59rem;
+  line-height: 1.4;
+}
+.strategic-fit-intent-path { margin-top: 0.35rem; overflow-wrap: anywhere; }
+.strategic-fit-intent-path span { color: #d0d9e5; font-weight: 700; }
+.strategic-fit-intent-list blockquote {
+  margin: 0.45rem 0 0.3rem;
+  padding-left: 0.55rem;
+  border-left: 2px solid #62748b;
+  color: #e2e8f0;
+  font-size: 0.64rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.strategic-fit-intent-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.strategic-fit-intent-actions button {
+  min-height: 34px;
+  border: 1px solid #5d7698;
+  border-radius: 6px;
+  background: #263a54;
+  color: #deecff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+.strategic-fit-intent-actions button:last-child {
+  border-color: #5e6672;
+  background: #30343a;
+  color: #d2d6dc;
+}
+.strategic-fit-intent-status { margin-top: 0.5rem; color: #c5d3e3; }
 .strategic-fit-finding-queue {
   margin-top: 0.8rem;
 }
@@ -3902,6 +4005,8 @@ img,
   }
   .strategic-fit-overview-item button,
   .strategic-fit-overview-entropy > summary,
+  .strategic-fit-intent-suggestions > summary,
+  .strategic-fit-intent-actions button,
   .strategic-fit-preflight-evidence > summary,
   .strategic-fit-finding-paths > summary,
   .strategic-fit-finding-select,

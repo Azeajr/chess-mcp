@@ -62,6 +62,13 @@ attempt records recall; missing response time or confidence stays missing, while
 targets retain history but do not contribute current mastery evidence. Observed mastery is injected
 into browser reports so familiarity-adjusted coverage, training-adjusted workload, and repertoire
 regret show their source coverage instead of treating absent observations as failure.
+The Strategic Fit workspace also detects a deliberately small set of explicit PGN comment phrases:
+`must keep`, `tournament weapon`, and `avoid queenless middlegame`/`endgame`. The corresponding
+explicit tags are `[%strategic-fit keep]`, `[%strategic-fit tournament-weapon]`, and
+`[%strategic-fit avoid-queenless-middlegame]`/`avoid-queenless-endgame`. Every candidate quotes the
+unchanged source comment and SAN path for confirmation. Detection alone never changes the PGN or
+profile; dismissals are remembered only for the exact unchanged comment/path, while confirmations
+become versioned structured document metadata that round-trips through the canonical JSON sidecar.
 
 ## Persistence
 

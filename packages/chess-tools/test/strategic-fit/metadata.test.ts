@@ -122,6 +122,23 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
       created_at: "2026-07-17T12:02:00.000Z",
       provenance: [SOURCE],
     }],
+    comment_intents: [{
+      decision_id: "comment-intent-decision:semantic",
+      suggestion_id: "comment-intent:semantic",
+      disposition: "confirmed",
+      kind: "retain-line",
+      intent_value: "keep-intentionally",
+      detection: "phrase",
+      source_comment: "must keep this line",
+      source_match: "must keep",
+      source_comment_index: 0,
+      source_match_index: 0,
+      source_san_path: ["e4", "e5"],
+      references: REFERENCES,
+      created_at: "2026-07-17T12:03:00.000Z",
+      updated_at: "2026-07-17T12:03:00.000Z",
+      provenance: [SOURCE],
+    }],
     provenance: [SOURCE],
   };
 }
@@ -135,7 +152,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
   assert.notEqual(first, second);
   assert.notEqual(first.profile, second.profile);
   assert.equal(first.metadata_kind, "chess-mcp/strategic-fit-document-metadata");
-  assert.equal(first.metadata_version, "1.3.0");
+  assert.equal(first.metadata_version, "1.4.0");
   assert.deepEqual(first.profile, {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "balanced",
@@ -161,6 +178,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
     resolutions: first.resolutions,
     archive_references: first.archive_references,
     training_references: first.training_references,
+    comment_intents: first.comment_intents,
     provenance: first.provenance,
   }, {
     manual_weights: { route_weights: [], decision_weights: [] },
@@ -170,6 +188,7 @@ test("empty metadata defaults are complete, deterministic, and independently all
     resolutions: [],
     archive_references: [],
     training_references: [],
+    comment_intents: [],
     provenance: [],
   });
   assert.equal(emptyInput.state, "fallback");
@@ -189,6 +208,7 @@ test("supported metadata round-trips without losing canonical semantic IDs", () 
   assert.equal(result.metadata.exclusions[0]?.decision_ids?.[0], "decision:excluded");
   assert.equal(result.metadata.cohort_labels[0]?.cohort_id, "cohort:semantic");
   assert.equal(result.metadata.archive_references[0]?.references.route_ids[0], "route:semantic");
+  assert.equal(result.metadata.comment_intents[0]?.disposition, "confirmed");
 });
 
 test("normalization deterministically keeps one active display label per canonical cohort", () => {
@@ -240,7 +260,7 @@ test("the explicit 0.1.0 migration maps draft flat collections deterministically
   assert.equal(first.source_version, "0.1.0");
   assert.equal(first.target_version, STRATEGIC_FIT_DOCUMENT_METADATA_VERSION);
   assert.deepEqual(first, second);
-  assert.deepEqual(first.metadata, supported);
+  assert.deepEqual(first.metadata, { ...supported, comment_intents: [] });
   assert.equal(minimal.state, "migrated");
   assert.deepEqual(minimal.metadata, createDefaultStrategicFitDocumentMetadata());
 });
@@ -250,14 +270,39 @@ test("the 1.2.0 migration adds empty cohort labels without changing analysis set
   const legacy = structuredClone(supported) as unknown as Record<string, unknown>;
   legacy.metadata_version = "1.2.0";
   delete legacy.cohort_labels;
+  delete legacy.comment_intents;
 
   const result = normalizeStrategicFitDocumentMetadata(legacy);
   assert.equal(result.state, "migrated");
   assert.deepEqual(result.metadata.cohort_labels, []);
   assert.deepEqual(
     { ...result.metadata, cohort_labels: supported.cohort_labels },
-    supported,
+    { ...supported, comment_intents: [] },
   );
+});
+
+test("the 1.3.0 migration adds empty PGN comment intent decisions", () => {
+  const supported = supportedMetadata();
+  const legacy = structuredClone(supported) as unknown as Record<string, unknown>;
+  legacy.metadata_version = "1.3.0";
+  delete legacy.comment_intents;
+
+  const result = normalizeStrategicFitDocumentMetadata(legacy);
+  assert.equal(result.state, "migrated");
+  assert.equal(result.source_version, "1.3.0");
+  assert.deepEqual(result.metadata, { ...supported, comment_intents: [] });
+});
+
+test("legacy metadata cannot smuggle comment intent decisions into the new collection", () => {
+  const supported = supportedMetadata();
+  const result = normalizeStrategicFitDocumentMetadata({
+    ...supported,
+    metadata_version: "1.3.0",
+  });
+
+  assert.equal(result.state, "migrated");
+  assert.deepEqual(result.metadata.comment_intents, []);
+  assert.equal(result.issues.some((entry) => entry.path === "$.comment_intents"), true);
 });
 
 test("unknown and corrupt versions fall back wholesale with structured evidence", () => {

@@ -36,15 +36,24 @@ import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightInput } from "./weights.js";
 import type { RepertoireGraph } from "./graph.js";
 import type { StrategicFitRouteAssessmentInput } from "./analyze.js";
+import type {
+  StrategicFitCommentIntentDetection,
+  StrategicFitCommentIntentKind,
+} from "./intent-comments.js";
+import {
+  STRATEGIC_FIT_COMMENT_INTENT_DETECTIONS,
+  STRATEGIC_FIT_COMMENT_INTENT_KINDS,
+} from "./intent-comments.js";
 
 /** This version advances independently from analysis reports and component manifests. */
-export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.3.0";
+export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.4.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = [
   "0.1.0",
   "1.0.0",
   "1.1.0",
   "1.2.0",
+  "1.3.0",
 ] as const;
 
 export const STRATEGIC_FIT_METADATA_RECORD_STATES = ["active", "stale"] as const;
@@ -132,6 +141,29 @@ export interface StrategicFitTrainingReference {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
+export const STRATEGIC_FIT_COMMENT_INTENT_DISPOSITIONS = ["confirmed", "rejected"] as const;
+export type StrategicFitCommentIntentDisposition =
+  (typeof STRATEGIC_FIT_COMMENT_INTENT_DISPOSITIONS)[number];
+
+/** Exact-source decision: changing the comment/path yields a new suggestion identity. */
+export interface StrategicFitCommentIntentDecision {
+  readonly decision_id: string;
+  readonly suggestion_id: string;
+  readonly disposition: StrategicFitCommentIntentDisposition;
+  readonly kind: StrategicFitCommentIntentKind;
+  readonly intent_value: string;
+  readonly detection: StrategicFitCommentIntentDetection;
+  readonly source_comment: string;
+  readonly source_match: string;
+  readonly source_comment_index: number;
+  readonly source_match_index: number;
+  readonly source_san_path: readonly string[];
+  readonly references: SemanticReferences;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
+}
+
 export interface StrategicFitDocumentMetadata {
   readonly metadata_kind: typeof STRATEGIC_FIT_DOCUMENT_METADATA_KIND;
   readonly metadata_version: typeof STRATEGIC_FIT_DOCUMENT_METADATA_VERSION;
@@ -143,6 +175,7 @@ export interface StrategicFitDocumentMetadata {
   readonly resolutions: readonly StrategicFitPersistedResolution[];
   readonly archive_references: readonly StrategicFitArchiveReference[];
   readonly training_references: readonly StrategicFitTrainingReference[];
+  readonly comment_intents: readonly StrategicFitCommentIntentDecision[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
@@ -182,6 +215,7 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string,
     "1.0.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
     "1.2.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
+    "1.3.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   });
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
@@ -218,6 +252,9 @@ const PERSISTED_RESOLUTION_STATES = new Set<string>([
   ...TERMINAL_RESOLUTION_STATES,
   "invalid-comparison",
 ]);
+const COMMENT_INTENT_DISPOSITIONS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_DISPOSITIONS);
+const COMMENT_INTENT_KINDS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_KINDS);
+const COMMENT_INTENT_DETECTIONS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_DETECTIONS);
 
 /** Stable canonical profile snapshot for persisted `profile-changed` invalidation. */
 export function strategicFitProfileSnapshot(profile: StrategicFitProfile): string {
@@ -268,6 +305,7 @@ export function createDefaultStrategicFitDocumentMetadata(): StrategicFitDocumen
     resolutions: [],
     archive_references: [],
     training_references: [],
+    comment_intents: [],
     provenance: [],
   };
 }
@@ -1032,6 +1070,71 @@ function trainingReference(
   };
 }
 
+function commentIntentDecision(
+  value: unknown,
+  path: string,
+  context: NormalizationContext,
+): StrategicFitCommentIntentDecision | null {
+  if (!isRecord(value)) {
+    issue(context, "invalid-entry", path, "Expected a PGN comment intent decision object.");
+    return null;
+  }
+  unknownFields(
+    value,
+    new Set([
+      "decision_id", "suggestion_id", "disposition", "kind", "intent_value", "detection",
+      "source_comment", "source_match", "source_comment_index", "source_match_index",
+      "source_san_path", "references", "created_at", "updated_at", "provenance",
+    ]),
+    path,
+    context,
+  );
+  const decisionId = nonEmptyString(value.decision_id);
+  const suggestionId = nonEmptyString(value.suggestion_id);
+  const disposition = nonEmptyString(value.disposition);
+  const kind = nonEmptyString(value.kind);
+  const intentValue = nonEmptyString(value.intent_value);
+  const detection = nonEmptyString(value.detection);
+  const sourceComment = nonEmptyString(value.source_comment);
+  const sourceMatch = nonEmptyString(value.source_match);
+  const sourceCommentIndex = finiteNumber(value.source_comment_index, 0);
+  const sourceMatchIndex = finiteNumber(value.source_match_index, 0);
+  const sourcePath = sourcePathArray([value.source_san_path], `${path}.source_san_path`, context)[0];
+  const references = semanticReferences(value.references, `${path}.references`, context);
+  const createdAt = nonEmptyString(value.created_at);
+  const updatedAt = nonEmptyString(value.updated_at);
+  const provenance = provenanceArray(value.provenance, `${path}.provenance`, context);
+  if (
+    decisionId === null || suggestionId === null || disposition === null ||
+    !COMMENT_INTENT_DISPOSITIONS.has(disposition) || kind === null || !COMMENT_INTENT_KINDS.has(kind) ||
+    intentValue === null || detection === null || !COMMENT_INTENT_DETECTIONS.has(detection) ||
+    sourceComment === null || sourceMatch === null || sourceCommentIndex === null ||
+    !Number.isInteger(sourceCommentIndex) || sourceMatchIndex === null || !Number.isInteger(sourceMatchIndex) ||
+    sourcePath === undefined || references === null || createdAt === null || updatedAt === null ||
+    provenance.length === 0
+  ) {
+    issue(context, "invalid-entry", path, "PGN comment intent fields do not match the current contract.");
+    return null;
+  }
+  return {
+    decision_id: decisionId,
+    suggestion_id: suggestionId,
+    disposition: disposition as StrategicFitCommentIntentDisposition,
+    kind: kind as StrategicFitCommentIntentKind,
+    intent_value: intentValue,
+    detection: detection as StrategicFitCommentIntentDetection,
+    source_comment: sourceComment,
+    source_match: sourceMatch,
+    source_comment_index: sourceCommentIndex,
+    source_match_index: sourceMatchIndex,
+    source_san_path: sourcePath,
+    references,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    provenance,
+  };
+}
+
 function normalizedCurrent(
   value: UnknownRecord,
   context: NormalizationContext,
@@ -1049,6 +1152,7 @@ function normalizedCurrent(
       "resolutions",
       "archive_references",
       "training_references",
+      "comment_intents",
       "provenance",
     ]),
     "$",
@@ -1115,6 +1219,13 @@ function normalizedCurrent(
       "$.training_references",
       (entry: StrategicFitTrainingReference) => entry.training_id,
       trainingReference,
+      context,
+    ),
+    comment_intents: uniqueEntries(
+      value.comment_intents,
+      "$.comment_intents",
+      (entry: StrategicFitCommentIntentDecision) => entry.suggestion_id,
+      commentIntentDecision,
       context,
     ),
     provenance: provenanceArray(value.provenance, "$.provenance", context),
@@ -1216,6 +1327,7 @@ function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): U
     resolutions: migratedResolutions(value.resolutions, profileValue),
     archive_references: value.archive_references ?? value.archives ?? [],
     training_references: value.training_references ?? value.training ?? [],
+    comment_intents: [],
     provenance: value.provenance ?? [],
   };
 }

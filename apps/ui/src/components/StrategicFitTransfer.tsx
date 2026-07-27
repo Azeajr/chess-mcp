@@ -16,6 +16,7 @@ const collectionLabels = {
   resolutions: "Finding resolutions",
   archive_references: "Archive references",
   training_references: "Training references",
+  comment_intents: "PGN comment intent decisions",
   provenance: "Provenance records",
 } as const;
 

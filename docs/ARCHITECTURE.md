@@ -114,6 +114,13 @@ the clone-safe Worker/cache boundary. Familiarity-adjusted coverage, training-ad
 repertoire regret report the exact expected-route coverage of their market, mastery, and viable-
 replacement components; missing observations never become zero mastery or failed training.
 
+PGN intent detection is a pure, deterministic read of game- and move-level comments plus the
+canonical repertoire graph. Supported tags and phrases produce exact-source, SAN-path, and semantic
+reference suggestions; the browser alone presents confirmation. The metadata `1.4.0` collection
+stores confirmed or rejected decisions by exact suggestion identity and the JSON sidecar merges
+them by that identity. Detection and decisions never mutate PGN comments, and changed text produces
+a new pending identity instead of inheriting an old rejection.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
