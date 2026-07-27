@@ -185,6 +185,29 @@ candidates, engine evidence, and cache inputs remain immutable. No Node/browser 
 tool, generated guidance, plugin, UI, or `suggest_replacement_line` behavior changes at this
 boundary.
 
+Replacement expansion consumes only the current validated Task 8.4 engine-enriched seeds. It is a
+framework-free, sequentially scheduled domain layer with cancellable explorer and engine evidence
+providers. Every supplied SAN/UCI and full PV is replayed from its semantic position; forcing
+replies are classified from legal checks, captures, and promotions rather than provider labels.
+Important replies above the configured population threshold and every requested forcing reply are
+expanded to one absolute strategic horizon, or terminate earlier only at a terminal position or a
+canonical join into existing preparation. Candidate, per-candidate node, global engine-position,
+global explorer-query, popularity, horizon, and reply-policy budgets are deterministic. Common or
+forcing omissions, provider failures, malformed/stale items, cancellation, and budget stops remain
+explicit in coverage counts, per-item evidence, omissions, route terminations, truncation reasons,
+and unresolved risks. Progress is request-bound and monotonic, and cancellation stops new provider
+scheduling while retaining completed evidence.
+
+Only runtime-validated complete, truncated, or blocked `ReplacementCandidateSubtree` values are
+published. Task 8.5 returns expanded seeds rather than synthesizing the strategic scores, coverage
+effects, Pareto assessment, or change set required by a later `ReplacementCandidate`. Task 8.3 and
+8.4 seeds therefore remain compile-time distinct from expansions, and partial expansion cannot
+masquerade as a finished candidate. White-POV engine transport and repertoire-POV labels, engine
+identity/configuration/depth/MultiPV/cache evidence, semantic identities, source states, nested
+provenance, and navigation-only SAN paths remain inspectable. Source graph, pivot, Task 8.3 result,
+Task 8.4 result, providers, cache inputs, and injected evidence remain immutable. Public/generated
+contracts, hosts, UI, Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
