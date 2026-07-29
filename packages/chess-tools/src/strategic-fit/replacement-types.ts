@@ -379,6 +379,7 @@ export type ReplacementCoverageEffectState =
   (typeof REPLACEMENT_COVERAGE_EFFECT_STATES)[number];
 
 export interface ReplacementCoverageReplyEffect extends AnalysisVersioned {
+  readonly state: ReplacementCoverageEffectState;
   readonly position_id: string;
   readonly decision_id: string | null;
   readonly san: string | null;
@@ -386,15 +387,18 @@ export interface ReplacementCoverageReplyEffect extends AnalysisVersioned {
   readonly forcing: boolean;
   readonly source_san_paths: readonly (readonly string[])[];
   readonly reason: string;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
 export interface ReplacementMetricEffect extends AnalysisVersioned {
   readonly metric_id: StrategicFitMetricId;
+  readonly state: ReplacementCoverageEffectState;
   readonly before: number | null;
   readonly after: number | null;
   readonly delta: number | null;
   readonly unit: string;
   readonly reason: string | null;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
 export interface ReplacementCoverageEffects extends StrategicFitReplacementVersioned {

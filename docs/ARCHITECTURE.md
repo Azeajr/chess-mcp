@@ -231,6 +231,30 @@ Task 8.3 seeds, Task 8.4 evidence, Task 8.5 subtrees, source context, and nested
 immutable and serializable. The layer stays framework-free; public/generated contracts, hosts, UI,
 Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
 
+Replacement safety simulation consumes only a current Task 8.6 result that can be deterministically
+recomputed from its retained request, graph, cohort, trajectory, concept, metric, popularity,
+training, Task 8.3 seed, Task 8.4 engine, and Task 8.5 expansion evidence. Every candidate route is
+added to a structural `GameTree` clone; pruning occurs only for an explicitly confirmed replacement,
+while the default non-pruning action is labeled exactly `Add alternative`. The clone is projected
+back through the canonical Strategic Fit graph to compare semantic required replies,
+popularity-weighted coverage, duplicate routes, new transpositions, and affected scalar metrics.
+Familiarity coverage is recalculated from the simulated graph with canonical trajectory, concept,
+training, conditional-decision weighting, and current profile source-coefficient semantics. Missing
+personal/manual weighting or conditional reply evidence keeps the preview partial; training workload
+retains its current value but leaves after/delta explicitly unavailable because Task 8.6 does not
+retain the full finding inputs needed to recompute it.
+Forcing replies and expected frequencies remain requirements, transposition joins prevent false
+gaps, and navigation SAN paths or editorial duplicates never multiply semantic evidence.
+
+Incomplete, stale, invalid, unscored, truncated, blocked, cancelled, illegal, or unavailable
+Task 8.5/8.6 values remain inspectable but cannot become safe simulations. Missing or partial
+coverage, popularity, objective, or metric evidence retains nulls, reasons, states, and provenance;
+it never becomes zero or a passed check. Dominated candidates remain present with their exact Pareto
+assessment. Task 8.7 returns only an intermediate safety report and never exposes the cloned tree or
+fabricates Task 8.8 operations, change sets, archive payloads, atomic application results, staging,
+undo, or host behavior. Public MCP/browser contracts, generated catalog/guidance, plugin versions,
+hosts, UI, Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game

@@ -279,11 +279,13 @@ const coverageEffects = {
   affected_metrics: [{
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     metric_id: "familiarity-adjusted-coverage",
+    state: "available",
     before: 0.72,
     after: 0.88,
     delta: 0.16,
     unit: "fraction",
     reason: null,
+    provenance: [source],
   }],
   reason: null,
   provenance: [source],

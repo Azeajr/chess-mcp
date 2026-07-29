@@ -476,6 +476,75 @@ function routeMastery(
   return result;
 }
 
+export interface StrategicFamiliarityCoverageInput {
+  readonly weights: StrategicRouteWeightingReport;
+  readonly concepts: StrategicConceptDictionary;
+  readonly training?: StrategicTrainingMetricEvidence;
+}
+
+/** Canonical familiarity-adjusted coverage for callers that rebuild only its frozen inputs. */
+export function calculateStrategicFamiliarityAdjustedCoverage(
+  input: StrategicFamiliarityCoverageInput,
+): StrategicFitMetric<number> {
+  if (!input.training || input.training.concept_mastery.length === 0) {
+    return unavailable(
+      "familiarity-adjusted-coverage",
+      "fraction",
+      "Familiarity-adjusted coverage requires calibrated concept-mastery evidence.",
+      [TRAINING_UNAVAILABLE],
+    );
+  }
+  const mastery = new Map<string, number>();
+  for (const concept of input.training.concept_mastery) {
+    if (mastery.has(concept.concept_id)) {
+      throw new Error(`strategic_fit_metrics_duplicate_concept_mastery: ${concept.concept_id}`);
+    }
+    mastery.set(concept.concept_id,
+      requireUnitInterval(`concept:${concept.concept_id}:mastery`, concept.mastery));
+  }
+  const routeWeights = new Map(input.weights.routes.map((route) => [route.route_id, route.normalized_weight]));
+  const routeConceptIds = new Map(input.concepts.routes.map((route) => [
+    route.route_id,
+    route.concepts.map((concept) => concept.concept_id),
+  ]));
+  const totalWeight = [...routeWeights.values()].reduce((sum, value) => sum + value, 0);
+  let coveredWeight = 0;
+  let familiarWeight = 0;
+  for (const [routeId, conceptIds] of routeConceptIds) {
+    const values = conceptIds.map((conceptId) => mastery.get(conceptId))
+      .filter((value): value is number => value !== undefined);
+    if (values.length === 0) continue;
+    const weight = routeWeights.get(routeId);
+    if (weight === undefined) continue;
+    coveredWeight += weight;
+    const routeMasteryValue = values.reduce((sum, value) => sum + value, 0) / values.length;
+    if (routeMasteryValue + EPSILON >= MASTERY_THRESHOLD) familiarWeight += weight;
+  }
+  const provenance = mergeProvenance(
+    input.weights.provenance,
+    input.concepts.provenance,
+    input.training.provenance ?? [],
+    ...input.training.concept_mastery.map((concept) => concept.provenance ?? []),
+  );
+  if (coveredWeight <= EPSILON) {
+    return unavailable(
+      "familiarity-adjusted-coverage",
+      "fraction",
+      "Supplied training metadata does not match a supported concept in the current repertoire.",
+      provenance,
+    );
+  }
+  const partial = coveredWeight + EPSILON < totalWeight;
+  return metric(
+    "familiarity-adjusted-coverage",
+    "fraction",
+    partial ? "partial" : "available",
+    round(familiarWeight / coveredWeight),
+    exactEvidenceCoverageReason("Familiarity-adjusted coverage", coveredWeight, totalWeight),
+    provenance,
+  );
+}
+
 function burdenByRoute(context: MetricContext): Map<string, number> {
   const burden = new Map<string, number>();
   for (const finding of context.input.findings) {
@@ -558,40 +627,12 @@ function familiarityAdjustedCoverage(
   context: MetricContext,
   training: ReturnType<typeof masteryByConcept>,
 ): StrategicFitMetric<number> {
-  if (!training) {
-    return unavailable(
-      "familiarity-adjusted-coverage",
-      "fraction",
-      "Familiarity-adjusted coverage requires calibrated concept-mastery evidence.",
-      [TRAINING_UNAVAILABLE],
-    );
-  }
-  const mastery = routeMastery(context, training.mastery);
-  let coveredWeight = 0;
-  let familiarWeight = 0;
-  for (const [routeId, value] of mastery) {
-    const weight = context.routeWeight.get(routeId)!;
-    coveredWeight += weight;
-    // A calibrated mastery threshold keeps this a coverage measure rather than a mean score.
-    if (value + EPSILON >= MASTERY_THRESHOLD) familiarWeight += weight;
-  }
-  if (coveredWeight <= EPSILON) {
-    return unavailable(
-      "familiarity-adjusted-coverage",
-      "fraction",
-      "Supplied training metadata does not match a supported concept in the current repertoire.",
-      training.provenance,
-    );
-  }
-  const partial = coveredWeight + EPSILON < context.totalWeight;
-  return metric(
-    "familiarity-adjusted-coverage",
-    "fraction",
-    partial ? "partial" : "available",
-    round(familiarWeight / coveredWeight),
-    exactEvidenceCoverageReason("Familiarity-adjusted coverage", coveredWeight, context.totalWeight),
-    mergeProvenance(context.input.weights.provenance, context.input.concepts.provenance, training.provenance),
-  );
+  void training;
+  return calculateStrategicFamiliarityAdjustedCoverage({
+    weights: context.input.weights,
+    concepts: context.input.concepts,
+    training: context.input.training,
+  });
 }
 
 function trainingAdjustedWorkload(
