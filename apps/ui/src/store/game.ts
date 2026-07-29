@@ -53,7 +53,12 @@ export const currentTree = () => {
 };
 export const currentPath = path;
 
-function replaceDocument(nextTree: GameTree, name: string | undefined, nextDocumentId: BrowserDocumentId) {
+function replaceDocument(
+  nextTree: GameTree,
+  name: string | undefined,
+  nextDocumentId: BrowserDocumentId,
+  restoredRevision?: number,
+) {
   // Consumers derive FEN from both tree and path, so publish the replacement atomically. A shorter
   // imported tree must never be observed with the previous document's deeper navigation path.
   batch(() => {
@@ -63,17 +68,19 @@ function replaceDocument(nextTree: GameTree, name: string | undefined, nextDocum
     setDirty(false);
     setFileName(name ?? null);
     setDocumentId(nextDocumentId);
-    bump();
+    if (Number.isSafeInteger(restoredRevision) && restoredRevision! >= 0) setVersion(restoredRevision!);
+    else bump();
   });
 }
 
 /** Restore is the sole path allowed to resume an existing document identity. */
-export function restoreDocument(pgn: string, name: string | undefined, savedDocumentId: unknown) {
+export function restoreDocument(pgn: string, name: string | undefined, savedDocumentId: unknown, savedRevision?: number) {
   const nextTree = GameTree.fromPgn(pgn);
   replaceDocument(
     nextTree,
     name,
     normalizeBrowserDocumentId(savedDocumentId) ?? createBrowserDocumentId(),
+    savedRevision,
   );
 }
 
@@ -117,6 +124,42 @@ export const actions = {
     setDirty(true);
     bump();
     return { ok: true, revision: version() };
+  },
+
+  /** Publish one already-validated clone as exactly one document revision. */
+  applyStrategicFitSnapshot(
+    nextTree: GameTree,
+    nextPath: Path,
+    expectedRevision: number,
+  ): { ok: true; revision: number } | { ok: false; error: "stale_revision" | "invalid_navigation" } {
+    if (expectedRevision !== version()) return { ok: false, error: "stale_revision" };
+    try {
+      nextTree.fenAt(nextPath);
+    } catch {
+      return { ok: false, error: "invalid_navigation" };
+    }
+    batch(() => {
+      setTree(nextTree);
+      setPath([...nextPath]);
+      setDirty(true);
+      bump();
+    });
+    return { ok: true, revision: version() };
+  },
+
+  /** Roll back a failed prepared Strategic Fit transaction without allocating a visible revision. */
+  restoreStrategicFitSnapshot(
+    priorTree: GameTree,
+    priorPath: Path,
+    priorRevision: number,
+    priorDirty: boolean,
+  ): void {
+    batch(() => {
+      setTree(priorTree);
+      setPath([...priorPath]);
+      setDirty(priorDirty);
+      setVersion(priorRevision);
+    });
   },
 
   /** Append a line through the same application command used by accepted chat edits. */

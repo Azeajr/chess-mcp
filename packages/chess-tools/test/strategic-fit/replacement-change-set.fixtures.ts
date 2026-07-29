@@ -217,12 +217,12 @@ export function addOnlyFixture(candidateKind: "novel" | "transposition" = "novel
   return { tree, request: values.fixture.request, scoring, safety, candidate };
 }
 
-export function replacementFixture(pgnComment = "") {
+export function replacementFixture(pgnComment = "", repertoireRevision = "revision:score") {
   const shortRuy = PGN.replace(
     "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 *",
     `1. e4 e5 2. Nf3 Nc6 3. Bb5${pgnComment ? ` {${pgnComment}}` : ""} *`,
   );
-  const fixture = contextFixture(undefined, "white", "e4 e5 Nf3 Nc6 Bc4", shortRuy);
+  const fixture = contextFixture(undefined, "white", "e4 e5 Nf3 Nc6 Bc4", shortRuy, repertoireRevision);
   const base = completeCandidate(fixture, "Bc4", "candidate:safe-replacement", 20, 0.8);
   const candidate = expandedNovelLine(base);
   const scoring = scoredFixture(fixture, [candidate]);

@@ -35,7 +35,7 @@ changing that contract; CI uses `pnpm docs:check` to reject drift.
 | `classify_illustrative_lines` | Find NAG-marked side lines that can inflate repertoire analysis counts. | `mcp`, `browser` | `repertoire` | `data` |
 | `modify_repertoire_line` | Apply or preview a prune, add, or reorder edit by SAN path. | `mcp`, `browser` | `repertoire`, `action` | `action` |
 | `suggest_complementary_lines` | Suggest engine-sound moves ranked for structural fit or imbalance. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
-| `suggest_replacement_line` | Suggest sound replacements for an incongruent repertoire line. | `mcp`, `browser` | `repertoire`, `engine` | `data` |
+| `suggest_replacement_line` | Preview sound one-move replacements, or validate retained Task 8.7 evidence into complete Strategic Fit V2 atomic change sets without silently applying them. V2 candidate generation itself remains hidden until Phase 9. | `mcp`, `browser` | `repertoire`, `engine`, `action` | `action` |
 | `analyze_game` | Per-move engine review of a game's mainline with centipawn loss and classification. | `mcp`, `browser` | `game`, `engine` | `data` |
 | `get_game_summary` | Game-review summary with per-side counts, accuracy, and worst moves. | `mcp`, `browser` | `game`, `engine` | `data` |
 | `export_annotated_pgn` | Annotate a game's mainline with move glyphs and best-move/evaluation comments. | `mcp`, `browser` | `game`, `engine`, `artifact` | `artifact` |

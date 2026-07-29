@@ -12,6 +12,7 @@ import {
   strategicFitCompleteAnalysisOptions,
   strategicFitOptionsFromToolArguments,
   toolDefault,
+  toolContract,
   validateToolArguments,
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
@@ -24,6 +25,7 @@ import { runTool } from "../src/llm/tools.ts";
 import { workflowPrompt } from "../src/llm/workflows.ts";
 import { findArtifactMetadata, strategicFitChatState } from "../src/components/ToolResult.tsx";
 import { requestedDepth } from "../src/application/browser-commands/types.ts";
+import { replacementFixture } from "../../../packages/chess-tools/test/strategic-fit/replacement-change-set.fixtures.ts";
 
 const sse = (...frames: unknown[]) => new ReadableStream({
   start(controller) {
@@ -161,6 +163,74 @@ test("deep analysis forces every browser engine request to depth 30", () => {
   assert.equal(requestedDepth({ depth: 12 }, { analysisDepth: () => 20 } as never), 12);
   assert.equal(requestedDepth({}, { analysisDepth: () => 30 } as never), 30);
   assert.equal(requestedDepth({ depth: 12 }, { analysisDepth: () => 30 } as never), 30);
+});
+
+test("canonical replacement schema validates legacy and complete V2 modes without capability expansion", () => {
+  assert.equal(validateToolArguments("suggest_replacement_line", { outlier_variation_path: ["e4"] }, "browser").ok, true);
+  assert.equal(validateToolArguments("suggest_replacement_line", {}, "browser").ok, false);
+  const fixture = replacementFixture("canonical public validation");
+  const request = fixture.request;
+  const v2 = {
+    contract: "strategic-fit-replacement-v2",
+    replacement_request: request,
+    finding: {
+      report_id: request.report_id,
+      finding_id: request.finding_id,
+      semantic_finding_id: request.semantic_finding_id,
+      cohort_id: request.cohort_id,
+      repertoire_revision: request.repertoire_revision,
+    },
+    pivot: request.pivot_selection,
+    profile: request.profile,
+    sources: request.candidate_sources,
+    budget: request.budget,
+    engine: { depth: request.budget.engine_depth, multipv: request.budget.engine_multipv, allow_unavailable_evidence: true },
+    coverage: {
+      minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
+      require_all_forcing_replies: request.budget.include_all_forcing_replies,
+    },
+    retention: [{ candidate_id: fixture.candidate.candidate_id, action: "replace", prune_explicitly_confirmed: true }],
+    candidate_ids: [fixture.candidate.candidate_id],
+    safety: fixture.safety,
+  };
+  assert.equal(validateToolArguments("suggest_replacement_line", v2, "browser").ok, true);
+  assert.equal(validateToolArguments("suggest_replacement_line", { ...v2, depth: 20 }, "browser").ok, false);
+  assert.equal(validateToolArguments("suggest_replacement_line", { ...v2, safety: undefined }, "browser").ok, false);
+  assert.equal(validateToolArguments("suggest_replacement_line", { repertoire_id: "handle", ...v2 }, "mcp").ok, true);
+  const browserSchema = jsonSchemaForTool("suggest_replacement_line", "browser")!;
+  const mcpSchema = jsonSchemaForTool("suggest_replacement_line", "mcp")!;
+  assert.deepEqual(browserSchema.required ?? [], []);
+  assert.deepEqual(mcpSchema.required, ["repertoire_id"]);
+  assert.equal(toolContract("suggest_replacement_line").hosts.length, 2);
+  assert.match(toolContract("suggest_replacement_line").result.compatibility ?? "", /Legacy/);
+  assert.match(toolContract("suggest_replacement_line").hostAdaptation.resultDifference ?? "", /archive persistence or undo/);
+});
+
+test("replacement history compaction preserves complete follow-up identity chain", async () => {
+  const { compactToolResult } = await import("../src/store/chat.ts");
+  const content = JSON.stringify({
+    contract: "strategic-fit-replacement-v2",
+    request_id: "request:one",
+    report_id: "report:one",
+    finding_id: "finding:one",
+    semantic_finding_id: "semantic-finding:one",
+    cohort_id: "cohort:one",
+    pivot_id: "pivot:one",
+    repertoire_revision: "browser:4",
+    items: [{
+      candidate_id: "candidate:one",
+      change_set_id: "change-set:one",
+      base_repertoire_revision: "browser:4",
+      stage: { stage_id: "stage:one" },
+      preview: { archive_id: "archive:one", operation_id: "operation:one" },
+    }],
+    padding: "x".repeat(7000),
+  });
+  const compacted = compactToolResult(content);
+  for (const identity of [
+    "request:one", "report:one", "finding:one", "semantic-finding:one", "cohort:one", "pivot:one",
+    "candidate:one", "change-set:one", "stage:one", "archive:one", "operation:one", "browser:4",
+  ]) assert.equal(compacted.includes(identity), true, `missing ${identity}`);
 });
 
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {

@@ -51,6 +51,10 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         semantics: "Versioned Strategic Fit V2 report with immutable summary, findings, preflight, paging, and provenance.",
         compatibility: "Includes a bounded deprecated V1 incongruencies projection until Task 12.5.",
       } : {}),
+      ...(name === "suggest_replacement_line" ? {
+        semantics: "Legacy one-move suggestions or a complete revision-bound Strategic Fit V2 candidate/change-set preview envelope. No host silently applies a preview.",
+        compatibility: "Legacy outlier_variation_path/mode/depth behavior remains available until Phase 9. V2 mode requires the complete canonical retained safety envelope.",
+      } : {}),
     },
     hostAdaptation: {
       browserInjects: name === "export_strategic_fit_metadata"
@@ -59,17 +63,22 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["current PGN", "current GameTree", "stable document ID", "document revision", "normalized Strategic Fit metadata", "current Strategic Fit report"]
         : name === "analyze_repertoire_congruence"
         ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs", "Strategic Fit Web Worker"]
+        : name === "suggest_replacement_line"
+        ? ["current GameTree", "repertoire color", "stable document ID", "document revision", "browser engine/Worker and explorer boundaries", "revision-bound staged change-set storage"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
       ],
       mcpInjects: name === "analyze_repertoire_congruence"
         ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs"]
+        : name === "suggest_replacement_line"
+        ? ["immutable repertoire handle lookup", "handle revision", "Node engine pool and optional explorer credentials", "explicit no-archive/no-undo limitation"]
         : input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
       ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
         : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
+        : name === "suggest_replacement_line" ? { resultDifference: "Browser V2 results are staged against the exact current document revision and require explicit acceptance. MCP V2 results are immutable previews only: no archive persistence or undo is available, and a new clone-on-write handle is returned only by an explicit repertoire edit call." }
         : {}),
     },
     ...(input ? { input } : {}),
@@ -79,6 +88,11 @@ const integer = (minimum?: number, maximum?: number): InputField => ({ type: "in
 const number = (minimum?: number, maximum?: number): InputField => ({ type: "number", ...(minimum == null ? {} : { minimum }), ...(maximum == null ? {} : { maximum }) });
 const array = (items: InputField = string(), minItems?: number, maxItems?: number): InputField => ({ type: "array", items, ...(minItems == null ? {} : { minItems }), ...(maxItems == null ? {} : { maxItems }) });
 const object = (properties: Readonly<Record<string, InputField>>, required: readonly string[] = []): InputField => ({ type: "object", properties, ...(required.length ? { required } : {}), additionalProperties: false });
+const openObject = (
+  description: string,
+  properties: Readonly<Record<string, InputField>>,
+  required: readonly string[],
+): InputField => ({ type: "object", description, properties, required, additionalProperties: true });
 
 const strategicFitId = () => string(undefined, 256);
 const strategicFitIdList = (minimum: number | undefined = undefined, maximum = 500) => array(strategicFitId(), minimum, maximum);
@@ -200,7 +214,39 @@ export const TOOL_CONTRACTS = [
   define("classify_illustrative_lines", "Find NAG-marked side lines that can inflate repertoire analysis counts.", ["repertoire"], BOTH, { limit: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100) }, mcpRequired: ["repertoire_id"] }),
   define("modify_repertoire_line", "Apply or preview a prune, add, or reorder edit by SAN path.", ["repertoire", "action"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), action: { type: "string", enum: ["prune", "add", "reorder"] }, path: array(), add_moves: array(), promote_move: string() }, required: ["action", "path"], mcpRequired: ["repertoire_id", "action", "path"] }),
   define("suggest_complementary_lines", "Suggest engine-sound moves ranked for structural fit or imbalance.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 5 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), fen: string("FEN; browser defaults to the current position"), mode: { type: "string", enum: ["low_memorization", "sharp"] }, depth: integer(1, 30), limit: integer(1, 10) }, mcpRequired: ["repertoire_id", "fen"] }),
-  define("suggest_replacement_line", "Suggest sound replacements for an incongruent repertoire line.", ["repertoire", "engine"], BOTH, { depth: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), outlier_variation_path: array(), mode: { type: "string", enum: ["structural_fit", "low_memorization", "solid"] }, depth: integer(1, 30) }, required: ["outlier_variation_path"], mcpRequired: ["repertoire_id", "outlier_variation_path"] }),
+  define("suggest_replacement_line", "Preview sound one-move replacements, or validate retained Task 8.7 evidence into complete Strategic Fit V2 atomic change sets without silently applying them. V2 candidate generation itself remains hidden until Phase 9.", ["repertoire", "engine", "action"], BOTH, { depth: 20 }, {
+    properties: {
+      repertoire_id: string("MCP handle; browser injects the current document"),
+      outlier_variation_path: array(string(undefined, 128), undefined, 256),
+      mode: { type: "string", enum: ["structural_fit", "low_memorization", "solid"] },
+      depth: integer(1, 30),
+      contract: { type: "string", enum: ["strategic-fit-replacement-v2"] },
+      replacement_request: openObject("Complete canonical ReplacementRequest with finding, profile, source, budget, identity, version, and provenance inputs.", { request_id: strategicFitId() }, ["request_id"]),
+      finding: openObject("Revision-bound report/finding/semantic-finding/cohort identity.", { finding_id: strategicFitId() }, ["finding_id"]),
+      pivot: openObject("Automatic or explicit semantic pivot selection.", { kind: { type: "string", enum: ["automatic", "user-selected"] } }, ["kind"]),
+      profile: openObject("Exact Strategic Fit profile snapshot used by the request.", { mode: { type: "string", enum: ["familiar-plans", "balanced", "versatile", "custom"] } }, ["mode"]),
+      sources: array({ type: "string", enum: ["existing-repertoire-transposition", "opening-database", "engine-multipv", "user-line", "structurally-similar", "move-order-shortcut"] }, 1, 6),
+      budget: openObject("Exact bounded candidate, engine, explorer, subtree, and strategic-horizon budget.", {
+        engine_depth: integer(1, 30), engine_multipv: integer(1, 10),
+      }, ["engine_depth", "engine_multipv"]),
+      engine: openObject("Exact engine depth/multipv request and unavailable-evidence policy.", {
+        depth: integer(1, 30), multipv: integer(1, 10), allow_unavailable_evidence: { type: "boolean" },
+      }, ["depth", "multipv", "allow_unavailable_evidence"]),
+      coverage: openObject("Exact minimum coverage and forcing-reply policy.", {
+        minimum_expected_opponent_coverage: { type: "number", minimum: 0, maximum: 1 },
+        require_all_forcing_replies: { type: "boolean" },
+      }, ["minimum_expected_opponent_coverage", "require_all_forcing_replies"]),
+      retention: array(openObject("Per-candidate add-alternative or explicitly confirmed archive-before-prune replacement choice.", {
+        candidate_id: strategicFitId(),
+        action: { type: "string", enum: ["add-alternative", "replace"] },
+        prune_explicitly_confirmed: { type: "boolean" },
+        promote_candidate_to_mainline: { type: "boolean" },
+      }, ["candidate_id", "action"]), undefined, 100),
+      candidate_ids: array(string(undefined, 256), 1, 100),
+      safety: openObject("Complete immutable Task 8.3-8.7 evidence envelope, including structured per-item errors and provenance.", { request_id: strategicFitId() }, ["request_id"]),
+    },
+    mcpRequired: ["repertoire_id"],
+  }),
   define("analyze_game", "Per-move engine review of a game's mainline with centipawn loss and classification.", ["game", "engine"], BOTH, { depth: 20 }, { properties: { pgn: string("PGN; browser defaults to the current working line"), depth: integer(1, 30) }, mcpProperties: { verbose: { type: "boolean" } }, mcpRequired: ["pgn"] }),
   define("get_game_summary", "Game-review summary with per-side counts, accuracy, and worst moves.", ["game", "engine"], BOTH, { depth: 20 }, { properties: { pgn: string("PGN; browser defaults to the current working line"), depth: integer(1, 30) }, mcpRequired: ["pgn"] }),
   define("export_annotated_pgn", "Annotate a game's mainline with move glyphs and best-move/evaluation comments.", ["game", "engine", "artifact"], BOTH, { depth: 20 }, { properties: { pgn: string("PGN; browser defaults to the current working line"), depth: integer(1, 30) }, mcpRequired: ["pgn"] }),
@@ -409,6 +455,76 @@ function explorerPopulationArgumentsError(
   return null;
 }
 
+function replacementArgumentsError(value: Record<string, unknown>): string | null {
+  const id = (candidate: unknown): candidate is string =>
+    typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 256;
+  const v2 = value.contract !== undefined || value.replacement_request !== undefined;
+  if (!v2) return Array.isArray(value.outlier_variation_path)
+    ? null
+    : "suggest_replacement_line requires outlier_variation_path for legacy mode or contract plus the complete V2 envelope";
+  if (value.contract !== "strategic-fit-replacement-v2") return "contract must be strategic-fit-replacement-v2";
+  for (const key of [
+    "replacement_request", "finding", "pivot", "profile", "sources", "budget", "engine", "coverage",
+    "retention", "candidate_ids", "safety",
+  ]) if (!(key in value)) return `missing required V2 argument: ${key}`;
+  for (const key of ["outlier_variation_path", "mode", "depth"]) {
+    if (key in value) return `${key} is legacy-only and cannot be combined with the V2 replacement envelope`;
+  }
+  const record = (key: string) => value[key] as Record<string, unknown>;
+  const object = (candidate: unknown): candidate is Record<string, unknown> =>
+    candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
+  for (const key of ["replacement_request", "finding", "pivot", "profile", "budget", "engine", "coverage", "safety"]) {
+    if (!object(value[key])) return `${key} must be an object`;
+  }
+  if (!Array.isArray(value.sources) || !Array.isArray(value.retention) || !Array.isArray(value.candidate_ids)) {
+    return "sources, retention, and candidate_ids must be arrays";
+  }
+  if (!id(record("replacement_request").request_id)) return "replacement_request.request_id is required";
+  const request = record("replacement_request");
+  for (const key of ["report_id", "finding_id", "semantic_finding_id", "cohort_id", "repertoire_revision",
+    "schema_version", "analysis_version", "replacement_schema_version"]) {
+    if (!id(request[key])) return `replacement_request.${key} is required`;
+  }
+  if (!["white", "black"].includes(String(request.repertoire_color)) ||
+    !object(request.pivot_selection) || !object(request.profile) || !object(request.budget) ||
+    !Array.isArray(request.candidate_sources) || !Array.isArray(request.user_candidate_san_lines) ||
+    !Array.isArray(request.provenance)) return "replacement_request is incomplete";
+  if (!id(record("finding").finding_id)) return "finding.finding_id is required";
+  if (!["automatic", "user-selected"].includes(String(record("pivot").kind))) return "pivot.kind is invalid";
+  if (!["familiar-plans", "balanced", "versatile", "custom"].includes(String(record("profile").mode))) return "profile.mode is invalid";
+  const budget = record("budget");
+  if (!Number.isInteger(budget.engine_depth) || (budget.engine_depth as number) < 1 || (budget.engine_depth as number) > 30 ||
+    !Number.isInteger(budget.engine_multipv) || (budget.engine_multipv as number) < 1 || (budget.engine_multipv as number) > 10) {
+    return "budget engine_depth or engine_multipv is invalid";
+  }
+  const engine = record("engine");
+  if (!Number.isInteger(engine.depth) || (engine.depth as number) < 1 || (engine.depth as number) > 30 ||
+    !Number.isInteger(engine.multipv) || (engine.multipv as number) < 1 || (engine.multipv as number) > 10 ||
+    typeof engine.allow_unavailable_evidence !== "boolean") {
+    return "engine depth, multipv, and allow_unavailable_evidence are required";
+  }
+  if (typeof record("coverage").require_all_forcing_replies !== "boolean") return "coverage.require_all_forcing_replies is required";
+  const minimumCoverage = record("coverage").minimum_expected_opponent_coverage;
+  if (typeof minimumCoverage !== "number" || !Number.isFinite(minimumCoverage) || minimumCoverage < 0 || minimumCoverage > 1) {
+    return "coverage.minimum_expected_opponent_coverage must be a number from 0 to 1";
+  }
+  for (const [index, entry] of (value.retention as readonly Record<string, unknown>[]).entries()) {
+    if (!object(entry) || !id(entry.candidate_id) || !["add-alternative", "replace"].includes(String(entry.action)) ||
+      (entry.action === "replace" && entry.prune_explicitly_confirmed !== true) ||
+      (entry.promote_candidate_to_mainline !== undefined && typeof entry.promote_candidate_to_mainline !== "boolean")) {
+      return `retention[${index}] is invalid`;
+    }
+  }
+  if ((value.candidate_ids as readonly unknown[]).some((candidate) => !id(candidate))) return "candidate_ids contains an invalid identity";
+  if (!id(record("safety").request_id)) return "safety.request_id is required";
+  const safety = record("safety");
+  if (!object(safety.request) || !Array.isArray(safety.candidates) || !Array.isArray(safety.provenance) ||
+    !id(safety.repertoire_revision) || !["white", "black"].includes(String(safety.repertoire_color))) {
+    return "safety must contain the complete retained request, candidates, provenance, revision, and ownership";
+  }
+  return null;
+}
+
 export function validateToolArguments(name: string, raw: unknown, host: ToolHost): ArgumentsResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
   const contract = TOOL_CONTRACT_BY_NAME.get(name);
@@ -431,6 +547,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "position_popularity") {
     const reason = explorerPopulationArgumentsError(value, "position_popularity");
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "suggest_replacement_line") {
+    const reason = replacementArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   return { ok: true, value };

@@ -337,6 +337,104 @@ const repl = await call(client, "suggest_replacement_line", {
 console.log("  outlier_move:", repl.outlier_move, "anchored_to:", repl.anchored_to, "suggestions:", repl.suggestions?.length);
 ok(!repl.error && repl.outlier_move === "bxc3" && Array.isArray(repl.suggestions), "suggest_replacement_line pivots at the weakness-incurring move");
 
+const replacementRequest = {
+  schema_version: "2.0.0",
+  analysis_version: "2.0.0",
+  replacement_schema_version: "1.0.0",
+  request_id: "smoke:replacement-request",
+  report_id: "smoke:report",
+  finding_id: "smoke:finding",
+  semantic_finding_id: "smoke:semantic-finding",
+  cohort_id: "smoke:cohort",
+  repertoire_revision: `mcp:${congRep.repertoire_id}`,
+  repertoire_color: "white",
+  pivot_selection: { kind: "automatic", decision_id: null },
+  profile: { schema_version: "2.0.0", mode: "balanced", source: "explicit", provisional: false, preferences: {} },
+  candidate_sources: ["user-line"],
+  user_candidate_san_lines: [["e4"]],
+  maximum_repertoire_pov_loss_from_best_cp: 100,
+  minimum_expected_opponent_coverage: 0.8,
+  budget: {
+    maximum_candidates: 1,
+    maximum_subtree_nodes_per_candidate: 20,
+    maximum_engine_positions: 1,
+    maximum_explorer_queries: 0,
+    engine_depth: 10,
+    engine_multipv: 1,
+    strategic_horizon_ply: 12,
+    minimum_reply_popularity: 0.05,
+    include_all_forcing_replies: true,
+  },
+  provenance: [],
+};
+const replacementFinding = {
+  report_id: replacementRequest.report_id,
+  finding_id: replacementRequest.finding_id,
+  semantic_finding_id: replacementRequest.semantic_finding_id,
+  cohort_id: replacementRequest.cohort_id,
+  repertoire_revision: replacementRequest.repertoire_revision,
+};
+const v2Repl = await call(client, "suggest_replacement_line", {
+  repertoire_id: congRep.repertoire_id,
+  contract: "strategic-fit-replacement-v2",
+  replacement_request: replacementRequest,
+  finding: replacementFinding,
+  pivot: replacementRequest.pivot_selection,
+  profile: replacementRequest.profile,
+  sources: replacementRequest.candidate_sources,
+  budget: replacementRequest.budget,
+  engine: { depth: 10, multipv: 1, allow_unavailable_evidence: true },
+  coverage: { minimum_expected_opponent_coverage: 0.8, require_all_forcing_replies: true },
+  retention: [],
+  candidate_ids: ["smoke:missing-candidate"],
+  safety: {
+    request: replacementRequest,
+    request_id: replacementRequest.request_id,
+    report_id: replacementRequest.report_id,
+    finding_id: replacementRequest.finding_id,
+    semantic_finding_id: replacementRequest.semantic_finding_id,
+    cohort_id: replacementRequest.cohort_id,
+    repertoire_revision: replacementRequest.repertoire_revision,
+    repertoire_color: replacementRequest.repertoire_color,
+    candidates: [],
+    provenance: [],
+  },
+});
+ok(v2Repl.contract === "strategic-fit-replacement-v2" && v2Repl.status === "partial" &&
+  v2Repl.items?.[0]?.error_code === "candidate-not-found", "suggest_replacement_line preserves structured V2 per-item errors");
+ok(v2Repl.host?.preview_policy === "preview-only" && v2Repl.host?.source_handle_unchanged === true &&
+  v2Repl.host?.new_repertoire_id === null && v2Repl.host?.archive_storage === "unavailable" &&
+  v2Repl.host?.undo === "unavailable" && v2Repl.host?.explicit_edit_required_for_clone_handle === true,
+"suggest_replacement_line exposes MCP archive/undo limitations and returns no clone handle before explicit edit");
+const staleV2Repl = await call(client, "suggest_replacement_line", {
+  repertoire_id: congRep.repertoire_id,
+  contract: "strategic-fit-replacement-v2",
+  replacement_request: { ...replacementRequest, repertoire_revision: "mcp:another-handle" },
+  finding: { ...replacementFinding, repertoire_revision: "mcp:another-handle" },
+  pivot: replacementRequest.pivot_selection,
+  profile: replacementRequest.profile,
+  sources: replacementRequest.candidate_sources,
+  budget: replacementRequest.budget,
+  engine: { depth: 10, multipv: 1, allow_unavailable_evidence: true },
+  coverage: { minimum_expected_opponent_coverage: 0.8, require_all_forcing_replies: true },
+  retention: [],
+  candidate_ids: ["smoke:missing-candidate"],
+  safety: {
+    request: { ...replacementRequest, repertoire_revision: "mcp:another-handle" },
+    request_id: replacementRequest.request_id,
+    report_id: replacementRequest.report_id,
+    finding_id: replacementRequest.finding_id,
+    semantic_finding_id: replacementRequest.semantic_finding_id,
+    cohort_id: replacementRequest.cohort_id,
+    repertoire_revision: "mcp:another-handle",
+    repertoire_color: replacementRequest.repertoire_color,
+    candidates: [],
+    provenance: [],
+  },
+});
+ok(staleV2Repl.status === "stale" && staleV2Repl.error_code === "safety-mismatch" &&
+  staleV2Repl.items?.length === 0, "suggest_replacement_line binds V2 evidence to the injected MCP handle revision");
+
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
 

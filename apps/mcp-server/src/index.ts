@@ -34,6 +34,8 @@ import {
   compareMoves,
   suggestComplementaryLines,
   suggestReplacementLine,
+  composeReplacementToolV2,
+  REPLACEMENT_TOOL_V2_CONTRACT,
   parseOpeningsTsv,
   identifyDeepest,
   lichessGames,
@@ -76,6 +78,7 @@ import {
   type ExplorerFilters,
   type StrategicFitToolArguments,
   type StrategicRouteWeightingOptions,
+  type ReplacementToolV2Input,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
@@ -98,6 +101,30 @@ const MAX_COMPARE_MOVES = 64;
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" });
 
 const strategicFitIdSchema = () => z.string().max(256);
+const replacementRequestEnvelopeSchema = z.object({ request_id: strategicFitIdSchema() }).passthrough();
+const replacementFindingEnvelopeSchema = z.object({ finding_id: strategicFitIdSchema() }).passthrough();
+const replacementPivotEnvelopeSchema = z.object({ kind: z.enum(["automatic", "user-selected"]) }).passthrough();
+const replacementProfileEnvelopeSchema = z.object({ mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]) }).passthrough();
+const replacementBudgetEnvelopeSchema = z.object({
+  engine_depth: z.number().int().min(1).max(30),
+  engine_multipv: z.number().int().min(1).max(10),
+}).passthrough();
+const replacementEngineEnvelopeSchema = z.object({
+  depth: z.number().int().min(1).max(30),
+  multipv: z.number().int().min(1).max(10),
+  allow_unavailable_evidence: z.boolean(),
+}).passthrough();
+const replacementCoverageEnvelopeSchema = z.object({
+  minimum_expected_opponent_coverage: z.number().min(0).max(1),
+  require_all_forcing_replies: z.boolean(),
+}).passthrough();
+const replacementRetentionEnvelopeSchema = z.object({
+  candidate_id: strategicFitIdSchema(),
+  action: z.enum(["add-alternative", "replace"]),
+  prune_explicitly_confirmed: z.boolean().optional(),
+  promote_candidate_to_mainline: z.boolean().optional(),
+}).passthrough();
+const replacementSafetyEnvelopeSchema = z.object({ request_id: strategicFitIdSchema() }).passthrough();
 const strategicFitIdListSchema = (maximum = 500) => z.array(strategicFitIdSchema()).max(maximum);
 const strategicFitProfileSchema = z.object({
   mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]),
@@ -1194,14 +1221,59 @@ server.tool(
   toolContract("suggest_replacement_line").description,
   {
     repertoire_id: z.string(),
-    outlier_variation_path: z.array(z.string()),
+    outlier_variation_path: z.array(z.string().max(128)).max(256).optional(),
     mode: z.enum(["structural_fit", "low_memorization", "solid"]).optional(),
     depth: z.number().int().min(1).max(30).optional(),
+    contract: z.enum([REPLACEMENT_TOOL_V2_CONTRACT]).optional(),
+    replacement_request: replacementRequestEnvelopeSchema.optional(),
+    finding: replacementFindingEnvelopeSchema.optional(),
+    pivot: replacementPivotEnvelopeSchema.optional(),
+    profile: replacementProfileEnvelopeSchema.optional(),
+    sources: z.array(z.enum([
+      "existing-repertoire-transposition", "opening-database", "engine-multipv", "user-line",
+      "structurally-similar", "move-order-shortcut",
+    ])).min(1).max(6).optional(),
+    budget: replacementBudgetEnvelopeSchema.optional(),
+    engine: replacementEngineEnvelopeSchema.optional(),
+    coverage: replacementCoverageEnvelopeSchema.optional(),
+    retention: z.array(replacementRetentionEnvelopeSchema).max(100).optional(),
+    candidate_ids: z.array(z.string().max(256)).min(1).max(100).optional(),
+    safety: replacementSafetyEnvelopeSchema.optional(),
   },
-  async ({ repertoire_id, outlier_variation_path, mode, depth }) => {
+  async ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    return ok(await suggestReplacementLine(e.tree, e.color, outlier_variation_path, { mode, depth }, analyseMulti));
+    const validation = validateToolArguments("suggest_replacement_line", { repertoire_id, ...rawArgs }, "mcp");
+    if (!validation.ok) return ok(validation);
+    if (rawArgs.contract === REPLACEMENT_TOOL_V2_CONTRACT) {
+      const result = composeReplacementToolV2(e.tree, rawArgs as unknown as ReplacementToolV2Input, {
+        signal: extra.signal,
+        expected_repertoire_revision: e.revision,
+        expected_repertoire_color: e.color,
+      });
+      return ok({
+        ...result,
+        host: {
+          kind: "mcp",
+          preview_policy: "preview-only",
+          source_repertoire_id: repertoire_id,
+          source_handle_unchanged: true,
+          new_repertoire_id: null,
+          archive_storage: "unavailable",
+          archive_restore: "unavailable",
+          undo: "unavailable",
+          explicit_edit_required_for_clone_handle: true,
+          v2_generation: "retained-evidence-only-until-phase-9",
+        },
+      });
+    }
+    const legacy = rawArgs as {
+      outlier_variation_path: string[];
+      mode?: "structural_fit" | "low_memorization" | "solid";
+      depth?: number;
+    };
+    return ok(await suggestReplacementLine(e.tree, e.color, legacy.outlier_variation_path,
+      { mode: legacy.mode, depth: legacy.depth }, analyseMulti));
   },
 );
 

@@ -280,6 +280,53 @@ mutate metadata, rescan findings, or implement undo. Task 8.9 owns those host/do
 Public MCP/browser contracts, generated catalog/guidance, plugin versions, hosts, UI, Replacement
 Lab lifecycle, and `suggest_replacement_line` remain unchanged.
 
+Task 8.9 adds those browser document concerns without weakening the pure Task 8.8 boundary. A
+document/revision/PGN/metadata identity snapshot binds each complete validated change set and its
+preview. Staging and rejection do not publish a tree, metadata, navigation, revision, archive, or
+disk change. Acceptance reruns Task 8.8 validation through a recoverable prepare/publish/finalize
+protocol. The prepare transaction keeps the prior PGN, metadata, archives, and undo state canonical
+and stores the proposed after-state only in an inert recovery journal. The validated clone and
+metadata then publish in one Solid batch as exactly one monotonic document revision. A final
+IndexedDB transaction atomically promotes the working PGN, normalized metadata, exact archive
+payloads, and bounded undo snapshot without separately flushing the new live state. If finalization
+fails, the prior live snapshot is restored exactly; reload normalization discards the inert prepared
+journal while retaining the prior durable canonical state. Metadata retains canonical archive
+references only; byte-exact PGN payloads stay in a separate document-keyed record. Matching
+resolutions retain the staged-edit identity without losing their semantic finding identity or
+provenance.
+
+Undo is bounded and deterministic. It requires the exact accepted PGN, metadata, revision, archive
+set, and document identity, persists the complete pre-acceptance snapshot atomically, and then
+restores tree, metadata, resolutions, archive state, and navigation as one new monotonic revision.
+Apply, archive, persistence, publish, and undo failures expose no partial document result. Pending
+change sets are deliberately session-only and discarded on reload, so reload can never auto-accept
+a proposal. SAN paths remain navigation aids and are re-resolved after the semantic Task 8.8
+validation; pruning remains explicit and archive-before-prune.
+
+Task 8.10 keeps `suggest_replacement_line` stable while adding the discriminated
+`strategic-fit-replacement-v2` envelope. Its canonical inputs mirror the exact finding, semantic
+pivot, profile, sources, budget, engine, coverage, retention, candidate, safety, identity, version,
+and provenance chain. The shared framework-free composer revalidates the retained Task 8.3–8.7
+evidence and produces structured per-candidate Task 8.8 change sets and immutable previews. Legacy
+`outlier_variation_path`/mode/depth behavior remains available until Phase 9; V2 and legacy inputs
+cannot be mixed.
+
+Phase 8 exposes that V2 branch only as a retained-evidence preview bridge. It does not claim to start
+candidate discovery or host engine/explorer work from public finding IDs; the Phase 9 lifecycle will
+own that orchestration. This keeps the complete contract serializable without advertising unavailable
+host generation or fabricating engine/network evidence.
+
+Host parity is semantic, not operational. Browser V2 execution uses the exhaustive command registry
+and stages each valid preview against the current browser document; it never accepts it. Browser
+acceptance owns IndexedDB archive storage and bounded document undo. MCP V2 execution looks up one
+immutable repertoire handle and returns previews only, explicitly reporting that archive storage,
+restore, and undo are unavailable. It returns no new repertoire handle until a separate explicit
+edit call uses the existing clone-on-write handle boundary. Browser engine/Worker, cancellation,
+credentials, persistence, artifacts, and navigation remain browser-owned; Node engine-pool,
+network credential, confined-path, and handle lifetimes remain MCP-owned. Both retain structured
+unavailable/partial/cancelled/illegal evidence, Black repertoire ownership, and separately labeled
+White-POV transport. Phase 9 visual Replacement Lab lifecycle and candidate UI remain unstarted.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game

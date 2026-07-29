@@ -15,6 +15,8 @@ import type {
   StrategicFitDocumentMetadata,
   StrategicFitReport,
   StrategicTrainingMetricEvidence,
+  ReplacementChangeSet,
+  ReplacementSafetySimulationResult,
   TablebaseResult,
 } from "@chess-mcp/chess-tools";
 
@@ -76,6 +78,10 @@ export type BrowserCommandDependencies = {
   ) => Promise<StrategicFitReport>;
   createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => unknown;
   stageEdit: (action: "add" | "prune" | "reorder", path: string[], options?: { addMoves?: string[]; promoteMove?: string }) => unknown;
+  stageReplacementChangeSet: (input: {
+    readonly safety: ReplacementSafetySimulationResult;
+    readonly change_set: ReplacementChangeSet;
+  }) => Promise<unknown>;
   proposeLine: (moves: string[], comment?: string) => unknown;
 };
 

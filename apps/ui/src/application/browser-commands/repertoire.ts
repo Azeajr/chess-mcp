@@ -19,6 +19,8 @@ import {
   suggestComplementaryLines,
   suggestGapFills,
   suggestReplacementLine,
+  composeReplacementToolV2,
+  REPLACEMENT_TOOL_V2_CONTRACT,
   theoryDepth,
   toolDefault,
   transpositionResult,
@@ -35,6 +37,7 @@ import {
   STRATEGIC_POPULARITY_MOVE_LIMIT,
   type StrategicFitToolArguments,
   type StrategicRouteWeightingOptions,
+  type ReplacementToolV2Input,
 } from "@chess-mcp/chess-tools";
 import { makeFen } from "chessops/fen";
 import type { BrowserCommandHandler } from "./types";
@@ -426,6 +429,54 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     return result;
   },
   suggest_replacement_line: async (args, context) => {
+    if (args.contract === REPLACEMENT_TOOL_V2_CONTRACT) {
+      const input = args as unknown as ReplacementToolV2Input;
+      const result = composeReplacementToolV2(context.currentTree(), input, {
+        signal: context.signal,
+        expected_repertoire_revision: `browser:${context.currentRevision()}`,
+        expected_repertoire_color: context.currentColor(),
+      });
+      throwIfAborted(context.signal);
+      const items = [];
+      for (const candidate of result.items) {
+        if (candidate.status !== "previewed" || !candidate.change_set) {
+          items.push({ ...candidate, stage: null });
+          continue;
+        }
+        const stage = await context.stageReplacementChangeSet({
+          safety: input.safety,
+          change_set: candidate.change_set,
+        });
+        throwIfAborted(context.signal);
+        if (stage && typeof stage === "object" && "ok" in stage && stage.ok === false) {
+          const stageError = "error" in stage ? String(stage.error) : "staging-failed";
+          items.push({
+            ...candidate,
+            status: stageError.includes("stale") ? "stale" : "blocked",
+            error_code: stageError,
+            explanation: `Browser staging rejected this preview: ${stageError}.`,
+            stage,
+          });
+        } else items.push({ ...candidate, stage });
+      }
+      const stagedCount = items.filter((candidate) => candidate.status === "previewed").length;
+      const hostStatus = stagedCount === items.length ? result.status
+        : stagedCount === 0 && items.some((candidate) => candidate.status === "stale") ? "stale"
+        : "partial";
+      return {
+        ...result,
+        status: hostStatus,
+        items,
+        host: {
+          kind: "browser",
+          preview_policy: "stage-only",
+          acceptance_required: true,
+          archive_storage: "document-indexeddb",
+          undo: "bounded-document-snapshot",
+          v2_generation: "retained-evidence-only-until-phase-9",
+        },
+      };
+    }
     const result = await suggestReplacementLine(
       context.currentTree(), context.currentColor(), (args.outlier_variation_path as string[]) ?? [],
       { mode: args.mode as never, depth: requestedDepth(args, context) }, commandAnalyse(context),

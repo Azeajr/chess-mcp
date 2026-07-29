@@ -38,8 +38,9 @@ a no-scope Lichess personal token because the explorer requires authentication.
   personal-history frequency, bounded custom feature-family weights, persisted browser source
   filters with visible availability, browser-local training-adjusted metrics with source coverage, paging,
   provenance, and a temporary legacy projection; transposition
-  shortening, shortcut inspection, engine-vetted replacement or complementary lines, and shared
-  best-eval/best-fit gap fills.
+  shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
+  Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
+  persistence, honest MCP archive/undo limits, complementary lines, and shared best-eval/best-fit gap fills.
 
 Engine-backed position, game, and repertoire operations default to depth 20. The PWA's analysis
 selector can enable global Deep analysis at depth 30; it warns that bulk work may take minutes and

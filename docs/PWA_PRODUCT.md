@@ -26,6 +26,13 @@ Repertoire add, prune, and reorder operations produce staged actions. Each previ
 source revision, path, before/after summary, and line where applicable. Accept uses the same command
 as direct editing; Reject discards it; a stale revision cannot apply.
 
+Strategic Fit V2 replacement previews stage complete atomic change sets against the exact document,
+revision, tree, metadata, result, archive, version, identity, and provenance chain. Preview and reject
+are non-mutating. Accept persists the working PGN, canonical metadata references, exact archive PGNs
+outside metadata, and bounded undo state atomically before publishing tree plus metadata as exactly
+one revision. Undo restores repertoire, metadata, resolutions, archive state, and navigation in one
+new revision. Pending replacement changes are discarded on reload and are never auto-accepted.
+
 Direct repertoire suggestions, including gap fills, open a visible staged-line card with Accept line
 and Cancel controls. Accept grafts the line into the working tree; the normal Save action persists it.
 
@@ -85,3 +92,16 @@ The current document autosaves in IndexedDB. Browser file APIs open and save PGN
 content through the model. Settings keep model, token, and Strategic Fit source-filter configuration
 locally; the canonical document sidecar keeps the profile itself. The production
 build is an installable PWA and packages browser Stockfish assets during build.
+
+MCP and browser expose the same Strategic Fit V2 replacement meaning but different host guarantees.
+Browser results are staged and support document archive storage plus bounded undo. MCP results are
+immutable previews only, explicitly expose unavailable archive/restore/undo support, and return a
+new clone-on-write repertoire handle only after a separate explicit edit. Matching command names do
+not imply shared Worker, engine-pool, credential, path, artifact, persistence, or handle behavior.
+Legacy one-move replacement results remain supported until Phase 9; Replacement Lab visual UI is not
+implemented yet.
+
+The Phase 8 public V2 branch is deliberately a retained-evidence preview bridge: it accepts a complete
+immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not pretend to regenerate
+candidate, engine, explorer, expansion, scoring, or safety evidence from shallow finding IDs. That
+host-orchestrated generation lifecycle and its visual controls remain hidden until Phase 9.

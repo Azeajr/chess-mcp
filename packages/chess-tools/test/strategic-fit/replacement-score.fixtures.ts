@@ -192,6 +192,7 @@ export function contextFixture(
   color: "white" | "black" = "white",
   modePrefix = "e4 e5 Nf3 Nc6 Bc4",
   sourcePgn = PGN,
+  repertoireRevision = "revision:score",
 ): FixtureContext {
   const graph = buildRepertoireGraph(GameTree.fromPgn(sourcePgn), color);
   const pivotRoute = routeStarting(graph, "e4 e5 Nf3 Nc6 Bb5");
@@ -259,7 +260,7 @@ export function contextFixture(
     finding_id: "finding:score",
     semantic_finding_id: "semantic-finding:score",
     cohort_id: cohort.cohort_id,
-    repertoire_revision: "revision:score",
+    repertoire_revision: repertoireRevision,
     repertoire_color: color,
     pivot_selection: { kind: "automatic", decision_id: null },
     profile: requestProfile,

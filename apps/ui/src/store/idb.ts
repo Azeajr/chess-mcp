@@ -47,3 +47,26 @@ export async function idbDel(key: string): Promise<void> {
   });
   db.close();
 }
+
+export interface IdbAtomicMutation {
+  readonly key: string;
+  readonly value?: unknown;
+  readonly delete?: boolean;
+}
+
+/** Commit related document records in one IndexedDB transaction. */
+export async function idbMutateAtomically(mutations: readonly IdbAtomicMutation[]): Promise<void> {
+  const db = await open();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    for (const mutation of mutations) {
+      if (mutation.delete === true) store.delete(mutation.key);
+      else store.put(mutation.value, mutation.key);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+  });
+  db.close();
+}

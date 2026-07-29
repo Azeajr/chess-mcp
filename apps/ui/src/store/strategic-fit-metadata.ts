@@ -73,6 +73,7 @@ export interface StrategicFitMetadataPersistenceController {
   ): StrategicFitMetadataNormalizationResult;
   deleteDocumentMetadata(documentId: string): Promise<void>;
   flush(documentId?: string): Promise<void>;
+  pause(documentId: string): Promise<() => void>;
   dispose(): void;
 }
 
@@ -135,6 +136,7 @@ export function createStrategicFitMetadataPersistence(
   const keyEpochs = new Map<string, number>();
   const pendingWrites = new Map<string, PendingWrite>();
   const operationTails = new Map<string, Promise<void>>();
+  const pausedDocuments = new Set<string>();
 
   const epochFor = (id: string) => keyEpochs.get(id) ?? 0;
   const publish = (next: StrategicFitMetadataPersistenceSnapshot) => {
@@ -182,6 +184,7 @@ export function createStrategicFitMetadataPersistence(
   };
 
   const executePending = (id: string): Promise<void> => {
+    if (pausedDocuments.has(id)) return operationTails.get(id) ?? Promise.resolve();
     const pending = pendingWrites.get(id);
     if (!pending) return operationTails.get(id) ?? Promise.resolve();
     if (pending.timer !== null) clearTimeout(pending.timer);
@@ -208,9 +211,11 @@ export function createStrategicFitMetadataPersistence(
       metadata: cloneMetadata(metadata),
       timer: null,
     };
-    pending.timer = setTimeout(() => {
-      void executePending(id);
-    }, Math.max(0, delay));
+    if (!pausedDocuments.has(id)) {
+      pending.timer = setTimeout(() => {
+        void executePending(id);
+      }, Math.max(0, delay));
+    }
     pendingWrites.set(id, pending);
   };
 
@@ -317,6 +322,25 @@ export function createStrategicFitMetadataPersistence(
       await Promise.all([...operationTails.values()]);
     },
 
+    async pause(id: string): Promise<() => void> {
+      pausedDocuments.add(id);
+      const pending = pendingWrites.get(id);
+      if (pending) {
+        if (pending.timer !== null) clearTimeout(pending.timer);
+        pendingWrites.delete(id);
+        await enqueue(id, pending.epoch, () => options.storage.set(id, cloneMetadata(pending.metadata)), true);
+      }
+      await (operationTails.get(id) ?? Promise.resolve());
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        pausedDocuments.delete(id);
+        const latest = pendingWrites.get(id);
+        if (latest) scheduleWrite(id, latest.metadata, latest.epoch);
+      };
+    },
+
     dispose(): void {
       disposed = true;
       activation += 1;
@@ -416,4 +440,9 @@ export async function deleteStrategicFitMetadata(targetDocumentId: string): Prom
 /** Test/dev synchronization boundary; normal product writes remain debounced. */
 export function flushStrategicFitMetadata(targetDocumentId?: string): Promise<void> {
   return browserPersistence.flush(targetDocumentId);
+}
+
+/** Hold reactive metadata writes behind a Strategic Fit document transaction. */
+export function pauseStrategicFitMetadataPersistence(targetDocumentId: string): Promise<() => void> {
+  return browserPersistence.pause(targetDocumentId);
 }

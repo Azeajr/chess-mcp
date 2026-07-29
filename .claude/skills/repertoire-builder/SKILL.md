@@ -20,6 +20,7 @@ Use the `chess-analysis` MCP on the whole branching tree.
 - Engine-backed tools default to depth 20. Use depth 30 only when the user explicitly requests deep analysis; warn that multi-position work may take minutes.
 - If an engine or required network source is unavailable, say which source is unavailable and stop that dependent method. Do not turn missing evidence into a chess claim.
 - Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up work.
+- Treat Strategic Fit replacement results as revision-bound atomic previews. Compare full candidate subtrees and retained unavailable/partial evidence; never infer pruning, auto-accept a staged browser change, or imply MCP archive/undo support.
 
 ## Shared method
 
@@ -31,7 +32,7 @@ Pressure-test a branching repertoire for soundness, coverage, memorization cost,
 4. Find gaps: Scan opponent decision nodes for strong uncovered replies. For a real gap, generate best-evaluation and best-fit fills and let the user choose before staging or applying an edit. Tools: `find_repertoire_gaps`, `suggest_gap_fills`, `modify_repertoire_line`.
 5. Find only moves: Find sharp user-turn positions where the best move clearly separates from the second. Fix non-best prescriptions through the audit path before producing a drill deck. Tools: `find_only_moves`.
 6. Shorten safely: Find sound transposition shortcuts, compare memorization savings with evaluation, inspect quality and post-prune coverage, then stage/apply only the chosen prune. Tools: `find_pruning_transpositions`, `compare_shortcut_lines`, `check_shortcut_coverage`, `modify_repertoire_line`.
-7. Extend and connect: Use coverage for dangling lines and stub reconnection; use complementary or replacement suggestions for intentional additions grounded in engine output. Tools: `get_repertoire_coverage`, `suggest_complementary_lines`, `suggest_replacement_line`.
+7. Extend and connect: Use coverage for dangling lines and stub reconnection. Keep legacy one-move replacement suggestions compatible; for Strategic Fit V2 compare complete candidate subtrees, coverage, safety, provenance, and atomic change-set previews. Browser previews are staged for explicit acceptance; MCP previews do not provide archive storage or undo and return a new handle only after an explicit edit. Tools: `get_repertoire_coverage`, `suggest_complementary_lines`, `suggest_replacement_line`.
 8. Use practical evidence: Use explorer popularity and theory depth only with authentication. Keep engine soundness distinct from human frequency. Tools: `position_popularity`, `find_theory_depth`.
 9. Prepare an opponent: Use opponent preparation for an opponent's games and targets; use repertoire-versus-history for the user's own departures. Do not substitute one report for the other. Tools: `prep_vs_opponent`, `repertoire_vs_history`.
 10. Export the right artifact: Use annotated repertoire export for the branching tree and only-move deck export for training. In the browser, use the JSON sidecar for canonical Strategic Fit metadata and the intent PGN only for portable comments; never expose tokens or repeat full artifact content. Tools: `export_annotated_repertoire`, `find_only_moves`.
