@@ -208,6 +208,29 @@ provenance, and navigation-only SAN paths remain inspectable. Source graph, pivo
 Task 8.4 result, providers, cache inputs, and injected evidence remain immutable. Public/generated
 contracts, hosts, UI, Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
 
+Replacement scoring consumes only current runtime-validated Task 8.5 expansion results. Complete
+candidate subtrees are projected onto their full canonical repertoire prefix and every prepared
+continuation after a transposition join, then passed through the existing trajectory, concept,
+distance, cohort-mode, route-weighting, profile, popularity, metrics, and training semantics.
+Expected opponent frequency weights the whole continuation. Semantic position identity prevents
+transpositions and navigation-only SAN paths from manufacturing extra observations. Partial,
+truncated, blocked, stale, illegal, cancelled, and unavailable expansions remain preserved but
+unscored.
+
+Each scored candidate retains objective quality as a separate axis and emits inspectable strategic
+fit, strategic familiarity, memorization burden, expected coverage, new concepts, theory size,
+popularity, homogenization cost, and training cost contributions. Every contribution carries raw
+and normalized values, unit, direction, state, reason, and provenance; missing evidence remains
+null or partial rather than becoming zero. Deterministic Pareto assessment reports all optimal and
+dominated tradeoffs plus exact dominating candidate IDs, while shared partial evidence stays
+explicit and never implies one best candidate. Task 8.6 returns an intermediate scored expansion,
+not Task 8.7 coverage simulation, a Task 8.8 change set, or a finished `ReplacementCandidate`.
+Request/report/finding/cohort/pivot/revision/color and semantic position/decision/trajectory
+identities, schema versions, Black repertoire POV, separately labeled White-POV engine transport,
+Task 8.3 seeds, Task 8.4 evidence, Task 8.5 subtrees, source context, and nested provenance remain
+immutable and serializable. The layer stays framework-free; public/generated contracts, hosts, UI,
+Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game
