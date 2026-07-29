@@ -656,6 +656,31 @@ export interface ReplacementTreeStatistics extends AnalysisVersioned {
   readonly transposition_count: number;
 }
 
+/** Exact archive evidence produced by the pure Task 8.8 transaction boundary. */
+export interface ReplacementArchivePayload extends AnalysisVersioned {
+  readonly archive_id: string;
+  readonly operation_id: string;
+  readonly target: ReplacementChangeTarget;
+  readonly pgn: string;
+  readonly references: SemanticReferences;
+  readonly provenance: readonly StrategicFitSourceProvenance[];
+}
+
+/** Per-operation structural diff. Empty arrays mean the operation was validation-only. */
+export interface ReplacementOperationDiff extends AnalysisVersioned {
+  readonly operation_id: string;
+  readonly sequence: number;
+  readonly kind: ReplacementChangeOperationKind;
+  readonly added_paths: readonly (readonly string[])[];
+  readonly removed_paths: readonly (readonly string[])[];
+  readonly annotated_paths: readonly (readonly string[])[];
+  readonly linked_paths: readonly (readonly string[])[];
+  readonly archived_paths: readonly (readonly string[])[];
+  readonly reordered_parent_paths: readonly (readonly string[])[];
+  readonly linked_position_ids: readonly string[];
+  readonly archive_ids: readonly string[];
+}
+
 export interface ReplacementChangeSetPreview extends StrategicFitReplacementVersioned {
   readonly before: ReplacementTreeStatistics;
   readonly after: ReplacementTreeStatistics;
@@ -667,6 +692,10 @@ export interface ReplacementChangeSetPreview extends StrategicFitReplacementVers
   readonly affected_paths: readonly (readonly string[])[];
   readonly preserved_annotation_count: number;
   readonly archive_ids: readonly string[];
+  readonly operation_diffs: readonly ReplacementOperationDiff[];
+  readonly archive_payloads: readonly ReplacementArchivePayload[];
+  /** Finding changes require Task 8.9+ commit and reanalysis and are never inferred in Task 8.8. */
+  readonly finding_changes_state: "not-reanalyzed";
   readonly changed_finding_ids: readonly string[];
   readonly new_finding_ids: readonly string[];
   readonly resolved_finding_ids: readonly string[];

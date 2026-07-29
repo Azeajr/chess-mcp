@@ -255,6 +255,31 @@ fabricates Task 8.8 operations, change sets, archive payloads, atomic applicatio
 undo, or host behavior. Public MCP/browser contracts, generated catalog/guidance, plugin versions,
 hosts, UI, Replacement Lab lifecycle, and `suggest_replacement_line` remain unchanged.
 
+Atomic Replacement Lab change sets consume one current Task 8.7 candidate only after its retained
+Task 8.3–8.6 scoring evidence and source graph reproduce the supplied safety boundary. Candidates
+with no blocking safety check may become deterministic domain proposals; blocked, unavailable,
+stale, identity-mismatched, or version-mismatched evidence cannot. Proposals canonicalize ordered
+add-subtree, transposition-link validation, semantically equivalent annotation preservation,
+archive, explicitly confirmed prune, and variation-reorder operations. Training and intent-metadata
+operations remain outside the Task 8.8 tree transaction.
+
+Application uses one structural `GameTree` clone. Every SAN navigation target is revalidated against
+its canonical semantic position and optional decision identity before use. Candidate subtrees must
+reproduce their retained position and decision identities, duplicate SAN routes merge editorially,
+transposition links validate canonical prepared positions without creating a second tree model, and
+variation ordering covers every semantic child deterministically. Archive PGNs are exact subtree
+projections made before pruning; compatible comments and NAGs move only between equal semantic
+positions, while incompatible pruned comments remain in archive evidence. Any operation failure
+discards the clone and returns `result: null`; success returns the clone separately from a JSON-safe
+preview containing exact canonical graph statistics, every affected path, per-operation diffs, and
+archive payloads. Missing old-line objective/strategic evidence remains explicitly unavailable and
+finding changes remain `not-reanalyzed` rather than being inferred.
+
+This boundary allocates no document revision and does not stage, persist, accept, store archives,
+mutate metadata, rescan findings, or implement undo. Task 8.9 owns those host/document concerns.
+Public MCP/browser contracts, generated catalog/guidance, plugin versions, hosts, UI, Replacement
+Lab lifecycle, and `suggest_replacement_line` remain unchanged.
+
 ## Safety and result conventions
 
 Engine scores are white-POV unless an operation explicitly converts and labels mover POV. Game

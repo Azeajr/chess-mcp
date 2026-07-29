@@ -151,6 +151,7 @@ export * from "./strategic-fit/replacement-engine.js";
 export * from "./strategic-fit/replacement-expand.js";
 export * from "./strategic-fit/replacement-score.js";
 export * from "./strategic-fit/replacement-safety.js";
+export * from "./strategic-fit/change-set.js";
 export * from "./tool-contract.js";
 export * from "./tool-operations.js";
 export * from "./workflow-contract.js";
