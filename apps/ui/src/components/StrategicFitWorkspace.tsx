@@ -16,6 +16,7 @@ import CohortEditor from "./strategic-fit/CohortEditor";
 import TrainException from "./strategic-fit/TrainException";
 import IntentSuggestions from "./strategic-fit/IntentSuggestions";
 import ProfileSettings from "./strategic-fit/ProfileSettings";
+import ReplacementLab from "./strategic-fit/ReplacementLab";
 import { strategicFitMetadataStatus } from "../store/strategic-fit-metadata";
 import { strategicFitProfile } from "../store/strategic-fit-profile";
 import { strategicFitProfileSetupRequired } from "../store/strategic-fit-profile-setup";
@@ -44,6 +45,7 @@ import {
   type StrategicFitWorkspaceRegionState,
   type StrategicFitWorkspaceStage,
 } from "../store/ui";
+import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
 
 const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -118,7 +120,10 @@ export default function StrategicFitWorkspace() {
   let returnFocus: HTMLElement | null = null;
   const [usesStageTabs, setUsesStageTabs] = createSignal(false);
 
-  const close = () => setStrategicFitWorkspaceOpen(false);
+  const close = () => {
+    if (replacementLabSnapshot().open) replacementLab.close();
+    setStrategicFitWorkspaceOpen(false);
+  };
   const profileReady = () => strategicFitMetadataStatus() === "ready";
   const setupRequired = () => profileReady() && strategicFitProfileSetupRequired();
   const profileSummary = () => {
@@ -203,6 +208,7 @@ export default function StrategicFitWorkspace() {
       candidate.finding_id === findingId
     );
     return finding === undefined ? null : {
+      completed: current,
       reportId: current.report_id,
       report: current.result,
       finding,
@@ -290,6 +296,14 @@ export default function StrategicFitWorkspace() {
     compactQuery.addEventListener("change", updateStageSemantics);
 
     const trapFocus = (event: KeyboardEvent) => {
+      if (replacementLabSnapshot().open) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          replacementLab.close();
+        }
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -332,6 +346,7 @@ export default function StrategicFitWorkspace() {
         class="strategic-fit-workspace"
         role="dialog"
         aria-modal="true"
+        aria-hidden={replacementLabSnapshot().open ? "true" : undefined}
         aria-labelledby="strategic-fit-workspace-title"
         aria-describedby="strategic-fit-workspace-description"
         tabIndex={-1}
@@ -506,6 +521,7 @@ export default function StrategicFitWorkspace() {
               {(resolution) => (
                 <div class="strategic-fit-review-actions">
                   <ResolutionActions
+                    completed={resolution().completed}
                     reportId={resolution().reportId}
                     finding={resolution().finding}
                   />
@@ -549,6 +565,7 @@ export default function StrategicFitWorkspace() {
               {(resolution) => (
                 <div class="strategic-fit-review-actions">
                   <ResolutionActions
+                    completed={resolution().completed}
                     reportId={resolution().reportId}
                     finding={resolution().finding}
                   />
@@ -573,6 +590,9 @@ export default function StrategicFitWorkspace() {
           </Show>
         </Show>
       </section>
+      <Show when={replacementLabSnapshot().open}>
+        <ReplacementLab />
+      </Show>
     </div>
   );
 }

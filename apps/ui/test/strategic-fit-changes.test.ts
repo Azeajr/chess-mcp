@@ -129,6 +129,11 @@ test("stage previews exact Task 8.8 result without tree, metadata, navigation, r
   assert.equal(rejected.stage?.status, "rejected");
   assert.equal(isDeepStrictEqual(h.snapshot(), before), true, "reject mutated document snapshot");
   assert.equal(h.storage.commits.length, 0);
+  const reopened = await h.controller.stageChangeSet({ safety: h.fixture.safety, change_set: h.fixture.changeSet });
+  assert.equal(reopened.ok, true);
+  assert.equal(reopened.stage?.stage_id, staged.stage?.stage_id, "deterministic preview identity changed after reopen");
+  assert.equal(reopened.stage?.status, "staged", "close then reopen reused a finalized preview");
+  assert.equal(reopened.stage?.result_status, "previewed");
 });
 
 test("accept persists archive outside metadata, publishes tree plus metadata once, rejects duplicate acceptance, and undo restores exact state", async () => {
@@ -379,12 +384,12 @@ test("browser V2 adapter stages every selected preview and never directly applie
       stageCalls++;
       assert.equal(safety.request_id, request.request_id);
       assert.equal(change_set.base_repertoire_revision, request.repertoire_revision);
-      return { ok: true, stage_id: "stage:test" };
+      return { ok: true, stage: { stage_id: "stage:test" } };
     },
   }) as { status: string; items: Array<{ status: string; stage: unknown }>; host: { preview_policy: string } };
   assert.equal(result.status, "complete");
   assert.equal(result.items[0]?.status, "previewed");
-  assert.deepEqual(result.items[0]?.stage, { ok: true, stage_id: "stage:test" });
+  assert.deepEqual(result.items[0]?.stage, { ok: true, stage: { stage_id: "stage:test" } });
   assert.equal(result.host.preview_policy, "stage-only");
   assert.equal(stageCalls, 1);
   assert.equal(h.fixture.tree.toPgn(), source, "browser adapter directly mutated source tree");
@@ -422,4 +427,46 @@ test("browser V2 adapter stages every selected preview and never directly applie
   assert.equal(stale.status, "stale");
   assert.equal(stale.items[0]?.status, "stale");
   assert.equal(stale.items[0]?.error_code, "stale-revision");
+
+  const controller = new AbortController();
+  const discarded: string[] = [];
+  await assert.rejects(
+    browserCommandImplementations.suggest_replacement_line({
+      contract: "strategic-fit-replacement-v2",
+      replacement_request: request,
+      finding: {
+        report_id: request.report_id,
+        finding_id: request.finding_id,
+        semantic_finding_id: request.semantic_finding_id,
+        cohort_id: request.cohort_id,
+        repertoire_revision: request.repertoire_revision,
+      },
+      pivot: request.pivot_selection,
+      profile: request.profile,
+      sources: request.candidate_sources,
+      budget: request.budget,
+      engine: { depth: request.budget.engine_depth, multipv: request.budget.engine_multipv, allow_unavailable_evidence: true },
+      coverage: {
+        minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
+        require_all_forcing_replies: request.budget.include_all_forcing_replies,
+      },
+      retention: [{ candidate_id: h.fixture.candidate.candidate_id, action: "replace", prune_explicitly_confirmed: true }],
+      candidate_ids: [h.fixture.candidate.candidate_id],
+      safety: h.fixture.safety,
+    }, {
+      ...defaultBrowserCommandDependencies,
+      currentTree: () => h.fixture.tree,
+      currentRevision: () => 4,
+      currentDocumentId: () => DOCUMENT_ID,
+      signal: controller.signal,
+      stageReplacementChangeSet: async () => {
+        controller.abort();
+        return { ok: true, stage: { stage_id: "stage:cancelled-mid-staging" } };
+      },
+      discardReplacementChangeSet: async (stageId) => { discarded.push(stageId); },
+    }),
+    (error: unknown) => error instanceof DOMException && error.name === "AbortError",
+  );
+  assert.equal(discarded.length, 1);
+  assert.equal(discarded[0], "stage:cancelled-mid-staging");
 });

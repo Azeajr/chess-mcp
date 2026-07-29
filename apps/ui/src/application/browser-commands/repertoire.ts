@@ -438,26 +438,38 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       });
       throwIfAborted(context.signal);
       const items = [];
-      for (const candidate of result.items) {
-        if (candidate.status !== "previewed" || !candidate.change_set) {
-          items.push({ ...candidate, stage: null });
-          continue;
-        }
-        const stage = await context.stageReplacementChangeSet({
-          safety: input.safety,
-          change_set: candidate.change_set,
-        });
-        throwIfAborted(context.signal);
-        if (stage && typeof stage === "object" && "ok" in stage && stage.ok === false) {
-          const stageError = "error" in stage ? String(stage.error) : "staging-failed";
-          items.push({
-            ...candidate,
-            status: stageError.includes("stale") ? "stale" : "blocked",
-            error_code: stageError,
-            explanation: `Browser staging rejected this preview: ${stageError}.`,
-            stage,
+      const stagedIds: string[] = [];
+      try {
+        for (const candidate of result.items) {
+          if (candidate.status !== "previewed" || !candidate.change_set) {
+            items.push({ ...candidate, stage: null });
+            continue;
+          }
+          const stage = await context.stageReplacementChangeSet({
+            safety: input.safety,
+            change_set: candidate.change_set,
           });
-        } else items.push({ ...candidate, stage });
+          if (stage && typeof stage === "object" && "stage" in stage) {
+            const staged = stage.stage;
+            if (staged && typeof staged === "object" && "stage_id" in staged && typeof staged.stage_id === "string") {
+              stagedIds.push(staged.stage_id);
+            }
+          }
+          throwIfAborted(context.signal);
+          if (stage && typeof stage === "object" && "ok" in stage && stage.ok === false) {
+            const stageError = "error" in stage ? String(stage.error) : "staging-failed";
+            items.push({
+              ...candidate,
+              status: stageError.includes("stale") ? "stale" : "blocked",
+              error_code: stageError,
+              explanation: `Browser staging rejected this preview: ${stageError}.`,
+              stage,
+            });
+          } else items.push({ ...candidate, stage });
+        }
+      } catch (error) {
+        await Promise.all(stagedIds.map((stageId) => context.discardReplacementChangeSet(stageId)));
+        throw error;
       }
       const stagedCount = items.filter((candidate) => candidate.status === "previewed").length;
       const hostStatus = stagedCount === items.length ? result.status

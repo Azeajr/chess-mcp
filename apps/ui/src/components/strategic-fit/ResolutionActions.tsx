@@ -13,6 +13,8 @@ import {
   type StrategicFitReviewResolutionState,
 } from "../../store/strategic-fit-finding-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
+import { replacementLab } from "../../store/strategic-fit-replacement";
+import type { StrategicFitCompletedResult } from "../../store/strategic-fit";
 import { STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS } from "./FindingCard";
 
 const ACTIONS: readonly {
@@ -53,6 +55,7 @@ const REASON_LABELS: Readonly<Record<IntentionalResolutionReason, string>> = {
 };
 
 export default function ResolutionActions(props: {
+  completed: StrategicFitCompletedResult;
   reportId: string;
   finding: StrategicFinding;
 }) {
@@ -83,6 +86,7 @@ export default function ResolutionActions(props: {
     const current = strategicFitFindingResolutionReview();
     return current.finding_id === props.finding.finding_id ? current : null;
   };
+  const replacementAvailability = () => replacementLab.availability(props.completed, props.finding);
   const save = (event: SubmitEvent) => {
     event.preventDefault();
     transitionStrategicFitFindingResolution({
@@ -118,6 +122,27 @@ export default function ResolutionActions(props: {
           Current state: <strong>{STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS[resolution()]}</strong>
         </p>
       </header>
+
+      <section
+        class="strategic-fit-replacement-action"
+        data-replacement-actionable={replacementAvailability().actionable}
+      >
+        <div>
+          <strong>Find a more familiar line</strong>
+          <p>{replacementAvailability().message}</p>
+        </div>
+        <button
+          type="button"
+          disabled={!replacementAvailability().actionable}
+          aria-describedby={`strategic-fit-replacement-availability-${props.finding.finding_id}`}
+          onClick={() => replacementLab.open(props.completed, props.finding)}
+        >
+          Open Replacement Lab
+        </button>
+        <p id={`strategic-fit-replacement-availability-${props.finding.finding_id}`} class="sr-only">
+          {replacementAvailability().message}
+        </p>
+      </section>
 
       <Show when={availability().available} fallback={(
         <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>

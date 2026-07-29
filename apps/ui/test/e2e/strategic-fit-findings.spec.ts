@@ -36,8 +36,8 @@ const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: 
   { source: fn.toString(), arg },
 );
 
-async function installFindingWorkerFixture(page: Page) {
-  await page.addInitScript(() => {
+async function installFindingWorkerFixture(page: Page, replacementLabFixture = false) {
+  await page.addInitScript((replacementLabFixture) => {
     const NativeWorker = window.Worker;
     window.Worker = new Proxy(NativeWorker, {
       construct(target, args, newTarget) {
@@ -427,7 +427,11 @@ async function installFindingWorkerFixture(page: Page) {
                     label: index % 2 === 0 ? "mostly-player-controlled" : "mostly-opponent-forced",
                     player_contribution: 0.8,
                     opponent_contribution: 0.2,
-                    likely_causal_decision_ids: [`decision:${id}:a`],
+                    likely_causal_decision_ids: index === 0
+                      ? [message.payload.repertoire_color === "black"
+                          ? "decision:c355600852e94946"
+                          : "decision:a191661d710d7004"]
+                      : [`decision:${id}:a`],
                     timeline: index === 0
                       ? [
                           {
@@ -444,9 +448,11 @@ async function installFindingWorkerFixture(page: Page) {
                             kind: "player-decision",
                             ply: 3,
                             position_id: "position:finding:01:player",
-                            decision_id: "decision:finding:01:a",
-                            san: "c3",
-                            explanation: "The repertoire chooses the Alapin setup.",
+                            decision_id: message.payload.repertoire_color === "black"
+                              ? "decision:c355600852e94946"
+                              : "decision:a191661d710d7004",
+                            san: message.payload.repertoire_color === "black" ? "e5" : "Nf3",
+                            explanation: "The repertoire chooses the causal fixture move.",
                           },
                           {
                             event_id: "event:irreversible",
@@ -527,6 +533,7 @@ async function installFindingWorkerFixture(page: Page) {
               decision_scope_ids: [
                 "decision:e4e5e82a5c33c5ff",
                 "decision:c355600852e94946",
+                "decision:a191661d710d7004",
               ],
               route_ids: routeIds,
               excluded_route_ids: excludedRouteIds,
@@ -535,6 +542,7 @@ async function installFindingWorkerFixture(page: Page) {
                 normalized_weight: 1 / routeIds.length,
               })),
               effective_sample_size: routeIds.length,
+              transposition_position_ids: [],
               modes: routeIds.length === 0 ? [] : [{
                 analysis_version: analysisVersion,
                 mode_id: `mode:${cohortId}`,
@@ -556,7 +564,12 @@ async function installFindingWorkerFixture(page: Page) {
                 ? [cohort("cohort:split:a", [routeA]), cohort("cohort:split:b", [routeB])]
                 : requestedKind === "exclude"
                   ? [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [], [routeB])]
-                  : [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [routeB])];
+                  : replacementLabFixture
+                    ? [
+                        { ...cohort("cohort:fixture", [routeA, routeB]), state: "actionable" },
+                        { ...cohort("cohort:alternative", [routeB]), state: "actionable" },
+                      ]
+                    : [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [routeB])];
             const effectiveFindings = findings.map((entry, index) => ({
               ...entry,
               evidence: {
@@ -658,11 +671,15 @@ async function installFindingWorkerFixture(page: Page) {
         return controlled;
       },
     });
-  });
+  }, replacementLabFixture);
 }
 
-async function bootstrap(page: Page, repertoireColor: "white" | "black" = "white") {
-  await installFindingWorkerFixture(page);
+async function bootstrap(
+  page: Page,
+  repertoireColor: "white" | "black" = "white",
+  replacementLabFixture = false,
+) {
+  await installFindingWorkerFixture(page, replacementLabFixture);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
   await chess(page, (api) => api.loadPgn(
@@ -1542,4 +1559,86 @@ test("completed desktop and phone review pass accessibility, overflow, and visua
     animations: "disabled",
     caret: "hide",
   });
+});
+
+test("Replacement Lab opens only from an actionable current finding and closes without mutation", async ({ page }) => {
+  const { dialog, before, pathBefore } = await bootstrap(page, "white", true);
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  const action = dialog.locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" });
+  await expect(action).toBeEnabled();
+  await action.click();
+
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await expect(lab).toBeVisible();
+  await expect(lab).toContainText("Different center plan");
+  await expect(lab).toContainText("Findingfinding:01");
+  await expect(lab).toContainText("Semantic findingsemantic:finding:01");
+  await expect(lab).toContainText("User verdicts use White repertoire POV");
+  const pivot = lab.getByRole("radio", { name: /Nf3 · ply 3/ });
+  await expect(pivot).not.toBeChecked();
+  await pivot.check();
+  await expect(lab.getByRole("button", { name: "Confirm semantic pivot" })).toBeEnabled();
+  await expect(lab.getByRole("checkbox", { name: /Existing preparation/ })).toBeChecked();
+  await expect(lab.getByRole("checkbox", { name: /Structurally similar preparation/ })).toBeDisabled();
+  const depth = lab.getByRole("spinbutton", { name: "Engine depth" });
+  await depth.fill("12");
+  await expect(depth).toHaveValue("12");
+  await lab.getByRole("button", { name: "Confirm semantic pivot" }).click();
+  await lab.getByRole("button", { name: "Generate and stage previews" }).click();
+  const cancel = lab.getByRole("button", { name: "Cancel generation" });
+  await expect(cancel).toBeVisible();
+  await expect(lab.getByRole("heading", { name: "Generating candidates" })).toBeVisible();
+  await cancel.click();
+  await expect(lab).toContainText("Generation cancelled");
+  await expect(lab.getByRole("button", { name: "Retry generation" })).toBeVisible();
+  await lab.getByRole("button", { name: "Close lab" }).click();
+  await expect(lab).toHaveCount(0);
+  await expect(action).toBeFocused();
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+
+  await queue.getByRole("button", { name: "Next findings" }).click();
+  await queue.locator("[data-finding-id='finding:10'] [data-finding-select]").click();
+  const forced = dialog.locator("[data-resolution-finding-id='finding:10']");
+  await expect(forced.getByRole("button", { name: "Open Replacement Lab" })).toBeDisabled();
+  await expect(forced).toContainText("This difference is forced");
+});
+
+test("Black Replacement Lab is keyboard-contained, touch-sized, and transient across reload", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { dialog, before } = await bootstrap(page, "black", true);
+  await dialog.getByRole("tab", { name: "Findings" }).click();
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog.getByRole("tab", { name: "Resolution" }).click();
+  const action = dialog.locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" });
+  await action.click();
+
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await expect(lab.locator("[data-repertoire-color='black']")).toContainText("Black repertoire POV");
+  await expect(lab).toContainText("White POV");
+  const pivot = lab.getByRole("radio", { name: /e5 · ply 2/ });
+  await expect(pivot).not.toBeChecked();
+  await pivot.check();
+  expect(await lab.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await touchTargetViolations(lab)).toEqual([]);
+
+  const close = lab.getByRole("button", { name: "Close lab" });
+  await close.focus();
+  await page.keyboard.press("Shift+Tab");
+  expect(await lab.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(lab).toHaveCount(0);
+  await expect(action).toBeFocused();
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+
+  await page.reload();
+  await expect(page.getByRole("dialog", { name: "Replacement Lab" })).toHaveCount(0);
 });

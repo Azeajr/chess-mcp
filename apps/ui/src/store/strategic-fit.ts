@@ -839,6 +839,7 @@ export function startStrategicFitLifecycle(): void {
 }
 
 export const strategicFitLifecycle = () => browserLifecycle.snapshot();
+export const strategicFitCurrentSnapshot = currentBrowserSnapshot;
 export const analyzeStrategicFit = () => browserLifecycle.analyze();
 export const reanalyzeStrategicFit = (request: StrategicFitReanalysisRequest) =>
   browserLifecycle.reanalyze(request);

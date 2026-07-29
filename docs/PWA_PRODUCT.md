@@ -98,10 +98,17 @@ Browser results are staged and support document archive storage plus bounded und
 immutable previews only, explicitly expose unavailable archive/restore/undo support, and return a
 new clone-on-write repertoire handle only after a separate explicit edit. Matching command names do
 not imply shared Worker, engine-pool, credential, path, artifact, persistence, or handle behavior.
-Legacy one-move replacement results remain supported until Phase 9; Replacement Lab visual UI is not
-implemented yet.
+Legacy one-move replacement results remain supported. The browser Replacement Lab now opens only
+from a current unresolved actionable finding, retains the exact document/report/finding/cohort
+identity, requires explicit semantic pivot confirmation, and exposes canonical candidate sources,
+engine depth, bounded budgets, progress, cancellation, retry, partial/unavailable source evidence,
+and structured per-item errors. It orchestrates the Phase 8 candidate, engine, expansion, scoring,
+safety, and browser staging boundaries without applying a repertoire edit. Closing or reloading
+discards the transient lab and its pending previews. Candidate comparison/Pareto presentation,
+change review, acceptance, pruning, and undo controls remain outside this Task 9.1 surface.
 
-The Phase 8 public V2 branch is deliberately a retained-evidence preview bridge: it accepts a complete
-immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not pretend to regenerate
-candidate, engine, explorer, expansion, scoring, or safety evidence from shallow finding IDs. That
-host-orchestrated generation lifecycle and its visual controls remain hidden until Phase 9.
+The public V2 command branch remains a retained-evidence preview bridge: it accepts a complete
+immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not regenerate evidence
+from shallow finding IDs. The browser-only Task 9.1 lifecycle builds that complete retained context
+through the canonical Phase 8 producers and injected browser engine/explorer adapters before calling
+the command for stage-only previews; this does not expand the public schema or claim MCP host parity.

@@ -428,7 +428,9 @@ export function createStrategicFitChangeController(dependencies: StrategicFitCha
         identity(applied.output),
       ].join("\u001f"))}`;
       const duplicate = stages.get(stageId);
-      if (duplicate) return { ok: true, stage: clone(duplicate) };
+      if (duplicate && duplicate.status !== "rejected" && duplicate.status !== "stale" && duplicate.status !== "failed") {
+        return { ok: true, stage: clone(duplicate) };
+      }
       const stage: StrategicFitStagedChange = {
         stage_id: stageId,
         status: "staged",

@@ -12,7 +12,10 @@ import { analyseMulti } from "../../engine/stockfish";
 import { actions, color, currentPath, currentTree, documentId, fen, fileName, version } from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
-import { stageStrategicFitChangeSet } from "../../store/strategic-fit-changes";
+import {
+  rejectStrategicFitChangeSet,
+  stageStrategicFitChangeSet,
+} from "../../store/strategic-fit-changes";
 import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
@@ -58,5 +61,6 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   createArtifact,
   stageEdit,
   stageReplacementChangeSet: stageStrategicFitChangeSet,
+  discardReplacementChangeSet: rejectStrategicFitChangeSet,
   proposeLine: addSuggestion,
 };

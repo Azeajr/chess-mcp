@@ -82,6 +82,7 @@ export type BrowserCommandDependencies = {
     readonly safety: ReplacementSafetySimulationResult;
     readonly change_set: ReplacementChangeSet;
   }) => Promise<unknown>;
+  discardReplacementChangeSet: (stageId: string) => Promise<unknown>;
   proposeLine: (moves: string[], comment?: string) => unknown;
 };
 
