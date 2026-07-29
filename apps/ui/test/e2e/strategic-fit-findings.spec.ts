@@ -15,11 +15,215 @@ type ChessHarness = {
   strategicFitMetadata(): any;
   flushStrategicFitMetadata(): Promise<void>;
   setColor(color: "white" | "black"): void;
+  setReplacementLabResultForTesting(result: any): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   upsertStrategicFitResolution(input: any): unknown;
   strategicFitLifecycle(): any;
 };
+
+function replacementComparisonFixture(color: "white" | "black" = "white") {
+  const version = {
+    schema_version: "1.0.0",
+    analysis_version: "2.0.0",
+    replacement_schema_version: "1.0.0",
+  };
+  const source = {
+    source_id: "source:e2e:comparison",
+    kind: "deterministic-core",
+    state: "available",
+    version: "2.0.0",
+    snapshot: "snapshot:e2e:comparison",
+    reason: null,
+  };
+  const sourceRecord = {
+    ...version,
+    source_id: "candidate-source:e2e:comparison",
+    kind: "existing-repertoire-transposition",
+    status: "available",
+    provider: "repertoire-graph",
+    version: "2.0.0",
+    snapshot: "snapshot:e2e:comparison",
+    reason: null,
+    position_ids: ["position:prepared"],
+    decision_ids: ["decision:prepared"],
+    route_ids: ["route:prepared"],
+    details: { fixture: true },
+    provenance: [source],
+  };
+  const axisIds = [
+    "strategic-fit", "strategic-familiarity", "memorization-burden", "expected-coverage",
+    "new-concepts", "theory-size", "popularity", "homogenization-cost", "training-cost",
+  ];
+  const makeCandidate = (
+    id: string,
+    san: string,
+    paretoStatus: "pareto-optimal" | "dominated" | "unscored",
+    edgeCount: number,
+  ) => {
+    const unavailable = paretoStatus === "unscored";
+    const edges = Array.from({ length: edgeCount }, (_, index) => ({
+      analysis_version: "2.0.0",
+      edge_id: `edge:${id}:${index}`,
+      from_node_id: `node:${id}:${index}`,
+      to_node_id: `node:${id}:${index + 1}`,
+      decision_id: `decision:${id}:${index}`,
+      san: index === 0 ? san : index % 2 === 0 ? `Move${index}` : `Reply${index}`,
+      uci: "a2a3",
+      mover_color: index % 2 === 0 ? color : color === "white" ? "black" : "white",
+      owner: index % 2 === 0 ? "repertoire" : "opponent",
+      forcing: index % 8 === 0,
+      expected_opponent_frequency: index % 6 === 0 ? null : 0.5,
+      source_san_paths: [[san]],
+      annotation_text: [],
+    }));
+    const nodes = Array.from({ length: edgeCount + 1 }, (_, index) => ({
+      analysis_version: "2.0.0",
+      node_id: `node:${id}:${index}`,
+      kind: index === 0 ? "root" : index === edgeCount ? "terminal" : "opponent-reply",
+      position_id: `position:${id}:${index}`,
+      fen: "8/8/8/8/8/8/8/K6k w - - 0 1",
+      ply: index,
+      outgoing_edge_ids: index < edgeCount ? [`edge:${id}:${index}`] : [],
+      source_san_paths: [[san]],
+      transposition_target_position_id: index === edgeCount ? "position:prepared" : null,
+    }));
+    const subtree = unavailable ? null : {
+      ...version,
+      subtree_id: `subtree:${id}`,
+      root_position_id: nodes[0]!.position_id,
+      root_node_id: nodes[0]!.node_id,
+      nodes,
+      edges,
+      routes: [{
+        analysis_version: "2.0.0",
+        route_id: `route:${id}:long`,
+        node_ids: nodes.map((node) => node.node_id),
+        edge_ids: edges.map((edge) => edge.edge_id),
+        terminal_node_id: nodes.at(-1)!.node_id,
+        termination: "existing-preparation",
+        expected_opponent_frequency: 1,
+      }],
+      strategic_horizon_ply: 48,
+      important_reply_count: 4,
+      covered_important_reply_count: 4,
+      forcing_reply_count: 2,
+      covered_forcing_reply_count: 2,
+      unresolved_risk_ids: [],
+      provenance: [sourceRecord],
+      status: "complete",
+      completion: { kind: "immediate-transposition", target_position_id: "position:prepared" },
+      truncation_reasons: [],
+    };
+    return {
+      ...version,
+      candidate_id: id,
+      request_id: "request:e2e:comparison",
+      report_id: "report:e2e:comparison",
+      finding_id: "finding:01",
+      semantic_finding_id: "semantic:finding:01",
+      cohort_id: "cohort:fixture",
+      repertoire_revision: "browser:fixture",
+      repertoire_color: color,
+      state: unavailable ? "unavailable" : "available",
+      reason: unavailable ? "Candidate provider unavailable; retained for inspection." : null,
+      expansion: {
+        ...version,
+        candidate_id: id,
+        rank: 1,
+        seed: {
+          ...version,
+          candidate_id: id,
+          san,
+          provenance: [sourceRecord],
+        },
+        evidence_item_results: unavailable ? [{
+          error_code: "provider-unavailable",
+          status: "unavailable",
+          explanation: "Provider unavailable; candidate evidence retained.",
+        }] : [],
+        omissions: [],
+        unresolved_risks: unavailable ? [{
+          analysis_version: "2.0.0",
+          risk_id: `risk:${id}`,
+          kind: "incomplete-expansion",
+          status: "open",
+          explanation: "Expansion unavailable.",
+          affected_position_ids: [],
+          affected_route_ids: [],
+          provenance: [source],
+        }] : [],
+        status: unavailable ? "unavailable" : "complete",
+        subtree,
+      },
+      objective_quality: {
+        ...version,
+        state: unavailable ? "unavailable" : "available",
+        white_pov_evaluation_cp: unavailable ? null : 35,
+        white_pov_mate_in: null,
+        repertoire_pov_evaluation_cp: unavailable ? null : color === "black" ? -35 : 35,
+        repertoire_pov_mate_in: null,
+        repertoire_pov_loss_from_best_cp: unavailable ? null : 15,
+        repertoire_pov_verdict: unavailable ? "unverified" : "within-tolerance",
+        engine_depth: unavailable ? null : 24,
+        engine_multipv: unavailable ? null : 3,
+      },
+      strategic_score: {
+        ...version,
+        new_concept_ids: unavailable ? [] : ["concept:e2e:iqp"],
+        transposition_position_ids: unavailable ? [] : ["position:prepared"],
+        contributions: axisIds.map((axis, index) => ({
+          analysis_version: "2.0.0",
+          axis,
+          state: unavailable ? "unavailable" : "available",
+          normalized_score: unavailable ? null : 0.9 - index * 0.05,
+          raw_value: unavailable ? null : 0.9 - index * 0.05,
+          unit: axis === "new-concepts" ? "concepts" : axis === "theory-size" ? "nodes" : "fraction",
+          higher_is_better: !axis.includes("burden") && !axis.includes("cost"),
+          reason: unavailable ? "Canonical axis unavailable." : "Canonical Phase 8 axis.",
+          provenance: [source],
+        })),
+        provenance: [source],
+      },
+      pareto: {
+        ...version,
+        status: paretoStatus,
+        axis_ids: unavailable ? [] : ["objective-quality", ...axisIds],
+        dominated_by_candidate_ids: paretoStatus === "dominated" ? ["candidate:e2e:tradeoff"] : [],
+        reason: paretoStatus === "pareto-optimal"
+          ? "No candidate dominates this tradeoff; no single best is inferred."
+          : paretoStatus === "dominated"
+            ? "Exact canonical dominator retained."
+            : "Unavailable evidence cannot enter frontier.",
+      },
+    };
+  };
+  const candidates = [
+    makeCandidate("candidate:e2e:tradeoff", "Bc4", "pareto-optimal", 30),
+    makeCandidate("candidate:e2e:dominated", "d4", "dominated", 3),
+    makeCandidate("candidate:e2e:unavailable", "Nc3", "unscored", 1),
+  ];
+  return {
+    request: {},
+    pivot_result: {},
+    candidate_generation: { source_results: [], database_item_results: [] },
+    engine_generation: { source_results: [], engine_item_results: [] },
+    expansion: { status: "partial", source_results: [], evidence_item_results: [], candidates: [] },
+    scoring: {
+      ...version,
+      status: "partial",
+      error_code: null,
+      explanation: "Canonical comparison fixture.",
+      repertoire_color: color,
+      candidates,
+      pareto_candidate_ids: ["candidate:e2e:tradeoff"],
+      dominated_candidate_ids: ["candidate:e2e:dominated"],
+      unscored_candidate_ids: ["candidate:e2e:unavailable"],
+    },
+    safety: { status: "partial", candidates: [] },
+    preview: { status: "partial", items: [] },
+  };
+}
 
 async function downloadText(download: Download): Promise<string> {
   const stream = await download.createReadStream();
@@ -1641,4 +1845,68 @@ test("Black Replacement Lab is keyboard-contained, touch-sized, and transient ac
 
   await page.reload();
   await expect(page.getByRole("dialog", { name: "Replacement Lab" })).toHaveCount(0);
+});
+
+test("Replacement comparison synchronizes accessible table and Pareto selection without mutation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const { dialog, before, pathBefore } = await bootstrap(page, "white", true);
+  const stateBefore = await chess(page, (api) => ({
+    version: api.version(),
+    dirty: api.dirty(),
+    preview: JSON.stringify(api.preview()),
+  }));
+  const queue = dialog.locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog.locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" }).click();
+
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture());
+  await expect(page.locator("[data-replacement-lab-status='complete'], [data-replacement-lab-status='partial']"))
+    .toBeVisible();
+
+  const table = lab.getByRole("table", { name: /Candidate comparison/ });
+  await expect(table).toBeVisible();
+  await expect(table).toContainText("never means one aggregate best candidate");
+  await expect(table.locator("[data-best], [aria-label*='best candidate' i]")).toHaveCount(0);
+  const candidateButton = table.locator("tbody th button").first();
+  const candidateId = await candidateButton.locator("code").textContent();
+  expect(candidateId).toBeTruthy();
+  await candidateButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(candidateButton).toHaveAttribute("aria-pressed", "true");
+  const chartPoint = lab.locator(`.replacement-pareto-point[data-candidate-id='${candidateId}']`);
+  await expect(chartPoint).toHaveAttribute("aria-pressed", "true");
+  await chartPoint.focus();
+  await page.keyboard.press("Space");
+  await expect(candidateButton).toHaveAttribute("aria-pressed", "true");
+  await expect(lab.getByText("Selected by stable candidate identity")).toBeVisible();
+  await expect(lab.getByRole("heading", { name: "Canonical strategic axes" })).toBeVisible();
+  await expect(lab.getByRole("heading", { name: "Complete proposed subtree" })).toBeVisible();
+  await expect(lab).toContainText("White-POV engine transport");
+  expect(await lab.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
+    const style = getComputedStyle(child);
+    return style.animationDuration === "0s" && style.transitionDuration === "0s";
+  }))).toBe(true);
+  await expect(table.locator("caption")).toContainText("Candidate comparison");
+  await expect(table.locator("thead th[scope='col']")).toHaveCount(8);
+  await expect(table.locator("tbody th[scope='row']")).toHaveCount(3);
+  await expect(table.locator("tbody th button").nth(1)).not.toHaveAttribute("aria-controls");
+  await expect(table.locator("tbody th button").nth(2)).not.toHaveAttribute("aria-controls");
+  expect(await contrastViolations(lab)).toEqual([]);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(lab.locator(".replacement-pareto-plot")).toBeHidden();
+  await expect(lab.getByRole("list", { name: "Pareto chart mobile fallback" })).toBeVisible();
+  expect(await lab.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await touchTargetViolations(lab)).toEqual([]);
+
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => ({
+    version: api.version(),
+    dirty: api.dirty(),
+    preview: JSON.stringify(api.preview()),
+  }))).toEqual(stateBefore);
 });

@@ -486,6 +486,21 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     }));
   };
 
+  const setResultForTesting = (result: ReplacementLabGenerationResult) => {
+    if (!import.meta.env.DEV) throw new Error("Replacement Lab fixture injection is development-only.");
+    stopActive();
+    discard(snapshot().result);
+    const partial = result.scoring.status !== "complete" || result.safety.status !== "complete" ||
+      result.expansion.status !== "complete";
+    setSnapshot((previous) => ({
+      ...previous,
+      status: partial ? "partial" : "complete",
+      progress: null,
+      error: null,
+      result,
+    }));
+  };
+
   return {
     snapshot,
     availability,
@@ -499,6 +514,8 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     cancel,
     retry,
     synchronize,
+    /** DEV harness only: installs immutable presentation evidence without running providers. */
+    setResultForTesting,
   };
 }
 

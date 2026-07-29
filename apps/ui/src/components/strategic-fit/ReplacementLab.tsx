@@ -1,10 +1,16 @@
-import { For, Show, createEffect, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import type { ReplacementCandidateSourceKind } from "@chess-mcp/chess-tools";
 import {
   REPLACEMENT_LAB_SUPPORTED_SOURCES,
   REPLACEMENT_LAB_UNAVAILABLE_SOURCES,
 } from "../../application/strategic-fit-replacement";
 import { replacementLab, replacementLabSnapshot } from "../../store/strategic-fit-replacement";
+import CandidateTable, {
+  CandidateDetails,
+  buildCandidateComparisonRows,
+  resolveCandidateSelection,
+} from "./CandidateTable";
+import ReplacementPareto from "./ReplacementPareto";
 
 const SOURCE_LABELS: Readonly<Record<ReplacementCandidateSourceKind, string>> = {
   "existing-repertoire-transposition": "Existing preparation",
@@ -108,6 +114,7 @@ export default function ReplacementLab() {
   let dialog!: HTMLElement;
   let closeButton!: HTMLButtonElement;
   let returnFocus: HTMLElement | null = null;
+  const [selectedCandidateId, setSelectedCandidateId] = createSignal<string | null>(null);
   const state = replacementLabSnapshot;
   const pivotOptions = () => {
     const result = state().pivot_result;
@@ -117,18 +124,32 @@ export default function ReplacementLab() {
         ? [result.pivot, ...result.alternative_pivots]
         : [];
   };
-  const candidates = () => state().result?.expansion.candidates ?? [];
+  const comparisonRows = () => {
+    const result = state().result;
+    return result === null ? [] : buildCandidateComparisonRows(
+      result.scoring,
+      result.safety.candidates,
+      result.preview.items,
+    );
+  };
+  const selectedRow = () => comparisonRows().find((row) => row.candidate_id === selectedCandidateId()) ?? null;
+  const selectCandidate = (candidateId: string) => {
+    setSelectedCandidateId(resolveCandidateSelection(comparisonRows(), candidateId));
+  };
   const nonActionablePivotReason = () => {
     const result = state().pivot_result;
     return result?.status === "non-actionable" ? result.non_actionable_reason : null;
   };
-  const previewFor = (candidateId: string) => state().result?.preview.items.find((item) =>
-    item.candidate_id === candidateId
-  ) ?? null;
   const canGenerate = () => state().pivot_confirmed && state().status !== "running" &&
     state().actionability?.actionable === true;
 
   createEffect(() => replacementLab.synchronize());
+  createEffect(() => {
+    const selected = selectedCandidateId();
+    if (selected !== null && !comparisonRows().some((row) => row.candidate_id === selected)) {
+      setSelectedCandidateId(null);
+    }
+  });
 
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -193,11 +214,16 @@ export default function ReplacementLab() {
             <p><strong>{state().finding?.plain_language_category}</strong></p>
             <p>{state().finding?.affected_line_summary}</p>
             <dl>
+              <div><dt>Document</dt><dd><code>{state().identity?.document_id}</code></dd></div>
+              <div><dt>Request</dt><dd><code>{state().identity?.request_id}</code></dd></div>
               <div><dt>Report</dt><dd><code>{state().identity?.report_id}</code></dd></div>
               <div><dt>Finding</dt><dd><code>{state().identity?.finding_id}</code></dd></div>
               <div><dt>Semantic finding</dt><dd><code>{state().identity?.semantic_finding_id}</code></dd></div>
               <div><dt>Document revision</dt><dd>{state().identity?.repertoire_revision}</dd></div>
               <div><dt>Report revision</dt><dd><code>{state().identity?.report_repertoire_revision}</code></dd></div>
+              <div><dt>Pivot</dt><dd><code>{state().selected_pivot_decision_id ?? "Not confirmed"}</code></dd></div>
+              <div><dt>Profile</dt><dd><code>{state().identity?.profile_identity}</code></dd></div>
+              <div><dt>Settings</dt><dd><code>{state().identity?.settings_identity}</code></dd></div>
               <div><dt>Repertoire owner</dt><dd>{state().identity?.repertoire_color === "black" ? "Black" : "White"}</dd></div>
             </dl>
             <p class="replacement-lab-pov" data-repertoire-color={state().identity?.repertoire_color}>
@@ -335,7 +361,10 @@ export default function ReplacementLab() {
             <section class="replacement-lab-results" aria-labelledby="replacement-lab-results-title">
               <header>
                 <h3 id="replacement-lab-results-title">3. Generated candidate previews</h3>
-                <p>Preview staging only. No candidate is selected, accepted, or applied in Task 9.1.</p>
+                <p>
+                  Compare canonical Phase 8 evidence. Selection inspects one stable candidate identity only;
+                  it never recommends, accepts, applies, or mutates.
+                </p>
               </header>
               <section aria-labelledby="replacement-lab-source-status-title">
                 <h4 id="replacement-lab-source-status-title">Source status</h4>
@@ -347,24 +376,40 @@ export default function ReplacementLab() {
                   )}</For>
                 </ul>
               </section>
-              <Show when={candidates().length > 0} fallback={(
+              <Show when={comparisonRows().length > 0} fallback={(
                 <div class="replacement-lab-empty" role="status">
-                  <strong>No usable candidate seeds</strong>
-                  <p>Change sources, restore engine or network availability, or retry. Finding context remains unchanged.</p>
+                  <strong>Candidate comparison unavailable</strong>
+                  <p>
+                    {state().result?.scoring.error_code === null
+                      ? "No scored, partial, or unavailable candidate evidence was returned."
+                      : `${state().result?.scoring.error_code}: ${state().result?.scoring.explanation}`}
+                    {" "}Finding context remains unchanged.
+                  </p>
                 </div>
               )}>
-                <ol class="replacement-lab-candidates">
-                  <For each={candidates()}>{(candidate) => (
-                    <li data-candidate-id={candidate.candidate_id} data-candidate-status={candidate.status}>
-                      <header><strong>{candidate.seed.san}</strong><span>{candidate.status}</span></header>
-                      <p>{candidate.seed.source_kinds.map((kind) => SOURCE_LABELS[kind]).join(" · ")}</p>
-                      <p>Full subtree required · {candidate.seed.existing_preparation ? "joins existing preparation" : "new preparation"}</p>
-                      <p data-preview-status={previewFor(candidate.candidate_id)?.status ?? "not-staged"}>
-                        Preview: {previewFor(candidate.candidate_id)?.status ?? "not staged"}
-                      </p>
-                    </li>
-                  )}</For>
-                </ol>
+                <ReplacementPareto
+                  rows={comparisonRows()}
+                  selectedCandidateId={selectedCandidateId()}
+                  onSelect={selectCandidate}
+                />
+                <CandidateTable
+                  rows={comparisonRows()}
+                  selectedCandidateId={selectedCandidateId()}
+                  onSelect={selectCandidate}
+                />
+                <Show when={selectedRow()} fallback={(
+                  <div class="replacement-candidate-unavailable" role="status">
+                    Select any chart point or candidate row to inspect exact subtree, axes, identities, provenance, and risks.
+                    No candidate is preselected or labeled best.
+                  </div>
+                )}>
+                  {(row) => (
+                    <CandidateDetails
+                      row={row()}
+                      repertoireColor={state().identity?.repertoire_color ?? state().result!.scoring.repertoire_color}
+                    />
+                  )}
+                </Show>
               </Show>
               <Show when={itemErrors().length > 0}>
                 <details class="replacement-lab-errors">

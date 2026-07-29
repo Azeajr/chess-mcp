@@ -104,8 +104,16 @@ identity, requires explicit semantic pivot confirmation, and exposes canonical c
 engine depth, bounded budgets, progress, cancellation, retry, partial/unavailable source evidence,
 and structured per-item errors. It orchestrates the Phase 8 candidate, engine, expansion, scoring,
 safety, and browser staging boundaries without applying a repertoire edit. Closing or reloading
-discards the transient lab and its pending previews. Candidate comparison/Pareto presentation,
-change review, acceptance, pruning, and undo controls remain outside this Task 9.1 surface.
+discards the transient lab and its pending previews. The completed Task 9.2 presentation consumes
+that retained Phase 8 evidence directly: an accessible comparison table and Pareto chart keep every
+tradeoff, tie, dominated candidate, incomplete subtree, missing axis, structured error, exact
+identity/version, provenance source, transposition, concept, and risk inspectable. Evaluation copy
+uses repertoire POV while White-POV engine transport remains separately labeled. Chart and table
+selection share only the stable candidate identity and never create a recommendation, staging
+action, acceptance, or repertoire mutation. Shape/status text, keyboard controls, a tabular
+equivalent, reduced-motion behavior, long-line wrapping, and a phone list fallback avoid relying on
+color, pointer input, animation, or desktop width. Change review, acceptance, application, pruning,
+archive, undo, and all Task 9.3 behavior remain absent.
 
 The public V2 command branch remains a retained-evidence preview bridge: it accepts a complete
 immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not regenerate evidence

@@ -66,6 +66,7 @@ import {
   strategicFitWorkspaceRegions,
   strategicFitWorkspaceStage,
 } from "./store/ui";
+import { replacementLab } from "./store/strategic-fit-replacement";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -144,5 +145,6 @@ if (import.meta.env.DEV) {
     strategicFitWorkspaceStage,
     strategicFitWorkspaceRegions,
     setStrategicFitWorkspaceRegionState,
+    setReplacementLabResultForTesting: replacementLab.setResultForTesting,
   };
 }
