@@ -10,6 +10,7 @@ import CandidateTable, {
   buildCandidateComparisonRows,
   resolveCandidateSelection,
 } from "./CandidateTable";
+import ChangeSetPreview from "./ChangeSetPreview";
 import ReplacementPareto from "./ReplacementPareto";
 
 const SOURCE_LABELS: Readonly<Record<ReplacementCandidateSourceKind, string>> = {
@@ -134,7 +135,9 @@ export default function ReplacementLab() {
   };
   const selectedRow = () => comparisonRows().find((row) => row.candidate_id === selectedCandidateId()) ?? null;
   const selectCandidate = (candidateId: string) => {
-    setSelectedCandidateId(resolveCandidateSelection(comparisonRows(), candidateId));
+    const next = resolveCandidateSelection(comparisonRows(), candidateId);
+    if (state().review && state().review?.candidate_id !== next) void replacementLab.rejectReview();
+    setSelectedCandidateId(next);
   };
   const nonActionablePivotReason = () => {
     const result = state().pivot_result;
@@ -404,10 +407,20 @@ export default function ReplacementLab() {
                   </div>
                 )}>
                   {(row) => (
-                    <CandidateDetails
-                      row={row()}
-                      repertoireColor={state().identity?.repertoire_color ?? state().result!.scoring.repertoire_color}
-                    />
+                    <>
+                      <CandidateDetails
+                        row={row()}
+                        repertoireColor={state().identity?.repertoire_color ?? state().result!.scoring.repertoire_color}
+                      />
+                      <ChangeSetPreview
+                        row={row()}
+                        review={state().review}
+                        repertoireColor={state().identity?.repertoire_color ?? state().result!.scoring.repertoire_color}
+                        onStage={(action) => void replacementLab.stageReview(row().candidate_id, action)}
+                        onAccept={(confirmation) => void replacementLab.acceptReview(confirmation)}
+                        onReject={() => void replacementLab.rejectReview()}
+                      />
+                    </>
                   )}
                 </Show>
               </Show>

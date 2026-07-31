@@ -11,6 +11,7 @@ import {
   prepareReplacementLab,
   replacementLabActionability,
   runReplacementLabGeneration,
+  stageReplacementLabChangeReview,
   type ReplacementLabContext,
   type ReplacementLabGenerationResult,
   type ReplacementLabPreparedContext,
@@ -20,6 +21,11 @@ import {
   createReplacementLabState,
   type ReplacementLabStateBoundary,
 } from "../src/store/strategic-fit-replacement.ts";
+import type {
+  StrategicFitChangeConfirmation,
+  StrategicFitChangeOperationResult,
+  StrategicFitStagedChange,
+} from "../src/store/strategic-fit-changes.ts";
 import type {
   StrategicFitCompletedResult,
   StrategicFitRequestSnapshot,
@@ -233,7 +239,7 @@ function generationResult(options: {
       }],
       evidence_item_results: [],
     },
-    scoring: { status },
+    scoring: { status, candidates: [{ candidate_id: "candidate:usable-local" }] },
     safety: { status },
     preview: {
       status,
@@ -261,6 +267,15 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
     readonly options: Parameters<ReplacementLabStateBoundary["run"]>[5];
     readonly pending: ReturnType<typeof deferred<ReplacementLabGenerationResult>>;
   }> = [];
+  const reviewCalls: Array<{
+    readonly candidateId: string;
+    readonly action: "add-alternative" | "replace";
+    readonly pending: ReturnType<typeof deferred<Awaited<ReturnType<ReplacementLabStateBoundary["stageReview"]>>>>;
+  }> = [];
+  const acceptCalls: Array<{
+    readonly confirmation: StrategicFitChangeConfirmation;
+    readonly pending: ReturnType<typeof deferred<StrategicFitChangeOperationResult>>;
+  }> = [];
   const discarded: string[] = [];
   const boundary: ReplacementLabStateBoundary = {
     dependencies: { ...defaultBrowserCommandDependencies, analysisDepth: () => 20 },
@@ -286,13 +301,28 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
       calls.push({ prepared, pivotId, attempt, options, pending });
       return pending.promise;
     },
-    discardStage: async (stageId) => { discarded.push(stageId); },
+    stageReview: async (_result, candidateId, action) => {
+      const pending = deferred<Awaited<ReturnType<ReplacementLabStateBoundary["stageReview"]>>>();
+      reviewCalls.push({ candidateId, action, pending });
+      return pending.promise;
+    },
+    acceptStage: async (confirmation) => {
+      const pending = deferred<StrategicFitChangeOperationResult>();
+      acceptCalls.push({ confirmation, pending });
+      return pending.promise;
+    },
+    discardStage: async (stageId) => {
+      discarded.push(stageId);
+      return { ok: false, error: "not-staged", stage: null };
+    },
   };
   const state = createReplacementLabState(boundary);
   return {
     ...base,
     state,
     calls,
+    reviewCalls,
+    acceptCalls,
     discarded,
     patchSnapshot: (patch: Partial<StrategicFitRequestSnapshot>) => {
       snapshot = { ...snapshot, ...patch };
@@ -300,6 +330,32 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
     replaceCompleted: (next: StrategicFitCompletedResult | null) => { completed = next; },
     setResolution: (next: "unresolved" | "defer") => { resolution = next; },
   };
+}
+
+function reviewStage(stageId = "stage:review"): StrategicFitStagedChange {
+  return {
+    stage_id: stageId,
+    status: "staged",
+    result_status: "previewed",
+  } as StrategicFitStagedChange;
+}
+
+function reviewEvidence(stage: StrategicFitStagedChange) {
+  return {
+    action: "add-alternative",
+    safety: {},
+    item: {
+      candidate_id: "candidate:usable-local",
+      status: "previewed",
+      error_code: null,
+      explanation: "Canonical preview staged.",
+      stage: { ok: true, stage },
+    },
+  } as Awaited<ReturnType<ReplacementLabStateBoundary["stageReview"]>>;
+}
+
+function reviewConfirmation(stageId = "stage:review"): StrategicFitChangeConfirmation {
+  return { stage_id: stageId } as StrategicFitChangeConfirmation;
 }
 
 test("actionability accepts only the exact current supported finding identity", () => {
@@ -474,6 +530,51 @@ test("late and stale generation results are suppressed while navigation-only cha
   assert.equal(reloaded.state.snapshot().result, null);
 });
 
+test("acceptance permits one in-flight atomic call and ignores late completion after close", async () => {
+  const readySubject = async () => {
+    const subject = stateFixture();
+    subject.state.open(subject.completed, subject.currentFinding);
+    subject.state.confirmPivot();
+    const generation = subject.state.generate();
+    subject.calls[0]!.pending.resolve(generationResult());
+    assert.equal(await generation, true);
+    const staging = subject.state.stageReview("candidate:usable-local");
+    const stage = reviewStage();
+    subject.reviewCalls[0]!.pending.resolve(reviewEvidence(stage));
+    assert.equal(await staging, true);
+    assert.equal(subject.state.snapshot().review?.status, "ready");
+    return { subject, stage };
+  };
+
+  const current = await readySubject();
+  const first = current.subject.state.acceptReview(reviewConfirmation(current.stage.stage_id));
+  assert.equal(current.subject.state.snapshot().review?.status, "accepting");
+  assert.equal(await current.subject.state.acceptReview(reviewConfirmation(current.stage.stage_id)), false);
+  assert.equal(await current.subject.state.stageReview("candidate:usable-local", "replace"), false);
+  assert.equal(current.subject.acceptCalls.length, 1, "double acceptance reached atomic boundary twice");
+  current.subject.patchSnapshot({ repertoire_revision: 8 });
+  current.subject.state.synchronize();
+  assert.equal(current.subject.state.snapshot().review?.status, "accepting", "owned revision publish staled acceptance");
+  current.subject.acceptCalls[0]!.pending.resolve({
+    ok: true,
+    stage: { ...current.stage, status: "accepted", result_status: "accepted" },
+  });
+  assert.equal(await first, true);
+  assert.equal(current.subject.state.snapshot().review?.status, "accepted");
+
+  const late = await readySubject();
+  const accepting = late.subject.state.acceptReview(reviewConfirmation(late.stage.stage_id));
+  assert.equal(late.subject.acceptCalls.length, 1);
+  late.subject.state.close();
+  late.subject.acceptCalls[0]!.pending.resolve({
+    ok: true,
+    stage: { ...late.stage, status: "accepted", result_status: "accepted" },
+  });
+  assert.equal(await accepting, false);
+  assert.equal(late.subject.state.snapshot().status, "closed");
+  assert.equal(late.subject.state.snapshot().review, null);
+});
+
 function realPipelineFixture() {
   const domain = contextFixture(undefined, "white", undefined, REPLACEMENT_PGN, "browser:7");
   const currentFinding = {
@@ -642,6 +743,7 @@ test("real orchestration retains local candidates and delegates any complete pre
   const base = realPipelineFixture();
   const sourcePgn = base.tree.toPgn();
   let stageCalls = 0;
+  const stagedActions: string[] = [];
   const dependencies = {
     ...defaultBrowserCommandDependencies,
     currentTree: () => base.tree,
@@ -651,10 +753,10 @@ test("real orchestration retains local candidates and delegates any complete pre
     analysisDepth: () => 12,
     analyse: async () => null,
     hasExplorerToken: () => false,
-    stageReplacementChangeSet: async () => ({
-      ok: true,
-      stage: { stage_id: `stage:real:${++stageCalls}` },
-    }),
+    stageReplacementChangeSet: async ({ safety, change_set }) => {
+      stagedActions.push(`${safety.candidates.find((candidate) => candidate.candidate_id === change_set.candidate_id)?.action}:${change_set.retention.prune}`);
+      return { ok: true, stage: { stage_id: `stage:real:${++stageCalls}` } };
+    },
     discardReplacementChangeSet: async () => undefined,
   };
   const boundary = {
@@ -679,5 +781,21 @@ test("real orchestration retains local candidates and delegates any complete pre
   assert.equal(result.preview.items.filter((item) => item.status === "previewed").length, stageCalls);
   assert.equal(result.preview.items.some((item) => item.error_code !== null), true);
   assert.equal(result.preview.host?.preview_policy, "stage-only");
+  const selected = result.safety.candidates.find((candidate) => candidate.status !== "unavailable");
+  assert.ok(selected);
+  const addReview = await stageReplacementLabChangeReview(result, selected.candidate_id, "add-alternative", boundary);
+  assert.equal(addReview.action, "add-alternative");
+  assert.equal(addReview.safety.candidates.find((candidate) => candidate.candidate_id === selected.candidate_id)?.action, "add-alternative");
+  assert.equal(addReview.item.status, "previewed");
+  assert.ok(stagedActions.includes("add-alternative:retain"));
+  const pruneReview = await stageReplacementLabChangeReview(result, selected.candidate_id, "replace", boundary);
+  const pruneSafety = pruneReview.safety.candidates.find((candidate) => candidate.candidate_id === selected.candidate_id)!;
+  assert.equal(pruneSafety.action, "replace");
+  if (pruneReview.item.status === "previewed") {
+    assert.ok(stagedActions.includes("replace:prune"));
+  } else {
+    assert.equal(pruneReview.item.status, "blocked");
+    assert.ok(pruneSafety.safety_checks.some((check) => check.status === "blocked"));
+  }
   assert.equal(base.tree.toPgn(), sourcePgn);
 });

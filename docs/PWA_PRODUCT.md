@@ -109,11 +109,21 @@ that retained Phase 8 evidence directly: an accessible comparison table and Pare
 tradeoff, tie, dominated candidate, incomplete subtree, missing axis, structured error, exact
 identity/version, provenance source, transposition, concept, and risk inspectable. Evaluation copy
 uses repertoire POV while White-POV engine transport remains separately labeled. Chart and table
-selection share only the stable candidate identity and never create a recommendation, staging
-action, acceptance, or repertoire mutation. Shape/status text, keyboard controls, a tabular
-equivalent, reduced-motion behavior, long-line wrapping, and a phone list fallback avoid relying on
-color, pointer input, animation, or desktop width. Change review, acceptance, application, pruning,
-archive, undo, and all Task 9.3 behavior remain absent.
+selection share only the stable candidate identity and never create a recommendation. Shape/status
+text, keyboard controls, a tabular equivalent, reduced-motion behavior, long-line wrapping, and a
+phone list fallback avoid relying on color, pointer input, animation, or desktop width. Selected
+candidates now open a revision-bound staged before/after review that consumes canonical Phase 8
+safety and change-set evidence without recalculating coverage, metrics, safety, or Pareto status in
+the view. It exposes every ordered addition, transposition link, compatible annotation, archive,
+optional prune, affected descendant, tree statistic, coverage/gap result, metric delta, theory and
+training value, unresolved risk, safety check, structured error, identity, version, POV label, and
+provenance source. Add-and-validate remains the default. Optional pruning reruns the canonical Phase
+8 safety/change-set/staging chain, archives first, and remains blocked with exact failed checks when
+coverage or gap safety fails. Preview and reject are non-mutating. Final acceptance requires an
+explicit confirmation bound to the exact current document revision and immutable safety/change-set/
+preview/archive/provenance identities, then delegates to the existing one-revision atomic browser
+mutation registry path. Acceptance does not rescan or claim resolution. Task 9.4 proof, post-apply
+report reconciliation, and undo UI remain absent.
 
 The public V2 command branch remains a retained-evidence preview bridge: it accepts a complete
 immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not regenerate evidence

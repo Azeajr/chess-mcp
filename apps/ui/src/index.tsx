@@ -146,5 +146,6 @@ if (import.meta.env.DEV) {
     strategicFitWorkspaceRegions,
     setStrategicFitWorkspaceRegionState,
     setReplacementLabResultForTesting: replacementLab.setResultForTesting,
+    setReplacementLabReviewForTesting: replacementLab.setReviewForTesting,
   };
 }

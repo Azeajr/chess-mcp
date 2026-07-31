@@ -17,7 +17,10 @@ import {
   STRATEGIC_FIT_PENDING_RELOAD_POLICY,
   STRATEGIC_FIT_STAGED_CHANGE_STATUSES,
   STRATEGIC_FIT_UNDO_STATUSES,
+  acceptConfirmedStrategicFitChangeSet,
   createStrategicFitChangeController,
+  strategicFitChangeConfirmation,
+  strategicFitChangeConfirmationMatches,
   type StrategicFitChangeStorage,
   type StrategicFitChangeStorageCommit,
   type StrategicFitDocumentSnapshot,
@@ -134,6 +137,48 @@ test("stage previews exact Task 8.8 result without tree, metadata, navigation, r
   assert.equal(reopened.stage?.stage_id, staged.stage?.stage_id, "deterministic preview identity changed after reopen");
   assert.equal(reopened.stage?.status, "staged", "close then reopen reused a finalized preview");
   assert.equal(reopened.stage?.result_status, "previewed");
+});
+
+test("final acceptance confirmation binds current revision and unchanged evidence before one atomic path", async () => {
+  const h = harness();
+  const before = h.snapshot();
+  const staged = await h.controller.stageChangeSet({ safety: h.fixture.safety, change_set: h.fixture.changeSet });
+  assert.equal(staged.ok, true);
+  const confirmation = strategicFitChangeConfirmation(staged.stage!);
+  assert.equal(confirmation.base_revision, before.revision);
+  assert.equal(confirmation.preview_identity, staged.stage!.preview_identity);
+
+  const changedEvidence = {
+    ...confirmation,
+    preview_identity: `${confirmation.preview_identity}:changed`,
+  };
+  assert.equal(strategicFitChangeConfirmationMatches(staged.stage!, changedEvidence), false);
+  assert.equal(strategicFitChangeConfirmationMatches(staged.stage!, confirmation), true);
+  assert.deepEqual(h.snapshot(), before);
+
+  const changed = await acceptConfirmedStrategicFitChangeSet(changedEvidence, h.controller);
+  assert.equal(changed.ok, false);
+  assert.equal(changed.error, "stale-result");
+  assert.equal(h.publishes(), 0);
+  assert.deepEqual(h.snapshot(), before);
+
+  const accepted = await acceptConfirmedStrategicFitChangeSet(confirmation, h.controller);
+  assert.equal(accepted.ok, true);
+  assert.equal(h.publishes(), 1);
+  assert.equal(h.snapshot().revision, before.revision + 1);
+
+  const staleHarness = harness();
+  const staleStage = await staleHarness.controller.stageChangeSet({
+    safety: staleHarness.fixture.safety,
+    change_set: staleHarness.fixture.changeSet,
+  });
+  assert.equal(staleStage.ok, true);
+  const staleConfirmation = strategicFitChangeConfirmation(staleStage.stage!);
+  staleHarness.mutate({ revision: staleHarness.snapshot().revision + 1 });
+  const stale = await acceptConfirmedStrategicFitChangeSet(staleConfirmation, staleHarness.controller);
+  assert.equal(stale.ok, false);
+  assert.equal(stale.error, "stale-revision");
+  assert.equal(staleHarness.publishes(), 0);
 });
 
 test("accept persists archive outside metadata, publishes tree plus metadata once, rejects duplicate acceptance, and undo restores exact state", async () => {

@@ -27,6 +27,7 @@ import {
   type ReplacementPivotCohortEvidence,
   type ReplacementPivotSelectionResult,
   type ReplacementRequest,
+  type ReplacementSafetyCandidateAction,
   type ReplacementSafetySimulationResult,
   type ReplacementToolV2Result,
   type StrategicFinding,
@@ -130,6 +131,14 @@ export interface ReplacementLabGenerationResult {
     readonly items: readonly (ReplacementToolV2Result["items"][number] & { readonly stage?: unknown })[];
     readonly host?: Readonly<Record<string, unknown>>;
   };
+}
+
+export type ReplacementLabChangeReviewAction = "add-alternative" | "replace";
+
+export interface ReplacementLabChangeReviewResult {
+  readonly action: ReplacementLabChangeReviewAction;
+  readonly safety: ReplacementSafetySimulationResult;
+  readonly item: ReplacementToolV2Result["items"][number] & { readonly stage?: unknown };
 }
 
 export interface ReplacementLabApplicationBoundary {
@@ -712,4 +721,77 @@ export async function runReplacementLabGeneration(
     safety,
     preview,
   };
+}
+
+/**
+ * Re-stage one selected candidate through canonical Phase 8 safety/change-set producers.
+ * UI supplies only retention intent; no coverage, metric, safety, or diff value is recomputed here.
+ */
+export async function stageReplacementLabChangeReview(
+  result: ReplacementLabGenerationResult,
+  candidateId: string,
+  action: ReplacementLabChangeReviewAction,
+  boundary: ReplacementLabApplicationBoundary,
+  options: BrowserCommandExecutionOptions = {},
+): Promise<ReplacementLabChangeReviewResult> {
+  throwIfAborted(options.signal);
+  const current = boundary.currentSnapshot();
+  if (`browser:${current.repertoire_revision}` !== result.request.repertoire_revision ||
+      current.repertoire_color !== result.request.repertoire_color) {
+    throw Object.assign(new Error("Replacement review evidence no longer belongs to current document revision or repertoire color."), {
+      code: "stale-revision",
+    });
+  }
+  if (!result.scoring.candidates.some((candidate) => candidate.candidate_id === candidateId)) {
+    throw Object.assign(new Error("Selected candidate is absent from retained scoring evidence."), {
+      code: "candidate-not-found",
+    });
+  }
+  const candidateActions: readonly ReplacementSafetyCandidateAction[] = action === "replace"
+    ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
+    : [];
+  const safety = simulateReplacementSafety({
+    source_tree: boundary.dependencies.currentTree(),
+    request: result.request,
+    scoring: result.scoring,
+    candidate_actions: candidateActions,
+  });
+  throwIfAborted(options.signal);
+  const preview = await executeBrowserCommand("suggest_replacement_line", {
+    contract: REPLACEMENT_TOOL_V2_CONTRACT,
+    replacement_request: result.request,
+    finding: {
+      report_id: result.request.report_id,
+      finding_id: result.request.finding_id,
+      semantic_finding_id: result.request.semantic_finding_id,
+      cohort_id: result.request.cohort_id,
+      repertoire_revision: result.request.repertoire_revision,
+    },
+    pivot: result.request.pivot_selection,
+    profile: result.request.profile,
+    sources: result.request.candidate_sources,
+    budget: result.request.budget,
+    engine: {
+      depth: result.request.budget.engine_depth,
+      multipv: result.request.budget.engine_multipv,
+      allow_unavailable_evidence: true,
+    },
+    coverage: {
+      minimum_expected_opponent_coverage: result.request.minimum_expected_opponent_coverage,
+      require_all_forcing_replies: result.request.budget.include_all_forcing_replies,
+    },
+    retention: action === "replace"
+      ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
+      : [{ candidate_id: candidateId, action: "add-alternative" }],
+    candidate_ids: [candidateId],
+    safety,
+  }, options, boundary.dependencies) as ReplacementLabGenerationResult["preview"];
+  throwIfAborted(options.signal);
+  const item = preview.items.find((candidate) => candidate.candidate_id === candidateId);
+  if (!item) {
+    throw Object.assign(new Error("Canonical preview producer omitted selected candidate."), {
+      code: preview.error_code ?? "preview-failed",
+    });
+  }
+  return { action, safety, item };
 }

@@ -159,6 +159,39 @@ export type StrategicFitChangeOperationResult =
   | { readonly ok: true; readonly stage: StrategicFitStagedChange }
   | { readonly ok: false; readonly error: StrategicFitChangeErrorCode; readonly stage: StrategicFitStagedChange | null };
 
+export interface StrategicFitChangeConfirmation {
+  readonly stage_id: string;
+  readonly document_id: string;
+  readonly base_revision: number;
+  readonly base_repertoire_revision: string;
+  readonly safety_identity: string;
+  readonly change_set_identity: string;
+  readonly preview_identity: string;
+  readonly archive_identity: string;
+  readonly provenance_identity: string;
+}
+
+export function strategicFitChangeConfirmation(stage: StrategicFitStagedChange): StrategicFitChangeConfirmation {
+  return {
+    stage_id: stage.stage_id,
+    document_id: stage.document_id,
+    base_revision: stage.base_revision,
+    base_repertoire_revision: stage.base_repertoire_revision,
+    safety_identity: stage.safety_identity,
+    change_set_identity: stage.change_set_identity,
+    preview_identity: stage.preview_identity,
+    archive_identity: stage.archive_identity,
+    provenance_identity: stage.provenance_identity,
+  };
+}
+
+export function strategicFitChangeConfirmationMatches(
+  stage: StrategicFitStagedChange,
+  confirmation: StrategicFitChangeConfirmation,
+): boolean {
+  return stableJson(strategicFitChangeConfirmation(stage)) === stableJson(confirmation);
+}
+
 export interface StrategicFitChangeStorageCommit {
   readonly state: StrategicFitPersistedChangeState;
   readonly working: SavedWorkingRepertoire;
@@ -389,6 +422,12 @@ export function createStrategicFitChangeController(dependencies: StrategicFitCha
     stage: (stageId: string) => {
       const value = stages.get(stageId);
       return value ? clone(value) : null;
+    },
+    /** Development harness only; production callers stage through stageChangeSet. */
+    registerStageForTesting: (stage: StrategicFitStagedChange) => {
+      const registered = clone(stage);
+      stages.set(registered.stage_id, registered);
+      return clone(registered);
     },
     async archives(): Promise<readonly StrategicFitStoredArchive[]> {
       try { return clone((await stateFor(dependencies.current().document_id)).archives); }
@@ -753,10 +792,36 @@ export async function stageStrategicFitChangeSet(input: {
   return result;
 }
 
+export function registerStrategicFitStageForTesting(stage: StrategicFitStagedChange) {
+  if (!import.meta.env.DEV) throw new Error("Strategic Fit stage fixture registration is development-only.");
+  const registered = browserController.registerStageForTesting(stage);
+  setBrowserStagesVersion((value) => value + 1);
+  return registered;
+}
+
 export async function acceptStrategicFitChangeSet(stageId: string) {
   const result = await browserController.accept(stageId);
   setBrowserStagesVersion((value) => value + 1);
   return result;
+}
+
+interface StrategicFitConfirmedAcceptanceController {
+  stage(stageId: string): StrategicFitStagedChange | null;
+  accept(stageId: string): Promise<StrategicFitChangeOperationResult>;
+}
+
+export async function acceptConfirmedStrategicFitChangeSet(
+  confirmation: StrategicFitChangeConfirmation,
+  controller: StrategicFitConfirmedAcceptanceController = browserController,
+) {
+  const current = controller.stage(confirmation.stage_id);
+  if (!current) return { ok: false, error: "not-staged", stage: null } as const;
+  if (!strategicFitChangeConfirmationMatches(current, confirmation)) {
+    return { ok: false, error: "stale-result", stage: current } as const;
+  }
+  return controller === browserController
+    ? acceptStrategicFitChangeSet(confirmation.stage_id)
+    : controller.accept(confirmation.stage_id);
 }
 
 export async function rejectStrategicFitChangeSet(stageId: string) {

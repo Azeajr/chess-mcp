@@ -9,8 +9,11 @@ import {
   prepareReplacementLab,
   replacementLabActionability,
   runReplacementLabGeneration,
+  stageReplacementLabChangeReview,
   type ReplacementLabActionability,
   type ReplacementLabApplicationBoundary,
+  type ReplacementLabChangeReviewAction,
+  type ReplacementLabChangeReviewResult,
   type ReplacementLabContext,
   type ReplacementLabControls,
   type ReplacementLabGenerationResult,
@@ -19,7 +22,14 @@ import {
 } from "../application/strategic-fit-replacement";
 import { defaultBrowserCommandDependencies } from "../application/browser-commands/default-context";
 import { analysisDepth } from "./engine-settings";
-import { rejectStrategicFitChangeSet } from "./strategic-fit-changes";
+import {
+  acceptConfirmedStrategicFitChangeSet,
+  registerStrategicFitStageForTesting,
+  rejectStrategicFitChangeSet,
+  type StrategicFitChangeConfirmation,
+  type StrategicFitChangeOperationResult,
+  type StrategicFitStagedChange,
+} from "./strategic-fit-changes";
 import {
   displayStrategicFitFindingResolution,
   type StrategicFitDisplayedResolutionState,
@@ -78,7 +88,20 @@ export interface ReplacementLabSnapshot {
   readonly progress: ReplacementLabProgress | null;
   readonly error: ReplacementLabError | null;
   readonly result: ReplacementLabGenerationResult | null;
+  readonly review: ReplacementLabChangeReviewSnapshot | null;
   readonly attempt: number;
+}
+
+export type ReplacementLabChangeReviewStatus =
+  | "loading" | "ready" | "accepting" | "blocked" | "stale" | "error" | "accepted" | "rejected";
+
+export interface ReplacementLabChangeReviewSnapshot {
+  readonly candidate_id: string;
+  readonly action: ReplacementLabChangeReviewAction;
+  readonly status: ReplacementLabChangeReviewStatus;
+  readonly evidence: ReplacementLabChangeReviewResult | null;
+  readonly stage: StrategicFitStagedChange | null;
+  readonly error: ReplacementLabError | null;
 }
 
 export interface ReplacementLabStateBoundary extends ReplacementLabApplicationBoundary {
@@ -99,7 +122,15 @@ export interface ReplacementLabStateBoundary extends ReplacementLabApplicationBo
       readonly onLabProgress: (progress: ReplacementLabProgress) => void;
     },
   ): Promise<ReplacementLabGenerationResult>;
-  discardStage(stageId: string): Promise<unknown>;
+  stageReview(
+    result: ReplacementLabGenerationResult,
+    candidateId: string,
+    action: ReplacementLabChangeReviewAction,
+    boundary: ReplacementLabApplicationBoundary,
+    options: { readonly signal: AbortSignal },
+  ): Promise<ReplacementLabChangeReviewResult>;
+  acceptStage(confirmation: StrategicFitChangeConfirmation): Promise<StrategicFitChangeOperationResult>;
+  discardStage(stageId: string): Promise<StrategicFitChangeOperationResult>;
 }
 
 const DEFAULT_CONTROLS = (depth = 20): ReplacementLabControls => ({
@@ -128,6 +159,7 @@ const initialSnapshot = (depth = 20): ReplacementLabSnapshot => ({
   progress: null,
   error: null,
   result: null,
+  review: null,
   attempt: 0,
 });
 
@@ -166,6 +198,27 @@ function resultStageIds(result: ReplacementLabGenerationResult | null): string[]
     const stageId = staged && typeof staged === "object" && "stage_id" in staged ? staged.stage_id : null;
     return typeof stageId === "string" ? [stageId] : [];
   });
+}
+
+function stagedChange(result: ReplacementLabChangeReviewResult): StrategicFitStagedChange | null {
+  const wrapper = result.item.stage;
+  if (!wrapper || typeof wrapper !== "object" || !("ok" in wrapper) || wrapper.ok !== true || !("stage" in wrapper)) {
+    return null;
+  }
+  const stage = wrapper.stage;
+  return stage && typeof stage === "object" && "stage_id" in stage && typeof stage.stage_id === "string"
+    ? stage as StrategicFitStagedChange
+    : null;
+}
+
+export function replacementLabChangeReviewStatus(
+  itemStatus: ReplacementLabChangeReviewResult["item"]["status"],
+  stage: StrategicFitStagedChange | null,
+): ReplacementLabChangeReviewStatus {
+  if (stage?.status === "staged" && itemStatus === "previewed") return "ready";
+  if (itemStatus === "stale") return "stale";
+  if (itemStatus === "blocked") return "blocked";
+  return "error";
 }
 
 function errorFrom(value: unknown): ReplacementLabError {
@@ -208,15 +261,24 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
   const [snapshot, setSnapshot] = createSignal<ReplacementLabSnapshot>(initialSnapshot());
   let prepared: ReplacementLabPreparedContext | null = null;
   let active: { readonly sequence: number; readonly controller: AbortController } | null = null;
+  let reviewActive: { readonly sequence: number; readonly controller: AbortController } | null = null;
   let sequence = 0;
 
   const discard = (result: ReplacementLabGenerationResult | null) => {
     for (const stageId of resultStageIds(result)) void boundary.discardStage(stageId);
   };
 
+  const discardReview = (review: ReplacementLabChangeReviewSnapshot | null) => {
+    reviewActive?.controller.abort();
+    reviewActive = null;
+    if (review?.stage?.status === "staged") void boundary.discardStage(review.stage.stage_id);
+  };
+
   const stopActive = () => {
     active?.controller.abort();
     active = null;
+    reviewActive?.controller.abort();
+    reviewActive = null;
     sequence++;
   };
 
@@ -239,6 +301,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     const available = availability(completed, finding);
     if (!available.actionable) return false;
     stopActive();
+    discardReview(snapshot().review);
     discard(snapshot().result);
     const context = contextFrom(completed, finding);
     const controls = DEFAULT_CONTROLS(boundary.dependencies.analysisDepth());
@@ -302,6 +365,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
         : [];
     if (!alternatives.some((pivot) => pivot.decision_id === decisionId)) return false;
     if (current.selected_pivot_decision_id === decisionId && !current.pivot_confirmed) return true;
+    discardReview(current.review);
     discard(current.result);
     setSnapshot((previous) => ({
       ...previous,
@@ -310,6 +374,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       pivot_confirmed: false,
       error: null,
       result: null,
+      review: null,
     }));
     return true;
   };
@@ -331,11 +396,13 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     if (enabled) sources.add(kind);
     else sources.delete(kind);
     if (sources.size === 0) return false;
+    discardReview(current.review);
     discard(current.result);
     setSnapshot((previous) => ({
       ...previous,
       controls: { ...previous.controls, sources: [...sources].sort() },
       result: null,
+      review: null,
       error: null,
       status: previous.pivot_confirmed ? "ready" : previous.status,
     }));
@@ -348,11 +415,13 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     const minimum = boundary.dependencies.analysisDepth() === 30 ? 30 : 1;
     const nextDepth = Math.max(minimum, depth);
     if (current.controls.engine_depth === nextDepth) return true;
+    discardReview(current.review);
     discard(current.result);
     setSnapshot((previous) => ({
       ...previous,
       controls: { ...previous.controls, engine_depth: nextDepth },
       result: null,
+      review: null,
       error: null,
       status: previous.pivot_confirmed ? "ready" : previous.status,
     }));
@@ -367,6 +436,8 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     ) return false;
     const before = currentActionability(prepared, boundary);
     if (!before.actionable) {
+      discardReview(current.review);
+      discard(current.result);
       setSnapshot((previous) => ({
         ...previous,
         status: "stale",
@@ -374,9 +445,11 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
         error: { code: before.code, message: before.message },
         progress: null,
         result: null,
+        review: null,
       }));
       return false;
     }
+    discardReview(current.review);
     discard(current.result);
     const controller = new AbortController();
     const requestSequence = ++sequence;
@@ -389,6 +462,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       progress: { phase: "validating", completed: 0, total: 7, detail: "Starting candidate generation" },
       error: null,
       result: null,
+      review: null,
     }));
     try {
       const result = await boundary.run(
@@ -452,6 +526,177 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     }
   };
 
+  const stageReview = async (
+    candidateId: string,
+    action: ReplacementLabChangeReviewAction = "add-alternative",
+  ) => {
+    const current = snapshot();
+    if (!current.result || !current.open || current.status === "running") return false;
+    if (current.review?.status === "accepting") return false;
+    if (!current.result.scoring.candidates.some((candidate) => candidate.candidate_id === candidateId)) return false;
+    const before = prepared === null ? null : currentActionability(prepared, boundary);
+    if (!before?.actionable) {
+      setSnapshot((previous) => ({
+        ...previous,
+        review: {
+          candidate_id: candidateId,
+          action,
+          status: "stale",
+          evidence: null,
+          stage: null,
+          error: { code: before?.code ?? "stale-result", message: before?.message ?? "Replacement context is stale." },
+        },
+      }));
+      return false;
+    }
+    reviewActive?.controller.abort();
+    const priorStage = current.review?.stage;
+    const controller = new AbortController();
+    const requestSequence = ++sequence;
+    reviewActive = { sequence: requestSequence, controller };
+    setSnapshot((previous) => ({
+      ...previous,
+      review: { candidate_id: candidateId, action, status: "loading", evidence: null, stage: null, error: null },
+    }));
+    if (priorStage?.status === "staged") {
+      const discarded = await boundary.discardStage(priorStage.stage_id);
+      if (!discarded.ok) {
+        if (reviewActive?.sequence === requestSequence) {
+          reviewActive = null;
+          setSnapshot((previous) => ({
+            ...previous,
+            review: {
+              candidate_id: candidateId,
+              action,
+              status: discarded.error.includes("stale") ? "stale" : "error",
+              evidence: null,
+              stage: discarded.stage,
+              error: { code: discarded.error, message: `Prior staged review could not be rejected: ${discarded.error}.` },
+            },
+          }));
+        }
+        return false;
+      }
+    }
+    if (reviewActive?.sequence !== requestSequence || controller.signal.aborted) return false;
+    try {
+      const evidence = await boundary.stageReview(current.result, candidateId, action, boundary, {
+        signal: controller.signal,
+      });
+      const stage = stagedChange(evidence);
+      if (reviewActive?.sequence !== requestSequence || controller.signal.aborted) {
+        if (stage?.status === "staged") await boundary.discardStage(stage.stage_id);
+        return false;
+      }
+      reviewActive = null;
+      const status = replacementLabChangeReviewStatus(evidence.item.status, stage);
+      setSnapshot((previous) => ({
+        ...previous,
+        review: {
+          candidate_id: candidateId,
+          action,
+          status,
+          evidence,
+          stage,
+          error: status === "ready" ? null : {
+            code: evidence.item.error_code ?? evidence.item.status,
+            message: evidence.item.explanation,
+          },
+        },
+      }));
+      return status === "ready";
+    } catch (error) {
+      if (reviewActive?.sequence !== requestSequence) return false;
+      reviewActive = null;
+      if (controller.signal.aborted || isAbort(error)) return false;
+      const failure = errorFrom(error);
+      setSnapshot((previous) => ({
+        ...previous,
+        review: {
+          candidate_id: candidateId,
+          action,
+          status: failure.code.includes("stale") ? "stale" : "error",
+          evidence: null,
+          stage: null,
+          error: failure,
+        },
+      }));
+      return false;
+    }
+  };
+
+  const acceptReview = async (confirmation: StrategicFitChangeConfirmation) => {
+    const review = snapshot().review;
+    if (review?.status !== "ready" || review.stage?.stage_id !== confirmation.stage_id) return false;
+    const acceptanceSequence = ++sequence;
+    setSnapshot((previous) => ({
+      ...previous,
+      review: previous.review && { ...previous.review, status: "accepting", error: null },
+    }));
+    let result: StrategicFitChangeOperationResult;
+    try {
+      result = await boundary.acceptStage(confirmation);
+    } catch (error) {
+      const current = snapshot().review;
+      if (sequence !== acceptanceSequence || current?.candidate_id !== review.candidate_id ||
+          current.action !== review.action || current.stage?.stage_id !== review.stage.stage_id) return false;
+      const failure = errorFrom(error);
+      setSnapshot((previous) => ({
+        ...previous,
+        review: previous.review && { ...previous.review, status: "error", error: failure },
+      }));
+      return false;
+    }
+    const current = snapshot().review;
+    if (sequence !== acceptanceSequence || current?.candidate_id !== review.candidate_id ||
+        current.action !== review.action || current.stage?.stage_id !== review.stage.stage_id) return false;
+    setSnapshot((previous) => ({
+      ...previous,
+      review: previous.review && {
+        ...previous.review,
+        status: result.ok ? "accepted" : result.error.includes("stale") ? "stale" : "error",
+        stage: result.stage,
+        error: result.ok ? null : { code: result.error, message: `Atomic acceptance rejected: ${result.error}.` },
+      },
+    }));
+    return result.ok;
+  };
+
+  const rejectReview = async () => {
+    reviewActive?.controller.abort();
+    reviewActive = null;
+    const review = snapshot().review;
+    if (!review || review.status === "accepting") return false;
+    const stageId = review.stage?.status === "staged" ? review.stage.stage_id : null;
+    const rejectionSequence = ++sequence;
+    const result = stageId ? await boundary.discardStage(stageId) : null;
+    const current = snapshot().review;
+    if (sequence !== rejectionSequence || current?.candidate_id !== review.candidate_id ||
+        current.action !== review.action || current.stage?.stage_id !== review.stage?.stage_id) return false;
+    if (result && !result.ok) {
+      setSnapshot((previous) => ({
+        ...previous,
+        review: previous.review && {
+          ...previous.review,
+          status: result.error.includes("stale") ? "stale" : "error",
+          stage: result.stage,
+          error: { code: result.error, message: `Preview rejection failed: ${result.error}.` },
+        },
+      }));
+      return false;
+    }
+    setSnapshot((previous) => ({
+      ...previous,
+      review: previous.review && {
+        ...previous.review,
+        status: "rejected",
+        stage: result?.stage ?? previous.review.stage,
+        error: null,
+      },
+    }));
+    return true;
+  };
+
   const cancel = () => {
     if (active === null) return false;
     active.controller.abort();
@@ -465,6 +710,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
 
   const close = () => {
     stopActive();
+    discardReview(snapshot().review);
     discard(snapshot().result);
     prepared = null;
     setSnapshot(initialSnapshot(boundary.dependencies.analysisDepth()));
@@ -472,9 +718,11 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
 
   const synchronize = () => {
     if (prepared === null || !snapshot().open) return;
+    if (snapshot().review?.status === "accepting" || snapshot().review?.status === "accepted") return;
     const checked = currentActionability(prepared, boundary);
     if (checked.actionable) return;
     stopActive();
+    discardReview(snapshot().review);
     discard(snapshot().result);
     setSnapshot((previous) => ({
       ...previous,
@@ -483,12 +731,14 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       progress: null,
       error: { code: checked.code, message: checked.message },
       result: null,
+      review: null,
     }));
   };
 
   const setResultForTesting = (result: ReplacementLabGenerationResult) => {
     if (!import.meta.env.DEV) throw new Error("Replacement Lab fixture injection is development-only.");
     stopActive();
+    discardReview(snapshot().review);
     discard(snapshot().result);
     const partial = result.scoring.status !== "complete" || result.safety.status !== "complete" ||
       result.expansion.status !== "complete";
@@ -498,7 +748,27 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       progress: null,
       error: null,
       result,
+      review: null,
     }));
+  };
+
+  const setReviewForTesting = (review: ReplacementLabChangeReviewSnapshot | null) => {
+    if (!import.meta.env.DEV) throw new Error("Replacement Lab review fixture injection is development-only.");
+    reviewActive?.controller.abort();
+    reviewActive = null;
+    const registeredStage = review?.stage ? registerStrategicFitStageForTesting(review.stage) : null;
+    const registeredReview = review && registeredStage ? {
+      ...review,
+      stage: registeredStage,
+      evidence: review.evidence && {
+        ...review.evidence,
+        item: {
+          ...review.evidence.item,
+          stage: { ok: true as const, stage: registeredStage },
+        },
+      },
+    } : review;
+    setSnapshot((previous) => ({ ...previous, review: registeredReview }));
   };
 
   return {
@@ -513,9 +783,14 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     generate,
     cancel,
     retry,
+    stageReview,
+    acceptReview,
+    rejectReview,
     synchronize,
     /** DEV harness only: installs immutable presentation evidence without running providers. */
     setResultForTesting,
+    /** DEV harness only: installs a revision-bound review snapshot for accessibility coverage. */
+    setReviewForTesting,
   };
 }
 
@@ -526,6 +801,8 @@ const browserBoundary: ReplacementLabStateBoundary = {
   currentFindingResolution: displayStrategicFitFindingResolution,
   prepare: prepareReplacementLab,
   run: runReplacementLabGeneration,
+  stageReview: stageReplacementLabChangeReview,
+  acceptStage: acceptConfirmedStrategicFitChangeSet,
   discardStage: rejectStrategicFitChangeSet,
 };
 

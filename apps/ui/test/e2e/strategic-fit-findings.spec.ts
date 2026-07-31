@@ -16,6 +16,7 @@ type ChessHarness = {
   flushStrategicFitMetadata(): Promise<void>;
   setColor(color: "white" | "black"): void;
   setReplacementLabResultForTesting(result: any): void;
+  setReplacementLabReviewForTesting(review: any): void;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   upsertStrategicFitResolution(input: any): unknown;
@@ -223,6 +224,172 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
     safety: { status: "partial", candidates: [] },
     preview: { status: "partial", items: [] },
   };
+}
+
+function replacementChangeReviewFixture(color: "white" | "black" = "white") {
+  const version = { schema_version: "1.0.0", analysis_version: "2.0.0", replacement_schema_version: "1.0.0" };
+  const provenance = [{
+    source_id: "source:e2e:change-review",
+    kind: "deterministic-core",
+    state: "available",
+    version: "2.0.0",
+    snapshot: "snapshot:e2e:change-review",
+    reason: null,
+  }];
+  const objective = (cp: number) => ({
+    ...version,
+    state: "available",
+    white_pov_evaluation_cp: cp,
+    white_pov_mate_in: null,
+    white_pov_best_evaluation_cp: 45,
+    white_pov_best_mate_in: null,
+    repertoire_pov_evaluation_cp: color === "black" ? -cp : cp,
+    repertoire_pov_mate_in: null,
+    repertoire_pov_loss_from_best_cp: 10,
+    repertoire_pov_verdict: "within-tolerance",
+    engine_depth: 24,
+    engine_multipv: 3,
+    evaluation_uncertainty_cp: 4,
+    tactical_volatility: 0.1,
+    evaluation_sensitivity_cp: 5,
+    forcing_density: 0.2,
+    king_safety_risk: 0.1,
+    viable_move_width: 3,
+    database_performance: null,
+    theoretical_status: null,
+    reason: null,
+    provenance,
+  });
+  const score = (after: boolean) => ({
+    ...version,
+    state: "available",
+    cohort_id: "cohort:fixture",
+    trajectory_ids: [after ? "trajectory:after" : "trajectory:before"],
+    strategic_fit_score: after ? 0.82 : 0.54,
+    strategic_fit_delta: after ? 0.28 : 0,
+    strategic_familiarity: after ? 0.86 : 0.5,
+    memorization_burden: after ? 0.25 : 0.4,
+    expected_opponent_coverage: after ? 0.96 : 0.91,
+    new_concept_ids: ["concept:e2e:iqp"],
+    theory_nodes_before: 24,
+    theory_nodes_after: after ? 31 : 24,
+    theory_nodes_added: after ? 7 : 0,
+    theory_nodes_removed: after ? 3 : 0,
+    popularity: 0.72,
+    homogenization_cost: after ? 0.1 : 0.3,
+    training_cost: after ? 0.24 : 0.42,
+    transposition_position_ids: ["position:prepared"],
+    contributions: [],
+    provenance,
+  });
+  const coverage = {
+    ...version,
+    state: "partial",
+    popularity_weighted_before: 0.91,
+    popularity_weighted_after: 0.96,
+    popularity_weighted_delta: 0.05,
+    required_reply_count_before: 8,
+    required_reply_count_after: 9,
+    newly_uncovered_replies: [],
+    newly_covered_replies: [{
+      analysis_version: "2.0.0",
+      state: "available",
+      position_id: "position:new-reply",
+      decision_id: "decision:new-reply",
+      san: "Nf6",
+      expected_frequency: 0.18,
+      forcing: true,
+      source_san_paths: [["e4", "e5", "Nf3", "Nf6"]],
+      reason: "Canonical newly covered forcing reply.",
+      provenance,
+    }],
+    duplicate_branch_ids: [],
+    new_transposition_position_ids: ["position:prepared"],
+    affected_metrics: [{
+      analysis_version: "2.0.0",
+      metric_id: "training-adjusted-workload",
+      state: "partial",
+      before: 0.42,
+      after: 0.24,
+      delta: -0.18,
+      unit: "fraction",
+      reason: "Partial personal training evidence retained.",
+      provenance,
+    }],
+    reason: "One metric remains partial.",
+    provenance,
+  };
+  const target = { position_id: "position:old", decision_id: "decision:old", source_san_path: ["e4", "e5", "Nf3", "Nc6", "Bb5"] };
+  const operations = [{
+    analysis_version: "2.0.0", operation_id: "operation:add", sequence: 0, kind: "add-subtree",
+    parent: { position_id: "position:pivot", decision_id: "decision:pivot", source_san_path: ["e4", "e5", "Nf3"] },
+    subtree: { subtree_id: "subtree:e2e:long" }, provenance,
+  }, {
+    analysis_version: "2.0.0", operation_id: "operation:link", sequence: 1, kind: "link-transposition",
+    source: { position_id: "position:new", decision_id: "decision:new", source_san_path: ["e4", "e5", "Nf3", "Nf6"] },
+    target_position_id: "position:prepared", provenance,
+  }, {
+    analysis_version: "2.0.0", operation_id: "operation:annotation", sequence: 2, kind: "preserve-annotation",
+    source: target, target: { ...target, source_san_path: ["e4", "e5", "Nf3", "Nf6"] },
+    comments: ["Long exact annotation retained"], nags: [1], semantic_equivalence_verified: true, provenance,
+  }, {
+    analysis_version: "2.0.0", operation_id: "operation:archive", sequence: 3, kind: "archive-subtree",
+    archive_id: "archive:e2e:old-line", target, archive_pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
+    references: { position_ids: ["position:old"], decision_ids: ["decision:old"], route_ids: ["route:old"], source_san_paths: [target.source_san_path] }, provenance,
+  }, {
+    analysis_version: "2.0.0", operation_id: "operation:prune", sequence: 4, kind: "prune-subtree",
+    target, archive_operation_id: "operation:archive", explicitly_confirmed: true, provenance,
+  }];
+  const diffs = operations.map((operation, index) => ({
+    analysis_version: "2.0.0", operation_id: operation.operation_id, sequence: index, kind: operation.kind,
+    added_paths: index === 0 ? [["e4", "e5", "Nf3", "Nf6", ...Array.from({ length: 36 }, (_, i) => `Move${i}`)]] : [],
+    removed_paths: index === 4 ? [target.source_san_path] : [],
+    annotated_paths: index === 2 ? [["e4", "e5", "Nf3", "Nf6"]] : [],
+    linked_paths: index === 1 ? [["e4", "e5", "Nf3", "Nf6"]] : [],
+    archived_paths: index === 3 ? [target.source_san_path] : [],
+    reordered_parent_paths: [], linked_position_ids: index === 1 ? ["position:prepared"] : [],
+    archive_ids: index === 3 ? ["archive:e2e:old-line"] : [],
+  }));
+  const safetyChecks = ["legality", "engine-sanity", "coverage", "gap-scan", "transpositions", "duplicates", "stale-revision", "affected-cohort-preview"].map((kind) => ({
+    analysis_version: "2.0.0", kind, status: kind === "affected-cohort-preview" ? "warning" : "passed",
+    explanation: kind === "affected-cohort-preview" ? "Partial training evidence remains visible." : `${kind} passed canonical Phase 8 evidence.`,
+    risk_ids: kind === "affected-cohort-preview" ? ["risk:e2e:partial"] : [], provenance,
+  }));
+  const preview = {
+    ...version,
+    before: { analysis_version: "2.0.0", position_count: 20, decision_count: 19, route_count: 8, source_route_count: 8, transposition_count: 1 },
+    after: { analysis_version: "2.0.0", position_count: 27, decision_count: 25, route_count: 9, source_route_count: 9, transposition_count: 2 },
+    objective_quality_before: objective(20), objective_quality_after: objective(35),
+    strategic_score_before: score(false), strategic_score_after: score(true), coverage_effects: coverage,
+    affected_paths: diffs.flatMap((diff) => [...diff.added_paths, ...diff.removed_paths, ...diff.annotated_paths, ...diff.linked_paths, ...diff.archived_paths]),
+    preserved_annotation_count: 1, archive_ids: ["archive:e2e:old-line"], operation_diffs: diffs,
+    archive_payloads: [{
+      analysis_version: "2.0.0", archive_id: "archive:e2e:old-line", operation_id: "operation:archive", target,
+      pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
+      references: { position_ids: ["position:old"], decision_ids: ["decision:old"], route_ids: ["route:old"], source_san_paths: [target.source_san_path] }, provenance,
+    }],
+    finding_changes_state: "not-reanalyzed", changed_finding_ids: [], new_finding_ids: [], resolved_finding_ids: [],
+  };
+  const safetyCandidate = {
+    ...version, candidate_id: "candidate:e2e:tradeoff", request_id: "request:e2e:comparison", report_id: "report:fixture",
+    finding_id: "finding:01", semantic_finding_id: "semantic:finding:01", cohort_id: "cohort:fixture",
+    repertoire_revision: "browser:fixture", repertoire_color: color, pivot_id: "pivot:e2e", action: "replace", action_label: "Replace line",
+    status: "safe", error_code: null, explanation: "Safe replacement retained.", source_graph_identity: "graph:e2e", simulated_graph_identity: "graph:e2e:after",
+    coverage_effects: coverage, safety_checks: safetyChecks,
+    scored_candidate: { expansion: { unresolved_risks: [{ analysis_version: "2.0.0", risk_id: "risk:e2e:partial", kind: "engine-unverified", status: "open", explanation: "Deeper verification remains optional.", affected_position_ids: ["position:new"], affected_route_ids: ["route:new"], provenance }] } },
+    provenance, source_tree_unchanged: true, source_scoring_unchanged: true, inputs_unchanged: true,
+  };
+  const stage = {
+    stage_id: "stage:e2e:change-review", status: "staged", result_status: "previewed", document_id: "document:e2e",
+    base_revision: 7, base_repertoire_revision: "browser:7", tree_identity: "tree:e2e", metadata_identity: "metadata:e2e",
+    safety_identity: "safety:e2e", change_set_identity: "change-set:e2e", preview_identity: "preview:e2e",
+    archive_identity: "archive:e2e", provenance_identity: "provenance:e2e",
+    safety: { ...version, request_id: "request:e2e:comparison", report_id: "report:fixture", finding_id: "finding:01", semantic_finding_id: "semantic:finding:01", cohort_id: "cohort:fixture", repertoire_revision: "browser:7", repertoire_color: color, pivot_id: "pivot:e2e", candidates: [safetyCandidate], provenance },
+    change_set: { ...version, change_set_id: "change-set:e2e", request_id: "request:e2e:comparison", candidate_id: "candidate:e2e:tradeoff", base_repertoire_revision: "browser:7", status: "validated", atomic: true, staged: true, retention: { archive: "archive", prune: "prune", prune_explicitly_confirmed: true, archive_before_prune: true }, operations, safety_checks: safetyChecks, unresolved_risk_ids: ["risk:e2e:partial"], provenance },
+    preview: { ...version, change_set_id: "change-set:e2e", base_repertoire_revision: "browser:7", atomic: true, source_tree_unchanged: true, operation_results: operations.map((operation) => ({ analysis_version: "2.0.0", operation_id: operation.operation_id, status: "applied", error_code: null, explanation: "Previewed on clone." })), provenance, status: "previewed", result: { repertoire_revision: null, pgn: "fixture", preview }, failure: null },
+    navigation_san_path: ["e4", "e5", "Nf3"], created_at: "2026-07-29T12:00:00.000Z", accepted_revision: null, error_code: null,
+  };
+  return { candidate_id: "candidate:e2e:tradeoff", action: "replace", status: "ready", evidence: { action: "replace", safety: stage.safety, item: { candidate_id: "candidate:e2e:tradeoff", status: "previewed", stage: { ok: true, stage } } }, stage, error: null };
 }
 
 async function downloadText(download: Download): Promise<string> {
@@ -1909,4 +2076,58 @@ test("Replacement comparison synchronizes accessible table and Pareto selection 
     dirty: api.dirty(),
     preview: JSON.stringify(api.preview()),
   }))).toEqual(stateBefore);
+});
+
+test("staged change review is revision-bound, accessible, responsive, and non-mutating before confirmation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
+  const { dialog, before, pathBefore } = await bootstrap(page, "black", true);
+  const stateBefore = await chess(page, (api) => ({ version: api.version(), dirty: api.dirty(), preview: JSON.stringify(api.preview()) }));
+  const queue = dialog.locator("#strategic-fit-pane-findings").getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog.locator("[data-resolution-finding-id='finding:01']").getByRole("button", { name: "Open Replacement Lab" }).click();
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture("black"));
+  const candidate = lab.getByRole("table", { name: /Candidate comparison/ }).locator("tbody th button").first();
+  await candidate.click();
+  await chess(page, (api, review) => api.setReplacementLabReviewForTesting(review), replacementChangeReviewFixture("black"));
+
+  const review = lab.locator(".replacement-change-review");
+  await expect(review).toBeVisible();
+  await expect(review.getByRole("heading", { name: "Review exact atomic change" })).toBeVisible();
+  await expect(review.getByRole("radio", { name: /Archive then prune old line/ })).toBeChecked();
+  await expect(review).toContainText("archive:e2e:old-line");
+  await expect(review).toContainText("Long exact annotation retained");
+  await expect(review).toContainText("Exact additions");
+  await expect(review).toContainText("Exact links");
+  await expect(review.getByRole("list", { name: "Affected descendant paths" })).toBeVisible();
+  await expect(review).toContainText("Training burden");
+  await expect(review).toContainText("Partial personal training evidence retained");
+  await expect(review).toContainText("Black repertoire POV before");
+  await expect(review).toContainText("White-POV engine transport before");
+  await expect(review.getByRole("table", { name: "Exact canonical tree statistics" })).toBeVisible();
+  await expect(review.getByRole("table", { name: /Exact metric deltas/ })).toBeVisible();
+  await expect(review.locator("[data-operation-kind='archive-subtree']")).toBeVisible();
+  await expect(review.locator("[data-operation-kind='prune-subtree']")).toBeVisible();
+  await expect(review.locator("[data-check-status='warning']")).toBeVisible();
+  await expect(review.locator("[data-risk-status='open']")).toBeVisible();
+  const confirmation = review.getByRole("checkbox", { name: /I confirm document revision 7/ });
+  const accept = review.getByRole("button", { name: "Accept one atomic change at revision 7" });
+  await expect(accept).toBeDisabled();
+  await confirmation.focus();
+  await page.keyboard.press("Space");
+  await expect(accept).toBeEnabled();
+  expect(await review.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
+    const style = getComputedStyle(child);
+    return style.animationDuration === "0s" && style.transitionDuration === "0s";
+  }))).toBe(true);
+  expect(await contrastViolations(review)).toEqual([]);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await review.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await touchTargetViolations(review)).toEqual([]);
+  await review.getByRole("button", { name: "Reject preview" }).click();
+  await expect(review).toContainText("Preview rejected without mutation");
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => ({ version: api.version(), dirty: api.dirty(), preview: JSON.stringify(api.preview()) }))).toEqual(stateBefore);
 });
