@@ -664,6 +664,18 @@ function extractRouteConcepts(
   };
 }
 
+/**
+ * Derive one retained trajectory's concepts with the canonical classifier rules. Presentation
+ * projections over a completed report use this instead of rebuilding a full dictionary; the
+ * result is byte-identical to the dictionary entry the analyzer produced for the same trajectory.
+ */
+export function deriveStrategicRouteConcepts(
+  trajectory: StrategicTrajectory,
+  labels: Map<string, StrategicConceptLabel> = new Map(),
+): StrategicRouteConcepts {
+  return extractRouteConcepts(trajectory, labels);
+}
+
 /** Build the versioned concept dictionary for every trajectory in a report. */
 export function buildStrategicConceptDictionary(
   trajectories: StrategicTrajectoryReport,

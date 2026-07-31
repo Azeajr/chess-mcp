@@ -4964,3 +4964,135 @@ img,
   .strategic-map-point { forced-color-adjust: auto; }
   .strategic-map-point[data-map-resolution="unresolved-finding"] { stroke-dasharray: 1.2 0.8; }
 }
+
+.concept-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--panel);
+}
+.concept-heatmap-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.concept-heatmap-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: start;
+}
+.concept-heatmap-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+.concept-heatmap-legend {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.concept-heatmap-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.concept-heatmap-table {
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 100%;
+}
+.concept-heatmap-table th,
+.concept-heatmap-table td {
+  text-align: left;
+  padding: 0.3rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.concept-heatmap-table thead th {
+  min-width: 7rem;
+  overflow-wrap: anywhere;
+}
+.concept-heatmap-concept-label {
+  display: block;
+  font-weight: 600;
+}
+.concept-heatmap-column-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-weight: 400;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+.concept-heatmap-intent {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+.concept-heatmap-route-count {
+  display: block;
+  font-weight: 400;
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+.concept-heatmap-cell {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) calc(var(--heatmap-alpha, 0.1) * 100%), var(--panel));
+  font-variant-numeric: tabular-nums;
+}
+.concept-heatmap-cell:focus-visible,
+.concept-heatmap-cell-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.concept-heatmap-empty-cell {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+}
+.concept-heatmap-detail {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+.concept-heatmap-detail h4 { margin: 0 0 0.4rem; font-size: 0.9rem; }
+.concept-heatmap-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+}
+.concept-heatmap-detail dt { font-size: 0.72rem; opacity: 0.75; }
+.concept-heatmap-detail dd { margin: 0; font-size: 0.85rem; }
+.concept-heatmap-detail dd code { margin-right: 0.3rem; }
+.concept-heatmap-detail-findings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.concept-heatmap-unavailable p { margin: 0.25rem 0; }
+.concept-heatmap-exclusions ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+@media (max-width: 820px) {
+  .concept-heatmap-controls label { flex: 1 1 8rem; }
+  .concept-heatmap-table thead th { min-width: 6rem; }
+}
+@media (forced-colors: active) {
+  .concept-heatmap-cell { forced-color-adjust: auto; border: 1px solid CanvasText; }
+}

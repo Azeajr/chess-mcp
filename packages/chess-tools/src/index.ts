@@ -139,6 +139,7 @@ export * from "./strategic-fit/metrics.js";
 export * from "./strategic-fit/analyze.js";
 export * from "./strategic-fit/report-projection.js";
 export * from "./strategic-fit/visualization.js";
+export * from "./strategic-fit/concept-heatmap.js";
 export * from "./strategic-fit/legacy-projection.js";
 export * from "./strategic-fit/annotation.js";
 export * from "./strategic-fit/tool-adapter.js";

@@ -9,6 +9,7 @@ import StrategicOverview, {
   type StrategicOverviewItemId,
 } from "./strategic-fit/StrategicOverview";
 import StrategicMap from "./strategic-fit/StrategicMap";
+import ConceptHeatmap from "./strategic-fit/ConceptHeatmap";
 import FindingQueue from "./strategic-fit/FindingQueue";
 import ReviewSummary from "./strategic-fit/ReviewSummary";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
@@ -47,6 +48,7 @@ import {
   type StrategicFitWorkspaceStage,
 } from "../store/ui";
 import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
+import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
 
 const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -277,6 +279,18 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
     });
   };
+  const openHeatmapFinding = (reportId: string, findingId: string) => {
+    openStrategicFitFindingQueue({
+      report_id: reportId,
+      source: "concept-heatmap",
+      label: "Findings for the selected heatmap cell",
+      filter: { kind: "all" },
+    });
+    queueMicrotask(() => {
+      strategicFitFindingQueue.selectFinding(findingId);
+      dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
+    });
+  };
   const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
     .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
   const selectStageFromKeyboard = (
@@ -445,6 +459,13 @@ export default function StrategicFitWorkspace() {
                     cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
                     completeFindings={report().findings_snapshot ?? report().result.findings}
                     onOpenFinding={(findingId) => openMapFinding(report().report_id, findingId)}
+                  />
+                  <ConceptHeatmap
+                    report={report().result}
+                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
+                    completeFindings={report().findings_snapshot ?? report().result.findings}
+                    mastery={strategicFitTrainingMastery()}
+                    onOpenFinding={(findingId) => openHeatmapFinding(report().report_id, findingId)}
                   />
                   <StrategicOverview
                     report={report().result}
