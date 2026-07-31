@@ -30,8 +30,10 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 - `packages/chess-tools/src/tool-contract.ts` owns tool identifiers, descriptions, hosts,
   capabilities, defaults, validation metadata, and result kind. Generate
   `docs/TOOL_CATALOG.md` with `pnpm docs:generate`; never edit it by hand.
-- `packages/chess-tools/src/workflow-contract.ts` owns shared workflow invariants and method
-  boundaries. Generate skill sections with `pnpm sync:skills`; do not hand-edit generated blocks.
+- `packages/chess-tools/src/workflow-contract.ts` owns shared workflow invariants, method
+  boundaries, and the Strategic Fit explanation/exploration contract, whose cited fields are typed
+  against the bounded retrieval projection. Generate skill sections with `pnpm sync:skills`; do not
+  hand-edit generated blocks.
 - `apps/ui/src/application/browser-commands/registry.ts` is the exhaustive browser execution
   registry. Chat and direct report/export controls must call it instead of adding store switches.
 - `packages/chess-tools` must not import SolidJS, MCP SDK, Zod, or OpenRouter types.

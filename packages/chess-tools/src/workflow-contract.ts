@@ -1,4 +1,12 @@
 /** Dependency-free semantic workflow guidance shared by browser prompts and MCP skills. */
+import type { StrategicFitFindingSort } from "./strategic-fit/analyze.js";
+import type {
+  StrategicFitConversationFinding,
+  StrategicFitConversationFindings,
+  StrategicFitConversationSummary,
+  StrategicFitConversationView,
+} from "./strategic-fit/conversation-projection.js";
+
 export type WorkflowFamily = "position" | "review" | "annotation" | "repertoire";
 export type WorkflowHost = "browser" | "mcp";
 
@@ -9,10 +17,66 @@ export interface WorkflowStep {
   mcpTools: readonly string[];
 }
 
+/**
+ * Dotted field paths of one bounded conversation projection. Guidance may only tell the model to
+ * cite a field the Task 11.1 retrieval actually returns, so renaming a projection field breaks the
+ * guidance at compile time instead of leaving the model citing something that no longer exists.
+ * Array-valued fields terminate the path: their elements are described in prose, not addressed.
+ */
+type ProjectionPath<T> = T extends readonly unknown[]
+  ? never
+  : T extends object
+    ? { [K in keyof T & string]-?: K | `${K}.${ProjectionPath<NonNullable<T[K]>>}` }[keyof T & string]
+    : never;
+
+export type StrategicFitSummaryCitation = ProjectionPath<StrategicFitConversationSummary>;
+export type StrategicFitFindingsCitation =
+  | ProjectionPath<StrategicFitConversationFindings>
+  | ProjectionPath<StrategicFitConversationFindings["findings"][number]>;
+export type StrategicFitFindingCitation =
+  ProjectionPath<StrategicFitConversationFinding["finding"]>;
+export type StrategicFitCitation =
+  | StrategicFitSummaryCitation
+  | StrategicFitFindingsCitation
+  | StrategicFitFindingCitation;
+
+/** One requested depth of explanation for a finding the conversation already retrieved. */
+export interface WorkflowExplanationLevel {
+  readonly id: "intermediate" | "expert" | "concise" | "training";
+  readonly title: string;
+  readonly instruction: string;
+  readonly cite: readonly StrategicFitFindingCitation[];
+}
+
+/**
+ * One natural-language question mapped to the retrieval that answers it. `view` is `null` when the
+ * report does not own the question and another canonical operation does; the model still selects
+ * that operation from its own contract rather than from words in the question.
+ */
+export interface WorkflowGroundedQuery {
+  readonly id: string;
+  readonly question: string;
+  readonly view: StrategicFitConversationView | null;
+  readonly sort?: StrategicFitFindingSort;
+  readonly tools: readonly string[];
+  readonly answer: string;
+  readonly cite: readonly StrategicFitCitation[];
+  readonly missing: string;
+}
+
+export interface WorkflowExplanationContract {
+  readonly goal: string;
+  readonly rules: readonly string[];
+  readonly levels: readonly WorkflowExplanationLevel[];
+  readonly queries: readonly WorkflowGroundedQuery[];
+}
+
 export interface WorkflowContract {
   goal: string;
   steps: readonly WorkflowStep[];
   report: readonly string[];
+  /** Present only where a family owns explanation and exploration guidance of its own. */
+  explanations?: WorkflowExplanationContract;
 }
 
 export const WORKFLOW_INVARIANTS = [
@@ -25,6 +89,160 @@ export const WORKFLOW_INVARIANTS = [
   "Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up work.",
   "Treat Strategic Fit replacement results as revision-bound atomic previews. Compare full candidate subtrees and retained unavailable/partial evidence; never infer pruning, auto-accept a staged browser change, or imply MCP archive/undo support.",
 ] as const;
+
+/**
+ * Explanation and exploration guidance for a Strategic Fit report the conversation already holds.
+ * Every level and question names the retrieval view that answers it and the exact projection fields
+ * it may cite, so an explanation is assembled from returned evidence instead of narrated around it.
+ */
+export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
+  goal:
+    "Explain a Strategic Fit report the conversation already produced, at the depth the user asked for, using only what the bounded retrieval views returned.",
+  rules: [
+    "Explain a report through `get_strategic_fit_report`, never by re-running the analysis and never from memory of an earlier answer. Name the exact `report_id`, and the `finding_id` when the subject is one finding.",
+    "Quote the projection's own values. Never recompute a score, average contributions, restate one label as another, or turn a strategic distance into an engine evaluation.",
+    "These views are bounded on purpose. A positive `omitted_dimension_count` or `omitted_issue_count`, a `total_san_path_count` larger than the returned paths, and any `truncated: true` mean evidence was withheld from you: say it was not shown, never that it does not exist.",
+    "A `null` value, an `unavailable` or `partial` metric `state`, an `unknown` label, and an absent optional field all stay missing. Never present one as zero and never fill it in from chess knowledge.",
+    "The retrieval views carry no legality, engine evaluation, coverage, or popularity evidence. Such a claim needs its own result from the operation that owns it; without one, say that evidence is unavailable.",
+    "A classification is not a verdict. `forced-diversity`, `intentional-diversity`, `productive-diversity`, and `transpositional-equivalence` are not defects, and `uncertain` and `data-quality-issue` describe the evidence rather than the repertoire.",
+    "Cite branches only by the SAN paths the projection returned. Never hand-build a line, continue a truncated path, or describe a move those paths do not contain.",
+    "Select every operation from its own contract, not from words in the question. The complete schema is offered on each round, so a phrase in the user's message never selects a command by itself.",
+  ],
+  levels: [
+    {
+      id: "intermediate",
+      title: "Intermediate player",
+      instruction:
+        "Say in plain language what this branch asks the player to handle differently and what to do about it. Name the opening scope, one concrete measured difference, and the branch it happens on. Keep engine and statistical vocabulary out unless the projection supplied that number.",
+      cite: [
+        "plain_language_category",
+        "opening_scope",
+        "affected_line_summary",
+        "explanation",
+        "difference.magnitude",
+        "source_san_paths",
+      ],
+    },
+    {
+      id: "expert",
+      title: "Expert strategic breakdown",
+      instruction:
+        "Give the measured breakdown: which comparison dimensions moved, what each contributed, the typical cohort value against the affected value, and what the comparison was made against. State confidence with the caps that limited it and what the causality evidence attributes the difference to.",
+      cite: [
+        "difference.distance",
+        "evidence.dimensions",
+        "evidence.omitted_dimension_count",
+        "evidence.comparison_basis",
+        "evidence.causality.controllability",
+        "evidence.causality.explanation",
+        "confidence.score",
+        "confidence_explanation",
+        "applied_caps",
+      ],
+    },
+    {
+      id: "concise",
+      title: "Concise summary",
+      instruction:
+        "One or two sentences: the category, how large the difference is, how confident the report is, and how often it is expected to occur. No dimension-by-dimension detail and no new evidence.",
+      cite: [
+        "plain_language_category",
+        "difference.magnitude",
+        "confidence.label",
+        "expected_frequency",
+        "replacement_priority.label",
+        "training_priority.label",
+      ],
+    },
+    {
+      id: "training",
+      title: "Training focus",
+      instruction:
+        "Explain it as something to learn rather than something to fix: the memorization it adds, how often it comes up, which decision causes it, and which branch to drill. Drill content itself comes from a training or only-move result; never invent a model game, a plan, or a drill line.",
+      cite: [
+        "training_priority.label",
+        "learning_burden",
+        "expected_frequency",
+        "evidence.causality.label",
+        "evidence.causality.likely_causal_decision_ids",
+        "source_san_paths",
+        "resolution_state",
+      ],
+    },
+  ],
+  queries: [
+    {
+      id: "frequent-avoidable-exceptions",
+      question: "Show only frequent avoidable exceptions.",
+      view: "findings",
+      sort: "expected-frequency",
+      tools: ["get_strategic_fit_report"],
+      answer:
+        "Page the findings sorted by expected frequency and keep only rows classified `genuine-inconsistency`. Forced, intentional, productive, and transpositional rows are not avoidable, and `uncertain` or `data-quality-issue` rows are unproven rather than avoidable. Report the page you actually read and whether more remain.",
+      cite: ["findings", "classification", "expected_frequency", "page.has_more", "next_cursor"],
+      missing:
+        "A `null` `expected_frequency` was not measured: keep that row out of a frequency ranking and say so, rather than treating it as zero or as rare.",
+    },
+    {
+      id: "castling-patterns",
+      question: "Which branches force me into opposite-side castling?",
+      view: "finding",
+      tools: ["get_strategic_fit_report"],
+      answer:
+        "Castling is a measured setup-family signal, so read it from a finding's evidence dimensions and the concept identities the analysis reported, not from the moves. Open the findings for the branches in question and quote the dimension that names castling with its typical and affected values.",
+      cite: [
+        "evidence.dimensions",
+        "evidence.omitted_dimension_count",
+        "affected_line_summary",
+        "source_san_paths",
+      ],
+      missing:
+        "If no returned dimension names castling, say the report did not surface it for that finding, and say dimensions were withheld when `omitted_dimension_count` is above zero. Never read a castling pattern off a move list yourself.",
+    },
+    {
+      id: "known-structure-transpositions",
+      question: "Where could I transpose into structures I already know?",
+      view: null,
+      tools: ["get_transpositions", "find_pruning_transpositions", "find_structures"],
+      answer:
+        "The report does not own this question. Use the transposition operations for move orders the repertoire already joins and for sound shortcuts that shorten memorization, and structure search for lines matching an explicit structure. A `transpositional-equivalence` finding only says the report already attributed that difference to move order.",
+      cite: ["classification"],
+      missing:
+        "Two similar SAN paths are not a transposition. Without a transposition or shortcut result, say the move order was not verified.",
+    },
+    {
+      id: "train-versus-replace",
+      question: "What should I train instead of replace?",
+      view: "findings",
+      sort: "training-priority",
+      tools: ["get_strategic_fit_report"],
+      answer:
+        "Both priorities sit on every finding row. Read one page sorted by training priority and compare each row's own `training_priority` against its `replacement_priority`; a page sorted by replacement priority shows the other end. Both are report scores, not an instruction to edit: an edit still goes through the replacement or gap path and needs explicit acceptance.",
+      cite: ["training_priority.label", "replacement_priority.label", "resolution_state", "sort"],
+      missing:
+        "A finding already resolved as a kept exception, deferred, or excluded is not a training candidate by default. Read `resolution_state` instead of assuming it is open.",
+    },
+    {
+      id: "intentional-diversity-reason",
+      question: "Why is this classified as intentional diversity?",
+      view: "finding",
+      tools: ["get_strategic_fit_report"],
+      answer:
+        "Open that finding and quote the report's own explanation, what the causality evidence attributes the difference to, and the confidence with any cap that limited it. When the status came from a decision the user recorded rather than from the analysis, say so: `resolution_state` carries that.",
+      cite: [
+        "classification",
+        "explanation",
+        "evidence.causality.label",
+        "evidence.causality.explanation",
+        "confidence_explanation",
+        "applied_caps",
+        "resolution_state",
+      ],
+      missing:
+        "Intentional diversity is not proof the branch is good. Objective quality is a separate field and stays `unavailable` when it was not measured.",
+    },
+  ],
+};
 
 const step = (title: string, instruction: string, browserTools: readonly string[], mcpTools: readonly string[] = browserTools): WorkflowStep =>
   ({ title, instruction, browserTools, mcpTools });
@@ -76,8 +294,34 @@ export const WORKFLOW_CONTRACTS: Record<WorkflowFamily, WorkflowContract> = {
       step("Export the right artifact", "Use annotated repertoire export for the branching tree and only-move deck export for training. In the browser, use the JSON sidecar for canonical Strategic Fit metadata and the intent PGN only for portable comments; never expose tokens or repeat full artifact content.", ["export_annotated_repertoire", "find_only_moves", "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn"], ["export_annotated_repertoire", "find_only_moves"]),
     ],
     report: ["Separate Strategic Fit, structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.", "Keep confidence, strategic difference, objective quality, replacement priority, and training priority distinct.", "Give navigable SAN paths and preserve report, finding, action, and artifact references.", "Present alternatives and tradeoffs; never choose or apply a mutation silently."],
+    explanations: STRATEGIC_FIT_EXPLANATIONS,
   },
 };
+
+const citations = (fields: readonly string[]): string =>
+  `Cite: ${fields.map((field) => `\`${field}\``).join(", ")}.`;
+
+function renderGroundedQuery(query: WorkflowGroundedQuery): string {
+  const operations = query.tools.map((tool) => `\`${tool}\``).join(", ");
+  const source = query.view === null
+    ? `Not a report question; use ${operations}.`
+    : `Use ${operations} with view \`${query.view}\`${query.sort === undefined ? "" : ` sorted \`${query.sort}\``}.`;
+  return `- "${query.question}" ${source} ${query.answer} ${citations(query.cite)} Missing evidence: ${query.missing}`;
+}
+
+/** Render one family's explanation and exploration guidance for either host. */
+export function renderWorkflowExplanations(contract: WorkflowExplanationContract): string {
+  return [
+    "## Explanation and exploration contract", "", contract.goal, "",
+    ...contract.rules.map((rule) => `- ${rule}`), "",
+    "Answer at the depth the user asked for; use the intermediate level when they did not say.", "",
+    ...contract.levels.map((level) =>
+      `- ${level.title} (\`${level.id}\`): ${level.instruction} ${citations(level.cite)}`),
+    "",
+    "Grounded questions and the retrieval that answers each:", "",
+    ...contract.queries.map(renderGroundedQuery),
+  ].join("\n");
+}
 
 export function renderWorkflowGuidance(family: WorkflowFamily, host: WorkflowHost): string {
   const workflow = WORKFLOW_CONTRACTS[family];
@@ -89,6 +333,9 @@ export function renderWorkflowGuidance(family: WorkflowFamily, host: WorkflowHos
     "## Shared grounding contract", "", ...WORKFLOW_INVARIANTS.map((rule) => `- ${rule}`), "",
     "## Shared method", "", workflow.goal, "", ...method, "",
     "## Shared report contract", "", ...workflow.report.map((item) => `- ${item}`),
+    ...(workflow.explanations === undefined
+      ? []
+      : ["", renderWorkflowExplanations(workflow.explanations)]),
   ].join("\n");
 }
 
@@ -107,5 +354,7 @@ export function renderWorkflowOverview(host: WorkflowHost): string {
         return `- ${item.title}: ${item.instruction} Tools: ${tools.map((tool) => `\`${tool}\``).join(", ")}.`;
       }),
     ]),
+    ...Object.values(WORKFLOW_CONTRACTS).flatMap((workflow) =>
+      workflow.explanations === undefined ? [] : ["", renderWorkflowExplanations(workflow.explanations)]),
   ].join("\n");
 }
