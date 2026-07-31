@@ -1,6 +1,7 @@
 /** Dependency-free application contract consumed by the MCP and browser hosts. */
 import { EXPLORER_RATING_BUCKETS, EXPLORER_SPEEDS } from "./explorer.js";
 import { STRATEGIC_FIT_PLAN_SECTION_KINDS } from "./strategic-fit/plan-synthesis.js";
+import { STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS } from "./strategic-fit/portfolio.js";
 
 export type ToolHost = "mcp" | "browser";
 export type ToolCapability = "position" | "game" | "repertoire" | "engine" | "network" | "artifact" | "action";
@@ -65,6 +66,9 @@ const define = (name: string, description: string, capabilities: ToolCapability[
       ...(name === "propose_strategic_fit_plan" ? {
         semantics: "Either the bounded deterministic evidence basis for one finding, or a staged plan card validated against it. Proposing changes nothing: training metadata, the resolution, and the repertoire tree are untouched until the user accepts in the application.",
       } : {}),
+      ...(name === "propose_strategic_fit_portfolio" ? {
+        semantics: "Constraints staged for confirmation with any contradictions named, a bounded Pareto portfolio whose options are existing candidates with their retained measurements and change sets, or one option staged through the existing change-review path. Nothing is selected automatically, nothing is applied, and no preference is persisted.",
+      } : {}),
     },
     hostAdaptation: {
       browserInjects: name === "export_strategic_fit_metadata"
@@ -81,6 +85,8 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["stable document ID", "document revision", "current effective Strategic Fit profile", "Strategic Fit analysis-settings identity", "session-only staged proposal storage"]
         : name === "propose_strategic_fit_plan"
         ? ["stable document ID", "document revision", "current Strategic Fit report and finding", "deterministic training record for that finding", "session-only staged plan storage", "the existing training writer used on acceptance"]
+        : name === "propose_strategic_fit_portfolio"
+        ? ["stable document ID", "document revision", "current effective Strategic Fit profile", "the open Replacement Lab's retained Task 8.6 scoring, Task 8.7 safety, and Task 8.8 change-set previews", "session-only staged constraint and portfolio storage", "the existing revision-bound change-review staging path used on selection"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
@@ -98,6 +104,7 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
         : name === "propose_strategic_fit_profile" ? { resultDifference: "Browser only. MCP keeps no document profile: an MCP session passes the confirmed profile explicitly with each analysis, so there is nothing there to stage, diff, or persist." }
         : name === "propose_strategic_fit_plan" ? { resultDifference: "Browser only. Training records, resolutions, and drill artifacts are browser document state; an MCP session keeps none of them, so it has nothing to ground a plan card in and nothing to save it to." }
+        : name === "propose_strategic_fit_portfolio" ? { resultDifference: "Browser only. A portfolio option is one of the open Replacement Lab's retained candidates, and selecting it stages a change for revision-bound confirmation; an MCP session holds no lab result and no staging, archive, or undo, so it has nothing to build a portfolio from and nowhere to stage one. On MCP, `suggest_replacement_line` already returns the same previews as immutable results." }
         : name === "get_strategic_fit_report" ? { resultDifference: "Each host resolves the report identity in its own bounded cache — per handle on MCP, per document settings in the browser — and both project the same shared bounded views. A report that is not cached, or that belongs to another revision, fails closed rather than returning older evidence." }
         : name === "suggest_replacement_line" ? { resultDifference: "Browser V2 results are staged against the exact current document revision and require explicit acceptance. MCP V2 results are immutable previews only: no archive persistence or undo is available, and a new clone-on-write handle is returned only by an explicit repertoire edit call." }
         : {}),
@@ -182,6 +189,21 @@ const strategicFitPlanSection = object({
   checkpoint_ids: array(strategicFitId(), undefined, 8),
   drill_ids: array(strategicFitId(), undefined, 8),
 }, ["kind", "text"]);
+/**
+ * The bounds a redesign request may state. Every one names a metric the deterministic replacement
+ * chain already measures, and there is deliberately nowhere in this schema to supply an evaluation,
+ * a coverage figure, a legality claim, or a candidate line: the host reads all of those out of
+ * retained evidence rather than accepting them as arguments.
+ */
+const strategicFitPortfolioConstraints = object({
+  maximum_engine_loss_cp: integer(0, 1000),
+  minimum_expected_opponent_coverage: number(0, 1),
+  maximum_added_theory_nodes: integer(0, 10_000),
+  maximum_new_concept_count: integer(0, 128),
+  maximum_homogenization_cost: number(0, 1),
+  maximum_memorization_burden: number(0, 10_000),
+  minimum_strategic_fit_delta: number(-1, 1),
+});
 const strategicFitWeighting = object({
   mode: { type: "string", enum: ["equal", "manual", "external"] },
   route_weights: array(object({ route_id: strategicFitId(), weight: number(0, 1_000_000) }, ["route_id", "weight"]), undefined, 500),
@@ -383,6 +405,21 @@ export const TOOL_CONTRACTS = [
         }, ["title", "sections"]),
       },
       required: ["report_id", "finding_id", "semantic_finding_id"],
+    },
+  ),
+  define(
+    "propose_strategic_fit_portfolio",
+    "Turn a stated redesign goal into bounded alternatives for the Replacement Lab finding that is open. Call it with `constraints` first: the bounds are validated, checked for contradictions with the confirmed profile, and shown to the user for confirmation without binding anything. Call it again with the confirmed `constraint_set_id` to receive a bounded portfolio in which every option is one already-generated candidate with its own validated change set, its Task 8.6 Pareto status, and the measured values behind each bound; when nothing satisfies the request, the result names the bound that alone excluded candidates instead of relaxing it. Add `option_id` to stage that option's existing change set for the user's explicit confirmation. No option is preselected, nothing is applied, and no preference is persisted.",
+    ["repertoire", "action"],
+    BROWSER,
+    {},
+    {
+      properties: {
+        constraints: strategicFitPortfolioConstraints,
+        rationale: string("One or two sentences grounded in what the user actually said, shown next to the bounds.", 400),
+        constraint_set_id: strategicFitId(),
+        option_id: strategicFitId(),
+      },
     },
   ),
   define(
@@ -610,6 +647,39 @@ function strategicFitPlanArgumentsError(value: Record<string, unknown>): string 
   return null;
 }
 
+/**
+ * One call is exactly one of three steps: state the bounds, read the portfolio for confirmed
+ * bounds, or select one of its options. Mixing them would let a single call both propose a
+ * constraint and act on it, which is the confirmation this operation exists to require.
+ */
+function strategicFitPortfolioArgumentsError(value: Record<string, unknown>): string | null {
+  const constraints = value.constraints as Record<string, unknown> | undefined;
+  const setId = value.constraint_set_id;
+  const optionId = value.option_id;
+  if (constraints !== undefined) {
+    if (setId !== undefined || optionId !== undefined) {
+      return "constraints cannot be combined with constraint_set_id or option_id; state the bounds first and let the user confirm them";
+    }
+    if (Object.keys(constraints).length === 0) {
+      return "constraints must state at least one bound";
+    }
+    if (Object.keys(constraints).length > STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length) {
+      return `constraints must contain at most ${STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length} bounds`;
+    }
+    return null;
+  }
+  if (value.rationale !== undefined) {
+    return "rationale belongs with the constraints it explains";
+  }
+  if (typeof setId !== "string" || setId.trim().length === 0) {
+    return "constraint_set_id must name the confirmed constraint set to build the portfolio from";
+  }
+  if (optionId !== undefined && (typeof optionId !== "string" || optionId.trim().length === 0)) {
+    return "option_id must not be blank";
+  }
+  return null;
+}
+
 function explorerPopulationArgumentsError(
   filters: Record<string, unknown> | undefined,
   path: string,
@@ -738,6 +808,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "propose_strategic_fit_plan") {
     const reason = strategicFitPlanArgumentsError(value);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "propose_strategic_fit_portfolio") {
+    const reason = strategicFitPortfolioArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   if (name === "position_popularity") {

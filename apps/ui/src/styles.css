@@ -1202,6 +1202,16 @@ img,
 .strategic-fit-plan-section-head { font-weight: 650; }
 .strategic-fit-plan-support { overflow-wrap: anywhere; }
 .strategic-fit-plan-card button { min-height: 44px; }
+.strategic-fit-portfolio-constraints, .strategic-fit-portfolio { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.strategic-fit-portfolio-bounds, .strategic-fit-portfolio-conflict-list, .strategic-fit-portfolio-eliminations,
+.strategic-fit-portfolio-measurements { width: 100%; margin: 0; padding-left: 1.2rem; color: var(--muted); }
+.strategic-fit-portfolio-conflict-list b { color: var(--text); display: block; }
+.strategic-fit-portfolio-conflicts { color: #d8bd86; }
+.strategic-fit-portfolio-omitted { color: #d8bd86; }
+.strategic-fit-portfolio-binding { color: #d8bd86; }
+.strategic-fit-portfolio-option { width: 100%; display: grid; gap: 0.25rem; border: 1px solid var(--border); border-radius: 7px; padding: 0.45rem; }
+.strategic-fit-portfolio-option-head { font-weight: 650; }
+.strategic-fit-portfolio-constraints button { min-height: 44px; }
 .strategic-fit-diff { width: 100%; border-collapse: collapse; font-size: 0.7rem; display: block; overflow-x: auto; }
 .strategic-fit-diff th, .strategic-fit-diff td { border: 1px solid var(--border); padding: 0.18rem 0.34rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .strategic-fit-diff thead th, .strategic-fit-diff tbody th { color: var(--muted); font-weight: 500; }

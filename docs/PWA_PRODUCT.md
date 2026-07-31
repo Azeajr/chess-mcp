@@ -55,6 +55,19 @@ that cites nothing, an identity or move the evidence does not contain, and any o
 are refused with a structured error, and a card whose document, revision, or underlying evidence has
 moved can no longer be saved.
 
+A redesign goal stated in the user's own terms — at most this much evaluation loss, no more theory,
+keep this much coverage — becomes explicit bounds shown for confirmation before anything is built
+from them. The bounds apply to one redesign and save no preference. Any contradiction, whether
+between the bounds themselves or against the confirmed profile, is presented as a question for the
+user to settle; nothing is relaxed, dropped, or reconciled on their behalf. Once the bounds are
+confirmed, the portfolio contains only candidates Replacement Lab already generated, each shown with
+the measured value behind every bound, which are Pareto-optimal, which are dominated, and what
+excluded the rest. When nothing qualifies, the result names the bound that emptied it and asks which
+bound to move rather than offering a line of its own, and a metric the evidence could not measure
+excludes a candidate instead of counting as satisfied. Choosing an option stages that candidate's
+existing change set for the usual revision-bound confirmation: nothing is selected automatically,
+nothing is applied, and a rejected portfolio leaves nothing behind.
+
 Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
 the model compact metadata and an artifact reference while the UI owns the save affordance.
 

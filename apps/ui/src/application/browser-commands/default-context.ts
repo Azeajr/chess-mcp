@@ -20,6 +20,7 @@ import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { proposeStrategicFitProfile } from "../../store/strategic-fit-intent-interview";
 import { proposeStrategicFitPlan } from "../../store/strategic-fit-plan-synthesis";
+import { proposeStrategicFitPortfolio } from "../../store/strategic-fit-portfolio";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
@@ -71,4 +72,5 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   proposeLine: addSuggestion,
   proposeStrategicFitProfile,
   proposeStrategicFitPlan,
+  proposeStrategicFitPortfolio,
 };

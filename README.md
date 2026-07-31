@@ -42,6 +42,8 @@ a no-scope Lichess personal token because the explorer requires authentication.
   browser intent interview that turns stated goals into proposed profile preferences shown as an
   exact diff and saved only on explicit acceptance; staged plan cards for retained exceptions whose
   every section cites that finding's own concepts, checkpoints, drills, and validated moves;
+  confirmed redesign bounds that select a bounded portfolio of already-generated candidates with the
+  measured value behind every bound, and name the binding bound when nothing qualifies;
   transposition
   shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
   Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
@@ -65,7 +67,11 @@ values are rejected rather than adjusted, a proposal made against an older revis
 analysis settings can no longer be applied, and nothing becomes durable intent without an explicit
 Accept. A plan card the assistant writes for a retained exception is staged the same way: it is
 grounded in that finding's deterministic evidence, shows the support behind every section, and
-reaches training metadata only through the existing training path on an explicit Accept.
+reaches training metadata only through the existing training path on an explicit Accept. A redesign
+goal stated in plain terms becomes explicit bounds that are shown for confirmation before anything is
+built from them; any contradiction is put back as a question, the portfolio that follows contains
+only candidates the lab already generated with the measured value behind each bound, and choosing one
+stages its existing change set for the same revision-bound confirmation.
 
 Direct analysis is available without chat. User-triggered reports and exports invoke the canonical
 browser application commands and result models; continuous live board evaluation and a few

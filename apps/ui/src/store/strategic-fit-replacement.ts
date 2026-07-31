@@ -21,6 +21,7 @@ import {
   type ReplacementLabProgress,
 } from "../application/strategic-fit-replacement";
 import { defaultBrowserCommandDependencies } from "../application/browser-commands/default-context";
+import { registerStrategicFitPortfolioSource } from "../application/strategic-fit-portfolio-source";
 import { analysisDepth } from "./engine-settings";
 import {
   acceptConfirmedStrategicFitChangeSet,
@@ -824,3 +825,42 @@ const browserBoundary: ReplacementLabStateBoundary = {
 
 export const replacementLab = createReplacementLabState(browserBoundary);
 export const replacementLabSnapshot = replacementLab.snapshot;
+
+/**
+ * Constrained portfolio redesign (Task 11.5) reads this lab's retained evidence and stages through
+ * this lab's review path. It gets no generation, scoring, or staging of its own: an option is one of
+ * the candidates already generated here, and choosing one is the same revision-bound staging the
+ * comparison view performs.
+ */
+registerStrategicFitPortfolioSource({
+  evidence: () => {
+    const current = replacementLab.snapshot();
+    const identity = current.identity;
+    const result = current.result;
+    if (!current.open || identity === null || result === null) return null;
+    if (current.status !== "complete" && current.status !== "partial") return null;
+    return {
+      document_id: identity.document_id,
+      repertoire_revision: identity.repertoire_revision,
+      report_id: identity.report_id,
+      finding_id: identity.finding_id,
+      semantic_finding_id: identity.semantic_finding_id,
+      safety: result.safety,
+      previews: result.preview.items,
+    };
+  },
+  stageOption: async (candidateId, action) => {
+    const staged = await replacementLab.stageReview(candidateId, action);
+    const review = replacementLab.snapshot().review;
+    // `stageReview` is the arbiter: it returns true only once the change controller has a staged
+    // change of its own, so the portfolio never reports a stage the controller did not make.
+    return {
+      ok: staged && review?.status === "ready",
+      stage_id: review?.stage?.stage_id ?? null,
+      status: review?.status ?? "unavailable",
+      code: review?.error?.code ?? null,
+      message: review?.error?.message
+        ?? "The change set is staged and waiting for the user's confirmation.",
+    };
+  },
+});

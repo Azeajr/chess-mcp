@@ -5,6 +5,10 @@ import type {
   StrategicFitAnalysisResult,
   StrategicFitPlanSection,
   StrategicFitPlanSectionKind,
+  StrategicFitPortfolioConflict,
+  StrategicFitPortfolioConstraint,
+  StrategicFitPortfolioElimination,
+  StrategicFitPortfolioOption,
   StrategicFitConversationFinding,
   StrategicFitConversationFindingRow,
   StrategicFitConversationFindings,
@@ -25,6 +29,12 @@ import {
   rejectStrategicFitPlanCard,
   strategicFitPlanCard,
 } from "../store/strategic-fit-plan-synthesis";
+import {
+  confirmStrategicFitPortfolioConstraints,
+  rejectStrategicFitPortfolioConstraints,
+  strategicFitPortfolioConstraintSet,
+  strategicFitPortfolioSelection,
+} from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
 
 type Data = Record<string, unknown>;
@@ -464,6 +474,142 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
   </section>;
 }
 
+/**
+ * Redesign bounds, shown before they bind anything. A contradiction is presented as the question it
+ * is: confirming is the user's decision, and nothing about the bounds is relaxed on their behalf.
+ */
+function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
+  const id = () => String(props.data.constraint_set_id ?? "");
+  const staged = () => strategicFitPortfolioConstraintSet(id());
+  const status = () => staged()?.status ?? "unavailable";
+  const constraints = createMemo(() =>
+    Array.isArray(props.data.constraints) ? props.data.constraints as unknown as StrategicFitPortfolioConstraint[] : []);
+  const conflicts = createMemo(() =>
+    Array.isArray(props.data.conflicts) ? props.data.conflicts as unknown as StrategicFitPortfolioConflict[] : []);
+  return <section
+    class="result-card staged-card strategic-fit-portfolio-constraints"
+    data-constraint-set-id={id()}
+    aria-label="Strategic Fit redesign bounds"
+  >
+    <div class="result-title">Redesign bounds</div>
+    <Show when={props.data.rationale}>
+      <div class="strategic-fit-explanation">{String(props.data.rationale)}</div>
+    </Show>
+    <ul class="strategic-fit-portfolio-bounds">
+      <For each={constraints()}>{(constraint) => <li data-constraint-kind={constraint.kind}>
+        {constraint.label}
+      </li>}</For>
+    </ul>
+    <Show when={conflicts().length > 0}>
+      <div class="result-summary strategic-fit-portfolio-conflicts">
+        {countLabel(conflicts().length, "contradiction")} to settle before these bounds can bind.
+      </div>
+      <ul class="strategic-fit-portfolio-conflict-list">
+        <For each={conflicts()}>{(conflict) => <li data-conflict-source={conflict.source}>
+          <div>{conflict.explanation}</div>
+          <b>{conflict.question}</b>
+        </li>}</For>
+      </ul>
+    </Show>
+    <div class="result-summary">
+      Nothing is bound and no preference was saved. These bounds apply to this redesign only, and
+      confirming them changes no profile setting.
+    </div>
+    <Show when={status() === "pending"} fallback={<span class={`result-status ${status()}`}>{
+      status() === "stale" ? "Repertoire changed — state the bounds again"
+        : status() === "unavailable" ? "These bounds are not available in this session"
+        : status()
+    }</span>}>
+      <button class="result-accept" onClick={() => confirmStrategicFitPortfolioConstraints(id())}>Confirm bounds</button>
+      <button onClick={() => rejectStrategicFitPortfolioConstraints(id())}>Reject</button>
+    </Show>
+  </section>;
+}
+
+/**
+ * The portfolio the confirmed bounds allow. Each option is one already-generated candidate with the
+ * measured value behind every bound; an empty portfolio names the bound that emptied it rather than
+ * offering something the evidence never supported.
+ */
+function StrategicFitPortfolioResultCard(props: { data: Data }) {
+  const options = createMemo(() =>
+    Array.isArray(props.data.options) ? props.data.options as unknown as StrategicFitPortfolioOption[] : []);
+  const eliminations = createMemo(() =>
+    Array.isArray(props.data.eliminations) ? props.data.eliminations as unknown as StrategicFitPortfolioElimination[] : []);
+  const binding = createMemo(() =>
+    Array.isArray(props.data.binding_constraint_kinds) ? (props.data.binding_constraint_kinds as unknown[]).map(String) : []);
+  const omittedOptions = () => Number(props.data.omitted_option_count ?? 0);
+  const omittedEliminations = () => Number(props.data.omitted_elimination_count ?? 0);
+  const selection = () => {
+    const current = strategicFitPortfolioSelection();
+    return current && current.constraint_set_id === String(props.data.constraint_set_id ?? "") ? current : null;
+  };
+  return <section
+    class="result-card report-card strategic-fit-portfolio"
+    data-constraint-set-id={String(props.data.constraint_set_id ?? "")}
+    data-portfolio-status={String(props.data.status ?? "")}
+    aria-label="Strategic Fit redesign portfolio"
+  >
+    <div class="result-title">
+      Redesign portfolio · {countLabel(options().length, "option")}
+    </div>
+    <div class="strategic-fit-explanation">{String(props.data.explanation ?? "")}</div>
+    <For each={options()}>{(option) => <div class="strategic-fit-portfolio-option" data-option-id={option.option_id}>
+      <div class="strategic-fit-portfolio-option-head">
+        <b>{option.action_label}</b> · {option.pareto_status}
+        <Show when={option.dominated_by_candidate_ids.length > 0}>
+          {" "}· dominated by {option.dominated_by_candidate_ids.join(", ")}
+        </Show>
+      </div>
+      <ul class="strategic-fit-portfolio-measurements">
+        <For each={option.measurements}>{(measurement) => <li data-measurement-kind={measurement.kind}>
+          {measurement.label}: {measurement.state === "unavailable"
+            ? `not measured — ${measurement.reason ?? "evidence unavailable"}`
+            : `${measurement.value} ${measurement.unit}`}
+          <Show when={measurement.constraint_value !== null}>
+            {" "}(bound {measurement.constraint_value})
+          </Show>
+        </li>}</For>
+      </ul>
+      <div class="result-summary">
+        {countLabel(option.unresolved_risk_count, "unresolved risk")} · evidence {option.evidence_identity}
+      </div>
+    </div>}</For>
+    <Show when={omittedOptions() > 0}>
+      <div class="result-summary strategic-fit-portfolio-omitted">
+        {omittedOptions()} further qualifying option(s) withheld for size. They exist and are not
+        excluded; ask for them rather than treating this list as the whole of it.
+      </div>
+    </Show>
+    <Show when={binding().length > 0}>
+      <div class="result-summary strategic-fit-portfolio-binding">
+        Binding bound(s): {binding().join(", ")}. Moving one of these is what would change the result.
+      </div>
+    </Show>
+    <Show when={eliminations().length > 0}>
+      <ul class="strategic-fit-portfolio-eliminations">
+        <For each={eliminations()}>{(elimination) => <li
+          data-candidate-id={elimination.candidate_id}
+          data-elimination-reason={elimination.reason}
+        >{elimination.explanation}</li>}</For>
+      </ul>
+    </Show>
+    <Show when={omittedEliminations() > 0}>
+      <div class="result-summary strategic-fit-portfolio-omitted">
+        {omittedEliminations()} further exclusion(s) withheld for size.
+      </div>
+    </Show>
+    <div class="result-summary">
+      <Show when={selection()} fallback={
+        "Nothing is selected and nothing is applied. Choosing an option stages its existing change set for your confirmation."
+      }>{(current) => <>
+        Option {current().option_id} is {current().status}
+        {current().status === "staged" ? " — confirm or reject it in the change review; the repertoire is unchanged until you do." : "."}
+      </>}</Show>
+    </div>
+  </section>;
+}
+
 function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
@@ -545,6 +691,14 @@ const ERROR_LABELS: Record<string, string> = {
   strategic_fit_plan_evidence_unavailable: "Plan evidence is unavailable",
   strategic_fit_plan_stale: "Plan card is stale",
   strategic_fit_plan_not_pending: "Plan card is no longer pending",
+  strategic_fit_portfolio_empty_constraints: "Redesign bounds were empty",
+  strategic_fit_portfolio_unknown_constraint: "Unknown redesign bound",
+  strategic_fit_portfolio_invalid_value: "Redesign bound is out of range",
+  strategic_fit_portfolio_unconfirmed_constraints: "Redesign bounds are not confirmed",
+  strategic_fit_portfolio_evidence_unavailable: "No candidates to build a portfolio from",
+  strategic_fit_portfolio_unknown_option: "Portfolio option does not exist",
+  strategic_fit_portfolio_stale: "Redesign bounds are stale",
+  strategic_fit_portfolio_not_pending: "Redesign bounds are no longer pending",
   strategic_fit_stale_report: "Strategic Fit report is stale",
   strategic_fit_stale_revision: "Strategic Fit report is stale",
   variation_not_found: "Repertoire path not found",
@@ -635,6 +789,8 @@ const byKind: Record<string, (data: Data) => unknown> = {
   strategic_fit_profile_proposal: (data) => <StrategicFitProposalResult data={data} />,
   strategic_fit_plan_basis: (data) => <StrategicFitPlanBasisResult data={data} />,
   strategic_fit_plan_card: (data) => <StrategicFitPlanCardResult data={data} />,
+  strategic_fit_portfolio_constraints: (data) => <StrategicFitPortfolioConstraintsResult data={data} />,
+  strategic_fit_portfolio: (data) => <StrategicFitPortfolioResultCard data={data} />,
 };
 
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */

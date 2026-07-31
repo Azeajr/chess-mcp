@@ -67,6 +67,7 @@ const REFERENCE_KEYS = new Set([
   "candidate_id", "change_set_id", "stage_id", "archive_id", "operation_id", "proposal_id",
   "repertoire_revision", "base_repertoire_revision", "replacement_schema_version",
   "source_id", "version", "source_san_paths",
+  "constraint_set_id", "option_id", "portfolio_version",
 ]);
 
 export function compactToolResult(content: string): string {

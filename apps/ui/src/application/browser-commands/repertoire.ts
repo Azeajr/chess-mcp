@@ -119,6 +119,7 @@ type RepertoireCommandName =
   | "export_annotated_repertoire"
   | "propose_strategic_fit_profile"
   | "propose_strategic_fit_plan"
+  | "propose_strategic_fit_portfolio"
   | "export_strategic_fit_metadata"
   | "export_strategic_fit_intent_pgn"
   | "prep_vs_opponent";
@@ -682,6 +683,12 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     finding_id: args.finding_id as string,
     semantic_finding_id: args.semantic_finding_id as string,
     ...(args.plan === undefined ? {} : { plan: args.plan as { title?: unknown; sections?: unknown } }),
+  }),
+  propose_strategic_fit_portfolio: (args, context) => context.proposeStrategicFitPortfolio({
+    ...(args.constraints === undefined ? {} : { constraints: args.constraints }),
+    ...(args.rationale === undefined ? {} : { rationale: args.rationale }),
+    ...(args.constraint_set_id === undefined ? {} : { constraint_set_id: args.constraint_set_id as string }),
+    ...(args.option_id === undefined ? {} : { option_id: args.option_id as string }),
   }),
   export_strategic_fit_metadata: (_args, context) => {
     const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");

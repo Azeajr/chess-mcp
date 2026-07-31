@@ -64,6 +64,13 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
   must cite a concept, checkpoint, or drill from that finding's deterministic training record, and
   every move its text mentions must be on a validated path. Acceptance goes through the existing
   training writer in `apps/ui/src/store/strategic-fit-training.ts`, which re-validates the card.
+- Constrained portfolio redesign parses bounds the assistant states, shows them for confirmation, and
+  binds nothing until the user confirms; a contradiction is put to the user, never relaxed. Options
+  are Replacement Lab candidates that already have Task 8.6 scoring, Task 8.7 safety, and a Task 8.8
+  change set, and every reported value is read out of that retained evidence — unmeasured evidence is
+  an elimination reason, never a satisfied bound. Selecting an option stages through the existing
+  change review path in `apps/ui/src/store/strategic-fit-replacement.ts`; it adds no second staging,
+  scoring, or generation path.
 - Browser chat sends the complete canonical browser schema on every tool-capable round. Presets
   change guidance only; do not reintroduce keyword routing or capability expansion.
 - Preserve structured error codes and per-item illegal results from `compare_moves`.

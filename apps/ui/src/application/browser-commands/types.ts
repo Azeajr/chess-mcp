@@ -31,7 +31,7 @@ export const BROWSER_COMMAND_NAMES = [
   "chesscom_games", "repertoire_vs_history", "audit_repertoire_moves", "find_only_moves",
   "find_structures", "inspect_shortcut", "export_annotated_repertoire", "prep_vs_opponent",
   "propose_line", "get_selected_subtree", "get_document_pgn",
-  "propose_strategic_fit_profile", "propose_strategic_fit_plan",
+  "propose_strategic_fit_profile", "propose_strategic_fit_plan", "propose_strategic_fit_portfolio",
   "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn",
 ] as const;
 
@@ -102,6 +102,16 @@ export type BrowserCommandDependencies = {
     readonly finding_id: string;
     readonly semantic_finding_id: string;
     readonly plan?: { readonly title?: unknown; readonly sections?: unknown };
+  }) => unknown;
+  /**
+   * Stages redesign bounds for confirmation, returns the portfolio those confirmed bounds allow, or
+   * stages one option's already-generated change set. It generates no candidate and applies nothing.
+   */
+  proposeStrategicFitPortfolio: (input: {
+    readonly constraints?: unknown;
+    readonly rationale?: unknown;
+    readonly constraint_set_id?: string;
+    readonly option_id?: string;
   }) => unknown;
 };
 

@@ -347,7 +347,16 @@ section must cite a concept, checkpoint, or drill from that finding's determinis
 every move its prose mentions must appear on a validated path, and an unsupported identity, move, or
 outside game is rejected rather than trimmed. Acceptance writes through the existing training path,
 which re-validates the card against the record it just rebuilt, so no second writer reaches training
-metadata. Artifact content is retained by the application
+metadata. Constrained portfolio redesign is the same pattern over the Replacement Lab: bounds the
+assistant states are validated as framework-free domain code, staged as session-only state bound to
+the document and revision, and bind nothing until the user confirms them; a contradiction between
+requested bounds, or between a bound and the confirmed profile, is reported with the question to ask
+rather than reconciled. The portfolio itself is deterministic — options are candidates that already
+carry Task 8.6 scoring, Task 8.7 safety, and a validated Task 8.8 change set, Pareto status is
+carried through rather than re-raced over the constrained subset, and every reported value is read
+out of retained evidence, so unmeasured evidence eliminates a candidate instead of passing a bound.
+Selecting an option delegates to the existing change review path, which keeps one staged change at a
+time and one writer for change application. Artifact content is retained by the application
 and chat receives compact metadata/reference unless inline content is part of the explicit contract.
 
 Most direct report/export controls and chat calls share the browser command registry. Continuous
