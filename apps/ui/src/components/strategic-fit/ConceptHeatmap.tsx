@@ -10,6 +10,8 @@ import {
   type StrategicFitAnalysisResult,
   type StrategicFitTrainingMasteryReport,
 } from "@chess-mcp/chess-tools";
+import { strategicFitPrintExportMode } from "../../store/ui";
+import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
 
 export type ConceptHeatmapReport = Pick<
   StrategicFitAnalysisResult,
@@ -174,13 +176,27 @@ export default function ConceptHeatmap(props: {
 }) {
   const [sortMode, setSortMode] = createSignal<ConceptHeatmapSortMode>("concept");
   const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
+  const [gridExpanded, setGridExpanded] = createSignal(false);
 
   const model = createMemo(() => buildConceptHeatmapViewModel(props.report, {
     cohortName: props.cohortName,
     findings: props.completeFindings,
     mastery: props.mastery ?? null,
   }));
-  const sortedColumns = createMemo(() => sortConceptHeatmapColumns(model().columns, sortMode()));
+  const allColumns = createMemo(() => sortConceptHeatmapColumns(model().columns, sortMode()));
+  /**
+   * The grid is cohorts times concepts, so both axes are capped. The cap follows the active sort,
+   * which keeps the shown cells the ones the current sort says matter most, and the withheld
+   * concepts are named rather than merely counted.
+   */
+  const expanded = createMemo(() => gridExpanded() || strategicFitPrintExportMode());
+  const columnWindow = createMemo(() =>
+    boundedWindow(allColumns(), VISUALIZATION_RENDER_LIMITS.heatmap_columns, expanded())
+  );
+  const rowWindow = createMemo(() =>
+    boundedWindow(model().projection.rows, VISUALIZATION_RENDER_LIMITS.heatmap_rows, expanded())
+  );
+  const sortedColumns = createMemo(() => columnWindow().items);
   const selected = createMemo(() => {
     const key = selectedKey();
     if (key === null) return null;
@@ -207,6 +223,10 @@ export default function ConceptHeatmap(props: {
       data-heatmap-report={model().projection.report_id}
       data-heatmap-concept-count={model().projection.columns.length}
       data-heatmap-cohort-count={model().projection.rows.length}
+      data-heatmap-columns-shown={columnWindow().shown}
+      data-heatmap-rows-shown={rowWindow().shown}
+      data-heatmap-complete={columnWindow().complete && rowWindow().complete ? "true" : "false"}
+      data-heatmap-print-export={strategicFitPrintExportMode() ? "true" : "false"}
     >
       <h3 class="concept-heatmap-title">Concept heatmap</h3>
       <p class="sr-only" data-heatmap-screen-reader-summary>{model().screen_reader_summary}</p>
@@ -252,6 +272,26 @@ export default function ConceptHeatmap(props: {
           </p>
         </div>
 
+        <Show when={!columnWindow().complete || !rowWindow().complete}>
+          <p class="concept-heatmap-note" data-heatmap-window>
+            Showing {columnWindow().shown} of {columnWindow().total} concepts and
+            {" "}{rowWindow().shown} of {rowWindow().total} cohorts, ordered by the sort above.
+            <button type="button" onClick={() => setGridExpanded(true)} data-heatmap-show-all>
+              Show the complete grid
+            </button>
+          </p>
+          <details class="concept-heatmap-withheld" open={strategicFitPrintExportMode() || undefined}>
+            <summary>Concepts not shown ({columnWindow().withheld})</summary>
+            <ul>
+              <For each={allColumns().slice(columnWindow().shown)}>{(view) => (
+                <li data-heatmap-withheld-concept={view.column.concept_id}>
+                  {view.column.label} — mastery {view.mastery_text}
+                </li>
+              )}</For>
+            </ul>
+          </details>
+        </Show>
+
         <div class="concept-heatmap-scroll" tabindex="0" role="group" aria-label="Concept heatmap table">
           <table class="concept-heatmap-table" data-heatmap-table>
             <thead>
@@ -278,7 +318,7 @@ export default function ConceptHeatmap(props: {
               </tr>
             </thead>
             <tbody>
-              <For each={model().projection.rows}>{(row) => (
+              <For each={rowWindow().items}>{(row) => (
                 <tr data-heatmap-row={row.cohort_id}>
                   <th scope="row">
                     {model().cohort_names.get(row.cohort_id)}
@@ -381,7 +421,7 @@ export default function ConceptHeatmap(props: {
         </Show>
 
         <Show when={model().projection.exclusions.length > 0}>
-          <details class="concept-heatmap-exclusions">
+          <details class="concept-heatmap-exclusions" open={strategicFitPrintExportMode() || undefined}>
             <summary>Branches without heatmap cells ({model().projection.exclusions.length})</summary>
             <ul>
               <For each={model().projection.exclusions}>{(exclusion) => (

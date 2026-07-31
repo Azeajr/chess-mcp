@@ -5238,3 +5238,211 @@ img,
   .decision-flow-node rect { forced-color-adjust: auto; }
   .decision-flow-link { stroke: CanvasText; }
 }
+
+/* Visualization hardening (Task 10.4) */
+.strategic-map-cluster,
+.decision-flow-aggregate {
+  cursor: pointer;
+}
+.strategic-map-cluster circle {
+  fill: color-mix(in srgb, var(--accent) 30%, var(--panel));
+  stroke: var(--text);
+  stroke-width: 0.4;
+}
+.strategic-map-cluster:focus-visible circle,
+.strategic-map-cluster-selected circle {
+  outline: none;
+  stroke: var(--accent);
+  stroke-width: 1.1;
+}
+.strategic-map-cluster-text {
+  font-size: 2.4px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  fill: var(--text);
+  pointer-events: none;
+}
+.strategic-map-cluster-detail {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+.strategic-map-cluster-detail h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.strategic-map-cluster-detail p { margin: 0 0 0.4rem; font-size: 0.82rem; }
+.strategic-map-cluster-detail ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.decision-flow-aggregate rect {
+  fill: color-mix(in srgb, var(--accent) 22%, var(--panel, #2a3038));
+  stroke: var(--border, #4a525c);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.decision-flow-aggregate:focus-visible rect,
+.decision-flow-aggregate.decision-flow-node-selected rect {
+  stroke: var(--accent, #6ea8fe);
+  stroke-width: 2.5;
+}
+.decision-flow-aggregate-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.concept-heatmap-note,
+.decision-flow-note {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.concept-heatmap-note button,
+.decision-flow-note button,
+.strategic-map-note button {
+  margin-left: 0.4rem;
+}
+.concept-heatmap-withheld ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.strategic-fit-print-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+.strategic-fit-print-controls button { overflow-wrap: anywhere; }
+.strategic-fit-print-note {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/*
+ * Responsive fallbacks: below the phone breakpoint the drawn charts give up width before the table
+ * equivalents do, because the tables are what must stay readable.
+ */
+@media (max-width: 720px) {
+  .strategic-map-chart { max-width: 100%; }
+  .strategic-map-cluster-detail ul,
+  .decision-flow-aggregate-members { max-height: 9rem; }
+  .strategic-map-list td,
+  .decision-flow-outline td { overflow-wrap: anywhere; }
+  .strategic-map-note button,
+  .concept-heatmap-note button,
+  .decision-flow-note button,
+  .concept-heatmap-controls button,
+  .strategic-fit-print-controls button { min-height: 44px; }
+  .decision-flow-scroll,
+  .concept-heatmap-scroll { -webkit-overflow-scrolling: touch; }
+}
+
+/*
+ * Reduced motion: the visualizations never animate on their own, and the workspace-wide rule keeps
+ * it that way even if a browser default or a future style tries to introduce one.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .strategic-map,
+  .strategic-map *,
+  .concept-heatmap,
+  .concept-heatmap *,
+  .decision-flow,
+  .decision-flow *,
+  .replacement-pareto,
+  .replacement-pareto * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Print and export: controls that cannot be used on paper are dropped, charts are constrained to a
+ * printable width, and every table equivalent is allowed to break across pages. The complete-list
+ * behavior itself is the workspace's print/export mode, not a style.
+ */
+@media print {
+  .strategic-fit-workspace-backdrop {
+    position: static;
+    background: none;
+  }
+  .strategic-fit-workspace {
+    position: static;
+    max-height: none;
+    height: auto;
+    overflow: visible;
+    border: none;
+    box-shadow: none;
+  }
+  .strategic-fit-workspace-body {
+    display: block;
+    overflow: visible;
+  }
+  .strategic-fit-workspace-pane {
+    display: block !important;
+    overflow: visible;
+    break-inside: auto;
+  }
+  .strategic-fit-stage-nav,
+  .strategic-fit-workspace-header-actions,
+  .strategic-fit-print-controls button,
+  .strategic-map-controls,
+  .concept-heatmap-controls label,
+  .decision-flow-controls label,
+  [data-map-show-all-rows],
+  [data-flow-show-all-rows],
+  [data-heatmap-show-all],
+  [data-review-show-all-paths] {
+    display: none !important;
+  }
+  .strategic-map-chart {
+    max-width: 16cm;
+    break-inside: avoid;
+  }
+  .decision-flow-scroll,
+  .concept-heatmap-scroll {
+    overflow: visible !important;
+  }
+  .decision-flow-chart {
+    max-width: 100%;
+    height: auto;
+  }
+  .strategic-map-list table,
+  .decision-flow-outline table,
+  .concept-heatmap-table {
+    break-inside: auto;
+  }
+  .strategic-map-list tr,
+  .decision-flow-outline tr,
+  .concept-heatmap-table tr {
+    break-inside: avoid;
+  }
+  .strategic-map-cluster-detail ul,
+  .decision-flow-aggregate-members,
+  .concept-heatmap-withheld ul {
+    max-height: none;
+    overflow: visible;
+  }
+  .strategic-map,
+  .concept-heatmap,
+  .decision-flow,
+  .replacement-pareto {
+    background: none;
+    break-inside: auto;
+  }
+}

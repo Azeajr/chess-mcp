@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
   buildDecisionFlowProjection,
   type DecisionFlowCausalLabel,
@@ -10,6 +10,14 @@ import {
   type StrategicFinding,
   type StrategicFitAnalysisResult,
 } from "@chess-mcp/chess-tools";
+import { strategicFitPrintExportMode } from "../../store/ui";
+import {
+  VISUALIZATION_RENDER_LIMITS,
+  boundedWindow,
+  decisionFlowScale,
+  mergeDecisionFlowLinks,
+  splitDecisionFlowColumn,
+} from "./visualization-limits";
 
 export type DecisionFlowReport = Pick<
   StrategicFitAnalysisResult,
@@ -64,11 +72,50 @@ export interface DecisionFlowViewLink {
   readonly aria_label: string;
 }
 
+/**
+ * Task 10.4 — one drawn marker standing in for the lightest steps of a crowded depth column. Its
+ * weight is the exact sum of its members, so shares still add up at every step after aggregation.
+ */
+export interface DecisionFlowViewAggregate {
+  readonly aggregate_id: string;
+  readonly depth: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly weight: number;
+  readonly share_percent: number;
+  readonly member_node_ids: readonly string[];
+  readonly finding_ids: readonly string[];
+  readonly aria_label: string;
+}
+
+/** A link after aggregate re-pointing and duplicate merging; only these are drawn. */
+export interface DecisionFlowRenderedLink {
+  readonly link_id: string;
+  readonly from_node_id: string;
+  readonly to_node_id: string;
+  readonly weight: number;
+  readonly route_ids: readonly string[];
+  readonly finding_ids: readonly string[];
+  readonly truncated: boolean;
+  readonly merged_link_ids: readonly string[];
+  readonly path: string;
+  readonly thickness: number;
+  readonly share_percent: number;
+  readonly aria_label: string;
+}
+
 export interface DecisionFlowCohortView {
   readonly cohort: DecisionFlowCohort;
   readonly name: string;
+  /** Every step, in outline order; the accessible table below the chart never aggregates. */
   readonly nodes: readonly DecisionFlowViewNode[];
   readonly links: readonly DecisionFlowViewLink[];
+  /** The subset of `nodes` drawn individually in the diagram. */
+  readonly rendered_nodes: readonly DecisionFlowViewNode[];
+  readonly aggregates: readonly DecisionFlowViewAggregate[];
+  readonly rendered_links: readonly DecisionFlowRenderedLink[];
   readonly chart_width: number;
   readonly chart_height: number;
   readonly screen_reader_summary: string;
@@ -122,11 +169,20 @@ export function decisionFlowCausalityText(node: DecisionFlowNode): string {
     : `${label} (${control})`;
 }
 
+interface FlowGeometry {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly move_text: string;
+}
+
 function layoutCohort(
   cohort: DecisionFlowCohort,
   nodes: readonly DecisionFlowNode[],
   links: readonly DecisionFlowLink[],
   name: string,
+  nodesPerColumn: number = VISUALIZATION_RENDER_LIMITS.flow_nodes_per_column,
 ): DecisionFlowCohortView {
   const total = cohort.total_weight;
   const byDepth = new Map<number, DecisionFlowNode[]>();
@@ -135,20 +191,74 @@ function layoutCohort(
     column.push(node);
     byDepth.set(node.depth, column);
   }
+
+  const geometry = new Map<string, FlowGeometry>();
   const placed = new Map<string, DecisionFlowViewNode>();
-  for (const [depth, column] of [...byDepth.entries()].sort((left, right) => left[0] - right[0])) {
-    const gaps = NODE_GAP * Math.max(column.length - 1, 0);
-    const available = Math.max(CHART_HEIGHT - gaps, column.length * MINIMUM_NODE_HEIGHT);
+  const renderedIds = new Set<string>();
+  const aggregateIdByNodeId = new Map<string, string>();
+  const aggregates: DecisionFlowViewAggregate[] = [];
+  const columnDepths = [...byDepth.entries()].sort((left, right) => left[0] - right[0]);
+
+  for (const [depth, column] of columnDepths) {
+    /** A crowded column keeps its heaviest steps drawn and folds the rest into one marker. */
+    const split = splitDecisionFlowColumn(
+      column,
+      nodesPerColumn,
+      (node) => node.weight,
+      (node) => node.node_id,
+    );
+    for (const node of split.rendered) renderedIds.add(node.node_id);
+    const aggregateId = split.aggregated.length > 0 ? `aggregate:${cohort.cohort_id}:${depth}` : null;
+    const aggregateWeight = split.aggregated.reduce((sum, node) => sum + node.weight, 0);
+    const slotCount = split.rendered.length + (aggregateId === null ? 0 : 1);
+    const gaps = NODE_GAP * Math.max(slotCount - 1, 0);
+    const available = Math.max(CHART_HEIGHT - gaps, slotCount * MINIMUM_NODE_HEIGHT);
+    const x = depth * COLUMN_WIDTH + (COLUMN_WIDTH - NODE_WIDTH) / 2;
     let offset = 0;
-    for (const node of column) {
-      const share = total > 0 ? node.weight / total : 1 / Math.max(column.length, 1);
+    for (const node of split.rendered) {
+      const share = total > 0 ? node.weight / total : 1 / Math.max(slotCount, 1);
       const height = Math.max(MINIMUM_NODE_HEIGHT, share * available);
-      placed.set(node.node_id, {
-        node,
-        x: depth * COLUMN_WIDTH + (COLUMN_WIDTH - NODE_WIDTH) / 2,
+      geometry.set(node.node_id, { x, y: offset, width: NODE_WIDTH, height, move_text: moveText(node) });
+      offset += height + NODE_GAP;
+    }
+    if (aggregateId !== null) {
+      const share = total > 0 ? aggregateWeight / total : 1 / Math.max(slotCount, 1);
+      const height = Math.max(MINIMUM_NODE_HEIGHT, share * available);
+      const label = `${split.aggregated.length} lighter steps grouped together.` +
+        ` ${percent(aggregateWeight, total)}% of this cohort's expected games combined.` +
+        ` Select to list them; the flow outline below lists every step separately.`;
+      geometry.set(aggregateId, {
+        x,
         y: offset,
         width: NODE_WIDTH,
         height,
+        move_text: `${split.aggregated.length} more`,
+      });
+      aggregates.push({
+        aggregate_id: aggregateId,
+        depth,
+        x,
+        y: offset,
+        width: NODE_WIDTH,
+        height,
+        weight: aggregateWeight,
+        share_percent: percent(aggregateWeight, total),
+        member_node_ids: split.aggregated.map((node) => node.node_id),
+        finding_ids: [...new Set(split.aggregated.flatMap((node) => node.finding_ids))],
+        aria_label: label,
+      });
+      for (const node of split.aggregated) aggregateIdByNodeId.set(node.node_id, aggregateId);
+    }
+    /** Aggregated steps keep the marker's geometry: that is where the diagram actually shows them. */
+    for (const node of column) {
+      const own = geometry.get(node.node_id) ??
+        geometry.get(aggregateIdByNodeId.get(node.node_id) ?? "")!;
+      placed.set(node.node_id, {
+        node,
+        x: own.x,
+        y: own.y,
+        width: own.width,
+        height: own.height,
         symbol: symbolFor(node),
         actor_text: actorText(node),
         move_text: moveText(node),
@@ -160,23 +270,26 @@ function layoutCohort(
           `${node.kind === "decision" ? ` ${decisionFlowCausalityText(node)}.` : ""}` +
           `${node.finding_ids.length === 0 ? " No findings." : ` ${node.finding_ids.length} ${node.finding_ids.length === 1 ? "finding" : "findings"}.`}`,
       });
-      offset += height + NODE_GAP;
     }
   }
+
+  const curve = (from: FlowGeometry, to: FlowGeometry): string => {
+    const x1 = from.x + from.width;
+    const y1 = from.y + from.height / 2;
+    const x2 = to.x;
+    const y2 = to.y + to.height / 2;
+    const control = (x2 - x1) / 2;
+    return `M ${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`;
+  };
 
   const viewLinks: DecisionFlowViewLink[] = links.flatMap((link) => {
     const from = placed.get(link.from_node_id);
     const to = placed.get(link.to_node_id);
     if (from === undefined || to === undefined) return [];
     const share = total > 0 ? link.weight / total : 0;
-    const x1 = from.x + from.width;
-    const y1 = from.y + from.height / 2;
-    const x2 = to.x;
-    const y2 = to.y + to.height / 2;
-    const control = (x2 - x1) / 2;
     return [{
       link,
-      path: `M ${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`,
+      path: curve(from, to),
       thickness: Math.max(MINIMUM_LINK_THICKNESS, share * MAXIMUM_LINK_THICKNESS),
       share_percent: percent(link.weight, total),
       aria_label: `${from.move_text} to ${to.move_text}: ${percent(link.weight, total)}% of expected games.` +
@@ -184,22 +297,75 @@ function layoutCohort(
     }];
   });
 
+  const renderedLinks: DecisionFlowRenderedLink[] = mergeDecisionFlowLinks(links, aggregateIdByNodeId)
+    .flatMap((link) => {
+      const from = geometry.get(link.from_node_id);
+      const to = geometry.get(link.to_node_id);
+      if (from === undefined || to === undefined) return [];
+      const share = total > 0 ? link.weight / total : 0;
+      return [{
+        ...link,
+        path: curve(from, to),
+        thickness: Math.max(MINIMUM_LINK_THICKNESS, share * MAXIMUM_LINK_THICKNESS),
+        share_percent: percent(link.weight, total),
+        aria_label: `${from.move_text} to ${to.move_text}: ${percent(link.weight, total)}% of expected games.` +
+          `${link.merged_link_ids.length > 1 ? ` Combines ${link.merged_link_ids.length} steps.` : ""}` +
+          `${link.truncated ? " Some moves are omitted at the depth limit." : ""}`,
+      }];
+    });
+
   const outcomes = nodes.filter((node) => node.kind === "mode");
+  const orderedNodes = [...placed.values()].sort((left, right) =>
+    left.node.depth - right.node.depth ||
+    (left.node.node_id < right.node.node_id ? -1 : left.node.node_id > right.node.node_id ? 1 : 0)
+  );
+  const aggregatedCount = aggregates.reduce((sum, item) => sum + item.member_node_ids.length, 0);
   return {
     cohort,
     name,
-    nodes: [...placed.values()].sort((left, right) =>
-      left.node.depth - right.node.depth ||
-      (left.node.node_id < right.node.node_id ? -1 : left.node.node_id > right.node.node_id ? 1 : 0)
-    ),
+    nodes: orderedNodes,
     links: viewLinks,
+    rendered_nodes: orderedNodes.filter((view) => renderedIds.has(view.node.node_id)),
+    aggregates,
+    rendered_links: renderedLinks,
     chart_width: (cohort.max_depth + 1) * COLUMN_WIDTH,
     chart_height: CHART_HEIGHT,
     screen_reader_summary:
       `Decision flow for ${name}: ${nodes.filter((node) => node.kind === "decision").length} decisions,` +
       ` ${cohort.branch_point_count} branch ${cohort.branch_point_count === 1 ? "point" : "points"},` +
       ` and ${outcomes.length} strategic ${outcomes.length === 1 ? "outcome" : "outcomes"}` +
-      ` covering ${cohort.route_count} ${cohort.route_count === 1 ? "branch" : "branches"}.`,
+      ` covering ${cohort.route_count} ${cohort.route_count === 1 ? "branch" : "branches"}.` +
+      (aggregatedCount === 0
+        ? ""
+        : ` ${aggregatedCount} lighter steps are grouped into ${aggregates.length}` +
+          ` ${aggregates.length === 1 ? "marker" : "markers"} in the diagram and listed separately in the outline.`),
+  };
+}
+
+/**
+ * Only the selected cohort is ever drawn, so its geometry is computed on first access. A report
+ * with hundreds of cohorts would otherwise lay out every diagram it will never show.
+ */
+function createDecisionFlowCohortView(
+  cohort: DecisionFlowCohort,
+  nodes: readonly DecisionFlowNode[],
+  links: readonly DecisionFlowLink[],
+  name: string,
+  nodesPerColumn: number,
+): DecisionFlowCohortView {
+  let computed: DecisionFlowCohortView | null = null;
+  const layout = () => (computed ??= layoutCohort(cohort, nodes, links, name, nodesPerColumn));
+  return {
+    cohort,
+    name,
+    chart_width: (cohort.max_depth + 1) * COLUMN_WIDTH,
+    chart_height: CHART_HEIGHT,
+    get nodes() { return layout().nodes; },
+    get links() { return layout().links; },
+    get rendered_nodes() { return layout().rendered_nodes; },
+    get aggregates() { return layout().aggregates; },
+    get rendered_links() { return layout().rendered_links; },
+    get screen_reader_summary() { return layout().screen_reader_summary; },
   };
 }
 
@@ -211,6 +377,8 @@ export function buildDecisionFlowViewModel(
     readonly cohortName?: (cohortId: string) => string;
     readonly findings?: readonly StrategicFinding[];
     readonly maxDepth?: number;
+    /** Drawn steps per depth column before the lightest ones fold into one marker (Task 10.4). */
+    readonly nodesPerColumn?: number;
   } = {},
 ): DecisionFlowViewModel {
   const projection = buildDecisionFlowProjection(report, {
@@ -220,12 +388,29 @@ export function buildDecisionFlowViewModel(
     max_depth: options.maxDepth,
   });
   const cohortName = options.cohortName ?? ((cohortId: string) => cohortId);
+  /**
+   * Bucket once instead of scanning the projection per cohort: a report with hundreds of cohorts
+   * otherwise pays a quadratic scan before anything is drawn.
+   */
+  const nodesByCohort = new Map<string, DecisionFlowNode[]>();
+  for (const node of projection.nodes) {
+    const bucket = nodesByCohort.get(node.cohort_id);
+    if (bucket === undefined) nodesByCohort.set(node.cohort_id, [node]);
+    else bucket.push(node);
+  }
+  const linksByCohort = new Map<string, DecisionFlowLink[]>();
+  for (const link of projection.links) {
+    const bucket = linksByCohort.get(link.cohort_id);
+    if (bucket === undefined) linksByCohort.set(link.cohort_id, [link]);
+    else bucket.push(link);
+  }
   const cohorts = projection.cohorts.map((cohort) =>
-    layoutCohort(
+    createDecisionFlowCohortView(
       cohort,
-      projection.nodes.filter((node) => node.cohort_id === cohort.cohort_id),
-      projection.links.filter((link) => link.cohort_id === cohort.cohort_id),
+      nodesByCohort.get(cohort.cohort_id) ?? [],
+      linksByCohort.get(cohort.cohort_id) ?? [],
       cohortName(cohort.cohort_id),
+      options.nodesPerColumn ?? VISUALIZATION_RENDER_LIMITS.flow_nodes_per_column,
     )
   );
   const qualified = projection.nodes.filter((node) => node.causality.qualified).length;
@@ -260,6 +445,22 @@ export default function DecisionFlow(props: {
 }) {
   const [cohortChoice, setCohortChoice] = createSignal<string | null>(null);
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [selectedAggregateId, setSelectedAggregateId] = createSignal<string | null>(null);
+  const [outlineExpanded, setOutlineExpanded] = createSignal(false);
+  const [outlineOpen, setOutlineOpen] = createSignal(true);
+  const [containerWidth, setContainerWidth] = createSignal<number | null>(null);
+  let scrollRef: HTMLDivElement | undefined;
+
+  /** Resize behavior: a wide flow shrinks to the measured container, then scrolls at the floor. */
+  onMount(() => {
+    if (scrollRef === undefined || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      setContainerWidth(width > 0 ? width : null);
+    });
+    observer.observe(scrollRef);
+    onCleanup(() => observer.disconnect());
+  });
 
   const model = createMemo(() => buildDecisionFlowViewModel(props.report, {
     graph: props.graph,
@@ -284,13 +485,58 @@ export default function DecisionFlow(props: {
     const id = selectedId();
     const cohort = activeCohort();
     if (id === null || cohort === null || selectedNode() !== null) return null;
-    return cohort.links.find((view) => view.link.link_id === id) ?? null;
+    return cohort.rendered_links.find((view) => view.link_id === id) ?? null;
+  });
+  const selectedAggregate = createMemo(() => {
+    const id = selectedAggregateId();
+    const cohort = activeCohort();
+    if (id === null || cohort === null) return null;
+    return cohort.aggregates.find((view) => view.aggregate_id === id) ?? null;
+  });
+  const aggregateMembers = createMemo(() => {
+    const aggregate = selectedAggregate();
+    const cohort = activeCohort();
+    if (aggregate === null || cohort === null) return [];
+    const ids = new Set(aggregate.member_node_ids);
+    return cohort.nodes.filter((view) => ids.has(view.node.node_id));
   });
   const selectionFindings = createMemo(() =>
-    selectedNode()?.node.finding_ids ?? selectedLink()?.link.finding_ids ?? []
+    selectedNode()?.node.finding_ids ?? selectedLink()?.finding_ids ?? []
   );
+  const outlineWindow = createMemo(() => boundedWindow(
+    activeCohort()?.nodes ?? [],
+    VISUALIZATION_RENDER_LIMITS.flow_rows,
+    outlineExpanded() || strategicFitPrintExportMode(),
+  ));
+  const chartScale = createMemo(() =>
+    decisionFlowScale(containerWidth(), activeCohort()?.chart_width ?? 0)
+  );
+  /** Outgoing links per step, so a windowed outline stays linear instead of scanning every link. */
+  const outgoingByNode = createMemo(() => {
+    const cohort = activeCohort();
+    const index = new Map<string, DecisionFlowViewLink[]>();
+    if (cohort === null) return index;
+    for (const view of cohort.links) {
+      const bucket = index.get(view.link.from_node_id);
+      if (bucket === undefined) index.set(view.link.from_node_id, [view]);
+      else bucket.push(view);
+    }
+    return index;
+  });
+  const moveTextByNode = createMemo(() => {
+    const cohort = activeCohort();
+    const index = new Map<string, string>();
+    if (cohort === null) return index;
+    for (const view of cohort.nodes) index.set(view.node.node_id, view.move_text);
+    return index;
+  });
   const select = (id: string) => {
+    setSelectedAggregateId(null);
     setSelectedId((current) => current === id ? null : id);
+  };
+  const selectAggregate = (id: string) => {
+    setSelectedId(null);
+    setSelectedAggregateId((current) => current === id ? null : id);
   };
 
   return (
@@ -302,6 +548,9 @@ export default function DecisionFlow(props: {
       data-flow-report={model().projection.report_id}
       data-flow-cohort-count={model().cohorts.length}
       data-flow-node-count={model().projection.nodes.length}
+      data-flow-drawn-nodes={activeCohort()?.rendered_nodes.length ?? 0}
+      data-flow-aggregate-count={activeCohort()?.aggregates.length ?? 0}
+      data-flow-print-export={strategicFitPrintExportMode() ? "true" : "false"}
     >
       <h3 class="decision-flow-title">Decision flow</h3>
       <p class="sr-only" data-flow-screen-reader-summary>{model().screen_reader_summary}</p>
@@ -337,6 +586,7 @@ export default function DecisionFlow(props: {
                   onChange={(event) => {
                     setCohortChoice(event.currentTarget.value);
                     setSelectedId(null);
+                    setSelectedAggregateId(null);
                   }}
                   data-flow-cohort-select
                 >
@@ -359,42 +609,89 @@ export default function DecisionFlow(props: {
 
             <p class="sr-only" data-flow-cohort-summary>{cohort().screen_reader_summary}</p>
 
-            <div class="decision-flow-scroll" tabindex="0" role="group" aria-label="Decision flow diagram">
+            <Show when={cohort().aggregates.length > 0}>
+              <p class="decision-flow-note" data-flow-aggregation>
+                {cohort().nodes.length - cohort().rendered_nodes.length} lighter steps are grouped
+                into {cohort().aggregates.length} markers so no column draws more than
+                {" "}{VISUALIZATION_RENDER_LIMITS.flow_nodes_per_column} steps. Each marker carries
+                the exact combined share, and the outline below still lists every step.
+              </p>
+            </Show>
+
+            <div
+              class="decision-flow-scroll"
+              ref={scrollRef}
+              tabindex="0"
+              role="group"
+              aria-label="Decision flow diagram"
+              data-flow-scale={chartScale()}
+            >
               <svg
                 class="decision-flow-chart"
                 viewBox={`0 0 ${cohort().chart_width} ${cohort().chart_height}`}
-                width={cohort().chart_width}
-                height={cohort().chart_height}
+                width={Math.round(cohort().chart_width * chartScale())}
+                height={Math.round(cohort().chart_height * chartScale())}
                 role="group"
                 aria-label={`Decision flow for ${cohort().name}. ${cohort().nodes.length} steps.`}
                 data-flow-chart
               >
-                <For each={cohort().links}>{(view) => (
+                <For each={cohort().rendered_links}>{(view) => (
                   <path
                     class="decision-flow-link"
                     classList={{
-                      "decision-flow-link-truncated": view.link.truncated,
-                      "decision-flow-link-selected": selectedId() === view.link.link_id,
+                      "decision-flow-link-truncated": view.truncated,
+                      "decision-flow-link-selected": selectedId() === view.link_id,
                     }}
                     d={view.path}
                     stroke-width={view.thickness}
                     tabindex="0"
                     role="button"
                     aria-label={view.aria_label}
-                    aria-pressed={selectedId() === view.link.link_id}
-                    data-flow-link={view.link.link_id}
-                    data-flow-link-truncated={view.link.truncated ? "true" : "false"}
-                    onClick={() => select(view.link.link_id)}
+                    aria-pressed={selectedId() === view.link_id}
+                    data-flow-link={view.link_id}
+                    data-flow-link-truncated={view.truncated ? "true" : "false"}
+                    data-flow-link-merged={view.merged_link_ids.length}
+                    onClick={() => select(view.link_id)}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
-                      select(view.link.link_id);
+                      select(view.link_id);
                     }}
                   >
                     <title>{view.aria_label}</title>
                   </path>
                 )}</For>
-                <For each={cohort().nodes}>{(view) => (
+                <For each={cohort().aggregates}>{(view) => (
+                  <g
+                    class="decision-flow-aggregate"
+                    classList={{
+                      "decision-flow-node-selected": selectedAggregateId() === view.aggregate_id,
+                    }}
+                    tabindex="0"
+                    role="button"
+                    aria-label={view.aria_label}
+                    aria-pressed={selectedAggregateId() === view.aggregate_id}
+                    data-flow-aggregate={view.aggregate_id}
+                    data-flow-aggregate-size={view.member_node_ids.length}
+                    onClick={() => selectAggregate(view.aggregate_id)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      selectAggregate(view.aggregate_id);
+                    }}
+                  >
+                    <rect x={view.x} y={view.y} width={view.width} height={view.height} rx="2" />
+                    <text
+                      x={view.x + view.width / 2}
+                      y={view.y + view.height / 2}
+                      class="decision-flow-node-text"
+                    >
+                      +{view.member_node_ids.length}
+                    </text>
+                    <title>{view.aria_label}</title>
+                  </g>
+                )}</For>
+                <For each={cohort().rendered_nodes}>{(view) => (
                   <g
                     class="decision-flow-node"
                     classList={{ "decision-flow-node-selected": selectedId() === view.node.node_id }}
@@ -426,6 +723,28 @@ export default function DecisionFlow(props: {
               </svg>
             </div>
 
+            <Show when={selectedAggregate()}>
+              {(view) => (
+                <div class="decision-flow-detail" data-flow-aggregate-detail={view().aggregate_id}>
+                  <h4>{view().member_node_ids.length} grouped steps</h4>
+                  <p>{view().aria_label}</p>
+                  <ul class="decision-flow-aggregate-members">
+                    <For each={aggregateMembers()}>{(member) => (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => select(member.node.node_id)}
+                          data-flow-aggregate-member={member.node.node_id}
+                        >
+                          {member.symbol} {member.move_text} ({member.share_percent}%)
+                        </button>
+                      </li>
+                    )}</For>
+                  </ul>
+                </div>
+              )}
+            </Show>
+
             <Show when={selectedNode() !== null || selectedLink() !== null}>
               <div class="decision-flow-detail" data-flow-detail={selectedId()}>
                   <Show when={selectedLink()}>
@@ -439,9 +758,18 @@ export default function DecisionFlow(props: {
                           </div>
                           <div>
                             <dt>Branches</dt>
-                            <dd>{view().link.route_ids.length}</dd>
+                            <dd>{view().route_ids.length}</dd>
                           </div>
-                          <Show when={view().link.truncated}>
+                          <Show when={view().merged_link_ids.length > 1}>
+                            <div>
+                              <dt>Grouped steps</dt>
+                              <dd data-flow-detail-merged={view().merged_link_ids.length}>
+                                This line combines {view().merged_link_ids.length} steps that end at
+                                the same grouped marker; the share is their exact total.
+                              </dd>
+                            </div>
+                          </Show>
+                          <Show when={view().truncated}>
                             <div>
                               <dt>Depth limit</dt>
                               <dd data-flow-detail-truncated>
@@ -529,9 +857,29 @@ export default function DecisionFlow(props: {
               </div>
             </Show>
 
-            <details class="decision-flow-outline" open>
+            <details
+              class="decision-flow-outline"
+              open={outlineOpen() || strategicFitPrintExportMode()}
+              onToggle={(event) => setOutlineOpen(event.currentTarget.open)}
+            >
               <summary>Flow outline ({cohort().nodes.length})</summary>
-              <table data-flow-outline>
+              <Show when={!outlineWindow().complete}>
+                <p class="decision-flow-note" data-flow-outline-window>
+                  Showing the first {outlineWindow().shown} of {outlineWindow().total} steps.
+                  <button
+                    type="button"
+                    onClick={() => setOutlineExpanded(true)}
+                    data-flow-show-all-rows
+                  >
+                    Show all {outlineWindow().total}
+                  </button>
+                </p>
+              </Show>
+              <table
+                data-flow-outline
+                data-flow-outline-shown={outlineWindow().shown}
+                data-flow-outline-total={outlineWindow().total}
+              >
                 <thead>
                   <tr>
                     <th scope="col">Step</th>
@@ -543,7 +891,7 @@ export default function DecisionFlow(props: {
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={cohort().nodes}>{(view) => (
+                  <For each={outlineWindow().items}>{(view) => (
                     <tr
                       data-flow-outline-row={view.node.node_id}
                       data-selected={selectedId() === view.node.node_id ? "true" : "false"}
@@ -568,13 +916,9 @@ export default function DecisionFlow(props: {
                       </td>
                       <td>{view.share_percent}%</td>
                       <td>
-                        <For each={cohort().links.filter((link) =>
-                          link.link.from_node_id === view.node.node_id
-                        )}>{(link) => (
+                        <For each={outgoingByNode().get(view.node.node_id) ?? []}>{(link) => (
                           <span class="decision-flow-outline-next" data-flow-outline-next={link.link.link_id}>
-                            {cohort().nodes.find((candidate) =>
-                              candidate.node.node_id === link.link.to_node_id
-                            )?.move_text} ({link.share_percent}%)
+                            {moveTextByNode().get(link.link.to_node_id)} ({link.share_percent}%)
                           </span>
                         )}</For>
                       </td>
@@ -588,7 +932,7 @@ export default function DecisionFlow(props: {
             </details>
 
             <Show when={model().projection.truncations.length > 0}>
-              <details class="decision-flow-truncations">
+              <details class="decision-flow-truncations" open={strategicFitPrintExportMode() || undefined}>
                 <summary>Branches beyond the flow depth ({model().projection.truncations.length})</summary>
                 <ul>
                   <For each={model().projection.truncations}>{(truncation) => (
@@ -601,7 +945,7 @@ export default function DecisionFlow(props: {
             </Show>
 
             <Show when={model().projection.exclusions.length > 0}>
-              <details class="decision-flow-exclusions">
+              <details class="decision-flow-exclusions" open={strategicFitPrintExportMode() || undefined}>
                 <summary>Branches without a flow ({model().projection.exclusions.length})</summary>
                 <ul>
                   <For each={model().projection.exclusions}>{(exclusion) => (

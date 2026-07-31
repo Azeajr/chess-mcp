@@ -1,5 +1,6 @@
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import type { CandidateComparisonRow } from "./CandidateTable";
+import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
 
 export interface ReplacementParetoPoint {
   readonly candidate_id: string;
@@ -130,6 +131,11 @@ export interface ReplacementParetoProps {
 
 export default function ReplacementPareto(props: ReplacementParetoProps) {
   const points = () => buildReplacementParetoPoints(props.rows);
+  /**
+   * The plot is bounded even if a future budget returns many more candidates. The candidate table
+   * beside it stays complete, so a withheld point is never a withheld candidate.
+   */
+  const drawn = () => boundedWindow(points(), VISUALIZATION_RENDER_LIMITS.pareto_points);
   const activate = (event: KeyboardEvent, candidateId: string) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -144,6 +150,12 @@ export default function ReplacementPareto(props: ReplacementParetoProps) {
           Point size shows coverage and inner ring shows memory burden. Symbols: ◇ Pareto tradeoff, □ dominated,
           × unscored. Frontier status comes directly from Phase 8; no aggregate best is calculated or implied.
         </p>
+        <Show when={!drawn().complete}>
+          <p data-pareto-point-limit>
+            {drawn().shown} of {drawn().total} candidates are plotted; the candidate table below
+            lists every one of them.
+          </p>
+        </Show>
       </header>
       <svg
         class="replacement-pareto-plot"
@@ -159,7 +171,7 @@ export default function ReplacementPareto(props: ReplacementParetoProps) {
         <text x="185" y="210" text-anchor="middle">Repertoire loss from engine best (0–300+ cp)</text>
         <text x="12" y="104" text-anchor="middle" transform="rotate(-90 12 104)">Strategic familiarity</text>
         <text x="40" y="190">Unavailable coordinates</text>
-        <For each={points()}>{(point, index) => {
+        <For each={drawn().items}>{(point, index) => {
           const position = () => replacementParetoPosition(point, index());
           return (
             <g

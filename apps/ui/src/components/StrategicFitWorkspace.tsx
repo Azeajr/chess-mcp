@@ -39,10 +39,12 @@ import { buildRepertoireGraph } from "@chess-mcp/chess-tools";
 import { actions, color, currentTree, documentId, version } from "../store/game";
 import {
   openStrategicFitFindingQueue,
+  setStrategicFitPrintExportMode,
   setStrategicFitWorkspaceOpen,
   setStrategicFitWorkspaceStage,
   strategicFitFindingQueueFilterKey,
   strategicFitFindingQueueIntent,
+  strategicFitPrintExportMode,
   strategicFitWorkspaceRegions,
   strategicFitWorkspaceStage,
   type StrategicFitFindingQueueFilter,
@@ -384,11 +386,23 @@ export default function StrategicFitWorkspace() {
       }
     };
 
+    /**
+     * Task 10.4 print/export. Printing must not silently drop the rows a render cap withheld, so
+     * the browser's own print flow turns on the same complete-list mode the button exposes.
+     */
+    const beforePrint = () => setStrategicFitPrintExportMode(true);
+    const afterPrint = () => setStrategicFitPrintExportMode(false);
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+
     document.addEventListener("keydown", trapFocus, true);
     closeButton.focus();
     onCleanup(() => {
       document.removeEventListener("keydown", trapFocus, true);
       compactQuery.removeEventListener("change", updateStageSemantics);
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+      setStrategicFitPrintExportMode(false);
       queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus());
     });
   });
@@ -481,6 +495,25 @@ export default function StrategicFitWorkspace() {
             >
               {(report) => (
                 <>
+                  <div class="strategic-fit-print-controls">
+                    <button
+                      type="button"
+                      aria-pressed={strategicFitPrintExportMode()}
+                      onClick={() => setStrategicFitPrintExportMode((current) => !current)}
+                      data-strategic-fit-print-export-toggle
+                    >
+                      {strategicFitPrintExportMode()
+                        ? "Leave print and export view"
+                        : "Prepare for print or export"}
+                    </button>
+                    <Show when={strategicFitPrintExportMode()}>
+                      <p class="strategic-fit-print-note" role="status" data-strategic-fit-print-note>
+                        Every table equivalent lists its complete contents and every disclosure is
+                        open. Charts still group large sets, and each one says how many branches it
+                        grouped.
+                      </p>
+                    </Show>
+                  </div>
                   <StrategicMap
                     report={report().result}
                     cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}

@@ -12,6 +12,7 @@ import {
 import type { ReplacementLabChangeReviewSnapshot } from "../../store/strategic-fit-replacement";
 import type { CandidateComparisonRow } from "./CandidateTable";
 import BeforeAfterImpact from "./BeforeAfterImpact";
+import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
 
 const path = (value: readonly string[]) => value.join(" ") || "root";
 
@@ -19,10 +20,26 @@ function operationDiff(stage: StrategicFitStagedChange, operationId: string): Re
   return stage.preview.result.preview.operation_diffs.find((diff) => diff.operation_id === operationId) ?? null;
 }
 
+/**
+ * Task 10.4 — a change set that touches a deep subtree can list thousands of descendant paths.
+ * The first window is bounded and the remainder stays one explicit click away.
+ */
 function Paths(props: { label: string; paths: readonly (readonly string[])[] }) {
+  const [expanded, setExpanded] = createSignal(false);
+  const window = () => boundedWindow(props.paths, VISUALIZATION_RENDER_LIMITS.review_rows, expanded());
   return (
     <Show when={props.paths.length > 0}>
-      <div><strong>{props.label}</strong><ul><For each={props.paths}>{(item) => <li><code>{path(item)}</code></li>}</For></ul></div>
+      <div>
+        <strong>{props.label}</strong>
+        <ul data-review-paths-shown={window().shown} data-review-paths-total={window().total}>
+          <For each={window().items}>{(item) => <li><code>{path(item)}</code></li>}</For>
+        </ul>
+        <Show when={!window().complete}>
+          <button type="button" onClick={() => setExpanded(true)} data-review-show-all-paths>
+            Show all {window().total} paths
+          </button>
+        </Show>
+      </div>
     </Show>
   );
 }

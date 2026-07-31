@@ -7,6 +7,13 @@ import {
   type StrategicMapProjection,
   type StrategicMapResolutionState,
 } from "@chess-mcp/chess-tools";
+import { strategicFitPrintExportMode } from "../../store/ui";
+import {
+  VISUALIZATION_RENDER_LIMITS,
+  boundedWindow,
+  clusterStrategicMapEdges,
+  clusterStrategicMapPoints,
+} from "./visualization-limits";
 
 export type StrategicMapReport = Pick<
   StrategicFitAnalysisResult,
@@ -148,9 +155,12 @@ export default function StrategicMap(props: {
   onOpenFinding: (findingId: string) => void;
 }) {
   const [selectedRouteId, setSelectedRouteId] = createSignal<string | null>(null);
+  const [selectedClusterId, setSelectedClusterId] = createSignal<string | null>(null);
   const [cohortFilter, setCohortFilter] = createSignal<string>("all");
   const [resolutionFilter, setResolutionFilter] = createSignal<"all" | StrategicMapResolutionState>("all");
   const [zoom, setZoom] = createSignal(1);
+  const [listExpanded, setListExpanded] = createSignal(false);
+  const [listOpen, setListOpen] = createSignal(true);
 
   const model = createMemo(() => buildStrategicMapViewModel(props.report, {
     cohortName: props.cohortName,
@@ -166,10 +176,56 @@ export default function StrategicMap(props: {
       routeIds.has(edge.from_route_id) && routeIds.has(edge.to_route_id)
     );
   });
+  /**
+   * Beyond the cap the drawing switches to deterministic grid clusters. Every branch stays in the
+   * branch list below, so aggregation changes what is drawn and never what is reported.
+   */
+  const clustering = createMemo(() => clusterStrategicMapPoints(
+    visiblePoints().map((view) => ({
+      id: view.point.route_id,
+      cx: view.cx,
+      cy: view.cy,
+      weight: view.point.normalized_weight,
+      resolution: view.point.resolution,
+      finding_ids: view.point.finding_ids,
+    })),
+    VISUALIZATION_RENDER_LIMITS.map_points,
+  ));
+  const clusteredEdges = createMemo(() =>
+    clustering().mode === "clusters"
+      ? clusterStrategicMapEdges(
+        visibleEdges().map((edge) => ({
+          from_route_id: edge.from_route_id,
+          to_route_id: edge.to_route_id,
+          shared_position_count: edge.shared_position_count,
+        })),
+        clustering().clusters,
+      )
+      : { edges: [], within_cluster_count: 0 }
+  );
+  const drawnEdges = createMemo(() =>
+    boundedWindow(visibleEdges(), VISUALIZATION_RENDER_LIMITS.map_edges)
+  );
+  const listWindow = createMemo(() => boundedWindow(
+    visiblePoints(),
+    VISUALIZATION_RENDER_LIMITS.map_rows,
+    listExpanded() || strategicFitPrintExportMode(),
+  ));
   const selected = createMemo(() => {
     const routeId = selectedRouteId();
     if (routeId === null) return null;
     return visiblePoints().find((view) => view.point.route_id === routeId) ?? null;
+  });
+  const selectedCluster = createMemo(() => {
+    const clusterId = selectedClusterId();
+    if (clusterId === null) return null;
+    return clustering().clusters.find((cluster) => cluster.cluster_id === clusterId) ?? null;
+  });
+  const clusterMembers = createMemo(() => {
+    const cluster = selectedCluster();
+    if (cluster === null) return [];
+    const routeIds = new Set(cluster.route_ids);
+    return visiblePoints().filter((view) => routeIds.has(view.point.route_id));
   });
   const viewBox = createMemo(() => {
     const size = 100 / zoom();
@@ -178,6 +234,10 @@ export default function StrategicMap(props: {
   });
   const selectPoint = (routeId: string) => {
     setSelectedRouteId((current) => current === routeId ? null : routeId);
+  };
+  const selectCluster = (clusterId: string) => {
+    setSelectedRouteId(null);
+    setSelectedClusterId((current) => current === clusterId ? null : clusterId);
   };
 
   return (
@@ -189,6 +249,11 @@ export default function StrategicMap(props: {
       data-map-report={model().projection.report_id}
       data-map-point-count={model().points.length}
       data-map-edge-count={model().edges.length}
+      data-map-render-mode={clustering().mode}
+      data-map-drawn-marks={clustering().mode === "clusters"
+        ? clustering().clusters.length
+        : visiblePoints().length}
+      data-map-print-export={strategicFitPrintExportMode() ? "true" : "false"}
     >
       <p class="sr-only" data-map-screen-reader-summary>{model().screen_reader_summary}</p>
 
@@ -221,6 +286,7 @@ export default function StrategicMap(props: {
               onChange={(event) => {
                 setCohortFilter(event.currentTarget.value);
                 setSelectedRouteId(null);
+                setSelectedClusterId(null);
               }}
               data-map-cohort-filter
             >
@@ -239,6 +305,7 @@ export default function StrategicMap(props: {
               onChange={(event) => {
                 setResolutionFilter(event.currentTarget.value as "all" | StrategicMapResolutionState);
                 setSelectedRouteId(null);
+                setSelectedClusterId(null);
               }}
               data-map-resolution-filter
             >
@@ -267,56 +334,150 @@ export default function StrategicMap(props: {
           <p class="strategic-map-note" data-map-single-axis>{model().projection.reason}</p>
         </Show>
 
+        <Show when={clustering().mode === "clusters"}>
+          <p class="strategic-map-note" data-map-aggregation>
+            {visiblePoints().length} branches are above the {VISUALIZATION_RENDER_LIMITS.map_points}
+            {" "}point drawing limit, so the chart groups them into {clustering().clusters.length}
+            {" "}position clusters. Every branch is still listed below, and selecting a cluster lists
+            its own branches.
+            <Show when={clusteredEdges().within_cluster_count > 0}>
+              {" "}{clusteredEdges().within_cluster_count} transposition
+              {clusteredEdges().within_cluster_count === 1 ? " link connects" : " links connect"}
+              {" "}two branches inside one cluster and cannot be drawn as a line.
+            </Show>
+          </p>
+        </Show>
+        <Show when={clustering().mode === "points" && !drawnEdges().complete}>
+          <p class="strategic-map-note" data-map-edge-limit>
+            {drawnEdges().shown} of {drawnEdges().total} transposition links are drawn;
+            {" "}{drawnEdges().withheld} more exist between the same plotted branches.
+          </p>
+        </Show>
+
         <svg
           class="strategic-map-chart"
           viewBox={viewBox()}
           role="group"
-          aria-label={`Strategic map chart. ${visiblePoints().length} branches shown.`}
+          aria-label={clustering().mode === "clusters"
+            ? `Strategic map chart. ${visiblePoints().length} branches grouped into ${clustering().clusters.length} clusters.`
+            : `Strategic map chart. ${visiblePoints().length} branches shown.`}
           data-map-chart
         >
-          <For each={visibleEdges()}>{(edge) => (
-            <line
-              class="strategic-map-edge"
-              x1={edge.x1}
-              y1={edge.y1}
-              x2={edge.x2}
-              y2={edge.y2}
-              data-map-edge={`${edge.from_route_id}|${edge.to_route_id}`}
-            >
-              <title>
-                Transposition: {edge.shared_position_count} shared {edge.shared_position_count === 1 ? "position" : "positions"}
-              </title>
-            </line>
-          )}</For>
-          <For each={visiblePoints()}>{(view) => (
-            <circle
-              classList={{
-                "strategic-map-point": true,
-                [`strategic-map-color-${view.point.color_index % 10}`]: true,
-                "strategic-map-point-selected": selected()?.point.route_id === view.point.route_id,
-              }}
-              cx={view.cx}
-              cy={view.cy}
-              r={view.radius}
-              opacity={view.opacity}
-              tabindex="0"
-              role="button"
-              aria-label={view.aria_label}
-              aria-pressed={selected()?.point.route_id === view.point.route_id}
-              data-map-point={view.point.route_id}
-              data-map-resolution={view.point.resolution}
-              data-map-anchor={view.point.is_anchor ?? "none"}
-              onClick={() => selectPoint(view.point.route_id)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                selectPoint(view.point.route_id);
-              }}
-            />
-          )}</For>
+          <Show
+            when={clustering().mode === "clusters"}
+            fallback={(
+              <>
+                <For each={drawnEdges().items}>{(edge) => (
+                  <line
+                    class="strategic-map-edge"
+                    x1={edge.x1}
+                    y1={edge.y1}
+                    x2={edge.x2}
+                    y2={edge.y2}
+                    data-map-edge={`${edge.from_route_id}|${edge.to_route_id}`}
+                  >
+                    <title>
+                      Transposition: {edge.shared_position_count} shared {edge.shared_position_count === 1 ? "position" : "positions"}
+                    </title>
+                  </line>
+                )}</For>
+                <For each={visiblePoints()}>{(view) => (
+                  <circle
+                    classList={{
+                      "strategic-map-point": true,
+                      [`strategic-map-color-${view.point.color_index % 10}`]: true,
+                      "strategic-map-point-selected": selected()?.point.route_id === view.point.route_id,
+                    }}
+                    cx={view.cx}
+                    cy={view.cy}
+                    r={view.radius}
+                    opacity={view.opacity}
+                    tabindex="0"
+                    role="button"
+                    aria-label={view.aria_label}
+                    aria-pressed={selected()?.point.route_id === view.point.route_id}
+                    data-map-point={view.point.route_id}
+                    data-map-resolution={view.point.resolution}
+                    data-map-anchor={view.point.is_anchor ?? "none"}
+                    onClick={() => selectPoint(view.point.route_id)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      selectPoint(view.point.route_id);
+                    }}
+                  />
+                )}</For>
+              </>
+            )}
+          >
+            <For each={clusteredEdges().edges}>{(edge) => (
+              <line
+                class="strategic-map-edge"
+                x1={edge.x1}
+                y1={edge.y1}
+                x2={edge.x2}
+                y2={edge.y2}
+                data-map-cluster-edge={`${edge.from_cluster_id}|${edge.to_cluster_id}`}
+              >
+                <title>
+                  {edge.edge_count} transposition {edge.edge_count === 1 ? "link" : "links"} between these clusters
+                </title>
+              </line>
+            )}</For>
+            <For each={clustering().clusters}>{(cluster) => (
+              <g
+                classList={{
+                  "strategic-map-cluster": true,
+                  "strategic-map-cluster-selected": selectedClusterId() === cluster.cluster_id,
+                }}
+                tabindex="0"
+                role="button"
+                aria-label={cluster.aria_label}
+                aria-pressed={selectedClusterId() === cluster.cluster_id}
+                data-map-cluster={cluster.cluster_id}
+                data-map-cluster-size={cluster.point_count}
+                data-map-cluster-unresolved={cluster.unresolved_count}
+                onClick={() => selectCluster(cluster.cluster_id)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  selectCluster(cluster.cluster_id);
+                }}
+              >
+                <circle cx={cluster.cx} cy={cluster.cy} r={cluster.radius} />
+                <text x={cluster.cx} y={cluster.cy} class="strategic-map-cluster-text">
+                  {cluster.point_count}
+                </text>
+                <title>{cluster.aria_label}</title>
+              </g>
+            )}</For>
+          </Show>
         </svg>
 
-        <details class="strategic-map-axes">
+        <Show when={selectedCluster()}>
+          {(cluster) => (
+            <div class="strategic-map-cluster-detail" data-map-cluster-detail={cluster().cluster_id}>
+              <h3>Cluster of {cluster().point_count} branches</h3>
+              <p>{cluster().aria_label}</p>
+              <ul>
+                <For each={clusterMembers()}>{(view) => (
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => selectPoint(view.point.route_id)}
+                      aria-pressed={selected()?.point.route_id === view.point.route_id}
+                      data-map-cluster-member={view.point.route_id}
+                    >
+                      {view.label}
+                    </button>
+                  </li>
+                )}</For>
+              </ul>
+            </div>
+          )}
+        </Show>
+
+        <details class="strategic-map-axes" open={strategicFitPrintExportMode() || undefined}>
           <summary>How positions are calculated</summary>
           <ul>
             <Show when={model().projection.axes.x}>
@@ -387,9 +548,29 @@ export default function StrategicMap(props: {
           )}
         </Show>
 
-        <details class="strategic-map-list" open>
+        <details
+          class="strategic-map-list"
+          open={listOpen() || strategicFitPrintExportMode()}
+          onToggle={(event) => setListOpen(event.currentTarget.open)}
+        >
           <summary>Branch list ({visiblePoints().length})</summary>
-          <table data-map-list>
+          <Show when={!listWindow().complete}>
+            <p class="strategic-map-note" data-map-list-window>
+              Showing the first {listWindow().shown} of {listWindow().total} branches.
+              <button
+                type="button"
+                onClick={() => setListExpanded(true)}
+                data-map-show-all-rows
+              >
+                Show all {listWindow().total}
+              </button>
+            </p>
+          </Show>
+          <table
+            data-map-list
+            data-map-rows-shown={listWindow().shown}
+            data-map-rows-total={listWindow().total}
+          >
             <thead>
               <tr>
                 <th scope="col">Branch</th>
@@ -400,7 +581,7 @@ export default function StrategicMap(props: {
               </tr>
             </thead>
             <tbody>
-              <For each={visiblePoints()}>{(view) => (
+              <For each={listWindow().items}>{(view) => (
                 <tr
                   data-map-row={view.point.route_id}
                   data-selected={selected()?.point.route_id === view.point.route_id ? "true" : "false"}
@@ -425,7 +606,7 @@ export default function StrategicMap(props: {
         </details>
 
         <Show when={model().projection.exclusions.length > 0}>
-          <details class="strategic-map-exclusions">
+          <details class="strategic-map-exclusions" open={strategicFitPrintExportMode() || undefined}>
             <summary>Branches without a map position ({model().projection.exclusions.length})</summary>
             <ul>
               <For each={model().projection.exclusions}>{(exclusion) => (

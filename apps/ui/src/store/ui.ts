@@ -29,6 +29,13 @@ export const [strategicFitWorkspaceStage, setStrategicFitWorkspaceStage] =
 export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] =
   createSignal(emptyStrategicFitWorkspaceRegions());
 
+/**
+ * Task 10.4 print/export mode. Every table equivalent renders its complete list and every
+ * disclosure opens, so a printed page or an exported PDF never omits evidence that an on-screen
+ * render cap withheld. Charts keep aggregating: a thousand overlapping dots do not print better.
+ */
+export const [strategicFitPrintExportMode, setStrategicFitPrintExportMode] = createSignal(false);
+
 export type StrategicFitFindingQueueFilter =
   | { readonly kind: "all" }
   | { readonly kind: "classification"; readonly classification: "forced-diversity" | "intentional-diversity" }
