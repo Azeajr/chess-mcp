@@ -1194,6 +1194,14 @@ img,
 .strategic-fit-reference { display: grid; gap: 0.25rem; }
 .strategic-fit-nav { margin-top: 0.1rem; }
 .strategic-fit-proposal { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.strategic-fit-plan-basis, .strategic-fit-plan-card { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.strategic-fit-plan-drills { width: 100%; margin: 0; padding-left: 1.2rem; color: var(--muted); }
+.strategic-fit-plan-drills b { color: var(--text); }
+.strategic-fit-plan-omitted { color: #d8bd86; }
+.strategic-fit-plan-section { width: 100%; display: grid; gap: 0.25rem; border: 1px solid var(--border); border-radius: 7px; padding: 0.45rem; }
+.strategic-fit-plan-section-head { font-weight: 650; }
+.strategic-fit-plan-support { overflow-wrap: anywhere; }
+.strategic-fit-plan-card button { min-height: 44px; }
 .strategic-fit-diff { width: 100%; border-collapse: collapse; font-size: 0.7rem; display: block; overflow-x: auto; }
 .strategic-fit-diff th, .strategic-fit-diff td { border: 1px solid var(--border); padding: 0.18rem 0.34rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .strategic-fit-diff thead th, .strategic-fit-diff tbody th { color: var(--muted); font-weight: 500; }

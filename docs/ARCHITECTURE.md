@@ -341,7 +341,13 @@ accept/reject actions with stale-revision detection. Assistant-proposed Strategi
 preferences are staged the same way. Validation, exact profile diffing, and concept-identity checks
 are framework-free domain code; the staged proposal is session-only state bound to the document,
 revision, effective profile, and analysis-settings identity, and acceptance writes only through the
-single profile-state module rather than touching document metadata itself. Artifact content is retained by the application
+single profile-state module rather than touching document metadata itself. An assistant-written plan
+card for a retained exception is staged the same way and is additionally bound to evidence: every
+section must cite a concept, checkpoint, or drill from that finding's deterministic training record,
+every move its prose mentions must appear on a validated path, and an unsupported identity, move, or
+outside game is rejected rather than trimmed. Acceptance writes through the existing training path,
+which re-validates the card against the record it just rebuilt, so no second writer reaches training
+metadata. Artifact content is retained by the application
 and chat receives compact metadata/reference unless inline content is part of the explicit contract.
 
 Most direct report/export controls and chat calls share the browser command registry. Continuous

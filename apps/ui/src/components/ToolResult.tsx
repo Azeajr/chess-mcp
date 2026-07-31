@@ -1,7 +1,10 @@
 import { For, Show, createMemo } from "solid-js";
+import { strategicFitPlanSectionLabel } from "@chess-mcp/chess-tools";
 import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
+  StrategicFitPlanSection,
+  StrategicFitPlanSectionKind,
   StrategicFitConversationFinding,
   StrategicFitConversationFindingRow,
   StrategicFitConversationFindings,
@@ -17,6 +20,11 @@ import {
   rejectStrategicFitProfileProposal,
   strategicFitProfileProposal,
 } from "../store/strategic-fit-intent-interview";
+import {
+  acceptStrategicFitPlanCard,
+  rejectStrategicFitPlanCard,
+  strategicFitPlanCard,
+} from "../store/strategic-fit-plan-synthesis";
 import { artifactById, saveArtifact } from "../store/artifacts";
 
 type Data = Record<string, unknown>;
@@ -364,6 +372,98 @@ function StrategicFitProposalResult(props: { data: Data }) {
   </section>;
 }
 
+const countLabel = (count: number, singular: string): string =>
+  `${count} ${singular}${count === 1 ? "" : "s"}`;
+
+/**
+ * The deterministic basis a plan may rest on. It is shown as evidence, not as a result to act on,
+ * and every bound states what it withheld so a shortened list is never read as the whole of it.
+ */
+function StrategicFitPlanBasisResult(props: { data: Data }) {
+  const list = (key: string) => Array.isArray(props.data[key]) ? props.data[key] as Data[] : [];
+  const strings = (key: string) =>
+    Array.isArray(props.data[key]) ? (props.data[key] as unknown[]).map(String) : [];
+  const omitted = (key: string) =>
+    typeof props.data[key] === "number" ? props.data[key] as number : 0;
+  return <section
+    class="result-card report-card strategic-fit-plan-basis"
+    data-finding-id={String(props.data.finding_id ?? "")}
+    aria-label="Strategic Fit plan evidence"
+  >
+    <div class="result-title">Plan evidence · {String(props.data.finding_id ?? "")}</div>
+    <div class="result-summary">
+      {countLabel(strings("concept_ids").length, "concept")} · {countLabel(list("checkpoints").length, "checkpoint")}
+      {" "}· {countLabel(list("drills").length, "drill position")} · {countLabel(strings("moves").length, "validated move")}
+    </div>
+    <Show when={strings("concept_ids").length > 0}>
+      <div class="result-line">Concepts: {strings("concept_ids").join(", ")}</div>
+    </Show>
+    <Show when={list("drills").length > 0}>
+      <ul class="strategic-fit-plan-drills">
+        <For each={list("drills")}>{(drill) => <li data-drill-id={String(drill.drill_id)}>
+          <b>{String(drill.expected_san)}</b> · {String(drill.source)}
+        </li>}</For>
+      </ul>
+    </Show>
+    <Show when={props.data.causal_move_san}>
+      <div class="result-line">Causal move: {String(props.data.causal_move_san)}</div>
+    </Show>
+    <Show when={
+      omitted("omitted_concept_count") + omitted("omitted_checkpoint_count") +
+      omitted("omitted_drill_count") + omitted("omitted_san_path_count") + omitted("omitted_move_count") > 0
+    }>
+      <div class="result-summary strategic-fit-plan-omitted">
+        Withheld for size: {omitted("omitted_concept_count")} concepts, {omitted("omitted_checkpoint_count")} checkpoints,
+        {" "}{omitted("omitted_drill_count")} drills, {omitted("omitted_san_path_count")} paths, {omitted("omitted_move_count")} moves.
+        Withheld evidence exists; it is not absent, and it cannot be cited in a plan.
+      </div>
+    </Show>
+    <div class="result-summary">Nothing is saved. A plan written from this evidence is staged for your confirmation.</div>
+  </section>;
+}
+
+/**
+ * A plan card is staged, not saved. Every section shows the deterministic evidence it rests on, so
+ * the user confirms supported content rather than fluent prose.
+ */
+function StrategicFitPlanCardResult(props: { data: Data }) {
+  const id = () => String(props.data.plan_id ?? "");
+  const staged = () => strategicFitPlanCard(id());
+  const sections = createMemo(() =>
+    Array.isArray(props.data.sections) ? props.data.sections as unknown as StrategicFitPlanSection[] : []);
+  const status = () => staged()?.status ?? "unavailable";
+  return <section
+    class="result-card staged-card strategic-fit-plan-card"
+    data-plan-id={id()}
+    data-finding-id={String(props.data.finding_id ?? "")}
+    aria-label="Strategic Fit plan card"
+  >
+    <div class="result-title">Plan · {String(props.data.title ?? "")}</div>
+    <For each={sections()}>{(section) => <div class="strategic-fit-plan-section" data-section-kind={section.kind}>
+      <div class="strategic-fit-plan-section-head">
+        {strategicFitPlanSectionLabel(section.kind as StrategicFitPlanSectionKind)}
+      </div>
+      <div class="strategic-fit-explanation">{section.text}</div>
+      <div class="result-summary strategic-fit-plan-support">
+        Evidence: {[...section.concept_ids, ...section.checkpoint_ids, ...section.drill_ids].join(", ")}
+        <Show when={section.cited_moves.length > 0}> · moves {section.cited_moves.join(", ")}</Show>
+      </div>
+    </div>}</For>
+    <div class="result-summary">
+      Nothing is saved until you accept. Accepting records this plan with the training item for this
+      finding and does not edit repertoire lines.
+    </div>
+    <Show when={status() === "pending"} fallback={<span class={`result-status ${status()}`}>{
+      status() === "stale" ? "Evidence or document changed — plan is no longer valid"
+        : status() === "unavailable" ? "Plan is not available in this session"
+        : status()
+    }</span>}>
+      <button class="result-accept" onClick={() => acceptStrategicFitPlanCard(id())}>Save plan</button>
+      <button onClick={() => rejectStrategicFitPlanCard(id())}>Reject</button>
+    </Show>
+  </section>;
+}
+
 function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
@@ -433,6 +533,18 @@ const ERROR_LABELS: Record<string, string> = {
   strategic_fit_intent_no_change: "Profile already matches the proposal",
   strategic_fit_intent_proposal_stale: "Profile proposal is stale",
   strategic_fit_intent_proposal_not_pending: "Profile proposal is no longer pending",
+  strategic_fit_plan_empty: "Plan card was empty",
+  strategic_fit_plan_invalid_section: "Plan section is not valid",
+  strategic_fit_plan_invalid_value: "Plan value is out of bounds",
+  strategic_fit_plan_missing_support: "Plan section cites no evidence",
+  strategic_fit_plan_unsupported_concept: "Concept is not part of this finding",
+  strategic_fit_plan_unsupported_checkpoint: "Checkpoint is not part of this finding",
+  strategic_fit_plan_unsupported_drill: "Drill is not part of this finding",
+  strategic_fit_plan_unsupported_move: "Move is not on a validated path",
+  strategic_fit_plan_unsupported_model_game: "Model game or position is unsupported",
+  strategic_fit_plan_evidence_unavailable: "Plan evidence is unavailable",
+  strategic_fit_plan_stale: "Plan card is stale",
+  strategic_fit_plan_not_pending: "Plan card is no longer pending",
   strategic_fit_stale_report: "Strategic Fit report is stale",
   strategic_fit_stale_revision: "Strategic Fit report is stale",
   variation_not_found: "Repertoire path not found",
@@ -521,6 +633,8 @@ const byOperation: Record<string, (data: Data) => unknown> = {
 const byKind: Record<string, (data: Data) => unknown> = {
   staged_edit: (data) => <StagedEditResult data={data} />,
   strategic_fit_profile_proposal: (data) => <StrategicFitProposalResult data={data} />,
+  strategic_fit_plan_basis: (data) => <StrategicFitPlanBasisResult data={data} />,
+  strategic_fit_plan_card: (data) => <StrategicFitPlanCardResult data={data} />,
 };
 
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */

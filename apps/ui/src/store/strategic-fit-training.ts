@@ -3,14 +3,18 @@ import { parseFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
 import { createEffect, createSignal } from "solid-js";
 import {
+  STRATEGIC_FIT_PLAN_LIMITS,
   STRATEGIC_FIT_SCHEMA_VERSION,
   STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
+  StrategicFitPlanError,
+  assertStrategicFitPlanCardSupported,
   buildRepertoireGraph,
   createStrategicFitTrainingPerformanceData,
   deriveStrategicFitTrainingMastery,
   mergeStrategicFitTrainingPerformance,
   parseStrategicFitTrainingPerformance,
   recordStrategicFitTrainingAttempt,
+  renderStrategicFitPlanCardText,
   serializeStrategicFitTrainingPerformance,
   upsertStrategicFitTrainingTarget,
   type RepertoireGraph,
@@ -20,6 +24,8 @@ import {
   type StrategicCheckpointKind,
   type StrategicFinding,
   type StrategicFitDocumentMetadata,
+  type StrategicFitPlanCard,
+  type StrategicFitPlanEvidence,
   type StrategicFitReport,
   type StrategicFitSourceProvenance,
   type StrategicFitTrainingAttemptInput,
@@ -51,10 +57,12 @@ import {
 } from "./strategic-fit";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { registerStrategicFitTrainingEvidenceProvider } from "../application/strategic-fit-training-evidence";
+import { registerStrategicFitTrainingWriter } from "../application/strategic-fit-training-writer";
 
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND =
   "chess-mcp/strategic-fit-basic-drill";
-export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.1.0";
+/** 1.2.0 adds the optional confirmed plan card; 1.1.0 added the semantic decision identity. */
+export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.2.0";
 
 export interface StrategicFitTrainingCheckpoint {
   readonly checkpoint_id: string;
@@ -99,6 +107,12 @@ export interface StrategicFitTrainingRecord {
   readonly causal_move: StrategicFitTrainingMove | null;
   readonly drills: readonly StrategicFitBasicDrill[];
   readonly user_notes: string | null;
+  /**
+   * A confirmed plan card (Task 11.4), or null for a purely deterministic training item. It is
+   * re-validated against this record's own evidence whenever the record is built, so a card can
+   * only be as current as the concepts, checkpoints, and drills it cites.
+   */
+  readonly plan_card: StrategicFitPlanCard | null;
   readonly created_at: string;
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
@@ -112,6 +126,7 @@ export interface StrategicFitTrainingArtifact {
   readonly route_id: string;
   readonly concept_ids: readonly string[];
   readonly user_notes: string | null;
+  readonly plan_card: StrategicFitPlanCard | null;
   readonly drills: readonly StrategicFitBasicDrill[];
 }
 
@@ -120,6 +135,8 @@ export interface StrategicFitTrainingCreationInput {
   readonly finding_id: string;
   readonly semantic_finding_id: string;
   readonly user_notes?: string | null;
+  /** Only an already validated card; the builder re-checks it against current evidence anyway. */
+  readonly plan_card?: StrategicFitPlanCard | null;
 }
 
 export interface StrategicFitTrainingCreationResult {
@@ -256,12 +273,67 @@ function causalMove(
   return null;
 }
 
+/**
+ * The bounded deterministic basis a plan card may rest on, derived from one built record. The same
+ * object is disclosed to the model and used to validate what it writes, so evidence withheld by
+ * these bounds cannot be cited either; each bound reports what it withheld.
+ */
+export function strategicFitPlanEvidenceForRecord(
+  record: StrategicFitTrainingRecord,
+  reportId: string,
+): StrategicFitPlanEvidence {
+  const limits = STRATEGIC_FIT_PLAN_LIMITS;
+  const paths = record.references.source_san_paths
+    .slice(0, limits.evidence_san_paths)
+    .map((path) => path.slice(0, limits.evidence_san_path_plies));
+  const drills = record.drills.slice(0, limits.evidence_drills);
+  const moves = sortedUnique([
+    ...paths.flat(),
+    ...drills.flatMap((drill) => [
+      ...drill.source_san_path.slice(0, limits.evidence_san_path_plies),
+      drill.expected_san,
+    ]),
+    ...(record.causal_move === null ? [] : [record.causal_move.san]),
+  ]);
+  const checkpoints = record.checkpoints.slice(0, limits.evidence_checkpoints);
+  const concepts = record.concept_ids.slice(0, limits.evidence_concept_ids);
+  return {
+    report_id: reportId,
+    finding_id: record.finding_id,
+    semantic_finding_id: record.semantic_finding_id,
+    repertoire_revision: record.repertoire_revision,
+    training_id: record.training_id,
+    concept_ids: concepts,
+    omitted_concept_count: record.concept_ids.length - concepts.length,
+    checkpoints: checkpoints.map((checkpoint) => ({
+      checkpoint_id: checkpoint.checkpoint_id,
+      kind: checkpoint.kind,
+      ply: checkpoint.ply,
+      comparability: checkpoint.comparability,
+    })),
+    omitted_checkpoint_count: record.checkpoints.length - checkpoints.length,
+    drills: drills.map((drill) => ({
+      drill_id: drill.drill_id,
+      expected_san: drill.expected_san,
+      source: drill.source,
+      checkpoint_id: drill.checkpoint_id,
+    })),
+    omitted_drill_count: record.drills.length - drills.length,
+    causal_move_san: record.causal_move?.san ?? null,
+    san_paths: paths,
+    omitted_san_path_count: record.references.source_san_paths.length - paths.length,
+    moves: moves.slice(0, limits.evidence_moves),
+    omitted_move_count: Math.max(0, moves.length - limits.evidence_moves),
+  };
+}
+
 export function buildStrategicFitTrainingRecord(
   report: StrategicFitReport,
   finding: StrategicFinding,
   graph: RepertoireGraph,
   userNotes: string | null | undefined,
   createdAt: string,
+  planCard?: StrategicFitPlanCard | null,
 ): StrategicFitTrainingRecord {
   const staleRoute = finding.references.route_ids.find((routeId) =>
     !graph.routes.some((route) => route.route_id === routeId)
@@ -360,7 +432,7 @@ export function buildStrategicFitTrainingRecord(
     position_ids: semanticPositionIds,
     causal_decision_id: causal?.decision_id ?? null,
   }))}`;
-  return {
+  const record: StrategicFitTrainingRecord = {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     training_id: trainingId,
     finding_id: finding.finding_id,
@@ -373,6 +445,7 @@ export function buildStrategicFitTrainingRecord(
     causal_move: causal,
     drills,
     user_notes: userNotes?.trim() || null,
+    plan_card: null,
     created_at: createdAt,
     provenance: [{
       source_id: "strategic-fit:basic-training-drill",
@@ -381,6 +454,25 @@ export function buildStrategicFitTrainingRecord(
       version: STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION,
       snapshot: report.report_id,
       reason: "Deterministic training item created from Strategic Fit report evidence without AI.",
+    }],
+  };
+  if (planCard === undefined || planCard === null) return record;
+  // The writer, not only the staged proposal, is where support is proved: a card handed to it
+  // directly is validated against the evidence this very record just produced.
+  const card = assertStrategicFitPlanCardSupported(
+    planCard,
+    strategicFitPlanEvidenceForRecord(record, report.report_id),
+  );
+  return {
+    ...record,
+    plan_card: card,
+    provenance: [...record.provenance, {
+      source_id: `strategic-fit:plan-card:${card.evidence_identity}`,
+      kind: "training-metadata",
+      state: "available",
+      version: card.plan_card_version,
+      snapshot: report.report_id,
+      reason: "Plan card written by the assistant, validated against this finding's deterministic evidence and confirmed by the user.",
     }],
   };
 }
@@ -400,6 +492,7 @@ export function serializeStrategicFitTrainingArtifact(record: StrategicFitTraini
     route_id: record.route_id,
     concept_ids: record.concept_ids,
     user_notes: record.user_notes,
+    plan_card: record.plan_card,
     drills: record.drills,
   };
   return `${JSON.stringify(artifact, null, 2)}\n`;
@@ -412,6 +505,8 @@ function artifactId(value: unknown): string | null {
 }
 
 function friendlyBuildError(error: unknown): { code: string; message: string } {
+  // A plan-card failure already carries its own code and a message written for the assistant.
+  if (error instanceof StrategicFitPlanError) return { code: error.code, message: error.message };
   const code = error instanceof Error ? error.message : "strategic_fit_training_failed";
   const messages: Record<string, string> = {
     strategic_fit_training_stale_route:
@@ -424,6 +519,19 @@ function friendlyBuildError(error: unknown): { code: string; message: string } {
       "Training is blocked because no checkpoint has a legal next SAN move to practice.",
   };
   return { code, message: messages[code] ?? "The training item could not be created from current evidence." };
+}
+
+/**
+ * The durable note for a training resolution. A confirmed plan card belongs in document metadata,
+ * not only in the exported artifact, so it is rendered alongside any note the user typed rather
+ * than replacing it.
+ */
+function trainingResolutionNote(record: StrategicFitTrainingRecord): string | null {
+  const parts = [
+    record.user_notes,
+    record.plan_card === null ? null : renderStrategicFitPlanCardText(record.plan_card),
+  ].filter((part): part is string => part !== null && part.length > 0);
+  return parts.length === 0 ? null : parts.join("\n\n");
 }
 
 export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBoundary) {
@@ -444,6 +552,7 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
       boundary.currentGraph(),
       input.user_notes,
       existing?.created_at ?? boundary.now(),
+      input.plan_card,
     );
   };
 
@@ -488,7 +597,7 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
         finding_id: input.finding_id,
         semantic_finding_id: input.semantic_finding_id,
         state: "train-as-exception",
-        note: record.user_notes,
+        note: trainingResolutionNote(record),
         linked_training_ids: [record.training_id],
       });
       if (resolution.state === "blocked") {
@@ -924,6 +1033,24 @@ const browserTraining = createStrategicFitTrainingState({
 
 export const createStrategicFitTrainingItem = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.create(input);
+
+/**
+ * Rebuild the deterministic record for a finding without saving anything. Plan synthesis uses it
+ * for both the evidence it discloses and the evidence it validates against, so a proposal and its
+ * acceptance are measured with the same builder the training writer uses.
+ */
+export const buildCurrentStrategicFitTrainingRecord = (input: StrategicFitTrainingCreationInput) =>
+  browserTraining.buildCurrent(input);
+
+// Plan synthesis reaches training through this bridge rather than importing it: the browser command
+// registry already reaches plan synthesis, and training reaches the finding-resolution graph.
+registerStrategicFitTrainingWriter({
+  planEvidence: (input) => {
+    const record = buildCurrentStrategicFitTrainingRecord(input);
+    return record === null ? null : strategicFitPlanEvidenceForRecord(record, input.report_id);
+  },
+  createItem: (input) => browserTraining.create(input),
+});
 
 /** Rebuild a saved deterministic drill from current canonical evidence for portable export. */
 export function exportStrategicFitTrainingItem(

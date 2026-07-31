@@ -1,5 +1,6 @@
 /** Dependency-free application contract consumed by the MCP and browser hosts. */
 import { EXPLORER_RATING_BUCKETS, EXPLORER_SPEEDS } from "./explorer.js";
+import { STRATEGIC_FIT_PLAN_SECTION_KINDS } from "./strategic-fit/plan-synthesis.js";
 
 export type ToolHost = "mcp" | "browser";
 export type ToolCapability = "position" | "game" | "repertoire" | "engine" | "network" | "artifact" | "action";
@@ -61,6 +62,9 @@ const define = (name: string, description: string, capabilities: ToolCapability[
       ...(name === "propose_strategic_fit_profile" ? {
         semantics: "Staged, revision-bound profile proposal with the exact field-level diff against the current effective profile. Proposing changes nothing: the profile, the repertoire tree, and cached reports are untouched until the user accepts in the application.",
       } : {}),
+      ...(name === "propose_strategic_fit_plan" ? {
+        semantics: "Either the bounded deterministic evidence basis for one finding, or a staged plan card validated against it. Proposing changes nothing: training metadata, the resolution, and the repertoire tree are untouched until the user accepts in the application.",
+      } : {}),
     },
     hostAdaptation: {
       browserInjects: name === "export_strategic_fit_metadata"
@@ -75,6 +79,8 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["document revision", "bounded cached Strategic Fit report lookup by report identity"]
         : name === "propose_strategic_fit_profile"
         ? ["stable document ID", "document revision", "current effective Strategic Fit profile", "Strategic Fit analysis-settings identity", "session-only staged proposal storage"]
+        : name === "propose_strategic_fit_plan"
+        ? ["stable document ID", "document revision", "current Strategic Fit report and finding", "deterministic training record for that finding", "session-only staged plan storage", "the existing training writer used on acceptance"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
@@ -91,6 +97,7 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
         : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
         : name === "propose_strategic_fit_profile" ? { resultDifference: "Browser only. MCP keeps no document profile: an MCP session passes the confirmed profile explicitly with each analysis, so there is nothing there to stage, diff, or persist." }
+        : name === "propose_strategic_fit_plan" ? { resultDifference: "Browser only. Training records, resolutions, and drill artifacts are browser document state; an MCP session keeps none of them, so it has nothing to ground a plan card in and nothing to save it to." }
         : name === "get_strategic_fit_report" ? { resultDifference: "Each host resolves the report identity in its own bounded cache — per handle on MCP, per document settings in the browser — and both project the same shared bounded views. A report that is not cached, or that belongs to another revision, fails closed rather than returning older evidence." }
         : name === "suggest_replacement_line" ? { resultDifference: "Browser V2 results are staged against the exact current document revision and require explicit acceptance. MCP V2 results are immutable previews only: no archive persistence or undo is available, and a new clone-on-write handle is returned only by an explicit repertoire edit call." }
         : {}),
@@ -162,6 +169,19 @@ const strategicFitIntentPreferences = object({
     "learning-concepts": number(0, 3),
   }),
 });
+/**
+ * One section of a plan card for a retained exception. Free text is bounded, and every anchor list
+ * addresses evidence the finding's own basis returned; the host refuses any identity or move that
+ * basis does not contain, so this schema deliberately cannot express a position, line, or game of
+ * the model's own.
+ */
+const strategicFitPlanSection = object({
+  kind: { type: "string", enum: STRATEGIC_FIT_PLAN_SECTION_KINDS },
+  text: string("What to do, in plain language, resting only on the cited evidence.", 600),
+  concept_ids: array(strategicFitId(), undefined, 8),
+  checkpoint_ids: array(strategicFitId(), undefined, 8),
+  drill_ids: array(strategicFitId(), undefined, 8),
+}, ["kind", "text"]);
 const strategicFitWeighting = object({
   mode: { type: "string", enum: ["equal", "manual", "external"] },
   route_weights: array(object({ route_id: strategicFitId(), weight: number(0, 1_000_000) }, ["route_id", "weight"]), undefined, 500),
@@ -344,6 +364,25 @@ export const TOOL_CONTRACTS = [
         preferences: strategicFitIntentPreferences,
         rationale: string("One or two sentences grounded in what the user actually said, shown next to the diff.", 400),
       },
+    },
+  ),
+  define(
+    "propose_strategic_fit_plan",
+    "Write a plan card for an exception the user keeps and trains. Call it without `plan` first to receive the finding's deterministic evidence basis — the concepts the analysis reported, its legal checkpoints and drill positions, and the validated moves — then call it again with a plan whose every section cites that evidence. Sections that name no evidence, identities the basis did not return, a move outside the validated paths, and any outside game are rejected rather than trimmed. Nothing is saved: the card is staged until the user accepts it, and acceptance writes through the existing training path without editing repertoire lines.",
+    ["repertoire", "action"],
+    BROWSER,
+    {},
+    {
+      properties: {
+        report_id: strategicFitId(),
+        finding_id: strategicFitId(),
+        semantic_finding_id: strategicFitId(),
+        plan: object({
+          title: string("Short name for the plan, in the user's own terms.", 120),
+          sections: array(strategicFitPlanSection, 1, 8),
+        }, ["title", "sections"]),
+      },
+      required: ["report_id", "finding_id", "semantic_finding_id"],
     },
   ),
   define(
@@ -547,6 +586,30 @@ function strategicFitIntentArgumentsError(value: Record<string, unknown>): strin
   return null;
 }
 
+function strategicFitPlanArgumentsError(value: Record<string, unknown>): string | null {
+  for (const key of ["report_id", "finding_id", "semantic_finding_id"]) {
+    const identity = value[key];
+    if (typeof identity !== "string" || identity.trim().length === 0) return `${key} must not be blank`;
+  }
+  const plan = value.plan as Record<string, unknown> | undefined;
+  if (plan === undefined) return null;
+  const sections = plan.sections as readonly Record<string, unknown>[] | undefined;
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return "plan.sections must contain at least one section";
+  }
+  for (const [index, section] of sections.entries()) {
+    const anchors = ["concept_ids", "checkpoint_ids", "drill_ids"]
+      .flatMap((key) => (Array.isArray(section[key]) ? (section[key] as readonly unknown[]) : []));
+    if (anchors.length === 0) {
+      return `plan.sections[${index}] must cite at least one concept, checkpoint, or drill from the finding's evidence`;
+    }
+    if (section.kind === "model-position" && !(section.drill_ids as readonly unknown[] | undefined)?.length) {
+      return `plan.sections[${index}] is a model position and must cite a drill from the finding's evidence`;
+    }
+  }
+  return null;
+}
+
 function explorerPopulationArgumentsError(
   filters: Record<string, unknown> | undefined,
   path: string,
@@ -671,6 +734,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "propose_strategic_fit_profile") {
     const reason = strategicFitIntentArgumentsError(value);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "propose_strategic_fit_plan") {
+    const reason = strategicFitPlanArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   if (name === "position_popularity") {

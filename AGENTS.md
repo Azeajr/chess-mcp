@@ -60,6 +60,10 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
   same way, shown as an exact diff, and become durable only through the single profile-state writer
   in `apps/ui/src/store/strategic-fit-profile.ts`; a staged proposal is void once the document
   revision, effective profile, or analysis settings change.
+- Assistant-written plan cards for retained exceptions are staged and evidence-bound: each section
+  must cite a concept, checkpoint, or drill from that finding's deterministic training record, and
+  every move its text mentions must be on a validated path. Acceptance goes through the existing
+  training writer in `apps/ui/src/store/strategic-fit-training.ts`, which re-validates the card.
 - Browser chat sends the complete canonical browser schema on every tool-capable round. Presets
   change guidance only; do not reintroduce keyword routing or capability expansion.
 - Preserve structured error codes and per-item illegal results from `compare_moves`.

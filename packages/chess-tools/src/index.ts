@@ -149,6 +149,7 @@ export * from "./strategic-fit/metadata.js";
 export * from "./strategic-fit/metadata-sidecar.js";
 export * from "./strategic-fit/intent-comments.js";
 export * from "./strategic-fit/intent-interview.js";
+export * from "./strategic-fit/plan-synthesis.js";
 export * from "./strategic-fit/replacement-types.js";
 export * from "./strategic-fit/replacement-pivot.js";
 export * from "./strategic-fit/replacement-candidates.js";

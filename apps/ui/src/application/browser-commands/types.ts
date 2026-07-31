@@ -31,7 +31,7 @@ export const BROWSER_COMMAND_NAMES = [
   "chesscom_games", "repertoire_vs_history", "audit_repertoire_moves", "find_only_moves",
   "find_structures", "inspect_shortcut", "export_annotated_repertoire", "prep_vs_opponent",
   "propose_line", "get_selected_subtree", "get_document_pgn",
-  "propose_strategic_fit_profile",
+  "propose_strategic_fit_profile", "propose_strategic_fit_plan",
   "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn",
 ] as const;
 
@@ -92,6 +92,16 @@ export type BrowserCommandDependencies = {
     readonly mode?: unknown;
     readonly preferences?: unknown;
     readonly rationale?: unknown;
+  }) => unknown;
+  /**
+   * Returns one finding's deterministic plan evidence, or stages a plan card validated against it.
+   * It never writes training metadata itself; acceptance goes through the training writer.
+   */
+  proposeStrategicFitPlan: (input: {
+    readonly report_id: string;
+    readonly finding_id: string;
+    readonly semantic_finding_id: string;
+    readonly plan?: { readonly title?: unknown; readonly sections?: unknown };
   }) => unknown;
 };
 

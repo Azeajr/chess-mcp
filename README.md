@@ -40,7 +40,9 @@ a no-scope Lichess personal token because the explorer requires authentication.
   provenance, and a temporary legacy projection; bounded conversation retrieval of an existing
   report's summary, one finding page, or one finding with evidence and navigable paths; a staged
   browser intent interview that turns stated goals into proposed profile preferences shown as an
-  exact diff and saved only on explicit acceptance; transposition
+  exact diff and saved only on explicit acceptance; staged plan cards for retained exceptions whose
+  every section cites that finding's own concepts, checkpoints, drills, and validated moves;
+  transposition
   shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
   Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
   persistence, honest MCP archive/undo limits, complementary lines, and shared best-eval/best-fit gap fills.
@@ -61,7 +63,9 @@ artifacts have direct save actions. Profile preferences the assistant infers fro
 staged the same way: the exact field-level difference is shown, invalid concepts and out-of-range
 values are rejected rather than adjusted, a proposal made against an older revision, profile, or
 analysis settings can no longer be applied, and nothing becomes durable intent without an explicit
-Accept.
+Accept. A plan card the assistant writes for a retained exception is staged the same way: it is
+grounded in that finding's deterministic evidence, shows the support behind every section, and
+reaches training metadata only through the existing training path on an explicit Accept.
 
 Direct analysis is available without chat. User-triggered reports and exports invoke the canonical
 browser application commands and result models; continuous live board evaluation and a few

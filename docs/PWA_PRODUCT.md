@@ -44,6 +44,17 @@ Reject discards the proposal. Invalid concept identities and out-of-range values
 structured error rather than adjusted to fit, and a proposal whose document revision, effective
 profile, or analysis settings have moved can no longer be applied.
 
+A plan card the assistant writes for an exception the user keeps is staged the same way. It is built
+in two steps: the assistant first receives that finding's deterministic evidence — the concepts the
+analysis reported, its legal checkpoints and drill positions, and the moves on its validated paths,
+with an explicit count of anything withheld for size — and then writes sections that cite it. The
+card shows the evidence behind every section and states that nothing has been saved. Accept records
+the plan with the existing training item for that finding, so the drill artifact and the durable
+training resolution carry it while the repertoire tree is untouched; Reject discards it. A section
+that cites nothing, an identity or move the evidence does not contain, and any outside master game
+are refused with a structured error, and a card whose document, revision, or underlying evidence has
+moved can no longer be saved.
+
 Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
 the model compact metadata and an artifact reference while the UI owns the save affordance.
 
