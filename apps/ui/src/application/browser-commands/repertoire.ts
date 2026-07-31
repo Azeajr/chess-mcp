@@ -117,6 +117,7 @@ type RepertoireCommandName =
   | "find_structures"
   | "inspect_shortcut"
   | "export_annotated_repertoire"
+  | "propose_strategic_fit_profile"
   | "export_strategic_fit_metadata"
   | "export_strategic_fit_intent_pgn"
   | "prep_vs_opponent";
@@ -670,6 +671,11 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
     return { ...context.createArtifact("pgn", result.pgn, `${base}-annotated.pgn`) as object, color: result.color, annotated: result.annotated };
   },
+  propose_strategic_fit_profile: (args, context) => context.proposeStrategicFitProfile({
+    ...(args.mode === undefined ? {} : { mode: args.mode }),
+    ...(args.preferences === undefined ? {} : { preferences: args.preferences }),
+    ...(args.rationale === undefined ? {} : { rationale: args.rationale }),
+  }),
   export_strategic_fit_metadata: (_args, context) => {
     const base = (context.currentFileName() ?? "repertoire.pgn").replace(/\.pgn$/i, "");
     const content = serializeStrategicFitSidecar(

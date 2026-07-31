@@ -18,6 +18,7 @@ import {
 } from "../../store/strategic-fit-changes";
 import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
+import { proposeStrategicFitProfile } from "../../store/strategic-fit-intent-interview";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
@@ -67,4 +68,5 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   stageReplacementChangeSet: stageStrategicFitChangeSet,
   discardReplacementChangeSet: rejectStrategicFitChangeSet,
   proposeLine: addSuggestion,
+  proposeStrategicFitProfile,
 };

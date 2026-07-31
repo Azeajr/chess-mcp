@@ -31,6 +31,7 @@ export const BROWSER_COMMAND_NAMES = [
   "chesscom_games", "repertoire_vs_history", "audit_repertoire_moves", "find_only_moves",
   "find_structures", "inspect_shortcut", "export_annotated_repertoire", "prep_vs_opponent",
   "propose_line", "get_selected_subtree", "get_document_pgn",
+  "propose_strategic_fit_profile",
   "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn",
 ] as const;
 
@@ -86,6 +87,12 @@ export type BrowserCommandDependencies = {
   }) => Promise<unknown>;
   discardReplacementChangeSet: (stageId: string) => Promise<unknown>;
   proposeLine: (moves: string[], comment?: string) => unknown;
+  /** Stages a profile proposal for explicit acceptance; it never writes profile metadata itself. */
+  proposeStrategicFitProfile: (input: {
+    readonly mode?: unknown;
+    readonly preferences?: unknown;
+    readonly rationale?: unknown;
+  }) => unknown;
 };
 
 export type BrowserCommandContext = BrowserCommandDependencies & BrowserCommandExecutionOptions;

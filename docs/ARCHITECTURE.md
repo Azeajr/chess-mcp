@@ -337,7 +337,11 @@ requests, and artifact-producing operations.
 
 Errors cross host boundaries as structured codes. File paths are realpath-confined. Browser chat
 cannot directly mutate the document: add, prune, and reorder results are staged, previewable,
-accept/reject actions with stale-revision detection. Artifact content is retained by the application
+accept/reject actions with stale-revision detection. Assistant-proposed Strategic Fit profile
+preferences are staged the same way. Validation, exact profile diffing, and concept-identity checks
+are framework-free domain code; the staged proposal is session-only state bound to the document,
+revision, effective profile, and analysis-settings identity, and acceptance writes only through the
+single profile-state module rather than touching document metadata itself. Artifact content is retained by the application
 and chat receives compact metadata/reference unless inline content is part of the explicit contract.
 
 Most direct report/export controls and chat calls share the browser command registry. Continuous

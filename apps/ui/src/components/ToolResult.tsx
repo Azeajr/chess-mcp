@@ -12,6 +12,11 @@ import type {
 } from "@chess-mcp/chess-tools";
 import { actions, currentTree } from "../store/game";
 import { acceptStagedEdit, rejectStagedEdit, stagedEdit, stagePreview } from "../store/suggestions";
+import {
+  acceptStrategicFitProfileProposal,
+  rejectStrategicFitProfileProposal,
+  strategicFitProfileProposal,
+} from "../store/strategic-fit-intent-interview";
 import { artifactById, saveArtifact } from "../store/artifacts";
 
 type Data = Record<string, unknown>;
@@ -311,6 +316,54 @@ function LegacyCongruenceResult(props: { data: Data }) {
   </div>;
 }
 
+const diffValue = (value: unknown): string => {
+  if (value === null) return "not set";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
+  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return String(value);
+};
+
+/**
+ * A profile proposal is staged, not applied. The card shows the exact before/after for every
+ * changed field so the user confirms values rather than a summary of them, and it states plainly
+ * that nothing has been saved yet.
+ */
+function StrategicFitProposalResult(props: { data: Data }) {
+  const id = () => String(props.data.proposal_id ?? "");
+  const proposal = () => strategicFitProfileProposal(id());
+  const entries = createMemo(() => Array.isArray(props.data.diff) ? props.data.diff as Data[] : []);
+  const status = () => proposal()?.status ?? "unavailable";
+  return <section class="result-card staged-card strategic-fit-proposal" data-proposal-id={id()} aria-label="Strategic Fit profile proposal">
+    <div class="result-title">Proposed profile · {String(props.data.current_mode ?? "")} → {String(props.data.resulting_mode ?? "")}</div>
+    <Show when={props.data.rationale}><div class="result-summary">{String(props.data.rationale)}</div></Show>
+    <Show when={entries().length === 0}>
+      <div class="result-summary">No setting changes. Accepting only confirms the current values as your explicit intent.</div>
+    </Show>
+    <Show when={entries().length > 0}><table class="strategic-fit-diff">
+      <thead><tr><th scope="col">Setting</th><th scope="col">Current</th><th scope="col">Proposed</th></tr></thead>
+      <tbody>
+        <For each={entries()}>{(entry) => <tr data-field={String(entry.field)}>
+          <th scope="row">{String(entry.label ?? entry.field)}</th>
+          <td>{diffValue(entry.current)}</td>
+          <td><b>{diffValue(entry.proposed)}</b></td>
+        </tr>}</For>
+      </tbody>
+    </table></Show>
+    <div class="result-summary">Nothing is saved until you accept. Accepting changes profile preferences only; the repertoire is not edited.</div>
+    <Show when={props.data.confirms_provisional_profile === true}>
+      <div class="result-summary">Your profile is still the provisional inferred default. Accepting also confirms it as your explicit intent.</div>
+    </Show>
+    <Show when={status() === "pending"} fallback={<span class={`result-status ${status()}`}>{
+      status() === "stale" ? "Profile or document changed — proposal is no longer valid"
+        : status() === "unavailable" ? "Proposal is not available in this session"
+        : status()
+    }</span>}>
+      <button class="result-accept" onClick={() => acceptStrategicFitProfileProposal(id())}>Accept profile</button>
+      <button onClick={() => rejectStrategicFitProfileProposal(id())}>Reject</button>
+    </Show>
+  </section>;
+}
+
 function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
@@ -371,6 +424,15 @@ const ERROR_LABELS: Record<string, string> = {
   strategic_fit_missing_report_identity: "Strategic Fit report identity required",
   strategic_fit_missing_finding_identity: "Strategic Fit finding identity required",
   strategic_fit_stale_page_cursor: "Strategic Fit page cursor is stale",
+  strategic_fit_intent_empty_proposal: "Profile proposal was empty",
+  strategic_fit_intent_invalid_mode: "Unknown profile mode",
+  strategic_fit_intent_unknown_field: "Unknown profile preference",
+  strategic_fit_intent_invalid_value: "Profile value is out of range",
+  strategic_fit_intent_invalid_concept_id: "Unknown Strategic Fit concept",
+  strategic_fit_intent_conflicting_concepts: "Concept is both preferred and avoided",
+  strategic_fit_intent_no_change: "Profile already matches the proposal",
+  strategic_fit_intent_proposal_stale: "Profile proposal is stale",
+  strategic_fit_intent_proposal_not_pending: "Profile proposal is no longer pending",
   strategic_fit_stale_report: "Strategic Fit report is stale",
   strategic_fit_stale_revision: "Strategic Fit report is stale",
   variation_not_found: "Repertoire path not found",
@@ -458,6 +520,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
 };
 const byKind: Record<string, (data: Data) => unknown> = {
   staged_edit: (data) => <StagedEditResult data={data} />,
+  strategic_fit_profile_proposal: (data) => <StrategicFitProposalResult data={data} />,
 };
 
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */

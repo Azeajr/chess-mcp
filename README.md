@@ -38,7 +38,9 @@ a no-scope Lichess personal token because the explorer requires authentication.
   personal-history frequency, bounded custom feature-family weights, persisted browser source
   filters with visible availability, browser-local training-adjusted metrics with source coverage, paging,
   provenance, and a temporary legacy projection; bounded conversation retrieval of an existing
-  report's summary, one finding page, or one finding with evidence and navigable paths; transposition
+  report's summary, one finding page, or one finding with evidence and navigable paths; a staged
+  browser intent interview that turns stated goals into proposed profile preferences shown as an
+  exact diff and saved only on explicit acceptance; transposition
   shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
   Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
   persistence, honest MCP archive/undo limits, complementary lines, and shared best-eval/best-fit gap fills.
@@ -55,7 +57,11 @@ with a structured error rather than returning older evidence. Long
 operations show progress and share Stop/Retry lifecycle handling with streaming. Tool results render
 as navigable application data. Proposed edits are staged against a document revision and require
 Accept; direct repertoire previews expose Accept line/Cancel controls, and generated PGN/CSV/JSON
-artifacts have direct save actions.
+artifacts have direct save actions. Profile preferences the assistant infers from conversation are
+staged the same way: the exact field-level difference is shown, invalid concepts and out-of-range
+values are rejected rather than adjusted, a proposal made against an older revision, profile, or
+analysis settings can no longer be applied, and nothing becomes durable intent without an explicit
+Accept.
 
 Direct analysis is available without chat. User-triggered reports and exports invoke the canonical
 browser application commands and result models; continuous live board evaluation and a few

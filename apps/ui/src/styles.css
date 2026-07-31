@@ -1193,6 +1193,12 @@ img,
 .strategic-fit-signals b { color: var(--text); }
 .strategic-fit-reference { display: grid; gap: 0.25rem; }
 .strategic-fit-nav { margin-top: 0.1rem; }
+.strategic-fit-proposal { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.strategic-fit-diff { width: 100%; border-collapse: collapse; font-size: 0.7rem; display: block; overflow-x: auto; }
+.strategic-fit-diff th, .strategic-fit-diff td { border: 1px solid var(--border); padding: 0.18rem 0.34rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.strategic-fit-diff thead th, .strategic-fit-diff tbody th { color: var(--muted); font-weight: 500; }
+.strategic-fit-diff td b { color: var(--text); }
+.result-status.rejected, .result-status.unavailable { color: var(--muted); }
 .result-card button, .result-nav { font-size: 0.72rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.18rem 0.5rem; background: #33333a; color: var(--text); cursor: pointer; }
 .result-card .result-accept { border-color: #3c7a4b; background: #284d31; }
 .result-status { text-transform: capitalize; }

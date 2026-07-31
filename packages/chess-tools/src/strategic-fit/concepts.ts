@@ -104,6 +104,37 @@ export interface StrategicConceptOverlap {
   readonly overlap: number;
 }
 
+/**
+ * Leading segment of every concept identity this classifier can emit. It is deliberately narrower
+ * than the category list: `tactical-risk-prerequisite` is a category, while the emitted identities
+ * use the `tactical-prerequisite` namespace. Callers that accept concept identities from outside
+ * the analyzer — a settings field or a model-authored preference proposal — validate against this.
+ */
+export const STRATEGIC_CONCEPT_ID_NAMESPACES = [
+  "endgame-tendency",
+  "exchange",
+  "pawn-break",
+  "plan",
+  "setup-family",
+  "tactical-prerequisite",
+] as const;
+export type StrategicConceptIdNamespace = (typeof STRATEGIC_CONCEPT_ID_NAMESPACES)[number];
+
+const CONCEPT_ID_MAXIMUM_CHARACTERS = 128;
+const CONCEPT_ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$/;
+
+/**
+ * True only for an identity this classifier could actually have produced. It checks shape, not
+ * presence: a concept the current repertoire never reaches is still a valid thing to prefer or
+ * avoid, but an invented identity is not.
+ */
+export function isStrategicConceptId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > CONCEPT_ID_MAXIMUM_CHARACTERS) return false;
+  if (!CONCEPT_ID_PATTERN.test(value)) return false;
+  const namespace = value.slice(0, value.indexOf("."));
+  return (STRATEGIC_CONCEPT_ID_NAMESPACES as readonly string[]).includes(namespace);
+}
+
 interface MutableConcept {
   category: StrategicConceptCategory;
   ruleId: StrategicConceptRuleId;

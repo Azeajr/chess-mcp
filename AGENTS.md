@@ -54,7 +54,10 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 - Game review is mainline-only. Multi-game repertoire PGNs merge into one variation tree.
 - Explorer-backed operations require `LICHESS_TOKEN` on Node or the browser Settings token.
 - Mutations proposed by chat are staged and require explicit acceptance; filesystem writes and
-  browser saves remain explicit actions.
+  browser saves remain explicit actions. Profile preferences the assistant infers are staged the
+  same way, shown as an exact diff, and become durable only through the single profile-state writer
+  in `apps/ui/src/store/strategic-fit-profile.ts`; a staged proposal is void once the document
+  revision, effective profile, or analysis settings change.
 - Browser chat sends the complete canonical browser schema on every tool-capable round. Presets
   change guidance only; do not reintroduce keyword routing or capability expansion.
 - Preserve structured error codes and per-item illegal results from `compare_moves`.

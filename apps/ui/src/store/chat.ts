@@ -64,7 +64,7 @@ const REFERENCE_KEYS = new Set([
   "bytes", "total", "returned", "next_leaf", "partial", "page", "next_page", "truncated",
   "cursor", "next_cursor", "retrieval",
   "request_id", "report_id", "finding_id", "semantic_finding_id", "cohort_id", "pivot_id",
-  "candidate_id", "change_set_id", "stage_id", "archive_id", "operation_id",
+  "candidate_id", "change_set_id", "stage_id", "archive_id", "operation_id", "proposal_id",
   "repertoire_revision", "base_repertoire_revision", "replacement_schema_version",
   "source_id", "version", "source_san_paths",
 ]);

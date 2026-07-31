@@ -58,6 +58,9 @@ const define = (name: string, description: string, capabilities: ToolCapability[
       ...(name === "get_strategic_fit_report" ? {
         semantics: "Bounded conversation projection of an existing immutable report: identity, overview state, one compact finding page, or one finding with evidence and navigable paths. Never the full report, provenance, or any document artifact.",
       } : {}),
+      ...(name === "propose_strategic_fit_profile" ? {
+        semantics: "Staged, revision-bound profile proposal with the exact field-level diff against the current effective profile. Proposing changes nothing: the profile, the repertoire tree, and cached reports are untouched until the user accepts in the application.",
+      } : {}),
     },
     hostAdaptation: {
       browserInjects: name === "export_strategic_fit_metadata"
@@ -70,6 +73,8 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["current GameTree", "repertoire color", "stable document ID", "document revision", "browser engine/Worker and explorer boundaries", "revision-bound staged change-set storage"]
         : name === "get_strategic_fit_report"
         ? ["document revision", "bounded cached Strategic Fit report lookup by report identity"]
+        : name === "propose_strategic_fit_profile"
+        ? ["stable document ID", "document revision", "current effective Strategic Fit profile", "Strategic Fit analysis-settings identity", "session-only staged proposal storage"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
@@ -85,6 +90,7 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
         : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
+        : name === "propose_strategic_fit_profile" ? { resultDifference: "Browser only. MCP keeps no document profile: an MCP session passes the confirmed profile explicitly with each analysis, so there is nothing there to stage, diff, or persist." }
         : name === "get_strategic_fit_report" ? { resultDifference: "Each host resolves the report identity in its own bounded cache — per handle on MCP, per document settings in the browser — and both project the same shared bounded views. A report that is not cached, or that belongs to another revision, fails closed rather than returning older evidence." }
         : name === "suggest_replacement_line" ? { resultDifference: "Browser V2 results are staged against the exact current document revision and require explicit acceptance. MCP V2 results are immutable previews only: no archive persistence or undo is available, and a new clone-on-write handle is returned only by an explicit repertoire edit call." }
         : {}),
@@ -126,6 +132,36 @@ const strategicFitProfile = object({
     }),
   }),
 }, ["mode"]);
+/**
+ * Interview-scoped preferences. Every field matches the canonical profile, but the bounds are
+ * tighter than the analysis argument because a model authors these values without the user
+ * watching a control move. Clearing an optional constraint back to "no limit" stays a Settings
+ * action: this schema can propose a bound, not remove one.
+ */
+const strategicFitIntentConceptId = () => string(
+  "Concept identity reported by the analysis, such as setup-family.castling.repertoire.kingside.",
+  128,
+  "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$",
+);
+const strategicFitIntentPreferences = object({
+  maximum_engine_loss_cp: integer(0, 1000),
+  opponent_popularity_importance: number(0, 1),
+  personal_game_frequency_importance: number(0, 1),
+  manual_weight_importance: number(0, 1),
+  additional_memorization_tolerance: number(0, 1),
+  preferred_concept_ids: array(strategicFitIntentConceptId(), undefined, 32),
+  avoided_concept_ids: array(strategicFitIntentConceptId(), undefined, 32),
+  preferred_tactical_character: array(string("Lowercase term such as forcing, sharp, or quiet.", 32, "^[a-z][a-z0-9-]*$"), undefined, 12),
+  minimum_opponent_coverage: number(0, 1),
+  feature_family_weights: object({
+    "pawn-topology": number(0, 3),
+    "center-dynamics": number(0, 3),
+    "king-and-piece-setup": number(0, 3),
+    "space-and-files": number(0, 3),
+    "dynamic-character": number(0, 3),
+    "learning-concepts": number(0, 3),
+  }),
+});
 const strategicFitWeighting = object({
   mode: { type: "string", enum: ["equal", "manual", "external"] },
   route_weights: array(object({ route_id: strategicFitId(), weight: number(0, 1_000_000) }, ["route_id", "weight"]), undefined, 500),
@@ -296,6 +332,20 @@ export const TOOL_CONTRACTS = [
   define("propose_line", "Stage a validated SAN line for explicit user acceptance without mutating the repertoire.", ["repertoire", "action"], BROWSER, {}, { properties: { moves: array(), comment: string() }, required: ["moves"] }),
   define("get_selected_subtree", "Retrieve bounded SAN lines for the currently selected repertoire subtree.", ["repertoire"], BROWSER, { max_plies: 80 }, { properties: { max_plies: integer(1, 200) } }),
   define("get_document_pgn", "Retrieve the full current PGN only when an operation genuinely needs the artifact.", ["game", "repertoire", "artifact"], BROWSER, {}, { properties: {} }),
+  define(
+    "propose_strategic_fit_profile",
+    "Propose Strategic Fit profile preferences inferred from what the user said, staged for confirmation. The application shows the exact field-level difference against the current effective profile; nothing is saved, no report is invalidated, and the repertoire is never touched until the user explicitly accepts. Invalid concept identities and out-of-range values are rejected rather than adjusted, and a proposal is void once the document revision, profile, or analysis settings change.",
+    ["repertoire", "action"],
+    BROWSER,
+    {},
+    {
+      properties: {
+        mode: { type: "string", enum: ["familiar-plans", "balanced", "versatile", "custom"], description: "Named preset. Selecting a preset alone restores that preset's preference defaults; combining it with preferences produces a custom profile." },
+        preferences: strategicFitIntentPreferences,
+        rationale: string("One or two sentences grounded in what the user actually said, shown next to the diff.", 400),
+      },
+    },
+  ),
   define(
     "export_strategic_fit_metadata",
     "Export the current document's normalized Strategic Fit metadata as a versioned, secret-free JSON sidecar.",
@@ -478,6 +528,25 @@ function strategicFitRetrievalArgumentsError(value: Record<string, unknown>): st
   return null;
 }
 
+function strategicFitIntentArgumentsError(value: Record<string, unknown>): string | null {
+  if (value.mode === undefined && value.preferences === undefined) {
+    return "a profile proposal requires mode, preferences, or both";
+  }
+  const preferences = value.preferences as Record<string, unknown> | undefined;
+  if (preferences !== undefined && Object.keys(preferences).length === 0) {
+    return "preferences must contain at least one preference";
+  }
+  const weights = preferences?.feature_family_weights as Record<string, unknown> | undefined;
+  if (weights !== undefined && Object.keys(weights).length === 0) {
+    return "preferences.feature_family_weights must contain at least one signal family";
+  }
+  const preferred = preferences?.preferred_concept_ids as readonly string[] | undefined;
+  const avoided = preferences?.avoided_concept_ids as readonly string[] | undefined;
+  const conflict = preferred?.find((concept) => avoided?.includes(concept));
+  if (conflict) return `${conflict} cannot be both preferred and avoided`;
+  return null;
+}
+
 function explorerPopulationArgumentsError(
   filters: Record<string, unknown> | undefined,
   path: string,
@@ -598,6 +667,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "get_strategic_fit_report") {
     const reason = strategicFitRetrievalArgumentsError(value);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "propose_strategic_fit_profile") {
+    const reason = strategicFitIntentArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   if (name === "position_popularity") {

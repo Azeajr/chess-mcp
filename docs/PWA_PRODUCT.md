@@ -36,6 +36,14 @@ new revision. Pending replacement changes are discarded on reload and are never 
 Direct repertoire suggestions, including gap fills, open a visible staged-line card with Accept line
 and Cancel controls. Accept grafts the line into the working tree; the normal Save action persists it.
 
+Profile preferences the assistant infers from conversation are staged the same way. The card shows
+the exact before/after value of every changed setting, states that nothing has been saved, and says
+when accepting would also confirm a still-provisional inferred profile. Accept commits through the
+same profile state the settings form uses, so preferences change and the repertoire tree does not;
+Reject discards the proposal. Invalid concept identities and out-of-range values are rejected with a
+structured error rather than adjusted to fit, and a proposal whose document revision, effective
+profile, or analysis settings have moved can no longer be applied.
+
 Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
 the model compact metadata and an artifact reference while the UI owns the save affordance.
 
