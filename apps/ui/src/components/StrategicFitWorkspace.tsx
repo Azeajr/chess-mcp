@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import ProfileSetup, {
   STRATEGIC_FIT_PROFILE_LABELS,
 } from "./strategic-fit/ProfileSetup";
@@ -10,6 +10,7 @@ import StrategicOverview, {
 } from "./strategic-fit/StrategicOverview";
 import StrategicMap from "./strategic-fit/StrategicMap";
 import ConceptHeatmap from "./strategic-fit/ConceptHeatmap";
+import DecisionFlow from "./strategic-fit/DecisionFlow";
 import FindingQueue from "./strategic-fit/FindingQueue";
 import ReviewSummary from "./strategic-fit/ReviewSummary";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
@@ -34,6 +35,7 @@ import {
   strategicFitCohortDisplayName,
   synchronizeStrategicFitCohortAdjustment,
 } from "../store/strategic-fit-cohort-adjustments";
+import { buildRepertoireGraph } from "@chess-mcp/chess-tools";
 import { actions, color, currentTree, documentId, version } from "../store/game";
 import {
   openStrategicFitFindingQueue,
@@ -279,6 +281,31 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
     });
   };
+  /**
+   * The report retains route identities but not the decisions between them, so the flow needs the
+   * canonical graph of the working tree. It is built only while a completed report is displayed,
+   * and the flow itself rejects it whenever the revisions disagree.
+   */
+  const decisionFlowGraph = createMemo(() => {
+    if (!currentOverview()) return null;
+    try {
+      return buildRepertoireGraph(currentTree(), color());
+    } catch {
+      return null;
+    }
+  });
+  const openFlowFinding = (reportId: string, findingId: string) => {
+    openStrategicFitFindingQueue({
+      report_id: reportId,
+      source: "decision-flow",
+      label: "Findings for the selected flow step",
+      filter: { kind: "all" },
+    });
+    queueMicrotask(() => {
+      strategicFitFindingQueue.selectFinding(findingId);
+      dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
+    });
+  };
   const openHeatmapFinding = (reportId: string, findingId: string) => {
     openStrategicFitFindingQueue({
       report_id: reportId,
@@ -466,6 +493,14 @@ export default function StrategicFitWorkspace() {
                     completeFindings={report().findings_snapshot ?? report().result.findings}
                     mastery={strategicFitTrainingMastery()}
                     onOpenFinding={(findingId) => openHeatmapFinding(report().report_id, findingId)}
+                  />
+                  <DecisionFlow
+                    report={report().result}
+                    graph={decisionFlowGraph()}
+                    graphRevision={`browser:${version()}`}
+                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
+                    completeFindings={report().findings_snapshot ?? report().result.findings}
+                    onOpenFinding={(findingId) => openFlowFinding(report().report_id, findingId)}
                   />
                   <StrategicOverview
                     report={report().result}
