@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import {
   buildStrategicMapProjection,
   type StrategicFinding,
@@ -14,6 +14,7 @@ import {
   clusterStrategicMapEdges,
   clusterStrategicMapPoints,
 } from "./visualization-limits";
+import { VIRTUAL_TABLE_ROW_HEIGHT, createVirtualRows } from "./virtual-rows";
 
 export type StrategicMapReport = Pick<
   StrategicFitAnalysisResult,
@@ -211,6 +212,22 @@ export default function StrategicMap(props: {
     VISUALIZATION_RENDER_LIMITS.map_rows,
     listExpanded() || strategicFitPrintExportMode(),
   ));
+  /**
+   * Task 12.3 — the branch list keeps its Task 10.4 first window and its disclosure, and mounts that
+   * window through a bounded scrolling viewport. Print and export still render every row.
+   */
+  const listRows = createVirtualRows({
+    items: () => listWindow().items,
+    rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
+  /** A branch selected from the chart or a cluster is scrolled into the mounted window. */
+  createEffect(() => {
+    const routeId = selectedRouteId();
+    if (routeId === null || listRows.window().complete) return;
+    const index = listWindow().items.findIndex((view) => view.point.route_id === routeId);
+    if (index >= 0) listRows.scrollToIndex(index);
+  });
   const selected = createMemo(() => {
     const routeId = selectedRouteId();
     if (routeId === null) return null;
@@ -566,10 +583,17 @@ export default function StrategicMap(props: {
               </button>
             </p>
           </Show>
+          <div
+            class="strategic-fit-virtual-scroll"
+            data-virtualized={listRows.window().complete ? "false" : "true"}
+            ref={listRows.attach}
+          >
           <table
             data-map-list
             data-map-rows-shown={listWindow().shown}
             data-map-rows-total={listWindow().total}
+            data-map-rows-mounted={listRows.window().mounted}
+            aria-rowcount={listWindow().total}
           >
             <thead>
               <tr>
@@ -581,9 +605,15 @@ export default function StrategicMap(props: {
               </tr>
             </thead>
             <tbody>
-              <For each={listWindow().items}>{(view) => (
+              <Show when={listRows.window().lead > 0}>
+                <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                  <td colspan="5" style={{ height: `${listRows.window().lead}px` }} />
+                </tr>
+              </Show>
+              <For each={listRows.window().items}>{(view, index) => (
                 <tr
                   data-map-row={view.point.route_id}
+                  aria-rowindex={listRows.window().start + index() + 1}
                   data-selected={selected()?.point.route_id === view.point.route_id ? "true" : "false"}
                 >
                   <td>
@@ -601,8 +631,14 @@ export default function StrategicMap(props: {
                   <td>{view.point.x}, {view.point.y}</td>
                 </tr>
               )}</For>
+              <Show when={listRows.window().trail > 0}>
+                <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                  <td colspan="5" style={{ height: `${listRows.window().trail}px` }} />
+                </tr>
+              </Show>
             </tbody>
           </table>
+          </div>
         </details>
 
         <Show when={model().projection.exclusions.length > 0}>

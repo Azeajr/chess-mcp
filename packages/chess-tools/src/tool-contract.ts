@@ -228,7 +228,11 @@ const strategicFitPersonalHistory = object({
   year: integer(1900, 9999),
   month: integer(1, 12),
 }, ["username"]);
-const strategicFitPage = object({ offset: integer(0, 1_000_000), limit: integer(1, 50) });
+const strategicFitPage = object({
+  offset: integer(0, 1_000_000),
+  limit: integer(1, 50),
+  cursor: string("Opaque cursor from a previous page; mutually exclusive with offset.", 512),
+});
 const strategicFitCohortOverride = object({
   override_id: strategicFitId(),
   kind: { type: "string", enum: ["merge", "split", "exclude"] },
@@ -576,6 +580,11 @@ function strategicFitArgumentsError(value: Record<string, unknown>): string | nu
     if (Object.keys(assessment).every((key) => key === "route_id")) {
       return `route_assessments[${index}] must contain an assessment`;
     }
+  }
+
+  const page = value.page as Record<string, unknown> | undefined;
+  if (page?.cursor !== undefined && page.offset !== undefined) {
+    return "page.cursor and page.offset are mutually exclusive";
   }
   return null;
 }

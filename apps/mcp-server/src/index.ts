@@ -187,6 +187,7 @@ const strategicFitPersonalHistorySchema = z.object({
 const strategicFitPageSchema = z.object({
   offset: z.number().int().min(0).max(1_000_000).optional(),
   limit: z.number().int().min(1).max(50).optional(),
+  cursor: z.string().max(512).optional(),
 }).strict();
 const strategicFitCohortOverrideSchema = z.object({
   override_id: strategicFitIdSchema(),
@@ -1196,7 +1197,13 @@ server.tool(
       sort: args.sort,
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
-    return ok(projectStrategicFitLegacyResult(projection.report, { limit: args.limit }));
+    // Task 12.3: a large report is walked by cursor, so every page carries its own cursor and the
+    // successor cursor that continues the same report and sort order.
+    return ok({
+      ...projectStrategicFitLegacyResult(projection.report, { limit: args.limit }),
+      cursor: projection.cursor,
+      next_cursor: projection.next_cursor,
+    });
   },
 );
 

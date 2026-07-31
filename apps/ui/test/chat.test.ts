@@ -9,6 +9,7 @@ import {
   contractsForHost,
   jsonSchemaForTool,
   projectStrategicFitLegacyResult,
+  projectStrategicFitReport,
   strategicFitCompleteAnalysisOptions,
   strategicFitOptionsFromToolArguments,
   toolDefault,
@@ -317,17 +318,31 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
     { onProgress: (done, total, detail) => progress.push([done, total, detail]) },
     dependencies,
   );
-  const mcpEquivalent = projectStrategicFitLegacyResult(
-    analyzeStrategicFit(
+  const equivalentOptions = strategicFitOptionsFromToolArguments(args, {
+    repertoireColor: dependencies.currentColor(),
+    repertoireRevision: `browser:${version()}`,
+    openingTable: openings,
+  });
+  // Both hosts project one page of the cached complete report and return its cursors with it.
+  const equivalentPage = projectStrategicFitReport(
+    completeStrategicFitReport(analyzeStrategicFit(
       currentTree(),
-      strategicFitOptionsFromToolArguments(args, {
-        repertoireColor: dependencies.currentColor(),
-        repertoireRevision: `browser:${version()}`,
-        openingTable: openings,
-      }),
-    ),
-    { limit: args.limit },
+      strategicFitCompleteAnalysisOptions(equivalentOptions),
+    )),
+    {
+      kind: "page",
+      expected_repertoire_revision: `browser:${version()}`,
+      page: args.page,
+      sort: args.sort,
+    },
   );
+  assert.equal(equivalentPage.projection, "page");
+  if (equivalentPage.projection !== "page") return;
+  const mcpEquivalent = {
+    ...projectStrategicFitLegacyResult(equivalentPage.report, { limit: args.limit }),
+    cursor: equivalentPage.cursor,
+    next_cursor: equivalentPage.next_cursor,
+  };
 
   assert.deepEqual(browser, mcpEquivalent);
   assert.equal(mcpEquivalent.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);

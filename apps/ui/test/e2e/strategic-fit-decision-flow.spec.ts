@@ -65,7 +65,12 @@ test("the decision flow shows weighted player and opponent steps with an outline
   await expect(outline).toBeVisible();
   const outlineRows = outline.locator("[data-flow-outline-row]");
   const nodeCount = await flow.locator("[data-flow-node]").count();
-  await expect(outlineRows).toHaveCount(nodeCount);
+  // Task 12.3: the outline still lists every drawn step; the DOM mounts a bounded scrolling window.
+  await expect(outline).toHaveAttribute("data-flow-outline-total", String(nodeCount));
+  await expect(outline).toHaveAttribute("aria-rowcount", String(nodeCount));
+  const mountedOutlineRows = Number(await outline.getAttribute("data-flow-outline-mounted"));
+  expect(mountedOutlineRows).toBeLessThanOrEqual(60);
+  await expect(outlineRows).toHaveCount(Math.min(nodeCount, mountedOutlineRows));
   await expect(outline.locator("[data-flow-outline-actor='player']").first()).toContainText("You play");
   await expect(outline.locator("[data-flow-outline-actor='opponent']").first()).toContainText("Opponent plays");
 

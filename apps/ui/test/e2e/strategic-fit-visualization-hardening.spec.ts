@@ -96,7 +96,10 @@ test("a large fixture aggregates the map, bounds the branch list, and stays inte
   const listTable = map.locator("[data-map-list]");
   await expect(listTable).toHaveAttribute("data-map-rows-shown", "100");
   await expect(listTable).toHaveAttribute("data-map-rows-total", String(plotted));
-  await expect(map.locator("[data-map-list] tbody tr")).toHaveCount(100);
+  // Task 12.3: the window still holds 100 branches; only its mounted rows are bounded.
+  const mountedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
+  expect(mountedRows).toBeLessThanOrEqual(60);
+  await expect(map.locator("[data-map-list] tbody tr[data-map-row]")).toHaveCount(mountedRows);
 
   // Interaction still responds: a cluster opens its own branch list and a member selects.
   const cluster = map.locator("[data-map-cluster]").first();
@@ -110,6 +113,11 @@ test("a large fixture aggregates the map, bounds the branch list, and stays inte
 
   await map.locator("[data-map-show-all-rows]").click();
   await expect(listTable).toHaveAttribute("data-map-rows-shown", String(plotted));
+  // Every branch is now in the list, and the DOM still mounts only a scrolling window of it.
+  const expandedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
+  expect(expandedRows).toBeLessThanOrEqual(60);
+  await expect(map.locator("[data-map-list] tbody tr[data-map-row]")).toHaveCount(expandedRows);
+  await expect(listTable).toHaveAttribute("aria-rowcount", String(plotted));
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });

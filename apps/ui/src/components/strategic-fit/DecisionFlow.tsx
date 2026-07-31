@@ -18,6 +18,7 @@ import {
   mergeDecisionFlowLinks,
   splitDecisionFlowColumn,
 } from "./visualization-limits";
+import { VIRTUAL_TABLE_ROW_HEIGHT, createVirtualRows } from "./virtual-rows";
 
 export type DecisionFlowReport = Pick<
   StrategicFitAnalysisResult,
@@ -508,6 +509,12 @@ export default function DecisionFlow(props: {
     VISUALIZATION_RENDER_LIMITS.flow_rows,
     outlineExpanded() || strategicFitPrintExportMode(),
   ));
+  /** Task 12.3 — the outline mounts its Task 10.4 window through a bounded scrolling viewport. */
+  const outlineRows = createVirtualRows({
+    items: () => outlineWindow().items,
+    rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
   const chartScale = createMemo(() =>
     decisionFlowScale(containerWidth(), activeCohort()?.chart_width ?? 0)
   );
@@ -875,10 +882,17 @@ export default function DecisionFlow(props: {
                   </button>
                 </p>
               </Show>
+              <div
+                class="strategic-fit-virtual-scroll"
+                data-virtualized={outlineRows.window().complete ? "false" : "true"}
+                ref={outlineRows.attach}
+              >
               <table
                 data-flow-outline
                 data-flow-outline-shown={outlineWindow().shown}
                 data-flow-outline-total={outlineWindow().total}
+                data-flow-outline-mounted={outlineRows.window().mounted}
+                aria-rowcount={outlineWindow().total}
               >
                 <thead>
                   <tr>
@@ -891,9 +905,15 @@ export default function DecisionFlow(props: {
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={outlineWindow().items}>{(view) => (
+                  <Show when={outlineRows.window().lead > 0}>
+                    <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                      <td colspan="6" style={{ height: `${outlineRows.window().lead}px` }} />
+                    </tr>
+                  </Show>
+                  <For each={outlineRows.window().items}>{(view, index) => (
                     <tr
                       data-flow-outline-row={view.node.node_id}
+                      aria-rowindex={outlineRows.window().start + index() + 1}
                       data-selected={selectedId() === view.node.node_id ? "true" : "false"}
                     >
                       <td>{view.node.depth}</td>
@@ -927,8 +947,14 @@ export default function DecisionFlow(props: {
                       </td>
                     </tr>
                   )}</For>
+                  <Show when={outlineRows.window().trail > 0}>
+                    <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                      <td colspan="6" style={{ height: `${outlineRows.window().trail}px` }} />
+                    </tr>
+                  </Show>
                 </tbody>
               </table>
+              </div>
             </details>
 
             <Show when={model().projection.truncations.length > 0}>

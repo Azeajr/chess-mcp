@@ -422,7 +422,13 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       sort: toolArgs.sort,
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
-    return projectStrategicFitLegacyResult(projection.report, { limit: toolArgs.limit });
+    // Task 12.3: the page's own cursor and its successor travel with the page so a large report is
+    // walked by cursor rather than by recomputed offsets.
+    return {
+      ...projectStrategicFitLegacyResult(projection.report, { limit: toolArgs.limit }),
+      cursor: projection.cursor,
+      next_cursor: projection.next_cursor,
+    };
   },
   get_strategic_fit_report: (args, context) => {
     const reportId = args.report_id as string;

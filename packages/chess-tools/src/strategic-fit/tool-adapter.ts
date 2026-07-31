@@ -9,10 +9,10 @@ import type { ExplorerDb, ExplorerRatingBucket, ExplorerSpeed } from "../explore
 import type { OpeningTable } from "../openings.js";
 import type {
   AnalyzeStrategicFitOptions,
-  StrategicFitFindingPageInput,
   StrategicFitFindingSort,
   StrategicFitRouteAssessmentInput,
 } from "./analyze.js";
+import type { StrategicFitCursorPageInput } from "./report-projection.js";
 import type { StrategicCohortOverride } from "./cohorts.js";
 import type { StrategicExplicitModeTarget } from "./modes.js";
 import type {
@@ -100,7 +100,8 @@ export interface StrategicFitToolArguments {
   readonly popularity?: StrategicFitToolPopularityInput;
   /** Optional host-fetched PGNs mapped to semantic route frequency outside the analyzer. */
   readonly personal_history?: StrategicFitToolPersonalHistoryInput;
-  readonly page?: StrategicFitFindingPageInput;
+  /** Offset or cursor paging over the immutable report; the two are mutually exclusive. */
+  readonly page?: StrategicFitCursorPageInput;
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
   readonly explicit_targets?: readonly StrategicFitToolExplicitModeTargetInput[];

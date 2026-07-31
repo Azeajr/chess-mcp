@@ -10,9 +10,11 @@ import {
   type StrategicFitStagedChange,
 } from "../../store/strategic-fit-changes";
 import type { ReplacementLabChangeReviewSnapshot } from "../../store/strategic-fit-replacement";
+import { strategicFitPrintExportMode } from "../../store/ui";
 import type { CandidateComparisonRow } from "./CandidateTable";
 import BeforeAfterImpact from "./BeforeAfterImpact";
 import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
+import { VIRTUAL_TABLE_ROW_HEIGHT, createVirtualRows } from "./virtual-rows";
 
 const path = (value: readonly string[]) => value.join(" ") || "root";
 
@@ -27,13 +29,39 @@ function operationDiff(stage: StrategicFitStagedChange, operationId: string): Re
 function Paths(props: { label: string; paths: readonly (readonly string[])[] }) {
   const [expanded, setExpanded] = createSignal(false);
   const window = () => boundedWindow(props.paths, VISUALIZATION_RENDER_LIMITS.review_rows, expanded());
+  /** Task 12.3 — the window is mounted through a bounded scrolling viewport, expanded or not. */
+  const rows = createVirtualRows({
+    items: () => window().items,
+    rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
   return (
     <Show when={props.paths.length > 0}>
       <div>
         <strong>{props.label}</strong>
-        <ul data-review-paths-shown={window().shown} data-review-paths-total={window().total}>
-          <For each={window().items}>{(item) => <li><code>{path(item)}</code></li>}</For>
-        </ul>
+        <div
+          class="strategic-fit-virtual-scroll"
+          data-virtualized={rows.window().complete ? "false" : "true"}
+          ref={rows.attach}
+        >
+          <ul
+            data-review-paths-shown={window().shown}
+            data-review-paths-total={window().total}
+            data-review-paths-mounted={rows.window().mounted}
+            aria-label={`${props.label} (${window().total})`}
+            style={{
+              "padding-top": `${rows.window().lead}px`,
+              "padding-bottom": `${rows.window().trail}px`,
+            }}
+          >
+            <For each={rows.window().items}>{(item, index) => (
+              <li
+                aria-setsize={rows.window().total}
+                aria-posinset={rows.window().start + index() + 1}
+              ><code>{path(item)}</code></li>
+            )}</For>
+          </ul>
+        </div>
         <Show when={!window().complete}>
           <button type="button" onClick={() => setExpanded(true)} data-review-show-all-paths>
             Show all {window().total} paths

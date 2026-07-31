@@ -2884,6 +2884,47 @@ img,
   padding: 0;
   list-style: none;
 }
+/*
+ * Task 12.3 — one scrolling viewport for every virtualized Strategic Fit list. Row height is fixed
+ * here because the mounted window's geometry is computed from it; print and export bypass
+ * virtualization entirely, so a printed list keeps its natural, unclipped rows.
+ */
+.strategic-fit-virtual-scroll {
+  max-width: 100%;
+}
+.strategic-fit-virtual-scroll[data-virtualized="true"] {
+  overflow: auto;
+  max-height: 22rem;
+}
+.strategic-fit-virtual-scroll[data-virtualized="true"] table { table-layout: fixed; }
+.strategic-fit-virtual-scroll[data-virtualized="true"] tbody tr { height: 36px; }
+.strategic-fit-virtual-scroll[data-virtualized="true"] tbody tr:not(.strategic-fit-virtual-spacer) td,
+.strategic-fit-virtual-scroll[data-virtualized="true"] tbody tr:not(.strategic-fit-virtual-spacer) th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.strategic-fit-virtual-scroll[data-virtualized="true"] ul > li { height: 36px; }
+.strategic-fit-virtual-spacer td {
+  padding: 0;
+  border: 0;
+}
+.strategic-fit-queue-selection-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+  font-size: 0.82rem;
+}
+.strategic-fit-queue-selection-note p { margin: 0; }
+@media print {
+  .strategic-fit-virtual-scroll,
+  .strategic-fit-virtual-scroll[data-virtualized="true"] {
+    overflow: visible;
+    max-height: none;
+  }
+}
 .strategic-fit-finding-card {
   min-width: 0;
   padding: 0.7rem;

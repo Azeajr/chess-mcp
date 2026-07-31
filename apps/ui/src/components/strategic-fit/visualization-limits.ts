@@ -32,6 +32,16 @@ export const VISUALIZATION_RENDER_LIMITS = {
   pareto_points: 120,
   /** Rows in a Replacement Lab change-review list window. */
   review_rows: 60,
+  /**
+   * Task 12.3 — rows a virtualized list may mount at once. This is not a second capping rule: the
+   * caps above still decide what a first window *shows* and what it discloses as withheld, while
+   * this one decides only how many of an already-complete list are in the DOM at a time.
+   */
+  virtual_rows: 60,
+  /** Columns a virtualized grid may mount at once, so a wide grid bounds its cells too. */
+  virtual_columns: 24,
+  /** Rows a virtualized grid may mount at once; rows times columns bounds the mounted cells. */
+  virtual_grid_rows: 24,
 } as const;
 
 export interface BoundedWindow<T> {
@@ -66,6 +76,64 @@ export function boundedWindow<T>(
     total: items.length,
     withheld: items.length - shown.length,
     complete: false,
+  };
+}
+
+/** Rows kept mounted on each side of the scrolled viewport so scrolling does not flash blank rows. */
+export const VIRTUAL_WINDOW_OVERSCAN = 6;
+
+export interface VirtualWindow<T> {
+  readonly items: readonly T[];
+  /** Logical index of the first mounted item; the list itself is never reordered or filtered. */
+  readonly start: number;
+  readonly mounted: number;
+  readonly total: number;
+  /** Pixels of unmounted list before and after the mounted rows, so scroll geometry stays honest. */
+  readonly lead: number;
+  readonly trail: number;
+  /** True when every item is mounted, so a view can honestly call itself complete. */
+  readonly complete: boolean;
+}
+
+export interface VirtualWindowOptions {
+  readonly rowSize: number;
+  /** Measured viewport in the scrolling axis; `0` before measurement falls back to the mount cap. */
+  readonly viewportSize: number;
+  readonly scrollOffset: number;
+  readonly maximumMounted?: number;
+  readonly overscan?: number;
+}
+
+/**
+ * Task 12.3 — deterministic mounted window over a complete, already-ordered list.
+ *
+ * The complete list stays reachable by scrolling: nothing is dropped, filtered, or reordered, and
+ * the unmounted remainder is represented as exact leading and trailing space so the scrollbar
+ * describes the logical total rather than the mounted subset. The mounted count is bounded by
+ * `maximumMounted` regardless of how many items exist, which is what keeps a report with thousands
+ * of routes or concepts from producing thousands of DOM rows.
+ */
+export function virtualWindow<T>(
+  items: readonly T[],
+  options: VirtualWindowOptions,
+): VirtualWindow<T> {
+  const total = items.length;
+  const rowSize = Math.max(1, options.rowSize);
+  const maximumMounted = Math.max(1, Math.floor(options.maximumMounted ?? VISUALIZATION_RENDER_LIMITS.virtual_rows));
+  const overscan = Math.max(0, Math.floor(options.overscan ?? VIRTUAL_WINDOW_OVERSCAN));
+  const viewportSize = Math.max(0, options.viewportSize);
+  const visible = viewportSize > 0 ? Math.ceil(viewportSize / rowSize) + 1 : maximumMounted;
+  const mounted = Math.min(total, maximumMounted, visible + overscan * 2);
+  const first = Math.floor(Math.max(0, options.scrollOffset) / rowSize) - overscan;
+  const start = Math.min(Math.max(0, first), Math.max(0, total - mounted));
+  return {
+    items: mounted === total && start === 0 ? items : items.slice(start, start + mounted),
+    start,
+    mounted,
+    total,
+    lead: start * rowSize,
+    trail: Math.max(0, total - start - mounted) * rowSize,
+    complete: mounted === total,
   };
 }
 

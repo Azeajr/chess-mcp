@@ -45,7 +45,16 @@ export interface StrategicFitFindingQueueView {
   readonly opening_options: readonly string[];
   readonly page: StrategicFitFindingPage;
   readonly canonical_total_count: number;
+  /** Retained selection: it survives paging, sorting, and filtering rather than being dropped. */
   readonly selected_finding_id: string | null;
+  /** True when the selected finding is among the rows this page mounts. */
+  readonly selected_on_page: boolean;
+  /** Page offset that holds the selection in the current filtered order; `null` when filtered out. */
+  readonly selected_page_offset: number | null;
+  /** 1-based position of the selection in the filtered order, for a logical "finding N of M". */
+  readonly selected_position: number | null;
+  /** True when the selection is still in the report but excluded by the current queue filters. */
+  readonly selected_filtered_out: boolean;
 }
 
 export interface StrategicFitFindingQueueBoundary {
@@ -71,6 +80,8 @@ export interface StrategicFitFindingQueueState {
   setOpeningFilter(opening: string): void;
   setPageOffset(offset: number): void;
   selectFinding(findingId: string | null): void;
+  /** Move the page to the one that holds the retained selection; a no-op when it is filtered out. */
+  revealSelectedFinding(): void;
   dispose(): void;
 }
 
@@ -131,6 +142,16 @@ export function buildStrategicFitFindingQueueView(
       STRATEGIC_FIT_QUEUE_PAGE_SIZE;
   const offset = Math.min(Math.max(0, state.page_offset), lastOffset);
   const findings = sorted.slice(offset, offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE);
+  /**
+   * Task 12.3 — paging changes which findings are mounted, never which finding is selected. A
+   * selection that sits on another page keeps its identity and reports where to find it; one the
+   * current filters exclude is disclosed as excluded rather than silently discarded.
+   */
+  const selectedIndex = state.selected_finding_id === null
+    ? -1
+    : sorted.findIndex((finding) => finding.finding_id === state.selected_finding_id);
+  const selectedRetained = state.selected_finding_id !== null &&
+    state.findings.some((finding) => finding.finding_id === state.selected_finding_id);
   return {
     findings,
     filtered_findings: sorted,
@@ -144,10 +165,20 @@ export function buildStrategicFitFindingQueueView(
       has_more: offset + findings.length < sorted.length,
     },
     canonical_total_count: state.canonical_total_count,
-    selected_finding_id: findings.some((finding) => finding.finding_id === state.selected_finding_id)
-      ? state.selected_finding_id
-      : null,
+    selected_finding_id: selectedRetained ? state.selected_finding_id : null,
+    selected_on_page: selectedIndex >= offset && selectedIndex < offset + findings.length,
+    selected_page_offset: selectedIndex < 0
+      ? null
+      : Math.floor(selectedIndex / STRATEGIC_FIT_QUEUE_PAGE_SIZE) * STRATEGIC_FIT_QUEUE_PAGE_SIZE,
+    selected_position: selectedIndex < 0 ? null : selectedIndex + 1,
+    selected_filtered_out: selectedRetained && selectedIndex < 0,
   };
+}
+
+/** A canonical page carries the cursor that produced it and the cursor that continues it. */
+interface StrategicFitCursorPage {
+  readonly result: StrategicFitAnalysisResult;
+  readonly next_cursor: string | null;
 }
 
 function validPage(
@@ -156,13 +187,15 @@ function validPage(
   expectedRevision: string,
   expectedOffset: number,
   expectedTotal: number,
-): StrategicFitAnalysisResult {
+): StrategicFitCursorPage {
   if (typeof value !== "object" || value === null) {
     throw new Error("The finding page response was not a report.");
   }
   const candidate = value as Partial<StrategicFitAnalysisResult> & {
     error?: unknown;
     reason?: unknown;
+    cursor?: unknown;
+    next_cursor?: unknown;
   };
   if (typeof candidate.error === "string") {
     throw new Error(typeof candidate.reason === "string" ? candidate.reason : candidate.error);
@@ -184,7 +217,20 @@ function validPage(
   ) {
     throw new Error("The finding page did not match the current immutable report.");
   }
-  return candidate as StrategicFitAnalysisResult;
+  // A cursor that is missing where the report says more findings exist, or present where it says
+  // the walk is finished, is a paging identity this queue refuses to continue.
+  const nextCursor = candidate.next_cursor ?? null;
+  if (
+    typeof candidate.cursor !== "string" ||
+    candidate.cursor.length === 0 ||
+    page.has_more !== (typeof nextCursor === "string" && nextCursor.length > 0)
+  ) {
+    throw new Error("The finding page did not carry a usable cursor for the current report.");
+  }
+  return {
+    result: candidate as StrategicFitAnalysisResult,
+    next_cursor: page.has_more ? nextCursor as string : null,
+  };
 }
 
 function sameIntent(
@@ -212,13 +258,12 @@ export function createStrategicFitFindingQueueState(
   let activeController: AbortController | null = null;
   let loadSequence = 0;
 
-  const resetPageAndSelection = (patch: Partial<StrategicFitFindingQueueSnapshot>) => {
-    setState((previous) => ({
-      ...previous,
-      ...patch,
-      page_offset: 0,
-      selected_finding_id: null,
-    }));
+  /**
+   * A sort or filter change re-derives the page, not the selection: the selected finding keeps its
+   * identity and the view reports where it now sits, or that the new filters exclude it.
+   */
+  const resetPage = (patch: Partial<StrategicFitFindingQueueSnapshot>) => {
+    setState((previous) => ({ ...previous, ...patch, page_offset: 0 }));
   };
 
   const loadCompleteReport = async (
@@ -229,11 +274,16 @@ export function createStrategicFitFindingQueueState(
     const all: StrategicFinding[] = [];
     const seenIds = new Set<string>();
     let offset = 0;
+    // Task 12.3: the first request opens the canonical order and every later one continues it by
+    // the cursor the previous page returned, so a large report is never re-derived from offsets.
+    let cursor: string | null = null;
     try {
       while (offset < report.finding_page.total_count) {
         const value = await boundary.execute("analyze_repertoire_congruence", {
           sort: "finding-id",
-          page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
+          page: cursor === null
+            ? { offset: 0, limit: STRATEGIC_FIT_MAX_PAGE_SIZE }
+            : { cursor, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
         }, { signal: controller.signal });
         if (controller.signal.aborted || sequence !== loadSequence) return;
         const page = validPage(
@@ -243,14 +293,18 @@ export function createStrategicFitFindingQueueState(
           offset,
           report.finding_page.total_count,
         );
-        for (const finding of page.findings) {
+        for (const finding of page.result.findings) {
           if (seenIds.has(finding.finding_id)) {
             throw new Error("The finding page repeated an existing finding identity.");
           }
           seenIds.add(finding.finding_id);
           all.push(finding);
         }
-        offset += page.finding_page.returned_count;
+        offset += page.result.finding_page.returned_count;
+        cursor = page.next_cursor;
+        if (offset < report.finding_page.total_count && cursor === null) {
+          throw new Error("The finding pages ended before the report's own finding count.");
+        }
       }
       if (controller.signal.aborted || sequence !== loadSequence) return;
       setState((previous) => previous.report_id === report.report_id
@@ -293,7 +347,7 @@ export function createStrategicFitFindingQueueState(
     const previous = state();
     if (previous.report_id === report.report_id) {
       if (!sameIntent(previous.intent, appliedIntent)) {
-        resetPageAndSelection({
+        resetPage({
           intent: appliedIntent,
           priority_kind: "replacement",
           priority_filter: "all",
@@ -327,10 +381,10 @@ export function createStrategicFitFindingQueueState(
     snapshot: state,
     view: (resolutionState) => buildStrategicFitFindingQueueView(state(), resolutionState),
     synchronize,
-    setSort: (sort) => resetPageAndSelection({ sort }),
-    setPriorityKind: (priority_kind) => resetPageAndSelection({ priority_kind }),
-    setPriorityFilter: (priority_filter) => resetPageAndSelection({ priority_filter }),
-    setOpeningFilter: (opening_filter) => resetPageAndSelection({ opening_filter }),
+    setSort: (sort) => resetPage({ sort }),
+    setPriorityKind: (priority_kind) => resetPage({ priority_kind }),
+    setPriorityFilter: (priority_filter) => resetPage({ priority_filter }),
+    setOpeningFilter: (opening_filter) => resetPage({ opening_filter }),
     setPageOffset: (requestedOffset) => {
       const current = buildStrategicFitFindingQueueView(state());
       const lastOffset = current.page.total_count === 0
@@ -340,16 +394,26 @@ export function createStrategicFitFindingQueueState(
       setState((previous) => ({
         ...previous,
         page_offset: Math.min(Math.max(0, Math.floor(requestedOffset)), lastOffset),
-        selected_finding_id: null,
       }));
     },
-    selectFinding: (selected_finding_id) => setState((previous) => ({
-      ...previous,
-      selected_finding_id: selected_finding_id !== null &&
-        previous.findings.some((finding) => finding.finding_id === selected_finding_id)
-        ? selected_finding_id
-        : null,
-    })),
+    selectFinding: (selected_finding_id) => {
+      setState((previous) => ({
+        ...previous,
+        selected_finding_id: selected_finding_id !== null &&
+          previous.findings.some((finding) => finding.finding_id === selected_finding_id)
+          ? selected_finding_id
+          : null,
+      }));
+      // A selection made from another view — the map, the flow, the heatmap — lands on whatever
+      // page holds it, so the finding it names is reachable instead of merely remembered.
+      const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
+      if (selectedOffset !== null) setState((previous) => ({ ...previous, page_offset: selectedOffset }));
+    },
+    revealSelectedFinding: () => {
+      const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
+      if (selectedOffset === null) return;
+      setState((previous) => ({ ...previous, page_offset: selectedOffset }));
+    },
     dispose: () => {
       activeController?.abort();
       activeController = null;

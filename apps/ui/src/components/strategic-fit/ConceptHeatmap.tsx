@@ -12,6 +12,11 @@ import {
 } from "@chess-mcp/chess-tools";
 import { strategicFitPrintExportMode } from "../../store/ui";
 import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
+import {
+  VIRTUAL_TABLE_COLUMN_WIDTH,
+  VIRTUAL_TABLE_ROW_HEIGHT,
+  createVirtualRows,
+} from "./virtual-rows";
 
 export type ConceptHeatmapReport = Pick<
   StrategicFitAnalysisResult,
@@ -196,7 +201,32 @@ export default function ConceptHeatmap(props: {
   const rowWindow = createMemo(() =>
     boundedWindow(model().projection.rows, VISUALIZATION_RENDER_LIMITS.heatmap_rows, expanded())
   );
-  const sortedColumns = createMemo(() => columnWindow().items);
+  /**
+   * Task 12.3 — the grid keeps both Task 10.4 windows and their disclosure, and mounts them through
+   * one bounded scrolling viewport. Rows and columns are windowed separately, so mounted cells stay
+   * bounded by their product rather than by the concept or cohort count. Print and export render the
+   * complete grid, which is what a printed page needs and what its own scrollless layout allows.
+   */
+  const gridRows = createVirtualRows({
+    items: () => rowWindow().items,
+    rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
+    maximumMounted: VISUALIZATION_RENDER_LIMITS.virtual_grid_rows,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
+  const gridColumns = createVirtualRows({
+    items: () => columnWindow().items,
+    rowSize: VIRTUAL_TABLE_COLUMN_WIDTH,
+    axis: "horizontal",
+    maximumMounted: VISUALIZATION_RENDER_LIMITS.virtual_columns,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
+  const sortedColumns = createMemo(() => gridColumns.window().items);
+  const withheldColumns = createMemo(() => allColumns().slice(columnWindow().shown));
+  const withheldRows = createVirtualRows({
+    items: withheldColumns,
+    rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
+    enabled: () => !strategicFitPrintExportMode(),
+  });
   const selected = createMemo(() => {
     const key = selectedKey();
     if (key === null) return null;
@@ -282,21 +312,55 @@ export default function ConceptHeatmap(props: {
           </p>
           <details class="concept-heatmap-withheld" open={strategicFitPrintExportMode() || undefined}>
             <summary>Concepts not shown ({columnWindow().withheld})</summary>
-            <ul>
-              <For each={allColumns().slice(columnWindow().shown)}>{(view) => (
-                <li data-heatmap-withheld-concept={view.column.concept_id}>
-                  {view.column.label} — mastery {view.mastery_text}
-                </li>
-              )}</For>
-            </ul>
+            <div
+              class="strategic-fit-virtual-scroll"
+              data-virtualized={withheldRows.window().complete ? "false" : "true"}
+              ref={withheldRows.attach}
+            >
+              <ul
+                aria-label={`Concepts not shown (${withheldRows.window().total})`}
+                data-heatmap-withheld-mounted={withheldRows.window().mounted}
+                style={{
+                  "padding-top": `${withheldRows.window().lead}px`,
+                  "padding-bottom": `${withheldRows.window().trail}px`,
+                }}
+              >
+                <For each={withheldRows.window().items}>{(view, index) => (
+                  <li
+                    data-heatmap-withheld-concept={view.column.concept_id}
+                    aria-setsize={withheldRows.window().total}
+                    aria-posinset={withheldRows.window().start + index() + 1}
+                  >
+                    {view.column.label} — mastery {view.mastery_text}
+                  </li>
+                )}</For>
+              </ul>
+            </div>
           </details>
         </Show>
 
-        <div class="concept-heatmap-scroll" tabindex="0" role="group" aria-label="Concept heatmap table">
-          <table class="concept-heatmap-table" data-heatmap-table>
+        <div
+          class="concept-heatmap-scroll strategic-fit-virtual-scroll"
+          data-virtualized={gridRows.window().complete && gridColumns.window().complete ? "false" : "true"}
+          tabindex="0"
+          role="group"
+          aria-label="Concept heatmap table"
+          ref={(element) => { gridRows.attach(element); gridColumns.attach(element); }}
+        >
+          <table
+            class="concept-heatmap-table"
+            data-heatmap-table
+            data-heatmap-rows-mounted={gridRows.window().mounted}
+            data-heatmap-columns-mounted={gridColumns.window().mounted}
+            aria-rowcount={rowWindow().total}
+            aria-colcount={columnWindow().total}
+          >
             <thead>
               <tr>
                 <th scope="col">Cohort</th>
+                <Show when={gridColumns.window().lead > 0}>
+                  <th scope="col" aria-hidden="true" style={{ width: `${gridColumns.window().lead}px` }} />
+                </Show>
                 <For each={sortedColumns()}>{(view) => (
                   <th
                     scope="col"
@@ -315,17 +379,31 @@ export default function ConceptHeatmap(props: {
                     </span>
                   </th>
                 )}</For>
+                <Show when={gridColumns.window().trail > 0}>
+                  <th scope="col" aria-hidden="true" style={{ width: `${gridColumns.window().trail}px` }} />
+                </Show>
               </tr>
             </thead>
             <tbody>
-              <For each={rowWindow().items}>{(row) => (
-                <tr data-heatmap-row={row.cohort_id}>
+              <Show when={gridRows.window().lead > 0}>
+                <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                  <td style={{ height: `${gridRows.window().lead}px` }} />
+                </tr>
+              </Show>
+              <For each={gridRows.window().items}>{(row, rowIndex) => (
+                <tr
+                  data-heatmap-row={row.cohort_id}
+                  aria-rowindex={gridRows.window().start + rowIndex() + 1}
+                >
                   <th scope="row">
                     {model().cohort_names.get(row.cohort_id)}
                     <span class="concept-heatmap-route-count">
                       {row.route_count} {row.route_count === 1 ? "branch" : "branches"}
                     </span>
                   </th>
+                  <Show when={gridColumns.window().lead > 0}>
+                    <td aria-hidden="true" />
+                  </Show>
                   <For each={sortedColumns()}>{(columnView) => {
                     const key = conceptHeatmapCellKey(row.cohort_id, columnView.column.concept_id);
                     const cellView = () => model().cells.get(key);
@@ -361,8 +439,16 @@ export default function ConceptHeatmap(props: {
                       </td>
                     );
                   }}</For>
+                  <Show when={gridColumns.window().trail > 0}>
+                    <td aria-hidden="true" />
+                  </Show>
                 </tr>
               )}</For>
+              <Show when={gridRows.window().trail > 0}>
+                <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
+                  <td style={{ height: `${gridRows.window().trail}px` }} />
+                </tr>
+              </Show>
             </tbody>
           </table>
         </div>

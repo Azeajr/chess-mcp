@@ -347,7 +347,9 @@ function findingsProjection(
     kind: "page",
     expected_repertoire_revision: request.expected_repertoire_revision,
     expected_report_id: request.report_id,
-    ...(request.page === undefined ? {} : { page: request.page }),
+    // The conversation page is narrower than a workspace page, so the resolved conversation limit
+    // travels with the request; omitting it would silently widen a chat message to the report page.
+    page: { ...request.page, limit: requestedLimit },
     ...(request.sort === undefined ? {} : { sort: request.sort }),
   });
   if (projection.projection !== "page") {

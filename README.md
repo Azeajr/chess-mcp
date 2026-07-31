@@ -36,7 +36,8 @@ a no-scope Lichess personal token because the explorer requires authentication.
 - Advanced repertoire: transposition-aware Strategic Fit V2 reports with explicit profiles,
   profile-composed manual/population/personal weighting, empirically shrunk Lichess/Chess.com
   personal-history frequency, bounded custom feature-family weights, persisted browser source
-  filters with visible availability, browser-local training-adjusted metrics with source coverage, paging,
+  filters with visible availability, browser-local training-adjusted metrics with source coverage, stable
+  cursor paging over large reports,
   provenance, and a temporary legacy projection; bounded conversation retrieval of an existing
   report's summary, one finding page, or one finding with evidence and navigable paths; a staged
   browser intent interview that turns stated goals into proposed profile preferences shown as an

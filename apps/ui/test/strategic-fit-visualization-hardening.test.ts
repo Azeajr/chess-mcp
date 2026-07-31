@@ -9,6 +9,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import {
   DECISION_FLOW_MINIMUM_SCALE,
+  VIRTUAL_WINDOW_OVERSCAN,
   VISUALIZATION_RENDER_LIMITS,
   boundedWindow,
   clusterStrategicMapEdges,
@@ -16,6 +17,7 @@ import {
   decisionFlowScale,
   mergeDecisionFlowLinks,
   splitDecisionFlowColumn,
+  virtualWindow,
   type ClusterablePoint,
   type MergeableFlowLink,
 } from "../src/components/strategic-fit/visualization-limits.ts";
@@ -332,4 +334,80 @@ test("a report under every cap renders individually and claims no aggregation", 
     assert.equal(cohort.rendered_links.length, cohort.links.length);
     assert.ok(!cohort.screen_reader_summary.includes("grouped into"));
   }
+});
+
+test("a virtualized list mounts a bounded window of a complete list, however long it is", () => {
+  const items = Array.from({ length: 5_000 }, (_unused, index) => `row:${index}`);
+  const rowSize = 36;
+  const top = virtualWindow(items, { rowSize, viewportSize: 400, scrollOffset: 0 });
+  assert.equal(top.total, 5_000);
+  assert.ok(
+    top.mounted <= VISUALIZATION_RENDER_LIMITS.virtual_rows,
+    "a virtualized list never mounts more rows than the mount cap",
+  );
+  assert.equal(top.start, 0);
+  assert.equal(top.lead, 0);
+  assert.equal(top.trail, (5_000 - top.mounted) * rowSize);
+  assert.equal(top.complete, false);
+  assert.deepEqual([...top.items], items.slice(0, top.mounted));
+
+  // Scrolling moves the window without reordering, filtering, or losing a row.
+  const middle = virtualWindow(items, { rowSize, viewportSize: 400, scrollOffset: 100 * rowSize });
+  assert.equal(middle.start, 100 - VIRTUAL_WINDOW_OVERSCAN);
+  assert.equal(middle.mounted, top.mounted);
+  assert.equal(middle.lead, (100 - VIRTUAL_WINDOW_OVERSCAN) * rowSize);
+  assert.equal(middle.lead + middle.mounted * rowSize + middle.trail, 5_000 * rowSize);
+  assert.deepEqual(
+    [...middle.items],
+    items.slice(middle.start, middle.start + middle.mounted),
+  );
+
+  const end = virtualWindow(items, { rowSize, viewportSize: 400, scrollOffset: 5_000 * rowSize });
+  assert.equal(end.start, 5_000 - end.mounted);
+  assert.equal(end.trail, 0);
+  assert.equal(end.items.at(-1), "row:4999", "the last row stays reachable by scrolling");
+
+  // An unmeasured viewport still bounds the DOM rather than mounting the whole list.
+  const unmeasured = virtualWindow(items, { rowSize, viewportSize: 0, scrollOffset: 0 });
+  assert.equal(unmeasured.mounted, VISUALIZATION_RENDER_LIMITS.virtual_rows);
+
+  const grid = virtualWindow(items, {
+    rowSize,
+    viewportSize: 4_000,
+    scrollOffset: 0,
+    maximumMounted: VISUALIZATION_RENDER_LIMITS.virtual_grid_rows,
+  });
+  assert.equal(grid.mounted, VISUALIZATION_RENDER_LIMITS.virtual_grid_rows);
+});
+
+test("a list that fits is mounted whole, with no spacers and no borrowed geometry", () => {
+  const items = Array.from({ length: 12 }, (_unused, index) => index);
+  const window = virtualWindow(items, { rowSize: 36, viewportSize: 800, scrollOffset: 0 });
+  assert.equal(window.complete, true);
+  assert.equal(window.mounted, 12);
+  assert.equal(window.lead, 0);
+  assert.equal(window.trail, 0);
+  assert.equal(window.items, items);
+});
+
+test("mounted heatmap cells stay bounded by the row and column mount caps", () => {
+  const rows = Array.from({ length: 900 }, (_unused, index) => `cohort:${index}`);
+  const columns = Array.from({ length: 700 }, (_unused, index) => `concept:${index}`);
+  const mountedRows = virtualWindow(rows, {
+    rowSize: 36,
+    viewportSize: 0,
+    scrollOffset: 0,
+    maximumMounted: VISUALIZATION_RENDER_LIMITS.virtual_grid_rows,
+  });
+  const mountedColumns = virtualWindow(columns, {
+    rowSize: 132,
+    viewportSize: 0,
+    scrollOffset: 0,
+    maximumMounted: VISUALIZATION_RENDER_LIMITS.virtual_columns,
+  });
+  assert.equal(
+    mountedRows.mounted * mountedColumns.mounted,
+    VISUALIZATION_RENDER_LIMITS.virtual_grid_rows * VISUALIZATION_RENDER_LIMITS.virtual_columns,
+  );
+  assert.ok(mountedRows.mounted * mountedColumns.mounted < rows.length * columns.length / 100);
 });

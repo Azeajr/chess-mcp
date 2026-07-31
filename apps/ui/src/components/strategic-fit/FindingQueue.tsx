@@ -63,12 +63,6 @@ export default function FindingQueue(props: {
 
   const state = () => strategicFitFindingQueue.snapshot();
   const view = () => strategicFitFindingQueue.view(props.resolutionState);
-  createEffect(() => {
-    const selected = state().selected_finding_id;
-    if (selected !== null && view().selected_finding_id === null) {
-      strategicFitFindingQueue.selectFinding(null);
-    }
-  });
   const range = () => view().page.total_count === 0
     ? "0"
     : `${view().page.offset + 1}–${view().page.offset + view().page.returned_count}`;
@@ -89,6 +83,17 @@ export default function FindingQueue(props: {
   const selectedFindingLabel = () => state().findings.find((finding) =>
     finding.finding_id === state().selected_finding_id
   )?.plain_language_category ?? null;
+  /** The selection is announced with its logical position, not with the row index this page mounts. */
+  const selectedAnnouncement = () => {
+    const label = selectedFindingLabel();
+    if (label === null) return "No finding selected.";
+    if (view().selected_filtered_out) {
+      return `Selected finding: ${label}. It is still selected but the current queue filters exclude it.`;
+    }
+    const position = view().selected_position;
+    if (position === null) return `Selected finding: ${label}.`;
+    return `Selected finding: ${label}. Finding ${position} of ${view().page.total_count} matching findings.`;
+  };
 
   return (
     <section
@@ -203,15 +208,53 @@ export default function FindingQueue(props: {
           </Show>
         </div>
 
+        <Show when={view().selected_finding_id !== null && !view().selected_on_page}>
+          <div class="strategic-fit-queue-selection-note" role="status" data-queue-selection-note>
+            <Show
+              when={view().selected_filtered_out}
+              fallback={(
+                <>
+                  <p>
+                    The selected finding is finding {view().selected_position} of
+                    {" "}{view().page.total_count} and sits on another page. It stays selected.
+                  </p>
+                  <button
+                    type="button"
+                    data-queue-reveal-selected
+                    onClick={() => strategicFitFindingQueue.revealSelectedFinding()}
+                  >
+                    Go to the selected finding
+                  </button>
+                </>
+              )}
+            >
+              <p data-queue-selection-filtered-out>
+                The selected finding stays selected, but the current queue filters exclude it from
+                this list.
+              </p>
+              <button type="button" onClick={clearFilters}>Clear queue filters</button>
+            </Show>
+          </div>
+        </Show>
+
         <Show when={view().page.total_count > 0} fallback={(
           <div class="strategic-fit-queue-empty">
             <strong>No findings match this queue view</strong>
             <p>Adjust the overview focus, priority, or opening filter.</p>
           </div>
         )}>
-          <ol class="strategic-fit-finding-list" data-finding-list>
-            <For each={view().findings}>{(finding) => (
-              <li>
+          <ol
+            class="strategic-fit-finding-list"
+            data-finding-list
+            data-finding-rows-mounted={view().page.returned_count}
+            data-finding-rows-total={view().page.total_count}
+            aria-label={`Findings ${range()} of ${view().page.total_count} matching this queue view`}
+          >
+            <For each={view().findings}>{(finding, index) => (
+              <li
+                aria-setsize={view().page.total_count}
+                aria-posinset={view().page.offset + index() + 1}
+              >
                 <FindingCard
                   finding={finding}
                   resolutionState={props.resolutionState?.(finding)}
@@ -251,10 +294,8 @@ export default function FindingQueue(props: {
           >Next findings</button>
         </nav>
 
-        <p class="sr-only" aria-live="polite">
-          {selectedFindingLabel() === null
-            ? "No finding selected."
-            : `Selected finding: ${selectedFindingLabel()}.`}
+        <p class="sr-only" aria-live="polite" data-queue-selection-announcement>
+          {selectedAnnouncement()}
         </p>
       </Show>
     </section>
