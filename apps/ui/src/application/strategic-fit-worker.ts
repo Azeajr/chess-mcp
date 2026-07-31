@@ -5,6 +5,7 @@ import type {
   StrategicFitProgress,
 } from "@chess-mcp/chess-tools";
 
+/** The incremental index is worker-owned and not structured-cloneable, so it never crosses the port. */
 export type StrategicFitSerializableOptions = Omit<
   AnalyzeStrategicFitOptions,
   | "repertoireColor"
@@ -12,6 +13,7 @@ export type StrategicFitSerializableOptions = Omit<
   | "openingTable"
   | "generatedAt"
   | "runId"
+  | "index"
   | "shouldCancel"
   | "onProgress"
 >;

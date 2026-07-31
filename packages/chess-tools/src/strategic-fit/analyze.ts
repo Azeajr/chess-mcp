@@ -40,6 +40,13 @@ import {
   type RepertoireGraphRoute,
 } from "./graph.js";
 import {
+  indexedRepertoireGraph,
+  indexedStrategicTrajectories,
+  strategicFitIndexGeneration,
+  type StrategicFitIndexCache,
+  type StrategicFitRecomputationScope,
+} from "./index-cache.js";
+import {
   calculateStrategicFitOverview,
   type StrategicTrainingMetricEvidence,
 } from "./metrics.js";
@@ -138,7 +145,10 @@ export interface AnalyzeStrategicFitOptions {
   readonly repertoireRevision: string;
   readonly profile?: StrategicFitProfile;
   readonly openingTable?: OpeningTable | null;
-  readonly trajectory?: Omit<StrategicTrajectoryBuildOptions, "openingTable" | "checkpointSelection">;
+  readonly trajectory?: Omit<
+    StrategicTrajectoryBuildOptions,
+    "openingTable" | "checkpointSelection" | "signalIndex"
+  >;
   readonly weighting?: StrategicRouteWeightingOptions;
   readonly cohorts?: StrategicCohortFormationOptions;
   readonly modes?: StrategicModeDetectionOptions;
@@ -150,6 +160,17 @@ export interface AnalyzeStrategicFitOptions {
   readonly page?: StrategicFitFindingPageInput;
   readonly generatedAt?: string;
   readonly runId?: string;
+  /**
+   * Host-owned incremental index. It memoizes deterministic stages under a content identity, so
+   * supplying one changes cost only: report identity, findings, and provenance are unaffected and
+   * the index therefore never participates in report or cache identity.
+   */
+  readonly index?: StrategicFitIndexCache;
+  /**
+   * Affected-cohort scope from the host's semantic comparison. It bounds the work the index claims
+   * to reuse and is recorded as plan evidence; it can never substitute a value.
+   */
+  readonly recomputationScope?: StrategicFitRecomputationScope;
   readonly shouldCancel?: () => boolean;
   readonly onProgress?: (progress: StrategicFitProgress) => void;
 }
@@ -1077,6 +1098,13 @@ export function analyzeStrategicFit(
     analysisIdentity(options),
   ]);
 
+  const index = options.index;
+  const generation = index === undefined ? null : strategicFitIndexGeneration({
+    repertoire_color: options.repertoireColor,
+    trajectory: options.trajectory ?? null,
+    opening_table: openingTableIdentity(options.openingTable),
+  });
+
   const normalized = runPhase(options, runId, 0, () => {
     const preflight = preflightStrategicFit(tree, {
       repertoireColor: options.repertoireColor,
@@ -1085,11 +1113,24 @@ export function analyzeStrategicFit(
     if (preflight.state === "blocked" || options.repertoireColor === null) {
       return { preflight, graph: null } as const;
     }
-    const graph = buildRepertoireGraph(tree, options.repertoireColor);
+    const repertoireColor = options.repertoireColor;
+    const graph = indexedRepertoireGraph(
+      index,
+      generation,
+      tree.toPgn(),
+      () => buildRepertoireGraph(tree, repertoireColor),
+    );
     return { preflight: attachPreflightRouteIds(preflight, graph), graph } as const;
   });
   if (normalized.graph === null) return blockedResult(options, profile, normalized.preflight);
   const graph = normalized.graph;
+  if (index !== undefined && generation !== null) {
+    index.planRecomputation(
+      generation,
+      graph.routes.map((route) => route.route_id),
+      options.recomputationScope,
+    );
+  }
 
   const comparable = runPhase(options, runId, 1, () => {
     const taxonomy = buildOpeningTaxonomy(graph, options.openingTable);
@@ -1104,13 +1145,20 @@ export function analyzeStrategicFit(
           },
         };
     const weights = calculateStrategicRouteWeights(graph, weighting);
-    const trajectories = buildStrategicTrajectories(graph, {
-      ...options.trajectory,
-      openingTable: options.openingTable,
-    });
+    const trajectories = indexedStrategicTrajectories(index, generation, graph, () =>
+      buildStrategicTrajectories(graph, {
+        ...options.trajectory,
+        openingTable: options.openingTable,
+        ...(index === undefined || generation === null
+          ? {}
+          : { signalIndex: index.signalIndex(generation) }),
+      }));
     const cohorts = formStrategicCohorts(graph, taxonomy, trajectories, weights, options.cohorts);
     return { taxonomy, weights, trajectories, cohorts };
   });
+  if (index !== undefined && generation !== null) {
+    index.rememberAnalysis(generation, graph, comparable.cohorts.cohorts);
+  }
 
   const patterns = runPhase(options, runId, 2, () => {
     const concepts = buildStrategicConceptDictionary(comparable.trajectories);

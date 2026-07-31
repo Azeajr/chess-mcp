@@ -1,6 +1,7 @@
 import {
   GameTree,
   StrategicFitAnalysisCancelledError,
+  StrategicFitIndexCache,
   analyzeStrategicFit,
   type AnalyzeStrategicFitOptions,
 } from "@chess-mcp/chess-tools";
@@ -63,10 +64,12 @@ function analyzerOptions(
   request: StrategicFitWorkerAnalyzeRequest,
   shouldCancel: () => boolean,
   post: PostResponse,
+  index: StrategicFitIndexCache,
 ): AnalyzeStrategicFitOptions {
   const { payload, request_id: requestId } = request;
   return {
     ...payload.options,
+    index,
     repertoireColor: payload.repertoire_color,
     repertoireRevision: payload.metadata.repertoire_revision,
     openingTable: new Map(payload.opening_table_entries),
@@ -77,9 +80,17 @@ function analyzerOptions(
   };
 }
 
-/** Pure message dispatcher exported so the worker protocol can be exercised without browser globals. */
+/**
+ * Pure message dispatcher exported so the worker protocol can be exercised without browser globals.
+ *
+ * The handler owns one bounded incremental index for the lifetime of the worker. It only memoizes
+ * deterministic stages under a content identity, so a reused entry cannot change a result: a later
+ * analysis of the same document with different settings, or of an edited document, returns exactly
+ * what a cold worker would have produced.
+ */
 export function createStrategicFitWorkerHandler(post: PostResponse) {
   const cancelled = new Set<string>();
+  const index = new StrategicFitIndexCache();
 
   return (message: unknown): void => {
     if (!isObject(message) || typeof message.type !== "string" || typeof message.request_id !== "string") {
@@ -126,7 +137,7 @@ export function createStrategicFitWorkerHandler(post: PostResponse) {
       }
       const result = analyzeStrategicFit(
         tree,
-        analyzerOptions(request, () => cancelled.has(request.request_id), post),
+        analyzerOptions(request, () => cancelled.has(request.request_id), post, index),
       );
       if (!cancelled.has(request.request_id)) {
         post({ type: "result", request_id: request.request_id, result });

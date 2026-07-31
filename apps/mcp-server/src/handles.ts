@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import {
+  StrategicFitIndexCache,
   completeStrategicFitReport,
   strategicFitCompleteAnalysisOptions,
   strategicFitReportCacheKey,
@@ -21,6 +22,8 @@ const configuredStrategicFitReports = Number(process.env.MAX_STRATEGIC_FIT_REPOR
 const MAX_STRATEGIC_FIT_REPORTS = Number.isSafeInteger(configuredStrategicFitReports) && configuredStrategicFitReports > 0
   ? configuredStrategicFitReports
   : 4;
+/** Explicit per-handle bound on indexed graph/signal/trajectory entries; the LRU never exceeds it. */
+const STRATEGIC_FIT_INDEX_ENTRIES_PER_REPERTOIRE = 256;
 
 export interface RepertoireEntry {
   tree: GameTree;
@@ -30,6 +33,8 @@ export interface RepertoireEntry {
   /** Normalized immutable content protects against accidental revision-label reuse. */
   contentKey: string;
   strategicFitReports: Map<string, StrategicFitReport>;
+  /** Bounded incremental index shared by every analysis of this immutable handle. */
+  strategicFitIndex: StrategicFitIndexCache;
   ts: number;
 }
 
@@ -37,6 +42,7 @@ const map = new Map<string, RepertoireEntry>();
 
 function drop(key: string, entry: RepertoireEntry): void {
   entry.strategicFitReports.clear();
+  entry.strategicFitIndex.clear();
   map.delete(key);
 }
 
@@ -60,6 +66,9 @@ export function store(tree: GameTree, color: Color): string {
     revision: `mcp:${id}`,
     contentKey: tree.toPgn(),
     strategicFitReports: new Map(),
+    strategicFitIndex: new StrategicFitIndexCache({
+      maximumEntries: STRATEGIC_FIT_INDEX_ENTRIES_PER_REPERTOIRE,
+    }),
     ts: Date.now(),
   });
   evict(); // after insert: evict-before-insert capped at MAX+1 (size checked pre-add); the new
@@ -93,7 +102,12 @@ export function getOrCreateStrategicFitReport(
     return cached;
   }
 
-  const report = completeStrategicFitReport(analyze(strategicFitCompleteAnalysisOptions(options)));
+  // The index only memoizes deterministic stages under a content identity, so a settings-varied
+  // analysis of the same handle reuses work without changing the report it produces.
+  const report = completeStrategicFitReport(analyze({
+    ...strategicFitCompleteAnalysisOptions(options),
+    index: entry.strategicFitIndex,
+  }));
   entry.strategicFitReports.set(key, report);
   while (entry.strategicFitReports.size > MAX_STRATEGIC_FIT_REPORTS) {
     const oldest = entry.strategicFitReports.keys().next().value as string | undefined;

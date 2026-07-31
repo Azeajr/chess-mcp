@@ -17,6 +17,7 @@ import {
   type StrategicCheckpointSelectionOptions,
 } from "./checkpoints.js";
 import type { RepertoireGraph, RepertoireGraphRoute } from "./graph.js";
+import type { StrategicFitSignalIndex } from "./index-cache.js";
 import { extractPawnSignalsFromFen } from "./pawn-signals.js";
 import { extractRoutePositionSignals } from "./position-signals.js";
 import type {
@@ -38,6 +39,11 @@ import {
 export interface StrategicTrajectoryBuildOptions extends StrategicCheckpointSelectionOptions {
   /** A precomputed selection may be injected by the analyzer to avoid selecting twice. */
   readonly checkpointSelection?: StrategicCheckpointSelection;
+  /**
+   * Optional incremental index. It only memoizes deterministic per-route and per-position
+   * extraction, so a build with an index is identical to a build without one.
+   */
+  readonly signalIndex?: StrategicFitSignalIndex;
 }
 
 export interface StrategicTrajectoryReport {
@@ -199,6 +205,7 @@ function makeSnapshot(
   selected: MatchedStrategicCheckpoint,
   positionSignals: ReturnType<typeof extractRoutePositionSignals>,
   positions: ReadonlyMap<string, RepertoireGraph["positions"][number]>,
+  signalIndex: StrategicFitSignalIndex | undefined,
 ): RawSnapshot {
   const position = positions.get(selected.position_id);
   if (!position || route.position_ids[selected.checkpoint.ply] !== selected.position_id) {
@@ -212,7 +219,10 @@ function makeSnapshot(
       `strategic_fit_trajectory_missing_position_signals: ${route.route_id} at ply ${selected.checkpoint.ply}`,
     );
   }
-  const pawnReport = extractPawnSignalsFromFen(position.fen, route.repertoire_color);
+  const extractPawnReport = () => extractPawnSignalsFromFen(position.fen, route.repertoire_color);
+  const pawnReport = signalIndex === undefined
+    ? extractPawnReport()
+    : signalIndex.pawnSignals(position.fen, route.repertoire_color, extractPawnReport);
   const snapshotId = `snapshot:${stableHash([
     STRATEGIC_FIT_ANALYSIS_VERSION,
     route.route_id,
@@ -324,11 +334,15 @@ function buildTrajectory(
   route: RepertoireGraphRoute,
   routeSelection: StrategicCheckpointSelection["routes"][number],
   positions: ReadonlyMap<string, RepertoireGraph["positions"][number]>,
+  signalIndex: StrategicFitSignalIndex | undefined,
 ): StrategicTrajectory {
-  const positionSignals = extractRoutePositionSignals(graph, route);
+  const extractRouteSignals = () => extractRoutePositionSignals(graph, route);
+  const positionSignals = signalIndex === undefined
+    ? extractRouteSignals()
+    : signalIndex.routePositionSignals(route.route_id, extractRouteSignals);
   const rawSnapshots = routeSelection.milestones
     .filter((milestone): milestone is MatchedStrategicCheckpoint => milestone.state === "selected")
-    .map((selected) => makeSnapshot(graph, route, selected, positionSignals, positions))
+    .map((selected) => makeSnapshot(graph, route, selected, positionSignals, positions, signalIndex))
     .sort(compareRawSnapshots);
   const snapshots = applyPersistence(rawSnapshots);
   const missingCheckpoints = routeSelection.milestones
@@ -407,7 +421,7 @@ export function buildStrategicTrajectories(
   const trajectories = graph.routes.map((route) => {
     const routeSelection = selections.get(route.route_id);
     if (!routeSelection) throw new Error(`strategic_fit_trajectory_missing_route: ${route.route_id}`);
-    return buildTrajectory(graph, route, routeSelection, positions);
+    return buildTrajectory(graph, route, routeSelection, positions, options.signalIndex);
   });
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
