@@ -1,0 +1,442 @@
+import { For, Show, createMemo, createSignal } from "solid-js";
+import {
+  buildStrategicMapProjection,
+  type StrategicFinding,
+  type StrategicFitAnalysisResult,
+  type StrategicMapPoint,
+  type StrategicMapProjection,
+  type StrategicMapResolutionState,
+} from "@chess-mcp/chess-tools";
+
+export type StrategicMapReport = Pick<
+  StrategicFitAnalysisResult,
+  | "report_id"
+  | "repertoire_revision"
+  | "analysis_version"
+  | "profile"
+  | "trajectories"
+  | "cohorts"
+  | "findings"
+  | "provenance"
+>;
+
+export interface StrategicMapViewPoint {
+  readonly point: StrategicMapPoint;
+  readonly cx: number;
+  readonly cy: number;
+  readonly radius: number;
+  readonly opacity: number;
+  readonly label: string;
+  readonly cohort_name: string;
+  readonly aria_label: string;
+}
+
+export interface StrategicMapViewEdge {
+  readonly from_route_id: string;
+  readonly to_route_id: string;
+  readonly shared_position_count: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
+}
+
+export interface StrategicMapViewModel {
+  readonly projection: StrategicMapProjection;
+  readonly points: readonly StrategicMapViewPoint[];
+  readonly edges: readonly StrategicMapViewEdge[];
+  readonly screen_reader_summary: string;
+}
+
+const VIEW_MARGIN = 8;
+const VIEW_SPAN = 100 - VIEW_MARGIN * 2;
+/** Points never fade out entirely: low confidence dims, it does not hide. */
+const MINIMUM_OPACITY = 0.35;
+
+export const STRATEGIC_MAP_RESOLUTION_LABELS: Readonly<Record<StrategicMapResolutionState, string>> = {
+  "unresolved-finding": "Has an unresolved finding",
+  "resolved-finding": "Findings resolved",
+  "no-finding": "No findings",
+};
+
+function coordinate(value: number): number {
+  return Math.round((VIEW_MARGIN + value * VIEW_SPAN) * 100) / 100;
+}
+
+function shortRouteId(routeId: string): string {
+  const separator = routeId.indexOf(":");
+  const hash = separator === -1 ? routeId : routeId.slice(separator + 1);
+  return hash.slice(0, 8);
+}
+
+function pointLabel(point: StrategicMapPoint, findingsById: ReadonlyMap<string, StrategicFinding>): string {
+  for (const findingId of point.finding_ids) {
+    const summary = findingsById.get(findingId)?.affected_line_summary;
+    if (summary) return summary;
+  }
+  return `Branch ${shortRouteId(point.route_id)}`;
+}
+
+export function buildStrategicMapViewModel(
+  report: StrategicMapReport,
+  options: {
+    readonly cohortName?: (cohortId: string) => string;
+    readonly findings?: readonly StrategicFinding[];
+  } = {},
+): StrategicMapViewModel {
+  const projection = buildStrategicMapProjection(report, { findings: options.findings });
+  const cohortName = options.cohortName ?? ((cohortId: string) => cohortId);
+  const findingsById = new Map(
+    (options.findings ?? report.findings).map((finding) => [finding.finding_id, finding]),
+  );
+  const maxWeight = projection.points.reduce(
+    (maximum, point) => Math.max(maximum, point.normalized_weight),
+    0,
+  );
+  const points = projection.points.map((point) => {
+    const label = pointLabel(point, findingsById);
+    const name = cohortName(point.cohort_id);
+    const weightShare = maxWeight > 0 ? point.normalized_weight / maxWeight : 1;
+    return {
+      point,
+      cx: coordinate(point.x),
+      cy: coordinate(point.y),
+      radius: Math.round((1.4 + 3.6 * Math.sqrt(weightShare)) * 100) / 100,
+      opacity: Math.round((MINIMUM_OPACITY + (1 - MINIMUM_OPACITY) * point.confidence) * 100) / 100,
+      label,
+      cohort_name: name,
+      aria_label: `${label}. Cohort ${name}. ${STRATEGIC_MAP_RESOLUTION_LABELS[point.resolution]}.` +
+        ` Distance from first anchor ${point.x}; distance from second anchor ${point.y}.`,
+    };
+  });
+  const pointByRoute = new Map(points.map((view) => [view.point.route_id, view]));
+  const edges = projection.edges.flatMap((edge) => {
+    const from = pointByRoute.get(edge.from_route_id);
+    const to = pointByRoute.get(edge.to_route_id);
+    if (from === undefined || to === undefined) return [];
+    return [{
+      from_route_id: edge.from_route_id,
+      to_route_id: edge.to_route_id,
+      shared_position_count: edge.shared_position_ids.length,
+      x1: from.cx,
+      y1: from.cy,
+      x2: to.cx,
+      y2: to.cy,
+    }];
+  });
+  const unresolvedCount = points.filter((view) => view.point.resolution === "unresolved-finding").length;
+  const summaryParts = [
+    `Strategic map with ${points.length} plotted ${points.length === 1 ? "branch" : "branches"}`,
+    `${projection.edges.length} transposition ${projection.edges.length === 1 ? "link" : "links"}`,
+    `${unresolvedCount} with unresolved findings`,
+    `${projection.exclusions.length} excluded without comparable evidence or coordinates`,
+  ];
+  return {
+    projection,
+    points,
+    edges,
+    screen_reader_summary: projection.state === "unavailable"
+      ? `Strategic map unavailable. ${projection.reason ?? ""}`.trim()
+      : `${summaryParts.join(", ")}.${projection.reason ? ` ${projection.reason}` : ""}`,
+  };
+}
+
+export default function StrategicMap(props: {
+  report: StrategicMapReport;
+  cohortName: (cohortId: string) => string;
+  completeFindings?: readonly StrategicFinding[];
+  onOpenFinding: (findingId: string) => void;
+}) {
+  const [selectedRouteId, setSelectedRouteId] = createSignal<string | null>(null);
+  const [cohortFilter, setCohortFilter] = createSignal<string>("all");
+  const [resolutionFilter, setResolutionFilter] = createSignal<"all" | StrategicMapResolutionState>("all");
+  const [zoom, setZoom] = createSignal(1);
+
+  const model = createMemo(() => buildStrategicMapViewModel(props.report, {
+    cohortName: props.cohortName,
+    findings: props.completeFindings,
+  }));
+  const visiblePoints = createMemo(() => model().points.filter((view) =>
+    (cohortFilter() === "all" || view.point.cohort_id === cohortFilter()) &&
+    (resolutionFilter() === "all" || view.point.resolution === resolutionFilter())
+  ));
+  const visibleEdges = createMemo(() => {
+    const routeIds = new Set(visiblePoints().map((view) => view.point.route_id));
+    return model().edges.filter((edge) =>
+      routeIds.has(edge.from_route_id) && routeIds.has(edge.to_route_id)
+    );
+  });
+  const selected = createMemo(() => {
+    const routeId = selectedRouteId();
+    if (routeId === null) return null;
+    return visiblePoints().find((view) => view.point.route_id === routeId) ?? null;
+  });
+  const viewBox = createMemo(() => {
+    const size = 100 / zoom();
+    const origin = 50 - size / 2;
+    return `${origin} ${origin} ${size} ${size}`;
+  });
+  const selectPoint = (routeId: string) => {
+    setSelectedRouteId((current) => current === routeId ? null : routeId);
+  };
+
+  return (
+    <section
+      class="strategic-map"
+      aria-label="Strategic map"
+      data-map-state={model().projection.state}
+      data-map-projection-version={model().projection.projection_version}
+      data-map-report={model().projection.report_id}
+      data-map-point-count={model().points.length}
+      data-map-edge-count={model().edges.length}
+    >
+      <p class="sr-only" data-map-screen-reader-summary>{model().screen_reader_summary}</p>
+
+      <Show
+        when={model().projection.state !== "unavailable"}
+        fallback={(
+          <div class="strategic-map-unavailable" data-map-unavailable>
+            <strong>Strategic map unavailable</strong>
+            <p>{model().projection.reason}</p>
+            <Show when={model().projection.exclusions.length > 0}>
+              <details>
+                <summary>Why branches are excluded ({model().projection.exclusions.length})</summary>
+                <ul>
+                  <For each={model().projection.exclusions}>{(exclusion) => (
+                    <li data-map-exclusion={exclusion.route_id}>
+                      <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
+                    </li>
+                  )}</For>
+                </ul>
+              </details>
+            </Show>
+          </div>
+        )}
+      >
+        <div class="strategic-map-controls">
+          <label>
+            Cohort
+            <select
+              value={cohortFilter()}
+              onChange={(event) => {
+                setCohortFilter(event.currentTarget.value);
+                setSelectedRouteId(null);
+              }}
+              data-map-cohort-filter
+            >
+              <option value="all">All cohorts</option>
+              <For each={model().projection.color_groups}>{(group) => (
+                <option value={group.cohort_id}>
+                  {props.cohortName(group.cohort_id)} ({group.route_count})
+                </option>
+              )}</For>
+            </select>
+          </label>
+          <label>
+            Findings
+            <select
+              value={resolutionFilter()}
+              onChange={(event) => {
+                setResolutionFilter(event.currentTarget.value as "all" | StrategicMapResolutionState);
+                setSelectedRouteId(null);
+              }}
+              data-map-resolution-filter
+            >
+              <option value="all">All branches</option>
+              <option value="unresolved-finding">Unresolved findings</option>
+              <option value="resolved-finding">Resolved findings</option>
+              <option value="no-finding">No findings</option>
+            </select>
+          </label>
+          <label>
+            Zoom
+            <input
+              type="range"
+              min="1"
+              max="4"
+              step="0.5"
+              value={zoom()}
+              onInput={(event) => setZoom(Number(event.currentTarget.value))}
+              data-map-zoom
+              aria-valuetext={`${zoom()}x zoom`}
+            />
+          </label>
+        </div>
+
+        <Show when={model().projection.state === "single-axis"}>
+          <p class="strategic-map-note" data-map-single-axis>{model().projection.reason}</p>
+        </Show>
+
+        <svg
+          class="strategic-map-chart"
+          viewBox={viewBox()}
+          role="group"
+          aria-label={`Strategic map chart. ${visiblePoints().length} branches shown.`}
+          data-map-chart
+        >
+          <For each={visibleEdges()}>{(edge) => (
+            <line
+              class="strategic-map-edge"
+              x1={edge.x1}
+              y1={edge.y1}
+              x2={edge.x2}
+              y2={edge.y2}
+              data-map-edge={`${edge.from_route_id}|${edge.to_route_id}`}
+            >
+              <title>
+                Transposition: {edge.shared_position_count} shared {edge.shared_position_count === 1 ? "position" : "positions"}
+              </title>
+            </line>
+          )}</For>
+          <For each={visiblePoints()}>{(view) => (
+            <circle
+              classList={{
+                "strategic-map-point": true,
+                [`strategic-map-color-${view.point.color_index % 10}`]: true,
+                "strategic-map-point-selected": selected()?.point.route_id === view.point.route_id,
+              }}
+              cx={view.cx}
+              cy={view.cy}
+              r={view.radius}
+              opacity={view.opacity}
+              tabindex="0"
+              role="button"
+              aria-label={view.aria_label}
+              aria-pressed={selected()?.point.route_id === view.point.route_id}
+              data-map-point={view.point.route_id}
+              data-map-resolution={view.point.resolution}
+              data-map-anchor={view.point.is_anchor ?? "none"}
+              onClick={() => selectPoint(view.point.route_id)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                selectPoint(view.point.route_id);
+              }}
+            />
+          )}</For>
+        </svg>
+
+        <details class="strategic-map-axes">
+          <summary>How positions are calculated</summary>
+          <ul>
+            <Show when={model().projection.axes.x}>
+              {(axis) => <li data-map-axis="x">{axis().explanation}</li>}
+            </Show>
+            <Show when={model().projection.axes.y}>
+              {(axis) => <li data-map-axis="y">{axis().explanation}</li>}
+            </Show>
+            <For each={model().projection.axes.excluded_families}>{(family) => (
+              <li data-map-excluded-family={family.family}>
+                <strong>{family.family}</strong>: {family.reason}
+              </li>
+            )}</For>
+          </ul>
+        </details>
+
+        <Show when={selected()}>
+          {(view) => (
+            <div class="strategic-map-detail" data-map-detail={view().point.route_id}>
+              <h3>{view().label}</h3>
+              <dl>
+                <div>
+                  <dt>Cohort</dt>
+                  <dd>{view().cohort_name}</dd>
+                </div>
+                <div>
+                  <dt>Expected weight</dt>
+                  <dd>{view().point.normalized_weight}</dd>
+                </div>
+                <div>
+                  <dt>Evidence confidence</dt>
+                  <dd>{view().point.confidence}</dd>
+                </div>
+                <div>
+                  <dt>Findings</dt>
+                  <dd>{STRATEGIC_MAP_RESOLUTION_LABELS[view().point.resolution]}</dd>
+                </div>
+              </dl>
+              <Show when={view().point.finding_ids.length > 0}>
+                <div class="strategic-map-detail-findings">
+                  <For each={view().point.finding_ids}>{(findingId) => (
+                    <button
+                      type="button"
+                      onClick={() => props.onOpenFinding(findingId)}
+                      data-map-open-finding={findingId}
+                    >
+                      Open finding {findingId.slice(-8)}
+                    </button>
+                  )}</For>
+                </div>
+              </Show>
+              <h4>Why this branch sits here</h4>
+              <For each={view().point.axis_breakdowns}>{(breakdown) => (
+                <div data-map-breakdown={breakdown.axis}>
+                  <p>
+                    {breakdown.axis === "x" ? "Horizontal" : "Vertical"} distance {breakdown.distance}
+                  </p>
+                  <ul>
+                    <For each={breakdown.top_feature_contributions}>{(feature) => (
+                      <li data-map-feature={feature.feature_id}>
+                        {feature.feature_id} ({feature.family}): contributes {feature.contribution}
+                      </li>
+                    )}</For>
+                  </ul>
+                </div>
+              )}</For>
+            </div>
+          )}
+        </Show>
+
+        <details class="strategic-map-list" open>
+          <summary>Branch list ({visiblePoints().length})</summary>
+          <table data-map-list>
+            <thead>
+              <tr>
+                <th scope="col">Branch</th>
+                <th scope="col">Cohort</th>
+                <th scope="col">Weight</th>
+                <th scope="col">Findings</th>
+                <th scope="col">Position</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={visiblePoints()}>{(view) => (
+                <tr
+                  data-map-row={view.point.route_id}
+                  data-selected={selected()?.point.route_id === view.point.route_id ? "true" : "false"}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => selectPoint(view.point.route_id)}
+                      aria-pressed={selected()?.point.route_id === view.point.route_id}
+                    >
+                      {view.label}
+                    </button>
+                  </td>
+                  <td>{view.cohort_name}</td>
+                  <td>{view.point.normalized_weight}</td>
+                  <td>{STRATEGIC_MAP_RESOLUTION_LABELS[view.point.resolution]}</td>
+                  <td>{view.point.x}, {view.point.y}</td>
+                </tr>
+              )}</For>
+            </tbody>
+          </table>
+        </details>
+
+        <Show when={model().projection.exclusions.length > 0}>
+          <details class="strategic-map-exclusions">
+            <summary>Branches without a map position ({model().projection.exclusions.length})</summary>
+            <ul>
+              <For each={model().projection.exclusions}>{(exclusion) => (
+                <li data-map-exclusion={exclusion.route_id}>
+                  <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
+                </li>
+              )}</For>
+            </ul>
+          </details>
+        </Show>
+      </Show>
+    </section>
+  );
+}

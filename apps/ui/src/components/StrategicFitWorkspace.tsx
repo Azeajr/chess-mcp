@@ -8,6 +8,7 @@ import AnalysisLifecycle, {
 import StrategicOverview, {
   type StrategicOverviewItemId,
 } from "./strategic-fit/StrategicOverview";
+import StrategicMap from "./strategic-fit/StrategicMap";
 import FindingQueue from "./strategic-fit/FindingQueue";
 import ReviewSummary from "./strategic-fit/ReviewSummary";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
@@ -264,6 +265,18 @@ export default function StrategicFitWorkspace() {
     });
     queueMicrotask(() => dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus());
   };
+  const openMapFinding = (reportId: string, findingId: string) => {
+    openStrategicFitFindingQueue({
+      report_id: reportId,
+      source: "strategic-map",
+      label: "Findings for the selected map branch",
+      filter: { kind: "all" },
+    });
+    queueMicrotask(() => {
+      strategicFitFindingQueue.selectFinding(findingId);
+      dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
+    });
+  };
   const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
     .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
   const selectStageFromKeyboard = (
@@ -426,11 +439,19 @@ export default function StrategicFitWorkspace() {
               fallback={<RegionState region="overview" state={strategicFitWorkspaceRegions().overview} />}
             >
               {(report) => (
-                <StrategicOverview
-                  report={report().result}
-                  unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(report().result)}
-                  onReview={reviewOverviewItem}
-                />
+                <>
+                  <StrategicMap
+                    report={report().result}
+                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
+                    completeFindings={report().findings_snapshot ?? report().result.findings}
+                    onOpenFinding={(findingId) => openMapFinding(report().report_id, findingId)}
+                  />
+                  <StrategicOverview
+                    report={report().result}
+                    unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(report().result)}
+                    onReview={reviewOverviewItem}
+                  />
+                </>
               )}
             </Show>
             <IntentSuggestions />
