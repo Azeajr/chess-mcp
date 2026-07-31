@@ -67,6 +67,10 @@ import {
   strategicFitWorkspaceStage,
 } from "./store/ui";
 import { replacementLab } from "./store/strategic-fit-replacement";
+import {
+  strategicFitResolutionProof,
+  strategicFitResolutionProofSnapshot,
+} from "./store/strategic-fit-resolution-proof";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -147,5 +151,7 @@ if (import.meta.env.DEV) {
     setStrategicFitWorkspaceRegionState,
     setReplacementLabResultForTesting: replacementLab.setResultForTesting,
     setReplacementLabReviewForTesting: replacementLab.setReviewForTesting,
+    setResolutionProofForTesting: strategicFitResolutionProof.setForTesting,
+    strategicFitResolutionProofSnapshot,
   };
 }

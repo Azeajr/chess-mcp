@@ -17,6 +17,8 @@ type ChessHarness = {
   setColor(color: "white" | "black"): void;
   setReplacementLabResultForTesting(result: any): void;
   setReplacementLabReviewForTesting(review: any): void;
+  setResolutionProofForTesting(snapshot: any): void;
+  documentId(): string;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   upsertStrategicFitResolution(input: any): unknown;
@@ -390,6 +392,44 @@ function replacementChangeReviewFixture(color: "white" | "black" = "white") {
     navigation_san_path: ["e4", "e5", "Nf3"], created_at: "2026-07-29T12:00:00.000Z", accepted_revision: null, error_code: null,
   };
   return { candidate_id: "candidate:e2e:tradeoff", action: "replace", status: "ready", evidence: { action: "replace", safety: stage.safety, item: { candidate_id: "candidate:e2e:tradeoff", status: "previewed", stage: { ok: true, stage } } }, stage, error: null };
+}
+
+function resolutionProofFixture(
+  documentId: string,
+  acceptedRevision: number,
+  color: "white" | "black" = "white",
+) {
+  return {
+    status: "awaiting-rescan",
+    phase: "acceptance",
+    tracked: {
+      stage_id: "stage:e2e:change-review",
+      document_id: documentId,
+      base_revision: acceptedRevision - 1,
+      accepted_revision: acceptedRevision,
+      action_summary: { archive: "archive", prune: "prune" },
+      candidate_id: "candidate:e2e:tradeoff",
+      finding_id: "finding:01",
+      semantic_finding_id: "semantic:finding:01",
+      report_id: "report:fixture",
+      repertoire_color: color,
+      accepted_at: "2026-07-30T12:00:00.000Z",
+    },
+    outcome: null,
+    new_findings: [],
+    reanalysis: null,
+    claims: null,
+    undo_record: {
+      undo_id: "undo:e2e:proof",
+      stage_id: "stage:e2e:change-review",
+      document_id: documentId,
+      status: "available",
+      base_revision: acceptedRevision - 1,
+      accepted_revision: acceptedRevision,
+    },
+    superseded_reason: null,
+    error: null,
+  };
 }
 
 async function downloadText(download: Download): Promise<string> {
@@ -2130,4 +2170,64 @@ test("staged change review is revision-bound, accessible, responsive, and non-mu
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => ({ version: api.version(), dirty: api.dirty(), preview: JSON.stringify(api.preview()) }))).toEqual(stateBefore);
+});
+
+test("resolution proof stays claimless before rescan, binds post-commit report evidence, and blocks stale undo without mutation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
+  const { dialog, before, pathBefore } = await bootstrap(page, "black", true);
+  const queue = dialog.locator("#strategic-fit-pane-findings").getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog.locator("[data-resolution-finding-id='finding:01']").getByRole("button", { name: "Open Replacement Lab" }).click();
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture("black"));
+  await lab.getByRole("table", { name: /Candidate comparison/ }).locator("tbody th button").first().click();
+  const acceptedReview = replacementChangeReviewFixture("black");
+  await chess(page, (api, review) => api.setReplacementLabReviewForTesting({
+    ...review,
+    status: "accepted",
+    stage: { ...review.stage, status: "accepted", result_status: "accepted", accepted_revision: api.version() },
+  }), acceptedReview);
+  const documentId = await chess(page, (api) => api.documentId()) as string;
+  const version = await chess(page, (api) => api.version()) as number;
+
+  const proof = lab.locator(".replacement-resolution-proof");
+  await chess(page, (api, fixture) => api.setResolutionProofForTesting(fixture), resolutionProofFixture(documentId, version + 1, "black"));
+  await expect(proof).toBeVisible();
+  await expect(proof.getByRole("heading", { name: "Rescan and resolution proof" })).toBeVisible();
+  await expect(proof).toHaveAttribute("data-proof-status", "superseded");
+  await expect(proof).toContainText("No success or resolution claim is made before a completed rescan");
+  await expect(proof).toContainText(`Another edit moved the document to revision ${version}`);
+
+  await chess(page, (api, fixture) => api.setResolutionProofForTesting(fixture), resolutionProofFixture(documentId, version, "black"));
+  await expect(proof).toHaveAttribute("data-proof-status", "proven");
+  await expect(proof.locator(".replacement-proof-outcome")).toHaveAttribute("data-proof-outcome", "still-open");
+  await expect(proof).toContainText("Still open.");
+  await expect(proof).toContainText("it remains unresolved");
+  const claims = proof.getByRole("table", { name: "Post-commit report metric claims" });
+  await expect(claims).toBeVisible();
+  await expect(proof).toContainText("Every value comes from complete reports, not from staged predictions");
+  await expect(proof).toContainText(`report:findings:browser:${version}`);
+  await expect(claims).toContainText("unavailable: no pre-change report was retained");
+  await expect(claims).toContainText("70.0%");
+  await expect(proof).toContainText("Black repertoire POV");
+  await expect(proof).toContainText("White POV");
+
+  expect(await proof.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
+    const style = getComputedStyle(child);
+    return style.animationDuration === "0s" && style.transitionDuration === "0s";
+  }))).toBe(true);
+  expect(await contrastViolations(proof)).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await proof.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await touchTargetViolations(proof)).toEqual([]);
+
+  const undoButton = proof.getByRole("button", { name: "Undo this accepted change" });
+  await expect(undoButton).toBeEnabled();
+  await undoButton.click();
+  await expect(proof).toHaveAttribute("data-proof-status", "undo-blocked");
+  await expect(proof).toContainText("undo-unavailable");
+  await expect(proof).toContainText("Undo was rejected without mutation");
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+  expect(await chess(page, (api) => api.version())).toBe(version);
 });

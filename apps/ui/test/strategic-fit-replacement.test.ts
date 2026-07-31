@@ -277,6 +277,9 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
     readonly pending: ReturnType<typeof deferred<StrategicFitChangeOperationResult>>;
   }> = [];
   const discarded: string[] = [];
+  const acceptedHooks: StrategicFitStagedChange[] = [];
+  let closedHooks = 0;
+  let closeBlocked = false;
   const boundary: ReplacementLabStateBoundary = {
     dependencies: { ...defaultBrowserCommandDependencies, analysisDepth: () => 20 },
     currentSnapshot: () => ({ ...snapshot }),
@@ -315,6 +318,9 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
       discarded.push(stageId);
       return { ok: false, error: "not-staged", stage: null };
     },
+    onReviewAccepted: (stage) => { acceptedHooks.push(stage); },
+    onLabClosed: () => { closedHooks++; },
+    labCloseBlocked: () => closeBlocked,
   };
   const state = createReplacementLabState(boundary);
   return {
@@ -324,6 +330,9 @@ function stateFixture(selection: ReplacementPivotSelectionResult = pivot()) {
     reviewCalls,
     acceptCalls,
     discarded,
+    acceptedHooks,
+    closedHooks: () => closedHooks,
+    setCloseBlocked: (value: boolean) => { closeBlocked = value; },
     patchSnapshot: (patch: Partial<StrategicFitRequestSnapshot>) => {
       snapshot = { ...snapshot, ...patch };
     },
@@ -573,6 +582,49 @@ test("acceptance permits one in-flight atomic call and ignores late completion a
   assert.equal(await accepting, false);
   assert.equal(late.subject.state.snapshot().status, "closed");
   assert.equal(late.subject.state.snapshot().review, null);
+});
+
+test("successful acceptance notifies proof tracking once and close is blocked only while its undo is in flight", async () => {
+  const readySubject = async () => {
+    const subject = stateFixture();
+    subject.state.open(subject.completed, subject.currentFinding);
+    subject.state.confirmPivot();
+    const generation = subject.state.generate();
+    subject.calls[0]!.pending.resolve(generationResult());
+    assert.equal(await generation, true);
+    const staging = subject.state.stageReview("candidate:usable-local");
+    const stage = reviewStage();
+    subject.reviewCalls[0]!.pending.resolve(reviewEvidence(stage));
+    assert.equal(await staging, true);
+    return { subject, stage };
+  };
+
+  const rejected = await readySubject();
+  const failing = rejected.subject.state.acceptReview(reviewConfirmation(rejected.stage.stage_id));
+  rejected.subject.acceptCalls[0]!.pending.resolve({ ok: false, error: "publish-failed", stage: rejected.stage });
+  assert.equal(await failing, false);
+  assert.deepEqual(rejected.subject.acceptedHooks, [], "rejected acceptance must not start proof tracking");
+
+  const { subject, stage } = await readySubject();
+  const accepting = subject.state.acceptReview(reviewConfirmation(stage.stage_id));
+  const acceptedStage = { ...stage, status: "accepted", result_status: "accepted", accepted_revision: 8 } as StrategicFitStagedChange;
+  subject.acceptCalls[0]!.pending.resolve({ ok: true, stage: acceptedStage });
+  assert.equal(await accepting, true);
+  assert.equal(subject.acceptedHooks.length, 1, "successful acceptance must notify proof tracking exactly once");
+  assert.equal(subject.acceptedHooks[0]!.status, "accepted");
+  assert.equal(subject.acceptedHooks[0]!.accepted_revision, 8);
+
+  subject.setCloseBlocked(true);
+  assert.equal(subject.state.close(), false, "close must not discard an in-flight post-acceptance undo");
+  assert.equal(subject.state.snapshot().open, true);
+  assert.equal(subject.closedHooks(), 0);
+  assert.equal(subject.state.open(subject.completed, subject.currentFinding), false,
+    "reopening must not swap the lab out from under an in-flight undo");
+  assert.equal(subject.state.snapshot().review?.status, "accepted");
+  subject.setCloseBlocked(false);
+  assert.equal(subject.state.close(), true);
+  assert.equal(subject.state.snapshot().open, false);
+  assert.equal(subject.closedHooks(), 1, "close must clear proof tracking through the boundary hook");
 });
 
 function realPipelineFixture() {

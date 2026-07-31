@@ -122,8 +122,19 @@ provenance source. Add-and-validate remains the default. Optional pruning reruns
 coverage or gap safety fails. Preview and reject are non-mutating. Final acceptance requires an
 explicit confirmation bound to the exact current document revision and immutable safety/change-set/
 preview/archive/provenance identities, then delegates to the existing one-revision atomic browser
-mutation registry path. Acceptance does not rescan or claim resolution. Task 9.4 proof, post-apply
-report reconciliation, and undo UI remain absent.
+mutation registry path. After acceptance, a post-acceptance verification panel tracks the automatic
+affected-cohort rescan and makes no success or resolution claim until a completed report binds to
+the exact accepted document revision. It then proves the outcome from that post-commit report and
+the canonical reconciliation summary: resolved with the resolving revision, still open with the
+current explanation and changed-evidence flag, plus any new findings the change created. Coverage
+and metric claims quote only complete before/after reports (never staged predictions), keep
+unavailable values explicit, and preserve repertoire-POV versus White-POV labeling. A race with
+another edit supersedes the proof instead of claiming success; failed or cancelled rescans stay
+claimless. The panel offers undo through the exact persisted undo record and the same atomic
+controller: a blocked or stale undo surfaces its structured error without mutating, and a
+successful undo is verified only after the next rescan shows the restored report. Closing the lab
+is refused only while an undo is in flight; proof state is session-only, so a reload starts
+claimless while the committed change and its undo record persist.
 
 The public V2 command branch remains a retained-evidence preview bridge: it accepts a complete
 immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not regenerate evidence

@@ -12,6 +12,8 @@ import CandidateTable, {
 } from "./CandidateTable";
 import ChangeSetPreview from "./ChangeSetPreview";
 import ReplacementPareto from "./ReplacementPareto";
+import ResolutionProof from "./ResolutionProof";
+import { strategicFitResolutionProofSnapshot } from "../../store/strategic-fit-resolution-proof";
 
 const SOURCE_LABELS: Readonly<Record<ReplacementCandidateSourceKind, string>> = {
   "existing-repertoire-transposition": "Existing preparation",
@@ -205,7 +207,12 @@ export default function ReplacementLab() {
           </div>
           <div>
             <strong aria-live="polite">{STATUS_LABELS[state().status]}</strong>
-            <button ref={closeButton} type="button" onClick={() => replacementLab.close()}>
+            <button
+              ref={closeButton}
+              type="button"
+              disabled={strategicFitResolutionProofSnapshot().status === "undoing"}
+              onClick={() => replacementLab.close()}
+            >
               Close lab
             </button>
           </div>
@@ -420,6 +427,9 @@ export default function ReplacementLab() {
                         onAccept={(confirmation) => void replacementLab.acceptReview(confirmation)}
                         onReject={() => void replacementLab.rejectReview()}
                       />
+                      <Show when={state().review?.status === "accepted"}>
+                        <ResolutionProof />
+                      </Show>
                     </>
                   )}
                 </Show>

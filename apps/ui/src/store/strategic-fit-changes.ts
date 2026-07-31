@@ -192,6 +192,15 @@ export function strategicFitChangeConfirmationMatches(
   return stableJson(strategicFitChangeConfirmation(stage)) === stableJson(confirmation);
 }
 
+export interface StrategicFitUndoRecordSummary {
+  readonly undo_id: string;
+  readonly stage_id: string;
+  readonly document_id: string;
+  readonly status: StrategicFitUndoStatus;
+  readonly base_revision: number;
+  readonly accepted_revision: number;
+}
+
 export interface StrategicFitChangeStorageCommit {
   readonly state: StrategicFitPersistedChangeState;
   readonly working: SavedWorkingRepertoire;
@@ -438,6 +447,19 @@ export function createStrategicFitChangeController(dependencies: StrategicFitCha
       try { state = await stateFor(dependencies.current().document_id); } catch { return null; }
       const archive = state.archives.find((entry) => entry.payload.archive_id === archiveId);
       return archive ? clone(archive.payload) : null;
+    },
+    async undoRecordForStage(stageId: string): Promise<StrategicFitUndoRecordSummary | null> {
+      let state: StrategicFitPersistedChangeState;
+      try { state = await stateFor(dependencies.current().document_id); } catch { return null; }
+      const record = [...state.undo].reverse().find((entry) => entry.stage_id === stageId);
+      return record === undefined ? null : {
+        undo_id: record.undo_id,
+        stage_id: record.stage_id,
+        document_id: record.document_id,
+        status: record.status,
+        base_revision: record.base_revision,
+        accepted_revision: record.accepted_revision,
+      };
     },
     async stageChangeSet(input: {
       readonly safety: ReplacementSafetySimulationResult;
@@ -837,6 +859,7 @@ export async function undoStrategicFitChange(undoId?: string) {
 }
 
 export const strategicFitArchivePayload = (archiveId: string) => browserController.archivePayload(archiveId);
+export const strategicFitUndoRecordForStage = (stageId: string) => browserController.undoRecordForStage(stageId);
 
 export type StrategicFitChangeController = ReturnType<typeof createStrategicFitChangeController>;
 export type StrategicFitChangeSetStageSuccess = ReplacementAtomicChangeSetSuccess;

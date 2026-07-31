@@ -228,6 +228,28 @@ test("accepted undo survives reload while pending stages remain discarded", asyn
   assert.equal(isDeepStrictEqual(h.snapshot().metadata, before.metadata), true);
 });
 
+test("undo record lookup exposes exact stage-bound identity before and after reload without claiming resolution state", async () => {
+  const h = harness();
+  const staged = await h.controller.stageChangeSet({ safety: h.fixture.safety, change_set: h.fixture.changeSet });
+  assert.equal(await h.controller.undoRecordForStage(staged.stage!.stage_id), null, "no undo record may exist before acceptance");
+  await h.controller.accept(staged.stage!.stage_id);
+  const record = await h.controller.undoRecordForStage(staged.stage!.stage_id);
+  assert.equal(record?.stage_id, staged.stage!.stage_id);
+  assert.equal(record?.status, "available");
+  assert.equal(record?.base_revision, 4);
+  assert.equal(record?.accepted_revision, 5);
+  assert.equal(record?.document_id, DOCUMENT_ID);
+  assert.equal(await h.controller.undoRecordForStage("stage:unknown"), null);
+
+  const reloaded = h.freshController();
+  const persisted = await reloaded.undoRecordForStage(staged.stage!.stage_id);
+  assert.equal(persisted?.undo_id, record?.undo_id, "undo record identity changed across reload");
+  assert.equal(persisted?.status, "available");
+  const undone = await reloaded.undo(persisted!.undo_id);
+  assert.equal(undone.ok, true);
+  assert.equal((await reloaded.undoRecordForStage(staged.stage!.stage_id))?.status, "undone");
+});
+
 test("accept and reject finalization serialize so only one terminal outcome wins", async () => {
   const h = harness();
   const staged = await h.controller.stageChangeSet({ safety: h.fixture.safety, change_set: h.fixture.changeSet });

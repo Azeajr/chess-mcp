@@ -34,6 +34,7 @@ import {
   displayStrategicFitFindingResolution,
   type StrategicFitDisplayedResolutionState,
 } from "./strategic-fit-finding-resolutions";
+import { strategicFitResolutionProof } from "./strategic-fit-resolution-proof";
 import {
   strategicFitCurrentSnapshot,
   strategicFitLifecycle,
@@ -131,6 +132,10 @@ export interface ReplacementLabStateBoundary extends ReplacementLabApplicationBo
   ): Promise<ReplacementLabChangeReviewResult>;
   acceptStage(confirmation: StrategicFitChangeConfirmation): Promise<StrategicFitChangeOperationResult>;
   discardStage(stageId: string): Promise<StrategicFitChangeOperationResult>;
+  onReviewAccepted?(stage: StrategicFitStagedChange): void;
+  onLabClosed?(): void;
+  /** True while a post-acceptance mutation (undo) is in flight and the lab must not discard its outcome. */
+  labCloseBlocked?(): boolean;
 }
 
 const DEFAULT_CONTROLS = (depth = 20): ReplacementLabControls => ({
@@ -298,6 +303,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
   };
 
   const open = (completed: StrategicFitCompletedResult, finding: StrategicFinding) => {
+    if (boundary.labCloseBlocked?.() === true) return false;
     const available = availability(completed, finding);
     if (!available.actionable) return false;
     stopActive();
@@ -659,6 +665,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
         error: result.ok ? null : { code: result.error, message: `Atomic acceptance rejected: ${result.error}.` },
       },
     }));
+    if (result.ok) boundary.onReviewAccepted?.(result.stage);
     return result.ok;
   };
 
@@ -709,11 +716,14 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
   const retry = () => generate();
 
   const close = () => {
+    if (boundary.labCloseBlocked?.() === true) return false;
     stopActive();
     discardReview(snapshot().review);
     discard(snapshot().result);
     prepared = null;
     setSnapshot(initialSnapshot(boundary.dependencies.analysisDepth()));
+    boundary.onLabClosed?.();
+    return true;
   };
 
   const synchronize = () => {
@@ -804,6 +814,12 @@ const browserBoundary: ReplacementLabStateBoundary = {
   stageReview: stageReplacementLabChangeReview,
   acceptStage: acceptConfirmedStrategicFitChangeSet,
   discardStage: rejectStrategicFitChangeSet,
+  onReviewAccepted: (stage) => {
+    const lifecycle = strategicFitLifecycle();
+    strategicFitResolutionProof.track(stage, lifecycle.current_result ?? lifecycle.last_completed);
+  },
+  onLabClosed: () => strategicFitResolutionProof.clear(),
+  labCloseBlocked: () => strategicFitResolutionProof.snapshot().status === "undoing",
 };
 
 export const replacementLab = createReplacementLabState(browserBoundary);
