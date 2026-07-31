@@ -103,5 +103,19 @@ export function getOrCreateStrategicFitReport(
   return report;
 }
 
+/**
+ * Resolve a cached report by its exact identity. The per-handle cache is bounded, so an evicted or
+ * foreign report is simply absent and the caller fails closed instead of answering from older data.
+ */
+export function strategicFitReportById(
+  entry: RepertoireEntry,
+  reportId: string,
+): StrategicFitReport | null {
+  for (const report of entry.strategicFitReports.values()) {
+    if (report.report_id === reportId) return report;
+  }
+  return null;
+}
+
 export const strategicFitReportCacheSize = (entry: RepertoireEntry): number =>
   entry.strategicFitReports.size;

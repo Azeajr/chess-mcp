@@ -20,7 +20,10 @@ import { analysisDepth } from "../../store/engine-settings";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
 import { strategicFitAnalysisSettings } from "../../store/strategic-fit-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
-import { getCachedStrategicFitReport } from "../strategic-fit-report-cache";
+import {
+  getCachedStrategicFitReport,
+  getCachedStrategicFitReportById,
+} from "../strategic-fit-report-cache";
 import { currentStrategicFitTrainingEvidence } from "../strategic-fit-training-evidence";
 import type { BrowserCommandDependencies } from "./types";
 
@@ -58,6 +61,7 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   chesscomGames,
   openings,
   strategicFitReport: getCachedStrategicFitReport,
+  strategicFitReportById: getCachedStrategicFitReportById,
   createArtifact,
   stageEdit,
   stageReplacementChangeSet: stageStrategicFitChangeSet,

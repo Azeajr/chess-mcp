@@ -37,7 +37,8 @@ a no-scope Lichess personal token because the explorer requires authentication.
   profile-composed manual/population/personal weighting, empirically shrunk Lichess/Chess.com
   personal-history frequency, bounded custom feature-family weights, persisted browser source
   filters with visible availability, browser-local training-adjusted metrics with source coverage, paging,
-  provenance, and a temporary legacy projection; transposition
+  provenance, and a temporary legacy projection; bounded conversation retrieval of an existing
+  report's summary, one finding page, or one finding with evidence and navigable paths; transposition
   shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
   Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
   persistence, honest MCP archive/undo limits, complementary lines, and shared best-eval/best-fit gap fills.
@@ -48,7 +49,9 @@ shows determinate progress whenever an operation reports completed and total pos
 
 Chat accepts a natural first message; workflow presets change guidance only. Every tool-capable
 round receives the complete stable browser command schema, while the prompt carries only compact
-document context and scoped commands retrieve a selected subtree or full PGN when needed. Long
+document context and scoped commands retrieve a selected subtree, the full PGN, or one bounded view
+of an existing Strategic Fit report when needed; a report identity that is no longer current fails
+with a structured error rather than returning older evidence. Long
 operations show progress and share Stop/Retry lifecycle handling with streaming. Tool results render
 as navigable application data. Proposed edits are staged against a document revision and require
 Accept; direct repertoire previews expose Accept line/Cancel controls, and generated PGN/CSV/JSON

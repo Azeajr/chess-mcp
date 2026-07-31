@@ -29,6 +29,9 @@ function abortError() {
 /** Bounded in-memory cache of complete immutable reports produced by the dedicated Worker. */
 export class StrategicFitReportCache {
   private readonly reports = new Map<string, Promise<StrategicFitReport>>();
+  /** Identity index over resolved reports only; it never outlives its cache entry. */
+  private readonly reportIdsByKey = new Map<string, string>();
+  private readonly reportsById = new Map<string, StrategicFitReport>();
 
   constructor(
     private readonly analyze: StrategicFitReportAnalyzer = analyzeStrategicFitInWorker,
@@ -45,6 +48,36 @@ export class StrategicFitReportCache {
 
   clear(): void {
     this.reports.clear();
+    this.reportIdsByKey.clear();
+    this.reportsById.clear();
+  }
+
+  /**
+   * Resolve a cached report by its exact identity. Only reports still held by a live cache entry
+   * are visible, so an evicted, invalidated, or foreign identity is absent and the caller fails
+   * closed rather than answering from an older report.
+   */
+  reportById(reportId: string): StrategicFitReport | null {
+    return this.reportsById.get(reportId) ?? null;
+  }
+
+  private forget(key: string): void {
+    const reportId = this.reportIdsByKey.get(key);
+    this.reportIdsByKey.delete(key);
+    if (reportId === undefined) return;
+    // A different settings key can legitimately produce the same report; keep the survivor.
+    for (const retained of this.reportIdsByKey.values()) if (retained === reportId) return;
+    this.reportsById.delete(reportId);
+  }
+
+  private remember(
+    key: string,
+    pending: Promise<StrategicFitReport>,
+    report: StrategicFitReport,
+  ): void {
+    if (this.reports.get(key) !== pending) return;
+    this.reportIdsByKey.set(key, report.report_id);
+    this.reportsById.set(report.report_id, report);
   }
 
   async getReport(
@@ -73,14 +106,19 @@ export class StrategicFitReportCache {
       const oldest = this.reports.keys().next().value as string | undefined;
       if (oldest === undefined) break;
       this.reports.delete(oldest);
+      this.forget(oldest);
     }
 
     try {
       const report = await pending;
+      this.remember(key, pending, report);
       if (execution.signal?.aborted) throw abortError();
       return report;
     } catch (error) {
-      if (this.reports.get(key) === pending) this.reports.delete(key);
+      if (this.reports.get(key) === pending) {
+        this.reports.delete(key);
+        this.forget(key);
+      }
       throw error;
     }
   }
@@ -90,6 +128,10 @@ const defaultReportCache = new StrategicFitReportCache();
 
 /** Narrow settings invalidation boundary; repertoire/profile stores do not own cache internals. */
 export const invalidateCachedStrategicFitReports = () => defaultReportCache.clear();
+
+/** Scoped conversation retrieval: identity lookup only, never a fresh analysis. */
+export const getCachedStrategicFitReportById = (reportId: string) =>
+  defaultReportCache.reportById(reportId);
 
 export const getCachedStrategicFitReport = (
   pgn: string,

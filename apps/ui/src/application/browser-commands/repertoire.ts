@@ -25,8 +25,14 @@ import {
   toolDefault,
   transpositionResult,
   type ExplorerDb,
+  projectStrategicFitConversation,
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
+  strategicFitConversationErrorResult,
+  strategicFitReportUnavailableResult,
+  type StrategicFitConversationView,
+  type StrategicFitCursorPageInput,
+  type StrategicFitFindingSort,
   strategicFitOptionsFromToolArguments,
   strategicPersonalHistorySourceFromToolArguments,
   strategicPopularityOptionsFromToolArguments,
@@ -101,6 +107,7 @@ type RepertoireCommandName =
   | "get_repertoire_coverage"
   | "get_structural_profile"
   | "analyze_repertoire_congruence"
+  | "get_strategic_fit_report"
   | "classify_illustrative_lines"
   | "modify_repertoire_line"
   | "suggest_complementary_lines"
@@ -413,6 +420,23 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
     return projectStrategicFitLegacyResult(projection.report, { limit: toolArgs.limit });
+  },
+  get_strategic_fit_report: (args, context) => {
+    const reportId = args.report_id as string;
+    const report = context.strategicFitReportById(reportId);
+    if (!report) return strategicFitReportUnavailableResult(reportId);
+    try {
+      return projectStrategicFitConversation(report, {
+        view: (args.view as StrategicFitConversationView | undefined) ?? "summary",
+        report_id: reportId,
+        expected_repertoire_revision: `browser:${context.currentRevision()}`,
+        ...(args.finding_id === undefined ? {} : { finding_id: args.finding_id as string }),
+        ...(args.page === undefined ? {} : { page: args.page as StrategicFitCursorPageInput }),
+        ...(args.sort === undefined ? {} : { sort: args.sort as StrategicFitFindingSort }),
+      });
+    } catch (error) {
+      return strategicFitConversationErrorResult(error);
+    }
   },
   classify_illustrative_lines: (args, context) => illustrativeLinesResult(context.currentTree(), context.currentColor(), (args.limit as number | undefined) ?? toolDefault("classify_illustrative_lines", "limit", 20)),
   modify_repertoire_line: (args, context) => context.stageEdit(args.action as "add" | "prune" | "reorder", (args.path as string[]) ?? [], {

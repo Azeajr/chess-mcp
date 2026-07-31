@@ -445,7 +445,9 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
   assert.match(workflowPrompt("repertoire"), /insufficient-evidence result is not evidence of consistency/);
 });
 
-test("actual chat requests transmit all 41 schemas on natural, follow-up, and preset turns", async (t) => {
+test("actual chat requests transmit every canonical browser schema on natural, follow-up, and preset turns", async (t) => {
+  // The canonical contract owns the inventory; the assertion is completeness, not a fixed number.
+  const canonicalBrowserSchemas = contractsForHost("browser").length;
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -499,8 +501,8 @@ test("actual chat requests transmit all 41 schemas on natural, follow-up, and pr
     await chat.send(request);
     assert.equal(executed.at(-1), command, `${request} executes ${command}`);
     const names = requests.at(-2)!.tools.map((tool) => tool.function.name);
-    assert.equal(names.length, 41);
-    assert.equal(new Set(names).size, 41);
+    assert.equal(names.length, canonicalBrowserSchemas);
+    assert.equal(new Set(names).size, canonicalBrowserSchemas);
     assert.equal(names.includes(command), true);
     if (command === "export_annotated_repertoire") assert.equal(executed.at(-1), "export_annotated_repertoire");
   }
@@ -516,12 +518,12 @@ test("actual chat requests transmit all 41 schemas on natural, follow-up, and pr
   await chat.send("now audit this repertoire");
   await chat.send("review this game");
   assert.deepEqual(executed.slice(-3), ["evaluate_position", "audit_repertoire_moves", "get_game_summary"]);
-  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === 41), true);
+  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === canonicalBrowserSchemas), true);
 
   settings.setChatMode("repertoire");
   chat.clearChat();
   await chat.send("find structures in my repertoire");
-  assert.equal(requests.at(-2)!.tools.length, 41, "preset changes guidance, not availability");
+  assert.equal(requests.at(-2)!.tools.length, canonicalBrowserSchemas, "preset changes guidance, not availability");
 
   chat.setChatToolExecutorForTesting(async (_name, _args, options) => new Promise((_resolve, reject) => {
     const abort = () => reject(new DOMException("Cancelled", "AbortError"));

@@ -70,8 +70,11 @@ import {
   gapScanOperation,
   suggestGapFills,
   opponentPrepResult,
+  projectStrategicFitConversation,
   projectStrategicFitLegacyResult,
   projectStrategicFitReport,
+  strategicFitConversationErrorResult,
+  strategicFitReportUnavailableResult,
   strategicFitOptionsFromToolArguments,
   strategicPersonalHistorySourceFromToolArguments,
   strategicPopularityOptionsFromToolArguments,
@@ -82,7 +85,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "./engine.js";
 import { makeFen } from "chessops/fen";
-import { store, get, getOrCreateStrategicFitReport } from "./handles.js";
+import { store, get, getOrCreateStrategicFitReport, strategicFitReportById } from "./handles.js";
 import { confine, readCappedPgn, MAX_PGN_BYTES } from "./paths.js";
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -1194,6 +1197,44 @@ server.tool(
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
     return ok(projectStrategicFitLegacyResult(projection.report, { limit: args.limit }));
+  },
+);
+
+// --- scoped Strategic Fit retrieval for conversation ---
+server.tool(
+  "get_strategic_fit_report",
+  toolContract("get_strategic_fit_report").description,
+  {
+    repertoire_id: z.string(),
+    report_id: z.string().max(256),
+    view: z.enum(["summary", "findings", "finding"]).optional(),
+    finding_id: z.string().max(256).optional(),
+    page: z.object({
+      offset: z.number().int().min(0).max(1_000_000).optional(),
+      limit: z.number().int().min(1).max(25).optional(),
+      cursor: z.string().max(512).optional(),
+    }).optional(),
+    sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
+  },
+  ({ repertoire_id, ...rawArgs }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const validation = validateToolArguments("get_strategic_fit_report", { repertoire_id, ...rawArgs }, "mcp");
+    if (!validation.ok) return ok(validation);
+    const report = strategicFitReportById(e, rawArgs.report_id);
+    if (!report) return ok(strategicFitReportUnavailableResult(rawArgs.report_id));
+    try {
+      return ok(projectStrategicFitConversation(report, {
+        view: rawArgs.view ?? "summary",
+        report_id: rawArgs.report_id,
+        expected_repertoire_revision: e.revision,
+        ...(rawArgs.finding_id === undefined ? {} : { finding_id: rawArgs.finding_id }),
+        ...(rawArgs.page === undefined ? {} : { page: rawArgs.page }),
+        ...(rawArgs.sort === undefined ? {} : { sort: rawArgs.sort }),
+      }));
+    } catch (error) {
+      return ok(strategicFitConversationErrorResult(error));
+    }
   },
 );
 

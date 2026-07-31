@@ -62,6 +62,7 @@ const REFERENCE_KEYS = new Set([
   "error", "reason", "fen", "path", "san_path", "variation_path", "pivot_path", "joins_path",
   "selected_path", "revision", "action_id", "artifact_id", "kind", "format", "name", "media_type",
   "bytes", "total", "returned", "next_leaf", "partial", "page", "next_page", "truncated",
+  "cursor", "next_cursor", "retrieval",
   "request_id", "report_id", "finding_id", "semantic_finding_id", "cohort_id", "pivot_id",
   "candidate_id", "change_set_id", "stage_id", "archive_id", "operation_id",
   "repertoire_revision", "base_repertoire_revision", "replacement_schema_version",

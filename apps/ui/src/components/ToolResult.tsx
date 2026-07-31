@@ -2,6 +2,11 @@ import { For, Show, createMemo } from "solid-js";
 import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
+  StrategicFitConversationFinding,
+  StrategicFitConversationFindingRow,
+  StrategicFitConversationFindings,
+  StrategicFitConversationPath,
+  StrategicFitConversationSummary,
   StrategicFitPreflight,
   StrategicFitReport,
 } from "@chess-mcp/chess-tools";
@@ -180,6 +185,111 @@ function StrategicFitResult(props: { report: StrategicFitChatReport }) {
   </section>;
 }
 
+type RetrievalProjection =
+  | StrategicFitConversationSummary
+  | StrategicFitConversationFindings
+  | StrategicFitConversationFinding;
+
+function asStrategicFitRetrieval(data: Data): RetrievalProjection | null {
+  const retrieval = data.retrieval;
+  return retrieval === "strategic-fit-summary" || retrieval === "strategic-fit-findings" ||
+      retrieval === "strategic-fit-finding"
+    ? data as unknown as RetrievalProjection
+    : null;
+}
+
+function RetrievalPath(props: { path: StrategicFitConversationPath; label: string }) {
+  const indexPath = createMemo(() => currentTree().indexPathOfSan([...props.path.san]));
+  return <Show when={!props.path.truncated && indexPath()}>
+    <button
+      class="result-nav strategic-fit-nav"
+      aria-label={`Go to line for ${props.label}`}
+      onClick={() => goToSanPath(props.path.san)}
+    ><span>Go to line</span><b>{props.path.san.join(" ")}</b></button>
+  </Show>;
+}
+
+function RetrievalFindingRow(props: { row: StrategicFitConversationFindingRow }) {
+  return <article class="strategic-fit-finding" data-finding-id={props.row.finding_id}>
+    <div class="strategic-fit-finding-head">
+      <span class="strategic-fit-category">{props.row.plain_language_category}</span>
+      <span class="strategic-fit-classification">{titleCase(props.row.classification)}</span>
+    </div>
+    <div class="strategic-fit-scope">{props.row.opening_scope} · {props.row.affected_line_summary.text}</div>
+    <div class="strategic-fit-signals" aria-label="Finding signals">
+      <span>Confidence <b>{titleCase(props.row.confidence.label)} {Math.round(props.row.confidence.score)}</b></span>
+      <span>Difference <b>{titleCase(props.row.difference.magnitude)}</b></span>
+      <span>Replace <b>{titleCase(props.row.replacement_priority.label)}</b></span>
+      <span>Train <b>{titleCase(props.row.training_priority.label)}</b></span>
+      <span>Resolution <b>{titleCase(props.row.resolution_state)}</b></span>
+    </div>
+    <div class="strategic-fit-reference">
+      <code>{props.row.finding_id}</code>
+      <For each={props.row.source_san_paths}>{(path) =>
+        <RetrievalPath path={path} label={props.row.plain_language_category} />
+      }</For>
+    </div>
+  </article>;
+}
+
+/** Bounded retrieval views. They never claim more evidence than the projection actually carried. */
+function StrategicFitRetrievalResult(props: { projection: RetrievalProjection }) {
+  return <section
+    class="result-card report-card strategic-fit-card strategic-fit-retrieval"
+    data-report-id={props.projection.report_id}
+    aria-label="Strategic Fit retrieval"
+  >
+    <Show when={props.projection.retrieval === "strategic-fit-summary" ? props.projection as StrategicFitConversationSummary : null}>{(summary) => <>
+      <div class="result-title">Strategic Fit · Report summary</div>
+      <div class="strategic-fit-report-id">Report <code>{summary().report_id}</code></div>
+      <div class="strategic-fit-counts" aria-label="Strategic Fit counts">
+        <span>{summary().finding_count} finding{summary().finding_count === 1 ? "" : "s"}</span>
+        <span>{summary().summary.unresolved_finding_count} unresolved</span>
+        <span>{summary().preflight.comparable_route_count}/{summary().preflight.route_count} comparable routes</span>
+        <span>{summary().summary.insufficient_evidence_branch_count} incomplete branches</span>
+      </div>
+      <div class="result-summary strategic-fit-preflight">
+        Preflight {titleCase(summary().preflight.state)} · {summary().preflight.issue_counts.blocking} blocking · {summary().preflight.issue_counts.degraded} degraded · {summary().preflight.issue_counts.informational} informational
+      </div>
+      <Show when={summary().preflight.issues.length > 0}>
+        <ul class="strategic-fit-issues">
+          <For each={summary().preflight.issues}>{(issue) =>
+            <li><b>{titleCase(issue.severity)}</b>: {issue.message.text}</li>
+          }</For>
+          <Show when={summary().preflight.omitted_issue_count > 0}>
+            <li class="strategic-fit-more">{summary().preflight.omitted_issue_count} further issue(s) not shown.</li>
+          </Show>
+        </ul>
+      </Show>
+    </>}</Show>
+    <Show when={props.projection.retrieval === "strategic-fit-findings" ? props.projection as StrategicFitConversationFindings : null}>{(page) => <>
+      <div class="result-title">Strategic Fit · Findings {page().page.offset + 1}–{page().page.offset + page().page.returned_count} of {page().page.total_count}</div>
+      <div class="strategic-fit-report-id">Report <code>{page().report_id}</code> · sorted by {titleCase(page().sort)}</div>
+      <For each={page().findings}>{(row) => <RetrievalFindingRow row={row} />}</For>
+      <Show when={page().page.has_more}>
+        <div class="strategic-fit-more">More findings remain; request the next page.</div>
+      </Show>
+    </>}</Show>
+    <Show when={props.projection.retrieval === "strategic-fit-finding" ? props.projection as StrategicFitConversationFinding : null}>{(detail) => <>
+      <div class="result-title">Strategic Fit · Finding evidence</div>
+      <div class="strategic-fit-report-id">Report <code>{detail().report_id}</code></div>
+      <RetrievalFindingRow row={detail().finding} />
+      <div class="strategic-fit-explanation">{detail().finding.explanation.text}</div>
+      <div class="result-summary">
+        Cohort {detail().finding.evidence.cohort_id} · {detail().finding.evidence.comparison_basis.effective_branches} effective branches · cause {titleCase(detail().finding.evidence.causality.label)}
+      </div>
+      <ul class="strategic-fit-issues">
+        <For each={detail().finding.evidence.dimensions}>{(dimension) =>
+          <li><b>{titleCase(dimension.dimension_id)}</b>: {dimension.explanation.text}</li>
+        }</For>
+        <Show when={detail().finding.evidence.omitted_dimension_count > 0}>
+          <li class="strategic-fit-more">{detail().finding.evidence.omitted_dimension_count} further dimension(s) not shown.</li>
+        </Show>
+      </ul>
+    </>}</Show>
+  </section>;
+}
+
 function LegacyCongruenceResult(props: { data: Data }) {
   const findings = () => Array.isArray(props.data.incongruencies) ? props.data.incongruencies as Data[] : [];
   return <div class="result-card report-card strategic-fit-legacy-card">
@@ -257,6 +367,10 @@ const ERROR_LABELS: Record<string, string> = {
   missing_criteria: "Search criteria required",
   path_not_found: "Repertoire path not found",
   strategic_fit_finding_not_found: "Strategic Fit finding is unavailable",
+  strategic_fit_report_unavailable: "Strategic Fit report is no longer cached",
+  strategic_fit_missing_report_identity: "Strategic Fit report identity required",
+  strategic_fit_missing_finding_identity: "Strategic Fit finding identity required",
+  strategic_fit_stale_page_cursor: "Strategic Fit page cursor is stale",
   strategic_fit_stale_report: "Strategic Fit report is stale",
   strategic_fit_stale_revision: "Strategic Fit report is stale",
   variation_not_found: "Repertoire path not found",
@@ -329,6 +443,12 @@ const byOperation: Record<string, (data: Data) => unknown> = {
     return report
       ? <StrategicFitResult report={report} />
       : <LegacyCongruenceResult data={data} />;
+  },
+  get_strategic_fit_report: (data) => {
+    const projection = asStrategicFitRetrieval(data);
+    return projection
+      ? <StrategicFitRetrievalResult projection={projection} />
+      : <div class="result-card"><NavigationRows data={data} /></div>;
   },
   export_annotated_repertoire: (data) => <ReportResult
     title="Annotated repertoire"

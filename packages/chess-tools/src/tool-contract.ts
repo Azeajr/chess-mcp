@@ -55,6 +55,9 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         semantics: "Legacy one-move suggestions or a complete revision-bound Strategic Fit V2 candidate/change-set preview envelope. No host silently applies a preview.",
         compatibility: "Legacy outlier_variation_path/mode/depth behavior remains available until Phase 9. V2 mode requires the complete canonical retained safety envelope.",
       } : {}),
+      ...(name === "get_strategic_fit_report" ? {
+        semantics: "Bounded conversation projection of an existing immutable report: identity, overview state, one compact finding page, or one finding with evidence and navigable paths. Never the full report, provenance, or any document artifact.",
+      } : {}),
     },
     hostAdaptation: {
       browserInjects: name === "export_strategic_fit_metadata"
@@ -65,6 +68,8 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["current PGN", "current GameTree", "repertoire color", "document revision", "opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs", "Strategic Fit Web Worker"]
         : name === "suggest_replacement_line"
         ? ["current GameTree", "repertoire color", "stable document ID", "document revision", "browser engine/Worker and explorer boundaries", "revision-bound staged change-set storage"]
+        : name === "get_strategic_fit_report"
+        ? ["document revision", "bounded cached Strategic Fit report lookup by report identity"]
         : input?.properties.repertoire_id ? ["current GameTree", "repertoire color"] : [
         ...(input?.properties.fen && !(input.required ?? []).includes("fen") ? ["current FEN"] : []),
         ...(input?.properties.pgn && !(input.required ?? []).includes("pgn") ? ["current PGN"] : []),
@@ -73,11 +78,14 @@ const define = (name: string, description: string, capabilities: ToolCapability[
         ? ["repertoire handle lookup", "handle revision", "bounded opening taxonomy", "optional explorer credentials", "optional fetched personal-game PGNs"]
         : name === "suggest_replacement_line"
         ? ["immutable repertoire handle lookup", "handle revision", "Node engine pool and optional explorer credentials", "explicit no-archive/no-undo limitation"]
+        : name === "get_strategic_fit_report"
+        ? ["repertoire handle lookup", "handle revision", "bounded per-handle Strategic Fit report lookup by report identity"]
         : input?.properties.repertoire_id ? ["repertoire handle lookup"] : [],
       ...(name === "get_position" ? { resultDifference: "browser adds current repertoire color" }
         : name === "modify_repertoire_line" ? { resultDifference: "MCP returns a clone-on-write handle; browser returns a non-mutating preview" }
         : name === "analyze_game" ? { resultDifference: "MCP supports the host-only verbose result projection" }
         : name === "analyze_repertoire_congruence" ? { resultDifference: "Browser execution uses the dedicated Worker; MCP runs the deterministic analyzer in-process. Each host optionally collects bounded explorer evidence and fetched personal-game PGNs before that shared analyzer boundary." }
+        : name === "get_strategic_fit_report" ? { resultDifference: "Each host resolves the report identity in its own bounded cache — per handle on MCP, per document settings in the browser — and both project the same shared bounded views. A report that is not cached, or that belongs to another revision, fails closed rather than returning older evidence." }
         : name === "suggest_replacement_line" ? { resultDifference: "Browser V2 results are staged against the exact current document revision and require explicit acceptance. MCP V2 results are immutable previews only: no archive persistence or undo is available, and a new clone-on-write handle is returned only by an explicit repertoire edit call." }
         : {}),
     },
@@ -211,7 +219,26 @@ export const TOOL_CONTRACTS = [
       mcpRequired: ["repertoire_id"],
     },
   ),
-  define("classify_illustrative_lines", "Find NAG-marked side lines that can inflate repertoire analysis counts.", ["repertoire"], BOTH, { limit: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100) }, mcpRequired: ["repertoire_id"] }),
+  define(
+    "get_strategic_fit_report",
+    "Retrieve one bounded view of an existing Strategic Fit report by its exact identity: the overview summary, one page of compact findings, or one finding with its evidence and navigable SAN paths. Stale report or finding identities fail with a structured error.",
+    ["repertoire"],
+    BOTH,
+    { view: "summary", page_limit: 10, sort: "replacement-priority" },
+    {
+      properties: {
+        repertoire_id: string("MCP handle; browser injects the current document"),
+        report_id: strategicFitId(),
+        view: { type: "string", enum: ["summary", "findings", "finding"] },
+        finding_id: strategicFitId(),
+        page: object({ offset: integer(0, 1_000_000), limit: integer(1, 25), cursor: string(undefined, 512) }),
+        sort: { type: "string", enum: ["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"] },
+      },
+      required: ["report_id"],
+      mcpRequired: ["repertoire_id", "report_id"],
+    },
+  ),
+  define("classify_illustrative_lines","Find NAG-marked side lines that can inflate repertoire analysis counts.", ["repertoire"], BOTH, { limit: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100) }, mcpRequired: ["repertoire_id"] }),
   define("modify_repertoire_line", "Apply or preview a prune, add, or reorder edit by SAN path.", ["repertoire", "action"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), action: { type: "string", enum: ["prune", "add", "reorder"] }, path: array(), add_moves: array(), promote_move: string() }, required: ["action", "path"], mcpRequired: ["repertoire_id", "action", "path"] }),
   define("suggest_complementary_lines", "Suggest engine-sound moves ranked for structural fit or imbalance.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 5 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), fen: string("FEN; browser defaults to the current position"), mode: { type: "string", enum: ["low_memorization", "sharp"] }, depth: integer(1, 30), limit: integer(1, 10) }, mcpRequired: ["repertoire_id", "fen"] }),
   define("suggest_replacement_line", "Preview sound one-move replacements, or validate retained Task 8.7 evidence into complete Strategic Fit V2 atomic change sets without silently applying them. V2 candidate generation itself remains hidden until Phase 9.", ["repertoire", "engine", "action"], BOTH, { depth: 20 }, {
@@ -427,6 +454,30 @@ function strategicFitArgumentsError(value: Record<string, unknown>): string | nu
   return null;
 }
 
+function strategicFitRetrievalArgumentsError(value: Record<string, unknown>): string | null {
+  const reportId = value.report_id;
+  if (typeof reportId !== "string" || reportId.trim().length === 0) return "report_id must not be blank";
+  const view = value.view ?? "summary";
+  if (view === "finding") {
+    const findingId = value.finding_id;
+    if (typeof findingId !== "string" || findingId.trim().length === 0) {
+      return "view finding requires a non-blank finding_id";
+    }
+  } else if (value.finding_id !== undefined) {
+    return "finding_id is only valid with view finding";
+  }
+  if (view !== "findings") {
+    for (const key of ["page", "sort"]) {
+      if (value[key] !== undefined) return `${key} is only valid with view findings`;
+    }
+  }
+  const page = value.page as Record<string, unknown> | undefined;
+  if (page?.cursor !== undefined && page.offset !== undefined) {
+    return "page.cursor and page.offset are mutually exclusive";
+  }
+  return null;
+}
+
 function explorerPopulationArgumentsError(
   filters: Record<string, unknown> | undefined,
   path: string,
@@ -543,6 +594,10 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
   }
   if (name === "analyze_repertoire_congruence") {
     const reason = strategicFitArgumentsError(value);
+    if (reason) return { ok: false, error: "invalid_arguments", reason };
+  }
+  if (name === "get_strategic_fit_report") {
+    const reason = strategicFitRetrievalArgumentsError(value);
     if (reason) return { ok: false, error: "invalid_arguments", reason };
   }
   if (name === "position_popularity") {

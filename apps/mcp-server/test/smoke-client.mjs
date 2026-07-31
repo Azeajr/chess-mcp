@@ -61,7 +61,9 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-ok(tools.length === 41, "41 tools registered");
+// The canonical contract owns the inventory; this asserts completeness, not a fixed number.
+const canonicalMcpTools = TOOL_CONTRACTS.filter((contract) => contract.hosts.includes("mcp")).length;
+ok(tools.length === canonicalMcpTools, `every canonical MCP tool is registered (${canonicalMcpTools})`);
 
 // MCP Zod output must recursively match the canonical application contract. Transport prose is
 // explicitly ignored by the shared comparer; nested array items and additionalProperties are not.
@@ -281,6 +283,65 @@ if (!process.env.LICHESS_TOKEN) {
 } else {
   skip("Strategic Fit no-token popularity fallback (token present)");
 }
+
+const fitSummary = await call(client, "get_strategic_fit_report", {
+  repertoire_id: congRep.repertoire_id,
+  report_id: cong.report_id,
+});
+ok(
+  fitSummary.retrieval === "strategic-fit-summary" &&
+    fitSummary.report_id === cong.report_id &&
+    fitSummary.finding_count === cong.finding_page?.total_count &&
+    fitSummary.preflight?.state === cong.preflight?.state &&
+    fitSummary.findings === undefined &&
+    fitSummary.provenance === undefined,
+  "get_strategic_fit_report returns the bounded summary without findings or provenance",
+);
+const fitFindings = await call(client, "get_strategic_fit_report", {
+  repertoire_id: congRep.repertoire_id,
+  report_id: cong.report_id,
+  view: "findings",
+  sort: "finding-id",
+  page: { limit: 1 },
+});
+ok(
+  fitFindings.retrieval === "strategic-fit-findings" &&
+    fitFindings.findings?.length === 1 &&
+    fitFindings.page?.total_count === cong.finding_page?.total_count &&
+    fitFindings.findings[0].explanation === undefined,
+  "get_strategic_fit_report pages compact findings",
+);
+const fitFinding = await call(client, "get_strategic_fit_report", {
+  repertoire_id: congRep.repertoire_id,
+  report_id: cong.report_id,
+  view: "finding",
+  finding_id: fitFindings.findings[0].finding_id,
+});
+ok(
+  fitFinding.retrieval === "strategic-fit-finding" &&
+    fitFinding.finding?.finding_id === fitFindings.findings[0].finding_id &&
+    typeof fitFinding.finding?.explanation?.text === "string" &&
+    Array.isArray(fitFinding.finding?.evidence?.dimensions) &&
+    fitFinding.finding.evidence.dimensions.length <= 6,
+  "get_strategic_fit_report returns one finding with bounded evidence",
+);
+const staleFit = await call(client, "get_strategic_fit_report", {
+  repertoire_id: congRep.repertoire_id,
+  report_id: "strategic-fit-report:stale",
+});
+ok(
+  staleFit.error === "strategic_fit_report_unavailable",
+  "get_strategic_fit_report fails closed on a stale report identity",
+);
+const invalidFit = await call(client, "get_strategic_fit_report", {
+  repertoire_id: congRep.repertoire_id,
+  report_id: cong.report_id,
+  view: "finding",
+});
+ok(
+  invalidFit.error === "invalid_arguments" && /finding_id/.test(invalidFit.reason ?? ""),
+  "get_strategic_fit_report requires a finding identity for the finding view",
+);
 
 const annotatedFit = await call(client, "export_annotated_repertoire", {
   repertoire_id: congRep.repertoire_id,

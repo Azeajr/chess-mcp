@@ -76,6 +76,8 @@ export type BrowserCommandDependencies = {
     options: AnalyzeStrategicFitOptions,
     execution?: { signal?: AbortSignal; onProgress?: (progress: StrategicFitProgress) => void },
   ) => Promise<StrategicFitReport>;
+  /** Identity-only lookup over the bounded report cache; it never starts an analysis. */
+  strategicFitReportById: (reportId: string) => StrategicFitReport | null;
   createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => unknown;
   stageEdit: (action: "add" | "prune" | "reorder", path: string[], options?: { addMoves?: string[]; promoteMove?: string }) => unknown;
   stageReplacementChangeSet: (input: {
