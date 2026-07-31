@@ -15,11 +15,16 @@
  * consumes that scope and never re-derives a second diffing rule.
  */
 import type { Color } from "../congruence.js";
+import type { OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
 import type { PawnSignalReport } from "./pawn-signals.js";
 import type { StrategicRoutePositionSignals } from "./position-signals.js";
 import type { StrategicTrajectoryReport } from "./trajectory.js";
-import type { StrategicCohort, StrategicFitAnalysisManifest } from "./types.js";
+import type {
+  StrategicCohort,
+  StrategicFitAnalysisManifest,
+  StrategicFitProgressPhase,
+} from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
 
 export const STRATEGIC_FIT_DEFAULT_INDEX_ENTRIES = 512;
@@ -37,6 +42,13 @@ export interface StrategicFitIndexSettings {
   readonly repertoire_color: Color | null;
   readonly trajectory: unknown;
   readonly opening_table: unknown;
+}
+
+/** The analyzer options the indexed stages read; hosts derive the generation from the same view. */
+export interface StrategicFitIndexSettingsInput {
+  readonly repertoireColor: Color | null;
+  readonly trajectory?: unknown;
+  readonly openingTable?: OpeningTable | null;
 }
 
 /**
@@ -87,6 +99,27 @@ export interface StrategicFitIndexStats {
   readonly misses: number;
   readonly evictions: number;
   readonly invalidations: number;
+  readonly restorations: number;
+}
+
+/**
+ * Whole-stage values an interrupted job already produced. They are restored by the same content
+ * identity a cold run would compute, so restoring one changes cost only. Per-position and per-route
+ * entries are deliberately absent: the trajectory report subsumes them, so a restored job carries
+ * two entries rather than one entry per position.
+ */
+export interface StrategicFitIndexRestoration {
+  readonly generation: string;
+  /** The analyzer's own graph content key (normalized PGN), not a host-supplied cache key. */
+  readonly graph_content_key: string;
+  readonly graph: RepertoireGraph;
+  readonly trajectories: StrategicTrajectoryReport | null;
+}
+
+/** What a completed analysis phase established, emitted to hosts that checkpoint their jobs. */
+export interface StrategicFitJobCheckpointStage extends StrategicFitIndexRestoration {
+  readonly completed_phase: StrategicFitProgressPhase;
+  readonly completed_phase_index: number;
 }
 
 /** The narrow view the trajectory builder needs; it never sees cache bounds or plans. */
@@ -138,6 +171,22 @@ function stableSerialize(value: unknown): string {
 }
 
 /**
+ * The single definition of the settings view behind a generation. The analyzer and every host that
+ * validates a checkpoint call it, so a resumed job cannot be gated by a differently derived identity.
+ */
+export function strategicFitIndexSettings(
+  options: StrategicFitIndexSettingsInput,
+): StrategicFitIndexSettings {
+  return {
+    repertoire_color: options.repertoireColor,
+    trajectory: options.trajectory ?? null,
+    opening_table: [...(options.openingTable ?? new Map()).entries()]
+      .sort(([left], [right]) => compareStrings(left, right))
+      .map(([positionKey, entry]) => [positionKey, entry.eco, entry.name]),
+  };
+}
+
+/**
  * Generation identity for every indexed value. The complete manifest participates, so advancing any
  * component version — classifier, taxonomy, or otherwise — retires the whole generation.
  */
@@ -156,6 +205,11 @@ function pawnSignalKey(fen: string, repertoireColor: Color): string {
   return `${repertoireColor}${ID_SEPARATOR}${fen.split(" ")[0] ?? fen}`;
 }
 
+/** One definition of the graph entry key, so a restored graph lands where a cold run looks. */
+function graphKey(contentKey: string): string {
+  return `graph${ID_SEPARATOR}${stableHash(contentKey)}`;
+}
+
 /** Bounded LRU index over the deterministic Strategic Fit stages, keyed by content identity. */
 export class StrategicFitIndexCache {
   readonly maximumEntries: number;
@@ -167,6 +221,7 @@ export class StrategicFitIndexCache {
   private misses = 0;
   private evictions = 0;
   private invalidations = 0;
+  private restorations = 0;
 
   constructor(options: { readonly maximumEntries?: number } = {}) {
     const maximum = options.maximumEntries ?? STRATEGIC_FIT_DEFAULT_INDEX_ENTRIES;
@@ -189,6 +244,7 @@ export class StrategicFitIndexCache {
       misses: this.misses,
       evictions: this.evictions,
       invalidations: this.invalidations,
+      restorations: this.restorations,
     };
   }
 
@@ -262,6 +318,28 @@ export class StrategicFitIndexCache {
     }
     this.invalidations += dropped;
     return dropped;
+  }
+
+  /**
+   * Seed whole-stage values an interrupted job already produced.
+   *
+   * Restoration installs entries under the same keys a cold run computes them under, so a restored
+   * value can only be served to a request whose content identity already determines it. A stage that
+   * does not belong to the restored graph is dropped rather than installed, and nothing about the
+   * recomputation plan or the returned report changes: only the work still to do changes.
+   */
+  restoreStages(restoration: StrategicFitIndexRestoration): readonly StrategicFitIndexNamespace[] {
+    this.useGeneration(restoration.generation);
+    const restored: StrategicFitIndexNamespace[] = ["graph"];
+    this.entries.set(graphKey(restoration.graph_content_key), restoration.graph);
+    const { trajectories } = restoration;
+    if (trajectories !== null && trajectories.graph_id === restoration.graph.graph_id) {
+      this.entries.set(`trajectories${ID_SEPARATOR}${trajectories.graph_id}`, trajectories);
+      restored.push("trajectories");
+    }
+    this.restorations += restored.length;
+    this.evictOverflow();
+    return restored;
   }
 
   signalIndex(generation: string): StrategicFitSignalIndex {

@@ -2,6 +2,8 @@ import type {
   AnalyzeStrategicFitOptions,
   OpeningEntry,
   StrategicFitAnalysisResult,
+  StrategicFitJobCheckpoint,
+  StrategicFitJobRecovery,
   StrategicFitProgress,
 } from "@chess-mcp/chess-tools";
 
@@ -16,6 +18,7 @@ export type StrategicFitSerializableOptions = Omit<
   | "index"
   | "shouldCancel"
   | "onProgress"
+  | "onCheckpoint"
 >;
 
 export interface StrategicFitWorkerMetadata {
@@ -30,6 +33,12 @@ export interface StrategicFitWorkerPayload {
   readonly opening_table_entries: readonly (readonly [string, OpeningEntry])[];
   readonly options: StrategicFitSerializableOptions;
   readonly metadata: StrategicFitWorkerMetadata;
+  /**
+   * A checkpoint an earlier interrupted job left behind. It is untrusted input: the worker restores
+   * it only when its content, revision, settings, and index generation all match this request, and
+   * discards it with a stated reason otherwise.
+   */
+  readonly resume?: StrategicFitJobCheckpoint;
 }
 
 export interface StrategicFitWorkerAnalyzeRequest {
@@ -61,6 +70,16 @@ export type StrategicFitWorkerResponse =
     readonly progress: StrategicFitProgress;
   }
   | {
+    readonly type: "checkpoint";
+    readonly request_id: string;
+    readonly checkpoint: StrategicFitJobCheckpoint;
+  }
+  | {
+    readonly type: "recovery";
+    readonly request_id: string;
+    readonly recovery: StrategicFitJobRecovery;
+  }
+  | {
     readonly type: "result";
     readonly request_id: string;
     readonly result: StrategicFitAnalysisResult;
@@ -74,6 +93,10 @@ export type StrategicFitWorkerResponse =
 export interface StrategicFitWorkerExecutionOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: StrategicFitProgress) => void;
+  /** A compatible checkpoint from an interrupted job; the worker still validates it. */
+  readonly resume?: StrategicFitJobCheckpoint;
+  readonly onCheckpoint?: (checkpoint: StrategicFitJobCheckpoint) => void;
+  readonly onRecovery?: (recovery: StrategicFitJobRecovery) => void;
 }
 
 export interface StrategicFitWorkerLike {
@@ -108,6 +131,7 @@ function defaultWorkerFactory(): StrategicFitWorkerLike {
 function requestPayload(
   pgn: string,
   options: AnalyzeStrategicFitOptions,
+  resume?: StrategicFitJobCheckpoint,
 ): StrategicFitWorkerPayload {
   const {
     repertoireColor,
@@ -115,8 +139,10 @@ function requestPayload(
     openingTable,
     generatedAt,
     runId,
+    index: _index,
     shouldCancel: _shouldCancel,
     onProgress: _onProgress,
+    onCheckpoint: _onCheckpoint,
     ...serializableOptions
   } = options;
 
@@ -134,6 +160,7 @@ function requestPayload(
       ...(generatedAt === undefined ? {} : { generated_at: generatedAt }),
       ...(runId === undefined ? {} : { run_id: runId }),
     },
+    ...(resume === undefined ? {} : { resume }),
   };
 }
 
@@ -216,6 +243,16 @@ export class StrategicFitWorkerClient {
           execution.onProgress?.(response.progress);
           return;
         }
+        // Checkpoint and recovery messages are job bookkeeping: they never settle the request, and a
+        // message from a superseded or aborted request is discarded like any other stale result.
+        if (response.type === "checkpoint") {
+          execution.onCheckpoint?.(response.checkpoint);
+          return;
+        }
+        if (response.type === "recovery") {
+          execution.onRecovery?.(response.recovery);
+          return;
+        }
         this.finish(active);
         if (response.type === "result") resolve(response.result);
         else reject(new StrategicFitWorkerError(response.error));
@@ -239,7 +276,7 @@ export class StrategicFitWorkerClient {
         worker.postMessage({
           type: "analyze",
           request_id: requestId,
-          payload: requestPayload(pgn, options),
+          payload: requestPayload(pgn, options, execution.resume),
         });
       } catch (error) {
         this.finish(active);

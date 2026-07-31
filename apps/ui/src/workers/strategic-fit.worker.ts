@@ -3,6 +3,10 @@ import {
   StrategicFitAnalysisCancelledError,
   StrategicFitIndexCache,
   analyzeStrategicFit,
+  createStrategicFitJobRecorder,
+  restoreStrategicFitJobCheckpoint,
+  strategicFitColdJobRecovery,
+  strategicFitJobCompatibility,
   type AnalyzeStrategicFitOptions,
 } from "@chess-mcp/chess-tools";
 import type {
@@ -32,6 +36,8 @@ function isPayload(value: unknown): value is StrategicFitWorkerPayload {
     Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && isOpeningEntry(entry[1])
   )) return false;
   if (!isObject(value.options) || !isObject(value.metadata)) return false;
+  // A resumed checkpoint is only shape-checked here; the shared validator owns its compatibility.
+  if (value.resume !== undefined && value.resume !== null && !isObject(value.resume)) return false;
   return typeof value.metadata.repertoire_revision === "string" && value.metadata.repertoire_revision.length > 0 &&
     (value.metadata.generated_at === undefined || typeof value.metadata.generated_at === "string") &&
     (value.metadata.run_id === undefined || typeof value.metadata.run_id === "string");
@@ -81,12 +87,37 @@ function analyzerOptions(
 }
 
 /**
+ * Restore an interrupted job's completed stages, or state why they were refused.
+ *
+ * The checkpoint arrives from persistent browser storage, so it is treated as untrusted: the shared
+ * validator compares content, revision, settings, and index generation before anything is seeded,
+ * and a refusal is posted rather than swallowed.
+ */
+function recoverJob(
+  request: StrategicFitWorkerAnalyzeRequest,
+  compatibility: ReturnType<typeof strategicFitJobCompatibility>,
+  index: StrategicFitIndexCache,
+  post: PostResponse,
+): void {
+  const { payload, request_id: requestId } = request;
+  const recovery = payload.resume === undefined || payload.resume === null
+    ? strategicFitColdJobRecovery("No checkpoint was supplied, so the analysis ran from a cold start.")
+    : restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
+  post({ type: "recovery", request_id: requestId, recovery });
+}
+
+/**
  * Pure message dispatcher exported so the worker protocol can be exercised without browser globals.
  *
  * The handler owns one bounded incremental index for the lifetime of the worker. It only memoizes
  * deterministic stages under a content identity, so a reused entry cannot change a result: a later
  * analysis of the same document with different settings, or of an edited document, returns exactly
  * what a cold worker would have produced.
+ *
+ * A reload destroys that index, so a job may also arrive with a checkpoint of the stages an earlier
+ * interrupted run completed. It is seeded into the same index under the same content identities and
+ * is therefore governed by the same guarantee: resuming changes the work, never the result. Every
+ * request answers with a recovery record saying what was resumed or why a checkpoint was refused.
  */
 export function createStrategicFitWorkerHandler(post: PostResponse) {
   const cancelled = new Set<string>();
@@ -135,10 +166,18 @@ export function createStrategicFitWorkerHandler(post: PostResponse) {
           strategicFitWorkerCode: "strategic_fit_worker_invalid_pgn",
         });
       }
-      const result = analyzeStrategicFit(
-        tree,
-        analyzerOptions(request, () => cancelled.has(request.request_id), post, index),
-      );
+      const isCancelled = () => cancelled.has(request.request_id);
+      const options = analyzerOptions(request, isCancelled, post, index);
+      const compatibility = strategicFitJobCompatibility(request.payload.pgn, options);
+      recoverJob(request, compatibility, index, post);
+      const record = createStrategicFitJobRecorder({
+        compatibility,
+        save: (checkpoint) => {
+          if (isCancelled()) return;
+          post({ type: "checkpoint", request_id: request.request_id, checkpoint });
+        },
+      });
+      const result = analyzeStrategicFit(tree, { ...options, onCheckpoint: record });
       if (!cancelled.has(request.request_id)) {
         post({ type: "result", request_id: request.request_id, result });
       }

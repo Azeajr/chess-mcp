@@ -7,12 +7,18 @@ import { randomUUID } from "node:crypto";
 import {
   StrategicFitIndexCache,
   completeStrategicFitReport,
+  createStrategicFitJobRecorder,
+  restoreStrategicFitJobCheckpoint,
+  strategicFitColdJobRecovery,
   strategicFitCompleteAnalysisOptions,
+  strategicFitJobCompatibility,
   strategicFitReportCacheKey,
   type AnalyzeStrategicFitOptions,
   type Color,
   type GameTree,
   type StrategicFitAnalysisResult,
+  type StrategicFitJobCheckpoint,
+  type StrategicFitJobRecovery,
   type StrategicFitReport,
 } from "@chess-mcp/chess-tools";
 
@@ -35,6 +41,10 @@ export interface RepertoireEntry {
   strategicFitReports: Map<string, StrategicFitReport>;
   /** Bounded incremental index shared by every analysis of this immutable handle. */
   strategicFitIndex: StrategicFitIndexCache;
+  /** The one checkpoint an interrupted analysis of this handle left behind, if any. */
+  strategicFitCheckpoint: StrategicFitJobCheckpoint | null;
+  /** Recovery provenance for the handle's most recent analysis. */
+  strategicFitRecovery: StrategicFitJobRecovery | null;
   ts: number;
 }
 
@@ -43,6 +53,10 @@ const map = new Map<string, RepertoireEntry>();
 function drop(key: string, entry: RepertoireEntry): void {
   entry.strategicFitReports.clear();
   entry.strategicFitIndex.clear();
+  // An evicted handle takes its interrupted job with it: nothing may resume against a handle whose
+  // content is no longer held here.
+  entry.strategicFitCheckpoint = null;
+  entry.strategicFitRecovery = null;
   map.delete(key);
 }
 
@@ -69,6 +83,8 @@ export function store(tree: GameTree, color: Color): string {
     strategicFitIndex: new StrategicFitIndexCache({
       maximumEntries: STRATEGIC_FIT_INDEX_ENTRIES_PER_REPERTOIRE,
     }),
+    strategicFitCheckpoint: null,
+    strategicFitRecovery: null,
     ts: Date.now(),
   });
   evict(); // after insert: evict-before-insert capped at MAX+1 (size checked pre-add); the new
@@ -104,10 +120,30 @@ export function getOrCreateStrategicFitReport(
 
   // The index only memoizes deterministic stages under a content identity, so a settings-varied
   // analysis of the same handle reuses work without changing the report it produces.
+  const completeOptions = strategicFitCompleteAnalysisOptions(options);
+  const compatibility = strategicFitJobCompatibility(entry.contentKey, completeOptions);
+  // A call that threw — a cancelled scan, a dropped client — leaves its checkpoint on the handle;
+  // the next call for the same content, revision, settings, and generation continues that job.
+  entry.strategicFitRecovery = entry.strategicFitCheckpoint === null
+    ? strategicFitColdJobRecovery("The handle held no interrupted analysis, so this one ran cold.")
+    : restoreStrategicFitJobCheckpoint(
+        entry.strategicFitIndex,
+        entry.strategicFitCheckpoint,
+        compatibility,
+      );
+  if (entry.strategicFitRecovery.state === "discarded") entry.strategicFitCheckpoint = null;
+  const record = createStrategicFitJobRecorder({
+    compatibility,
+    save: (checkpoint) => { entry.strategicFitCheckpoint = checkpoint; },
+  });
+
   const report = completeStrategicFitReport(analyze({
-    ...strategicFitCompleteAnalysisOptions(options),
+    ...completeOptions,
     index: entry.strategicFitIndex,
+    onCheckpoint: record,
   }));
+  // The job settled, so its checkpoint stops being a job; the report itself is now the answer.
+  entry.strategicFitCheckpoint = null;
   entry.strategicFitReports.set(key, report);
   while (entry.strategicFitReports.size > MAX_STRATEGIC_FIT_REPORTS) {
     const oldest = entry.strategicFitReports.keys().next().value as string | undefined;
@@ -133,3 +169,11 @@ export function strategicFitReportById(
 
 export const strategicFitReportCacheSize = (entry: RepertoireEntry): number =>
   entry.strategicFitReports.size;
+
+/** Recovery provenance for this handle's most recent analysis; `null` before one has run. */
+export const strategicFitJobRecovery = (entry: RepertoireEntry): StrategicFitJobRecovery | null =>
+  entry.strategicFitRecovery;
+
+/** Whether this handle is still holding an interrupted analysis that a later call can continue. */
+export const hasStrategicFitJobCheckpoint = (entry: RepertoireEntry): boolean =>
+  entry.strategicFitCheckpoint !== null;

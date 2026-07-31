@@ -43,7 +43,9 @@ import {
   indexedRepertoireGraph,
   indexedStrategicTrajectories,
   strategicFitIndexGeneration,
+  strategicFitIndexSettings,
   type StrategicFitIndexCache,
+  type StrategicFitJobCheckpointStage,
   type StrategicFitRecomputationScope,
 } from "./index-cache.js";
 import {
@@ -171,6 +173,14 @@ export interface AnalyzeStrategicFitOptions {
    * to reuse and is recorded as plan evidence; it can never substitute a value.
    */
   readonly recomputationScope?: StrategicFitRecomputationScope;
+  /**
+   * Checkpoint sink for a host that can be interrupted. It receives the whole-stage values an
+   * indexed run has already produced, so a later run of the same content, revision, settings, and
+   * generation can restore them instead of recomputing them. A checkpoint is evidence of completed
+   * work, never a findings source: it carries no report, and it cannot change what an analysis
+   * returns. It is emitted only alongside an index, whose content identities it is expressed in.
+   */
+  readonly onCheckpoint?: (stage: StrategicFitJobCheckpointStage) => void;
   readonly shouldCancel?: () => boolean;
   readonly onProgress?: (progress: StrategicFitProgress) => void;
 }
@@ -1099,11 +1109,9 @@ export function analyzeStrategicFit(
   ]);
 
   const index = options.index;
-  const generation = index === undefined ? null : strategicFitIndexGeneration({
-    repertoire_color: options.repertoireColor,
-    trajectory: options.trajectory ?? null,
-    opening_table: openingTableIdentity(options.openingTable),
-  });
+  const generation = index === undefined
+    ? null
+    : strategicFitIndexGeneration(strategicFitIndexSettings(options));
 
   const normalized = runPhase(options, runId, 0, () => {
     const preflight = preflightStrategicFit(tree, {
@@ -1111,19 +1119,36 @@ export function analyzeStrategicFit(
       openingTable: options.openingTable,
     });
     if (preflight.state === "blocked" || options.repertoireColor === null) {
-      return { preflight, graph: null } as const;
+      return { preflight, graph: null, contentKey: null } as const;
     }
     const repertoireColor = options.repertoireColor;
+    const contentKey = tree.toPgn();
     const graph = indexedRepertoireGraph(
       index,
       generation,
-      tree.toPgn(),
+      contentKey,
       () => buildRepertoireGraph(tree, repertoireColor),
     );
-    return { preflight: attachPreflightRouteIds(preflight, graph), graph } as const;
+    return { preflight: attachPreflightRouteIds(preflight, graph), graph, contentKey } as const;
   });
   if (normalized.graph === null) return blockedResult(options, profile, normalized.preflight);
   const graph = normalized.graph;
+  const contentKey = normalized.contentKey;
+  /** Emitted after a phase completes, so an interrupted job keeps exactly what it finished. */
+  const checkpoint = (
+    phaseIndex: number,
+    trajectories: StrategicTrajectoryReport | null,
+  ): void => {
+    if (options.onCheckpoint === undefined || generation === null) return;
+    options.onCheckpoint({
+      generation,
+      graph_content_key: contentKey,
+      graph,
+      trajectories,
+      completed_phase: STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]!,
+      completed_phase_index: phaseIndex,
+    });
+  };
   if (index !== undefined && generation !== null) {
     index.planRecomputation(
       generation,
@@ -1131,6 +1156,7 @@ export function analyzeStrategicFit(
       options.recomputationScope,
     );
   }
+  checkpoint(0, null);
 
   const comparable = runPhase(options, runId, 1, () => {
     const taxonomy = buildOpeningTaxonomy(graph, options.openingTable);
@@ -1159,6 +1185,7 @@ export function analyzeStrategicFit(
   if (index !== undefined && generation !== null) {
     index.rememberAnalysis(generation, graph, comparable.cohorts.cohorts);
   }
+  checkpoint(1, comparable.trajectories);
 
   const patterns = runPhase(options, runId, 2, () => {
     const concepts = buildStrategicConceptDictionary(comparable.trajectories);
