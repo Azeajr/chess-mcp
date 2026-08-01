@@ -132,7 +132,9 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                   name="strategic-fit-profile"
                   value={option.mode}
                   checked={selectedMode() === option.mode}
-                  onChange={() => chooseMode(option.mode)}
+                  onChange={() => {
+                    chooseMode(option.mode);
+                  }}
                 />
                 <span>
                   <strong>{STRATEGIC_FIT_PROFILE_LABELS[option.mode]}</strong>
@@ -176,12 +178,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                       max="3"
                       step="0.25"
                       value={preferences().feature_family_weights[family]}
-                      onInput={(event) =>
+                      onInput={(event) => {
                         updatePreference("feature_family_weights", {
                           ...preferences().feature_family_weights,
                           [family]: Number(event.currentTarget.value),
-                        })
-                      }
+                        });
+                      }}
                     />
                     <output>{preferences().feature_family_weights[family].toFixed(2)}</output>
                   </div>
@@ -201,12 +203,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                 value={preferences().maximum_engine_loss_cp ?? ""}
                 aria-describedby="strategic-fit-engine-loss-help"
                 placeholder="No limit"
-                onInput={(event) =>
+                onInput={(event) => {
                   updatePreference(
                     "maximum_engine_loss_cp",
                     optionalNumber(event.currentTarget.value),
-                  )
-                }
+                  );
+                }}
               />
             </label>
 
@@ -222,12 +224,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                   max="1"
                   step="0.05"
                   value={preferences().opponent_popularity_importance}
-                  onInput={(event) =>
+                  onInput={(event) => {
                     updatePreference(
                       "opponent_popularity_importance",
                       Number(event.currentTarget.value),
-                    )
-                  }
+                    );
+                  }}
                 />
                 <output>{preferences().opponent_popularity_importance.toFixed(2)}</output>
               </div>
@@ -245,12 +247,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                   max="1"
                   step="0.05"
                   value={preferences().personal_game_frequency_importance}
-                  onInput={(event) =>
+                  onInput={(event) => {
                     updatePreference(
                       "personal_game_frequency_importance",
                       Number(event.currentTarget.value),
-                    )
-                  }
+                    );
+                  }}
                 />
                 <output>{preferences().personal_game_frequency_importance.toFixed(2)}</output>
               </div>
@@ -268,9 +270,9 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                   max="1"
                   step="0.05"
                   value={preferences().manual_weight_importance}
-                  onInput={(event) =>
-                    updatePreference("manual_weight_importance", Number(event.currentTarget.value))
-                  }
+                  onInput={(event) => {
+                    updatePreference("manual_weight_importance", Number(event.currentTarget.value));
+                  }}
                 />
                 <output>{preferences().manual_weight_importance.toFixed(2)}</output>
               </div>
@@ -288,12 +290,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                   max="1"
                   step="0.05"
                   value={preferences().additional_memorization_tolerance}
-                  onInput={(event) =>
+                  onInput={(event) => {
                     updatePreference(
                       "additional_memorization_tolerance",
                       Number(event.currentTarget.value),
-                    )
-                  }
+                    );
+                  }}
                 />
                 <output>{preferences().additional_memorization_tolerance.toFixed(2)}</output>
               </div>
@@ -316,12 +318,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                 }
                 aria-describedby="strategic-fit-coverage-help"
                 placeholder="No minimum"
-                onInput={(event) =>
+                onInput={(event) => {
                   updatePreference(
                     "minimum_opponent_coverage",
                     optionalNumber(event.currentTarget.value, 100),
-                  )
-                }
+                  );
+                }}
               />
             </label>
 
@@ -333,9 +335,9 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
               <input
                 type="text"
                 value={preferences().preferred_concept_ids.join(", ")}
-                onInput={(event) =>
-                  updatePreference("preferred_concept_ids", listValue(event.currentTarget.value))
-                }
+                onInput={(event) => {
+                  updatePreference("preferred_concept_ids", listValue(event.currentTarget.value));
+                }}
               />
             </label>
 
@@ -347,9 +349,9 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
               <input
                 type="text"
                 value={preferences().avoided_concept_ids.join(", ")}
-                onInput={(event) =>
-                  updatePreference("avoided_concept_ids", listValue(event.currentTarget.value))
-                }
+                onInput={(event) => {
+                  updatePreference("avoided_concept_ids", listValue(event.currentTarget.value));
+                }}
               />
             </label>
 
@@ -361,12 +363,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
               <input
                 type="text"
                 value={preferences().preferred_tactical_character.join(", ")}
-                onInput={(event) =>
+                onInput={(event) => {
                   updatePreference(
                     "preferred_tactical_character",
                     listValue(event.currentTarget.value),
-                  )
-                }
+                  );
+                }}
               />
             </label>
           </div>

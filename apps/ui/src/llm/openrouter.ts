@@ -43,6 +43,23 @@ export interface RoundResult {
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
+type JsonRecord = Record<string, unknown>;
+
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
+function describeStreamValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return `${value}`;
+  if (value === null) return "null";
+  return JSON.stringify(value);
+}
+
 function wireMessage(m: ChatMessage) {
   return {
     role: m.role,
@@ -107,44 +124,50 @@ export async function streamChat(opts: {
       if (!line) continue;
       const data = line.slice(5).trim();
       if (data === "[DONE]") continue;
-      let json: any;
+      let json: unknown;
       try {
         json = JSON.parse(data);
       } catch {
         continue;
       }
+      if (!isJsonRecord(json)) continue;
       // Mid-stream provider errors arrive as data frames, not HTTP errors — without this the
       // stream just ends and the user sees a silently clipped answer.
-      if (json.error) {
-        const msg =
-          typeof json.error === "object" && json.error !== null
-            ? (json.error.message ?? JSON.stringify(json.error))
-            : String(json.error);
-        throw new Error(`OpenRouter stream error: ${String(msg).slice(0, 300)}`);
+      const streamError = json.error;
+      if (streamError) {
+        const msg = isJsonRecord(streamError) ? streamError.message : streamError;
+        throw new Error(`OpenRouter stream error: ${describeStreamValue(msg).slice(0, 300)}`);
       }
-      if (json.usage && typeof json.usage === "object" && !Array.isArray(json.usage))
-        usage = json.usage;
-      const choice = json.choices?.[0];
-      const finish = choice?.finish_reason;
+      if (isJsonRecord(json.usage)) usage = json.usage;
+      const choice = isJsonArray(json.choices) ? json.choices[0] : undefined;
+      if (!isJsonRecord(choice)) continue;
+      const finish = choice.finish_reason;
       if (typeof finish === "string" && finish !== "stop" && finish !== "tool_calls") {
         abnormalFinish = finish;
       }
-      const delta = choice?.delta;
-      if (!delta) continue;
+      const delta = choice.delta;
+      if (!isJsonRecord(delta)) continue;
       if (typeof delta.content === "string" && delta.content) {
         content += delta.content;
         opts.onText(delta.content);
       }
-      for (const tc of delta.tool_calls ?? []) {
-        const idx = tc.index ?? 0;
+      const toolCalls = isJsonArray(delta.tool_calls) ? delta.tool_calls : [];
+      for (const toolCall of toolCalls) {
+        if (!isJsonRecord(toolCall)) continue;
+        const idx = typeof toolCall.index === "number" ? toolCall.index : 0;
         const existing = toolByIndex.get(idx) ?? {
           id: "",
           type: "function",
           function: { name: "", arguments: "" },
         };
-        if (tc.id) existing.id = tc.id;
-        if (tc.function?.name) existing.function.name = tc.function.name;
-        if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+        if (typeof toolCall.id === "string" && toolCall.id) existing.id = toolCall.id;
+        const toolFunction = toolCall.function;
+        if (isJsonRecord(toolFunction)) {
+          if (typeof toolFunction.name === "string" && toolFunction.name)
+            existing.function.name = toolFunction.name;
+          if (typeof toolFunction.arguments === "string" && toolFunction.arguments)
+            existing.function.arguments += toolFunction.arguments;
+        }
         toolByIndex.set(idx, existing);
       }
     }

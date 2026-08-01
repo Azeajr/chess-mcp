@@ -5,7 +5,7 @@ export const documentCommands = {
   identify_opening: async (args, context) =>
     identifyDeepest(
       await context.openings(),
-      (args.pgn as string | undefined) || context.currentPgn(),
+      (args.pgn as string | undefined) ?? context.currentPgn(),
     ) ?? { opening: null },
   get_selected_subtree: (args, context) => {
     const tree = context.currentTree();
@@ -19,7 +19,9 @@ export const documentCommands = {
         lines.push(tail.slice(0, max));
         return;
       }
-      node.children.forEach((child, index) => walk([...path, index], [...tail, child.data.san]));
+      node.children.forEach((child, index) => {
+        walk([...path, index], [...tail, child.data.san]);
+      });
     };
     walk(selected, []);
     return { selected_path: tree.sanPathAt(selected), lines, truncated: lines.length === 20 };
@@ -29,5 +31,8 @@ export const documentCommands = {
     pgn: context.currentPgn(),
   }),
   propose_line: (args, context) =>
-    context.proposeLine((args.moves as string[]) ?? [], args.comment as string | undefined),
+    context.proposeLine(
+      (args.moves as string[] | undefined) ?? [],
+      args.comment as string | undefined,
+    ),
 } satisfies Record<string, BrowserCommandHandler>;

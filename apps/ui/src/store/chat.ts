@@ -15,7 +15,7 @@ const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Use loc
 const MAX_ROUNDS = 12;
 const MAX_TOOL_RESULT_CHARS = 6000;
 
-export type ToolRunState = {
+export interface ToolRunState {
   id: string;
   name: string;
   status: Exclude<ExecutionStatus, "idle">;
@@ -23,7 +23,7 @@ export type ToolRunState = {
   total?: number;
   detail?: string;
   error?: string;
-};
+}
 const [history, setHistory] = createSignal<ChatMessage[]>([]);
 const [streamingText, setStreamingText] = createSignal("");
 const [busy, setBusy] = createSignal(false);
@@ -174,9 +174,9 @@ export function compactToolResult(content: string): string {
     const pinStrategicFitIdentities = (candidate: unknown, location: string) => {
       if (!candidate || typeof candidate !== "object") return;
       if (Array.isArray(candidate)) {
-        candidate.forEach((item, index) =>
-          pinStrategicFitIdentities(item, `${location}[${index}]`),
-        );
+        candidate.forEach((item, index) => {
+          pinStrategicFitIdentities(item, `${location}[${index}]`);
+        });
         return;
       }
       const item = candidate as Record<string, unknown>;
@@ -208,7 +208,9 @@ export function compactToolResult(content: string): string {
     const visit = (candidate: unknown, location: string) => {
       if (references.length >= 100 || !candidate || typeof candidate !== "object") return;
       if (Array.isArray(candidate)) {
-        candidate.forEach((item, index) => visit(item, `${location}[${index}]`));
+        candidate.forEach((item, index) => {
+          visit(item, `${location}[${index}]`);
+        });
         return;
       }
       const item = candidate as Record<string, unknown>;
@@ -264,9 +266,11 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
       } catch {
         raw = null;
       }
-      result = await toolExecutor(tc.function.name, raw as Record<string, unknown>, {
+      result = await toolExecutor(tc.function.name, raw, {
         signal,
-        onProgress: (done, total, detail) => updateRun(tc.id, { done, total, detail }),
+        onProgress: (done, total, detail) => {
+          updateRun(tc.id, { done, total, detail });
+        },
       });
       updateRun(tc.id, { status: executionOutcome(signal.aborted) });
     } catch (e) {

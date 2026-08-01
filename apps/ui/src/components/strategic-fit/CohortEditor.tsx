@@ -208,7 +208,9 @@ export default function CohortEditor(props: {
                   name={`cohort-adjustment-${props.finding.finding_id}`}
                   value={action.mode}
                   checked={mode() === action.mode}
-                  onInput={() => chooseMode(action.mode)}
+                  onInput={() => {
+                    chooseMode(action.mode);
+                  }}
                 />
                 <span>
                   <strong>{action.label}</strong>
@@ -229,9 +231,9 @@ export default function CohortEditor(props: {
                     type="checkbox"
                     value={option.routeId}
                     checked={routeIds().includes(option.routeId)}
-                    onInput={(event) =>
-                      toggle(option.routeId, event.currentTarget.checked, setRouteIds, routeIds())
-                    }
+                    onInput={(event) => {
+                      toggle(option.routeId, event.currentTarget.checked, setRouteIds, routeIds());
+                    }}
                   />
                   <span>
                     <code>{option.routeId}</code>
@@ -261,14 +263,14 @@ export default function CohortEditor(props: {
                       type="checkbox"
                       value={decisionId}
                       checked={decisionIds().includes(decisionId)}
-                      onInput={(event) =>
+                      onInput={(event) => {
                         toggle(
                           decisionId,
                           event.currentTarget.checked,
                           setDecisionIds,
                           decisionIds(),
-                        )
-                      }
+                        );
+                      }}
                     />
                     <code>{decisionId}</code>
                   </label>

@@ -31,10 +31,10 @@ export interface StrategicFitDataSourceSettings {
   };
 }
 
-export type StrategicFitDataSourceSettingsInput = {
+export interface StrategicFitDataSourceSettingsInput {
   readonly popularity?: Partial<StrategicFitDataSourceSettings["popularity"]>;
   readonly personal_history?: Partial<StrategicFitDataSourceSettings["personal_history"]>;
-};
+}
 
 export interface StrategicFitDataSourceStateBoundary {
   load(): unknown;

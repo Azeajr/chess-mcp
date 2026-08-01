@@ -77,10 +77,20 @@ export default function AnalysisPanel() {
                   <div class="sug-comment">{s.comment}</div>
                 </Show>
                 <div class="sug-actions">
-                  <button class="accept" onClick={() => acceptSuggestion(s.id)}>
+                  <button
+                    class="accept"
+                    onClick={() => {
+                      acceptSuggestion(s.id);
+                    }}
+                  >
                     Accept
                   </button>
-                  <button class="reject" onClick={() => rejectSuggestion(s.id)}>
+                  <button
+                    class="reject"
+                    onClick={() => {
+                      rejectSuggestion(s.id);
+                    }}
+                  >
                     Reject
                   </button>
                 </div>

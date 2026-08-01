@@ -49,7 +49,9 @@ export function proofMakesNoResolutionClaim(
 
 export default function ResolutionProof() {
   const state = strategicFitResolutionProofSnapshot;
-  createEffect(() => strategicFitResolutionProof.synchronize());
+  createEffect(() => {
+    strategicFitResolutionProof.synchronize();
+  });
   const alerting = () => ["superseded", "rescan-failed", "undo-blocked"].includes(state().status);
   const outcome = () => state().outcome;
   const undoAvailable = () =>

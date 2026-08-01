@@ -72,15 +72,15 @@ export type BrowserCommandArgs = Record<string, unknown>;
 export type BrowserCommandHandler = (
   args: BrowserCommandArgs,
   context: BrowserCommandContext,
-) => unknown | Promise<unknown>;
+) => unknown;
 export type BrowserCommandRegistry = Record<BrowserCommandName, BrowserCommandHandler>;
 
-export type BrowserCommandExecutionOptions = {
+export interface BrowserCommandExecutionOptions {
   signal?: AbortSignal;
   onProgress?: (done: number, total?: number, detail?: string) => void;
-};
+}
 
-export type BrowserCommandDependencies = {
+export interface BrowserCommandDependencies {
   currentTree: () => GameTree;
   currentFen: () => string;
   currentPgn: () => string;
@@ -175,7 +175,7 @@ export type BrowserCommandDependencies = {
     readonly constraint_set_id?: string;
     readonly option_id?: string;
   }) => unknown;
-};
+}
 
 export type BrowserCommandContext = BrowserCommandDependencies & BrowserCommandExecutionOptions;
 

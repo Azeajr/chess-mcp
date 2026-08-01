@@ -243,7 +243,7 @@ function metricDeltas(
       state: available ? "available" : "unavailable",
       before: previous.value,
       after: current.value,
-      delta: available ? current.value! - previous.value! : null,
+      delta: available ? current.value - previous.value : null,
       unit: current.unit,
       reason: available
         ? null

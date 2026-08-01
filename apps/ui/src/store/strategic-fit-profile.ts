@@ -219,7 +219,7 @@ export function createStrategicFitProfileState(
     const currentMetadata = boundary.currentMetadata();
     const current = effectiveProfile();
     if (
-      inferredProfiles.has(id) === false &&
+      !inferredProfiles.has(id) &&
       strategicFitProfileIdentity(currentMetadata.profile) === strategicFitProfileIdentity(next)
     ) {
       return { state: "unchanged", profile: cloneProfile(current) };

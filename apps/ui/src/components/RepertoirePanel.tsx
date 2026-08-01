@@ -180,7 +180,12 @@ export default function RepertoirePanel() {
   };
   // The whole prospective line is shown inline (numbered, continuing from the gap depth) — no hover.
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
-    <div class="rep-row indent fill-row" onClick={() => onFill(props.g, props.opt)}>
+    <div
+      class="rep-row indent fill-row"
+      onClick={() => {
+        onFill(props.g, props.opt);
+      }}
+    >
       <span class="san">{numbered(props.opt.line, props.g.path.length)}</span>
       <span class="ev">{props.opt.evalCp == null ? "—" : cp2(props.opt.evalCp)}</span>
       <span class="fit">
@@ -235,7 +240,12 @@ export default function RepertoirePanel() {
         {commandStatus("audit_repertoire_moves")}
         <For each={rows("audit_repertoire_moves", "findings")}>
           {(finding) => (
-            <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
+            <div
+              class="rep-row"
+              onClick={() => {
+                navSan(finding.path as string[]);
+              }}
+            >
               <span class={`sev sev-${String(finding.classification)}`}>
                 {String(finding.classification)}
               </span>
@@ -258,7 +268,12 @@ export default function RepertoirePanel() {
         {commandStatus("find_only_moves")}
         <For each={rows("find_only_moves", "findings")}>
           {(finding) => (
-            <div class="rep-row" onClick={() => navSan(finding.path as string[])}>
+            <div
+              class="rep-row"
+              onClick={() => {
+                navSan(finding.path as string[]);
+              }}
+            >
               <span class="bridge-icon">!</span>
               <span class="san">
                 {(finding.path as string[]).join(" ") || "Start"} · {String(finding.best_move)}
@@ -310,7 +325,12 @@ export default function RepertoirePanel() {
         {commandStatus("find_structures")}
         <For each={rows("find_structures", "matches")}>
           {(match) => (
-            <div class="rep-row" onClick={() => navSan(match.path as string[])}>
+            <div
+              class="rep-row"
+              onClick={() => {
+                navSan(match.path as string[]);
+              }}
+            >
               <span class="san">{(match.path as string[]).join(" ")}</span>
               <span class="fit">{String(match.structure)}</span>
             </div>
@@ -416,7 +436,9 @@ export default function RepertoirePanel() {
               <div class="rep-flag">
                 <div
                   class="rep-row"
-                  onClick={() => actions.goto(g.path)}
+                  onClick={() => {
+                    actions.goto(g.path);
+                  }}
                   title={`${gapLine(g)} — uncovered: ${g.uncoveredMove}`}
                 >
                   <span class={`sev sev-${g.severity}`}>{g.severity}</span>
@@ -459,7 +481,9 @@ export default function RepertoirePanel() {
           {(c: CoveredGap) => (
             <div
               class="rep-row covered"
-              onClick={() => actions.goto(c.path)}
+              onClick={() => {
+                actions.goto(c.path);
+              }}
               title={`${c.uncoveredMove} transposes into ${c.joinsPath.join(" ")}`}
             >
               <span class="sev">✓</span>
@@ -496,7 +520,9 @@ export default function RepertoirePanel() {
           {(b: ExtendedBridge) => (
             <div
               class="rep-row"
-              onClick={() => onExtBridge(b)}
+              onClick={() => {
+                onExtBridge(b);
+              }}
               title={`${b.fromPath.join(" ")} → ${b.moves.join(" ")}  joins  ${b.joinsPath.join(" ")}`}
             >
               <span class="bridge-icon">🔗</span>
@@ -552,7 +578,9 @@ export default function RepertoirePanel() {
             <>
               <div
                 class="rep-row"
-                onClick={() => onPrune(p)}
+                onClick={() => {
+                  onPrune(p);
+                }}
                 title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
               >
                 <span class="bridge-icon">✂</span>
@@ -641,7 +669,9 @@ export default function RepertoirePanel() {
           <select
             class="rep-mode"
             value={mode()}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
             onChange={(e) => setMode(e.currentTarget.value as "low_memorization" | "sharp")}
           >
             <option value="low_memorization">low-mem</option>

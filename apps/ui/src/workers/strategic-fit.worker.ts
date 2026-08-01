@@ -100,7 +100,9 @@ function analyzerOptions(
       : { generatedAt: payload.metadata.generated_at }),
     ...(payload.metadata.run_id === undefined ? {} : { runId: payload.metadata.run_id }),
     shouldCancel,
-    onProgress: (progress) => post({ type: "progress", request_id: requestId, progress }),
+    onProgress: (progress) => {
+      post({ type: "progress", request_id: requestId, progress });
+    },
   };
 }
 
@@ -238,6 +240,10 @@ if (
   typeof scope.postMessage === "function" &&
   typeof scope.addEventListener === "function"
 ) {
-  const handle = createStrategicFitWorkerHandler((response) => scope.postMessage!(response));
-  scope.addEventListener("message", (event) => handle(event.data));
+  const handle = createStrategicFitWorkerHandler((response) => {
+    scope.postMessage!(response);
+  });
+  scope.addEventListener("message", (event) => {
+    handle(event.data);
+  });
 }

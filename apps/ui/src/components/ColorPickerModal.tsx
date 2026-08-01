@@ -9,7 +9,12 @@ export default function ColorPickerModal() {
         const [sel, setSel] = createSignal<Color>(p().detectedColor ?? "white");
         return (
           <div class="color-picker-backdrop" onClick={cancelPendingLoad}>
-            <div class="color-picker-modal" onClick={(e) => e.stopPropagation()}>
+            <div
+              class="color-picker-modal"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
               <div class="color-picker-title">Which color is this repertoire for?</div>
               <Show when={p().name}>
                 <div class="color-picker-file">{p().name}</div>
@@ -42,7 +47,12 @@ export default function ColorPickerModal() {
                 <div class="color-picker-error">Could not load: {loadError()}</div>
               </Show>
               <div class="color-picker-actions">
-                <button class="color-picker-load" onClick={() => resolvePendingLoad(sel())}>
+                <button
+                  class="color-picker-load"
+                  onClick={() => {
+                    resolvePendingLoad(sel());
+                  }}
+                >
                   Load
                 </button>
                 <button class="color-picker-cancel" onClick={cancelPendingLoad}>

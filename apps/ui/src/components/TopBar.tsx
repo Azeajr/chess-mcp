@@ -50,7 +50,9 @@ export default function TopBar() {
       </button>
       <select
         value={color()}
-        onChange={(e) => actions.setColor(e.currentTarget.value as "white" | "black")}
+        onChange={(e) => {
+          actions.setColor(e.currentTarget.value as "white" | "black");
+        }}
       >
         <option value="white">White</option>
         <option value="black">Black</option>
@@ -72,7 +74,9 @@ export default function TopBar() {
           min={MIN_ANALYSIS_DEPTH}
           max={MAX_ANALYSIS_DEPTH}
           value={analysisDepth()}
-          onInput={(e) => updateDepth(e.currentTarget.valueAsNumber)}
+          onInput={(e) => {
+            updateDepth(e.currentTarget.valueAsNumber);
+          }}
         />
         <input
           class="depth-number"
@@ -81,7 +85,9 @@ export default function TopBar() {
           min={MIN_ANALYSIS_DEPTH}
           max={MAX_ANALYSIS_DEPTH}
           value={analysisDepth()}
-          onInput={(e) => updateDepth(e.currentTarget.valueAsNumber)}
+          onInput={(e) => {
+            updateDepth(e.currentTarget.valueAsNumber);
+          }}
           onWheel={(e) => {
             e.preventDefault();
             updateDepth(analysisDepth() + (e.deltaY < 0 ? 1 : -1));

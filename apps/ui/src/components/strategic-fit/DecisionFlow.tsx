@@ -272,10 +272,12 @@ function layoutCohort(
         causality_text: decisionFlowCausalityText(node),
         aria_label:
           `${actorText(node)} ${moveText(node)}. ${percent(node.weight, total)}% of this cohort's expected games.` +
-          `${node.branching ? " Splits into several replies." : ""}` +
-          `${node.transposition === null ? "" : " Reached by a transposition."}` +
-          `${node.kind === "decision" ? ` ${decisionFlowCausalityText(node)}.` : ""}` +
-          `${node.finding_ids.length === 0 ? " No findings." : ` ${node.finding_ids.length} ${node.finding_ids.length === 1 ? "finding" : "findings"}.`}`,
+          (node.branching ? " Splits into several replies." : "") +
+          (node.transposition === null ? "" : " Reached by a transposition.") +
+          (node.kind === "decision" ? ` ${decisionFlowCausalityText(node)}.` : "") +
+          (node.finding_ids.length === 0
+            ? " No findings."
+            : ` ${node.finding_ids.length} ${node.finding_ids.length === 1 ? "finding" : "findings"}.`),
       });
     }
   }
@@ -302,7 +304,7 @@ function layoutCohort(
         share_percent: percent(link.weight, total),
         aria_label:
           `${from.move_text} to ${to.move_text}: ${percent(link.weight, total)}% of expected games.` +
-          `${link.truncated ? " Some moves are omitted at the depth limit." : ""}`,
+          (link.truncated ? " Some moves are omitted at the depth limit." : ""),
       },
     ];
   });
@@ -323,8 +325,10 @@ function layoutCohort(
         share_percent: percent(link.weight, total),
         aria_label:
           `${from.move_text} to ${to.move_text}: ${percent(link.weight, total)}% of expected games.` +
-          `${link.merged_link_ids.length > 1 ? ` Combines ${link.merged_link_ids.length} steps.` : ""}` +
-          `${link.truncated ? " Some moves are omitted at the depth limit." : ""}`,
+          (link.merged_link_ids.length > 1
+            ? ` Combines ${link.merged_link_ids.length} steps.`
+            : "") +
+          (link.truncated ? " Some moves are omitted at the depth limit." : ""),
       },
     ];
   });
@@ -493,7 +497,9 @@ export default function DecisionFlow(props: {
       setContainerWidth(width > 0 ? width : null);
     });
     observer.observe(scrollRef);
-    onCleanup(() => observer.disconnect());
+    onCleanup(() => {
+      observer.disconnect();
+    });
   });
 
   const model = createMemo(() =>
@@ -707,7 +713,9 @@ export default function DecisionFlow(props: {
                       data-flow-link={view.link_id}
                       data-flow-link-truncated={view.truncated ? "true" : "false"}
                       data-flow-link-merged={view.merged_link_ids.length}
-                      onClick={() => select(view.link_id)}
+                      onClick={() => {
+                        select(view.link_id);
+                      }}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
                         event.preventDefault();
@@ -731,7 +739,9 @@ export default function DecisionFlow(props: {
                       aria-pressed={selectedAggregateId() === view.aggregate_id}
                       data-flow-aggregate={view.aggregate_id}
                       data-flow-aggregate-size={view.member_node_ids.length}
-                      onClick={() => selectAggregate(view.aggregate_id)}
+                      onClick={() => {
+                        selectAggregate(view.aggregate_id);
+                      }}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
                         event.preventDefault();
@@ -768,7 +778,9 @@ export default function DecisionFlow(props: {
                       data-flow-transposition={view.node.transposition === null ? "false" : "true"}
                       data-flow-causality={view.node.causality.label}
                       data-flow-qualified={view.node.causality.qualified ? "true" : "false"}
-                      onClick={() => select(view.node.node_id)}
+                      onClick={() => {
+                        select(view.node.node_id);
+                      }}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
                         event.preventDefault();
@@ -801,7 +813,9 @@ export default function DecisionFlow(props: {
                         <li>
                           <button
                             type="button"
-                            onClick={() => select(member.node.node_id)}
+                            onClick={() => {
+                              select(member.node.node_id);
+                            }}
                             data-flow-aggregate-member={member.node.node_id}
                           >
                             {member.symbol} {member.move_text} ({member.share_percent}%)
@@ -928,7 +942,9 @@ export default function DecisionFlow(props: {
                       {(findingId) => (
                         <button
                           type="button"
-                          onClick={() => props.onOpenFinding(findingId)}
+                          onClick={() => {
+                            props.onOpenFinding(findingId);
+                          }}
                           data-flow-open-finding={findingId}
                         >
                           Open finding {findingId.slice(-8)}
@@ -1000,7 +1016,9 @@ export default function DecisionFlow(props: {
                           <td>
                             <button
                               type="button"
-                              onClick={() => select(view.node.node_id)}
+                              onClick={() => {
+                                select(view.node.node_id);
+                              }}
                               aria-pressed={selectedId() === view.node.node_id}
                             >
                               {view.move_text}

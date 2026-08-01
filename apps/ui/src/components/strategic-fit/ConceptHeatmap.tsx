@@ -479,7 +479,9 @@ export default function ConceptHeatmap(props: {
                                   aria-pressed={selectedKey() === key}
                                   data-heatmap-cell={key}
                                   data-heatmap-cell-findings={view().cell.finding_ids.length}
-                                  onClick={() => selectCell(key)}
+                                  onClick={() => {
+                                    selectCell(key);
+                                  }}
                                 >
                                   {view().frequency_percent}%
                                 </button>
@@ -555,7 +557,9 @@ export default function ConceptHeatmap(props: {
                     {(findingId) => (
                       <button
                         type="button"
-                        onClick={() => props.onOpenFinding(findingId)}
+                        onClick={() => {
+                          props.onOpenFinding(findingId);
+                        }}
                         data-heatmap-open-finding={findingId}
                       >
                         Open finding {findingId.slice(-8)}

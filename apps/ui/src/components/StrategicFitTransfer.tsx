@@ -83,7 +83,12 @@ export default function StrategicFitTransfer() {
             </button>
           }
         >
-          <button class="fix-btn" onClick={() => cancelCommand("export_strategic_fit_intent_pgn")}>
+          <button
+            class="fix-btn"
+            onClick={() => {
+              cancelCommand("export_strategic_fit_intent_pgn");
+            }}
+          >
             Cancel intent export
           </button>
         </Show>

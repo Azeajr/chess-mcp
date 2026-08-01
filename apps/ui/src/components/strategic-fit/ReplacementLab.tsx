@@ -155,7 +155,9 @@ export default function ReplacementLab() {
     state().status !== "running" &&
     state().actionability?.actionable === true;
 
-  createEffect(() => replacementLab.synchronize());
+  createEffect(() => {
+    replacementLab.synchronize();
+  });
   createEffect(() => {
     const selected = selectedCandidateId();
     if (selected !== null && !comparisonRows().some((row) => row.candidate_id === selected)) {
@@ -166,7 +168,9 @@ export default function ReplacementLab() {
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButton.focus();
-    onCleanup(() => queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus()));
+    onCleanup(() => {
+      queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus());
+    });
   });
 
   const trapFocus = (event: KeyboardEvent) => {

@@ -506,19 +506,21 @@ const browserFindingResolutionState = createStrategicFitFindingResolutionState({
   reopenResolution: reopenStrategicFitResolution,
   prepareReport: prepareCompletedStrategicFitReportForResolution,
   retainReport: retainCompletedStrategicFitReportAfterResolution,
-  reanalyze: (cohortId) =>
+  reanalyze: (cohortId) => {
     scheduleStrategicFitReanalysis(
       affectedCohortReanalysisRequest(
         "resolution-change",
         [cohortId],
         "A finding resolution changed the analyzer projection for this cohort.",
       ),
-    ),
+    );
+  },
 });
 
 export const strategicFitFindingResolutionReview = () => browserFindingResolutionState.snapshot();
-export const synchronizeStrategicFitFindingResolutionReview = (reportId: string | null) =>
+export const synchronizeStrategicFitFindingResolutionReview = (reportId: string | null) => {
   browserFindingResolutionState.synchronize(reportId);
+};
 export const strategicFitFindingResolutionAvailability = (
   reportId: string,
   findingId: string,

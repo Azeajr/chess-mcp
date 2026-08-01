@@ -62,7 +62,9 @@ export default function ChatPanel() {
           class="chat-mode"
           title="Optional workflow guidance; all tools remain available"
           value={chatMode()}
-          onChange={(e) => setChatMode(e.currentTarget.value as ChatMode)}
+          onChange={(e) => {
+            setChatMode(e.currentTarget.value as ChatMode);
+          }}
         >
           <For each={CHAT_MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
         </select>

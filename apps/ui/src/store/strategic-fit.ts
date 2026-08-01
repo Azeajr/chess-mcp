@@ -896,7 +896,9 @@ export const strategicFitCurrentSnapshot = currentBrowserSnapshot;
 export const analyzeStrategicFit = () => browserLifecycle.analyze();
 export const reanalyzeStrategicFit = (request: StrategicFitReanalysisRequest) =>
   browserLifecycle.reanalyze(request);
-export const cancelStrategicFitAnalysis = () => browserLifecycle.cancel();
+export const cancelStrategicFitAnalysis = () => {
+  browserLifecycle.cancel();
+};
 export const retryStrategicFitAnalysis = () => browserLifecycle.retry();
 export const prepareCompletedStrategicFitReportForResolution = (reportId: string) =>
   browserLifecycle.prepareCompletedReportForResolution(reportId);

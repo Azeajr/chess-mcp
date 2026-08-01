@@ -11,13 +11,13 @@ import { idbGet, idbSet, idbDel } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
 
 type Perm = "granted" | "denied" | "prompt";
-type FilePickerHandle = {
+interface FilePickerHandle {
   name: string;
   getFile(): Promise<File>;
   createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
   queryPermission?(opts?: { mode?: string }): Promise<Perm>;
   requestPermission?(opts?: { mode?: string }): Promise<Perm>;
-};
+}
 type PickerWindow = Window & {
   showOpenFilePicker?: (opts?: unknown) => Promise<FilePickerHandle[]>;
   showSaveFilePicker?: (opts?: unknown) => Promise<FilePickerHandle>;
@@ -32,12 +32,12 @@ const [storedFileName, setStoredFileName] = createSignal<string | null>(null);
 export { storedFileName };
 
 // Pending PGN load waiting for color selection.
-type PendingLoad = {
+interface PendingLoad {
   pgn: string;
   name?: string;
   detectedColor: Color | null;
   sourceHandle?: FilePickerHandle;
-};
+}
 const [pendingLoad, setPendingLoad] = createSignal<PendingLoad | null>(null);
 export { pendingLoad };
 

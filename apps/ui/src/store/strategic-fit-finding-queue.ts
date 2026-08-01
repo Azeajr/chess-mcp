@@ -401,10 +401,18 @@ export function createStrategicFitFindingQueueState(
     snapshot: state,
     view: (resolutionState) => buildStrategicFitFindingQueueView(state(), resolutionState),
     synchronize,
-    setSort: (sort) => resetPage({ sort }),
-    setPriorityKind: (priority_kind) => resetPage({ priority_kind }),
-    setPriorityFilter: (priority_filter) => resetPage({ priority_filter }),
-    setOpeningFilter: (opening_filter) => resetPage({ opening_filter }),
+    setSort: (sort) => {
+      resetPage({ sort });
+    },
+    setPriorityKind: (priority_kind) => {
+      resetPage({ priority_kind });
+    },
+    setPriorityFilter: (priority_filter) => {
+      resetPage({ priority_filter });
+    },
+    setOpeningFilter: (opening_filter) => {
+      resetPage({ opening_filter });
+    },
     setPageOffset: (requestedOffset) => {
       const current = buildStrategicFitFindingQueueView(state());
       const lastOffset =

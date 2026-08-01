@@ -134,7 +134,7 @@ export class StrategicFitReportCache {
     })();
     this.reports.set(key, pending);
     while (this.reports.size > this.maximumReports) {
-      const oldest = this.reports.keys().next().value as string | undefined;
+      const oldest = this.reports.keys().next().value;
       if (oldest === undefined) break;
       this.reports.delete(oldest);
       this.forget(oldest);
@@ -181,7 +181,9 @@ export class StrategicFitReportCache {
 const defaultReportCache = new StrategicFitReportCache();
 
 /** Narrow settings invalidation boundary; repertoire/profile stores do not own cache internals. */
-export const invalidateCachedStrategicFitReports = () => defaultReportCache.clear();
+export const invalidateCachedStrategicFitReports = () => {
+  defaultReportCache.clear();
+};
 
 /** Recovery provenance for the most recent browser analysis; `null` before one has run. */
 export const getLastStrategicFitJobRecovery = () => defaultReportCache.lastRecovery();

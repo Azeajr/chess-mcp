@@ -112,14 +112,14 @@ function schedulePersist(): void {
 
 // --- workers ----------------------------------------------------------------------------------
 
-type WorkerEndpoint = {
+interface WorkerEndpoint {
   post: (cmd: string) => void;
   setHandler: (h: ((line: string) => void) | null) => void;
   terminate: () => void;
   dead: boolean;
   /** resolves when the worker errors or is terminated (races the in-flight search). */
   died: Promise<void>;
-};
+}
 
 // Constructor-level failure (asset missing, COEP, unsupported): no worker will ever boot.
 let unavailable = false;
@@ -132,7 +132,9 @@ function spawnWorker(): WorkerEndpoint | null {
     let markDead!: () => void;
     const died = new Promise<void>((r) => (markDead = r));
     const ep: WorkerEndpoint = {
-      post: (cmd) => worker.postMessage(cmd),
+      post: (cmd) => {
+        worker.postMessage(cmd);
+      },
       setHandler: (h) => (handler = h),
       terminate: () => {
         if (ep.dead) return;
@@ -202,7 +204,9 @@ function runSearch(
       if (settled || stopped) return;
       stopped = true;
       ep.post("stop");
-      graceTimer = setTimeout(() => finish(null), GRACE_MS);
+      graceTimer = setTimeout(() => {
+        finish(null);
+      }, GRACE_MS);
     };
     const wd = setTimeout(
       () => {
@@ -213,10 +217,10 @@ function runSearch(
     signal?.addEventListener("abort", stop, { once: true });
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
-        const idx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
-        const d = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
-        const cp = line.match(/ score cp (-?\d+)/);
-        const mate = line.match(/ score mate (-?\d+)/);
+        const idx = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 0);
+        const d = Number(/ depth (\d+)/.exec(line)?.[1] ?? 0);
+        const cp = / score cp (-?\d+)/.exec(line);
+        const mate = / score mate (-?\d+)/.exec(line);
         const pvStr = line.split(" pv ")[1];
         const pv = pvStr ? pvStr.trim().split(/\s+/) : [];
         if (!idx || !pv[0]) return;
@@ -246,7 +250,7 @@ function runSearch(
 
 // --- scan pool (P1) ---
 
-type Job = {
+interface Job {
   id: number;
   fen: string;
   multipv: number;
@@ -257,7 +261,7 @@ type Job = {
   reject: (error: unknown) => void;
   signal?: AbortSignal;
   cleanup?: () => void;
-};
+}
 
 const queue: Job[] = [];
 const idle: WorkerEndpoint[] = [];
@@ -396,13 +400,13 @@ function poolSearch(
 // Two concurrent misses for the same cache key share one search. Depth is part of the JOIN
 // condition, not the key — a depth-16 request must not silently adopt a pending depth-12 search
 // (mirrors the cache's depth-reuse rule; movetime requests join anything).
-type InFlight = {
+interface InFlight {
   depth: number;
   controller: AbortController;
   promise: Promise<MultiLine[] | null>;
   subscribers: number;
   settled: boolean;
-};
+}
 const inFlight = new Map<string, InFlight>();
 
 function subscribe(entry: InFlight, signal?: AbortSignal): Promise<MultiLine[] | null> {

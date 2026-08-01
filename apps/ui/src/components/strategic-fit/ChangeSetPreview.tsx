@@ -101,13 +101,13 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "add-subtree" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <p>
                 Add exact subtree <code>{operation.subtree.subtree_id}</code> below{" "}
                 <code>{operation.parent.position_id}</code> at{" "}
                 <code>{path(operation.parent.source_san_path)}</code>.
               </p>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -115,12 +115,12 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "link-transposition" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <p>
                 Link <code>{operation.source.position_id}</code> to canonical position{" "}
                 <code>{operation.target_position_id}</code>.
               </p>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -128,7 +128,7 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "preserve-annotation" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <div>
                 <p>
                   Preserve only semantically equivalent annotations:{" "}
@@ -143,7 +143,7 @@ function OperationDetails(props: {
                   {path(operation.target.source_san_path)}
                 </code>
               </div>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -151,7 +151,7 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "archive-subtree" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <div>
                 <p>
                   Archive exact old subtree before any prune. Archive{" "}
@@ -163,7 +163,7 @@ function OperationDetails(props: {
                   <pre>{operation.archive_pgn}</pre>
                 </details>
               </div>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -171,13 +171,13 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "prune-subtree" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <p>
                 Prune exact subtree <code>{path(operation.target.source_san_path)}</code> only after
                 archive operation <code>{operation.archive_operation_id}</code>. Literal
                 confirmation: <strong>{String(operation.explicitly_confirmed)}</strong>.
               </p>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -185,12 +185,12 @@ function OperationDetails(props: {
         {(() => {
           const operation = props.operation.kind === "reorder-variations" ? props.operation : null;
           return (
-            operation && (
+            <Show when={operation}>
               <p>
                 Reorder canonical parent <code>{operation.parent_position_id}</code>:{" "}
                 <code>{operation.ordered_decision_ids.join(", ")}</code>.
               </p>
-            )
+            </Show>
           );
         })()}
       </Show>
@@ -339,7 +339,9 @@ export default function ChangeSetPreview(props: {
         <button
           type="button"
           class="replacement-review-start"
-          onClick={() => props.onStage("add-alternative")}
+          onClick={() => {
+            props.onStage("add-alternative");
+          }}
         >
           Review add-and-validate change
         </button>
@@ -362,7 +364,9 @@ export default function ChangeSetPreview(props: {
                   type="radio"
                   name={`retention:${props.row.candidate_id}`}
                   checked={review().action === "add-alternative"}
-                  onInput={() => props.onStage("add-alternative")}
+                  onInput={() => {
+                    props.onStage("add-alternative");
+                  }}
                 />
                 <span>
                   <strong>Add and validate alternative (default)</strong>
@@ -374,7 +378,9 @@ export default function ChangeSetPreview(props: {
                   type="radio"
                   name={`retention:${props.row.candidate_id}`}
                   checked={review().action === "replace"}
-                  onInput={() => props.onStage("replace")}
+                  onInput={() => {
+                    props.onStage("replace");
+                  }}
                 />
                 <span>
                   <strong>Archive then prune old line</strong>
@@ -654,9 +660,9 @@ export default function ChangeSetPreview(props: {
                               <button
                                 type="button"
                                 disabled={!confirmed()}
-                                onClick={() =>
-                                  props.onAccept(strategicFitChangeConfirmation(value))
-                                }
+                                onClick={() => {
+                                  props.onAccept(strategicFitChangeConfirmation(value));
+                                }}
                               >
                                 Accept one atomic change at revision {value.base_revision}
                               </button>

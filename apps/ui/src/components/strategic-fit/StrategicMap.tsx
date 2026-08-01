@@ -460,7 +460,9 @@ export default function StrategicMap(props: {
                       data-map-point={view.point.route_id}
                       data-map-resolution={view.point.resolution}
                       data-map-anchor={view.point.is_anchor ?? "none"}
-                      onClick={() => selectPoint(view.point.route_id)}
+                      onClick={() => {
+                        selectPoint(view.point.route_id);
+                      }}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
                         event.preventDefault();
@@ -503,7 +505,9 @@ export default function StrategicMap(props: {
                   data-map-cluster={cluster.cluster_id}
                   data-map-cluster-size={cluster.point_count}
                   data-map-cluster-unresolved={cluster.unresolved_count}
-                  onClick={() => selectCluster(cluster.cluster_id)}
+                  onClick={() => {
+                    selectCluster(cluster.cluster_id);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
@@ -535,7 +539,9 @@ export default function StrategicMap(props: {
                     <li>
                       <button
                         type="button"
-                        onClick={() => selectPoint(view.point.route_id)}
+                        onClick={() => {
+                          selectPoint(view.point.route_id);
+                        }}
                         aria-pressed={selected()?.point.route_id === view.point.route_id}
                         data-map-cluster-member={view.point.route_id}
                       >
@@ -596,7 +602,9 @@ export default function StrategicMap(props: {
                     {(findingId) => (
                       <button
                         type="button"
-                        onClick={() => props.onOpenFinding(findingId)}
+                        onClick={() => {
+                          props.onOpenFinding(findingId);
+                        }}
                         data-map-open-finding={findingId}
                       >
                         Open finding {findingId.slice(-8)}
@@ -683,7 +691,9 @@ export default function StrategicMap(props: {
                       <td>
                         <button
                           type="button"
-                          onClick={() => selectPoint(view.point.route_id)}
+                          onClick={() => {
+                            selectPoint(view.point.route_id);
+                          }}
                           aria-pressed={selected()?.point.route_id === view.point.route_id}
                         >
                           {view.label}

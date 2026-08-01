@@ -60,7 +60,9 @@ export default function FindingQueue(props: {
   createEffect(() => {
     void strategicFitFindingQueue.synchronize(props.report, props.intent);
   });
-  onCleanup(() => strategicFitFindingQueue.dispose());
+  onCleanup(() => {
+    strategicFitFindingQueue.dispose();
+  });
 
   const state = () => strategicFitFindingQueue.snapshot();
   const view = () => strategicFitFindingQueue.view(props.resolutionState);
@@ -145,11 +147,11 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-finding-sort"
               value={state().sort}
-              onInput={(event) =>
+              onInput={(event) => {
                 strategicFitFindingQueue.setSort(
                   event.currentTarget.value as StrategicFitFindingSort,
-                )
-              }
+                );
+              }}
             >
               <For each={STRATEGIC_FIT_FINDING_SORTS}>
                 {(sort) => <option value={sort}>{SORT_LABELS[sort]}</option>}
@@ -161,11 +163,11 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-priority-kind"
               value={state().priority_kind}
-              onInput={(event) =>
+              onInput={(event) => {
                 strategicFitFindingQueue.setPriorityKind(
                   event.currentTarget.value as FindingPriorityKind,
-                )
-              }
+                );
+              }}
             >
               <For each={["replacement", "training"] as const}>
                 {(kind) => <option value={kind}>{PRIORITY_KIND_LABELS[kind]}</option>}
@@ -177,11 +179,11 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-priority-filter"
               value={state().priority_filter}
-              onInput={(event) =>
+              onInput={(event) => {
                 strategicFitFindingQueue.setPriorityFilter(
                   event.currentTarget.value as FindingPriorityLabel | "all",
-                )
-              }
+                );
+              }}
             >
               <For each={PRIORITY_FILTERS}>
                 {(filter) => <option value={filter}>{PRIORITY_FILTER_LABELS[filter]}</option>}
@@ -193,9 +195,9 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-opening-filter"
               value={state().opening_filter}
-              onInput={(event) =>
-                strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value)
-              }
+              onInput={(event) => {
+                strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value);
+              }}
             >
               <option value="">All openings / systems</option>
               <For each={view().opening_options}>
@@ -236,7 +238,9 @@ export default function FindingQueue(props: {
                   <button
                     type="button"
                     data-queue-reveal-selected
-                    onClick={() => strategicFitFindingQueue.revealSelectedFinding()}
+                    onClick={() => {
+                      strategicFitFindingQueue.revealSelectedFinding();
+                    }}
                   >
                     Go to the selected finding
                   </button>
@@ -296,11 +300,11 @@ export default function FindingQueue(props: {
           <button
             type="button"
             disabled={view().page.offset === 0}
-            onClick={() =>
+            onClick={() => {
               strategicFitFindingQueue.setPageOffset(
                 view().page.offset - STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-              )
-            }
+              );
+            }}
           >
             Previous findings
           </button>
@@ -314,11 +318,11 @@ export default function FindingQueue(props: {
           <button
             type="button"
             disabled={!view().page.has_more}
-            onClick={() =>
+            onClick={() => {
               strategicFitFindingQueue.setPageOffset(
                 view().page.offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-              )
-            }
+              );
+            }}
           >
             Next findings
           </button>

@@ -927,7 +927,9 @@ const browserBoundary: ReplacementLabStateBoundary = {
     const lifecycle = strategicFitLifecycle();
     strategicFitResolutionProof.track(stage, lifecycle.current_result ?? lifecycle.last_completed);
   },
-  onLabClosed: () => strategicFitResolutionProof.clear(),
+  onLabClosed: () => {
+    strategicFitResolutionProof.clear();
+  },
   labCloseBlocked: () => strategicFitResolutionProof.snapshot().status === "undoing",
 };
 

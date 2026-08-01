@@ -1,10 +1,10 @@
 /** Stable identity for one browser working document. Kept independent from PGN contents/revisions. */
 export type BrowserDocumentId = string;
 
-type SecureUuidSource = {
+interface SecureUuidSource {
   randomUUID?: () => string;
   getRandomValues?: <T extends ArrayBufferView | null>(array: T) => T;
-};
+}
 
 // RFC UUID text with a standardized version nibble and the RFC variant. UUIDs are canonicalized
 // to lowercase at the persistence boundary so equivalent text cannot produce distinct keys.

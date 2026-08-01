@@ -237,8 +237,12 @@ export default function FindingCard(props: {
         class="strategic-fit-finding-select"
         data-finding-select={props.finding.finding_id}
         aria-pressed={props.selected}
-        onClick={() => props.onSelect(props.finding.finding_id, true)}
-        onKeyDown={(event) => selectWithKeyboard(event, props.onSelect)}
+        onClick={() => {
+          props.onSelect(props.finding.finding_id, true);
+        }}
+        onKeyDown={(event) => {
+          selectWithKeyboard(event, props.onSelect);
+        }}
       >
         {props.selected ? "Selected for review" : "Select finding"}
         <span class="sr-only">: {props.finding.plain_language_category}</span>

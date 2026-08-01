@@ -198,8 +198,12 @@ export default function ReplacementPareto(props: ReplacementParetoProps) {
                 data-coordinate-state={point.available ? "available" : "unavailable"}
                 data-selected={props.selectedCandidateId === point.candidate_id ? "true" : "false"}
                 transform={`translate(${position().display_x} ${position().display_y})`}
-                onClick={() => props.onSelect(point.candidate_id)}
-                onKeyDown={(event) => activate(event, point.candidate_id)}
+                onClick={() => {
+                  props.onSelect(point.candidate_id);
+                }}
+                onKeyDown={(event) => {
+                  activate(event, point.candidate_id);
+                }}
               >
                 <line
                   class="replacement-pareto-tie-anchor"
@@ -228,7 +232,9 @@ export default function ReplacementPareto(props: ReplacementParetoProps) {
               <button
                 type="button"
                 aria-pressed={props.selectedCandidateId === point.candidate_id}
-                onClick={() => props.onSelect(point.candidate_id)}
+                onClick={() => {
+                  props.onSelect(point.candidate_id);
+                }}
               >
                 <strong>
                   {symbol(point.status)} {point.san}

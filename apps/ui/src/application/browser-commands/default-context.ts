@@ -41,19 +41,17 @@ import type { BrowserCommandDependencies } from "./types";
 
 let openingsPromise: Promise<OpeningTable> | null = null;
 const openings = () => {
-  if (!openingsPromise) {
-    openingsPromise = fetch("/openings.tsv")
-      .then((response) => (response.ok ? response.text() : ""))
-      .catch(() => "")
-      .then((text) => parseOpeningsTsv(text));
-  }
+  openingsPromise ??= fetch("/openings.tsv")
+    .then((response) => (response.ok ? response.text() : ""))
+    .catch(() => "")
+    .then((text) => parseOpeningsTsv(text));
   return openingsPromise;
 };
 
 export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentTree,
   currentFen: fen,
-  currentPgn: actions.toPgn,
+  currentPgn: () => actions.toPgn(),
   currentColor: color,
   currentPath,
   currentFileName: fileName,

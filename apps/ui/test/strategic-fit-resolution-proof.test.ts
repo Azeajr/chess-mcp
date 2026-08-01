@@ -622,7 +622,7 @@ test("proof UI supplies keyboard, screen-reader, no-color, reduced-motion, mobil
   assert.match(styles, /\.replacement-proof-actions button \{ min-height: 44px; \}/);
   assert.match(
     styles,
-    /\.replacement-resolution-proof,\n  \.replacement-proof-outcome,\n  \.replacement-proof-new-findings > li \{ forced-color-adjust: auto; \}/,
+    /\.replacement-resolution-proof,\n {2}\.replacement-proof-outcome,\n {2}\.replacement-proof-new-findings > li \{ forced-color-adjust: auto; \}/,
   );
   assert.match(styles, /data-proof-status="superseded"/);
 });

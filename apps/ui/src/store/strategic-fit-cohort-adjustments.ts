@@ -811,15 +811,18 @@ const browserCohortAdjustments = createStrategicFitCohortAdjustmentState({
 });
 
 export const strategicFitCohortAdjustment = () => browserCohortAdjustments.snapshot();
-export const synchronizeStrategicFitCohortAdjustment = (reportId: string | null) =>
+export const synchronizeStrategicFitCohortAdjustment = (reportId: string | null) => {
   browserCohortAdjustments.synchronize(reportId);
+};
 export const previewStrategicFitCohortAdjustment = (
   reportId: string,
   draft: StrategicFitCohortAdjustmentDraft,
 ) => browserCohortAdjustments.preview(reportId, draft);
 export const confirmStrategicFitCohortAdjustment = (previewId: string) =>
   browserCohortAdjustments.confirm(previewId);
-export const cancelStrategicFitCohortAdjustment = () => browserCohortAdjustments.cancel();
+export const cancelStrategicFitCohortAdjustment = () => {
+  browserCohortAdjustments.cancel();
+};
 
 export function strategicFitCohortDisplayName(cohortId: string, fallback: string): string {
   return (

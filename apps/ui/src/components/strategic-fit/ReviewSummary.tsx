@@ -130,7 +130,9 @@ export default function ReviewSummary() {
                       <code>{resolution.semantic_finding_id}</code>
                       <button
                         type="button"
-                        onClick={() => reopen(summary().summary_id, resolution.semantic_finding_id)}
+                        onClick={() => {
+                          reopen(summary().summary_id, resolution.semantic_finding_id);
+                        }}
                       >
                         Reopen {resolution.semantic_finding_id}
                       </button>
@@ -139,7 +141,12 @@ export default function ReviewSummary() {
                 </For>
               </ul>
             </Show>
-            <button type="button" onClick={() => exportSummary(summary().summary_id)}>
+            <button
+              type="button"
+              onClick={() => {
+                exportSummary(summary().summary_id);
+              }}
+            >
               Save review summary JSON
             </button>
           </div>
@@ -159,7 +166,12 @@ export default function ReviewSummary() {
                 <li data-history-state={entry.state}>
                   <strong>{entry.state === "completed" ? "Completed" : "Reopened"}</strong> revision{" "}
                   <code>{entry.repertoire_revision}</code> · {entry.completed_at}
-                  <button type="button" onClick={() => exportSummary(entry.summary_id)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportSummary(entry.summary_id);
+                    }}
+                  >
                     Save history JSON
                   </button>
                 </li>

@@ -76,7 +76,9 @@ export default function App() {
       else if (e.key === "ArrowRight") actions.forward();
     };
     window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    onCleanup(() => {
+      window.removeEventListener("keydown", onKey);
+    });
   });
 
   return (
@@ -115,10 +117,7 @@ export default function App() {
           <Divider
             axis="y"
             onResize={(d) => {
-              const base =
-                boardSize() ||
-                (document.querySelector(".board-wrap") as HTMLElement | null)?.clientWidth ||
-                320;
+              const base = boardSize() || document.querySelector(".board-wrap")?.clientWidth || 320;
               setBoardSize(base + d);
             }}
             onEnd={persistBoard}
@@ -127,14 +126,24 @@ export default function App() {
           <MobileTabs />
           {/* board│side boundary: drag right shrinks side so the board grows — the divider follows
               the cursor (board is flex:1 and absorbs the slack). */}
-          <Divider onResize={(d) => resizeSide(-d)} onEnd={persistLayout} />
+          <Divider
+            onResize={(d) => {
+              resizeSide(-d);
+            }}
+            onEnd={persistLayout}
+          />
           <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
             <AnalysisPanel />
             <RepertoirePanel />
             <MoveTree />
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
-          <Divider onResize={(d) => resizeSideChat(d)} onEnd={persistLayout} />
+          <Divider
+            onResize={(d) => {
+              resizeSideChat(d);
+            }}
+            onEnd={persistLayout}
+          />
           <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
             <ChatPanel />
           </div>

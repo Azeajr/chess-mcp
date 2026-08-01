@@ -358,10 +358,11 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>(`#strategic-fit-stage-${nextStage.id}`)?.focus(),
     );
   };
-  const focusAnalysisAction = () =>
+  const focusAnalysisAction = () => {
     queueMicrotask(() =>
       dialog.querySelector<HTMLElement>("[data-strategic-fit-analysis-action]")?.focus(),
     );
+  };
 
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -437,7 +438,9 @@ export default function StrategicFitWorkspace() {
         aria-labelledby="strategic-fit-workspace-title"
         aria-describedby="strategic-fit-workspace-description"
         tabIndex={-1}
-        onKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+        }}
       >
         <header class="strategic-fit-workspace-header">
           <div>
@@ -497,7 +500,9 @@ export default function StrategicFitWorkspace() {
                         }
                         class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
                         onClick={() => setStrategicFitWorkspaceStage(stage.id)}
-                        onKeyDown={(event) => selectStageFromKeyboard(event, stage.id)}
+                        onKeyDown={(event) => {
+                          selectStageFromKeyboard(event, stage.id);
+                        }}
                       >
                         {stage.label}
                       </button>
@@ -566,9 +571,9 @@ export default function StrategicFitWorkspace() {
                             completeFindings={
                               report().findings_snapshot ?? report().result.findings
                             }
-                            onOpenFinding={(findingId) =>
-                              openMapFinding(report().report_id, findingId)
-                            }
+                            onOpenFinding={(findingId) => {
+                              openMapFinding(report().report_id, findingId);
+                            }}
                           />
                           <ConceptHeatmap
                             report={report().result}
@@ -579,9 +584,9 @@ export default function StrategicFitWorkspace() {
                               report().findings_snapshot ?? report().result.findings
                             }
                             mastery={strategicFitTrainingMastery()}
-                            onOpenFinding={(findingId) =>
-                              openHeatmapFinding(report().report_id, findingId)
-                            }
+                            onOpenFinding={(findingId) => {
+                              openHeatmapFinding(report().report_id, findingId);
+                            }}
                           />
                           <DecisionFlow
                             report={report().result}
@@ -593,9 +598,9 @@ export default function StrategicFitWorkspace() {
                             completeFindings={
                               report().findings_snapshot ?? report().result.findings
                             }
-                            onOpenFinding={(findingId) =>
-                              openFlowFinding(report().report_id, findingId)
-                            }
+                            onOpenFinding={(findingId) => {
+                              openFlowFinding(report().report_id, findingId);
+                            }}
                           />
                           <StrategicOverview
                             report={report().result}

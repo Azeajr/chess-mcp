@@ -38,7 +38,10 @@ import {
 import { artifactById, saveArtifact } from "../store/artifacts";
 
 type Data = Record<string, unknown>;
-type Props = { operation: string; content: string | null };
+interface Props {
+  operation: string;
+  content: string | null;
+}
 
 const parse = (content: string | null): Data | null => {
   try {
@@ -58,7 +61,9 @@ function navigateFen(target: string) {
       found = path;
       return;
     }
-    tree.nodeAt(path).children.forEach((_child, index) => walk([...path, index]));
+    tree.nodeAt(path).children.forEach((_child, index) => {
+      walk([...path, index]);
+    });
   };
   walk([]);
   if (found) actions.goto(found);
@@ -70,36 +75,52 @@ function NavigationRows(props: { data: Data }) {
     const visit = (value: unknown, key = "result") => {
       if (out.length >= 8 || !value || typeof value !== "object") return;
       if (Array.isArray(value)) {
-        value.slice(0, 12).forEach((item, index) => visit(item, `${key} ${index + 1}`));
+        value.slice(0, 12).forEach((item, index) => {
+          visit(item, `${key} ${index + 1}`);
+        });
         return;
       }
       const item = value as Data;
       const path = [item.path, item.san_path, item.variation_path, item.pivot_path].find(
         (candidate) =>
           Array.isArray(candidate) && candidate.every((move) => typeof move === "string"),
-      ) as string[] | undefined;
+      );
       if (path?.length) {
         const indexPath = currentTree().indexPathOfSan(path);
         if (indexPath)
-          out.push({ label: key, value: path.join(" "), go: () => actions.goto(indexPath) });
+          out.push({
+            label: key,
+            value: path.join(" "),
+            go: () => {
+              actions.goto(indexPath);
+            },
+          });
       } else if (typeof item.fen === "string")
         out.push({
           label: `${key} position`,
           value: item.fen,
-          go: () => navigateFen(item.fen as string),
+          go: () => {
+            navigateFen(item.fen as string);
+          },
         });
       else if (typeof item.ply === "number") {
         const mainline = Array.from({ length: item.ply }, () => 0);
         try {
           currentTree().nodeAt(mainline);
-          out.push({ label: key, value: `Ply ${item.ply}`, go: () => actions.goto(mainline) });
+          out.push({
+            label: key,
+            value: `Ply ${item.ply}`,
+            go: () => {
+              actions.goto(mainline);
+            },
+          });
         } catch {
           /* external game */
         }
       }
-      Object.entries(item).forEach(([childKey, child]) =>
-        visit(child, childKey.replace(/_/g, " ")),
-      );
+      Object.entries(item).forEach(([childKey, child]) => {
+        visit(child, childKey.replace(/_/g, " "));
+      });
     };
     visit(props.data);
     return out;
@@ -209,7 +230,9 @@ function FindingCard(props: { finding: StrategicFinding }) {
             <button
               class="result-nav strategic-fit-nav"
               aria-label={`Go to line for ${props.finding.plain_language_category}`}
-              onClick={() => goToSanPath(safePath())}
+              onClick={() => {
+                goToSanPath(safePath());
+              }}
             >
               <span>Go to line</span>
               <b>{safePath().join(" ")}</b>
@@ -314,7 +337,9 @@ function RetrievalPath(props: { path: StrategicFitConversationPath; label: strin
       <button
         class="result-nav strategic-fit-nav"
         aria-label={`Go to line for ${props.label}`}
-        onClick={() => goToSanPath(props.path.san)}
+        onClick={() => {
+          goToSanPath(props.path.san);
+        }}
       >
         <span>Go to line</span>
         <b>{props.path.san.join(" ")}</b>
@@ -371,13 +396,7 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
       data-report-id={props.projection.report_id}
       aria-label="Strategic Fit retrieval"
     >
-      <Show
-        when={
-          props.projection.retrieval === "strategic-fit-summary"
-            ? (props.projection as StrategicFitConversationSummary)
-            : null
-        }
-      >
+      <Show when={props.projection.retrieval === "strategic-fit-summary" ? props.projection : null}>
         {(summary) => (
           <>
             <div class="result-title">Strategic Fit · Report summary</div>
@@ -423,11 +442,7 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
         )}
       </Show>
       <Show
-        when={
-          props.projection.retrieval === "strategic-fit-findings"
-            ? (props.projection as StrategicFitConversationFindings)
-            : null
-        }
+        when={props.projection.retrieval === "strategic-fit-findings" ? props.projection : null}
       >
         {(page) => (
           <>
@@ -445,13 +460,7 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
           </>
         )}
       </Show>
-      <Show
-        when={
-          props.projection.retrieval === "strategic-fit-finding"
-            ? (props.projection as StrategicFitConversationFinding)
-            : null
-        }
-      >
+      <Show when={props.projection.retrieval === "strategic-fit-finding" ? props.projection : null}>
         {(detail) => (
           <>
             <div class="result-title">Strategic Fit · Finding evidence</div>
@@ -590,8 +599,7 @@ function StrategicFitPlanBasisResult(props: { data: Data }) {
   const list = (key: string) => (Array.isArray(props.data[key]) ? (props.data[key] as Data[]) : []);
   const strings = (key: string) =>
     Array.isArray(props.data[key]) ? (props.data[key] as unknown[]).map(String) : [];
-  const omitted = (key: string) =>
-    typeof props.data[key] === "number" ? (props.data[key] as number) : 0;
+  const omitted = (key: string) => (typeof props.data[key] === "number" ? props.data[key] : 0);
   return (
     <section
       class="result-card report-card strategic-fit-plan-basis"
@@ -671,7 +679,7 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
         {(section) => (
           <div class="strategic-fit-plan-section" data-section-kind={section.kind}>
             <div class="strategic-fit-plan-section-head">
-              {strategicFitPlanSectionLabel(section.kind as StrategicFitPlanSectionKind)}
+              {strategicFitPlanSectionLabel(section.kind)}
             </div>
             <div class="strategic-fit-explanation">{section.text}</div>
             <div class="result-summary strategic-fit-plan-support">
@@ -933,12 +941,24 @@ function StagedEditResult(props: { data: Data }) {
         }
       >
         <Show when={edit()?.action === "add"}>
-          <button onClick={() => stagePreview(id())}>Preview on board</button>
+          <button
+            onClick={() => {
+              stagePreview(id());
+            }}
+          >
+            Preview on board
+          </button>
         </Show>
         <button class="result-accept" onClick={() => acceptStagedEdit(id())}>
           Accept
         </button>
-        <button onClick={() => rejectStagedEdit(id())}>Reject</button>
+        <button
+          onClick={() => {
+            rejectStagedEdit(id());
+          }}
+        >
+          Reject
+        </button>
       </Show>
     </div>
   );
@@ -1047,7 +1067,13 @@ function PositionResult(props: { data: Data }) {
     <div class="result-card">
       <div class="result-title">Board position</div>
       <div class="result-line">{String(props.data.fen ?? "")}</div>
-      <button onClick={() => navigateFen(String(props.data.fen ?? ""))}>Go to position</button>
+      <button
+        onClick={() => {
+          navigateFen(String(props.data.fen ?? ""));
+        }}
+      >
+        Go to position
+      </button>
     </div>
   );
 }
@@ -1134,12 +1160,16 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   ),
   get_strategic_fit_report: (data) => {
     const projection = asStrategicFitRetrieval(data);
-    return projection ? (
-      <StrategicFitRetrievalResult projection={projection} />
-    ) : (
-      <div class="result-card">
-        <NavigationRows data={data} />
-      </div>
+    return (
+      <>
+        {projection ? (
+          <StrategicFitRetrievalResult projection={projection} />
+        ) : (
+          <div class="result-card">
+            <NavigationRows data={data} />
+          </div>
+        )}
+      </>
     );
   },
   export_annotated_repertoire: (data) => (

@@ -20,7 +20,12 @@ export default function PromotionModal() {
     <Show when={pendingPromo()}>
       {(p) => (
         <div class="promo-backdrop" onClick={() => setPendingPromo(null)}>
-          <div class="promo" onClick={(e) => e.stopPropagation()}>
+          <div
+            class="promo"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
             <For each={ROLES}>
               {(role) => (
                 <button

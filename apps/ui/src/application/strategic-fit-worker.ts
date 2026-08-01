@@ -146,7 +146,7 @@ function requestPayload(
     ...serializableOptions
   } = options;
 
-  const openingTableEntries = [...(openingTable ?? new Map()).entries()]
+  const openingTableEntries = [...(openingTable ?? new Map<string, OpeningEntry>()).entries()]
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([key, entry]) => [key, { eco: entry.eco, name: entry.name }] as const);
 

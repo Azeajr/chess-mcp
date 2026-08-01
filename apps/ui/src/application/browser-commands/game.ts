@@ -11,7 +11,7 @@ import type { BrowserCommandHandler } from "./types";
 import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
 const pgnFor = (args: Record<string, unknown>, current: () => string) =>
-  (args.pgn as string | undefined) || current();
+  (args.pgn as string | undefined) ?? current();
 
 export const gameCommands = {
   analyze_game: async (args, context) => {

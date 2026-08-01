@@ -246,7 +246,9 @@ export default function CandidateTable(props: CandidateTableProps) {
                         ? `replacement-candidate-detail-${row.candidate_id}`
                         : undefined
                     }
-                    onClick={() => props.onSelect(row.candidate_id)}
+                    onClick={() => {
+                      props.onSelect(row.candidate_id);
+                    }}
                   >
                     <strong>{row.san}</strong>
                     <code>{row.candidate_id}</code>

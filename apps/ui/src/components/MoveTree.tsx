@@ -46,7 +46,7 @@ export default function MoveTree() {
     const out: { san: string; ply: number; path: Path }[] = [];
     let node: Node<PgnNodeData> = tree.game.moves;
     for (let i = 0; i < cur.length; i++) {
-      const child = node.children[cur[i]!] as ChildNode<PgnNodeData> | undefined;
+      const child = node.children[cur[i]!];
       if (!child) break;
       out.push({ san: child.data.san, ply: i + 1, path: cur.slice(0, i + 1) });
       node = child;
@@ -73,7 +73,9 @@ export default function MoveTree() {
       <>
         <span
           class={`move${pathEq(path, cur) ? " current" : ""}${previewed.has(path.join(",")) ? " move-preview" : ""}`}
-          onClick={() => onMoveClick(path)}
+          onClick={() => {
+            onMoveClick(path);
+          }}
         >
           {moveLabel(node.data.san, path.length, blackDots)}
         </span>{" "}
@@ -92,7 +94,7 @@ export default function MoveTree() {
       let path = basePath;
       let dots = blackDots;
       while (cursor.children.length) {
-        const main = cursor.children[0] as ChildNode<PgnNodeData>;
+        const main = cursor.children[0]!;
         const mainPath = [...path, 0];
         parts.push(moveSpan(main, mainPath, dots));
 
@@ -123,7 +125,7 @@ export default function MoveTree() {
           } else {
             const vs: JSX.Element[] = [];
             for (let i = 1; i < cursor.children.length; i++) {
-              const v = cursor.children[i] as ChildNode<PgnNodeData>;
+              const v = cursor.children[i]!;
               const vPath = [...path, i];
               vs.push(
                 <div class="variation">

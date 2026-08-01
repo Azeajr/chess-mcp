@@ -12,7 +12,7 @@ import { createStrategicFitIntentCommentState } from "../src/store/strategic-fit
 function fixture(source = "1. e4 {must keep this line} e5 *") {
   let tree = GameTree.fromPgn(source);
   let metadata = createDefaultStrategicFitDocumentMetadata();
-  let now = "2026-07-26T12:00:00.000Z";
+  const now = "2026-07-26T12:00:00.000Z";
   let replacements = 0;
   const boundary = {
     currentTree: () => tree,

@@ -20,7 +20,12 @@ export default function SettingsDrawer() {
   return (
     <Show when={settingsOpen()}>
       <div class="drawer-backdrop" onClick={() => setSettingsOpen(false)}>
-        <div class="drawer" onClick={(e) => e.stopPropagation()}>
+        <div
+          class="drawer"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
           <div class="drawer-head">
             <span>Settings</span>
             <button onClick={() => setSettingsOpen(false)}>✕</button>
@@ -32,7 +37,9 @@ export default function SettingsDrawer() {
               type="password"
               placeholder="sk-or-…"
               value={apiKey()}
-              onInput={(e) => setApiKey(e.currentTarget.value)}
+              onInput={(e) => {
+                setApiKey(e.currentTarget.value);
+              }}
             />
             <small>Stored in localStorage (plaintext). Used for in-app chat only.</small>
           </label>
@@ -43,7 +50,9 @@ export default function SettingsDrawer() {
               type="text"
               placeholder="deepseek/deepseek-v4-flash"
               value={model()}
-              onChange={(e) => setModel(e.currentTarget.value)}
+              onChange={(e) => {
+                setModel(e.currentTarget.value);
+              }}
             />
             <small>
               Pick a model below, or type any OpenRouter slug. See openrouter.ai/models.
@@ -55,7 +64,9 @@ export default function SettingsDrawer() {
                     type="button"
                     class={`model-chip${model() === m.slug ? " active" : ""}`}
                     title={m.slug}
-                    onClick={() => setModel(m.slug)}
+                    onClick={() => {
+                      setModel(m.slug);
+                    }}
                   >
                     {m.label}
                   </button>
@@ -70,7 +81,9 @@ export default function SettingsDrawer() {
               type="password"
               placeholder="lip_…"
               value={lichessToken()}
-              onInput={(e) => setLichessToken(e.currentTarget.value)}
+              onInput={(e) => {
+                setLichessToken(e.currentTarget.value);
+              }}
             />
             <small>
               Personal token, no scopes needed — lichess.org/account/oauth/token. Enables the
@@ -84,7 +97,9 @@ export default function SettingsDrawer() {
             <input
               type="checkbox"
               checked={cloudEvalEnabled()}
-              onChange={(e) => setCloudEvalEnabled(e.currentTarget.checked)}
+              onChange={(e) => {
+                setCloudEvalEnabled(e.currentTarget.checked);
+              }}
             />
             <small>
               Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off

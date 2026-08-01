@@ -65,7 +65,11 @@ export function createVirtualRows<T>(options: VirtualRowsOptions<T>): VirtualRow
     const onScroll = () => setScrollOffset(horizontal ? element.scrollLeft : element.scrollTop);
     element.addEventListener("scroll", onScroll, { passive: true });
     const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure(element));
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            measure(element);
+          });
     observer?.observe(element);
     onCleanup(() => {
       element.removeEventListener("scroll", onScroll);

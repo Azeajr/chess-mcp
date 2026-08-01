@@ -150,7 +150,7 @@ export function createStrategicFitIntentInterviewState(
           ? current.preferences
           : strategicFitPresetProfile(patch.mode).preferences;
       const resulting: StrategicFitProfile = presetOnly
-        ? strategicFitPresetProfile(patch.mode!)
+        ? strategicFitPresetProfile(patch.mode)
         : {
             ...current,
             mode: "custom",

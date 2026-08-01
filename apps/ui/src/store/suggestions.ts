@@ -254,7 +254,7 @@ export function acceptPreview() {
 /** Gold arrow for the active preview's first move, only while the board is at its fromPath. */
 export const previewArrow = (): Arrow[] => {
   const p = preview();
-  if (!p || !p.firstUci || !pathEq(p.fromPath, currentPath())) return [];
+  if (!p?.firstUci || !pathEq(p.fromPath, currentPath())) return [];
   return [
     {
       orig: p.firstUci.slice(0, 2),

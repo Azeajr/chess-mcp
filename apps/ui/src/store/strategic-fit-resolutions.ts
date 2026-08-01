@@ -448,8 +448,7 @@ export function createStrategicFitResolutionState(
       if (
         existing &&
         existing.record_state === "active" &&
-        meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)
+        meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };
       }
@@ -677,8 +676,7 @@ export function createStrategicFitResolutionState(
       if (
         existing &&
         existing.record_state === "active" &&
-        meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)
+        meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };
       }
@@ -727,8 +725,7 @@ export function createStrategicFitResolutionState(
       if (
         existing &&
         existing.record_state === "active" &&
-        meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)
+        meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };
       }

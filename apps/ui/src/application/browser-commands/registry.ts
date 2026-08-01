@@ -57,6 +57,8 @@ export const browserDocumentMutationRegistry = {
         readonly revision: number;
         readonly dirty: boolean;
       }) => void,
-    ) => rollback(input),
+    ) => {
+      rollback(input);
+    },
   },
 } as const;
