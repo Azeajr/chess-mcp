@@ -45,8 +45,9 @@ export function setModel(v: string) {
 // Lichess personal API token (no scopes) — required by the opening explorer since ~2026-03.
 // Mirrors the OpenRouter key handling; also feeds the shared chess-tools token holder so the
 // explorer client sends Authorization on every lookup.
-const [lichessToken, setLichessTokenRaw] = createSignal(read(KEY_LICHESS, ""));
-setExplorerToken(lichessToken() || null);
+const initialLichessToken = read(KEY_LICHESS, "");
+const [lichessToken, setLichessTokenRaw] = createSignal(initialLichessToken);
+setExplorerToken(initialLichessToken || null);
 
 export { lichessToken };
 

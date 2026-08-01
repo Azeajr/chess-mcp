@@ -331,16 +331,16 @@ function BoardCard(props: {
   orientation: Color;
   missing: string;
 }) {
-  const role = props.title === "Typical cohort" ? "baseline" : "affected";
-  const titleId = `strategic-fit-comparison-${role}-title`;
+  const role = () => (props.title === "Typical cohort" ? "baseline" : "affected");
+  const titleId = () => `strategic-fit-comparison-${role()}-title`;
   return (
     <article
       class="strategic-fit-comparison-board-card"
-      data-board-role={role}
-      aria-labelledby={titleId}
+      data-board-role={role()}
+      aria-labelledby={titleId()}
     >
       <header>
-        <h5 id={titleId}>{props.title}</h5>
+        <h5 id={titleId()}>{props.title}</h5>
         <span>{props.route?.label ?? "Route unavailable"}</span>
       </header>
       <Show

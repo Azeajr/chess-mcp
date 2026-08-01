@@ -73,19 +73,19 @@ export default function CohortEditor(props: {
   const [mode, setMode] = createSignal<EditorMode>("merge");
   const [routeIds, setRouteIds] = createSignal<string[]>([]);
   const [decisionIds, setDecisionIds] = createSignal<string[]>([]);
-  const [cohortId, setCohortId] = createSignal(props.finding.evidence.cohort_id);
+  const [cohortId, setCohortId] = createSignal("");
   const [displayName, setDisplayName] = createSignal("");
   const [resetTarget, setResetTarget] = createSignal("");
   const [reason, setReason] = createSignal("");
 
   createEffect(
     on(
-      () => props.finding.finding_id,
-      () => {
+      () => ({ id: props.finding.finding_id, cohortId: props.finding.evidence.cohort_id }),
+      ({ cohortId: nextCohortId }) => {
         setMode("merge");
         setRouteIds([]);
         setDecisionIds([]);
-        setCohortId(props.finding.evidence.cohort_id);
+        setCohortId(nextCohortId);
         setDisplayName("");
         setResetTarget("");
         setReason("");

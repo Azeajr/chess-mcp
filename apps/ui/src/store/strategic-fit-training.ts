@@ -1,7 +1,7 @@
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createSignal, untrack } from "solid-js";
 import {
   STRATEGIC_FIT_PLAN_LIMITS,
   STRATEGIC_FIT_SCHEMA_VERSION,
@@ -924,7 +924,7 @@ function executePendingPerformanceWrite(id: string): Promise<void> {
     .catch(() => undefined)
     .then(() => browserPerformanceStorage.set(id, pending.data))
     .catch(() => {
-      const snapshot = browserPerformanceSnapshot();
+      const snapshot = untrack(browserPerformanceSnapshot);
       if (snapshot.document_id === id) {
         setBrowserPerformanceSnapshot({
           ...snapshot,

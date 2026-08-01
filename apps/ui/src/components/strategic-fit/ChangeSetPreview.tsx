@@ -97,108 +97,72 @@ function OperationDetails(props: {
         </strong>
         <code>{props.operation.operation_id}</code>
       </header>
-      <Show when={props.operation.kind === "add-subtree"}>
-        {(() => {
-          const operation = props.operation.kind === "add-subtree" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <p>
-                Add exact subtree <code>{operation.subtree.subtree_id}</code> below{" "}
-                <code>{operation.parent.position_id}</code> at{" "}
-                <code>{path(operation.parent.source_san_path)}</code>.
-              </p>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "add-subtree" ? props.operation : null}>
+        {(operation) => (
+          <p>
+            Add exact subtree <code>{operation().subtree.subtree_id}</code> below{" "}
+            <code>{operation().parent.position_id}</code> at{" "}
+            <code>{path(operation().parent.source_san_path)}</code>.
+          </p>
+        )}
       </Show>
-      <Show when={props.operation.kind === "link-transposition"}>
-        {(() => {
-          const operation = props.operation.kind === "link-transposition" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <p>
-                Link <code>{operation.source.position_id}</code> to canonical position{" "}
-                <code>{operation.target_position_id}</code>.
-              </p>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "link-transposition" ? props.operation : null}>
+        {(operation) => (
+          <p>
+            Link <code>{operation().source.position_id}</code> to canonical position{" "}
+            <code>{operation().target_position_id}</code>.
+          </p>
+        )}
       </Show>
-      <Show when={props.operation.kind === "preserve-annotation"}>
-        {(() => {
-          const operation = props.operation.kind === "preserve-annotation" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <div>
-                <p>
-                  Preserve only semantically equivalent annotations:{" "}
-                  <strong>{String(operation.semantic_equivalence_verified)}</strong>.
-                </p>
-                <p>
-                  Comments: {operation.comments.join(" | ") || "None"}. NAGs:{" "}
-                  {operation.nags.join(", ") || "None"}.
-                </p>
-                <code>
-                  {path(operation.source.source_san_path)} to{" "}
-                  {path(operation.target.source_san_path)}
-                </code>
-              </div>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "preserve-annotation" ? props.operation : null}>
+        {(operation) => (
+          <div>
+            <p>
+              Preserve only semantically equivalent annotations:{" "}
+              <strong>{String(operation().semantic_equivalence_verified)}</strong>.
+            </p>
+            <p>
+              Comments: {operation().comments.join(" | ") || "None"}. NAGs:{" "}
+              {operation().nags.join(", ") || "None"}.
+            </p>
+            <code>
+              {path(operation().source.source_san_path)} to{" "}
+              {path(operation().target.source_san_path)}
+            </code>
+          </div>
+        )}
       </Show>
-      <Show when={props.operation.kind === "archive-subtree"}>
-        {(() => {
-          const operation = props.operation.kind === "archive-subtree" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <div>
-                <p>
-                  Archive exact old subtree before any prune. Archive{" "}
-                  <code>{operation.archive_id}</code>; target{" "}
-                  <code>{path(operation.target.source_san_path)}</code>.
-                </p>
-                <details>
-                  <summary>Exact archive PGN</summary>
-                  <pre>{operation.archive_pgn}</pre>
-                </details>
-              </div>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "archive-subtree" ? props.operation : null}>
+        {(operation) => (
+          <div>
+            <p>
+              Archive exact old subtree before any prune. Archive{" "}
+              <code>{operation().archive_id}</code>; target{" "}
+              <code>{path(operation().target.source_san_path)}</code>.
+            </p>
+            <details>
+              <summary>Exact archive PGN</summary>
+              <pre>{operation().archive_pgn}</pre>
+            </details>
+          </div>
+        )}
       </Show>
-      <Show when={props.operation.kind === "prune-subtree"}>
-        {(() => {
-          const operation = props.operation.kind === "prune-subtree" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <p>
-                Prune exact subtree <code>{path(operation.target.source_san_path)}</code> only after
-                archive operation <code>{operation.archive_operation_id}</code>. Literal
-                confirmation: <strong>{String(operation.explicitly_confirmed)}</strong>.
-              </p>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "prune-subtree" ? props.operation : null}>
+        {(operation) => (
+          <p>
+            Prune exact subtree <code>{path(operation().target.source_san_path)}</code> only after
+            archive operation <code>{operation().archive_operation_id}</code>. Literal confirmation:{" "}
+            <strong>{String(operation().explicitly_confirmed)}</strong>.
+          </p>
+        )}
       </Show>
-      <Show when={props.operation.kind === "reorder-variations"}>
-        {(() => {
-          const operation = props.operation.kind === "reorder-variations" ? props.operation : null;
-          if (!operation) return null;
-          return (
-            <Show when={operation}>
-              <p>
-                Reorder canonical parent <code>{operation.parent_position_id}</code>:{" "}
-                <code>{operation.ordered_decision_ids.join(", ")}</code>.
-              </p>
-            </Show>
-          );
-        })()}
+      <Show when={props.operation.kind === "reorder-variations" ? props.operation : null}>
+        {(operation) => (
+          <p>
+            Reorder canonical parent <code>{operation().parent_position_id}</code>:{" "}
+            <code>{operation().ordered_decision_ids.join(", ")}</code>.
+          </p>
+        )}
       </Show>
       <Show
         when={

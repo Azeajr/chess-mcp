@@ -1162,7 +1162,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   ),
   analyze_repertoire_congruence: (data) => {
     const report = asStrategicFitReport(data);
-    return report ? <StrategicFitResult report={report} /> : <NavigationRows data={data} />;
+    return <>{report ? <StrategicFitResult report={report} /> : <NavigationRows data={data} />}</>;
   },
   get_strategic_fit_report: (data) => {
     const projection = asStrategicFitRetrieval(data);

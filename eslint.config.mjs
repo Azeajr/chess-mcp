@@ -47,6 +47,20 @@ export default defineConfig([
   },
 
   {
+    name: "project/cli-and-test-output",
+    files: [
+      "scripts/**/*.{js,mjs,cjs,ts,tsx}",
+      "**/scripts/**/*.{js,mjs,cjs,ts,tsx}",
+      "**/test/**/*.{js,mjs,cjs,ts,tsx}",
+      "apps/mcp-server/src/engine.ts",
+      "apps/ui/.claude/skills/run-ui/**/*.{js,mjs,cjs,ts,tsx}",
+    ],
+    rules: {
+      "no-console": "off",
+    },
+  },
+
+  {
     name: "project/typescript-typed",
     files: typedSourceFiles,
     extends: [tseslint.configs.strictTypeChecked, tseslint.configs.stylisticTypeChecked],
