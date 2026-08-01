@@ -288,7 +288,7 @@ export function createStrategicFitPortfolioState(
           reason: outcome.message,
         };
       }
-      if (previous && previous.status === "staged" && previous.option_id !== optionId) {
+      if (previous?.status === "staged" && previous.option_id !== optionId) {
         // One staged change at a time: the review path discards the prior stage as it takes the new
         // one, so the superseded selection must stop presenting itself as staged.
         setSelection({ ...previous, status: "superseded" });
@@ -316,7 +316,7 @@ export function createStrategicFitPortfolioState(
 
     confirm(constraintSetId) {
       const staged = find(constraintSetId);
-      if (!staged || staged.status !== "pending") {
+      if (staged?.status !== "pending") {
         return { ok: false, status: staged?.status ?? "stale" };
       }
       if (
@@ -332,7 +332,7 @@ export function createStrategicFitPortfolioState(
 
     reject(constraintSetId) {
       const staged = find(constraintSetId);
-      if (!staged || staged.status !== "pending") {
+      if (staged?.status !== "pending") {
         return { ok: false, status: staged?.status ?? "stale" };
       }
       update(constraintSetId, "rejected");

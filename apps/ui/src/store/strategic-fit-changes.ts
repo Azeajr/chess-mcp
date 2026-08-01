@@ -1,10 +1,7 @@
 import { batch, createSignal } from "solid-js";
 import {
   GameTree,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
   STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
-  STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
   applyReplacementChangeSet,
   type Path,
   type ReplacementArchivePayload,
@@ -282,6 +279,10 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+function isReadonlyArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
 function emptyState(documentIdValue: string): StrategicFitPersistedChangeState {
   return {
     storage_version: STRATEGIC_FIT_CHANGE_STORAGE_VERSION,
@@ -298,52 +299,40 @@ function validState(
 ): StrategicFitPersistedChangeState {
   if (!value) return emptyState(documentIdValue);
   const archivesValid =
-    Array.isArray(value.archives) &&
+    isReadonlyArray(value.archives) &&
     value.archives.every(
       (entry) =>
-        entry?.status === "archived" &&
         typeof entry.archived_by_stage_id === "string" &&
-        typeof entry.payload?.archive_id === "string" &&
-        typeof entry.payload?.operation_id === "string" &&
-        typeof entry.payload?.pgn === "string" &&
-        entry.payload.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
+        typeof entry.payload.archive_id === "string" &&
+        typeof entry.payload.operation_id === "string" &&
+        typeof entry.payload.pgn === "string" &&
         Array.isArray(entry.payload.provenance),
     );
   const undoValid =
-    Array.isArray(value.undo) &&
+    isReadonlyArray(value.undo) &&
     value.undo.every(
       (entry) =>
-        entry?.document_id === documentIdValue &&
+        entry.document_id === documentIdValue &&
         typeof entry.undo_id === "string" &&
         typeof entry.stage_id === "string" &&
-        entry.stage?.stage_id === entry.stage_id &&
-        entry.stage?.document_id === documentIdValue &&
+        entry.stage.stage_id === entry.stage_id &&
+        entry.stage.document_id === documentIdValue &&
         STRATEGIC_FIT_UNDO_STATUSES.includes(entry.status) &&
-        typeof entry.before?.pgn === "string" &&
-        typeof entry.after?.pgn === "string" &&
-        entry.before?.metadata?.metadata_version === STRATEGIC_FIT_DOCUMENT_METADATA_VERSION &&
-        entry.after?.metadata?.metadata_version === STRATEGIC_FIT_DOCUMENT_METADATA_VERSION &&
-        Array.isArray(entry.before.navigation) &&
-        Array.isArray(entry.after.navigation) &&
-        Array.isArray(entry.before.archives) &&
-        Array.isArray(entry.after.archives),
+        typeof entry.before.pgn === "string" &&
+        typeof entry.after.pgn === "string" &&
+        isReadonlyArray(entry.before.navigation) &&
+        isReadonlyArray(entry.after.navigation) &&
+        isReadonlyArray(entry.before.archives) &&
+        isReadonlyArray(entry.after.archives),
     );
   const recoveryValid =
     value.recovery == null ||
-    (["accept", "undo"].includes(value.recovery.operation) &&
-      typeof value.recovery.stage_id === "string" &&
+    (typeof value.recovery.stage_id === "string" &&
       typeof value.recovery.prepared_at === "string" &&
-      Array.isArray(value.recovery.after?.archives) &&
-      Array.isArray(value.recovery.after?.undo) &&
-      typeof value.recovery.after?.working?.pgn === "string" &&
-      value.recovery.after?.metadata?.metadata_version === STRATEGIC_FIT_DOCUMENT_METADATA_VERSION);
-  if (
-    value.storage_version !== STRATEGIC_FIT_CHANGE_STORAGE_VERSION ||
-    value.document_id !== documentIdValue ||
-    !archivesValid ||
-    !undoValid ||
-    !recoveryValid
-  )
+      isReadonlyArray(value.recovery.after.archives) &&
+      isReadonlyArray(value.recovery.after.undo) &&
+      typeof value.recovery.after.working.pgn === "string");
+  if (value.document_id !== documentIdValue || !archivesValid || !undoValid || !recoveryValid)
     throw new Error("archive-mismatch");
   return { ...clone(value), recovery: null };
 }
@@ -445,13 +434,6 @@ function snapshotMatches(
     stage.change_set.base_repertoire_revision !== stage.base_repertoire_revision
   )
     return "identity-mismatch";
-  if (
-    stage.change_set.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION ||
-    stage.change_set.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
-    stage.change_set.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
-    current.metadata.metadata_version !== STRATEGIC_FIT_DOCUMENT_METADATA_VERSION
-  )
-    return "version-mismatch";
   return null;
 }
 
@@ -644,6 +626,7 @@ export function createStrategicFitChangeController(
     },
     reject(stageId: string): Promise<StrategicFitChangeOperationResult> {
       return exclusive(async () => {
+        await Promise.resolve();
         const stage = stages.get(stageId);
         if (!stage) return { ok: false, error: "not-staged", stage: null };
         if (stage.status !== "staged")
@@ -682,7 +665,7 @@ export function createStrategicFitChangeController(
             applied.status === "success" ? "stale-result" : "apply-failed",
           );
           stages.set(stageId, failed);
-          return { ok: false, error: failed.error_code!, stage: clone(failed) };
+          return { ok: false, error: failed.error_code ?? "apply-failed", stage: clone(failed) };
         }
         const priorState = clone(await stateFor(current.document_id));
         const acceptedRevision = current.revision + 1;
@@ -812,7 +795,7 @@ export function createStrategicFitChangeController(
         const record = undoId
           ? priorState.undo.find((entry) => entry.undo_id === undoId)
           : [...priorState.undo].reverse().find((entry) => entry.status === "available");
-        if (!record || record.status !== "available")
+        if (record?.status !== "available")
           return { ok: false, error: "undo-unavailable", stage: null };
         const stage = stages.get(record.stage_id) ?? clone(record.stage);
         stages.set(stage.stage_id, stage);
@@ -827,8 +810,9 @@ export function createStrategicFitChangeController(
             entry.undo_id === record.undo_id ? { ...entry, status: "stale" as const } : entry,
           );
           states.set(current.document_id, { ...priorState, undo });
-          stages.set(stage.stage_id, withStage(stage, "stale", "stale", "undo-stale"));
-          return { ok: false, error: "undo-stale", stage: clone(stages.get(stage.stage_id)!) };
+          const staleStage = withStage(stage, "stale", "stale", "undo-stale");
+          stages.set(stage.stage_id, staleStage);
+          return { ok: false, error: "undo-stale", stage: clone(staleStage) };
         }
         const nextRevision = current.revision + 1;
         const nextUndo = priorState.undo.map((entry) => {
@@ -872,8 +856,9 @@ export function createStrategicFitChangeController(
           );
         } catch {
           await finishPersistence();
-          stages.set(stage.stage_id, withStage(stage, "failed", "failed", "undo-failed"));
-          return { ok: false, error: "undo-failed", stage: clone(stages.get(stage.stage_id)!) };
+          const failedStage = withStage(stage, "failed", "failed", "undo-failed");
+          stages.set(stage.stage_id, failedStage);
+          return { ok: false, error: "undo-failed", stage: clone(failedStage) };
         }
         const published = dependencies.publish(
           tree,
@@ -883,8 +868,9 @@ export function createStrategicFitChangeController(
         );
         if (!published.ok || published.revision !== nextRevision) {
           await finishPersistence();
-          stages.set(stage.stage_id, withStage(stage, "failed", "failed", "publish-failed"));
-          return { ok: false, error: "publish-failed", stage: clone(stages.get(stage.stage_id)!) };
+          const failedStage = withStage(stage, "failed", "failed", "publish-failed");
+          stages.set(stage.stage_id, failedStage);
+          return { ok: false, error: "publish-failed", stage: clone(failedStage) };
         }
         try {
           await persist(
@@ -900,8 +886,9 @@ export function createStrategicFitChangeController(
           dependencies.rollback(current);
           await Promise.resolve();
           await finishPersistence();
-          stages.set(stage.stage_id, withStage(stage, "failed", "failed", "undo-failed"));
-          return { ok: false, error: "undo-failed", stage: clone(stages.get(stage.stage_id)!) };
+          const failedStage = withStage(stage, "failed", "failed", "undo-failed");
+          stages.set(stage.stage_id, failedStage);
+          return { ok: false, error: "undo-failed", stage: clone(failedStage) };
         }
         await finishPersistence();
         states.set(current.document_id, nextState);

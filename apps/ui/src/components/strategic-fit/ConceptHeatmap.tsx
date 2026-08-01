@@ -148,7 +148,8 @@ export function buildConceptHeatmapViewModel(
   const columnsById = new Map(columns.map((view) => [view.column.concept_id, view]));
   const cells = new Map(
     projection.cells.map((cell) => {
-      const column = columnsById.get(cell.concept_id)!;
+      const column = columnsById.get(cell.concept_id);
+      if (!column) throw new Error(`Missing concept heatmap column ${cell.concept_id}`);
       const name = cohortNames.get(cell.cohort_id) ?? cell.cohort_id;
       const findingNote =
         cell.finding_ids.length === 0
@@ -250,9 +251,13 @@ export default function ConceptHeatmap(props: {
     if (key === null) return null;
     const view = model().cells.get(key);
     if (view === undefined) return null;
+    const column = model().columns.find(
+      (candidate) => candidate.column.concept_id === view.cell.concept_id,
+    );
+    if (!column) return null;
     return {
       view,
-      column: model().columns.find((column) => column.column.concept_id === view.cell.concept_id)!,
+      column,
       cohort_name: model().cohort_names.get(view.cell.cohort_id) ?? view.cell.cohort_id,
     };
   });

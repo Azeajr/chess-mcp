@@ -239,7 +239,7 @@ export function createStrategicFitFindingResolutionState(
     semanticFindingId: string,
   ): StrategicFitResolutionAvailability => {
     const report = boundary.currentReport();
-    if (report === null || report.report_id !== reportId) {
+    if (report?.report_id !== reportId) {
       return {
         available: false,
         code: "strategic_fit_resolution_stale_report",
@@ -258,8 +258,7 @@ export function createStrategicFitFindingResolutionState(
     }
     const finding = boundary.currentFinding(reportId, findingId);
     if (
-      finding === null ||
-      finding.semantic_finding_id !== semanticFindingId ||
+      finding?.semantic_finding_id !== semanticFindingId ||
       finding.repertoire_revision !== report.result.repertoire_revision
     ) {
       return {
@@ -369,9 +368,13 @@ export function createStrategicFitFindingResolutionState(
       }
       const checked = availability(input.report_id, input.finding_id, input.semantic_finding_id);
       if (!checked.available || checked.finding === null) {
-        return blocked(input.finding_id, checked.code!, checked.message!);
+        return blocked(
+          input.finding_id,
+          checked.code ?? "strategic_fit_resolution_unavailable",
+          checked.message ?? "This finding is unavailable for resolution.",
+        );
       }
-      const note = input.note?.trim() || null;
+      const note = input.note?.trim() ?? null;
       const linkedTrainingIds = [
         ...new Set((input.linked_training_ids ?? []).map((id) => id.trim()).filter(Boolean)),
       ].sort();
@@ -435,7 +438,11 @@ export function createStrategicFitFindingResolutionState(
     reopen(input) {
       const checked = availability(input.report_id, input.finding_id, input.semantic_finding_id);
       if (!checked.available || checked.finding === null) {
-        return blocked(input.finding_id, checked.code!, checked.message!);
+        return blocked(
+          input.finding_id,
+          checked.code ?? "strategic_fit_resolution_unavailable",
+          checked.message ?? "This finding is unavailable for resolution.",
+        );
       }
       const existing = activeResolution(
         boundary.currentMetadata(),

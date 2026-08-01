@@ -355,7 +355,9 @@ export function buildStrategicFitTrainingRecord(
   if (staleRoute !== undefined) throw new Error("strategic_fit_training_stale_route");
   const route = trainingRoute(report, finding, graph);
   if (route === null) throw new Error("strategic_fit_training_route_evidence_unavailable");
-  const trajectory = report.trajectories.find((entry) => entry.route_id === route.route_id)!;
+  const trajectory = report.trajectories.find((entry) => entry.route_id === route.route_id);
+  if (trajectory === undefined)
+    throw new Error("strategic_fit_training_route_evidence_unavailable");
   const checkpoints = trajectory.snapshots
     .filter((snapshot) =>
       graph.positions.some(
@@ -469,7 +471,7 @@ export function buildStrategicFitTrainingRecord(
     concept_ids: concepts,
     causal_move: causal,
     drills,
-    user_notes: userNotes?.trim() || null,
+    user_notes: userNotes?.trim() ?? null,
     plan_card: null,
     created_at: createdAt,
     provenance: [
@@ -576,10 +578,8 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
     const report = boundary.currentReport();
     const finding = boundary.currentFinding(input.report_id, input.finding_id);
     if (
-      report === null ||
-      report.report_id !== input.report_id ||
-      finding === null ||
-      finding.semantic_finding_id !== input.semantic_finding_id
+      report?.report_id !== input.report_id ||
+      finding?.semantic_finding_id !== input.semantic_finding_id
     )
       return null;
     const existing = boundary
@@ -616,9 +616,9 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
           artifact_id: null,
         };
       }
-      let record: StrategicFitTrainingRecord;
+      let record: StrategicFitTrainingRecord | null;
       try {
-        record = buildCurrent(input)!;
+        record = buildCurrent(input);
         if (record === null) throw new Error("strategic_fit_training_stale_report");
       } catch (error) {
         const failure = friendlyBuildError(error);
@@ -817,7 +817,7 @@ export function createStrategicFitTrainingPerformanceState(
       };
     },
 
-    import(input: string | unknown): StrategicFitTrainingPerformanceMutationResult {
+    import(input: unknown): StrategicFitTrainingPerformanceMutationResult {
       const before = boundary.currentData();
       const parsed = parseStrategicFitTrainingPerformance(input);
       if (!("ok" in parsed)) {
@@ -1078,7 +1078,7 @@ registerStrategicFitTrainingEvidenceProvider(() => {
   return evidence.concept_mastery.length > 0 ? evidence : null;
 });
 export const exportStrategicFitTrainingPerformance = () => browserTrainingPerformance.export();
-export const importStrategicFitTrainingPerformance = (input: string | unknown) =>
+export const importStrategicFitTrainingPerformance = (input: unknown) =>
   browserTrainingPerformance.import(input);
 
 const browserTraining = createStrategicFitTrainingState({

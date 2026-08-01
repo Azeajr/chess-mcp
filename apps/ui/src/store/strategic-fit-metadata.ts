@@ -95,13 +95,13 @@ function cloneMetadata(metadata: StrategicFitDocumentMetadata): StrategicFitDocu
 }
 
 function fallbackWarning(
-  documentId: string,
+  id: string,
   result: StrategicFitMetadataNormalizationResult,
 ): StrategicFitMetadataWarning {
   const unsupported = result.issues.some((entry) => entry.code === "unsupported-version");
   return {
     code: unsupported ? "unsupported-metadata" : "invalid-metadata",
-    document_id: documentId,
+    document_id: id,
     message: "Strategic Fit settings could not be restored. Defaults were loaded.",
     issues: result.issues,
   };

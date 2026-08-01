@@ -22,7 +22,10 @@ const collectionLabels = {
 
 function displayValue(value: unknown): string {
   if (Array.isArray(value)) return value.length === 0 ? "none" : value.join(", ");
-  return value === null ? "unset" : String(value);
+  if (value === null || value === undefined) return "unset";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return `${value}`;
+  return JSON.stringify(value);
 }
 
 export default function StrategicFitTransfer() {
@@ -67,7 +70,13 @@ export default function StrategicFitTransfer() {
         </button>
         <Show when={sidecarState().result?.artifact_id}>
           {(id) => (
-            <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>
+            <button
+              class="fix-btn"
+              onClick={() => {
+                const artifactId = id();
+                if (typeof artifactId === "string") saveArtifact(artifactId);
+              }}
+            >
               Save metadata JSON
             </button>
           )}
@@ -94,7 +103,13 @@ export default function StrategicFitTransfer() {
         </Show>
         <Show when={intentState().result?.artifact_id}>
           {(id) => (
-            <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>
+            <button
+              class="fix-btn"
+              onClick={() => {
+                const artifactId = id();
+                if (typeof artifactId === "string") saveArtifact(artifactId);
+              }}
+            >
               Save intent PGN
             </button>
           )}
@@ -190,7 +205,7 @@ export default function StrategicFitTransfer() {
                     <For each={rows()}>
                       {([field, before, after]) => (
                         <div>
-                          <strong>{String(field)}:</strong> {displayValue(before)} →{" "}
+                          <strong>{displayValue(field)}:</strong> {displayValue(before)} →{" "}
                           {displayValue(after)}
                         </div>
                       )}

@@ -64,19 +64,11 @@ const effectiveDocumentSettingsIdentity = (
     weighting:
       args.popularity !== undefined || args.personal_history !== undefined
         ? null
-        : args.weighting === undefined
-          ? (snapshot.inputs.weighting ?? null)
-          : args.weighting,
+        : (args.weighting ?? snapshot.inputs.weighting ?? null),
     popularity: args.popularity ?? null,
     personal_history: args.personal_history ?? null,
-    cohort_overrides:
-      args.cohort_overrides === undefined
-        ? (snapshot.inputs.cohort_overrides ?? null)
-        : args.cohort_overrides,
-    route_assessments:
-      args.route_assessments === undefined
-        ? (snapshot.inputs.route_assessments ?? null)
-        : args.route_assessments,
+    cohort_overrides: args.cohort_overrides ?? snapshot.inputs.cohort_overrides ?? null,
+    route_assessments: args.route_assessments ?? snapshot.inputs.route_assessments ?? null,
   });
 
 const injectDocumentAnalysisSettings = (
@@ -164,7 +156,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
   },
   suggest_gap_fills: async (args, context) => {
     const tree = context.currentTree();
-    const path = tree.indexPathOfSan((args.variation_path as string[]) ?? []);
+    const path = tree.indexPathOfSan((args.variation_path as string[] | undefined) ?? []);
     if (!path)
       return { error: "path_not_found", reason: "variation_path is not in the repertoire" };
     const result = await suggestGapFills(
@@ -378,15 +370,15 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
         personalHistorySource.platform === "chesscom"
           ? await context.chesscomGames(
               personalHistorySource.username,
-              personalHistorySource.year!,
-              personalHistorySource.month!,
+              personalHistorySource.year ?? 0,
+              personalHistorySource.month ?? 0,
               undefined,
               true,
               context.signal,
             )
           : await context.lichessGames(
               personalHistorySource.username,
-              personalHistorySource.max_games!,
+              personalHistorySource.max_games ?? 0,
               undefined,
               true,
               context.signal,
@@ -515,15 +507,19 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       (args.limit as number | undefined) ?? toolDefault("classify_illustrative_lines", "limit", 20),
     ),
   modify_repertoire_line: (args, context) =>
-    context.stageEdit(args.action as "add" | "prune" | "reorder", (args.path as string[]) ?? [], {
-      addMoves: args.add_moves as string[] | undefined,
-      promoteMove: args.promote_move as string | undefined,
-    }),
+    context.stageEdit(
+      args.action as "add" | "prune" | "reorder",
+      (args.path as string[] | undefined) ?? [],
+      {
+        addMoves: args.add_moves as string[] | undefined,
+        promoteMove: args.promote_move as string | undefined,
+      },
+    ),
   suggest_complementary_lines: async (args, context) => {
     const result = await suggestComplementaryLines(
       context.currentTree(),
       context.currentColor(),
-      (args.fen as string | undefined) || context.currentFen(),
+      (args.fen as string | undefined) ?? context.currentFen(),
       {
         mode: args.mode as never,
         depth: requestedDepth(args, context),

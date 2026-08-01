@@ -73,7 +73,7 @@ function numbered(sans: string[], startPly = 0): string {
     const no = Math.floor(ply / 2) + 1;
     if (ply % 2 === 0) out.push(`${no}. ${sans[i]}`);
     else if (i === 0) out.push(`${no}... ${sans[i]}`);
-    else out.push(sans[i]!);
+    else out.push(sans[i] ?? "");
   }
   return out.join(" ");
 }
@@ -96,8 +96,8 @@ export default function RepertoirePanel() {
       fallback={
         <button
           class="scan-btn"
-          onClick={(e) => (
-            e.preventDefault(),
+          onClick={(e) => {
+            e.preventDefault();
             void executeCommand(command, {
               ...args(),
               ...([
@@ -107,14 +107,20 @@ export default function RepertoirePanel() {
               ].includes(command)
                 ? { depth: analysisDepth() }
                 : {}),
-            })
-          )}
+            });
+          }}
         >
           {label}
         </button>
       }
     >
-      <button class="scan-btn" onClick={(e) => (e.preventDefault(), cancelCommand(command))}>
+      <button
+        class="scan-btn"
+        onClick={(e) => {
+          e.preventDefault();
+          cancelCommand(command);
+        }}
+      >
         Cancel
       </button>
     </Show>
@@ -126,8 +132,8 @@ export default function RepertoirePanel() {
           <div class="scan-progress">
             <progress
               class="scan-meter"
-              max={p().total || 1}
-              value={p().total ? Math.min(p().done, p().total!) : undefined}
+              max={p().total ?? 1}
+              value={p().total ? Math.min(p().done, p().total ?? 0) : undefined}
             />
             <span>
               {p().detail ?? "working"} {p().total ? `${p().done}/${p().total}` : "…"}
@@ -303,7 +309,13 @@ export default function RepertoirePanel() {
           }
         >
           {(id) => (
-            <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>
+            <button
+              class="fix-btn"
+              onClick={() => {
+                const artifactId = id();
+                if (typeof artifactId === "string") saveArtifact(artifactId);
+              }}
+            >
               Save CSV deck
             </button>
           )}
@@ -372,7 +384,13 @@ export default function RepertoirePanel() {
         {commandStatus("export_annotated_repertoire")}
         <Show when={state("export_annotated_repertoire").result?.artifact_id}>
           {(id) => (
-            <button class="fix-btn" onClick={() => saveArtifact(String(id()))}>
+            <button
+              class="fix-btn"
+              onClick={() => {
+                const artifactId = id();
+                if (typeof artifactId === "string") saveArtifact(artifactId);
+              }}
+            >
               Save annotated PGN
             </button>
           )}
@@ -389,12 +407,24 @@ export default function RepertoirePanel() {
           <Show
             when={scanning()}
             fallback={
-              <button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanGaps())}>
+              <button
+                class="scan-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void scanGaps();
+                }}
+              >
                 Scan
               </button>
             }
           >
-            <button class="scan-btn" onClick={(e) => (e.preventDefault(), cancelScan())}>
+            <button
+              class="scan-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                cancelScan();
+              }}
+            >
               Cancel
             </button>
           </Show>
@@ -431,7 +461,15 @@ export default function RepertoirePanel() {
         </Show>
         <For each={gaps()}>
           {(g) => {
-            const state = () => fills()[gapKey(g)];
+            const gapState = () => fills()[gapKey(g)];
+            const gapFill = (): GapFill | null => {
+              const value = gapState();
+              return typeof value === "object" && "bestEval" in value ? value : null;
+            };
+            const gapError = (): string | null => {
+              const value = gapState();
+              return typeof value === "object" && "error" in value ? value.error : null;
+            };
             return (
               <div class="rep-flag">
                 <div
@@ -447,30 +485,33 @@ export default function RepertoirePanel() {
                   </span>
                   <span class="ev">{gapEval(g)}</span>
                 </div>
-                <button class="fix-btn fill-btn" onClick={() => void fillGap(g)}>
+                <button
+                  class="fix-btn fill-btn"
+                  onClick={() => {
+                    void fillGap(g);
+                  }}
+                >
                   Fill this
                 </button>
-                <Show when={state() === "loading"}>
+                <Show when={gapState() === "loading"}>
                   <div class="scan-progress fill-progress">finding fills…</div>
                 </Show>
-                <Show
-                  when={state() && typeof state() === "object" && "error" in (state() as object)}
-                >
-                  <div class="empty">{(state() as { error: string }).error}</div>
-                </Show>
-                <Show
-                  when={state() && typeof state() === "object" && "bestEval" in (state() as object)}
-                >
-                  <FillRow g={g} opt={(state() as GapFill).bestEval} label="best eval" />
-                  <Show when={(state() as GapFill).bestFit}>
-                    {(bf) => (
-                      <FillRow
-                        g={g}
-                        opt={bf()}
-                        label={bf().fit > (state() as GapFill).bestEval.fit ? "best fit" : "alt"}
-                      />
-                    )}
-                  </Show>
+                <Show when={gapError()}>{(error) => <div class="empty">{error()}</div>}</Show>
+                <Show when={gapFill()}>
+                  {(fill) => (
+                    <>
+                      <FillRow g={g} opt={fill().bestEval} label="best eval" />
+                      <Show when={fill().bestFit}>
+                        {(bf) => (
+                          <FillRow
+                            g={g}
+                            opt={bf()}
+                            label={bf().fit > fill().bestEval.fit ? "best fit" : "alt"}
+                          />
+                        )}
+                      </Show>
+                    </>
+                  )}
                 </Show>
               </div>
             );
@@ -512,7 +553,7 @@ export default function RepertoirePanel() {
         <Show when={bridgeError()}>
           <div class="empty">{bridgeError()}</div>
         </Show>
-        <Show when={extBridges() && extBridges()!.length === 0}>
+        <Show when={extBridges()?.length === 0}>
           <div class="empty">No stubs that rejoin prep.</div>
         </Show>
         {/* A stopped line continued by the color's engine-best moves until it rejoins existing prep. */}
@@ -542,7 +583,13 @@ export default function RepertoirePanel() {
           <Show
             when={pruneScanning()}
             fallback={
-              <button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanPrune())}>
+              <button
+                class="scan-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void scanPrune();
+                }}
+              >
                 Scan
               </button>
             }
@@ -560,7 +607,10 @@ export default function RepertoirePanel() {
               <button
                 class="scan-btn scan-cancel"
                 title="Cancel scan"
-                onClick={(e) => (e.preventDefault(), cancelPrune())}
+                onClick={(e) => {
+                  e.preventDefault();
+                  cancelPrune();
+                }}
               >
                 ✕
               </button>
@@ -570,7 +620,7 @@ export default function RepertoirePanel() {
         <Show when={pruneError()}>
           <div class="empty">{pruneError()}</div>
         </Show>
-        <Show when={pruneSuggestions() && pruneSuggestions()!.length === 0}>
+        <Show when={pruneSuggestions()?.length === 0}>
           <div class="empty">No shortenable lines.</div>
         </Show>
         <For each={pruneSuggestions() ?? []}>
@@ -631,7 +681,8 @@ export default function RepertoirePanel() {
                           </span>
                         </div>
                         <div class="muted">
-                          evalΔ {c().evalDelta == null ? "?" : (c().evalDelta! / 100).toFixed(2)} ·
+                          evalΔ{" "}
+                          {c().evalDelta == null ? "?" : ((c().evalDelta ?? 0) / 100).toFixed(2)} ·
                           fit {c().fitStay}→{c().fitTranspose} · {c().structureStay}→
                           {c().structureTranspose}
                         </div>

@@ -68,9 +68,13 @@ function replaceDocument(
     setDirty(false);
     setFileName(name ?? null);
     setDocumentId(nextDocumentId);
-    if (Number.isSafeInteger(restoredRevision) && restoredRevision! >= 0)
-      setVersion(restoredRevision!);
-    else bump();
+    if (
+      restoredRevision !== undefined &&
+      Number.isSafeInteger(restoredRevision) &&
+      restoredRevision >= 0
+    ) {
+      setVersion(restoredRevision);
+    } else bump();
   });
 }
 
@@ -196,7 +200,9 @@ export const actions = {
       return;
     }
     const parent = tree().nodeAt(p.slice(0, -1));
-    parent.children.splice(p[p.length - 1]!, 1);
+    const childIndex = p.at(-1);
+    if (childIndex === undefined) return;
+    parent.children.splice(childIndex, 1);
     setPath(p.slice(0, -1));
     setDirty(true);
     bump();

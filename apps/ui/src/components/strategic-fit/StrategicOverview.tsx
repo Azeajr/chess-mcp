@@ -337,7 +337,9 @@ export default function StrategicOverview(props: {
                   type="button"
                   aria-controls="strategic-fit-pane-findings"
                   onClick={() => {
-                    props.onReview(item.id, item.review_label!, item.review_filter!);
+                    if (item.review_filter && item.review_label) {
+                      props.onReview(item.id, item.review_label, item.review_filter);
+                    }
                   }}
                 >
                   {item.review_label}

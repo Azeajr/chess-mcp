@@ -190,7 +190,9 @@ export function buildCandidateComparisonRows(
 }
 
 function axis(row: CandidateComparisonRow, axisId: ReplacementStrategicScoreAxis) {
-  return row.axes.find((item) => item.axis === axisId)!;
+  const result = row.axes.find((item) => item.axis === axisId);
+  if (!result) throw new Error(`Candidate ${row.candidate_id} is missing ${axisId} evidence`);
+  return result;
 }
 
 export interface CandidateTableProps {
@@ -553,7 +555,7 @@ export function CandidateDetails(props: CandidateDetailsProps) {
         </Show>
         <Show when={props.row.safety?.safety_checks.length}>
           <ul class="replacement-candidate-risk-list" aria-label="Canonical safety checks">
-            <For each={props.row.safety!.safety_checks}>
+            <For each={props.row.safety?.safety_checks ?? []}>
               {(check) => (
                 <li data-risk-status={check.status}>
                   <strong>
@@ -686,7 +688,7 @@ export function CandidateDetails(props: CandidateDetailsProps) {
         <Show when={props.row.safety?.error_code}>
           {(errorCode) => (
             <p>
-              <code>{errorCode()}</code>: {props.row.safety!.explanation}
+              <code>{errorCode()}</code>: {props.row.safety?.explanation}
             </p>
           )}
         </Show>

@@ -6,7 +6,7 @@ type ChessHarness = {
   version(): number;
   toPgn(): string;
   loadPgn(pgn: string, name?: string): void;
-  strategicFitMetadata(): Record<string, any>;
+  strategicFitMetadata(): Record<string, unknown>;
   strategicFitMetadataStatus(): string;
   replaceStrategicFitMetadata(value: unknown): { state: string };
   flushStrategicFitMetadata(documentId?: string): Promise<void>;

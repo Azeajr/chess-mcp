@@ -450,7 +450,7 @@ export function mergeDecisionFlowLinks(
       ({
         link_id:
           value.link_ids.length === 1
-            ? value.link_ids[0]!
+            ? (value.link_ids[0] ?? `aggregate-link:${value.from}|${value.to}`)
             : `aggregate-link:${value.from}|${value.to}`,
         from_node_id: value.from,
         to_node_id: value.to,

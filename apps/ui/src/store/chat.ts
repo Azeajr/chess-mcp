@@ -280,7 +280,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         : { error: e instanceof Error ? e.message : String(e) };
       updateRun(tc.id, {
         status: executionOutcome(isCancelled, true),
-        error: isCancelled ? undefined : String((result as { error: string }).error),
+        error: isCancelled ? undefined : (result as { error: string }).error,
       });
     }
     setHistory((h) => [

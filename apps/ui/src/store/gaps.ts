@@ -110,7 +110,12 @@ export async function fillGap(g: Gap) {
       evalCp: option.eval_cp,
       fit: option.fit,
     });
-    const bestEval = toOption(res.options.find((option) => option.kind === "best_eval")!);
+    const bestEvalOption = res.options.find((option) => option.kind === "best_eval");
+    if (!bestEvalOption) {
+      setFills((p) => ({ ...p, [key]: { error: "Best-evaluation fill option is unavailable" } }));
+      return;
+    }
+    const bestEval = toOption(bestEvalOption);
     const fit = res.options.find((option) => option.kind === "best_fit");
     const bestFit = fit ? toOption(fit) : null;
     setFills((p) => ({ ...p, [key]: { bestEval, bestFit } }));

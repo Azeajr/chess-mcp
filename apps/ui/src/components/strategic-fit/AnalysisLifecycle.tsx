@@ -57,9 +57,11 @@ export default function AnalysisLifecycle() {
             <span>Work is underway. Nothing is current until the report completes.</span>
           </Show>
           <Show when={state().status === "completed" && state().current_result}>
-            <span class="strategic-fit-analysis-report-id">
-              Current report <code>{state().current_result!.report_id}</code>
-            </span>
+            {(result) => (
+              <span class="strategic-fit-analysis-report-id">
+                Current report <code>{result().report_id}</code>
+              </span>
+            )}
           </Show>
           <Show when={state().status === "completed" && state().current_result?.reanalysis}>
             {(summary) => (
@@ -84,7 +86,7 @@ export default function AnalysisLifecycle() {
             <span>Cancelled work was not published as a completed report.</span>
           </Show>
           <Show when={state().status === "failed" && state().error}>
-            <span role="alert">{state().error!.message}</span>
+            {(error) => <span role="alert">{error().message}</span>}
           </Show>
           <Show when={state().status === "stale"}>
             <span>
@@ -92,10 +94,18 @@ export default function AnalysisLifecycle() {
             </span>
           </Show>
 
-          <Show when={state().last_completed && state().current_result !== state().last_completed}>
-            <span class="strategic-fit-previous-report" data-report-current="false">
-              Previous report—not current: <code>{state().last_completed!.report_id}</code>
-            </span>
+          <Show
+            when={
+              state().last_completed && state().current_result !== state().last_completed
+                ? state().last_completed
+                : null
+            }
+          >
+            {(result) => (
+              <span class="strategic-fit-previous-report" data-report-current="false">
+                Previous report—not current: <code>{result().report_id}</code>
+              </span>
+            )}
           </Show>
         </div>
 

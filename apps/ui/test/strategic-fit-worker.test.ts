@@ -6,7 +6,6 @@ import {
   STRATEGIC_FIT_PROGRESS_PHASES,
   analyzeStrategicFit,
   type AnalyzeStrategicFitOptions,
-  type StrategicFitAnalysisResult,
 } from "@chess-mcp/chess-tools";
 import {
   StrategicFitWorkerClient,

@@ -132,7 +132,7 @@ export function stageEdit(
 
 export function acceptStagedEdit(id: string) {
   const edit = stagedEdits().find((item) => item.id === id);
-  if (!edit || edit.status !== "pending") return { ok: false, error: "action_not_pending" };
+  if (edit?.status !== "pending") return { ok: false, error: "action_not_pending" };
   const result = actions.applyEdit(
     edit.action,
     edit.path,
@@ -286,7 +286,9 @@ export const previewedKeys = (): Set<string> => {
     const ci = node.children.findIndex((c) => c.data.san === san);
     if (ci < 0) break; // line diverges from the existing tree here
     idx = [...idx, ci];
-    node = node.children[ci]!;
+    const child = node.children[ci];
+    if (child === undefined) break;
+    node = child;
     out.add(idx.join(","));
   }
   return out;
@@ -294,11 +296,15 @@ export const previewedKeys = (): Set<string> => {
 
 /** Blue arrows for proposals at the current position (distinct from engine green/yellow/red). */
 export const suggestionArrows = (): Arrow[] =>
-  suggestions()
-    .filter((s) => s.firstUci && pathEq(s.fromPath, currentPath()))
-    .map((s) => ({
-      orig: s.firstUci!.slice(0, 2),
-      dest: s.firstUci!.slice(2, 4),
-      brush: "blue",
-      modifiers: { lineWidth: 8 },
-    }));
+  suggestions().flatMap((suggestion) => {
+    const firstUci = suggestion.firstUci;
+    if (!firstUci || !pathEq(suggestion.fromPath, currentPath())) return [];
+    return [
+      {
+        orig: firstUci.slice(0, 2),
+        dest: firstUci.slice(2, 4),
+        brush: "blue" as const,
+        modifiers: { lineWidth: 8 },
+      },
+    ];
+  });

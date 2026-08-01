@@ -36,7 +36,9 @@ if (check) {
   let actual = "";
   try {
     actual = await readFile(target, "utf8");
-  } catch {}
+  } catch {
+    actual = "";
+  }
   if (actual !== content) {
     console.error("docs/TOOL_CATALOG.md is stale; run pnpm docs:generate");
     process.exitCode = 1;

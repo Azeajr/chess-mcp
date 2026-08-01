@@ -131,8 +131,7 @@ test("configured data-source arguments are captured with the request and reach t
 });
 
 test("reanalysis atomically reconciles settings and publishes the exact resolving revision", async () => {
-  let subject!: ReturnType<typeof fixture>;
-  subject = fixture((previous, next, findings, request) => {
+  const subject = fixture((previous, next, findings, request) => {
     subject.patchSnapshot({ settings_identity: "settings:reconciled" });
     subject.state.synchronize();
     return {

@@ -5,7 +5,6 @@ import {
   analyzeStrategicFit,
   createStrategicFitJobRecorder,
   restoreStrategicFitJobCheckpoint,
-  strategicFitColdJobRecovery,
   strategicFitJobCompatibility,
   type AnalyzeStrategicFitOptions,
 } from "@chess-mcp/chess-tools";
@@ -120,12 +119,7 @@ function recoverJob(
   post: PostResponse,
 ): void {
   const { payload, request_id: requestId } = request;
-  const recovery =
-    payload.resume === undefined || payload.resume === null
-      ? strategicFitColdJobRecovery(
-          "No checkpoint was supplied, so the analysis ran from a cold start.",
-        )
-      : restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
+  const recovery = restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
   post({ type: "recovery", request_id: requestId, recovery });
 }
 
@@ -172,7 +166,7 @@ export function createStrategicFitWorkerHandler(post: PostResponse) {
       cancelled.add(request.request_id);
       return;
     }
-    if (request.type !== "analyze" || !isPayload(request.payload)) {
+    if (!isPayload(request.payload)) {
       post({
         type: "error",
         request_id: request.request_id,
@@ -241,7 +235,7 @@ if (
   typeof scope.addEventListener === "function"
 ) {
   const handle = createStrategicFitWorkerHandler((response) => {
-    scope.postMessage!(response);
+    if (scope.postMessage) scope.postMessage(response);
   });
   scope.addEventListener("message", (event) => {
     handle(event.data);

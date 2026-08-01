@@ -117,7 +117,10 @@ export default function App() {
           <Divider
             axis="y"
             onResize={(d) => {
-              const base = boardSize() || document.querySelector(".board-wrap")?.clientWidth || 320;
+              const base =
+                boardSize() > 0
+                  ? boardSize()
+                  : (document.querySelector(".board-wrap")?.clientWidth ?? 320);
               setBoardSize(base + d);
             }}
             onEnd={persistBoard}

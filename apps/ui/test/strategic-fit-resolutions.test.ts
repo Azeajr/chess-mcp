@@ -7,7 +7,6 @@ import {
   buildRepertoireGraph,
   createDefaultStrategicFitDocumentMetadata,
   normalizeStrategicFitDocumentMetadata,
-  type StrategicFitDocumentMetadata,
   type StrategicFinding,
   type StrategicFitPersistedResolutionState,
 } from "@chess-mcp/chess-tools";

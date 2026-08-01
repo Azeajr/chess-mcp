@@ -13,7 +13,7 @@ function open(): Promise<IDBDatabase> {
       resolve(req.result);
     };
     req.onerror = () => {
-      reject(req.error);
+      reject(req.error ?? new Error("IndexedDB database open failed"));
     };
   });
 }
@@ -27,7 +27,7 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
       resolve();
     };
     tx.onerror = () => {
-      reject(tx.error);
+      reject(tx.error ?? new Error("IndexedDB write failed"));
     };
   });
   db.close();
@@ -42,7 +42,7 @@ export async function idbGet<T>(key: string): Promise<T | undefined> {
       resolve(req.result as T | undefined);
     };
     req.onerror = () => {
-      reject(req.error);
+      reject(req.error ?? new Error("IndexedDB read failed"));
     };
   });
   db.close();
@@ -58,7 +58,7 @@ export async function idbDel(key: string): Promise<void> {
       resolve();
     };
     tx.onerror = () => {
-      reject(tx.error);
+      reject(tx.error ?? new Error("IndexedDB delete failed"));
     };
   });
   db.close();
@@ -84,7 +84,7 @@ export async function idbMutateAtomically(mutations: readonly IdbAtomicMutation[
       resolve();
     };
     tx.onerror = () => {
-      reject(tx.error);
+      reject(tx.error ?? new Error("IndexedDB mutation failed"));
     };
     tx.onabort = () => {
       reject(tx.error ?? new Error("IndexedDB transaction aborted"));

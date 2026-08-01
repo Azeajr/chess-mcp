@@ -195,7 +195,7 @@ export function replacementLabActionability(
   currentCompleted: StrategicFitCompletedResult | null,
 ): ReplacementLabActionability {
   const { completed, report, finding } = context;
-  if (currentCompleted === null || currentCompleted.report_id !== completed.report_id) {
+  if (currentCompleted?.report_id !== completed.report_id) {
     return unavailable(
       "stale-report",
       "This finding no longer belongs to the current completed report.",
@@ -222,8 +222,7 @@ export function replacementLabActionability(
     (candidate) => candidate.finding_id === finding.finding_id,
   );
   if (
-    currentFinding === undefined ||
-    currentFinding.semantic_finding_id !== finding.semantic_finding_id ||
+    currentFinding?.semantic_finding_id !== finding.semantic_finding_id ||
     currentFinding.repertoire_revision !== finding.repertoire_revision
   )
     return unavailable(
@@ -249,7 +248,7 @@ export function replacementLabActionability(
     );
   }
   const cohort = report.cohorts.find((entry) => entry.cohort_id === finding.evidence.cohort_id);
-  if (cohort === undefined || cohort.state !== "actionable") {
+  if (cohort?.state !== "actionable") {
     return unavailable(
       "unsupported-cohort",
       "This finding has no current actionable comparison cohort.",
@@ -362,7 +361,8 @@ export function prepareReplacementLab(
     return { context, actionability, request: null, pivot_result: null };
   const request = requestFor(context, controls, null, 0);
   const graph = buildRepertoireGraph(boundary.dependencies.currentTree(), request.repertoire_color);
-  const cohort = context.report.cohorts.find((entry) => entry.cohort_id === context.cohort_id)!;
+  const cohort = context.report.cohorts.find((entry) => entry.cohort_id === context.cohort_id);
+  if (cohort === undefined) throw new Error("replacement_lab_cohort_unavailable");
   const pivot = selectReplacementPivot({
     request,
     graph,
@@ -546,7 +546,8 @@ async function openingDatabaseEvidence(
   signal?: AbortSignal,
 ): Promise<ReplacementOpeningDatabaseEvidence[]> {
   if (!request.candidate_sources.includes("opening-database")) return [];
-  const position = graph.positions.find((entry) => entry.position_id === pivot.pivot.position_id)!;
+  const position = graph.positions.find((entry) => entry.position_id === pivot.pivot.position_id);
+  if (position === undefined) return [];
   const requestedFilters = { db: "lichess" as const, movesLimit: 30 };
   const filters = normalizeExplorerFilters(requestedFilters);
   const hasToken = dependencies.hasExplorerToken();
@@ -701,7 +702,8 @@ export async function runReplacementLabGeneration(
   const graph = buildRepertoireGraph(boundary.dependencies.currentTree(), request.repertoire_color);
   const cohort = prepared.context.report.cohorts.find(
     (entry) => entry.cohort_id === request.cohort_id,
-  )!;
+  );
+  if (cohort === undefined) throw new Error("replacement_lab_cohort_unavailable");
   const pivot = selectReplacementPivot({
     request,
     graph,

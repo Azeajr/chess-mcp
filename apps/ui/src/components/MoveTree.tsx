@@ -34,7 +34,8 @@ export default function MoveTree() {
   const toggleGroup = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
 
@@ -46,7 +47,9 @@ export default function MoveTree() {
     const out: { san: string; ply: number; path: Path }[] = [];
     let node: Node<PgnNodeData> = tree.game.moves;
     for (let i = 0; i < cur.length; i++) {
-      const child = node.children[cur[i]!];
+      const childIndex = cur[i];
+      if (childIndex === undefined) break;
+      const child = node.children[childIndex];
       if (!child) break;
       out.push({ san: child.data.san, ply: i + 1, path: cur.slice(0, i + 1) });
       node = child;
@@ -94,7 +97,8 @@ export default function MoveTree() {
       let path = basePath;
       let dots = blackDots;
       while (cursor.children.length) {
-        const main = cursor.children[0]!;
+        const main = cursor.children.at(0);
+        if (main === undefined) break;
         const mainPath = [...path, 0];
         parts.push(moveSpan(main, mainPath, dots));
 
@@ -104,7 +108,7 @@ export default function MoveTree() {
         if (branch) {
           const key = path.length ? path.join(",") : "root";
           const curInVariation =
-            cur.length > path.length && isPrefix(path, cur) && cur[path.length]! >= 1;
+            cur.length > path.length && isPrefix(path, cur) && (cur[path.length] ?? 0) >= 1;
           const isCollapsed = collapsedSet.has(key) && !curInVariation;
           const hidden = cursor.children.length - 1;
           const toggle = (
@@ -125,7 +129,8 @@ export default function MoveTree() {
           } else {
             const vs: JSX.Element[] = [];
             for (let i = 1; i < cursor.children.length; i++) {
-              const v = cursor.children[i]!;
+              const v = cursor.children[i];
+              if (v === undefined) continue;
               const vPath = [...path, i];
               vs.push(
                 <div class="variation">

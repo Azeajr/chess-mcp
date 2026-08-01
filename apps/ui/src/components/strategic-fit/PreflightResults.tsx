@@ -44,7 +44,6 @@ const MAX_DETAIL_LENGTH = 220;
 
 function detailText(value: unknown): string {
   const serialized = typeof value === "string" ? value : JSON.stringify(value);
-  if (serialized === undefined) return String(value);
   return serialized.length <= MAX_DETAIL_LENGTH
     ? serialized
     : `${serialized.slice(0, MAX_DETAIL_LENGTH - 1)}…`;

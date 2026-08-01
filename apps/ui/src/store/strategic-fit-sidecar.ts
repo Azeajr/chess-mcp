@@ -61,7 +61,7 @@ export interface StrategicFitSidecarStateBoundary {
 export interface StrategicFitSidecarImportState {
   preview(): StrategicFitSidecarImportPreview | null;
   importError(): StrategicFitSidecarError | StrategicFitSidecarConfirmationError | null;
-  prepare(input: string | unknown): StrategicFitSidecarImportPreview | StrategicFitSidecarError;
+  prepare(input: unknown): StrategicFitSidecarImportPreview | StrategicFitSidecarError;
   cancel(): void;
   confirm(input: {
     readonly preview_id: string;
@@ -257,7 +257,7 @@ const [errorSignal, setErrorSignal] = createSignal<
 export const strategicFitSidecarImportPreview = previewSignal;
 export const strategicFitSidecarImportError = errorSignal;
 
-export function prepareStrategicFitSidecarImport(input: string | unknown) {
+export function prepareStrategicFitSidecarImport(input: unknown) {
   const result = browserImportState.prepare(input);
   setPreviewSignal(browserImportState.preview());
   setErrorSignal(browserImportState.importError());

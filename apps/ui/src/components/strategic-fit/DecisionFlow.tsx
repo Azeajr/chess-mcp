@@ -258,7 +258,8 @@ function layoutCohort(
     /** Aggregated steps keep the marker's geometry: that is where the diagram actually shows them. */
     for (const node of column) {
       const own =
-        geometry.get(node.node_id) ?? geometry.get(aggregateIdByNodeId.get(node.node_id) ?? "")!;
+        geometry.get(node.node_id) ?? geometry.get(aggregateIdByNodeId.get(node.node_id) ?? "");
+      if (!own) continue;
       placed.set(node.node_id, {
         node,
         x: own.x,

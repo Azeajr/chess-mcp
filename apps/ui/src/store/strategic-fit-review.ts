@@ -153,8 +153,7 @@ function artifactId(value: unknown): string | null {
 function completeFindings(result: StrategicFitCompletedResult): readonly StrategicFinding[] | null {
   const findings = result.findings_snapshot;
   if (
-    findings === undefined ||
-    findings.length !== result.result.finding_page.total_count ||
+    findings?.length !== result.result.finding_page.total_count ||
     new Set(findings.map((finding) => finding.semantic_finding_id)).size !== findings.length
   )
     return null;
@@ -270,8 +269,8 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
   const baselineByDocument = new Map<string, ReviewMetrics>();
 
   const synchronize = (): StrategicFitReviewSnapshot => {
-    const documentId = boundary.currentDocumentId();
-    const history = historyByDocument.get(documentId) ?? [];
+    const currentDocumentId = boundary.currentDocumentId();
+    const history = historyByDocument.get(currentDocumentId) ?? [];
     const lifecycle = boundary.currentLifecycle();
     const current = lifecycle.current_result;
     if (lifecycle.status === "stale" || (current === null && history.length > 0)) {
@@ -299,8 +298,8 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       return next;
     }
     baselineByDocument.set(
-      documentId,
-      baselineByDocument.get(documentId) ?? reportMetrics(current),
+      currentDocumentId,
+      baselineByDocument.get(currentDocumentId) ?? reportMetrics(current),
     );
     const findings = completeFindings(current);
     if (findings === null) {
@@ -318,7 +317,11 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     }
     const resolutions = activeResolutions(boundary.currentMetadata());
     const bySemanticId = new Map(
-      resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]),
+      resolutions.flatMap((resolution) =>
+        resolution.semantic_finding_id === null
+          ? []
+          : [[resolution.semantic_finding_id, resolution] as const],
+      ),
     );
     const unreviewed = findings
       .filter((finding) => currentResolutionState(finding, bySemanticId) === "unresolved")
@@ -362,6 +365,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
   };
 
   const complete = (): StrategicFitReviewActionResult => {
+    const currentDocumentId = boundary.currentDocumentId();
     const availability = synchronize();
     if (availability.status !== "ready") {
       return blocked(
@@ -371,13 +375,23 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
         availability.message,
       );
     }
-    const documentId = boundary.currentDocumentId();
-    const current = boundary.currentLifecycle().current_result!;
-    const findings = completeFindings(current)!;
+    const current = boundary.currentLifecycle().current_result;
+    if (current === null)
+      return blocked("strategic_fit_review_not_current", "The current report is unavailable.");
+    const findings = completeFindings(current);
+    if (findings === null)
+      return blocked(
+        "strategic_fit_review_not_current",
+        "The complete finding set is unavailable.",
+      );
     const metadata = boundary.currentMetadata();
     const resolutions = activeResolutions(metadata);
     const bySemanticId = new Map(
-      resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]),
+      resolutions.flatMap((resolution) =>
+        resolution.semantic_finding_id === null
+          ? []
+          : [[resolution.semantic_finding_id, resolution] as const],
+      ),
     );
     const counts: Record<string, number> = {};
     for (const finding of findings) {
@@ -385,18 +399,26 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       counts[state] = (counts[state] ?? 0) + 1;
     }
     const currentSemanticIds = new Set(findings.map((finding) => finding.semantic_finding_id));
-    const currentResolutions = resolutions.filter((resolution) =>
-      currentSemanticIds.has(resolution.semantic_finding_id!),
+    const currentResolutions = resolutions.filter(
+      (resolution) =>
+        resolution.semantic_finding_id !== null &&
+        currentSemanticIds.has(resolution.semantic_finding_id),
     );
-    const resolutionSummaries = currentResolutions.map((resolution) => ({
-      resolution_id: resolution.resolution_id,
-      finding_id: resolution.finding_id,
-      semantic_finding_id: resolution.semantic_finding_id!,
-      state: resolution.state,
-      note: resolution.note,
-      linked_training_ids: [...resolution.linked_training_ids],
-      linked_staged_edit_ids: [...resolution.linked_staged_edit_ids],
-    }));
+    const resolutionSummaries = currentResolutions.flatMap((resolution) =>
+      resolution.semantic_finding_id === null
+        ? []
+        : [
+            {
+              resolution_id: resolution.resolution_id,
+              finding_id: resolution.finding_id,
+              semantic_finding_id: resolution.semantic_finding_id,
+              state: resolution.state,
+              note: resolution.note,
+              linked_training_ids: [...resolution.linked_training_ids],
+              linked_staged_edit_ids: [...resolution.linked_staged_edit_ids],
+            },
+          ],
+    );
     const stateBySemanticId = new Map(
       findings.map((finding) => [
         finding.semantic_finding_id,
@@ -419,10 +441,10 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       })
       .map((finding) => finding.semantic_finding_id)
       .sort(compareStrings);
-    const history = historyByDocument.get(documentId) ?? [];
+    const history = historyByDocument.get(currentDocumentId) ?? [];
     const completedAt = boundary.now();
     const identity = {
-      document_id: documentId,
+      document_id: currentDocumentId,
       request_id: current.request_id,
       report_id: current.report_id,
       repertoire_revision: current.result.repertoire_revision,
@@ -435,7 +457,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       summary_id: `strategic-fit-review:${stableHash(stableSerialize(identity))}`,
       history_sequence: history.length + 1,
       state: "completed",
-      document_id: documentId,
+      document_id: currentDocumentId,
       request_id: current.request_id,
       report_id: current.report_id,
       repertoire_revision: current.result.repertoire_revision,
@@ -480,13 +502,13 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
         .map((resolution) => resolution.resolution_id),
       resolutions: resolutionSummaries,
       metric_deltas: metricDeltas(
-        baselineByDocument.get(documentId) ?? reportMetrics(current),
+        baselineByDocument.get(currentDocumentId) ?? reportMetrics(current),
         reportMetrics(current),
       ),
       source_report_provenance: current.result.provenance,
       source_reanalysis: current.reanalysis,
     };
-    historyByDocument.set(documentId, [...history, record]);
+    historyByDocument.set(currentDocumentId, [...history, record]);
     synchronize();
     return {
       state: "completed",
@@ -501,7 +523,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     const current = synchronize();
     const summary = current.current_summary;
     const lifecycle = boundary.currentLifecycle().current_result;
-    if (summary === null || summary.summary_id !== summaryId || lifecycle === null) {
+    if (summary?.summary_id !== summaryId || lifecycle === null) {
       return blocked(
         "strategic_fit_review_summary_stale",
         "Only the current completed review can be reopened.",
@@ -527,8 +549,8 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     if (reopened.state !== "reopened") {
       return blocked(reopened.code ?? "strategic_fit_review_reopen_failed", reopened.message);
     }
-    const documentId = boundary.currentDocumentId();
-    const history = historyByDocument.get(documentId) ?? [];
+    const currentDocumentId = boundary.currentDocumentId();
+    const history = historyByDocument.get(currentDocumentId) ?? [];
     const reopenedSummary: StrategicFitReviewCompletionRecord = {
       ...summary,
       state: "reopened",
@@ -536,7 +558,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       reopened_semantic_finding_id: semanticFindingId,
     };
     historyByDocument.set(
-      documentId,
+      currentDocumentId,
       history.map((entry) => (entry.summary_id === summary.summary_id ? reopenedSummary : entry)),
     );
     synchronize();

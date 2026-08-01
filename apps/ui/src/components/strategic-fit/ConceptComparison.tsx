@@ -8,7 +8,9 @@ const formatPercent = (value: number): string =>
 
 const humanize = (value: string): string => {
   const words = value.replaceAll("_", "-").split("-").filter(Boolean).join(" ");
-  return words.length === 0 ? "Unnamed dimension" : `${words[0]!.toUpperCase()}${words.slice(1)}`;
+  return words.length === 0
+    ? "Unnamed dimension"
+    : `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
 
 function readableJson(value: JsonValue): string {

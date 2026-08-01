@@ -12,17 +12,17 @@ type ChessHarness = {
   version(): number;
   dirty(): boolean;
   preview(): unknown;
-  strategicFitMetadata(): any;
+  strategicFitMetadata(): unknown;
   flushStrategicFitMetadata(): Promise<void>;
   setColor(color: "white" | "black"): void;
-  setReplacementLabResultForTesting(result: any): void;
-  setReplacementLabReviewForTesting(review: any): void;
-  setResolutionProofForTesting(snapshot: any): void;
+  setReplacementLabResultForTesting(result: unknown): void;
+  setReplacementLabReviewForTesting(review: unknown): void;
+  setResolutionProofForTesting(snapshot: unknown): void;
   documentId(): string;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
-  upsertStrategicFitResolution(input: any): unknown;
-  strategicFitLifecycle(): any;
+  upsertStrategicFitResolution(input: unknown): unknown;
+  strategicFitLifecycle(): unknown;
 };
 
 function replacementComparisonFixture(color: "white" | "black" = "white") {
@@ -710,7 +710,7 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
         const controlled = {
           onmessage: null as ((event: MessageEvent) => void) | null,
           onerror: null as ((event: ErrorEvent) => void) | null,
-          postMessage(message: any) {
+          postMessage(message: { type?: unknown }) {
             if (message.type !== "analyze") return;
             const analysisVersion = "2.0.0";
             const classifications = [
@@ -838,8 +838,8 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
             const trajectory = (
               routeId: string,
               state: "complete" | "incomplete",
-              snapshots: any[],
-              missingCheckpoints: any[] = [],
+              snapshots: unknown[],
+              missingCheckpoints: unknown[] = [],
             ) => ({
               analysis_version: analysisVersion,
               trajectory_id: `trajectory:${routeId}`,
@@ -1293,7 +1293,9 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                         provenance: [source("cohort:fixture", "deterministic-core")],
                       },
                     ],
-              override_ids: requestedOverrides.map((entry: any) => entry.override_id),
+              override_ids: requestedOverrides.map(
+                (entry: { override_id: string }) => entry.override_id,
+              ),
               provenance: [source("cohort:fixture", "deterministic-core")],
             });
             const cohorts =

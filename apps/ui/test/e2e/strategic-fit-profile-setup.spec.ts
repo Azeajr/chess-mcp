@@ -38,7 +38,7 @@ type ChessHarness = {
   strategicFitProfile(): StrategicFitProfile;
   strategicFitProfileSetupRequired(): boolean;
   flushStrategicFitMetadata(): Promise<void>;
-  strategicFitDataSourceSettings(): any;
+  strategicFitDataSourceSettings(): unknown;
   strategicFitDataSourceCommandArguments(): Record<string, unknown>;
   strategicFitLifecycle(): { status: string; current_result: { report_id: string } | null };
 };

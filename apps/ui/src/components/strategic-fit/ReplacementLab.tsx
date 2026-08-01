@@ -76,42 +76,58 @@ function itemErrors() {
   const result = replacementLabSnapshot().result;
   if (result === null) return [];
   return [
-    ...result.candidate_generation.database_item_results
-      .filter((item) => item.error_code !== null)
-      .map((item) => ({
-        id: `database:${item.evidence_id}:${item.item_index}`,
-        source: "Opening database",
-        status: item.status,
-        code: item.error_code!,
-        detail: item.explanation,
-      })),
-    ...result.engine_generation.engine_item_results
-      .filter((item) => item.error_code !== null)
-      .map((item) => ({
-        id: `engine:${item.evidence_id ?? "none"}:${item.item_index}`,
-        source: "Engine",
-        status: item.status,
-        code: item.error_code!,
-        detail: item.explanation,
-      })),
-    ...result.expansion.evidence_item_results
-      .filter((item) => item.error_code !== null)
-      .map((item) => ({
-        id: `expansion:${item.provider_kind}:${item.position.position_id}:${item.item_index}`,
-        source: item.provider_kind === "engine" ? "Expansion engine" : "Expansion explorer",
-        status: item.status,
-        code: item.error_code!,
-        detail: item.explanation,
-      })),
-    ...result.preview.items
-      .filter((item) => item.error_code !== null)
-      .map((item) => ({
-        id: `preview:${item.candidate_id}`,
-        source: "Browser staging",
-        status: item.status,
-        code: item.error_code!,
-        detail: item.explanation,
-      })),
+    ...result.candidate_generation.database_item_results.flatMap((item) =>
+      item.error_code === null
+        ? []
+        : [
+            {
+              id: `database:${item.evidence_id}:${item.item_index}`,
+              source: "Opening database",
+              status: item.status,
+              code: item.error_code,
+              detail: item.explanation,
+            },
+          ],
+    ),
+    ...result.engine_generation.engine_item_results.flatMap((item) =>
+      item.error_code === null
+        ? []
+        : [
+            {
+              id: `engine:${item.evidence_id ?? "none"}:${item.item_index}`,
+              source: "Engine",
+              status: item.status,
+              code: item.error_code,
+              detail: item.explanation,
+            },
+          ],
+    ),
+    ...result.expansion.evidence_item_results.flatMap((item) =>
+      item.error_code === null
+        ? []
+        : [
+            {
+              id: `expansion:${item.provider_kind}:${item.position.position_id}:${item.item_index}`,
+              source: item.provider_kind === "engine" ? "Expansion engine" : "Expansion explorer",
+              status: item.status,
+              code: item.error_code,
+              detail: item.explanation,
+            },
+          ],
+    ),
+    ...result.preview.items.flatMap((item) =>
+      item.error_code === null
+        ? []
+        : [
+            {
+              id: `preview:${item.candidate_id}`,
+              source: "Browser staging",
+              status: item.status,
+              code: item.error_code,
+              detail: item.explanation,
+            },
+          ],
+    ),
   ];
 }
 
@@ -121,6 +137,8 @@ export default function ReplacementLab() {
   let returnFocus: HTMLElement | null = null;
   const [selectedCandidateId, setSelectedCandidateId] = createSignal<string | null>(null);
   const state = replacementLabSnapshot;
+  const repertoireColor = () =>
+    state().identity?.repertoire_color ?? state().result?.scoring.repertoire_color ?? "white";
   const pivotOptions = () => {
     const result = state().pivot_result;
     return result?.status === "alternatives-required"
@@ -169,7 +187,9 @@ export default function ReplacementLab() {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButton.focus();
     onCleanup(() => {
-      queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus());
+      queueMicrotask(() => {
+        if (returnFocus?.isConnected) returnFocus.focus();
+      });
     });
   });
 
@@ -186,8 +206,9 @@ export default function ReplacementLab() {
       (element) => element.getClientRects().length > 0,
     );
     if (elements.length === 0) return;
-    const first = elements[0]!;
-    const last = elements[elements.length - 1]!;
+    const first = elements.at(0);
+    if (first === undefined) return;
+    const last = elements.at(-1) ?? first;
     if (event.shiftKey && (document.activeElement === first || event.target === closeButton)) {
       event.preventDefault();
       last.focus();
@@ -566,20 +587,11 @@ export default function ReplacementLab() {
                 >
                   {(row) => (
                     <>
-                      <CandidateDetails
-                        row={row()}
-                        repertoireColor={
-                          state().identity?.repertoire_color ??
-                          state().result!.scoring.repertoire_color
-                        }
-                      />
+                      <CandidateDetails row={row()} repertoireColor={repertoireColor()} />
                       <ChangeSetPreview
                         row={row()}
                         review={state().review}
-                        repertoireColor={
-                          state().identity?.repertoire_color ??
-                          state().result!.scoring.repertoire_color
-                        }
+                        repertoireColor={repertoireColor()}
                         onStage={(action) =>
                           void replacementLab.stageReview(row().candidate_id, action)
                         }

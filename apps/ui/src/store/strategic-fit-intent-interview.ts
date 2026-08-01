@@ -208,7 +208,7 @@ export function createStrategicFitIntentInterviewState(
 
     accept(proposalId) {
       const proposal = find(proposalId);
-      if (!proposal || proposal.status !== "pending") {
+      if (proposal?.status !== "pending") {
         return {
           ok: false,
           error: "strategic_fit_intent_proposal_not_pending",
@@ -245,7 +245,7 @@ export function createStrategicFitIntentInterviewState(
 
     reject(proposalId) {
       const proposal = find(proposalId);
-      if (!proposal || proposal.status !== "pending") {
+      if (proposal?.status !== "pending") {
         return {
           ok: false,
           error: "strategic_fit_intent_proposal_not_pending",

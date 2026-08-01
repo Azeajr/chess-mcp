@@ -82,7 +82,8 @@ async function installStrategicWorkerFixture(page: Page, mode: "phase-stall" | "
         const controlled = {
           onmessage: null as ((event: MessageEvent) => void) | null,
           onerror: null as ((event: ErrorEvent) => void) | null,
-          postMessage(message: any) {
+          postMessage(message: unknown) {
+            if (typeof message !== "object" || message === null || !("type" in message)) return;
             if (message.type !== "analyze") return;
             const sendProgress = (
               phase: string,

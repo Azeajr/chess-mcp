@@ -20,8 +20,9 @@ function evalText(l: EngineLine): string {
 function cloudText(): string {
   const c = cloud();
   if (!c) return "—";
+  const cp = c.cp ?? 0;
   const score =
-    c.mate !== null ? `M${Math.abs(c.mate)}` : (c.cp! >= 0 ? "+" : "") + (c.cp! / 100).toFixed(2);
+    c.mate !== null ? `M${Math.abs(c.mate)}` : (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
   return `${score}  ·  depth ${c.depth}`;
 }
 

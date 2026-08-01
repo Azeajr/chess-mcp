@@ -31,13 +31,13 @@ export function buildReplacementParetoPoints(
   const points = rows.map((row) => {
     const familiarity = normalized(row, "strategic-familiarity");
     const coverage = normalized(row, "expected-coverage");
-    const memoryAxis = row.axes.find((item) => item.axis === "memorization-burden")!;
+    const memoryAxis = row.axes.find((item) => item.axis === "memorization-burden");
     const memoryBurden =
-      memoryAxis.state === "available" && memoryAxis.normalized_score !== null
+      memoryAxis?.state === "available" && memoryAxis.normalized_score !== null
         ? 1 - memoryAxis.normalized_score
         : null;
     const objectiveLoss = row.candidate.objective_quality.repertoire_pov_loss_from_best_cp;
-    const memory = row.axes.find((item) => item.axis === "memorization-burden")!.value;
+    const memory = memoryAxis?.value ?? "Unavailable";
     const available =
       familiarity !== null && coverage !== null && memoryBurden !== null && objectiveLoss !== null;
     return {
@@ -51,7 +51,7 @@ export function buildReplacementParetoPoints(
       memory,
       objective: `${row.repertoire_pov_evaluation}; loss ${row.loss_from_best}`,
       available,
-      accessible_label: `${row.san}, ${row.pareto_status}; repertoire evaluation ${row.repertoire_pov_evaluation}, loss ${row.loss_from_best}; familiarity ${row.axes.find((item) => item.axis === "strategic-familiarity")!.value}; memory burden ${memory}; coverage ${row.axes.find((item) => item.axis === "expected-coverage")!.value}`,
+      accessible_label: `${row.san}, ${row.pareto_status}; repertoire evaluation ${row.repertoire_pov_evaluation}, loss ${row.loss_from_best}; familiarity ${row.axes.find((item) => item.axis === "strategic-familiarity")?.value ?? "Unavailable"}; memory burden ${memory}; coverage ${row.axes.find((item) => item.axis === "expected-coverage")?.value ?? "Unavailable"}`,
       coincident_index: 0,
       coincident_count: 1,
     };

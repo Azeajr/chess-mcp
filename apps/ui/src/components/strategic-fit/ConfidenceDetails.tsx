@@ -23,7 +23,7 @@ const CAP_LABELS: Readonly<Record<ConfidenceCapReason, string>> = {
   "missing-taxonomy-with-strong-structural-evidence": "Missing opening taxonomy",
 };
 
-const capitalized = (value: string): string => `${value[0]!.toUpperCase()}${value.slice(1)}`;
+const capitalized = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 const formatPercent = (value: number): string =>
   new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,

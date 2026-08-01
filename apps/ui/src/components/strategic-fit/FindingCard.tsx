@@ -94,8 +94,8 @@ export function buildFindingCardPresentation(
       finding.expected_frequency === null
         ? "Expected frequency unavailable"
         : `${formatNumber(finding.expected_frequency * 100)}% expected frequency`,
-    difference: `${finding.difference.magnitude[0]!.toUpperCase()}${finding.difference.magnitude.slice(1)} difference`,
-    confidence: `${finding.confidence.label[0]!.toUpperCase()}${finding.confidence.label.slice(1)} confidence · ${formatNumber(finding.confidence.score, 0)}/100`,
+    difference: `${finding.difference.magnitude.charAt(0).toUpperCase()}${finding.difference.magnitude.slice(1)} difference`,
+    confidence: `${finding.confidence.label.charAt(0).toUpperCase()}${finding.confidence.label.slice(1)} confidence · ${formatNumber(finding.confidence.score, 0)}/100`,
     causal_ownership: STRATEGIC_FIT_CAUSAL_LABELS[finding.evidence.causality.label],
     objective_soundness: objectiveSoundness,
     objective_reason: objective.reason,
@@ -130,7 +130,8 @@ function selectWithKeyboard(
         : event.key === "ArrowDown"
           ? Math.min(buttons.length - 1, currentIndex + 1)
           : Math.max(0, currentIndex - 1);
-  const target = buttons[nextIndex]!;
+  const target = buttons[nextIndex];
+  if (!target) return;
   target.focus();
   const targetId = target.dataset.findingSelect;
   if (targetId) onSelect(targetId, false);

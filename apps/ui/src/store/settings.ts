@@ -23,7 +23,7 @@ export const MODEL_SUGGESTIONS: { label: string; slug: string }[] = [
   { label: "Qwen3-32B", slug: "qwen/qwen3-32b" },
 ];
 
-const read = (k: string, fallback: string) => globalThis.localStorage?.getItem(k) ?? fallback;
+const read = (k: string, fallback: string) => globalThis.localStorage.getItem(k) ?? fallback;
 
 const [apiKey, setApiKeyRaw] = createSignal(read(KEY_API, ""));
 const [model, setModelRaw] = createSignal(read(KEY_MODEL, DEFAULT_MODEL));

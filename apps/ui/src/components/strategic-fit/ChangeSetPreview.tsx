@@ -100,6 +100,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "add-subtree"}>
         {(() => {
           const operation = props.operation.kind === "add-subtree" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <p>
@@ -114,6 +115,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "link-transposition"}>
         {(() => {
           const operation = props.operation.kind === "link-transposition" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <p>
@@ -127,6 +129,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "preserve-annotation"}>
         {(() => {
           const operation = props.operation.kind === "preserve-annotation" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <div>
@@ -150,6 +153,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "archive-subtree"}>
         {(() => {
           const operation = props.operation.kind === "archive-subtree" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <div>
@@ -170,6 +174,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "prune-subtree"}>
         {(() => {
           const operation = props.operation.kind === "prune-subtree" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <p>
@@ -184,6 +189,7 @@ function OperationDetails(props: {
       <Show when={props.operation.kind === "reorder-variations"}>
         {(() => {
           const operation = props.operation.kind === "reorder-variations" ? props.operation : null;
+          if (!operation) return null;
           return (
             <Show when={operation}>
               <p>
@@ -313,8 +319,8 @@ export default function ChangeSetPreview(props: {
       (item) => item.candidate_id === props.row.candidate_id,
     ) ?? null;
   createEffect(() => {
-    stage()?.stage_id;
-    current()?.action;
+    void stage()?.stage_id;
+    void current()?.action;
     setConfirmed(false);
   });
   return (
@@ -666,7 +672,12 @@ export default function ChangeSetPreview(props: {
                               >
                                 Accept one atomic change at revision {value.base_revision}
                               </button>
-                              <button type="button" onClick={props.onReject}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  props.onReject();
+                                }}
+                              >
                                 Reject preview
                               </button>
                             </div>

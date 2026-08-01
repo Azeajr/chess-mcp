@@ -210,11 +210,11 @@ function validPage(
     throw new Error(typeof candidate.reason === "string" ? candidate.reason : candidate.error);
   }
   const page = candidate.finding_page;
+  if (page === undefined) throw new Error("The finding page was missing from the current report.");
   if (
     candidate.report_id !== expectedReportId ||
     candidate.repertoire_revision !== expectedRevision ||
     !Array.isArray(candidate.findings) ||
-    page === undefined ||
     page.offset !== expectedOffset ||
     page.total_count !== expectedTotal ||
     page.returned_count !== candidate.findings.length ||

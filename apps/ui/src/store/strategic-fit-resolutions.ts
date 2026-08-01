@@ -374,8 +374,7 @@ export function createStrategicFitResolutionState(
         provenance: defaultProvenance(boundary, input.provenance),
       };
       if (
-        existing &&
-        existing.record_state === "active" &&
+        existing?.record_state === "active" &&
         metadata.resolutions.filter((entry) => entry.semantic_finding_id === semanticFindingId)
           .length === 1 &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
@@ -446,8 +445,7 @@ export function createStrategicFitResolutionState(
             }
           : { override_id: overrideId, kind: input.kind, route_ids: routeIds, ...lifecycle };
       if (
-        existing &&
-        existing.record_state === "active" &&
+        existing?.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };
@@ -674,8 +672,7 @@ export function createStrategicFitResolutionState(
         provenance: defaultProvenance(boundary, input.provenance),
       };
       if (
-        existing &&
-        existing.record_state === "active" &&
+        existing?.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };
@@ -723,8 +720,7 @@ export function createStrategicFitResolutionState(
         provenance: defaultProvenance(boundary, input.provenance),
       };
       if (
-        existing &&
-        existing.record_state === "active" &&
+        existing?.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) === meaningfulRecord(next)
       ) {
         return { state: "unchanged", metadata };

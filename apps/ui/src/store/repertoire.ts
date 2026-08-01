@@ -55,10 +55,10 @@ export async function scanBridges() {
       .filter((stub) => stub.connects_via?.length && stub.joins_path?.length)
       .map((stub) => ({
         fromPath: stub.path,
-        moves: stub.connects_via!,
+        moves: stub.connects_via ?? [],
         sideToMove: result.color ?? "white",
-        joinsPath: stub.joins_path!,
-        joinsPly: stub.joins_ply ?? stub.joins_path!.length,
+        joinsPath: stub.joins_path ?? [],
+        joinsPly: stub.joins_ply ?? stub.joins_path?.length ?? 0,
       }));
     setExtBridges(resolved);
   } catch (e) {

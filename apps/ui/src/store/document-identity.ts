@@ -23,15 +23,15 @@ function bytesToUuid(bytes: Uint8Array): BrowserDocumentId {
 export function createBrowserDocumentId(
   source: SecureUuidSource = globalThis.crypto,
 ): BrowserDocumentId {
-  const native = source?.randomUUID?.();
+  const native = source.randomUUID?.();
   const normalized = normalizeBrowserDocumentId(native);
   if (normalized) return normalized;
 
-  if (!source?.getRandomValues) {
+  if (!source.getRandomValues) {
     throw new Error("Secure browser UUID generation is unavailable");
   }
   const bytes = source.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   return bytesToUuid(bytes);
 }

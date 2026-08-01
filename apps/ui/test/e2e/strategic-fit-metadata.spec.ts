@@ -1,6 +1,15 @@
 import { expect, test, type Page } from "playwright/test";
 import { GameTree, buildRepertoireGraph } from "@chess-mcp/chess-tools";
 
+type MetadataResolution = {
+  readonly resolution_id: string;
+  readonly record_state: string;
+  readonly reason?: string;
+  readonly stale_reasons?: readonly string[];
+  readonly references: { readonly route_ids: readonly string[] };
+  readonly [key: string]: unknown;
+};
+
 type Metadata = {
   metadata_kind: string;
   metadata_version: string;
@@ -11,7 +20,14 @@ type Metadata = {
     provisional: boolean;
     preferences: Record<string, unknown>;
   };
-  resolutions: any[];
+  resolutions: MetadataResolution[];
+  cohort_overrides: Array<{ readonly record_state: string; readonly [key: string]: unknown }>;
+  manual_weights: {
+    readonly route_weights: Array<{
+      readonly record_state: string;
+      readonly [key: string]: unknown;
+    }>;
+  };
   [key: string]: unknown;
 };
 
@@ -234,7 +250,7 @@ test("semantic resolutions and overrides persist, isolate, and stale after a ref
   await page.reload();
   await expect.poll(() => chess(page, (api) => api.documentId())).toBe(document);
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
-  const restored = (await chess(page, (api) => api.strategicFitMetadata())) as Record<string, any>;
+  const restored = (await chess(page, (api) => api.strategicFitMetadata())) as Metadata;
   expect(restored.resolutions[0]).toMatchObject({
     resolution_id: "resolution:e2e-semantic",
     record_state: "active",
@@ -257,7 +273,7 @@ test("semantic resolutions and overrides persist, isolate, and stale after a ref
   expect(
     ((await chess(page, (api) => api.reconcileStrategicFitSettings())) as { state: string }).state,
   ).toBe("updated");
-  const stale = (await chess(page, (api) => api.strategicFitMetadata())) as Record<string, any>;
+  const stale = (await chess(page, (api) => api.strategicFitMetadata())) as Metadata;
   expect(stale.resolutions[0].record_state).toBe("stale");
   expect(stale.resolutions[0].stale_reasons).toContain("referenced-decision-missing");
   expect(stale.cohort_overrides[0].record_state).toBe("stale");

@@ -55,7 +55,7 @@ function navigateFen(target: string) {
   const tree = currentTree();
   const find = (path: number[]): number[] | null => {
     if (tree.fenAt(path) === target) return path;
-    for (const [_child, index] of tree.nodeAt(path).children.entries()) {
+    for (const [index] of tree.nodeAt(path).children.entries()) {
       const found = find([...path, index]);
       if (found) return found;
     }

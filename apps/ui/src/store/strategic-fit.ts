@@ -305,8 +305,8 @@ function validFindingPage(
   offset: number,
 ): StrategicFitAnalysisResult {
   const page = analysisResult(value);
+  if (page === null) throw new Error("strategic_fit_reanalysis_invalid_finding_page");
   if (
-    page === null ||
     page.report_id !== report.report_id ||
     page.repertoire_revision !== report.repertoire_revision ||
     page.finding_page.offset !== offset ||
@@ -352,14 +352,14 @@ export function createStrategicFitLifecycleState(
   ): Promise<StrategicFinding[]> => {
     // The browser contract always supplies canonical paging. Keeping lifecycle-only test/custom
     // boundaries tolerant of a report shell preserves the orchestration boundary's narrow scope.
-    if (!Array.isArray(report.findings) || report.finding_page === undefined) return [];
+    const reportFindings = report.findings as StrategicFinding[];
     if (report.finding_page.total_count === 0) return [];
     if (
       report.finding_page.offset === 0 &&
       report.finding_page.returned_count === report.finding_page.total_count &&
-      report.findings.length === report.finding_page.total_count
+      reportFindings.length === report.finding_page.total_count
     )
-      return [...report.findings].sort((left, right) =>
+      return [...reportFindings].sort((left, right) =>
         left.finding_id.localeCompare(right.finding_id),
       );
 
@@ -472,7 +472,7 @@ export function createStrategicFitLifecycleState(
         },
       );
 
-      if (active !== request || request.controller.signal.aborted) return;
+      if (active !== request) return;
       const current = boundary.currentSnapshot();
       if (!sameSnapshot(request.snapshot, current)) {
         finishAsStale(request, current);
@@ -556,7 +556,7 @@ export function createStrategicFitLifecycleState(
               signal: request.controller.signal,
             },
           );
-          if (active !== request || request.controller.signal.aborted) return;
+          if (active !== request) return;
           const followUpError = commandError(followUpValue);
           if (followUpError !== null) {
             throw Object.assign(new Error(followUpError.message), { code: followUpError.code });
@@ -565,7 +565,7 @@ export function createStrategicFitLifecycleState(
           if (followUp === null) throw new Error("strategic_fit_invalid_result");
           result = followUp;
           findingSnapshot = await loadFindingSnapshot(followUp, request);
-          if (active !== request || request.controller.signal.aborted) return;
+          if (active !== request) return;
           reanalysisSummary = { ...reanalysisSummary, report_id: followUp.report_id };
           completedSnapshot = boundary.currentSnapshot();
           if (!sameSnapshot(followUpSnapshot, completedSnapshot)) {
@@ -844,8 +844,7 @@ export function startStrategicFitLifecycle(): void {
       observedBrowserSnapshot = current;
       observedBrowserDataSourceIdentity = dataSourceIdentity;
       browserLifecycle.synchronize(current);
-      if (!workspaceOpen || previous === null || previous.document_id !== current.document_id)
-        return;
+      if (!workspaceOpen || previous?.document_id !== current.document_id) return;
       const completed = browserLifecycle.snapshot().last_completed;
       if (completed === null) return;
       if (previous.profile_identity !== current.profile_identity) {

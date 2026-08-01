@@ -76,7 +76,10 @@ function cacheGet(fen: string, multipv: number, depth: number): MultiLine[] | nu
 
 function cachePut(fen: string, multipv: number, depth: number, lines: MultiLine[]): void {
   multiCache.set(cacheKey(fen, multipv), { depth, lines });
-  if (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+  if (multiCache.size > MAX_CACHE) {
+    const oldestKey = multiCache.keys().next().value;
+    if (oldestKey !== undefined) multiCache.delete(oldestKey);
+  }
   schedulePersist();
 }
 
@@ -92,12 +95,15 @@ void (async () => {
     const saved = await idbGet<[string, { depth: number; lines: MultiLine[] }][]>(PERSIST_KEY);
     if (!Array.isArray(saved)) return;
     for (const [k, v] of saved) {
-      if (typeof k !== "string" || typeof v?.depth !== "number" || !Array.isArray(v?.lines))
-        continue;
+      if (typeof k !== "string" || typeof v.depth !== "number" || !Array.isArray(v.lines)) continue;
       // Don't clobber a result computed while the load was in flight.
       if (!multiCache.has(k)) multiCache.set(k, v);
     }
-    while (multiCache.size > MAX_CACHE) multiCache.delete(multiCache.keys().next().value!);
+    while (multiCache.size > MAX_CACHE) {
+      const oldestKey = multiCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      multiCache.delete(oldestKey);
+    }
   } catch {
     // memory-only
   }
@@ -319,9 +325,11 @@ function addPoolWorker(ep: WorkerEndpoint): void {
 
 function pump(): void {
   while (queue.length && idle.length) {
-    const job = queue.shift()!;
+    const job = queue.shift();
+    if (job === undefined) return;
     job.cleanup?.();
-    const ep = idle.pop()!;
+    const ep = idle.pop();
+    if (ep === undefined) return;
     void runOnWorker(ep, job);
   }
 }
@@ -435,10 +443,10 @@ function subscribe(entry: InFlight, signal?: AbortSignal): Promise<MultiLine[] |
         detach(false);
         resolve(value);
       },
-      (error) => {
+      (error: unknown) => {
         if (!active) return;
         detach(false);
-        reject(error);
+        reject(error instanceof Error ? error : new Error("Engine analysis failed"));
       },
     );
   });

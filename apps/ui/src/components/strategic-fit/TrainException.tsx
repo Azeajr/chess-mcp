@@ -18,7 +18,7 @@ export default function TrainException(props: {
   const [result, setResult] = createSignal<StrategicFitTrainingCreationResult | null>(null);
 
   createEffect(() => {
-    props.finding.finding_id;
+    void props.finding.finding_id;
     const resolution = strategicFitMetadata().resolutions.find(
       (entry) =>
         entry.record_state === "active" &&

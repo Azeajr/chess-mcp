@@ -250,8 +250,7 @@ export default function StrategicFitWorkspace() {
     const queue = strategicFitFindingQueue.snapshot();
     if (
       lifecycle.status !== "completed" ||
-      current === null ||
-      current.report_id !== reportId ||
+      current?.report_id !== reportId ||
       current.request_snapshot.document_id !== documentId() ||
       current.request_snapshot.repertoire_revision !== version() ||
       current.request_snapshot.repertoire_pgn !== actions.toPgn() ||
@@ -352,7 +351,8 @@ export default function StrategicFitWorkspace() {
           : event.key === "ArrowRight"
             ? (currentIndex + 1) % STAGES.length
             : (currentIndex - 1 + STAGES.length) % STAGES.length;
-    const nextStage = STAGES[nextIndex]!;
+    const nextStage = STAGES.at(nextIndex);
+    if (nextStage === undefined) return;
     setStrategicFitWorkspaceStage(nextStage.id);
     queueMicrotask(() =>
       dialog.querySelector<HTMLElement>(`#strategic-fit-stage-${nextStage.id}`)?.focus(),
@@ -394,8 +394,9 @@ export default function StrategicFitWorkspace() {
         dialog.focus();
         return;
       }
-      const first = candidates[0]!;
-      const last = candidates[candidates.length - 1]!;
+      const first = candidates.at(0);
+      if (first === undefined) return;
+      const last = candidates.at(-1) ?? first;
       const active = document.activeElement;
       if (event.shiftKey && (active === first || !dialog.contains(active))) {
         event.preventDefault();
@@ -423,7 +424,9 @@ export default function StrategicFitWorkspace() {
       window.removeEventListener("beforeprint", beforePrint);
       window.removeEventListener("afterprint", afterPrint);
       setStrategicFitPrintExportMode(false);
-      queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus());
+      queueMicrotask(() => {
+        if (returnFocus?.isConnected) returnFocus.focus();
+      });
     });
   });
 
@@ -626,11 +629,12 @@ export default function StrategicFitWorkspace() {
                         ? "strategic-fit-stage-findings"
                         : "strategic-fit-pane-findings-title"
                     }
-                    data-queue-filter={
-                      currentQueueIntent()
-                        ? strategicFitFindingQueueFilterKey(currentQueueIntent()!.filter)
-                        : "none"
-                    }
+                    data-queue-filter={(() => {
+                      const queueIntent = currentQueueIntent();
+                      return queueIntent
+                        ? strategicFitFindingQueueFilterKey(queueIntent.filter)
+                        : "none";
+                    })()}
                     tabIndex={0}
                   >
                     <div class="strategic-fit-pane-heading">

@@ -22,7 +22,6 @@ import {
 } from "../application/strategic-fit-replacement";
 import { defaultBrowserCommandDependencies } from "../application/browser-commands/default-context";
 import { registerStrategicFitPortfolioSource } from "../application/strategic-fit-portfolio-source";
-import { analysisDepth } from "./engine-settings";
 import {
   acceptConfirmedStrategicFitChangeSet,
   registerStrategicFitStageForTesting,
@@ -491,7 +490,8 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       current.status === "running"
     )
       return false;
-    const before = currentActionability(prepared, boundary);
+    const context = prepared;
+    const before = currentActionability(context, boundary);
     if (!before.actionable) {
       discardReview(current.review);
       discard(current.result);
@@ -528,7 +528,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     }));
     try {
       const result = await boundary.run(
-        prepared,
+        context,
         snapshot().controls,
         current.selected_pivot_decision_id,
         nextAttempt,
@@ -541,11 +541,11 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
           },
         },
       );
-      if (active?.sequence !== requestSequence || controller.signal.aborted) {
+      if (active.sequence !== requestSequence || controller.signal.aborted) {
         discard(result);
         return false;
       }
-      const after = currentActionability(prepared, boundary);
+      const after = currentActionability(context, boundary);
       if (!after.actionable) {
         discard(result);
         active = null;
@@ -569,7 +569,10 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       setSnapshot((previous) => ({
         ...previous,
         status: partial ? "partial" : "complete",
-        identity: { ...previous.identity!, request_id: result.request.request_id },
+        identity: {
+          ...identity(context),
+          request_id: result.request.request_id,
+        },
         progress: null,
         error: null,
         result,
@@ -642,7 +645,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     if (priorStage?.status === "staged") {
       const discarded = await boundary.discardStage(priorStage.stage_id);
       if (!discarded.ok) {
-        if (reviewActive?.sequence === requestSequence) {
+        if (reviewActive.sequence === requestSequence) {
           reviewActive = null;
           setSnapshot((previous) => ({
             ...previous,
@@ -662,13 +665,13 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
         return false;
       }
     }
-    if (reviewActive?.sequence !== requestSequence || controller.signal.aborted) return false;
+    if (reviewActive.sequence !== requestSequence || controller.signal.aborted) return false;
     try {
       const evidence = await boundary.stageReview(current.result, candidateId, action, boundary, {
         signal: controller.signal,
       });
       const stage = stagedChange(evidence);
-      if (reviewActive?.sequence !== requestSequence || controller.signal.aborted) {
+      if (reviewActive.sequence !== requestSequence) {
         if (stage?.status === "staged") await boundary.discardStage(stage.stage_id);
         return false;
       }
@@ -695,7 +698,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     } catch (error) {
       if (reviewActive?.sequence !== requestSequence) return false;
       reviewActive = null;
-      if (controller.signal.aborted || isAbort(error)) return false;
+      if (isAbort(error)) return false;
       const failure = errorFrom(error);
       setSnapshot((previous) => ({
         ...previous,
@@ -945,16 +948,16 @@ export const replacementLabSnapshot = replacementLab.snapshot;
 registerStrategicFitPortfolioSource({
   evidence: () => {
     const current = replacementLab.snapshot();
-    const identity = current.identity;
+    const evidenceIdentity = current.identity;
     const result = current.result;
-    if (!current.open || identity === null || result === null) return null;
+    if (!current.open || evidenceIdentity === null || result === null) return null;
     if (current.status !== "complete" && current.status !== "partial") return null;
     return {
-      document_id: identity.document_id,
-      repertoire_revision: identity.repertoire_revision,
-      report_id: identity.report_id,
-      finding_id: identity.finding_id,
-      semantic_finding_id: identity.semantic_finding_id,
+      document_id: evidenceIdentity.document_id,
+      repertoire_revision: evidenceIdentity.repertoire_revision,
+      report_id: evidenceIdentity.report_id,
+      finding_id: evidenceIdentity.finding_id,
+      semantic_finding_id: evidenceIdentity.semantic_finding_id,
       safety: result.safety,
       previews: result.preview.items,
     };

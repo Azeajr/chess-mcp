@@ -29,7 +29,8 @@ function MetricDelta(props: { metric: StrategicFitReviewMetricDelta }) {
           fallback={<span>Unavailable · {props.metric.reason}</span>}
         >
           {metricValue(props.metric.before, props.metric.unit)} →{" "}
-          {metricValue(props.metric.after, props.metric.unit)} ({props.metric.delta! > 0 ? "+" : ""}
+          {metricValue(props.metric.after, props.metric.unit)} (
+          {(props.metric.delta ?? 0) > 0 ? "+" : ""}
           {metricValue(props.metric.delta, props.metric.unit)})
         </Show>
       </dd>

@@ -6,7 +6,6 @@
 import { onMount, onCleanup, createEffect } from "solid-js";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
-import type { Config } from "chessground/config";
 import type { Key } from "chessground/types";
 import type { DrawShape, DrawBrush } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";

@@ -77,7 +77,7 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     });
     if (controller.signal.aborted) return;
     const result = value as Record<string, unknown>;
-    const error = typeof result?.error === "string" ? result.error : undefined;
+    const error = typeof result.error === "string" ? result.error : undefined;
     setCommandStates((all) => ({
       ...all,
       [command]: error

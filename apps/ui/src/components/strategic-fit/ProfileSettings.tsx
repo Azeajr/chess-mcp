@@ -160,13 +160,14 @@ export default function ProfileSettings() {
     const populationEvidence = actual("opening-explorer");
     const historyEvidence = actual("personal-history");
     const trainingEvidence = actual("training-metadata");
-    const popularity = !settings.popularity.enabled
+    const popularity: readonly [string, string] = !settings.popularity.enabled
       ? ["Off", "Enable to weight common opponent choices."]
       : populationEvidence
         ? [
             populationEvidence.state === "available"
               ? "Available"
-              : populationEvidence.state[0]!.toUpperCase() + populationEvidence.state.slice(1),
+              : populationEvidence.state.charAt(0).toUpperCase() +
+                populationEvidence.state.slice(1),
             populationEvidence.reason ?? "Latest report source state.",
           ]
         : !lichessToken()
@@ -175,13 +176,13 @@ export default function ProfileSettings() {
               "Ready",
               `${settings.popularity.db === "masters" ? "Masters" : "Online population"} filters will be used.`,
             ];
-    const history = !settings.personal_history.enabled
+    const history: readonly [string, string] = !settings.personal_history.enabled
       ? ["Off", "Enable to blend your own game frequency."]
       : historyEvidence
         ? [
             historyEvidence.state === "available"
               ? "Available"
-              : historyEvidence.state[0]!.toUpperCase() + historyEvidence.state.slice(1),
+              : historyEvidence.state.charAt(0).toUpperCase() + historyEvidence.state.slice(1),
             historyEvidence.reason ?? "Latest report source state.",
           ]
         : !settings.personal_history.username
@@ -197,14 +198,14 @@ export default function ProfileSettings() {
         state: "Ready",
         detail: "Local deterministic evidence is always available.",
       },
-      { label: "Opening popularity", state: popularity[0]!, detail: popularity[1]! },
-      { label: "Personal history", state: history[0]!, detail: history[1]! },
+      { label: "Opening popularity", state: popularity[0], detail: popularity[1] },
+      { label: "Personal history", state: history[0], detail: history[1] },
       {
         label: "Training performance",
         state: trainingEvidence
           ? trainingEvidence.state === "available"
             ? "Available"
-            : trainingEvidence.state[0]!.toUpperCase() + trainingEvidence.state.slice(1)
+            : trainingEvidence.state.charAt(0).toUpperCase() + trainingEvidence.state.slice(1)
           : trained > 0
             ? "Ready"
             : "No observations",
@@ -342,7 +343,7 @@ export default function ProfileSettings() {
                   value={
                     preferences().minimum_opponent_coverage === null
                       ? ""
-                      : Math.round(preferences().minimum_opponent_coverage! * 100)
+                      : Math.round((preferences().minimum_opponent_coverage ?? 0) * 100)
                   }
                   onInput={(event) =>
                     updatePreference(

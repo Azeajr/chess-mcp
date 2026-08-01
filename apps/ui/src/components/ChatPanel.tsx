@@ -83,7 +83,9 @@ export default function ChatPanel() {
               <Show when={m.role === "focus"}>
                 <div
                   class="msg focus-injection"
-                  onClick={() => m.focusPath && actions.goto(m.focusPath)}
+                  onClick={() => {
+                    if (m.focusPath) actions.goto(m.focusPath);
+                  }}
                   title="Jump to this line"
                 >
                   🔍 {m.content}
@@ -102,11 +104,11 @@ export default function ChatPanel() {
               <Show when={m.role === "tool" && m.tool_call_id}>
                 <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
                   <div class="tool-result-label">
-                    {toolNames().get(m.tool_call_id!) ?? "tool"} result
+                    {toolNames().get(m.tool_call_id ?? "") ?? "tool"} result
                     {isErrorResult(m.content) ? " ⚠" : ""}
                   </div>
                   <ToolResult
-                    operation={toolNames().get(m.tool_call_id!) ?? "tool"}
+                    operation={toolNames().get(m.tool_call_id ?? "") ?? "tool"}
                     content={m.content}
                   />
                 </div>
@@ -137,8 +139,8 @@ export default function ChatPanel() {
                 <Show when={run.total != null} fallback={<progress class="tool-run-progress" />}>
                   <progress
                     class="tool-run-progress"
-                    max={run.total || 1}
-                    value={Math.min(run.done ?? 0, run.total!)}
+                    max={run.total ?? 1}
+                    value={Math.min(run.done ?? 0, run.total ?? 0)}
                   />
                 </Show>
               </Show>

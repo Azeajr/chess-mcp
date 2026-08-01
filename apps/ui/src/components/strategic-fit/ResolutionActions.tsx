@@ -69,7 +69,7 @@ export default function ResolutionActions(props: {
   const [note, setNote] = createSignal("");
 
   createEffect(() => {
-    props.finding.finding_id;
+    void props.finding.finding_id;
     setChoice("keep-intentionally");
     setIntentionalReason("");
     setNote("");

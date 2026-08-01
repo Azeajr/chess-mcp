@@ -185,7 +185,7 @@ export function createStrategicFitPlanSynthesisState(
 
     accept(planId) {
       const staged = find(planId);
-      if (!staged || staged.status !== "pending") {
+      if (staged?.status !== "pending") {
         return {
           ok: false,
           error: "strategic_fit_plan_not_pending",
@@ -243,7 +243,7 @@ export function createStrategicFitPlanSynthesisState(
 
     reject(planId) {
       const staged = find(planId);
-      if (!staged || staged.status !== "pending") {
+      if (staged?.status !== "pending") {
         return {
           ok: false,
           error: "strategic_fit_plan_not_pending",

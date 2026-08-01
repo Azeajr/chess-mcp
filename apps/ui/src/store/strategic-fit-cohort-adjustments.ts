@@ -338,8 +338,7 @@ function validReportPage(
     typeof candidate.report_id !== "string" ||
     !Array.isArray(candidate.findings) ||
     !Array.isArray(candidate.cohorts) ||
-    page === undefined ||
-    page.offset !== expectedOffset ||
+    page?.offset !== expectedOffset ||
     page.returned_count !== candidate.findings.length ||
     (expectedReportId !== null && candidate.report_id !== expectedReportId) ||
     (expectedTotal !== null && page.total_count !== expectedTotal)
@@ -378,8 +377,7 @@ async function loadProposedReport(
       throw new Error("strategic_fit_cohort_preview_empty_page");
     }
     offset += page.finding_page.returned_count;
-  } while (offset < (total ?? 0));
-  if (first === null) throw new Error("strategic_fit_cohort_preview_missing_report");
+  } while (offset < total);
   return {
     ...first,
     findings,
@@ -545,7 +543,7 @@ function proposedMutation(
 
 function friendlyError(error: unknown): { code: string; message: string } {
   const raw = error instanceof Error ? error.message : String(error);
-  const code = raw.split(":", 1)[0] || "strategic_fit_cohort_adjustment_failed";
+  const code = raw.split(":", 1)[0] ?? "strategic_fit_cohort_adjustment_failed";
   const messages: Record<string, string> = {
     strategic_fit_cohorts_invalid_merge:
       "Merge routes must currently belong to at least two distinct automatic cohorts.",
@@ -602,7 +600,7 @@ export function createStrategicFitCohortAdjustmentState(
 
   const currentContext = (reportId: string) => {
     const current = boundary.currentReport();
-    if (current === null || current.report_id !== reportId) {
+    if (current?.report_id !== reportId) {
       throw new Error("strategic_fit_cohort_adjustment_stale_report");
     }
     if (!sameSnapshot(current.request_snapshot, boundary.currentSnapshot())) {
@@ -662,8 +660,8 @@ export function createStrategicFitCohortAdjustmentState(
               ? renameImpact(
                   context.current.result,
                   context.findings,
-                  metadata.cohort_labels.find((entry) => entry.label_id === draft.target_id)!
-                    .cohort_id,
+                  metadata.cohort_labels.find((entry) => entry.label_id === draft.target_id)
+                    ?.cohort_id ?? draft.target_id,
                 )
               : impactFromReports(context.current.result, context.findings, proposed);
         const binding = {

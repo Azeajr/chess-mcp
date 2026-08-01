@@ -235,7 +235,11 @@ function activeResolutionBySemanticId(
         (resolution) =>
           resolution.record_state === "active" && resolution.semantic_finding_id !== null,
       )
-      .map((resolution) => [resolution.semantic_finding_id!, resolution]),
+      .flatMap((resolution) =>
+        resolution.semantic_finding_id === null
+          ? []
+          : [[resolution.semantic_finding_id, resolution] as const],
+      ),
   );
 }
 

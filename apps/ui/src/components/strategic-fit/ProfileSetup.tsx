@@ -314,7 +314,7 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
                 value={
                   preferences().minimum_opponent_coverage === null
                     ? ""
-                    : Math.round(preferences().minimum_opponent_coverage! * 100)
+                    : Math.round((preferences().minimum_opponent_coverage ?? 0) * 100)
                 }
                 aria-describedby="strategic-fit-coverage-help"
                 placeholder="No minimum"
