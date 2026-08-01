@@ -499,7 +499,15 @@ function inProcessSearch(fen: string, multipv: number, depth: number, movetime?:
       send: (cmd) => engine.sendCommand(cmd),
       setHandler: (h) => (lineHandler = h),
     };
-    return runSearch(ep, fen, multipv, depth, movetime);
+    const outcome = await runSearch(ep, fen, multipv, depth, movetime);
+    if (outcome === null) {
+      // Grace expired with no bestmove: this engine is wedged. Unlike a pool child it can't be
+      // killed, so quit it and drop the cached instance — without this, `enginePromise` kept
+      // serving the same hung engine forever, so one true hang failed every later fallback search.
+      try { engine.sendCommand("quit"); } catch { /* best effort */ }
+      enginePromise = null;
+    }
+    return outcome;
   });
 }
 
