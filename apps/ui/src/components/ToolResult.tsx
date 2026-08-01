@@ -4,7 +4,6 @@ import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
   StrategicFitPlanSection,
-  StrategicFitPlanSectionKind,
   StrategicFitPortfolioConflict,
   StrategicFitPortfolioConstraint,
   StrategicFitPortfolioElimination,
@@ -45,7 +44,7 @@ interface Props {
 
 const parse = (content: string | null): Data | null => {
   try {
-    const value = JSON.parse(content || "null") as unknown;
+    const value = JSON.parse(content ?? "null") as unknown;
     return value && typeof value === "object" && !Array.isArray(value) ? (value as Data) : null;
   } catch {
     return null;
@@ -54,18 +53,15 @@ const parse = (content: string | null): Data | null => {
 
 function navigateFen(target: string) {
   const tree = currentTree();
-  let found: number[] | null = null;
-  const walk = (path: number[]) => {
-    if (found) return;
-    if (tree.fenAt(path) === target) {
-      found = path;
-      return;
+  const find = (path: number[]): number[] | null => {
+    if (tree.fenAt(path) === target) return path;
+    for (const [_child, index] of tree.nodeAt(path).children.entries()) {
+      const found = find([...path, index]);
+      if (found) return found;
     }
-    tree.nodeAt(path).children.forEach((_child, index) => {
-      walk([...path, index]);
-    });
+    return null;
   };
-  walk([]);
+  const found = find([]);
   if (found) actions.goto(found);
 }
 
@@ -140,7 +136,7 @@ function NavigationRows(props: { data: Data }) {
 const titleCase = (value: string) =>
   value
     .split(/[-_]/)
-    .map((part) => (part ? `${part[0]!.toUpperCase()}${part.slice(1)}` : part))
+    .map((part) => (part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part))
     .join(" ");
 
 function navigableSanPath(paths: readonly (readonly string[])[]): string[] | null {
@@ -496,11 +492,19 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
   );
 }
 
+const displayValue = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return `${value}`;
+  return JSON.stringify(value);
+};
+
 const diffValue = (value: unknown): string => {
   if (value === null) return "not set";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
-  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  return String(value);
+  if (typeof value === "number")
+    return Number.isInteger(value) ? displayValue(value) : value.toFixed(2);
+  return displayValue(value);
 };
 
 /**
@@ -509,7 +513,7 @@ const diffValue = (value: unknown): string => {
  * that nothing has been saved yet.
  */
 function StrategicFitProposalResult(props: { data: Data }) {
-  const id = () => String(props.data.proposal_id ?? "");
+  const id = () => displayValue(props.data.proposal_id);
   const proposal = () => strategicFitProfileProposal(id());
   const entries = createMemo(() =>
     Array.isArray(props.data.diff) ? (props.data.diff as Data[]) : [],
@@ -522,11 +526,11 @@ function StrategicFitProposalResult(props: { data: Data }) {
       aria-label="Strategic Fit profile proposal"
     >
       <div class="result-title">
-        Proposed profile · {String(props.data.current_mode ?? "")} →{" "}
-        {String(props.data.resulting_mode ?? "")}
+        Proposed profile · {displayValue(props.data.current_mode)} →{" "}
+        {displayValue(props.data.resulting_mode)}
       </div>
       <Show when={props.data.rationale}>
-        <div class="result-summary">{String(props.data.rationale)}</div>
+        <div class="result-summary">{displayValue(props.data.rationale)}</div>
       </Show>
       <Show when={entries().length === 0}>
         <div class="result-summary">
@@ -545,8 +549,8 @@ function StrategicFitProposalResult(props: { data: Data }) {
           <tbody>
             <For each={entries()}>
               {(entry) => (
-                <tr data-field={String(entry.field)}>
-                  <th scope="row">{String(entry.label ?? entry.field)}</th>
+                <tr data-field={displayValue(entry.field)}>
+                  <th scope="row">{displayValue(entry.label ?? entry.field)}</th>
                   <td>{diffValue(entry.current)}</td>
                   <td>
                     <b>{diffValue(entry.proposed)}</b>
@@ -603,10 +607,10 @@ function StrategicFitPlanBasisResult(props: { data: Data }) {
   return (
     <section
       class="result-card report-card strategic-fit-plan-basis"
-      data-finding-id={String(props.data.finding_id ?? "")}
+      data-finding-id={displayValue(props.data.finding_id)}
       aria-label="Strategic Fit plan evidence"
     >
-      <div class="result-title">Plan evidence · {String(props.data.finding_id ?? "")}</div>
+      <div class="result-title">Plan evidence · {displayValue(props.data.finding_id)}</div>
       <div class="result-summary">
         {countLabel(strings("concept_ids").length, "concept")} ·{" "}
         {countLabel(list("checkpoints").length, "checkpoint")} ·{" "}
@@ -620,15 +624,15 @@ function StrategicFitPlanBasisResult(props: { data: Data }) {
         <ul class="strategic-fit-plan-drills">
           <For each={list("drills")}>
             {(drill) => (
-              <li data-drill-id={String(drill.drill_id)}>
-                <b>{String(drill.expected_san)}</b> · {String(drill.source)}
+              <li data-drill-id={displayValue(drill.drill_id)}>
+                <b>{displayValue(drill.expected_san)}</b> · {displayValue(drill.source)}
               </li>
             )}
           </For>
         </ul>
       </Show>
       <Show when={props.data.causal_move_san}>
-        <div class="result-line">Causal move: {String(props.data.causal_move_san)}</div>
+        <div class="result-line">Causal move: {displayValue(props.data.causal_move_san)}</div>
       </Show>
       <Show
         when={
@@ -659,7 +663,7 @@ function StrategicFitPlanBasisResult(props: { data: Data }) {
  * the user confirms supported content rather than fluent prose.
  */
 function StrategicFitPlanCardResult(props: { data: Data }) {
-  const id = () => String(props.data.plan_id ?? "");
+  const id = () => displayValue(props.data.plan_id);
   const staged = () => strategicFitPlanCard(id());
   const sections = createMemo(() =>
     Array.isArray(props.data.sections)
@@ -671,10 +675,10 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
     <section
       class="result-card staged-card strategic-fit-plan-card"
       data-plan-id={id()}
-      data-finding-id={String(props.data.finding_id ?? "")}
+      data-finding-id={displayValue(props.data.finding_id)}
       aria-label="Strategic Fit plan card"
     >
-      <div class="result-title">Plan · {String(props.data.title ?? "")}</div>
+      <div class="result-title">Plan · {displayValue(props.data.title)}</div>
       <For each={sections()}>
         {(section) => (
           <div class="strategic-fit-plan-section" data-section-kind={section.kind}>
@@ -723,7 +727,7 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
  * is: confirming is the user's decision, and nothing about the bounds is relaxed on their behalf.
  */
 function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
-  const id = () => String(props.data.constraint_set_id ?? "");
+  const id = () => displayValue(props.data.constraint_set_id);
   const staged = () => strategicFitPortfolioConstraintSet(id());
   const status = () => staged()?.status ?? "unavailable";
   const constraints = createMemo(() =>
@@ -744,7 +748,7 @@ function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
     >
       <div class="result-title">Redesign bounds</div>
       <Show when={props.data.rationale}>
-        <div class="strategic-fit-explanation">{String(props.data.rationale)}</div>
+        <div class="strategic-fit-explanation">{displayValue(props.data.rationale)}</div>
       </Show>
       <ul class="strategic-fit-portfolio-bounds">
         <For each={constraints()}>
@@ -809,26 +813,26 @@ function StrategicFitPortfolioResultCard(props: { data: Data }) {
   );
   const binding = createMemo(() =>
     Array.isArray(props.data.binding_constraint_kinds)
-      ? (props.data.binding_constraint_kinds as unknown[]).map(String)
+      ? (props.data.binding_constraint_kinds as unknown[]).map(displayValue)
       : [],
   );
   const omittedOptions = () => Number(props.data.omitted_option_count ?? 0);
   const omittedEliminations = () => Number(props.data.omitted_elimination_count ?? 0);
   const selection = () => {
     const current = strategicFitPortfolioSelection();
-    return current && current.constraint_set_id === String(props.data.constraint_set_id ?? "")
+    return current?.constraint_set_id === displayValue(props.data.constraint_set_id)
       ? current
       : null;
   };
   return (
     <section
       class="result-card report-card strategic-fit-portfolio"
-      data-constraint-set-id={String(props.data.constraint_set_id ?? "")}
-      data-portfolio-status={String(props.data.status ?? "")}
+      data-constraint-set-id={displayValue(props.data.constraint_set_id)}
+      data-portfolio-status={displayValue(props.data.status)}
       aria-label="Strategic Fit redesign portfolio"
     >
       <div class="result-title">Redesign portfolio · {countLabel(options().length, "option")}</div>
-      <div class="strategic-fit-explanation">{String(props.data.explanation ?? "")}</div>
+      <div class="strategic-fit-explanation">{displayValue(props.data.explanation)}</div>
       <For each={options()}>
         {(option) => (
           <div class="strategic-fit-portfolio-option" data-option-id={option.option_id}>
@@ -920,17 +924,18 @@ function StagedEditResult(props: { data: Data }) {
   const stale = () => edit()?.status === "stale";
   return (
     <div class="result-card staged-card">
-      <div class="result-title">Proposed {String(props.data.action)} edit</div>
+      <div class="result-title">Proposed {displayValue(props.data.action)} edit</div>
       <div class="result-line">
-        {(props.data.path as string[] | undefined)?.join(" ") || "Start position"}
+        {(props.data.path as string[] | undefined)?.join(" ") ?? "Start position"}
       </div>
       <Show when={Array.isArray(props.data.line)}>
         <div class="result-line">{(props.data.line as string[]).join(" ")}</div>
       </Show>
       <div class="result-summary">
-        nodes {String((props.data.before as Data)?.nodes)} →{" "}
-        {String((props.data.after as Data)?.nodes)} · leaves{" "}
-        {String((props.data.before as Data)?.leaves)} → {String((props.data.after as Data)?.leaves)}
+        nodes {displayValue((props.data.before as Data | undefined)?.nodes)} →{" "}
+        {displayValue((props.data.after as Data | undefined)?.nodes)} · leaves{" "}
+        {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
+        {displayValue((props.data.after as Data | undefined)?.leaves)}
       </div>
       <Show
         when={edit()?.status === "pending"}
@@ -969,7 +974,7 @@ function ArtifactResult(props: { data: Data }) {
   const artifact = () => artifactById(id());
   return (
     <div class="result-card artifact-card">
-      <div class="result-title">{String(props.data.name ?? "Generated artifact")}</div>
+      <div class="result-title">{displayValue(props.data.name ?? "Generated artifact")}</div>
       <div class="result-summary">
         {String(props.data.format).toUpperCase()} · {String(props.data.bytes)} bytes
       </div>
@@ -1050,7 +1055,7 @@ const ERROR_LABELS: Record<string, string> = {
 };
 
 function ErrorResult(props: { data: Data }) {
-  const code = () => String(props.data.error ?? "command_failed");
+  const code = () => displayValue(props.data.error ?? "command_failed");
   return (
     <div class={`result-card result-error-card error-${code()}`} role="alert">
       <div class="result-title">{ERROR_LABELS[code()] ?? code().replace(/_/g, " ")}</div>
@@ -1066,10 +1071,10 @@ function PositionResult(props: { data: Data }) {
   return (
     <div class="result-card">
       <div class="result-title">Board position</div>
-      <div class="result-line">{String(props.data.fen ?? "")}</div>
+      <div class="result-line">{displayValue(props.data.fen)}</div>
       <button
         onClick={() => {
-          navigateFen(String(props.data.fen ?? ""));
+          navigateFen(displayValue(props.data.fen));
         }}
       >
         Go to position
@@ -1082,14 +1087,14 @@ function ReviewSummary(props: { data: Data }) {
   const side = (name: "white" | "black") => props.data[name] as Data | undefined;
   return (
     <div class="result-card">
-      <div class="result-title">Game review · {String(props.data.total_moves)} moves</div>
+      <div class="result-title">Game review · {displayValue(props.data.total_moves)} moves</div>
       <div class="result-summary">
-        White {String(side("white")?.accuracy_pct ?? "—")}% · {String(side("white")?.blunders ?? 0)}{" "}
-        blunders
+        White {displayValue(side("white")?.accuracy_pct ?? "—")}% ·{" "}
+        {displayValue(side("white")?.blunders ?? 0)} blunders
       </div>
       <div class="result-summary">
-        Black {String(side("black")?.accuracy_pct ?? "—")}% · {String(side("black")?.blunders ?? 0)}{" "}
-        blunders
+        Black {displayValue(side("black")?.accuracy_pct ?? "—")}% ·{" "}
+        {displayValue(side("black")?.blunders ?? 0)} blunders
       </div>
       <NavigationRows data={props.data} />
     </div>
@@ -1111,7 +1116,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   get_game_summary: (data) => <ReviewSummary data={data} />,
   analyze_game: (data) => (
     <div class="result-card">
-      <div class="result-title">Move findings · {String(data.total_moves ?? 0)} analysed</div>
+      <div class="result-title">Move findings · {displayValue(data.total_moves ?? 0)} analysed</div>
       <NavigationRows data={data} />
     </div>
   ),
@@ -1130,34 +1135,35 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   audit_repertoire_moves: (data) => (
     <ReportResult
       title="Prescribed-move audit"
-      summary={`${String(data.findings && Array.isArray(data.findings) ? data.findings.length : 0)} ranked findings · ${String(data.moves_audited ?? 0)} moves audited across ${String(data.positions_scanned ?? 0)} positions`}
+      summary={`${displayValue(Array.isArray(data.findings) ? data.findings.length : 0)} ranked findings · ${displayValue(data.moves_audited ?? 0)} moves audited across ${displayValue(data.positions_scanned ?? 0)} positions`}
       data={data}
     />
   ),
   find_only_moves: (data) => (
     <ReportResult
       title="Only-move training positions"
-      summary={`${String(data.only_moves_found ?? 0)} critical positions · ${String(data.positions_scanned ?? 0)} scanned · ${String(Array.isArray(data.lines) ? data.lines.length : 0)} ranked lines`}
+      summary={`${displayValue(data.only_moves_found ?? 0)} critical positions · ${displayValue(data.positions_scanned ?? 0)} scanned · ${displayValue(Array.isArray(data.lines) ? data.lines.length : 0)} ranked lines`}
       data={data}
     />
   ),
   find_structures: (data) => (
     <ReportResult
       title="Structure search"
-      summary={`${String(data.total_matches ?? 0)} matches across ${String(data.leaves_total ?? 0)} repertoire leaves`}
+      summary={`${displayValue(data.total_matches ?? 0)} matches across ${displayValue(data.leaves_total ?? 0)} repertoire leaves`}
       data={data}
     />
   ),
   prep_vs_opponent: (data) => (
     <ReportResult
-      title={`Opponent preparation · ${String(data.username ?? "unknown")}`}
-      summary={`${String(data.games_matched_color ?? 0)} relevant games · ${String(data.coverage_pct ?? "—")}% reached prep · ${String(Array.isArray(data.uncovered_opponent_moves) ? data.uncovered_opponent_moves.length : 0)} targets`}
+      title={`Opponent preparation · ${displayValue(data.username ?? "unknown")}`}
+      summary={`${displayValue(data.games_matched_color ?? 0)} relevant games · ${displayValue(data.coverage_pct ?? "—")}% reached prep · ${displayValue(Array.isArray(data.uncovered_opponent_moves) ? data.uncovered_opponent_moves.length : 0)} targets`}
       data={data}
     />
   ),
-  analyze_repertoire_congruence: (data) => (
-    <StrategicFitResult report={asStrategicFitReport(data)!} />
-  ),
+  analyze_repertoire_congruence: (data) => {
+    const report = asStrategicFitReport(data);
+    return report ? <StrategicFitResult report={report} /> : <NavigationRows data={data} />;
+  },
   get_strategic_fit_report: (data) => {
     const projection = asStrategicFitRetrieval(data);
     return (
@@ -1175,7 +1181,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   export_annotated_repertoire: (data) => (
     <ReportResult
       title="Annotated repertoire"
-      summary={`Audit ${String((data.annotated as Data | undefined)?.audit ?? 0)} · only moves ${String((data.annotated as Data | undefined)?.only_moves ?? 0)} · gaps ${String((data.annotated as Data | undefined)?.gaps ?? 0)} · congruence ${String((data.annotated as Data | undefined)?.congruence ?? 0)}`}
+      summary={`Audit ${displayValue((data.annotated as Data | undefined)?.audit ?? 0)} · only moves ${displayValue((data.annotated as Data | undefined)?.only_moves ?? 0)} · gaps ${displayValue((data.annotated as Data | undefined)?.gaps ?? 0)} · congruence ${displayValue((data.annotated as Data | undefined)?.congruence ?? 0)}`}
       data={data}
     />
   ),
@@ -1194,25 +1200,40 @@ const byKind: Record<string, (data: Data) => unknown> = {
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */
 export default function ToolResult(props: Props) {
   const data = createMemo(() => parse(props.content));
-  const renderer = () => data() && (byOperation[props.operation] ?? byKind[String(data()!.kind)]);
+  const renderer = (value: Data) =>
+    byOperation[props.operation] ?? byKind[displayValue(value.kind)];
   const hasArtifacts = () => (data() ? findArtifactMetadata(data()).length > 0 : false);
+  const errorData = () => {
+    const value = data();
+    return value && typeof value.error === "string" ? value : null;
+  };
   return (
     <>
       <Show
-        when={data() && typeof data()!.error === "string"}
+        when={errorData()}
         fallback={
           <>
-            <Show when={data() && renderer()}>{(render) => render()(data()!) as never}</Show>
-            <Show when={data() && !renderer() && !hasArtifacts()}>
-              <div class="result-card">
-                <NavigationRows data={data()!} />
-              </div>
+            <Show when={data()}>
+              {(value) => {
+                const result = value();
+                const render = renderer(result);
+                return (
+                  <>
+                    <Show when={render}>{(selected) => selected()(result) as never}</Show>
+                    <Show when={!render && !hasArtifacts()}>
+                      <div class="result-card">
+                        <NavigationRows data={result} />
+                      </div>
+                    </Show>
+                    <ArtifactRows data={result} />
+                  </>
+                );
+              }}
             </Show>
-            <Show when={data()}>{(value) => <ArtifactRows data={value()} />}</Show>
           </>
         }
       >
-        <ErrorResult data={data()!} />
+        {(value) => <ErrorResult data={value()} />}
       </Show>
       <details class="tool-result-raw">
         <summary>Raw JSON</summary>
