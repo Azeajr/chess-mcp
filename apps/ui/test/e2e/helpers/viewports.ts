@@ -1,0 +1,18 @@
+export const VIEWPORTS = [
+  { width: 360, height: 740 },
+  { width: 390, height: 844 },
+  { width: 640, height: 400 },
+  { width: 720, height: 900 },
+  { width: 721, height: 900 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1100, height: 800 },
+  { width: 1101, height: 800 },
+  { width: 1280, height: 800 },
+  { width: 1280, height: 600 },
+  { width: 1440, height: 900 },
+  { width: 1920, height: 1080 },
+  { width: 1024, height: 640 },
+  { width: 853, height: 533 },
+  { width: 640, height: 400 },
+] as const;

@@ -1,4 +1,7 @@
-import { expect, type Locator } from "playwright/test";
+import { contractsForHost } from "@chess-mcp/chess-tools";
+import { expect, type Locator, type Page } from "playwright/test";
+
+const browserToolNames = contractsForHost("browser").map((contract) => contract.name);
 
 export async function basicAccessibilityViolations(root: Locator): Promise<string[]> {
   return root.evaluate((container) => {
@@ -182,6 +185,72 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
     }
     return issues;
   }, minimum);
+}
+
+export async function keyboardReachable(root: Locator, selector: string): Promise<string[]> {
+  const markers = await root.evaluate((container, candidateSelector) => {
+    const visible = (element: HTMLElement) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width && rect.height;
+    };
+    return [...container.querySelectorAll<HTMLElement>(candidateSelector)]
+      .filter(visible)
+      .map((element, index) => {
+        const marker = `keyboard-target-${index}`;
+        element.dataset.keyboardTarget = marker;
+        return marker;
+      });
+  }, selector);
+  const page = root.page();
+  const reached = new Set<string>();
+  await root.focus();
+  for (let index = 0; index < Math.max(32, markers.length * 4); index++) {
+    await page.keyboard.press("Tab");
+    const marker = await page.evaluate(
+      () => document.activeElement?.getAttribute("data-keyboard-target") ?? null,
+    );
+    if (marker) reached.add(marker);
+  }
+  await root.evaluate((container) => {
+    for (const element of container.querySelectorAll("[data-keyboard-target]")) {
+      element.removeAttribute("data-keyboard-target");
+    }
+  });
+  return markers.filter((marker) => !reached.has(marker));
+}
+
+export async function rawIdentifierViolations(root: Locator): Promise<string[]> {
+  return root.evaluate((container, toolNames) => {
+    const technical = (node: Node) => node.parentElement?.closest("details, code") !== null;
+    const violations: string[] = [];
+    const rawCohort = /cohort:[0-9a-f]{16}/giu;
+    const rawUuid = /^[0-9a-f]{8}$/iu;
+    const textNodes = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    for (let node = textNodes.nextNode(); node; node = textNodes.nextNode()) {
+      if (technical(node)) continue;
+      const text = node.textContent?.trim() ?? "";
+      if (!text) continue;
+      if (
+        rawCohort.test(text) ||
+        rawUuid.test(text) ||
+        toolNames.some((name) => text.includes(name))
+      ) {
+        violations.push(text);
+      }
+      rawCohort.lastIndex = 0;
+    }
+    return violations;
+  }, browserToolNames);
+}
+
+export async function overflowViolations(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth === root.clientWidth
+      ? []
+      : [`document overflow: ${root.scrollWidth}px > ${root.clientWidth}px`];
+  });
 }
 
 export async function contrastViolations(root: Locator): Promise<string[]> {

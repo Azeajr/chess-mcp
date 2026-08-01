@@ -18,6 +18,7 @@ node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
+pnpm --filter @chess-mcp/ui test:e2e
 pnpm --filter @chess-mcp/ui build
 pnpm exec playwright test --config apps/ui/playwright.config.ts
 pnpm dev                       # use dev:host for LAN
