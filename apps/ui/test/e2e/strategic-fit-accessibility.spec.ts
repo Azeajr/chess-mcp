@@ -14,13 +14,16 @@ type ChessHarness = {
   ): void;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 async function openWorkspace(page: Page, setupComplete = false) {
   if (setupComplete) await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
@@ -37,7 +40,9 @@ test.beforeEach(async ({ page }) => {
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
 });
 
-test("first-run setup has a coherent accessible outline and returns focus to analysis", async ({ page }) => {
+test("first-run setup has a coherent accessible outline and returns focus to analysis", async ({
+  page,
+}) => {
   const { dialog } = await openWorkspace(page);
   await expectBasicAccessibility(dialog);
   expect(await contrastViolations(dialog)).toEqual([]);
@@ -58,14 +63,19 @@ test("first-run setup has a coherent accessible outline and returns focus to ana
   await expectBasicAccessibility(dialog);
 });
 
-test("phone stage tabs support keyboard navigation and every touch action is at least 44px", async ({ page }) => {
+test("phone stage tabs support keyboard navigation and every touch action is at least 44px", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog } = await openWorkspace(page, true);
   const overview = dialog.getByRole("tab", { name: "Overview" });
   await overview.focus();
   await page.keyboard.press("ArrowRight");
   await expect(dialog.getByRole("tab", { name: "Findings" })).toBeFocused();
-  await expect(dialog.getByRole("tab", { name: "Findings" })).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.getByRole("tab", { name: "Findings" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(dialog.locator("#strategic-fit-pane-findings")).toHaveAttribute("role", "tabpanel");
   await page.keyboard.press("End");
   await expect(dialog.getByRole("tab", { name: "Resolution" })).toBeFocused();
@@ -84,7 +94,10 @@ test("custom profile settings remain accessible and overflow-free on a phone", a
   const customize = dialog.getByRole("button", { name: "Customize" });
   await expect(customize).toHaveAttribute("aria-expanded", "false");
   await customize.click();
-  await expect(dialog.getByRole("button", { name: "Close custom settings" })).toHaveAttribute("aria-expanded", "true");
+  await expect(dialog.getByRole("button", { name: "Close custom settings" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
   await expect(dialog.getByLabel("Center dynamics weight")).toBeVisible();
   await dialog.getByText("Data sources and weighting", { exact: true }).click();
   await expect(dialog.getByLabel("Data-source status")).toBeVisible();
@@ -97,15 +110,21 @@ test("custom profile settings remain accessible and overflow-free on a phone", a
 test("reduced-motion preference disables workspace animation and transition", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const { dialog } = await openWorkspace(page, true);
-  await chess(page, (api) => api.setStrategicFitWorkspaceRegionState("overview", {
-    status: "loading",
-    message: "Reduced-motion loading fixture.",
-  }));
+  await chess(page, (api) =>
+    api.setStrategicFitWorkspaceRegionState("overview", {
+      status: "loading",
+      message: "Reduced-motion loading fixture.",
+    }),
+  );
   const spinner = dialog.locator(".strategic-fit-region-spinner");
   await expect(spinner).toBeVisible();
   expect(await spinner.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
-  expect(await dialog.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
-    const style = getComputedStyle(child);
-    return style.animationDuration === "0s" && style.transitionDuration === "0s";
-  }))).toBe(true);
+  expect(
+    await dialog.evaluate((element) =>
+      [...element.querySelectorAll("*")].every((child) => {
+        const style = getComputedStyle(child);
+        return style.animationDuration === "0s" && style.transitionDuration === "0s";
+      }),
+    ),
+  ).toBe(true);
 });

@@ -6,10 +6,7 @@
  * Engine-heavy, so it runs only when the user clicks Scan, is cancellable, and reports progress.
  */
 import { createSignal } from "solid-js";
-import {
-  type Severity,
-  type Path,
-} from "@chess-mcp/chess-tools";
+import { type Severity, type Path } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
 
@@ -84,18 +81,34 @@ export async function fillGap(g: Gap) {
   setFills((p) => ({ ...p, [key]: "loading" }));
 
   try {
-    const res = await executeBrowserCommand("suggest_gap_fills", {
+    const res = (await executeBrowserCommand("suggest_gap_fills", {
       variation_path: g.sanPath,
       uncovered_move: g.uncoveredMove,
       depth: analysisDepth(),
-    }) as { error: string } | { options: { kind: "best_eval" | "best_fit"; reply: string; line: string[]; eval_cp: number | null; fit: number }[] };
+    })) as
+      | { error: string }
+      | {
+          options: {
+            kind: "best_eval" | "best_fit";
+            reply: string;
+            line: string[];
+            eval_cp: number | null;
+            fit: number;
+          }[];
+        };
     if (gen !== fillGen) return; // superseded by a rescan
     if ("error" in res) {
-      setFills((p) => ({ ...p, [key]: { error: res.error === "engine_unavailable" ? "engine offline" : res.error } }));
+      setFills((p) => ({
+        ...p,
+        [key]: { error: res.error === "engine_unavailable" ? "engine offline" : res.error },
+      }));
       return;
     }
     const toOption = (option: (typeof res.options)[number]): FillOption => ({
-      reply: option.reply, line: option.line, evalCp: option.eval_cp, fit: option.fit,
+      reply: option.reply,
+      line: option.line,
+      evalCp: option.eval_cp,
+      fit: option.fit,
     });
     const bestEval = toOption(res.options.find((option) => option.kind === "best_eval")!);
     const fit = res.options.find((option) => option.kind === "best_fit");
@@ -130,19 +143,30 @@ export async function scanGaps() {
   setProgress({ done: 0, total: 0 });
 
   try {
-    const res = await executeBrowserCommand("find_repertoire_gaps", {
-      depth: analysisDepth(),
-      min_severity: MIN_SEVERITY,
-      max_positions: MAX_POSITIONS,
-      limit: LIMIT,
-    }, {
-      signal: controller.signal,
-      onProgress: (done, total) => {
-        if (scanController === controller) setProgress({ done, total: total ?? 0 });
+    const res = (await executeBrowserCommand(
+      "find_repertoire_gaps",
+      {
+        depth: analysisDepth(),
+        min_severity: MIN_SEVERITY,
+        max_positions: MAX_POSITIONS,
+        limit: LIMIT,
       },
-    }) as {
+      {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          if (scanController === controller) setProgress({ done, total: total ?? 0 });
+        },
+      },
+    )) as {
       error?: string;
-      gaps?: { path: Path; san_path: string[]; uncovered_move: string; eval: number | null; mate: number | null; severity: Severity }[];
+      gaps?: {
+        path: Path;
+        san_path: string[];
+        uncovered_move: string;
+        eval: number | null;
+        mate: number | null;
+        severity: Severity;
+      }[];
       covered_by_transposition?: { path: Path; uncovered_move: string; joins_path: string[] }[];
     };
     if (scanController !== controller || controller.signal.aborted) return;
@@ -150,10 +174,26 @@ export async function scanGaps() {
       setScanError(res.error === "engine_unavailable" ? "engine offline" : res.error);
       return;
     }
-    setGaps((res.gaps ?? []).map((gap) => ({ path: gap.path, sanPath: gap.san_path, uncoveredMove: gap.uncovered_move, evalCp: gap.eval, mate: gap.mate, severity: gap.severity })));
-    setCovered((res.covered_by_transposition ?? []).map((gap) => ({ path: gap.path, uncoveredMove: gap.uncovered_move, joinsPath: gap.joins_path })));
+    setGaps(
+      (res.gaps ?? []).map((gap) => ({
+        path: gap.path,
+        sanPath: gap.san_path,
+        uncoveredMove: gap.uncovered_move,
+        evalCp: gap.eval,
+        mate: gap.mate,
+        severity: gap.severity,
+      })),
+    );
+    setCovered(
+      (res.covered_by_transposition ?? []).map((gap) => ({
+        path: gap.path,
+        uncoveredMove: gap.uncovered_move,
+        joinsPath: gap.joins_path,
+      })),
+    );
   } catch (error) {
-    if (scanController === controller && !controller.signal.aborted) setScanError(error instanceof Error ? error.message : String(error));
+    if (scanController === controller && !controller.signal.aborted)
+      setScanError(error instanceof Error ? error.message : String(error));
   } finally {
     if (scanController === controller) {
       scanController = null;

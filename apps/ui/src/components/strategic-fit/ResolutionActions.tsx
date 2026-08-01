@@ -59,10 +59,13 @@ export default function ResolutionActions(props: {
   reportId: string;
   finding: StrategicFinding;
 }) {
-  const [choice, setChoice] = createSignal<
-    Exclude<StrategicFitReviewResolutionState, "automatically-resolved-by-another-edit">
-  >("keep-intentionally");
-  const [intentionalReason, setIntentionalReason] = createSignal<IntentionalResolutionReason | "">("");
+  const [choice, setChoice] =
+    createSignal<
+      Exclude<StrategicFitReviewResolutionState, "automatically-resolved-by-another-edit">
+    >("keep-intentionally");
+  const [intentionalReason, setIntentionalReason] = createSignal<IntentionalResolutionReason | "">(
+    "",
+  );
   const [note, setNote] = createSignal("");
 
   createEffect(() => {
@@ -72,16 +75,19 @@ export default function ResolutionActions(props: {
     setNote("");
   });
 
-  const availability = () => strategicFitFindingResolutionAvailability(
-    props.reportId,
-    props.finding.finding_id,
-    props.finding.semantic_finding_id,
-  );
+  const availability = () =>
+    strategicFitFindingResolutionAvailability(
+      props.reportId,
+      props.finding.finding_id,
+      props.finding.semantic_finding_id,
+    );
   const resolution = () => displayStrategicFitFindingResolution(props.finding);
-  const activeRecord = () => strategicFitMetadata().resolutions.find((record) =>
-    record.record_state === "active" &&
-    record.semantic_finding_id === props.finding.semantic_finding_id
-  ) ?? null;
+  const activeRecord = () =>
+    strategicFitMetadata().resolutions.find(
+      (record) =>
+        record.record_state === "active" &&
+        record.semantic_finding_id === props.finding.semantic_finding_id,
+    ) ?? null;
   const feedback = () => {
     const current = strategicFitFindingResolutionReview();
     return current.finding_id === props.finding.finding_id ? current : null;
@@ -94,17 +100,16 @@ export default function ResolutionActions(props: {
       finding_id: props.finding.finding_id,
       semantic_finding_id: props.finding.semantic_finding_id,
       state: choice(),
-      intentional_reason: choice() === "keep-intentionally"
-        ? intentionalReason() || null
-        : null,
+      intentional_reason: choice() === "keep-intentionally" ? intentionalReason() || null : null,
       note: note(),
     });
   };
-  const reopen = () => reopenStrategicFitFinding({
-    report_id: props.reportId,
-    finding_id: props.finding.finding_id,
-    semantic_finding_id: props.finding.semantic_finding_id,
-  });
+  const reopen = () =>
+    reopenStrategicFitFinding({
+      report_id: props.reportId,
+      finding_id: props.finding.finding_id,
+      semantic_finding_id: props.finding.semantic_finding_id,
+    });
 
   return (
     <section
@@ -139,47 +144,60 @@ export default function ResolutionActions(props: {
         >
           Open Replacement Lab
         </button>
-        <p id={`strategic-fit-replacement-availability-${props.finding.finding_id}`} class="sr-only">
+        <p
+          id={`strategic-fit-replacement-availability-${props.finding.finding_id}`}
+          class="sr-only"
+        >
           {replacementAvailability().message}
         </p>
       </section>
 
-      <Show when={availability().available} fallback={(
-        <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>
-          <strong>Resolution action blocked</strong>
-          <p>{availability().message}</p>
-        </div>
-      )}>
-        <Show when={resolution() === "unresolved"} fallback={(
-          <div class="strategic-fit-resolution-current">
-            <Show when={activeRecord()?.intentional_reason}>
-              {(reason) => <p>Reason: {REASON_LABELS[reason()]}</p>}
-            </Show>
-            <Show when={activeRecord()?.note}>
-              {(value) => <p class="strategic-fit-resolution-note">Note: {value()}</p>}
-            </Show>
-            <p>Resolved findings remain visible in this report and leave the unresolved queue.</p>
-            <button type="button" onClick={reopen}>Reopen finding</button>
+      <Show
+        when={availability().available}
+        fallback={
+          <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>
+            <strong>Resolution action blocked</strong>
+            <p>{availability().message}</p>
           </div>
-        )}>
+        }
+      >
+        <Show
+          when={resolution() === "unresolved"}
+          fallback={
+            <div class="strategic-fit-resolution-current">
+              <Show when={activeRecord()?.intentional_reason}>
+                {(reason) => <p>Reason: {REASON_LABELS[reason()]}</p>}
+              </Show>
+              <Show when={activeRecord()?.note}>
+                {(value) => <p class="strategic-fit-resolution-note">Note: {value()}</p>}
+              </Show>
+              <p>Resolved findings remain visible in this report and leave the unresolved queue.</p>
+              <button type="button" onClick={reopen}>
+                Reopen finding
+              </button>
+            </div>
+          }
+        >
           <form onSubmit={save}>
             <fieldset>
               <legend>Choose a reversible resolution</legend>
-              <For each={ACTIONS}>{(action) => (
-                <label class="strategic-fit-resolution-choice">
-                  <input
-                    type="radio"
-                    name={`strategic-fit-resolution-${props.finding.finding_id}`}
-                    value={action.state}
-                    checked={choice() === action.state}
-                    onInput={() => setChoice(action.state)}
-                  />
-                  <span>
-                    <strong>{action.label}</strong>
-                    <small>{action.detail}</small>
-                  </span>
-                </label>
-              )}</For>
+              <For each={ACTIONS}>
+                {(action) => (
+                  <label class="strategic-fit-resolution-choice">
+                    <input
+                      type="radio"
+                      name={`strategic-fit-resolution-${props.finding.finding_id}`}
+                      value={action.state}
+                      checked={choice() === action.state}
+                      onInput={() => setChoice(action.state)}
+                    />
+                    <span>
+                      <strong>{action.label}</strong>
+                      <small>{action.detail}</small>
+                    </span>
+                  </label>
+                )}
+              </For>
             </fieldset>
 
             <Show when={choice() === "keep-intentionally"}>
@@ -187,14 +205,16 @@ export default function ResolutionActions(props: {
                 Optional keep-intentionally reason
                 <select
                   value={intentionalReason()}
-                  onInput={(event) => setIntentionalReason(
-                    event.currentTarget.value as IntentionalResolutionReason | "",
-                  )}
+                  onInput={(event) =>
+                    setIntentionalReason(
+                      event.currentTarget.value as IntentionalResolutionReason | "",
+                    )
+                  }
                 >
                   <option value="">No structured reason</option>
-                  <For each={INTENTIONAL_RESOLUTION_REASONS}>{(reason) => (
-                    <option value={reason}>{REASON_LABELS[reason]}</option>
-                  )}</For>
+                  <For each={INTENTIONAL_RESOLUTION_REASONS}>
+                    {(reason) => <option value={reason}>{REASON_LABELS[reason]}</option>}
+                  </For>
                 </select>
               </label>
             </Show>
@@ -209,7 +229,8 @@ export default function ResolutionActions(props: {
               />
             </label>
             <p id={`strategic-fit-resolution-note-help-${props.finding.finding_id}`}>
-              A custom keep-intentionally reason requires a note. Notes are saved only in document metadata.
+              A custom keep-intentionally reason requires a note. Notes are saved only in document
+              metadata.
             </p>
 
             <button type="submit">Save resolution</button>
@@ -222,7 +243,9 @@ export default function ResolutionActions(props: {
           <p
             class="strategic-fit-resolution-feedback"
             role={feedback()?.status === "blocked" ? "alert" : "status"}
-          >{message()}</p>
+          >
+            {message()}
+          </p>
         )}
       </Show>
     </section>

@@ -51,8 +51,9 @@ const PRIORITY_FILTERS: readonly StrategicFitQueuePriorityFilter[] = [
 export default function FindingQueue(props: {
   report: StrategicFitAnalysisResult;
   intent: StrategicFitFindingQueueIntent | null;
-  resolutionState?: (finding: StrategicFitAnalysisResult["findings"][number]) =>
-    StrategicFitDisplayedResolutionState;
+  resolutionState?: (
+    finding: StrategicFitAnalysisResult["findings"][number],
+  ) => StrategicFitDisplayedResolutionState;
   cohortName?: (finding: StrategicFitAnalysisResult["findings"][number]) => string;
   changedEvidenceSemanticIds?: readonly string[];
 }) {
@@ -63,26 +64,29 @@ export default function FindingQueue(props: {
 
   const state = () => strategicFitFindingQueue.snapshot();
   const view = () => strategicFitFindingQueue.view(props.resolutionState);
-  const range = () => view().page.total_count === 0
-    ? "0"
-    : `${view().page.offset + 1}–${view().page.offset + view().page.returned_count}`;
+  const range = () =>
+    view().page.total_count === 0
+      ? "0"
+      : `${view().page.offset + 1}–${view().page.offset + view().page.returned_count}`;
   const clearFilters = () => {
     setStrategicFitFindingQueueIntent(null);
     strategicFitFindingQueue.setPriorityKind("replacement");
     strategicFitFindingQueue.setPriorityFilter("all");
     strategicFitFindingQueue.setOpeningFilter("");
   };
-  const hasActiveFilters = () => state().intent !== null ||
-    state().priority_filter !== "all" || state().opening_filter !== "";
+  const hasActiveFilters = () =>
+    state().intent !== null || state().priority_filter !== "all" || state().opening_filter !== "";
   const selectFinding = (findingId: string, focusEvidence: boolean) => {
     strategicFitFindingQueue.selectFinding(findingId);
     if (!focusEvidence) return;
     setStrategicFitWorkspaceStage("evidence");
-    queueMicrotask(() => document.querySelector<HTMLElement>("#strategic-fit-pane-evidence")?.focus());
+    queueMicrotask(() =>
+      document.querySelector<HTMLElement>("#strategic-fit-pane-evidence")?.focus(),
+    );
   };
-  const selectedFindingLabel = () => state().findings.find((finding) =>
-    finding.finding_id === state().selected_finding_id
-  )?.plain_language_category ?? null;
+  const selectedFindingLabel = () =>
+    state().findings.find((finding) => finding.finding_id === state().selected_finding_id)
+      ?.plain_language_category ?? null;
   /** The selection is announced with its logical position, not with the row index this page mounts. */
   const selectedAnnouncement = () => {
     const label = selectedFindingLabel();
@@ -141,13 +145,15 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-finding-sort"
               value={state().sort}
-              onInput={(event) => strategicFitFindingQueue.setSort(
-                event.currentTarget.value as StrategicFitFindingSort,
-              )}
+              onInput={(event) =>
+                strategicFitFindingQueue.setSort(
+                  event.currentTarget.value as StrategicFitFindingSort,
+                )
+              }
             >
-              <For each={STRATEGIC_FIT_FINDING_SORTS}>{(sort) => (
-                <option value={sort}>{SORT_LABELS[sort]}</option>
-              )}</For>
+              <For each={STRATEGIC_FIT_FINDING_SORTS}>
+                {(sort) => <option value={sort}>{SORT_LABELS[sort]}</option>}
+              </For>
             </select>
           </div>
           <div>
@@ -155,13 +161,15 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-priority-kind"
               value={state().priority_kind}
-              onInput={(event) => strategicFitFindingQueue.setPriorityKind(
-                event.currentTarget.value as FindingPriorityKind,
-              )}
+              onInput={(event) =>
+                strategicFitFindingQueue.setPriorityKind(
+                  event.currentTarget.value as FindingPriorityKind,
+                )
+              }
             >
-              <For each={["replacement", "training"] as const}>{(kind) => (
-                <option value={kind}>{PRIORITY_KIND_LABELS[kind]}</option>
-              )}</For>
+              <For each={["replacement", "training"] as const}>
+                {(kind) => <option value={kind}>{PRIORITY_KIND_LABELS[kind]}</option>}
+              </For>
             </select>
           </div>
           <div>
@@ -169,13 +177,15 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-priority-filter"
               value={state().priority_filter}
-              onInput={(event) => strategicFitFindingQueue.setPriorityFilter(
-                event.currentTarget.value as FindingPriorityLabel | "all",
-              )}
+              onInput={(event) =>
+                strategicFitFindingQueue.setPriorityFilter(
+                  event.currentTarget.value as FindingPriorityLabel | "all",
+                )
+              }
             >
-              <For each={PRIORITY_FILTERS}>{(filter) => (
-                <option value={filter}>{PRIORITY_FILTER_LABELS[filter]}</option>
-              )}</For>
+              <For each={PRIORITY_FILTERS}>
+                {(filter) => <option value={filter}>{PRIORITY_FILTER_LABELS[filter]}</option>}
+              </For>
             </select>
           </div>
           <div>
@@ -183,12 +193,14 @@ export default function FindingQueue(props: {
             <select
               id="strategic-fit-opening-filter"
               value={state().opening_filter}
-              onInput={(event) => strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value)}
+              onInput={(event) =>
+                strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value)
+              }
             >
               <option value="">All openings / systems</option>
-              <For each={view().opening_options}>{(opening) => (
-                <option value={opening}>{opening}</option>
-              )}</For>
+              <For each={view().opening_options}>
+                {(opening) => <option value={opening}>{opening}</option>}
+              </For>
             </select>
           </div>
         </div>
@@ -201,10 +213,13 @@ export default function FindingQueue(props: {
             data-page-total={view().page.total_count}
             data-canonical-total={view().canonical_total_count}
           >
-            Showing {range()} of {view().page.total_count} matching findings · {view().canonical_total_count} in this report
+            Showing {range()} of {view().page.total_count} matching findings ·{" "}
+            {view().canonical_total_count} in this report
           </p>
           <Show when={hasActiveFilters()}>
-            <button type="button" onClick={clearFilters}>Clear queue filters</button>
+            <button type="button" onClick={clearFilters}>
+              Clear queue filters
+            </button>
           </Show>
         </div>
 
@@ -212,11 +227,11 @@ export default function FindingQueue(props: {
           <div class="strategic-fit-queue-selection-note" role="status" data-queue-selection-note>
             <Show
               when={view().selected_filtered_out}
-              fallback={(
+              fallback={
                 <>
                   <p>
-                    The selected finding is finding {view().selected_position} of
-                    {" "}{view().page.total_count} and sits on another page. It stays selected.
+                    The selected finding is finding {view().selected_position} of{" "}
+                    {view().page.total_count} and sits on another page. It stays selected.
                   </p>
                   <button
                     type="button"
@@ -226,23 +241,28 @@ export default function FindingQueue(props: {
                     Go to the selected finding
                   </button>
                 </>
-              )}
+              }
             >
               <p data-queue-selection-filtered-out>
                 The selected finding stays selected, but the current queue filters exclude it from
                 this list.
               </p>
-              <button type="button" onClick={clearFilters}>Clear queue filters</button>
+              <button type="button" onClick={clearFilters}>
+                Clear queue filters
+              </button>
             </Show>
           </div>
         </Show>
 
-        <Show when={view().page.total_count > 0} fallback={(
-          <div class="strategic-fit-queue-empty">
-            <strong>No findings match this queue view</strong>
-            <p>Adjust the overview focus, priority, or opening filter.</p>
-          </div>
-        )}>
+        <Show
+          when={view().page.total_count > 0}
+          fallback={
+            <div class="strategic-fit-queue-empty">
+              <strong>No findings match this queue view</strong>
+              <p>Adjust the overview focus, priority, or opening filter.</p>
+            </div>
+          }
+        >
           <ol
             class="strategic-fit-finding-list"
             data-finding-list
@@ -250,23 +270,25 @@ export default function FindingQueue(props: {
             data-finding-rows-total={view().page.total_count}
             aria-label={`Findings ${range()} of ${view().page.total_count} matching this queue view`}
           >
-            <For each={view().findings}>{(finding, index) => (
-              <li
-                aria-setsize={view().page.total_count}
-                aria-posinset={view().page.offset + index() + 1}
-              >
-                <FindingCard
-                  finding={finding}
-                  resolutionState={props.resolutionState?.(finding)}
-                  cohortName={props.cohortName?.(finding)}
-                  changedEvidence={props.changedEvidenceSemanticIds?.includes(
-                    finding.semantic_finding_id,
-                  )}
-                  selected={state().selected_finding_id === finding.finding_id}
-                  onSelect={selectFinding}
-                />
-              </li>
-            )}</For>
+            <For each={view().findings}>
+              {(finding, index) => (
+                <li
+                  aria-setsize={view().page.total_count}
+                  aria-posinset={view().page.offset + index() + 1}
+                >
+                  <FindingCard
+                    finding={finding}
+                    resolutionState={props.resolutionState?.(finding)}
+                    cohortName={props.cohortName?.(finding)}
+                    changedEvidence={props.changedEvidenceSemanticIds?.includes(
+                      finding.semantic_finding_id,
+                    )}
+                    selected={state().selected_finding_id === finding.finding_id}
+                    onSelect={selectFinding}
+                  />
+                </li>
+              )}
+            </For>
           </ol>
         </Show>
 
@@ -274,24 +296,32 @@ export default function FindingQueue(props: {
           <button
             type="button"
             disabled={view().page.offset === 0}
-            onClick={() => strategicFitFindingQueue.setPageOffset(
-              view().page.offset - STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-            )}
-          >Previous findings</button>
+            onClick={() =>
+              strategicFitFindingQueue.setPageOffset(
+                view().page.offset - STRATEGIC_FIT_QUEUE_PAGE_SIZE,
+              )
+            }
+          >
+            Previous findings
+          </button>
           <span>
-            Page {view().page.total_count === 0
+            Page{" "}
+            {view().page.total_count === 0
               ? 0
-              : Math.floor(view().page.offset / STRATEGIC_FIT_QUEUE_PAGE_SIZE) + 1} of {Math.ceil(
-                view().page.total_count / STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-              )}
+              : Math.floor(view().page.offset / STRATEGIC_FIT_QUEUE_PAGE_SIZE) + 1}{" "}
+            of {Math.ceil(view().page.total_count / STRATEGIC_FIT_QUEUE_PAGE_SIZE)}
           </span>
           <button
             type="button"
             disabled={!view().page.has_more}
-            onClick={() => strategicFitFindingQueue.setPageOffset(
-              view().page.offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-            )}
-          >Next findings</button>
+            onClick={() =>
+              strategicFitFindingQueue.setPageOffset(
+                view().page.offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE,
+              )
+            }
+          >
+            Next findings
+          </button>
         </nav>
 
         <p class="sr-only" aria-live="polite" data-queue-selection-announcement>

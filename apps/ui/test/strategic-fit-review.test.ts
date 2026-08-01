@@ -57,7 +57,9 @@ function report(
     value,
     unit,
     reason: value === null ? `${metricId} unavailable` : null,
-    provenance: [{ source_id: `source:${metricId}`, kind: "deterministic-core", state: "available" }],
+    provenance: [
+      { source_id: `source:${metricId}`, kind: "deterministic-core", state: "available" },
+    ],
   });
   return {
     request_id: requestId,
@@ -88,7 +90,11 @@ function report(
       summary: {
         expected_concept_burden: metrics.burden,
         metrics: {
-          familiarity_adjusted_coverage: metric("familiarity-adjusted-coverage", metrics.coverage, "fraction"),
+          familiarity_adjusted_coverage: metric(
+            "familiarity-adjusted-coverage",
+            metrics.coverage,
+            "fraction",
+          ),
           repertoire_regret: metric("repertoire-regret", metrics.regret, "score"),
         },
       },
@@ -118,8 +124,8 @@ function fixture(
     reopen: ({ semantic_finding_id }) => {
       currentMetadata = {
         ...currentMetadata,
-        resolutions: currentMetadata.resolutions.filter((entry) =>
-          entry.semantic_finding_id !== semantic_finding_id
+        resolutions: currentMetadata.resolutions.filter(
+          (entry) => entry.semantic_finding_id !== semantic_finding_id,
         ),
       };
       return { state: "reopened", code: null, message: "Reopened" };
@@ -144,11 +150,13 @@ function fixture(
 
 test("incomplete reviews cannot create a completion record", () => {
   const unresolved = finding("unreviewed");
-  const f = fixture(report("request:1", "report:1", [unresolved], {
-    coverage: 0.6,
-    regret: null,
-    burden: 2,
-  }));
+  const f = fixture(
+    report("request:1", "report:1", [unresolved], {
+      coverage: 0.6,
+      regret: null,
+      burden: 2,
+    }),
+  );
 
   assert.equal(f.state.synchronize().status, "incomplete");
   assert.deepEqual(f.state.snapshot().unreviewed_semantic_finding_ids, ["semantic:unreviewed"]);
@@ -202,10 +210,17 @@ test("mixed terminal decisions produce revision-bound deltas, portable metadata,
   assert.deepEqual(completed.summary?.uncertain_semantic_finding_ids, ["semantic:uncertain"]);
   assert.equal(completed.summary?.remaining_uncertainty_count, 2);
   assert.equal(completed.summary?.repertoire_revision, "browser:2");
-  assert.equal(completed.summary?.source_report_provenance.generated_at, "2026-07-21T12:00:00.000Z");
+  assert.equal(
+    completed.summary?.source_report_provenance.generated_at,
+    "2026-07-21T12:00:00.000Z",
+  );
   assert.deepEqual(
     completed.summary?.metric_deltas.map((entry) => [entry.metric_id, entry.delta]),
-    [["coverage", 0.15000000000000002], ["objective-evaluation", -0.09999999999999998], ["strategic-workload", -0.5]],
+    [
+      ["coverage", 0.15000000000000002],
+      ["objective-evaluation", -0.09999999999999998],
+      ["strategic-workload", -0.5],
+    ],
   );
 
   const exported = f.state.exportSummary(completed.summary!.summary_id);

@@ -29,15 +29,24 @@ ok(BASE === base, "BASE resolves to REPERTOIRE_DIR");
 
 // confine — containment
 ok(confine("ok.pgn") === join(base, "ok.pgn"), "a normal in-base path is allowed");
-ok(confine("sub/new.pgn") === join(base, "sub", "new.pgn"), "a new file in a real subdir is allowed");
+ok(
+  confine("sub/new.pgn") === join(base, "sub", "new.pgn"),
+  "a new file in a real subdir is allowed",
+);
 ok(confine("../outside/secret.txt") === null, "traversal (../) escape is blocked");
 ok(confine("/etc/passwd") === null, "absolute-path escape is blocked");
-ok(confine("escape.pgn") === null, "leaf-symlink escape (read) is blocked — realpath resolved first");
+ok(
+  confine("escape.pgn") === null,
+  "leaf-symlink escape (read) is blocked — realpath resolved first",
+);
 ok(confine("evildir/new.pgn") === null, "parent-symlink escape (write to a new file) is blocked");
 
 // readCappedPgn — byte cap on bytes actually read + missing file
 const small = await readCappedPgn(confine("ok.pgn"));
-ok("text" in small && small.text.includes("1. e4"), "readCappedPgn returns the file text under the cap");
+ok(
+  "text" in small && small.text.includes("1. e4"),
+  "readCappedPgn returns the file text under the cap",
+);
 const big = await readCappedPgn(confine("big.pgn"));
 ok("tooLarge" in big, "readCappedPgn rejects a file over MAX_PGN_BYTES (no full read into memory)");
 const missing = await readCappedPgn(join(base, "nope.pgn"));

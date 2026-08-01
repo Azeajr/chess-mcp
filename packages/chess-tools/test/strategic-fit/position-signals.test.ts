@@ -27,7 +27,9 @@ function valueAt(
   assert.ok(observation, `observation at ply ${ply}`);
   const signal = observation.signals.find((candidate) => candidate.feature_id === feature);
   assert.ok(signal, feature);
-  assert.ok(typeof signal.confidence === "number" && signal.confidence >= 0 && signal.confidence <= 1);
+  assert.ok(
+    typeof signal.confidence === "number" && signal.confidence >= 0 && signal.confidence <= 1,
+  );
   assert.equal(signal.kind, "observation");
   assert.equal(typeof signal.value, "object");
   assert.ok(signal.value !== null && !Array.isArray(signal.value));
@@ -53,9 +55,9 @@ test("a traded fianchetto bishop remains in route history", () => {
     has_pair: false,
     first_lost_ply: 16,
   });
-  const fianchettoSignal = result.observations.at(-1)!.signals.find(
-    (signal) => signal.feature_id === "piece.fianchetto-history",
-  )!;
+  const fianchettoSignal = result.observations
+    .at(-1)!
+    .signals.find((signal) => signal.feature_id === "piece.fianchetto-history")!;
   assert.equal(fianchettoSignal.persistence, "unknown");
 });
 
@@ -67,9 +69,9 @@ test("opposite-side castling is retained as relative, confidence-bearing history
     repertoire: { castled: true, side: "queenside", at_ply: 9 },
     opponent: { castled: true, side: "kingside", at_ply: 10 },
   });
-  const castlingSignal = result.observations.at(-1)!.signals.find(
-    (signal) => signal.feature_id === "king.castling-history",
-  )!;
+  const castlingSignal = result.observations
+    .at(-1)!
+    .signals.find((signal) => signal.feature_id === "king.castling-history")!;
   assert.equal(castlingSignal.confidence, 1);
   assert.equal(castlingSignal.persistence, "unknown");
 });
@@ -89,13 +91,16 @@ test("bishop-pair transitions and the causing exchange are explicit", () => {
   });
 
   const exchanges = valueAt(result, "piece.exchange-history").exchanges as readonly SignalObject[];
-  assert.ok(exchanges.some((exchange) =>
-    exchange.capturing_side === "opponent" &&
-    exchange.capturing_role === "knight" &&
-    exchange.captured_side === "repertoire" &&
-    exchange.captured_role === "bishop" &&
-    exchange.first_ply === 10
-  ));
+  assert.ok(
+    exchanges.some(
+      (exchange) =>
+        exchange.capturing_side === "opponent" &&
+        exchange.capturing_role === "knight" &&
+        exchange.captured_side === "repertoire" &&
+        exchange.captured_role === "bishop" &&
+        exchange.first_ply === 10,
+    ),
+  );
 });
 
 test("a queen exchange remains visible after both queens leave the board", () => {
@@ -106,9 +111,9 @@ test("a queen exchange remains visible after both queens leave the board", () =>
     opponent: { status: "exchanged", first_lost_ply: 9 },
     mutual_exchange: true,
   });
-  const exchangeSignal = result.observations.at(-1)!.signals.find(
-    (signal) => signal.feature_id === "piece.queen-retention",
-  )!;
+  const exchangeSignal = result.observations
+    .at(-1)!
+    .signals.find((signal) => signal.feature_id === "piece.queen-retention")!;
   assert.equal(exchangeSignal.persistence, "unknown");
 });
 
@@ -144,10 +149,7 @@ test("space imbalance, files, wing expansion, and color-complex tendencies are d
 });
 
 test("mirrored Black setup facts are expressed from the repertoire side", () => {
-  const { result } = extract(
-    "1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O *",
-    "black",
-  );
+  const { result } = extract("1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O *", "black");
 
   assert.deepEqual(valueAt(result, "piece.fianchetto-history").repertoire, {
     wings: ["kingside"],
@@ -169,17 +171,33 @@ test("recurring placements, feature coverage, IDs, and ordering are deterministi
   assert.deepEqual(byId, result);
   assert.equal(result.observations.length, graph.routes[0]!.position_ids.length);
   for (const observation of result.observations) {
-    assert.deepEqual(observation.signals.map((signal) => signal.feature_id), STRATEGIC_POSITION_SIGNAL_FEATURES);
-    assert.equal(new Set(observation.signals.map((signal) => signal.signal_id)).size, observation.signals.length);
-    assert.ok(observation.signals.every((signal) => signal.analysis_version === result.analysis_version));
-    assert.ok(observation.signals.every((signal) => signal.provenance[0]?.source_id === "strategic-fit:position-signals"));
+    assert.deepEqual(
+      observation.signals.map((signal) => signal.feature_id),
+      STRATEGIC_POSITION_SIGNAL_FEATURES,
+    );
+    assert.equal(
+      new Set(observation.signals.map((signal) => signal.signal_id)).size,
+      observation.signals.length,
+    );
+    assert.ok(
+      observation.signals.every((signal) => signal.analysis_version === result.analysis_version),
+    );
+    assert.ok(
+      observation.signals.every(
+        (signal) => signal.provenance[0]?.source_id === "strategic-fit:position-signals",
+      ),
+    );
   }
 
-  const placements = valueAt(result, "piece.recurring-placements").placements as readonly SignalObject[];
-  assert.ok(placements.some((placement) =>
-    placement.side === "repertoire" &&
-    placement.role === "knight" &&
-    placement.square === "f3" &&
-    Number(placement.observation_count) >= 2
-  ));
+  const placements = valueAt(result, "piece.recurring-placements")
+    .placements as readonly SignalObject[];
+  assert.ok(
+    placements.some(
+      (placement) =>
+        placement.side === "repertoire" &&
+        placement.role === "knight" &&
+        placement.square === "f3" &&
+        Number(placement.observation_count) >= 2,
+    ),
+  );
 });

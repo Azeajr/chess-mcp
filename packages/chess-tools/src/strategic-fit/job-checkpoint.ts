@@ -111,12 +111,14 @@ export function strategicFitJobCompatibility(
 }
 
 export function strategicFitJobId(compatibility: StrategicFitJobCompatibility): string {
-  return `strategic-fit-job:${stableHash([
-    compatibility.content_key,
-    compatibility.repertoire_revision,
-    compatibility.report_cache_key,
-    compatibility.index_generation,
-  ].join(ID_SEPARATOR))}`;
+  return `strategic-fit-job:${stableHash(
+    [
+      compatibility.content_key,
+      compatibility.repertoire_revision,
+      compatibility.report_cache_key,
+      compatibility.index_generation,
+    ].join(ID_SEPARATOR),
+  )}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -128,8 +130,10 @@ function isStringArray(value: unknown): boolean {
 }
 
 function isGraph(value: unknown): value is RepertoireGraph {
-  return isObject(value) &&
-    typeof value.graph_id === "string" && value.graph_id.length > 0 &&
+  return (
+    isObject(value) &&
+    typeof value.graph_id === "string" &&
+    value.graph_id.length > 0 &&
     typeof value.analysis_version === "string" &&
     typeof value.root_position_id === "string" &&
     Array.isArray(value.positions) &&
@@ -137,24 +141,34 @@ function isGraph(value: unknown): value is RepertoireGraph {
     Array.isArray(value.move_orders) &&
     Array.isArray(value.transposition_links) &&
     Array.isArray(value.routes) &&
-    value.routes.every((route) => isObject(route) &&
-      typeof route.route_id === "string" && isStringArray(route.position_ids));
+    value.routes.every(
+      (route) =>
+        isObject(route) && typeof route.route_id === "string" && isStringArray(route.position_ids),
+    )
+  );
 }
 
 function isTrajectoryReport(value: unknown): value is StrategicTrajectoryReport {
-  return isObject(value) &&
-    typeof value.graph_id === "string" && value.graph_id.length > 0 &&
+  return (
+    isObject(value) &&
+    typeof value.graph_id === "string" &&
+    value.graph_id.length > 0 &&
     typeof value.analysis_version === "string" &&
     Array.isArray(value.trajectories) &&
-    Array.isArray(value.provenance);
+    Array.isArray(value.provenance)
+  );
 }
 
 function isCompatibility(value: unknown): value is StrategicFitJobCompatibility {
-  return isObject(value) &&
+  return (
+    isObject(value) &&
     typeof value.content_key === "string" &&
     typeof value.repertoire_revision === "string" &&
-    typeof value.report_cache_key === "string" && value.report_cache_key.length > 0 &&
-    typeof value.index_generation === "string" && value.index_generation.length > 0;
+    typeof value.report_cache_key === "string" &&
+    value.report_cache_key.length > 0 &&
+    typeof value.index_generation === "string" &&
+    value.index_generation.length > 0
+  );
 }
 
 /** Structural validation of an untrusted stored record; a corrupt one is never partially read. */
@@ -171,7 +185,8 @@ export function isStrategicFitJobCheckpoint(value: unknown): value is StrategicF
     value.completed_phase_index < 0 ||
     value.completed_phase_index >= STRATEGIC_FIT_PROGRESS_PHASES.length ||
     value.completed_phase !== STRATEGIC_FIT_PROGRESS_PHASES[value.completed_phase_index]
-  ) return false;
+  )
+    return false;
   const stages = value.stages;
   if (!isObject(stages)) return false;
   if (typeof stages.graph_content_key !== "string" || stages.graph_content_key.length === 0) {
@@ -230,13 +245,15 @@ export function strategicFitJobCheckpointRejection(
   if (stored.report_cache_key !== expected.report_cache_key) {
     return {
       code: "strategic_fit_checkpoint_stale_settings",
-      reason: "The Strategic Fit profile, resolutions, or analysis settings changed since the checkpoint was saved.",
+      reason:
+        "The Strategic Fit profile, resolutions, or analysis settings changed since the checkpoint was saved.",
     };
   }
   if (stored.index_generation !== expected.index_generation) {
     return {
       code: "strategic_fit_checkpoint_retired_generation",
-      reason: "The analysis manifest or indexed analysis settings changed since the checkpoint was saved.",
+      reason:
+        "The analysis manifest or indexed analysis settings changed since the checkpoint was saved.",
     };
   }
   return null;

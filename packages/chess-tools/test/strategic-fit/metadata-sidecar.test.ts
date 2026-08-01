@@ -81,45 +81,51 @@ function metadata(label: string): StrategicFitDocumentMetadata {
     ...base,
     profile,
     manual_weights: {
-      route_weights: [{
-        route_id: "route:shared",
-        weight: label === "incoming" ? 9 : 2,
+      route_weights: [
+        {
+          route_id: "route:shared",
+          weight: label === "incoming" ? 9 : 2,
+          record_state: "active",
+          stale_reasons: [],
+          reason: label,
+          updated_at: "2026-07-17T12:00:00.000Z",
+          provenance: [SOURCE],
+        },
+      ],
+      decision_weights: [],
+    },
+    cohort_labels: [
+      {
+        label_id: "cohort-label:shared",
+        cohort_id: "cohort:shared",
+        display_name: label === "incoming" ? "Incoming name" : "Local name",
         record_state: "active",
         stale_reasons: [],
         reason: label,
         updated_at: "2026-07-17T12:00:00.000Z",
         provenance: [SOURCE],
-      }],
-      decision_weights: [],
-    },
-    cohort_labels: [{
-      label_id: "cohort-label:shared",
-      cohort_id: "cohort:shared",
-      display_name: label === "incoming" ? "Incoming name" : "Local name",
-      record_state: "active",
-      stale_reasons: [],
-      reason: label,
-      updated_at: "2026-07-17T12:00:00.000Z",
-      provenance: [SOURCE],
-    }],
+      },
+    ],
     resolutions: [resolution("semantic:shared", `resolution:${label}`)],
-    comment_intents: [{
-      decision_id: `comment-intent-decision:${label}`,
-      suggestion_id: "comment-intent:shared",
-      disposition: label === "incoming" ? "confirmed" as const : "rejected" as const,
-      kind: "tournament-weapon" as const,
-      intent_value: "tournament-specific",
-      detection: "phrase" as const,
-      source_comment: "Tournament weapon for team events",
-      source_match: "Tournament weapon",
-      source_comment_index: 0,
-      source_match_index: 0,
-      source_san_path: ["e4", "e5"],
-      references: resolution("semantic:intent", "resolution:intent").references,
-      created_at: "2026-07-17T12:04:00.000Z",
-      updated_at: "2026-07-17T12:04:00.000Z",
-      provenance: [SOURCE],
-    }],
+    comment_intents: [
+      {
+        decision_id: `comment-intent-decision:${label}`,
+        suggestion_id: "comment-intent:shared",
+        disposition: label === "incoming" ? ("confirmed" as const) : ("rejected" as const),
+        kind: "tournament-weapon" as const,
+        intent_value: "tournament-specific",
+        detection: "phrase" as const,
+        source_comment: "Tournament weapon for team events",
+        source_match: "Tournament weapon",
+        source_comment_index: 0,
+        source_match_index: 0,
+        source_san_path: ["e4", "e5"],
+        references: resolution("semantic:intent", "resolution:intent").references,
+        created_at: "2026-07-17T12:04:00.000Z",
+        updated_at: "2026-07-17T12:04:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
     provenance: [{ ...SOURCE, source_id: `sidecar:${label}` }],
   };
 }
@@ -150,9 +156,14 @@ test("untrusted sidecars return stable structured errors for malformed, maliciou
     reason: "The Strategic Fit sidecar is not valid JSON.",
     metadata_issues: [],
   });
-  const valid = JSON.parse(serializeStrategicFitSidecar("document:one", metadata("local"))) as Record<string, unknown>;
+  const valid = JSON.parse(
+    serializeStrategicFitSidecar("document:one", metadata("local")),
+  ) as Record<string, unknown>;
   assert.equal(parseStrategicFitSidecar({ ...valid, bearer: "secret" }).code, "invalid-envelope");
-  assert.equal(parseStrategicFitSidecar({ ...valid, sidecar_version: "99.0.0" }).code, "unsupported-version");
+  assert.equal(
+    parseStrategicFitSidecar({ ...valid, sidecar_version: "99.0.0" }).code,
+    "unsupported-version",
+  );
   assert.equal(parseStrategicFitSidecar({ ...valid, document_id: "" }).code, "invalid-document-id");
   const nested = structuredClone(valid) as { metadata: Record<string, unknown> };
   (nested.metadata.profile as Record<string, unknown>).credentials = { token: "secret" };
@@ -168,9 +179,9 @@ test("untrusted sidecars return stable structured errors for malformed, maliciou
 });
 
 test("a legacy 1.3.0 sidecar migrates with an empty comment-intent collection", () => {
-  const legacy = JSON.parse(
-    serializeStrategicFitSidecar("document:legacy", metadata("local")),
-  ) as { metadata: Record<string, unknown> };
+  const legacy = JSON.parse(serializeStrategicFitSidecar("document:legacy", metadata("local"))) as {
+    metadata: Record<string, unknown>;
+  };
   legacy.metadata.metadata_version = "1.3.0";
   delete legacy.metadata.comment_intents;
 
@@ -196,23 +207,34 @@ test("merge preview replaces durable identities, preserves unmatched records, an
       ...metadata("local").manual_weights,
       decision_weights: [{ decision_id: "decision:shared", weight: 1, ...lifecycle }],
     },
-    cohort_overrides: [{ override_id: "override:shared", kind: "merge" as const, route_ids: ["route:shared"], ...lifecycle }],
-    archive_references: [{
-      archive_id: "archive:shared",
-      repertoire_revision: "browser:7",
-      references: resolution("semantic:x", "resolution:x").references,
-      linked_staged_edit_id: null,
-      created_at: "2026-07-17T12:00:00.000Z",
-      provenance: [SOURCE],
-    }],
-    training_references: [{
-      training_id: "training:shared",
-      finding_id: "finding:shared",
-      repertoire_revision: "browser:7",
-      references: resolution("semantic:x", "resolution:x").references,
-      created_at: "2026-07-17T12:00:00.000Z",
-      provenance: [SOURCE],
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:shared",
+        kind: "merge" as const,
+        route_ids: ["route:shared"],
+        ...lifecycle,
+      },
+    ],
+    archive_references: [
+      {
+        archive_id: "archive:shared",
+        repertoire_revision: "browser:7",
+        references: resolution("semantic:x", "resolution:x").references,
+        linked_staged_edit_id: null,
+        created_at: "2026-07-17T12:00:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
+    training_references: [
+      {
+        training_id: "training:shared",
+        finding_id: "finding:shared",
+        repertoire_revision: "browser:7",
+        references: resolution("semantic:x", "resolution:x").references,
+        created_at: "2026-07-17T12:00:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
   };
   const incoming = {
     ...metadata("incoming"),
@@ -220,21 +242,27 @@ test("merge preview replaces durable identities, preserves unmatched records, an
       ...metadata("incoming").manual_weights,
       decision_weights: [{ decision_id: "decision:shared", weight: 7, ...lifecycle }],
     },
-    exclusions: [{
-      override_id: "override:shared",
-      kind: "exclude" as const,
-      route_ids: ["route:shared"],
-      decision_ids: [],
-      ...lifecycle,
-    }],
-    archive_references: [{
-      ...local.archive_references[0]!,
-      linked_staged_edit_id: "edit:incoming",
-    }],
-    training_references: [{
-      ...local.training_references[0]!,
-      finding_id: "finding:incoming",
-    }],
+    exclusions: [
+      {
+        override_id: "override:shared",
+        kind: "exclude" as const,
+        route_ids: ["route:shared"],
+        decision_ids: [],
+        ...lifecycle,
+      },
+    ],
+    archive_references: [
+      {
+        ...local.archive_references[0]!,
+        linked_staged_edit_id: "edit:incoming",
+      },
+    ],
+    training_references: [
+      {
+        ...local.training_references[0]!,
+        finding_id: "finding:incoming",
+      },
+    ],
   };
   const incomingStale = resolution("semantic:stale", "resolution:stale", "stale");
   const text = serializeStrategicFitSidecar("document:other", {
@@ -264,10 +292,27 @@ test("merge preview replaces durable identities, preserves unmatched records, an
   assert.deepEqual(preview.collections.archive_references.replaced, ["archive:shared"]);
   assert.deepEqual(preview.collections.training_references.replaced, ["training:shared"]);
   assert.deepEqual(preview.collections.comment_intents.replaced, ["comment-intent:shared"]);
-  assert.deepEqual(preview.collections.resolutions.incoming_stale, ["semantic-finding:semantic:stale"]);
-  assert.equal(preview.merged_metadata.manual_weights.route_weights.find((entry) => entry.route_id === "route:shared")?.weight, 9);
-  assert.equal(preview.merged_metadata.resolutions.find((entry) => entry.semantic_finding_id === "semantic:shared")?.resolution_id, "resolution:incoming");
-  assert.equal(preview.merged_metadata.resolutions.find((entry) => entry.semantic_finding_id === "semantic:stale")?.record_state, "stale");
+  assert.deepEqual(preview.collections.resolutions.incoming_stale, [
+    "semantic-finding:semantic:stale",
+  ]);
+  assert.equal(
+    preview.merged_metadata.manual_weights.route_weights.find(
+      (entry) => entry.route_id === "route:shared",
+    )?.weight,
+    9,
+  );
+  assert.equal(
+    preview.merged_metadata.resolutions.find(
+      (entry) => entry.semantic_finding_id === "semantic:shared",
+    )?.resolution_id,
+    "resolution:incoming",
+  );
+  assert.equal(
+    preview.merged_metadata.resolutions.find(
+      (entry) => entry.semantic_finding_id === "semantic:stale",
+    )?.record_state,
+    "stale",
+  );
   assert.equal(preview.merged_metadata.exclusions[0]?.override_id, "override:shared");
   assert.equal(preview.merged_metadata.cohort_overrides.length, 0);
   assert.equal(preview.merged_metadata.cohort_labels[0]?.display_name, "Incoming name");
@@ -294,7 +339,10 @@ test("missing incoming collections preserve local records while a supplied profi
   const preview = previewStrategicFitSidecarMerge("document:current", local, parsed);
   assert.equal(preview.document_id_mismatch, false);
   assert.equal(preview.profile.changed, true);
-  assert.equal(preview.merged_metadata.profile.preferences.preferred_concept_ids[0], "concept:incoming");
+  assert.equal(
+    preview.merged_metadata.profile.preferences.preferred_concept_ids[0],
+    "concept:incoming",
+  );
   assert.deepEqual(preview.merged_metadata.resolutions, local.resolutions);
   assert.deepEqual(preview.merged_metadata.cohort_labels, local.cohort_labels);
   assert.deepEqual(preview.collections.resolutions.preserved, ["semantic-finding:semantic:shared"]);
@@ -303,13 +351,15 @@ test("missing incoming collections preserve local records while a supplied profi
 test("portable intent PGN is legal, escaped, bounded, semantic, and clone-only", () => {
   const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *");
   const before = tree.toPgn();
-  const report = completeStrategicFitReport(analyzeStrategicFit(
-    parseStrategicFitFixture(SHALLOW_LINES_FIXTURE),
-    strategicFitCompleteAnalysisOptions({
-      repertoireColor: SHALLOW_LINES_FIXTURE.repertoireColor,
-      repertoireRevision: "browser:7",
-    }),
-  ));
+  const report = completeStrategicFitReport(
+    analyzeStrategicFit(
+      parseStrategicFitFixture(SHALLOW_LINES_FIXTURE),
+      strategicFitCompleteAnalysisOptions({
+        repertoireColor: SHALLOW_LINES_FIXTURE.repertoireColor,
+        repertoireRevision: "browser:7",
+      }),
+    ),
+  );
   const finding = report.findings[0];
   assert.ok(finding);
   const projectedFinding = {
@@ -319,13 +369,19 @@ test("portable intent PGN is legal, escaped, bounded, semantic, and clone-only",
     explanation: `${finding.explanation} {unsafe}\nsecret-looking text is ordinary evidence`,
   };
   const sourceMetadata = metadata("local");
-  const exported = exportStrategicFitIntentPgn(tree, {
-    ...sourceMetadata,
-    resolutions: [{
-      ...sourceMetadata.resolutions[0]!,
-      profile_snapshot: strategicFitProfileSnapshot(sourceMetadata.profile),
-    }],
-  }, { findings: [projectedFinding], max_findings: 1, max_resolutions: 1, max_comment_chars: 300 });
+  const exported = exportStrategicFitIntentPgn(
+    tree,
+    {
+      ...sourceMetadata,
+      resolutions: [
+        {
+          ...sourceMetadata.resolutions[0]!,
+          profile_snapshot: strategicFitProfileSnapshot(sourceMetadata.profile),
+        },
+      ],
+    },
+    { findings: [projectedFinding], max_findings: 1, max_resolutions: 1, max_comment_chars: 300 },
+  );
 
   assert.equal(tree.toPgn(), before);
   assert.equal(exported.profile_comments, 1);

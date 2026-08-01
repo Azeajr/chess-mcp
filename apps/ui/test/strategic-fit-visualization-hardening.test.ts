@@ -84,8 +84,18 @@ test("map clustering is deterministic and orders clusters stably", () => {
   const first = clusterStrategicMapPoints(largePointFixture());
   const second = clusterStrategicMapPoints(largePointFixture());
   assert.deepEqual(
-    first.clusters.map((cluster) => [cluster.cluster_id, cluster.cx, cluster.cy, cluster.point_count]),
-    second.clusters.map((cluster) => [cluster.cluster_id, cluster.cx, cluster.cy, cluster.point_count]),
+    first.clusters.map((cluster) => [
+      cluster.cluster_id,
+      cluster.cx,
+      cluster.cy,
+      cluster.point_count,
+    ]),
+    second.clusters.map((cluster) => [
+      cluster.cluster_id,
+      cluster.cx,
+      cluster.cy,
+      cluster.point_count,
+    ]),
   );
   const ids = first.clusters.map((cluster) => cluster.cluster_id);
   assert.deepEqual(ids, [...ids].sort());
@@ -108,7 +118,11 @@ test("clustered transposition lines merge between clusters and disclose the ones
   }
   const withinPair = clustering.clusters.find((cluster) => cluster.point_count >= 2)!;
   const edges = [
-    { from_route_id: withinPair.route_ids[0]!, to_route_id: withinPair.route_ids[1]!, shared_position_count: 3 },
+    {
+      from_route_id: withinPair.route_ids[0]!,
+      to_route_id: withinPair.route_ids[1]!,
+      shared_position_count: 3,
+    },
     { from_route_id: points[0]!.id, to_route_id: points[1]!.id, shared_position_count: 2 },
     { from_route_id: points[1]!.id, to_route_id: points[0]!.id, shared_position_count: 4 },
   ];
@@ -118,9 +132,10 @@ test("clustered transposition lines merge between clusters and disclose the ones
   for (const edge of clustered.edges) {
     assert.notEqual(edge.from_cluster_id, edge.to_cluster_id);
   }
-  const reciprocal = clustered.edges.find((edge) =>
-    edge.from_cluster_id === clusterByRoute.get(points[0]!.id) ||
-    edge.to_cluster_id === clusterByRoute.get(points[0]!.id)
+  const reciprocal = clustered.edges.find(
+    (edge) =>
+      edge.from_cluster_id === clusterByRoute.get(points[0]!.id) ||
+      edge.to_cluster_id === clusterByRoute.get(points[0]!.id),
   );
   assert.ok(reciprocal);
   assert.equal(reciprocal.edge_count, 2, "both directions merge into one drawn line");
@@ -152,7 +167,12 @@ test("a crowded flow column keeps its heaviest steps and folds only the lightest
     weight: index / 100,
   }));
   const limit = VISUALIZATION_RENDER_LIMITS.flow_nodes_per_column;
-  const split = splitDecisionFlowColumn(column, limit, (node) => node.weight, (node) => node.node_id);
+  const split = splitDecisionFlowColumn(
+    column,
+    limit,
+    (node) => node.weight,
+    (node) => node.node_id,
+  );
 
   assert.equal(split.rendered.length, limit - 1);
   assert.equal(split.aggregated.length, column.length - (limit - 1));
@@ -165,25 +185,69 @@ test("a crowded flow column keeps its heaviest steps and folds only the lightest
     "the drawn subset keeps the column's own order",
   );
 
-  const under = splitDecisionFlowColumn(column.slice(0, limit), limit, (n) => n.weight, (n) => n.node_id);
+  const under = splitDecisionFlowColumn(
+    column.slice(0, limit),
+    limit,
+    (n) => n.weight,
+    (n) => n.node_id,
+  );
   assert.equal(under.aggregated.length, 0);
   assert.equal(under.rendered.length, limit);
 });
 
 test("merging links onto an aggregate sums weight exactly and drops only collapsed self-links", () => {
   const links: readonly MergeableFlowLink[] = [
-    { link_id: "l1", from_node_id: "a", to_node_id: "x", weight: 0.2, route_ids: ["r1"], finding_ids: ["f1"], truncated: false },
-    { link_id: "l2", from_node_id: "a", to_node_id: "y", weight: 0.3, route_ids: ["r2"], finding_ids: [], truncated: true },
-    { link_id: "l3", from_node_id: "x", to_node_id: "y", weight: 0.1, route_ids: ["r3"], finding_ids: [], truncated: false },
-    { link_id: "l4", from_node_id: "b", to_node_id: "x", weight: 0.4, route_ids: ["r1", "r4"], finding_ids: ["f2"], truncated: false },
+    {
+      link_id: "l1",
+      from_node_id: "a",
+      to_node_id: "x",
+      weight: 0.2,
+      route_ids: ["r1"],
+      finding_ids: ["f1"],
+      truncated: false,
+    },
+    {
+      link_id: "l2",
+      from_node_id: "a",
+      to_node_id: "y",
+      weight: 0.3,
+      route_ids: ["r2"],
+      finding_ids: [],
+      truncated: true,
+    },
+    {
+      link_id: "l3",
+      from_node_id: "x",
+      to_node_id: "y",
+      weight: 0.1,
+      route_ids: ["r3"],
+      finding_ids: [],
+      truncated: false,
+    },
+    {
+      link_id: "l4",
+      from_node_id: "b",
+      to_node_id: "x",
+      weight: 0.4,
+      route_ids: ["r1", "r4"],
+      finding_ids: ["f2"],
+      truncated: false,
+    },
   ];
-  const replacement = new Map([["x", "agg"], ["y", "agg"]]);
+  const replacement = new Map([
+    ["x", "agg"],
+    ["y", "agg"],
+  ]);
   const merged = mergeDecisionFlowLinks(links, replacement);
 
   assert.equal(merged.length, 2, "l3 collapsed inside the aggregate and a to b stayed distinct");
   const fromA = merged.find((link) => link.from_node_id === "a")!;
   assert.equal(fromA.to_node_id, "agg");
-  assert.equal(Math.round(fromA.weight * 100) / 100, 0.5, "both steps into the aggregate are summed");
+  assert.equal(
+    Math.round(fromA.weight * 100) / 100,
+    0.5,
+    "both steps into the aggregate are summed",
+  );
   assert.deepEqual([...fromA.merged_link_ids], ["l1", "l2"]);
   assert.deepEqual([...fromA.route_ids], ["r1", "r2"]);
   assert.deepEqual([...fromA.finding_ids], ["f1"]);
@@ -205,7 +269,11 @@ test("the flow scales to a measured container down to a legibility floor, then s
   assert.equal(decisionFlowScale(800, 400), 1, "a chart that already fits is never enlarged");
   assert.equal(decisionFlowScale(400, 400), 1);
   assert.equal(decisionFlowScale(600, 800), 0.75, "a wide chart shrinks to the container");
-  assert.equal(decisionFlowScale(400, 800), DECISION_FLOW_MINIMUM_SCALE, "shrinking stops at the floor");
+  assert.equal(
+    decisionFlowScale(400, 800),
+    DECISION_FLOW_MINIMUM_SCALE,
+    "shrinking stops at the floor",
+  );
   assert.equal(decisionFlowScale(320, 1_600), DECISION_FLOW_MINIMUM_SCALE);
   assert.equal(decisionFlowScale(null, 800), 1, "an unmeasured container renders unscaled");
   assert.equal(decisionFlowScale(0, 800), 1);
@@ -257,7 +325,7 @@ test("a crowded flow column aggregates while every step stays in the outline and
   for (const aggregate of crowded.aggregates) {
     assert.ok(aggregate.member_node_ids.length >= 2, "a marker never stands in for one step");
     const members = crowded.nodes.filter((view) =>
-      aggregate.member_node_ids.includes(view.node.node_id)
+      aggregate.member_node_ids.includes(view.node.node_id),
     );
     assert.equal(members.length, aggregate.member_node_ids.length);
     const memberWeight = members.reduce((sum, member) => sum + member.node.weight, 0);
@@ -290,14 +358,17 @@ test("a crowded flow column aggregates while every step stays in the outline and
 
   const drawnWeight = crowded.rendered_links.reduce((sum, link) => sum + link.weight, 0);
   const collapsed = crowded.links.filter((view) => {
-    const inside = (nodeId: string) => crowded.aggregates.some((aggregate) =>
-      aggregate.member_node_ids.includes(nodeId)
+    const inside = (nodeId: string) =>
+      crowded.aggregates.some((aggregate) => aggregate.member_node_ids.includes(nodeId));
+    return (
+      inside(view.link.from_node_id) &&
+      inside(view.link.to_node_id) &&
+      crowded.aggregates.some(
+        (aggregate) =>
+          aggregate.member_node_ids.includes(view.link.from_node_id) &&
+          aggregate.member_node_ids.includes(view.link.to_node_id),
+      )
     );
-    return inside(view.link.from_node_id) && inside(view.link.to_node_id) &&
-      crowded.aggregates.some((aggregate) =>
-        aggregate.member_node_ids.includes(view.link.from_node_id) &&
-        aggregate.member_node_ids.includes(view.link.to_node_id)
-      );
   });
   const collapsedWeight = collapsed.reduce((sum, view) => sum + view.link.weight, 0);
   const completeWeight = crowded.links.reduce((sum, view) => sum + view.link.weight, 0);
@@ -314,14 +385,16 @@ test("a report under every cap renders individually and claims no aggregation", 
   const report = analyze(pgn, revision);
 
   const map = buildStrategicMapViewModel(report);
-  const clustering = clusterStrategicMapPoints(map.points.map((view) => ({
-    id: view.point.route_id,
-    cx: view.cx,
-    cy: view.cy,
-    weight: view.point.normalized_weight,
-    resolution: view.point.resolution,
-    finding_ids: view.point.finding_ids,
-  })));
+  const clustering = clusterStrategicMapPoints(
+    map.points.map((view) => ({
+      id: view.point.route_id,
+      cx: view.cx,
+      cy: view.cy,
+      weight: view.point.normalized_weight,
+      resolution: view.point.resolution,
+      finding_ids: view.point.finding_ids,
+    })),
+  );
   assert.equal(clustering.mode, "points");
 
   const flow = buildDecisionFlowViewModel(report, {
@@ -357,10 +430,7 @@ test("a virtualized list mounts a bounded window of a complete list, however lon
   assert.equal(middle.mounted, top.mounted);
   assert.equal(middle.lead, (100 - VIRTUAL_WINDOW_OVERSCAN) * rowSize);
   assert.equal(middle.lead + middle.mounted * rowSize + middle.trail, 5_000 * rowSize);
-  assert.deepEqual(
-    [...middle.items],
-    items.slice(middle.start, middle.start + middle.mounted),
-  );
+  assert.deepEqual([...middle.items], items.slice(middle.start, middle.start + middle.mounted));
 
   const end = virtualWindow(items, { rowSize, viewportSize: 400, scrollOffset: 5_000 * rowSize });
   assert.equal(end.start, 5_000 - end.mounted);
@@ -409,5 +479,5 @@ test("mounted heatmap cells stay bounded by the row and column mount caps", () =
     mountedRows.mounted * mountedColumns.mounted,
     VISUALIZATION_RENDER_LIMITS.virtual_grid_rows * VISUALIZATION_RENDER_LIMITS.virtual_columns,
   );
-  assert.ok(mountedRows.mounted * mountedColumns.mounted < rows.length * columns.length / 100);
+  assert.ok(mountedRows.mounted * mountedColumns.mounted < (rows.length * columns.length) / 100);
 });

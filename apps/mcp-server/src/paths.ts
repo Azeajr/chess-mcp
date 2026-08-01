@@ -11,7 +11,9 @@ import { open } from "node:fs/promises";
 // File-path tools are confined to REPERTOIRE_DIR. Resolve the base's REAL path up front so the
 // containment check compares symlink-resolved paths on both sides; if the dir doesn't exist yet
 // (fresh checkout) fall back to the lexical path — all file ops then fail closed anyway.
-const rawBase = pathResolve(process.env.REPERTOIRE_DIR ?? pathResolve(process.cwd(), "repertoires"));
+const rawBase = pathResolve(
+  process.env.REPERTOIRE_DIR ?? pathResolve(process.cwd(), "repertoires"),
+);
 export const BASE = (() => {
   try {
     return realpathSync(rawBase);

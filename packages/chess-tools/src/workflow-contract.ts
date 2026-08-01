@@ -26,15 +26,17 @@ export interface WorkflowStep {
 type ProjectionPath<T> = T extends readonly unknown[]
   ? never
   : T extends object
-    ? { [K in keyof T & string]-?: K | `${K}.${ProjectionPath<NonNullable<T[K]>>}` }[keyof T & string]
+    ? { [K in keyof T & string]-?: K | `${K}.${ProjectionPath<NonNullable<T[K]>>}` }[keyof T &
+        string]
     : never;
 
 export type StrategicFitSummaryCitation = ProjectionPath<StrategicFitConversationSummary>;
 export type StrategicFitFindingsCitation =
   | ProjectionPath<StrategicFitConversationFindings>
   | ProjectionPath<StrategicFitConversationFindings["findings"][number]>;
-export type StrategicFitFindingCitation =
-  ProjectionPath<StrategicFitConversationFinding["finding"]>;
+export type StrategicFitFindingCitation = ProjectionPath<
+  StrategicFitConversationFinding["finding"]
+>;
 export type StrategicFitCitation =
   | StrategicFitSummaryCitation
   | StrategicFitFindingsCitation
@@ -96,8 +98,7 @@ export const WORKFLOW_INVARIANTS = [
  * it may cite, so an explanation is assembled from returned evidence instead of narrated around it.
  */
 export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
-  goal:
-    "Explain a Strategic Fit report the conversation already produced, at the depth the user asked for, using only what the bounded retrieval views returned.",
+  goal: "Explain a Strategic Fit report the conversation already produced, at the depth the user asked for, using only what the bounded retrieval views returned.",
   rules: [
     "Explain a report through `get_strategic_fit_report`, never by re-running the analysis and never from memory of an earlier answer. Name the exact `report_id`, and the `finding_id` when the subject is one finding.",
     "Quote the projection's own values. Never recompute a score, average contributions, restate one label as another, or turn a strategic distance into an engine evaluation.",
@@ -244,58 +245,192 @@ export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
   ],
 };
 
-const step = (title: string, instruction: string, browserTools: readonly string[], mcpTools: readonly string[] = browserTools): WorkflowStep =>
-  ({ title, instruction, browserTools, mcpTools });
+const step = (
+  title: string,
+  instruction: string,
+  browserTools: readonly string[],
+  mcpTools: readonly string[] = browserTools,
+): WorkflowStep => ({ title, instruction, browserTools, mcpTools });
 
 export const WORKFLOW_CONTRACTS: Record<WorkflowFamily, WorkflowContract> = {
   position: {
     goal: "Evaluate one position and compare legal candidate moves without drifting into whole-game review.",
     steps: [
-      step("Ground", "Validate a pasted FEN, then ground the normalized or current position and its legal moves.", ["validate_fen", "get_position"]),
-      step("Evaluate", "Run one multi-line local evaluation and compare the ranked candidates directly.", ["evaluate_position"]),
-      step("Compare", "Use the full legal-move primitive only when needed; use candidate comparison for moves the user names.", ["get_legal_moves", "compare_moves"]),
-      step("Drill", "Validate a proposed SAN line, take its returned final FEN, and evaluate that child position for the what-if.", ["validate_line", "evaluate_position"]),
+      step(
+        "Ground",
+        "Validate a pasted FEN, then ground the normalized or current position and its legal moves.",
+        ["validate_fen", "get_position"],
+      ),
+      step(
+        "Evaluate",
+        "Run one multi-line local evaluation and compare the ranked candidates directly.",
+        ["evaluate_position"],
+      ),
+      step(
+        "Compare",
+        "Use the full legal-move primitive only when needed; use candidate comparison for moves the user names.",
+        ["get_legal_moves", "compare_moves"],
+      ),
+      step(
+        "Drill",
+        "Validate a proposed SAN line, take its returned final FEN, and evaluate that child position for the what-if.",
+        ["validate_line", "evaluate_position"],
+      ),
     ],
-    report: ["Lead with the position verdict and favored side.", "Compare the top candidates with labeled scores.", "State only validated continuations."],
+    report: [
+      "Lead with the position verdict and favored side.",
+      "Compare the top candidates with labeled scores.",
+      "State only validated continuations.",
+    ],
   },
   review: {
     goal: "Review one game's mainline, identify turning points, and explain only engine-grounded alternatives.",
     steps: [
-      step("Validate", "Validate pasted PGN before review; use the already parsed current game directly on the browser host.", ["validate_pgn"]),
-      step("Summarize", "Get the compact game verdict first: accuracy, per-side classifications, and worst moves.", ["get_game_summary"]),
-      step("Inspect", "Retrieve the mainline move analysis and focus on the few largest losses rather than narrating every good move.", ["analyze_game"]),
-      step("Explain", "For each discussed alternative, ground the position, validate the line, and evaluate a child only when the summary is insufficient.", ["get_position", "validate_line", "evaluate_position"]),
+      step(
+        "Validate",
+        "Validate pasted PGN before review; use the already parsed current game directly on the browser host.",
+        ["validate_pgn"],
+      ),
+      step(
+        "Summarize",
+        "Get the compact game verdict first: accuracy, per-side classifications, and worst moves.",
+        ["get_game_summary"],
+      ),
+      step(
+        "Inspect",
+        "Retrieve the mainline move analysis and focus on the few largest losses rather than narrating every good move.",
+        ["analyze_game"],
+      ),
+      step(
+        "Explain",
+        "For each discussed alternative, ground the position, validate the line, and evaluate a child only when the summary is insufficient.",
+        ["get_position", "validate_line", "evaluate_position"],
+      ),
     ],
-    report: ["Lead with accuracy and one to three turning points.", "For each mistake: played move, labeled swing, grounded best move, validated line, and one plain-language reason."],
+    report: [
+      "Lead with accuracy and one to three turning points.",
+      "For each mistake: played move, labeled swing, grounded best move, validated line, and one plain-language reason.",
+    ],
   },
   annotation: {
     goal: "Create a saveable annotated game or repertoire artifact without model-authored PGN content.",
     steps: [
-      step("Choose artifact", "Use game annotation for one mainline and repertoire annotation for a branching preparation tree; never substitute one for the other.", ["export_annotated_pgn", "export_annotated_repertoire"]),
-      step("Validate pasted input", "Validate only PGN pasted by the user. The browser's current parsed document does not need an argument-less validation call.", ["validate_pgn"]),
-      step("Export", "Call the chosen export operation and preserve the returned artifact reference. Do not hand-assemble or repeat the PGN payload.", ["export_annotated_pgn", "export_annotated_repertoire"]),
+      step(
+        "Choose artifact",
+        "Use game annotation for one mainline and repertoire annotation for a branching preparation tree; never substitute one for the other.",
+        ["export_annotated_pgn", "export_annotated_repertoire"],
+      ),
+      step(
+        "Validate pasted input",
+        "Validate only PGN pasted by the user. The browser's current parsed document does not need an argument-less validation call.",
+        ["validate_pgn"],
+      ),
+      step(
+        "Export",
+        "Call the chosen export operation and preserve the returned artifact reference. Do not hand-assemble or repeat the PGN payload.",
+        ["export_annotated_pgn", "export_annotated_repertoire"],
+      ),
     ],
-    report: ["Name the artifact and summarize what was annotated.", "Keep the artifact identifier/path available for saving; do not echo full PGN."],
+    report: [
+      "Name the artifact and summarize what was annotated.",
+      "Keep the artifact identifier/path available for saving; do not echo full PGN.",
+    ],
   },
   repertoire: {
     goal: "Pressure-test a branching repertoire for soundness, coverage, memorization cost, structures, and practical opponent preparation.",
     steps: [
-      step("Profile", "Use the aggregate structural profile for identity; use structure search to locate lines matching explicit structure, center, theme, or color-complex criteria.", ["get_structural_profile", "find_structures"]),
-      step("Analyze strategic fit", "Run the versioned Strategic Fit report with an explicit profile or the labeled inferred default. Custom profiles may set bounded feature-family weights and browser source filters; explain their impact and source availability. Manual, population, and personal-history estimates are independently normalized under usable profile coefficients; unavailable sources contribute zero rather than diluting the result. Browser-local training mastery adjusts personalized metrics with explicit coverage. Review expected-weight findings and their evidence; never treat missing data, difference, uncertainty, forced diversity, or intentional diversity as a defect.", ["analyze_repertoire_congruence", "get_structural_profile"]),
-      step("Confirm profile intent", "When the user describes goals such as low theory, a preferred structure, or an acceptable evaluation loss, translate that into an explicit profile proposal instead of quietly assuming it during analysis. In the browser, propose the exact preferences and let the user compare them against the current effective profile: nothing is saved until they accept, a rejected or superseded proposal never becomes intent, and accepting changes profile preferences only and never the repertoire tree. Propose concept identities the analysis actually reported and values inside their documented ranges; an invalid proposal is rejected, not adjusted. On MCP nothing is remembered between calls, so pass the confirmed profile explicitly with each analysis and never claim it was stored.", ["propose_strategic_fit_profile", "analyze_repertoire_congruence"], ["analyze_repertoire_congruence"]),
-      step("Discuss a report", "Do not re-run the analysis to talk about a report already produced in this conversation. Retrieve the bounded summary, one page of findings, or one finding with its evidence and navigable paths using the exact report and finding identities. These views are deliberately partial: never present omitted issues, dimensions, references, or truncated text as absent evidence, and treat an unavailable or stale identity as a stale report rather than re-deriving an older answer.", ["get_strategic_fit_report"]),
-      step("Plan a retained exception", "When the user keeps a branch and trains it instead of replacing it, write the plan card that goes with it: the plan, the pawn break, the favorable exchange, the danger signs, the familiar structure, and the position to drill. In the browser, ask for that finding's deterministic evidence basis first and build every section from the concepts, checkpoints, drill positions, and validated moves it returned; a section that names no evidence, an identity the basis did not return, a move off those paths, and any outside master game are rejected rather than trimmed, and evidence the basis says it withheld is withheld, not absent. Nothing is saved until the user accepts, acceptance records the plan with the existing training item rather than editing repertoire lines, and a rejected or superseded plan never becomes training metadata. On MCP there is no document training state to ground or save a plan card, so explain the branch from the report instead and never imply one was stored.", ["get_strategic_fit_report", "propose_strategic_fit_plan", "find_only_moves"], ["get_strategic_fit_report", "find_only_moves"]),
-      step("Audit user moves","Audit prescribed user moves tree-wide and rank centipawn-loss findings. This checks move quality, not missing opponent replies.", ["audit_repertoire_moves"]),
-      step("Find gaps", "Scan opponent decision nodes for strong uncovered replies. For a real gap, generate best-evaluation and best-fit fills and let the user choose before staging or applying an edit.", ["find_repertoire_gaps", "suggest_gap_fills", "modify_repertoire_line"]),
-      step("Find only moves", "Find sharp user-turn positions where the best move clearly separates from the second. Fix non-best prescriptions through the audit path before producing a drill deck.", ["find_only_moves"]),
-      step("Shorten safely", "Find sound transposition shortcuts, compare memorization savings with evaluation, inspect quality and post-prune coverage, then stage/apply only the chosen prune.", ["find_pruning_transpositions", "inspect_shortcut", "modify_repertoire_line"], ["find_pruning_transpositions", "compare_shortcut_lines", "check_shortcut_coverage", "modify_repertoire_line"]),
-      step("Extend and connect", "Use coverage for dangling lines and stub reconnection. For a replacement, compare complete Strategic Fit V2 candidate subtrees, coverage, safety, provenance, and atomic change-set previews. Browser previews are staged for explicit acceptance; MCP previews do not provide archive storage or undo and return a new handle only after an explicit edit.", ["get_repertoire_coverage", "suggest_complementary_lines", "suggest_replacement_line"]),
-      step("Redesign under constraints", "When the user states a redesign goal in their own terms — at most this much evaluation loss, no more theory, keep this much coverage — turn it into explicit bounds and let them confirm the bounds before anything is built from them. In the browser, propose the bounds, put every contradiction the proposal reports to the user as the question it is, and never drop, relax, or reconcile a bound yourself. Ask for the portfolio only with a confirmed constraint set: every option is one of Replacement Lab's already-generated candidates with its own scoring, safety evidence, and change set, and each measured value, Pareto status, and exclusion comes from that retained evidence. Never state an evaluation, coverage figure, legality claim, or candidate line of your own, and never present an unmeasured metric as a satisfied bound. An empty portfolio names the bound that emptied it: report that bound and ask which one to move rather than proposing a line the evidence does not contain. Selecting an option stages that existing change set for the user's revision-bound confirmation; nothing is applied, no bound is saved as a preference, and a rejected portfolio persists nothing. On MCP there is no lab result, staging, or undo, so compare candidate previews from the replacement operation instead and never claim bounds, a portfolio, or a staged change exist.", ["suggest_replacement_line", "propose_strategic_fit_portfolio"], ["suggest_replacement_line"]),
-      step("Use practical evidence", "Use explorer popularity and theory depth only with authentication. Keep engine soundness distinct from human frequency.", ["position_popularity", "find_theory_depth"]),
-      step("Prepare an opponent", "Use opponent preparation for an opponent's games and targets; use repertoire-versus-history for the user's own departures. Do not substitute one report for the other.", ["prep_vs_opponent", "repertoire_vs_history"]),
-      step("Export the right artifact", "Use annotated repertoire export for the branching tree and only-move deck export for training. In the browser, use the JSON sidecar for canonical Strategic Fit metadata and the intent PGN only for portable comments; never expose tokens or repeat full artifact content.", ["export_annotated_repertoire", "find_only_moves", "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn"], ["export_annotated_repertoire", "find_only_moves"]),
+      step(
+        "Profile",
+        "Use the aggregate structural profile for identity; use structure search to locate lines matching explicit structure, center, theme, or color-complex criteria.",
+        ["get_structural_profile", "find_structures"],
+      ),
+      step(
+        "Analyze strategic fit",
+        "Run the versioned Strategic Fit report with an explicit profile or the labeled inferred default. Custom profiles may set bounded feature-family weights and browser source filters; explain their impact and source availability. Manual, population, and personal-history estimates are independently normalized under usable profile coefficients; unavailable sources contribute zero rather than diluting the result. Browser-local training mastery adjusts personalized metrics with explicit coverage. Review expected-weight findings and their evidence; never treat missing data, difference, uncertainty, forced diversity, or intentional diversity as a defect.",
+        ["analyze_repertoire_congruence", "get_structural_profile"],
+      ),
+      step(
+        "Confirm profile intent",
+        "When the user describes goals such as low theory, a preferred structure, or an acceptable evaluation loss, translate that into an explicit profile proposal instead of quietly assuming it during analysis. In the browser, propose the exact preferences and let the user compare them against the current effective profile: nothing is saved until they accept, a rejected or superseded proposal never becomes intent, and accepting changes profile preferences only and never the repertoire tree. Propose concept identities the analysis actually reported and values inside their documented ranges; an invalid proposal is rejected, not adjusted. On MCP nothing is remembered between calls, so pass the confirmed profile explicitly with each analysis and never claim it was stored.",
+        ["propose_strategic_fit_profile", "analyze_repertoire_congruence"],
+        ["analyze_repertoire_congruence"],
+      ),
+      step(
+        "Discuss a report",
+        "Do not re-run the analysis to talk about a report already produced in this conversation. Retrieve the bounded summary, one page of findings, or one finding with its evidence and navigable paths using the exact report and finding identities. These views are deliberately partial: never present omitted issues, dimensions, references, or truncated text as absent evidence, and treat an unavailable or stale identity as a stale report rather than re-deriving an older answer.",
+        ["get_strategic_fit_report"],
+      ),
+      step(
+        "Plan a retained exception",
+        "When the user keeps a branch and trains it instead of replacing it, write the plan card that goes with it: the plan, the pawn break, the favorable exchange, the danger signs, the familiar structure, and the position to drill. In the browser, ask for that finding's deterministic evidence basis first and build every section from the concepts, checkpoints, drill positions, and validated moves it returned; a section that names no evidence, an identity the basis did not return, a move off those paths, and any outside master game are rejected rather than trimmed, and evidence the basis says it withheld is withheld, not absent. Nothing is saved until the user accepts, acceptance records the plan with the existing training item rather than editing repertoire lines, and a rejected or superseded plan never becomes training metadata. On MCP there is no document training state to ground or save a plan card, so explain the branch from the report instead and never imply one was stored.",
+        ["get_strategic_fit_report", "propose_strategic_fit_plan", "find_only_moves"],
+        ["get_strategic_fit_report", "find_only_moves"],
+      ),
+      step(
+        "Audit user moves",
+        "Audit prescribed user moves tree-wide and rank centipawn-loss findings. This checks move quality, not missing opponent replies.",
+        ["audit_repertoire_moves"],
+      ),
+      step(
+        "Find gaps",
+        "Scan opponent decision nodes for strong uncovered replies. For a real gap, generate best-evaluation and best-fit fills and let the user choose before staging or applying an edit.",
+        ["find_repertoire_gaps", "suggest_gap_fills", "modify_repertoire_line"],
+      ),
+      step(
+        "Find only moves",
+        "Find sharp user-turn positions where the best move clearly separates from the second. Fix non-best prescriptions through the audit path before producing a drill deck.",
+        ["find_only_moves"],
+      ),
+      step(
+        "Shorten safely",
+        "Find sound transposition shortcuts, compare memorization savings with evaluation, inspect quality and post-prune coverage, then stage/apply only the chosen prune.",
+        ["find_pruning_transpositions", "inspect_shortcut", "modify_repertoire_line"],
+        [
+          "find_pruning_transpositions",
+          "compare_shortcut_lines",
+          "check_shortcut_coverage",
+          "modify_repertoire_line",
+        ],
+      ),
+      step(
+        "Extend and connect",
+        "Use coverage for dangling lines and stub reconnection. For a replacement, compare complete Strategic Fit V2 candidate subtrees, coverage, safety, provenance, and atomic change-set previews. Browser previews are staged for explicit acceptance; MCP previews do not provide archive storage or undo and return a new handle only after an explicit edit.",
+        ["get_repertoire_coverage", "suggest_complementary_lines", "suggest_replacement_line"],
+      ),
+      step(
+        "Redesign under constraints",
+        "When the user states a redesign goal in their own terms — at most this much evaluation loss, no more theory, keep this much coverage — turn it into explicit bounds and let them confirm the bounds before anything is built from them. In the browser, propose the bounds, put every contradiction the proposal reports to the user as the question it is, and never drop, relax, or reconcile a bound yourself. Ask for the portfolio only with a confirmed constraint set: every option is one of Replacement Lab's already-generated candidates with its own scoring, safety evidence, and change set, and each measured value, Pareto status, and exclusion comes from that retained evidence. Never state an evaluation, coverage figure, legality claim, or candidate line of your own, and never present an unmeasured metric as a satisfied bound. An empty portfolio names the bound that emptied it: report that bound and ask which one to move rather than proposing a line the evidence does not contain. Selecting an option stages that existing change set for the user's revision-bound confirmation; nothing is applied, no bound is saved as a preference, and a rejected portfolio persists nothing. On MCP there is no lab result, staging, or undo, so compare candidate previews from the replacement operation instead and never claim bounds, a portfolio, or a staged change exist.",
+        ["suggest_replacement_line", "propose_strategic_fit_portfolio"],
+        ["suggest_replacement_line"],
+      ),
+      step(
+        "Use practical evidence",
+        "Use explorer popularity and theory depth only with authentication. Keep engine soundness distinct from human frequency.",
+        ["position_popularity", "find_theory_depth"],
+      ),
+      step(
+        "Prepare an opponent",
+        "Use opponent preparation for an opponent's games and targets; use repertoire-versus-history for the user's own departures. Do not substitute one report for the other.",
+        ["prep_vs_opponent", "repertoire_vs_history"],
+      ),
+      step(
+        "Export the right artifact",
+        "Use annotated repertoire export for the branching tree and only-move deck export for training. In the browser, use the JSON sidecar for canonical Strategic Fit metadata and the intent PGN only for portable comments; never expose tokens or repeat full artifact content.",
+        [
+          "export_annotated_repertoire",
+          "find_only_moves",
+          "export_strategic_fit_metadata",
+          "export_strategic_fit_intent_pgn",
+        ],
+        ["export_annotated_repertoire", "find_only_moves"],
+      ),
     ],
-    report: ["Separate Strategic Fit, structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.", "Keep confidence, strategic difference, objective quality, replacement priority, and training priority distinct.", "Give navigable SAN paths and preserve report, finding, action, and artifact references.", "Present alternatives and tradeoffs; never choose or apply a mutation silently."],
+    report: [
+      "Separate Strategic Fit, structural identity, weak user moves, uncovered opponent replies, only-move drills, and practical frequency.",
+      "Keep confidence, strategic difference, objective quality, replacement priority, and training priority distinct.",
+      "Give navigable SAN paths and preserve report, finding, action, and artifact references.",
+      "Present alternatives and tradeoffs; never choose or apply a mutation silently.",
+    ],
     explanations: STRATEGIC_FIT_EXPLANATIONS,
   },
 };
@@ -305,22 +440,31 @@ const citations = (fields: readonly string[]): string =>
 
 function renderGroundedQuery(query: WorkflowGroundedQuery): string {
   const operations = query.tools.map((tool) => `\`${tool}\``).join(", ");
-  const source = query.view === null
-    ? `Not a report question; use ${operations}.`
-    : `Use ${operations} with view \`${query.view}\`${query.sort === undefined ? "" : ` sorted \`${query.sort}\``}.`;
+  const source =
+    query.view === null
+      ? `Not a report question; use ${operations}.`
+      : `Use ${operations} with view \`${query.view}\`${query.sort === undefined ? "" : ` sorted \`${query.sort}\``}.`;
   return `- "${query.question}" ${source} ${query.answer} ${citations(query.cite)} Missing evidence: ${query.missing}`;
 }
 
 /** Render one family's explanation and exploration guidance for either host. */
 export function renderWorkflowExplanations(contract: WorkflowExplanationContract): string {
   return [
-    "## Explanation and exploration contract", "", contract.goal, "",
-    ...contract.rules.map((rule) => `- ${rule}`), "",
-    "Answer at the depth the user asked for; use the intermediate level when they did not say.", "",
-    ...contract.levels.map((level) =>
-      `- ${level.title} (\`${level.id}\`): ${level.instruction} ${citations(level.cite)}`),
+    "## Explanation and exploration contract",
     "",
-    "Grounded questions and the retrieval that answers each:", "",
+    contract.goal,
+    "",
+    ...contract.rules.map((rule) => `- ${rule}`),
+    "",
+    "Answer at the depth the user asked for; use the intermediate level when they did not say.",
+    "",
+    ...contract.levels.map(
+      (level) =>
+        `- ${level.title} (\`${level.id}\`): ${level.instruction} ${citations(level.cite)}`,
+    ),
+    "",
+    "Grounded questions and the retrieval that answers each:",
+    "",
     ...contract.queries.map(renderGroundedQuery),
   ].join("\n");
 }
@@ -332,9 +476,19 @@ export function renderWorkflowGuidance(family: WorkflowFamily, host: WorkflowHos
     return `${index + 1}. ${item.title}: ${item.instruction} Tools: ${tools.map((tool) => `\`${tool}\``).join(", ")}.`;
   });
   return [
-    "## Shared grounding contract", "", ...WORKFLOW_INVARIANTS.map((rule) => `- ${rule}`), "",
-    "## Shared method", "", workflow.goal, "", ...method, "",
-    "## Shared report contract", "", ...workflow.report.map((item) => `- ${item}`),
+    "## Shared grounding contract",
+    "",
+    ...WORKFLOW_INVARIANTS.map((rule) => `- ${rule}`),
+    "",
+    "## Shared method",
+    "",
+    workflow.goal,
+    "",
+    ...method,
+    "",
+    "## Shared report contract",
+    "",
+    ...workflow.report.map((item) => `- ${item}`),
     ...(workflow.explanations === undefined
       ? []
       : ["", renderWorkflowExplanations(workflow.explanations)]),
@@ -357,6 +511,9 @@ export function renderWorkflowOverview(host: WorkflowHost): string {
       }),
     ]),
     ...Object.values(WORKFLOW_CONTRACTS).flatMap((workflow) =>
-      workflow.explanations === undefined ? [] : ["", renderWorkflowExplanations(workflow.explanations)]),
+      workflow.explanations === undefined
+        ? []
+        : ["", renderWorkflowExplanations(workflow.explanations)],
+    ),
   ].join("\n");
 }

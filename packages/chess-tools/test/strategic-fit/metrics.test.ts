@@ -23,10 +23,7 @@ import {
   type StrategicRouteWeightingReport,
   type StrategicTrainingMetricEvidence,
 } from "../../src/index.ts";
-import {
-  WHITE_TRANSPOSITION_FIXTURE,
-  parseStrategicFitFixture,
-} from "./fixtures.ts";
+import { WHITE_TRANSPOSITION_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
 const BRANCH_DEPTH_PGN = `[Event "One leaf after 1...e5"]
 [Result "*"]
@@ -114,7 +111,9 @@ function modeReports(
   selectedCandidateIndexes: readonly number[] = candidateGroups.map((_, index) => index),
 ): StrategicModeReport {
   const cohortId = `cohort:${graph.graph_id}`;
-  const routeWeight = new Map(weights.routes.map((route) => [route.route_id, route.normalized_weight]));
+  const routeWeight = new Map(
+    weights.routes.map((route) => [route.route_id, route.normalized_weight]),
+  );
   const candidates: StrategicModeMedoidCandidate[] = candidateGroups.map((routeIds) => ({
     representative_route_id: [...routeIds].sort()[0]!,
     supporting_route_ids: [...routeIds].sort(),
@@ -139,7 +138,7 @@ function modeReports(
     };
   });
   const selectedRouteIds = new Set(modes.flatMap((mode) => mode.supporting_route_ids));
-  const state = modes.length > 1 ? "mixed-profile" as const : "actionable" as const;
+  const state = modes.length > 1 ? ("mixed-profile" as const) : ("actionable" as const);
   const cohort: StrategicComparableCohort = {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     cohort_id: cohortId,
@@ -182,17 +181,19 @@ function modeReports(
       insufficient_evidence_route_count: 0,
     },
     applied_override_ids: [],
-    selections: [{
-      cohort_id: cohortId,
-      state: modes.length > 1 ? "mixed-profile" : "single-mode",
-      selected_mode_ids: modes.map((mode) => mode.mode_id),
-      candidates,
-      unassigned_route_ids: graph.routes
-        .map((route) => route.route_id)
-        .filter((routeId) => !selectedRouteIds.has(routeId)),
-      effective_sample_size: weights.effective_sample_size,
-      reasons: modes.length > 1 ? ["multiple-supported-modes"] : ["single-supported-mode"],
-    }],
+    selections: [
+      {
+        cohort_id: cohortId,
+        state: modes.length > 1 ? "mixed-profile" : "single-mode",
+        selected_mode_ids: modes.map((mode) => mode.mode_id),
+        candidates,
+        unassigned_route_ids: graph.routes
+          .map((route) => route.route_id)
+          .filter((routeId) => !selectedRouteIds.has(routeId)),
+        effective_sample_size: weights.effective_sample_size,
+        reasons: modes.length > 1 ? ["multiple-supported-modes"] : ["single-supported-mode"],
+      },
+    ],
     provenance: [SOURCE],
   };
 }
@@ -250,8 +251,12 @@ function branchGroups(graph: RepertoireGraph): {
   c5: string[];
   concepts: Map<string, readonly string[]>;
 } {
-  const e5 = graph.routes.filter((route) => route.san_moves[1] === "e5").map((route) => route.route_id);
-  const c5 = graph.routes.filter((route) => route.san_moves[1] === "c5").map((route) => route.route_id);
+  const e5 = graph.routes
+    .filter((route) => route.san_moves[1] === "e5")
+    .map((route) => route.route_id);
+  const c5 = graph.routes
+    .filter((route) => route.san_moves[1] === "c5")
+    .map((route) => route.route_id);
   return {
     e5,
     c5,
@@ -266,12 +271,9 @@ test("hand-calculated metrics use expected branch weights instead of raw leaf co
   const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
   const weights = calculateStrategicRouteWeights(graph);
   const groups = branchGroups(graph);
-  const report = calculateStrategicFitOverview(input(
-    graph,
-    weights,
-    [groups.e5, groups.c5],
-    groups.concepts,
-  ));
+  const report = calculateStrategicFitOverview(
+    input(graph, weights, [groups.e5, groups.c5], groups.concepts),
+  );
 
   assert.equal(graph.routes.length, 3);
   close(report.metrics.strategic_entropy.value!, 1);
@@ -289,9 +291,12 @@ test("hand-calculated metrics use expected branch weights instead of raw leaf co
 test("popularity-style external weights deterministically change entropy and centrality", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
   const groups = branchGroups(graph);
-  const firstOpponentPosition = graph.decisions.find((decision) => decision.san === "e5")!.from_position_id;
-  const rootBranches = graph.decisions.filter((decision) =>
-    decision.owner === "opponent" && decision.from_position_id === firstOpponentPosition
+  const firstOpponentPosition = graph.decisions.find(
+    (decision) => decision.san === "e5",
+  )!.from_position_id;
+  const rootBranches = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" && decision.from_position_id === firstOpponentPosition,
   );
   const weights = calculateStrategicRouteWeights(graph, {
     mode: "external",
@@ -301,22 +306,21 @@ test("popularity-style external weights deterministically change entropy and cen
       provenance: [SOURCE],
     })),
   });
-  const metrics = calculateStrategicFitMetrics(input(
-    graph,
-    weights,
-    [groups.e5, groups.c5],
-    groups.concepts,
-  ));
+  const metrics = calculateStrategicFitMetrics(
+    input(graph, weights, [groups.e5, groups.c5], groups.concepts),
+  );
 
   close(metrics.strategic_entropy.value!, 0.721928);
-  assert.deepEqual(metrics.concept_centrality.value?.map((value) => [
-    value.concept_id,
-    value.expected_frequency,
-  ]), [
-    ["plan.e5", 0.8],
-    ["plan.c5", 0.2],
-  ]);
-  assert.ok(metrics.strategic_entropy.provenance.some((source) => source.source_id === SOURCE.source_id));
+  assert.deepEqual(
+    metrics.concept_centrality.value?.map((value) => [value.concept_id, value.expected_frequency]),
+    [
+      ["plan.e5", 0.8],
+      ["plan.c5", 0.2],
+    ],
+  );
+  assert.ok(
+    metrics.strategic_entropy.provenance.some((source) => source.source_id === SOURCE.source_id),
+  );
 });
 
 test("missing training metadata stays unavailable while cohort totals and provisional floor reconcile", () => {
@@ -324,13 +328,12 @@ test("missing training metadata stays unavailable while cohort totals and provis
   const weights = calculateStrategicRouteWeights(graph);
   const groups = branchGroups(graph);
   const forced = finding(groups.c5);
-  const report = calculateStrategicFitOverview(input(
-    graph,
-    weights,
-    [groups.e5, groups.c5],
-    groups.concepts,
-    { selectedCandidateIndexes: [0], findings: [forced] },
-  ));
+  const report = calculateStrategicFitOverview(
+    input(graph, weights, [groups.e5, groups.c5], groups.concepts, {
+      selectedCandidateIndexes: [0],
+      findings: [forced],
+    }),
+  );
 
   assert.deepEqual(report.metrics.exception_burden.value, {
     expected_frequency: 0.5,
@@ -341,14 +344,18 @@ test("missing training metadata stays unavailable while cohort totals and provis
   close(report.metrics.forced_diversity_floor.value!, 0.5);
   assert.equal(report.metrics.familiarity_adjusted_coverage.state, "unavailable");
   assert.equal(report.metrics.familiarity_adjusted_coverage.value, null);
-  assert.match(report.metrics.familiarity_adjusted_coverage.reason!, /requires calibrated concept-mastery/);
+  assert.match(
+    report.metrics.familiarity_adjusted_coverage.reason!,
+    /requires calibrated concept-mastery/,
+  );
   assert.equal(report.metrics.training_adjusted_workload.state, "unavailable");
   assert.equal(report.metrics.homogenization_cost.state, "unavailable");
   assert.equal(report.metrics.repertoire_regret.state, "unavailable");
   assert.equal(report.unresolved_finding_count, 1);
 
   const primaryWeight = groups.e5.reduce(
-    (sum, routeId) => sum + weights.routes.find((route) => route.route_id === routeId)!.normalized_weight,
+    (sum, routeId) =>
+      sum + weights.routes.find((route) => route.route_id === routeId)!.normalized_weight,
     0,
   );
   close(primaryWeight + report.metrics.exception_burden.value!.expected_frequency, 1);
@@ -358,12 +365,8 @@ test("optional mastery produces familiarity and training-adjusted workload input
   const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
   const weights = calculateStrategicRouteWeights(graph);
   const groups = branchGroups(graph);
-  const metrics = calculateStrategicFitMetrics(input(
-    graph,
-    weights,
-    [groups.e5, groups.c5],
-    groups.concepts,
-    {
+  const metrics = calculateStrategicFitMetrics(
+    input(graph, weights, [groups.e5, groups.c5], groups.concepts, {
       selectedCandidateIndexes: [0],
       findings: [finding(groups.c5)],
       training: {
@@ -373,30 +376,40 @@ test("optional mastery produces familiarity and training-adjusted workload input
         ],
         provenance: [TRAINING_SOURCE],
       },
-    },
-  ));
+    }),
+  );
 
   assert.equal(metrics.familiarity_adjusted_coverage.state, "available");
   close(metrics.familiarity_adjusted_coverage.value!, 0.5);
   assert.equal(metrics.training_adjusted_workload.state, "available");
   close(metrics.training_adjusted_workload.value!, 0.2);
-  assert.match(metrics.training_adjusted_workload.reason!, /100% of relevant expected route weight/);
-  assert.match(metrics.familiarity_adjusted_coverage.reason!, /100% of relevant expected route weight/);
+  assert.match(
+    metrics.training_adjusted_workload.reason!,
+    /100% of relevant expected route weight/,
+  );
+  assert.match(
+    metrics.familiarity_adjusted_coverage.reason!,
+    /100% of relevant expected route weight/,
+  );
   assert.deepEqual(metrics.exception_burden.value, {
     expected_frequency: 0.5,
     training_cost: 0.2,
   });
-  assert.ok(metrics.training_adjusted_workload.provenance.some((source) =>
-    source.source_id === TRAINING_SOURCE.source_id
-  ));
+  assert.ok(
+    metrics.training_adjusted_workload.provenance.some(
+      (source) => source.source_id === TRAINING_SOURCE.source_id,
+    ),
+  );
 });
 
 test("hand-calculated personalized metrics disclose market, training, and replacement coverage", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
   const groups = branchGroups(graph);
-  const rootBranches = graph.decisions.filter((decision) =>
-    decision.owner === "opponent" && decision.from_position_id ===
-      graph.decisions.find((candidate) => candidate.san === "e5")!.from_position_id
+  const rootBranches = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" &&
+      decision.from_position_id ===
+        graph.decisions.find((candidate) => candidate.san === "e5")!.from_position_id,
   );
   const marketSource: StrategicFitSourceProvenance = {
     source_id: "fixture:market",
@@ -419,12 +432,8 @@ test("hand-calculated personalized metrics disclose market, training, and replac
       provenance: [marketSource],
     },
   });
-  const metrics = calculateStrategicFitMetrics(input(
-    graph,
-    weights,
-    [groups.e5, groups.c5],
-    groups.concepts,
-    {
+  const metrics = calculateStrategicFitMetrics(
+    input(graph, weights, [groups.e5, groups.c5], groups.concepts, {
       selectedCandidateIndexes: [0],
       findings: [finding(groups.c5, "genuine-inconsistency", 0.8, 1)],
       training: {
@@ -434,8 +443,8 @@ test("hand-calculated personalized metrics disclose market, training, and replac
         ],
         provenance: [TRAINING_SOURCE],
       },
-    },
-  ));
+    }),
+  );
 
   assert.equal(metrics.familiarity_adjusted_coverage.state, "available");
   close(metrics.familiarity_adjusted_coverage.value!, 0.8);
@@ -446,34 +455,38 @@ test("hand-calculated personalized metrics disclose market, training, and replac
   assert.match(metrics.repertoire_regret.reason!, /100% training coverage/);
   assert.match(metrics.repertoire_regret.reason!, /100% viable-replacement coverage/);
   assert.match(metrics.repertoire_regret.reason!, /available market weighting/);
-  assert.ok(metrics.repertoire_regret.provenance.some((source) =>
-    source.source_id === marketSource.source_id
-  ));
-  assert.ok(metrics.repertoire_regret.provenance.some((source) =>
-    source.source_id === TRAINING_SOURCE.source_id
-  ));
+  assert.ok(
+    metrics.repertoire_regret.provenance.some(
+      (source) => source.source_id === marketSource.source_id,
+    ),
+  );
+  assert.ok(
+    metrics.repertoire_regret.provenance.some(
+      (source) => source.source_id === TRAINING_SOURCE.source_id,
+    ),
+  );
 });
 
 test("transposition resilience recognizes shared modes without double-counting concept reuse", () => {
-  const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
+  const graph = buildRepertoireGraph(
+    parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE),
+    "white",
+  );
   const weights = calculateStrategicRouteWeights(graph);
   const routeIds = graph.routes.map((route) => route.route_id);
   const concepts = new Map(routeIds.map((routeId) => [routeId, ["plan.shared"]] as const));
-  const metrics = calculateStrategicFitMetrics(input(
-    graph,
-    weights,
-    [routeIds],
-    concepts,
-  ));
+  const metrics = calculateStrategicFitMetrics(input(graph, weights, [routeIds], concepts));
 
   assert.equal(graph.transposition_links.length > 0, true);
   assert.equal(weights.weighting_units.length, 1);
   close(metrics.move_order_resilience.value!, 1);
   // Two move orders into one canonical evidence unit are not two independent concept observations.
   close(metrics.concept_reuse.value!, 0);
-  assert.deepEqual(metrics.concept_centrality.value, [{
-    concept_id: "plan.shared",
-    expected_frequency: 1,
-    cohort_ids: [`cohort:${graph.graph_id}`],
-  }]);
+  assert.deepEqual(metrics.concept_centrality.value, [
+    {
+      concept_id: "plan.shared",
+      expected_frequency: 1,
+      cohort_ids: [`cohort:${graph.graph_id}`],
+    },
+  ]);
 });

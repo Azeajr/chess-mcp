@@ -33,8 +33,9 @@ function onlyTrajectory(
 }
 
 function configuredSnapshot(trajectory: StrategicTrajectory, ply: number): StrategicSnapshot {
-  const snapshot = trajectory.snapshots.find((candidate) =>
-    candidate.checkpoint.kind === "configured-ply" && candidate.checkpoint.ply === ply
+  const snapshot = trajectory.snapshots.find(
+    (candidate) =>
+      candidate.checkpoint.kind === "configured-ply" && candidate.checkpoint.ply === ply,
   );
   assert.ok(snapshot, `configured snapshot at ply ${ply}`);
   return snapshot;
@@ -79,14 +80,8 @@ function persistenceSignature(snapshot: StrategicSnapshot) {
 }
 
 test("terminal editing depth cannot change classification at matched checkpoints", () => {
-  const short = onlyTrajectory(
-    "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 *",
-    [5, 7],
-  );
-  const deep = onlyTrajectory(
-    "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. Bg5 O-O *",
-    [5, 7],
-  );
+  const short = onlyTrajectory("1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 *", [5, 7]);
+  const deep = onlyTrajectory("1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. Bg5 O-O *", [5, 7]);
 
   assert.deepEqual(comparableEvidence(deep), comparableEvidence(short));
   assert.equal(deep.stable_signal_ids.length, short.stable_signal_ids.length);
@@ -137,10 +132,7 @@ test("temporary doubled pawns remain transient while persistent doubled pawns be
 });
 
 test("delayed castling transitions from stable absence to irreversible route history", () => {
-  const trajectory = onlyTrajectory(
-    "1. Nf3 d5 2. g3 Nf6 3. Bg2 e6 4. d3 Be7 5. O-O *",
-    [5, 7, 9],
-  );
+  const trajectory = onlyTrajectory("1. Nf3 d5 2. g3 Nf6 3. Bg2 e6 4. d3 Be7 5. O-O *", [5, 7, 9]);
   const before = signalAt(configuredSnapshot(trajectory, 5), "king.castling-history");
   const establishedAbsence = signalAt(configuredSnapshot(trajectory, 7), "king.castling-history");
   const after = signalAt(configuredSnapshot(trajectory, 9), "king.castling-history");
@@ -199,7 +191,9 @@ test("incomplete routes disclose every missing checkpoint and evidence coverage"
       "configured-ply",
     ],
   );
-  assert.ok(trajectory.missing_checkpoints.some((checkpoint) => checkpoint.reason.includes("horizon 8")));
+  assert.ok(
+    trajectory.missing_checkpoints.some((checkpoint) => checkpoint.reason.includes("horizon 8")),
+  );
   assert.equal(trajectory.snapshots.length, 1);
   assert.equal(trajectory.snapshots[0]!.checkpoint.kind, "final-valid-position");
   assert.equal(trajectory.stable_signal_ids.length, 0);
@@ -241,12 +235,20 @@ test("trajectory IDs, ordering, confidence, provenance, and injected selections 
   const trajectory = first.trajectories[0]!;
   assert.deepEqual(
     trajectory.snapshots.map((snapshot) => snapshot.checkpoint.ply),
-    [...trajectory.snapshots.map((snapshot) => snapshot.checkpoint.ply)].sort((left, right) => left - right),
+    [...trajectory.snapshots.map((snapshot) => snapshot.checkpoint.ply)].sort(
+      (left, right) => left - right,
+    ),
   );
-  assert.ok(trajectory.snapshots.every((snapshot) =>
-    snapshot.classifier_confidence >= 0 && snapshot.classifier_confidence <= 1
-  ));
+  assert.ok(
+    trajectory.snapshots.every(
+      (snapshot) => snapshot.classifier_confidence >= 0 && snapshot.classifier_confidence <= 1,
+    ),
+  );
   assert.equal(first.provenance[0]?.source_id, "strategic-fit:trajectory");
-  assert.ok(trajectory.provenance.some((source) => source.source_id === "strategic-fit:pawn-signals"));
-  assert.ok(trajectory.provenance.some((source) => source.source_id === "strategic-fit:position-signals"));
+  assert.ok(
+    trajectory.provenance.some((source) => source.source_id === "strategic-fit:pawn-signals"),
+  );
+  assert.ok(
+    trajectory.provenance.some((source) => source.source_id === "strategic-fit:position-signals"),
+  );
 });

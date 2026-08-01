@@ -21,14 +21,24 @@ export function createArtifact(format: ArtifactFormat, content: string, name: st
     kind: "artifact",
     format,
     name,
-    mediaType: format === "pgn"
-      ? "application/x-chess-pgn"
-      : format === "json" ? "application/json" : "text/csv",
+    mediaType:
+      format === "pgn"
+        ? "application/x-chess-pgn"
+        : format === "json"
+          ? "application/json"
+          : "text/csv",
     content,
     bytes: new Blob([content]).size,
   };
   setArtifacts((all) => [...all, artifact]);
-  return { kind: artifact.kind, artifact_id: artifact.id, format, name, media_type: artifact.mediaType, bytes: artifact.bytes };
+  return {
+    kind: artifact.kind,
+    artifact_id: artifact.id,
+    format,
+    name,
+    media_type: artifact.mediaType,
+    bytes: artifact.bytes,
+  };
 }
 
 export const artifactById = (id: string) => artifacts().find((artifact) => artifact.id === id);

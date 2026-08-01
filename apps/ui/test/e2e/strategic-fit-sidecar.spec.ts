@@ -12,13 +12,16 @@ type ChessHarness = {
   flushStrategicFitMetadata(documentId?: string): Promise<void>;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 async function downloadText(download: Download): Promise<string> {
   const stream = await download.createReadStream();
@@ -32,19 +35,23 @@ async function waitForMetadata(page: Page) {
 }
 
 async function indexedDbValue(page: Page, key: string): Promise<unknown> {
-  return page.evaluate(async (requestedKey) => new Promise<unknown>((resolve, reject) => {
-    const open = indexedDB.open("chess-repertoire", 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const request = db.transaction("kv", "readonly").objectStore("kv").get(requestedKey);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        db.close();
-        resolve(request.result);
-      };
-    };
-  }), key);
+  return page.evaluate(
+    async (requestedKey) =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open("chess-repertoire", 1);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const request = db.transaction("kv", "readonly").objectStore("kv").get(requestedKey);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            db.close();
+            resolve(request.result);
+          };
+        };
+      }),
+    key,
+  );
 }
 
 async function portability(page: Page) {
@@ -52,7 +59,9 @@ async function portability(page: Page) {
   await section.click();
 }
 
-test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves secret-free JSON", async ({ page }) => {
+test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves secret-free JSON", async ({
+  page,
+}) => {
   await page.goto("/");
   await waitForMetadata(page);
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "sidecar.pgn"));
@@ -111,12 +120,28 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(incoming)),
   });
-  await expect(page.getByRole("region", { name: "Strategic Fit metadata import preview" })).toBeVisible();
-  await expect(page.getByText("I understand this sidecar belongs to a different document ID.")).toBeVisible();
-  expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual([]);
+  await expect(
+    page.getByRole("region", { name: "Strategic Fit metadata import preview" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("I understand this sidecar belongs to a different document ID."),
+  ).toBeVisible();
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual([]);
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("region", { name: "Strategic Fit metadata import preview" })).toBeHidden();
-  expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual([]);
+  await expect(
+    page.getByRole("region", { name: "Strategic Fit metadata import preview" }),
+  ).toBeHidden();
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual([]);
 
   await picker.setInputFiles({
     name: "incoming.json",
@@ -125,25 +150,45 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
   });
   await page.getByLabel("I understand this sidecar belongs to a different document ID.").check();
   await page.getByRole("button", { name: "Confirm metadata import" }).click();
-  await expect(page.getByRole("status")).toContainText("Strategic Fit metadata imported and saved.");
-  expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual(["concept:imported"]);
+  await expect(page.getByRole("status")).toContainText(
+    "Strategic Fit metadata imported and saved.",
+  );
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual(["concept:imported"]);
   expect(await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }))).toEqual({
     pgn: initial.pgn,
     version: initial.version,
   });
-  const savedWorking = await indexedDbValue(page, "workingRepertoire") as { documentId?: string } | undefined;
+  const savedWorking = (await indexedDbValue(page, "workingRepertoire")) as
+    | { documentId?: string }
+    | undefined;
   expect(savedWorking?.documentId).toBe(initial.documentId);
   await page.reload();
   await waitForMetadata(page);
-  expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual(["concept:imported"]);
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual(["concept:imported"]);
 });
 
-test("sidecar UI rejects malformed and stale/cross-document previews without mutation", async ({ page }) => {
+test("sidecar UI rejects malformed and stale/cross-document previews without mutation", async ({
+  page,
+}) => {
   await page.goto("/");
   await waitForMetadata(page);
   await portability(page);
   const picker = page.getByLabel("Choose Strategic Fit metadata JSON");
-  await picker.setInputFiles({ name: "broken.json", mimeType: "application/json", buffer: Buffer.from("{") });
+  await picker.setInputFiles({
+    name: "broken.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("{"),
+  });
   await expect(page.getByRole("alert")).toContainText("not valid JSON");
 
   const incoming = await chess(page, (api) => ({
@@ -160,14 +205,24 @@ test("sidecar UI rejects malformed and stale/cross-document previews without mut
   await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
   await page.getByRole("button", { name: "Confirm metadata import" }).click();
   await expect(page.getByRole("alert")).toContainText("changed after this preview");
-  expect(await chess(page, (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids)).toEqual([]);
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual([]);
 });
 
-test("portable intent PGN saves through the canonical UI command and reparses without changing the source", async ({ page }) => {
+test("portable intent PGN saves through the canonical UI command and reparses without changing the source", async ({
+  page,
+}) => {
   await page.goto("/");
   await waitForMetadata(page);
   await chess(page, (api) => {
-    api.loadPgn("1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *\n\n1. c4 e5 2. Nc3 Nf6 *", "intent.pgn");
+    api.loadPgn(
+      "1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *\n\n1. c4 e5 2. Nc3 Nf6 *",
+      "intent.pgn",
+    );
     const metadata = api.strategicFitMetadata();
     api.replaceStrategicFitMetadata({
       ...metadata,
@@ -178,7 +233,9 @@ test("portable intent PGN saves through the canonical UI command and reparses wi
   const before = await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }));
   await portability(page);
   await page.getByRole("button", { name: "Generate intent PGN" }).click();
-  await expect(page.getByRole("button", { name: "Save intent PGN" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Save intent PGN" })).toBeVisible({
+    timeout: 20_000,
+  });
   const downloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save intent PGN" }).click();
   const download = await downloadEvent;
@@ -186,11 +243,15 @@ test("portable intent PGN saves through the canonical UI command and reparses wi
   const pgn = await downloadText(download);
   expect(pgn).toContain("Strategic Fit intent");
   expect(() => GameTree.fromPgn(pgn)).not.toThrow();
-  expect(await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }))).toEqual(before);
+  expect(await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }))).toEqual(
+    before,
+  );
   await chess(page, (api, portablePgn) => api.loadPgn(portablePgn, "portable-intent.pgn"), pgn);
   await waitForMetadata(page);
-  expect(await chess(page, (api) => ({
-    source: api.strategicFitMetadata().profile.source,
-    provisional: api.strategicFitMetadata().profile.provisional,
-  }))).toEqual({ source: "inferred", provisional: true });
+  expect(
+    await chess(page, (api) => ({
+      source: api.strategicFitMetadata().profile.source,
+      provisional: api.strategicFitMetadata().profile.provisional,
+    })),
+  ).toEqual({ source: "inferred", provisional: true });
 });

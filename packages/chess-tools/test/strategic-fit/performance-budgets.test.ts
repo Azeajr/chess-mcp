@@ -28,7 +28,10 @@ import {
 
 const SCALE = strategicFitBenchmarkScale("small");
 
-function options(revision: string, extra: Partial<AnalyzeStrategicFitOptions> = {}): AnalyzeStrategicFitOptions {
+function options(
+  revision: string,
+  extra: Partial<AnalyzeStrategicFitOptions> = {},
+): AnalyzeStrategicFitOptions {
   return strategicFitCompleteAnalysisOptions({
     repertoireColor: SCALE.repertoire_color,
     repertoireRevision: revision,
@@ -47,11 +50,12 @@ function affectedCohortScope(
   currentPgn: string,
 ): StrategicFitRecomputationScope {
   const current = new Set(
-    buildRepertoireGraph(GameTree.fromPgn(currentPgn), SCALE.repertoire_color).routes
-      .map((route) => route.route_id),
+    buildRepertoireGraph(GameTree.fromPgn(currentPgn), SCALE.repertoire_color).routes.map(
+      (route) => route.route_id,
+    ),
   );
-  const removed = buildRepertoireGraph(GameTree.fromPgn(previousPgn), SCALE.repertoire_color).routes
-    .map((route) => route.route_id)
+  const removed = buildRepertoireGraph(GameTree.fromPgn(previousPgn), SCALE.repertoire_color)
+    .routes.map((route) => route.route_id)
     .filter((routeId) => !current.has(routeId));
   assert.ok(removed.length > 0, "the benchmark edit removes at least one route");
   return {
@@ -75,7 +79,11 @@ test("the benchmark gate passes a within-budget record and rejects every regress
     perturb(record);
     const evaluation = evaluateStrategicFitBenchmark(record);
     assert.equal(evaluation.ok, false, `the gate must reject ${description}`);
-    assert.equal(evaluation.failures.length, 1, `${description} must fail exactly the check it targets`);
+    assert.equal(
+      evaluation.failures.length,
+      1,
+      `${description} must fail exactly the check it targets`,
+    );
   }
 });
 
@@ -129,7 +137,11 @@ test("a generated benchmark repertoire is byte-identical every time it is genera
   const edited = editStrategicFitBenchmarkRepertoire(SCALE, first);
   assert.equal(edited.digest, editStrategicFitBenchmarkRepertoire(SCALE, first).digest);
   assert.notEqual(edited.digest, first.digest);
-  assert.equal(edited.nodes, first.nodes, "the edit replaces one reply rather than growing the tree");
+  assert.equal(
+    edited.nodes,
+    first.nodes,
+    "the edit replaces one reply rather than growing the tree",
+  );
   assert.notEqual(edited.pgn, first.pgn);
 });
 
@@ -151,10 +163,13 @@ test("cold, warm, and incremental runs of a generated repertoire all return the 
   const edited = editStrategicFitBenchmarkRepertoire(SCALE, fixture);
   const editedTree = GameTree.fromPgn(edited.pgn);
   const editedCold = scan(editedTree, options("benchmark:test:2"));
-  const incremental = scan(editedTree, options("benchmark:test:2", {
-    index,
-    recomputationScope: affectedCohortScope(cold, fixture.pgn, edited.pgn),
-  }));
+  const incremental = scan(
+    editedTree,
+    options("benchmark:test:2", {
+      index,
+      recomputationScope: affectedCohortScope(cold, fixture.pgn, edited.pgn),
+    }),
+  );
 
   assert.equal(JSON.stringify(incremental), JSON.stringify(editedCold));
   assert.equal(index.lastPlan?.mode, "incremental");
@@ -190,17 +205,21 @@ test("a cancelled scan stops at the phase boundary instead of finishing", () => 
   let observedAt = Number.NaN;
 
   assert.throws(
-    () => analyzeStrategicFit(tree, options("benchmark:test:cancel", {
-      onProgress: (progress: StrategicFitProgress) => {
-        if (progress.state === "completed") completed.push(progress.phase);
-        if (progress.state === "cancelled") observedAt = performance.now();
-        if (!cancel && progress.phase_index === 1 && progress.state === "completed") {
-          cancel = true;
-          requestedAt = performance.now();
-        }
-      },
-      shouldCancel: () => cancel,
-    })),
+    () =>
+      analyzeStrategicFit(
+        tree,
+        options("benchmark:test:cancel", {
+          onProgress: (progress: StrategicFitProgress) => {
+            if (progress.state === "completed") completed.push(progress.phase);
+            if (progress.state === "cancelled") observedAt = performance.now();
+            if (!cancel && progress.phase_index === 1 && progress.state === "completed") {
+              cancel = true;
+              requestedAt = performance.now();
+            }
+          },
+          shouldCancel: () => cancel,
+        }),
+      ),
     (error: unknown) =>
       error instanceof StrategicFitAnalysisCancelledError &&
       error.code === "strategic_fit_analysis_cancelled" &&

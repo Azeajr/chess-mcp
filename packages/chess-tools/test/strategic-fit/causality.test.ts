@@ -34,10 +34,10 @@ function analyzePair(
   const concepts = buildStrategicConceptDictionary(trajectories);
   const routeById = new Map(graph.routes.map((route) => [route.route_id, route]));
   const affected = trajectories.trajectories.find((trajectory) =>
-    routeById.get(trajectory.route_id)!.san_moves.join(" ").startsWith(affectedPrefix)
+    routeById.get(trajectory.route_id)!.san_moves.join(" ").startsWith(affectedPrefix),
   );
   const baseline = trajectories.trajectories.find((trajectory) =>
-    routeById.get(trajectory.route_id)!.san_moves.join(" ").startsWith(baselinePrefix)
+    routeById.get(trajectory.route_id)!.san_moves.join(" ").startsWith(baselinePrefix),
   );
   assert.ok(affected, `affected route beginning ${affectedPrefix}`);
   assert.ok(baseline, `baseline route beginning ${baselinePrefix}`);
@@ -76,12 +76,13 @@ test("an opponent-created structure is not blamed on the player's following quie
   assert.equal(result.attribution.label, "mostly-opponent-forced");
   assert.ok((result.attribution.controllability ?? 1) <= 0.34);
   assert.deepEqual(result.attribution.likely_causal_decision_ids, []);
-  const firstDifference = result.attribution.timeline.find((event) =>
-    event.kind === "first-strategic-difference"
+  const firstDifference = result.attribution.timeline.find(
+    (event) => event.kind === "first-strategic-difference",
   );
   assert.ok(firstDifference?.decision_id);
   assert.equal(
-    result.graph.decisions.find((decision) => decision.decision_id === firstDifference.decision_id)!.owner,
+    result.graph.decisions.find((decision) => decision.decision_id === firstDifference.decision_id)!
+      .owner,
     "opponent",
   );
 });
@@ -109,9 +110,13 @@ test("a repertoire pawn decision receives player-controlled causal ownership", (
   assert.equal(result.attribution.label, "mostly-player-controlled");
   assert.ok((result.attribution.controllability ?? 0) >= 0.65);
   assert.ok(result.attribution.likely_causal_decision_ids.length > 0);
-  assert.ok(result.attribution.likely_causal_decision_ids.every((decisionId) =>
-    result.graph.decisions.find((decision) => decision.decision_id === decisionId)!.owner === "repertoire"
-  ));
+  assert.ok(
+    result.attribution.likely_causal_decision_ids.every(
+      (decisionId) =>
+        result.graph.decisions.find((decision) => decision.decision_id === decisionId)!.owner ===
+        "repertoire",
+    ),
+  );
   assert.ok(result.attribution.timeline.some((event) => event.kind === "irreversible-event"));
 });
 
@@ -190,7 +195,10 @@ test("a route pair with no stable pivot remains explicitly unknown", () => {
   assert.equal(result.attribution.controllability, null);
   assert.equal(result.attribution.label, "unknown");
   assert.deepEqual(result.attribution.likely_causal_decision_ids, []);
-  assert.match(result.attribution.explanation, /No stable strategic pivot|no stable position-level feature pivot/i);
+  assert.match(
+    result.attribution.explanation,
+    /No stable strategic pivot|no stable position-level feature pivot/i,
+  );
 });
 
 test("standard castling is an irreversible castling event, not a friendly-rook capture", () => {
@@ -210,8 +218,8 @@ test("standard castling is an irreversible castling event, not a friendly-rook c
     "Nf3 d5 g3 Nf6 Bg2 e6 d3",
   );
 
-  const castling = result.attribution.timeline.find((event) =>
-    event.kind === "irreversible-event" && event.san === "O-O"
+  const castling = result.attribution.timeline.find(
+    (event) => event.kind === "irreversible-event" && event.san === "O-O",
   );
   assert.ok(castling);
   assert.match(castling.explanation, /castling/);
@@ -242,7 +250,9 @@ test("Black repertoire decisions use graph ownership rather than White move pari
   assert.ok((result.attribution.controllability ?? 0) >= 0.65);
   assert.ok(result.attribution.likely_causal_decision_ids.length > 0);
   for (const decisionId of result.attribution.likely_causal_decision_ids) {
-    const decision = result.graph.decisions.find((candidate) => candidate.decision_id === decisionId)!;
+    const decision = result.graph.decisions.find(
+      (candidate) => candidate.decision_id === decisionId,
+    )!;
     assert.equal(decision.owner, "repertoire");
     assert.equal(decision.mover_color, "black");
   }

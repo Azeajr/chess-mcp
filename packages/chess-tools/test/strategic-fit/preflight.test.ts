@@ -37,7 +37,8 @@ function openingTableFor(tree: GameTree): OpeningTable {
     });
   });
   // An empty repertoire still needs a nonempty injected table to isolate its empty-tree result.
-  if (table.size === 0) table.set("opening-table-present", { eco: "A00", name: "Uncommon Opening" });
+  if (table.size === 0)
+    table.set("opening-table-present", { eco: "A00", name: "Uncommon Opening" });
   return table;
 }
 
@@ -87,7 +88,11 @@ test("routes before the first frozen checkpoint remain incomplete evidence", () 
   assert.equal(report.route_count, 3);
   assert.equal(report.comparable_route_count, 0);
   assert.equal(report.incomplete_route_count, 3);
-  assert.deepEqual(codes(report), ["shallow-route", "incomplete-route", "insufficient-comparable-positions"]);
+  assert.deepEqual(codes(report), [
+    "shallow-route",
+    "incomplete-route",
+    "insufficient-comparable-positions",
+  ]);
   assert.deepEqual(report.issues[0]!.details, {
     first_comparable_ply: 12,
     shallow_route_count: 3,

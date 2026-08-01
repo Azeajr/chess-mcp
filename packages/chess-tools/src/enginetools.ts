@@ -15,7 +15,15 @@ import type { ChildNode, PgnNodeData } from "chessops/pgn";
 import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
-import { decisionNodes, turnNodes, gapSeverity, medianLineLength, SEVERITY_RANK, moveSan, type Severity } from "./gaps.js";
+import {
+  decisionNodes,
+  turnNodes,
+  gapSeverity,
+  medianLineLength,
+  SEVERITY_RANK,
+  moveSan,
+  type Severity,
+} from "./gaps.js";
 import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
 import type { OpeningTable } from "./openings.js";
@@ -65,13 +73,19 @@ async function mapBounded<T, R>(
   control.onProgress?.(0, items.length);
   const run = async () => {
     for (;;) {
-      if (control.shouldCancel?.()) { cancelled = true; return; }
+      if (control.shouldCancel?.()) {
+        cancelled = true;
+        return;
+      }
       const index = next++;
       if (index >= items.length) return;
       results[index] = await worker(items[index]!, index);
       done++;
       control.onProgress?.(done, items.length);
-      if (control.shouldCancel?.()) { cancelled = true; return; }
+      if (control.shouldCancel?.()) {
+        cancelled = true;
+        return;
+      }
     }
   };
   const concurrency = Math.max(1, Math.min(items.length || 1, control.concurrency ?? 4));
@@ -123,7 +137,12 @@ export interface MoveRecord {
 }
 
 /** One engine eval per mainline position (N+1 for N moves); cp_loss from consecutive white evals. */
-export async function analyzeMainline(pgn: string, depth: number, analyse: Analyse, control: OperationControl = {}): Promise<MoveRecord[] | null> {
+export async function analyzeMainline(
+  pgn: string,
+  depth: number,
+  analyse: Analyse,
+  control: OperationControl = {},
+): Promise<MoveRecord[] | null> {
   const moves = mainline(pgn);
   if (!moves.length) return [];
   const fens = moves.map((m) => m.fenBefore);
@@ -141,7 +160,10 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
       // to move is mated (white-POV ∓MATE_CP); stalemate / insufficient material ⇒ a draw (0). Treating
       // [] as engine_unavailable (the old bug) aborted the review of every game ending in mate.
       const pos = chessFromFen(fens[i]!);
-      return { whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0, bestUci: "" };
+      return {
+        whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0,
+        bestUci: "",
+      };
     }
     return { whiteCp: whitePov(l, MATE_CP), bestUci: l.uci };
   });
@@ -154,7 +176,8 @@ export async function analyzeMainline(pgn: string, depth: number, analyse: Analy
   return moves.map((m, k) => {
     const before = evals[k]!;
     const after = evals[k + 1]!;
-    const loss = m.color === "white" ? before.whiteCp - after.whiteCp : after.whiteCp - before.whiteCp;
+    const loss =
+      m.color === "white" ? before.whiteCp - after.whiteCp : after.whiteCp - before.whiteCp;
     const cp_loss = Math.max(0, loss);
     return {
       ply: m.ply,
@@ -256,10 +279,24 @@ export async function findRepertoireGaps(
         after.play(parseUci(l.uci)!);
         const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
         if (tgt) {
-          covered.push({ path: node.path, san_path: node.sanPath, fen: node.fen, uncovered_move: san, joins_path: tgt.sanPath });
+          covered.push({
+            path: node.path,
+            san_path: node.sanPath,
+            fen: node.fen,
+            uncovered_move: san,
+            joins_path: tgt.sanPath,
+          });
           continue;
         }
-        gaps.push({ path: node.path, san_path: node.sanPath, fen: node.fen, uncovered_move: san, eval: l.cp, mate: l.mate, severity: gapSeverity(best, moverCp(l)) });
+        gaps.push({
+          path: node.path,
+          san_path: node.sanPath,
+          fen: node.fen,
+          uncovered_move: san,
+          eval: l.cp,
+          mate: l.mate,
+          severity: gapSeverity(best, moverCp(l)),
+        });
       }
       return { gaps, covered };
     },
@@ -279,10 +316,14 @@ export async function findRepertoireGaps(
     // One request per unique decision node (several gaps can share one), post-limit only —
     // request budget ≤ limit at 1 req/s. The lookup caches, so transposition re-hits are free.
     const fens = [...new Set(gaps.map((g) => g.fen))];
-    const popularity = await mapBounded(fens, async (fen) => [fen, await opts.popularity!(fen)] as const, {
-      shouldCancel: opts.shouldCancel,
-      concurrency: opts.concurrency,
-    });
+    const popularity = await mapBounded(
+      fens,
+      async (fen) => [fen, await opts.popularity!(fen)] as const,
+      {
+        shouldCancel: opts.shouldCancel,
+        concurrency: opts.concurrency,
+      },
+    );
     if (popularity.cancelled) return { cancelled: true };
     const byFen = new Map(popularity.results);
     for (const g of gaps) {
@@ -292,9 +333,19 @@ export async function findRepertoireGaps(
       g.played_pct = pos ? (m?.played_pct ?? 0) : null;
       g.played_games = pos ? (m?.games ?? 0) : null;
     }
-    gaps.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || (b.played_pct ?? -1) - (a.played_pct ?? -1));
+    gaps.sort(
+      (a, b) =>
+        SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
+        (b.played_pct ?? -1) - (a.played_pct ?? -1),
+    );
   }
-  return { color, positions_scanned: nodes.length, total_gaps: gaps.length, gaps, covered_by_transposition: covered };
+  return {
+    color,
+    positions_scanned: nodes.length,
+    total_gaps: gaps.length,
+    gaps,
+    covered_by_transposition: covered,
+  };
 }
 
 // --- audit_repertoire_moves (engine-check the user's own prescribed moves, tree-wide) ---
@@ -373,7 +424,11 @@ export async function auditRepertoireMoves(
           const l = r[0];
           // [] ⇒ the prescribed move ENDS the game (same terminal contract as compareMoves):
           // mate delivered is decisive for the mover; stalemate / insufficient material is a draw.
-          prescribedCp = l ? -moverPov(l, pos.turn === "white", MATE_CP) : pos.isCheckmate() ? MATE_CP : 0;
+          prescribedCp = l
+            ? -moverPov(l, pos.turn === "white", MATE_CP)
+            : pos.isCheckmate()
+              ? MATE_CP
+              : 0;
         }
         const cp_loss = Math.max(0, best - prescribedCp);
         if (cp_loss < minCpLoss) continue;
@@ -525,7 +580,13 @@ export async function findOnlyMoves(
       if (!mv) break; // replay-verified at load; unreachable
       pos.play(mv);
     }
-    if (critical) lines.push({ line: leaf.path, critical, your_moves, density: Math.round((critical / your_moves) * 100) / 100 });
+    if (critical)
+      lines.push({
+        line: leaf.path,
+        critical,
+        your_moves,
+        density: Math.round((critical / your_moves) * 100) / 100,
+      });
   }
   lines.sort((a, b) => b.density - a.density || b.critical - a.critical);
 
@@ -552,7 +613,10 @@ export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): stri
   const side = color === "white" ? "White" : "Black";
   const rows = findings.map((f) => {
     const front = `${f.path.length ? numberedSan(f.path) : "(start position)"} (${side} to move)`;
-    const note = f.margin >= MATE_CP / 2 ? "only move: alternatives are decisively worse" : `only move: next best -${f.margin}cp`;
+    const note =
+      f.margin >= MATE_CP / 2
+        ? "only move: alternatives are decisively worse"
+        : `only move: next best -${f.margin}cp`;
     const back = `${f.prescribed.join(" / ")} (${note})`;
     return [front, back, f.fen, String(f.margin)].map(csvField).join(",");
   });
@@ -617,14 +681,24 @@ export async function annotateRepertoire(
   const phaseControl = (): OperationControl => ({
     shouldCancel: opts.shouldCancel,
     concurrency: opts.concurrency,
-    onProgress: (done, total) => opts.onProgress?.(phase * 100 + (total ? Math.round(done / total * 100) : 0), include.length * 100),
+    onProgress: (done, total) =>
+      opts.onProgress?.(
+        phase * 100 + (total ? Math.round((done / total) * 100) : 0),
+        include.length * 100,
+      ),
   });
-  const nextPhase = () => { phase++; };
+  const nextPhase = () => {
+    phase++;
+  };
   const clone = tree.clone();
   const NO_LIMIT = 10000;
 
   const evalStr = (cp: number) =>
-    cp >= MATE_CP / 2 ? "winning" : cp <= -MATE_CP / 2 ? "losing" : `${cp >= 0 ? "+" : ""}${(cp / 100).toFixed(2)}`;
+    cp >= MATE_CP / 2
+      ? "winning"
+      : cp <= -MATE_CP / 2
+        ? "losing"
+        : `${cp >= 0 ? "+" : ""}${(cp / 100).toFixed(2)}`;
   const childData = (sanPath: string[]): PgnNodeData | null => {
     const idx = clone.indexPathOfSan(sanPath);
     if (!idx || !idx.length) return null;
@@ -637,7 +711,12 @@ export async function annotateRepertoire(
     if (!(data.nags ??= []).includes(n)) data.nags.push(n);
   };
 
-  const annotated: Record<AnnotateSource, number> = { audit: 0, only_moves: 0, gaps: 0, congruence: 0 };
+  const annotated: Record<AnnotateSource, number> = {
+    audit: 0,
+    only_moves: 0,
+    gaps: 0,
+    congruence: 0,
+  };
 
   if (include.includes("audit")) {
     if (opts.shouldCancel?.()) return { cancelled: true };
@@ -645,7 +724,13 @@ export async function annotateRepertoire(
     const res = await auditRepertoireMoves(
       tree,
       color,
-      { depth: opts.depth, minCpLoss: opts.minCpLoss, maxPositions: opts.maxPositions, limit: NO_LIMIT, ...control },
+      {
+        depth: opts.depth,
+        minCpLoss: opts.minCpLoss,
+        maxPositions: opts.maxPositions,
+        limit: NO_LIMIT,
+        ...control,
+      },
       analyse,
     );
     if ("error" in res) return res;
@@ -655,7 +740,10 @@ export async function annotateRepertoire(
       if (!d) continue; // findings come from this tree; unreachable
       addNag(d, ANNOTATE_NAG[f.classification] ?? 6);
       const loss = f.cp_loss >= MATE_CP / 2 ? "decisively" : `${f.cp_loss}cp`;
-      comment(d, `audit: ${f.classification} — loses ${loss} vs ${f.best_move} (${evalStr(f.best_eval)})`);
+      comment(
+        d,
+        `audit: ${f.classification} — loses ${loss} vs ${f.best_move} (${evalStr(f.best_eval)})`,
+      );
       annotated.audit++;
     }
     nextPhase();
@@ -667,14 +755,22 @@ export async function annotateRepertoire(
     const res = await findOnlyMoves(
       tree,
       color,
-      { depth: opts.depth, minMargin: opts.minMargin, maxPositions: opts.maxPositions, linesLimit: 1, ...control },
+      {
+        depth: opts.depth,
+        minMargin: opts.minMargin,
+        maxPositions: opts.maxPositions,
+        linesLimit: 1,
+        ...control,
+      },
       analyse,
     );
     if ("error" in res) return res;
     if ("cancelled" in res) return res;
     for (const f of res.findings) {
       const note =
-        f.margin >= MATE_CP / 2 ? "only move: alternatives are decisively worse" : `only move: next best -${f.margin}cp`;
+        f.margin >= MATE_CP / 2
+          ? "only move: alternatives are decisively worse"
+          : `only move: next best -${f.margin}cp`;
       const tail = f.prescribed_is_best ? "" : `; engine best is ${f.best_move}`;
       for (const san of f.prescribed) {
         const d = childData([...f.path, san]);
@@ -691,7 +787,13 @@ export async function annotateRepertoire(
     const res = await findRepertoireGaps(
       tree,
       color,
-      { depth: opts.depth, minSeverity: opts.minSeverity, maxPositions: opts.maxPositions, limit: NO_LIMIT, ...control },
+      {
+        depth: opts.depth,
+        minSeverity: opts.minSeverity,
+        maxPositions: opts.maxPositions,
+        limit: NO_LIMIT,
+        ...control,
+      },
       analyse,
     );
     if ("error" in res) return res;
@@ -769,7 +871,13 @@ export interface ShortcutComparison {
 export async function compareShortcutLines(
   tree: GameTree,
   color: Color,
-  opts: { linePath: string[]; atPly: number; joinsPath: string[]; depth?: number; evalTiebreakCp?: number },
+  opts: {
+    linePath: string[];
+    atPly: number;
+    joinsPath: string[];
+    depth?: number;
+    evalTiebreakCp?: number;
+  },
   analyse: Analyse,
 ): Promise<ShortcutComparison | { error: string }> {
   const stayPath = opts.linePath.slice(0, opts.atPly + 1);
@@ -793,9 +901,14 @@ export async function compareShortcutLines(
   // Blended structural fit (named structure + center + themes) — robust to unclassified positions, the
   // same signal gap-fill uses. A branch's fit = mean fitScore over its leaf boards; unknownShare (the
   // named-structure-unclassified share) stays informational but no longer forces the fit to 0.
-  const profile = buildFitProfile(tree.leafPositions().map((p) => p.board), color);
+  const profile = buildFitProfile(
+    tree.leafPositions().map((p) => p.board),
+    color,
+  );
   const fitOf = (boards: Parameters<typeof buildFitProfile>[0]) => {
-    const fit = boards.length ? boards.reduce((s, b) => s + fitScore(profile, b, color), 0) / boards.length : 0;
+    const fit = boards.length
+      ? boards.reduce((s, b) => s + fitScore(profile, b, color), 0) / boards.length
+      : 0;
     return { fit: r2(fit), unknown: r2(profileStructureShares(boards).unknown ?? 0) };
   };
   const fa = fitOf(subA);
@@ -846,7 +959,14 @@ export interface ShortcutCoverage {
 export async function checkShortcutCoverage(
   tree: GameTree,
   color: Color,
-  opts: { linePath: string[]; atPly: number; depth?: number; minSeverity?: Severity; maxPositions?: number; limit?: number } & OperationControl,
+  opts: {
+    linePath: string[];
+    atPly: number;
+    depth?: number;
+    minSeverity?: Severity;
+    maxPositions?: number;
+    limit?: number;
+  } & OperationControl,
   analyse: Analyse,
 ): Promise<ShortcutCoverage | { error: string }> {
   const prunes = opts.linePath.slice(0, opts.atPly + 1);
@@ -873,7 +993,13 @@ export async function checkShortcutCoverage(
   const key = (g: Gap) => `${g.fen}|${g.uncovered_move}`;
   const beforeSet = new Set(before.gaps.map(key));
   const new_gaps = after.gaps.filter((g) => !beforeSet.has(key(g)));
-  return { prunes, introduces_gap: new_gaps.length > 0, new_gaps, before_total: before.total_gaps, after_total: after.total_gaps };
+  return {
+    prunes,
+    introduces_gap: new_gaps.length > 0,
+    new_gaps,
+    before_total: before.total_gaps,
+    after_total: after.total_gaps,
+  };
 }
 
 // --- resolve_dangling_stubs (engine-vetted: does a dangling stub rejoin prep?) ---
@@ -905,7 +1031,13 @@ const STUB_CP_THRESHOLD = 50;
 export async function resolveDanglingStubs(
   tree: GameTree,
   color: Color,
-  opts: { maxDepth?: number; nodeBudget?: number; cpThreshold?: number; limit?: number; depth?: number } & OperationControl,
+  opts: {
+    maxDepth?: number;
+    nodeBudget?: number;
+    cpThreshold?: number;
+    limit?: number;
+    depth?: number;
+  } & OperationControl,
   analyse: Analyse,
 ): Promise<CoverageResolution> {
   const dangling = tree.coverage(color).danglingLines.slice(0, opts.limit ?? 20);
@@ -950,7 +1082,13 @@ export async function resolveDanglingStubs(
     const e = byPath.get(d.path.join(" "));
     if (!e) return { path: d.path, ply: d.ply };
     resolved++;
-    return { path: d.path, ply: d.ply, connects_via: e.moves, joins_path: e.joinsPath, joins_ply: e.joinsPly };
+    return {
+      path: d.path,
+      ply: d.ply,
+      connects_via: e.moves,
+      joins_path: e.joinsPath,
+      joins_ply: e.joinsPly,
+    };
   });
   return { resolved, dangling: out };
 }
@@ -979,9 +1117,21 @@ export async function compareMoves(
         // was reported engine_unavailable (the same class as the analyzeMainline terminal bug). Checkmate ⇒
         // this move wins for the mover (decisive +MATE_CP); stalemate / insufficient material ⇒ a draw (0).
         const moverWins = chessFromFen(chk.finalFen).isCheckmate();
-        return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: null, mate: null, mover_cp: moverWins ? MATE_CP : 0 };
+        return {
+          san: chk.canonical[0],
+          uci: chk.firstUci,
+          eval_cp: null,
+          mate: null,
+          mover_cp: moverWins ? MATE_CP : 0,
+        };
       }
-      return { san: chk.canonical[0], uci: chk.firstUci, eval_cp: line.cp, mate: line.mate, mover_cp: moverPov(line, moverIsWhite, MATE_CP) };
+      return {
+        san: chk.canonical[0],
+        uci: chk.firstUci,
+        eval_cp: line.cp,
+        mate: line.mate,
+        mover_cp: moverPov(line, moverIsWhite, MATE_CP),
+      };
     },
     control,
   );
@@ -1054,7 +1204,11 @@ export async function suggestComplementaryLines(
       entry.profile_match = fitScore(profile, after.board, color);
     } else {
       const imbalance = (["white", "black"] as const).reduce(
-        (a, c) => a + isolatedPawns(after.board, c).length + doubledPawns(after.board, c).length + passedPawns(after.board, c).length,
+        (a, c) =>
+          a +
+          isolatedPawns(after.board, c).length +
+          doubledPawns(after.board, c).length +
+          passedPawns(after.board, c).length,
         0,
       );
       const novelty = resultStruct in shares ? 0 : 1;
@@ -1064,10 +1218,17 @@ export async function suggestComplementaryLines(
   }
 
   if (m === "low_memorization")
-    ranked.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
+    ranked.sort(
+      (a, b) =>
+        (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp,
+    );
   else ranked.sort((a, b) => (b.entry.sharpness as number) - (a.entry.sharpness as number));
 
-  const result: Record<string, unknown> = { mode: m, anchor_fen: anchorFen, suggestions: ranked.slice(0, lim).map((r) => r.entry) };
+  const result: Record<string, unknown> = {
+    mode: m,
+    anchor_fen: anchorFen,
+    suggestions: ranked.slice(0, lim).map((r) => r.entry),
+  };
   if (opponentMoveSan) result.opponent_move = opponentMoveSan;
   return result;
 }
@@ -1092,9 +1253,19 @@ export interface SuggestGapFillsOptions {
   target_plies?: number;
 }
 
-type RawComplementarySuggestion = { move: string; eval: number; profile_match?: number; pv: string };
+type RawComplementarySuggestion = {
+  move: string;
+  eval: number;
+  profile_match?: number;
+  pv: string;
+};
 
-async function gapFillTail(fen: string, maxPlies: number, depth: number, analyse: Analyse): Promise<string[]> {
+async function gapFillTail(
+  fen: string,
+  maxPlies: number,
+  depth: number,
+  analyse: Analyse,
+): Promise<string[]> {
   const out: string[] = [];
   if (maxPlies <= 0) return out;
   const pos = chessFromFen(fen);
@@ -1138,7 +1309,12 @@ async function buildGapFillLine(
   return line;
 }
 
-function gapFillFit(startFen: string, sans: string[], profile: ReturnType<typeof buildFitProfile>, color: Color): number {
+function gapFillFit(
+  startFen: string,
+  sans: string[],
+  profile: ReturnType<typeof buildFitProfile>,
+  color: Color,
+): number {
   const pos = chessFromFen(startFen);
   let sum = 0;
   let count = 0;
@@ -1160,7 +1336,10 @@ export async function suggestGapFills(
   uncoveredMove: string,
   opts: SuggestGapFillsOptions,
   analyse: Analyse,
-): Promise<{ path: string[]; uncovered_move: string; target_plies: number; options: GapFillOption[] } | { error: string; reason?: string }> {
+): Promise<
+  | { path: string[]; uncovered_move: string; target_plies: number; options: GapFillOption[] }
+  | { error: string; reason?: string }
+> {
   let startFen: string;
   let sanPath: string[];
   try {
@@ -1171,12 +1350,22 @@ export async function suggestGapFills(
   }
   const afterGap = chessFromFen(startFen);
   const gapMove = parseSan(afterGap, uncoveredMove);
-  if (!gapMove) return { error: "illegal_uncovered_move", reason: `cannot play '${uncoveredMove}' at the gap path` };
+  if (!gapMove)
+    return {
+      error: "illegal_uncovered_move",
+      reason: `cannot play '${uncoveredMove}' at the gap path`,
+    };
   afterGap.play(gapMove);
   const anchorFen = makeFen(afterGap.toSetup());
   const depth = Math.max(1, Math.min(30, opts.depth ?? 20));
   const limit = Math.max(2, Math.min(10, opts.limit ?? 4));
-  const raw = await suggestComplementaryLines(tree, color, anchorFen, { mode: "low_memorization", limit, depth }, analyse) as {
+  const raw = (await suggestComplementaryLines(
+    tree,
+    color,
+    anchorFen,
+    { mode: "low_memorization", limit, depth },
+    analyse,
+  )) as {
     suggestions?: RawComplementarySuggestion[];
     error?: string;
     reason?: string;
@@ -1186,22 +1375,51 @@ export async function suggestGapFills(
 
   const target = Math.max(2, opts.target_plies ?? (medianLineLength(tree) || 10));
   const pliesToAdd = Math.max(2, target - path.length);
-  const profile = buildFitProfile(tree.leafPositions().map((position) => position.board), color);
-  const moverEval = (suggestion: RawComplementarySuggestion) => (color === "white" ? 1 : -1) * suggestion.eval;
+  const profile = buildFitProfile(
+    tree.leafPositions().map((position) => position.board),
+    color,
+  );
+  const moverEval = (suggestion: RawComplementarySuggestion) =>
+    (color === "white" ? 1 : -1) * suggestion.eval;
   const probed: { suggestion: RawComplementarySuggestion; fit: number }[] = [];
   for (const suggestion of raw.suggestions) {
-    const line = await buildGapFillLine(anchorFen, uncoveredMove, suggestion.move, Math.min(pliesToAdd, 10), 14, analyse);
+    const line = await buildGapFillLine(
+      anchorFen,
+      uncoveredMove,
+      suggestion.move,
+      Math.min(pliesToAdd, 10),
+      14,
+      analyse,
+    );
     probed.push({ suggestion, fit: gapFillFit(startFen, line, profile, color) });
   }
-  const byEval = [...probed].sort((a, b) => moverEval(b.suggestion) - moverEval(a.suggestion) || b.fit - a.fit);
+  const byEval = [...probed].sort(
+    (a, b) => moverEval(b.suggestion) - moverEval(a.suggestion) || b.fit - a.fit,
+  );
   const evalPick = byEval[0]!;
   const fitPick = [...probed]
     .filter((candidate) => candidate.suggestion.move !== evalPick.suggestion.move)
     .sort((a, b) => b.fit - a.fit || moverEval(b.suggestion) - moverEval(a.suggestion))[0];
 
-  const build = async (kind: GapFillOption["kind"], pick: typeof evalPick): Promise<GapFillOption> => {
-    const line = await buildGapFillLine(anchorFen, uncoveredMove, pick.suggestion.move, pliesToAdd, 14, analyse);
-    return { kind, reply: pick.suggestion.move, line, eval_cp: moverEval(pick.suggestion), fit: gapFillFit(startFen, line, profile, color) };
+  const build = async (
+    kind: GapFillOption["kind"],
+    pick: typeof evalPick,
+  ): Promise<GapFillOption> => {
+    const line = await buildGapFillLine(
+      anchorFen,
+      uncoveredMove,
+      pick.suggestion.move,
+      pliesToAdd,
+      14,
+      analyse,
+    );
+    return {
+      kind,
+      reply: pick.suggestion.move,
+      line,
+      eval_cp: moverEval(pick.suggestion),
+      fit: gapFillFit(startFen, line, profile, color),
+    };
   };
   const options = [await build("best_eval", evalPick)];
   if (fitPick) options.push(await build("best_fit", fitPick));

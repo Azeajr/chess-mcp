@@ -13,7 +13,10 @@ import {
 } from "../../src/index.ts";
 import { replacementFixture } from "./replacement-change-set.fixtures.ts";
 
-function input(): { fixture: ReturnType<typeof replacementFixture>; value: ReplacementToolV2Input } {
+function input(): {
+  fixture: ReturnType<typeof replacementFixture>;
+  value: ReplacementToolV2Input;
+} {
   const fixture = replacementFixture("tool preview");
   const request = fixture.request;
   return {
@@ -41,11 +44,13 @@ function input(): { fixture: ReturnType<typeof replacementFixture>; value: Repla
         minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
         require_all_forcing_replies: request.budget.include_all_forcing_replies,
       },
-      retention: [{
-        candidate_id: fixture.candidate.candidate_id,
-        action: "replace",
-        prune_explicitly_confirmed: true,
-      }],
+      retention: [
+        {
+          candidate_id: fixture.candidate.candidate_id,
+          action: "replace",
+          prune_explicitly_confirmed: true,
+        },
+      ],
       candidate_ids: [fixture.candidate.candidate_id],
       safety: fixture.safety,
     },
@@ -66,25 +71,60 @@ test("canonical V2 envelope returns complete Task 8.3-8.8 evidence and atomic pr
   assert.equal(result.items[0]?.preview?.result.repertoire_revision, null);
   assert.equal(result.items[0]?.preview?.result.preview.archive_payloads.length, 1);
   assert.equal(fixture.tree.toPgn(), treeBefore);
-  assert.equal(isDeepStrictEqual(value, inputBefore), true, "V2 composer mutated full input evidence");
+  assert.equal(
+    isDeepStrictEqual(value, inputBefore),
+    true,
+    "V2 composer mutated full input evidence",
+  );
   assert.equal(result.source_tree_unchanged, true);
   assert.equal(result.inputs_unchanged, true);
   assert.equal(result.repertoire_color, "white");
-  assert.equal(result.items[0]?.preview?.result.preview.objective_quality_after.white_pov_evaluation_cp != null, true);
+  assert.equal(
+    result.items[0]?.preview?.result.preview.objective_quality_after.white_pov_evaluation_cp !=
+      null,
+    true,
+  );
 });
 
 test("finding, pivot, profile, source, budget, engine, coverage, retention, safety, and candidate errors stay structured", () => {
   const mutations: Array<[string, (value: ReplacementToolV2Input) => ReplacementToolV2Input]> = [
-    ["finding-mismatch", (value) => ({ ...value, finding: { ...value.finding, finding_id: "finding:stale" } })],
-    ["pivot-mismatch", (value) => ({ ...value, pivot: { kind: "user-selected", decision_id: "decision:stale" } })],
-    ["profile-mismatch", (value) => ({ ...value, profile: { ...value.profile, mode: "balanced" } })],
+    [
+      "finding-mismatch",
+      (value) => ({ ...value, finding: { ...value.finding, finding_id: "finding:stale" } }),
+    ],
+    [
+      "pivot-mismatch",
+      (value) => ({ ...value, pivot: { kind: "user-selected", decision_id: "decision:stale" } }),
+    ],
+    [
+      "profile-mismatch",
+      (value) => ({ ...value, profile: { ...value.profile, mode: "balanced" } }),
+    ],
     ["source-mismatch", (value) => ({ ...value, sources: ["user-line"] })],
-    ["budget-mismatch", (value) => ({ ...value, budget: { ...value.budget, maximum_candidates: 2 } })],
-    ["engine-mismatch", (value) => ({ ...value, engine: { ...value.engine, depth: value.engine.depth - 1 } })],
-    ["coverage-mismatch", (value) => ({ ...value, coverage: { ...value.coverage, require_all_forcing_replies: false } })],
+    [
+      "budget-mismatch",
+      (value) => ({ ...value, budget: { ...value.budget, maximum_candidates: 2 } }),
+    ],
+    [
+      "engine-mismatch",
+      (value) => ({ ...value, engine: { ...value.engine, depth: value.engine.depth - 1 } }),
+    ],
+    [
+      "coverage-mismatch",
+      (value) => ({
+        ...value,
+        coverage: { ...value.coverage, require_all_forcing_replies: false },
+      }),
+    ],
     ["retention-mismatch", (value) => ({ ...value, retention: [] })],
-    ["safety-mismatch", (value) => ({ ...value, safety: { ...value.safety, finding_id: "finding:stale" } })],
-    ["duplicate-candidate", (value) => ({ ...value, candidate_ids: [...value.candidate_ids, ...value.candidate_ids] })],
+    [
+      "safety-mismatch",
+      (value) => ({ ...value, safety: { ...value.safety, finding_id: "finding:stale" } }),
+    ],
+    [
+      "duplicate-candidate",
+      (value) => ({ ...value, candidate_ids: [...value.candidate_ids, ...value.candidate_ids] }),
+    ],
   ];
   for (const [expected, mutate] of mutations) {
     const { fixture, value } = input();
@@ -93,7 +133,11 @@ test("finding, pivot, profile, source, budget, engine, coverage, retention, safe
     assert.equal(result.items.length, 0, expected);
   }
   const { fixture, value } = input();
-  const missing = composeReplacementToolV2(fixture.tree, { ...value, candidate_ids: ["candidate:missing"], retention: [] });
+  const missing = composeReplacementToolV2(fixture.tree, {
+    ...value,
+    candidate_ids: ["candidate:missing"],
+    retention: [],
+  });
   assert.equal(missing.status, "partial");
   assert.equal(missing.items[0]?.status, "invalid");
   assert.equal(missing.items[0]?.error_code, "candidate-not-found");
@@ -108,21 +152,46 @@ test("cancellation and unavailable evidence remain explicit; enums and package-r
   assert.equal(cancelled.error_code, "cancelled");
   assert.equal(cancelled.items.length, 0);
   assert.equal(value.engine.allow_unavailable_evidence, true);
-  assert.deepEqual(REPLACEMENT_TOOL_V2_ITEM_STATUSES, ["previewed", "stale", "invalid", "blocked", "cancelled"]);
-  assert.deepEqual(REPLACEMENT_TOOL_V2_RESULT_STATUSES, ["complete", "partial", "stale", "invalid", "cancelled"]);
-  assert.equal(new Set(REPLACEMENT_TOOL_V2_ERROR_CODES).size, REPLACEMENT_TOOL_V2_ERROR_CODES.length);
+  assert.deepEqual(REPLACEMENT_TOOL_V2_ITEM_STATUSES, [
+    "previewed",
+    "stale",
+    "invalid",
+    "blocked",
+    "cancelled",
+  ]);
+  assert.deepEqual(REPLACEMENT_TOOL_V2_RESULT_STATUSES, [
+    "complete",
+    "partial",
+    "stale",
+    "invalid",
+    "cancelled",
+  ]);
+  assert.equal(
+    new Set(REPLACEMENT_TOOL_V2_ERROR_CODES).size,
+    REPLACEMENT_TOOL_V2_ERROR_CODES.length,
+  );
   const serialized = JSON.stringify(cancelled);
   assert.equal(serialized.includes('"contract":"strategic-fit-replacement-v2"'), true);
   assert.equal(serialized.includes('"replacement_schema_version":"1.0.0"'), true);
   assert.equal(serialized.includes('"provenance"'), true);
-  assert.equal(produceReplacementToolV2Previews, composeReplacementToolV2, "canonical producer alias missing from package root");
+  assert.equal(
+    produceReplacementToolV2Previews,
+    composeReplacementToolV2,
+    "canonical producer alias missing from package root",
+  );
 });
 
 test("host-injected revision and ownership reject cross-handle retained evidence", () => {
   const { fixture, value } = input();
   for (const options of [
-    { expected_repertoire_revision: "mcp:another-handle", expected_repertoire_color: value.replacement_request.repertoire_color },
-    { expected_repertoire_revision: value.replacement_request.repertoire_revision, expected_repertoire_color: "black" as const },
+    {
+      expected_repertoire_revision: "mcp:another-handle",
+      expected_repertoire_color: value.replacement_request.repertoire_color,
+    },
+    {
+      expected_repertoire_revision: value.replacement_request.repertoire_revision,
+      expected_repertoire_color: "black" as const,
+    },
   ]) {
     const result = composeReplacementToolV2(fixture.tree, value, options);
     assert.equal(result.status, "stale");

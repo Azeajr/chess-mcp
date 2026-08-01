@@ -29,18 +29,34 @@ function isOpeningEntry(value: unknown): value is { eco: string; name: string } 
 function isPayload(value: unknown): value is StrategicFitWorkerPayload {
   if (!isObject(value)) return false;
   if (typeof value.pgn !== "string") return false;
-  if (value.repertoire_color !== "white" && value.repertoire_color !== "black" && value.repertoire_color !== null) {
+  if (
+    value.repertoire_color !== "white" &&
+    value.repertoire_color !== "black" &&
+    value.repertoire_color !== null
+  ) {
     return false;
   }
-  if (!Array.isArray(value.opening_table_entries) || !value.opening_table_entries.every((entry) =>
-    Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && isOpeningEntry(entry[1])
-  )) return false;
+  if (
+    !Array.isArray(value.opening_table_entries) ||
+    !value.opening_table_entries.every(
+      (entry) =>
+        Array.isArray(entry) &&
+        entry.length === 2 &&
+        typeof entry[0] === "string" &&
+        isOpeningEntry(entry[1]),
+    )
+  )
+    return false;
   if (!isObject(value.options) || !isObject(value.metadata)) return false;
   // A resumed checkpoint is only shape-checked here; the shared validator owns its compatibility.
   if (value.resume !== undefined && value.resume !== null && !isObject(value.resume)) return false;
-  return typeof value.metadata.repertoire_revision === "string" && value.metadata.repertoire_revision.length > 0 &&
-    (value.metadata.generated_at === undefined || typeof value.metadata.generated_at === "string") &&
-    (value.metadata.run_id === undefined || typeof value.metadata.run_id === "string");
+  return (
+    typeof value.metadata.repertoire_revision === "string" &&
+    value.metadata.repertoire_revision.length > 0 &&
+    (value.metadata.generated_at === undefined ||
+      typeof value.metadata.generated_at === "string") &&
+    (value.metadata.run_id === undefined || typeof value.metadata.run_id === "string")
+  );
 }
 
 function structuredError(error: unknown, fallbackCode: string): StrategicFitWorkerErrorData {
@@ -79,7 +95,9 @@ function analyzerOptions(
     repertoireColor: payload.repertoire_color,
     repertoireRevision: payload.metadata.repertoire_revision,
     openingTable: new Map(payload.opening_table_entries),
-    ...(payload.metadata.generated_at === undefined ? {} : { generatedAt: payload.metadata.generated_at }),
+    ...(payload.metadata.generated_at === undefined
+      ? {}
+      : { generatedAt: payload.metadata.generated_at }),
     ...(payload.metadata.run_id === undefined ? {} : { runId: payload.metadata.run_id }),
     shouldCancel,
     onProgress: (progress) => post({ type: "progress", request_id: requestId, progress }),
@@ -100,9 +118,12 @@ function recoverJob(
   post: PostResponse,
 ): void {
   const { payload, request_id: requestId } = request;
-  const recovery = payload.resume === undefined || payload.resume === null
-    ? strategicFitColdJobRecovery("No checkpoint was supplied, so the analysis ran from a cold start.")
-    : restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
+  const recovery =
+    payload.resume === undefined || payload.resume === null
+      ? strategicFitColdJobRecovery(
+          "No checkpoint was supplied, so the analysis ran from a cold start.",
+        )
+      : restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
   post({ type: "recovery", request_id: requestId, recovery });
 }
 
@@ -124,10 +145,17 @@ export function createStrategicFitWorkerHandler(post: PostResponse) {
   const index = new StrategicFitIndexCache();
 
   return (message: unknown): void => {
-    if (!isObject(message) || typeof message.type !== "string" || typeof message.request_id !== "string") {
+    if (
+      !isObject(message) ||
+      typeof message.type !== "string" ||
+      typeof message.request_id !== "string"
+    ) {
       post({
         type: "error",
-        request_id: isObject(message) && typeof message.request_id === "string" ? message.request_id : "unknown",
+        request_id:
+          isObject(message) && typeof message.request_id === "string"
+            ? message.request_id
+            : "unknown",
         error: {
           code: "strategic_fit_worker_invalid_payload",
           name: "StrategicFitWorkerPayloadError",
@@ -183,9 +211,10 @@ export function createStrategicFitWorkerHandler(post: PostResponse) {
       }
     } catch (error) {
       if (cancelled.has(request.request_id)) return;
-      const workerCode = isObject(error) && typeof error.strategicFitWorkerCode === "string"
-        ? error.strategicFitWorkerCode
-        : "strategic_fit_worker_analysis_failed";
+      const workerCode =
+        isObject(error) && typeof error.strategicFitWorkerCode === "string"
+          ? error.strategicFitWorkerCode
+          : "strategic_fit_worker_analysis_failed";
       post({
         type: "error",
         request_id: request.request_id,
@@ -204,7 +233,11 @@ interface WorkerScopeLike {
 }
 
 const scope = globalThis as unknown as Partial<WorkerScopeLike>;
-if (scope.document === undefined && typeof scope.postMessage === "function" && typeof scope.addEventListener === "function") {
+if (
+  scope.document === undefined &&
+  typeof scope.postMessage === "function" &&
+  typeof scope.addEventListener === "function"
+) {
   const handle = createStrategicFitWorkerHandler((response) => scope.postMessage!(response));
   scope.addEventListener("message", (event) => handle(event.data));
 }

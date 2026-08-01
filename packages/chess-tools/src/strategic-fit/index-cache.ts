@@ -158,9 +158,9 @@ function stableSerialize(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (value instanceof Map) {
-    return stableSerialize([...value.entries()].sort(([left], [right]) =>
-      compareStrings(String(left), String(right))
-    ));
+    return stableSerialize(
+      [...value.entries()].sort(([left], [right]) => compareStrings(String(left), String(right))),
+    );
   }
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   return `{${Object.entries(value as Readonly<Record<string, unknown>>)
@@ -363,10 +363,12 @@ export class StrategicFitIndexCache {
       graph_id: graph.graph_id,
       route_ids: sortedUnique(graph.routes.map((route) => route.route_id)),
       cohorts: cohorts
-        .map((cohort): StrategicFitIndexedCohort => ({
-          cohort_id: cohort.cohort_id,
-          route_ids: sortedUnique(cohort.route_ids),
-        }))
+        .map(
+          (cohort): StrategicFitIndexedCohort => ({
+            cohort_id: cohort.cohort_id,
+            route_ids: sortedUnique(cohort.route_ids),
+          }),
+        )
         .sort((left, right) => compareStrings(left.cohort_id, right.cohort_id)),
     };
   }
@@ -392,7 +394,8 @@ export class StrategicFitIndexCache {
     if (previous === null) {
       return this.recordPlan({
         mode: "full-scan",
-        reason: "No prior index snapshot exists for this generation, so every cohort is recomputed.",
+        reason:
+          "No prior index snapshot exists for this generation, so every cohort is recomputed.",
         generation,
         changed_route_ids: current,
         reused_route_ids: [],
@@ -430,7 +433,8 @@ export class StrategicFitIndexCache {
     const recomputed: string[] = [];
     const reusedCohorts: string[] = [];
     for (const cohort of previous.cohorts) {
-      const affected = scoped.has(cohort.cohort_id) ||
+      const affected =
+        scoped.has(cohort.cohort_id) ||
         cohort.route_ids.some((routeId) => changedRoutes.has(routeId));
       (affected ? recomputed : reusedCohorts).push(cohort.cohort_id);
     }

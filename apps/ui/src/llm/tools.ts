@@ -1,7 +1,10 @@
 /** OpenRouter schema projection plus a thin adapter to the application-owned command client. */
 import type { ToolSchema } from "./openrouter";
 import { contractsForHost, jsonSchemaForTool } from "@chess-mcp/chess-tools";
-import { executeBrowserCommand, type BrowserCommandExecutionOptions } from "../application/browser-commands/client";
+import {
+  executeBrowserCommand,
+  type BrowserCommandExecutionOptions,
+} from "../application/browser-commands/client";
 
 export const toolSchemas: ToolSchema[] = contractsForHost("browser").map((contract) => ({
   type: "function",

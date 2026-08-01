@@ -163,18 +163,33 @@ function reportClaims(
     after_report_id: after.report_id,
     after_repertoire_revision: after.repertoire_revision,
     metrics: [
-      metric("familiarity-adjusted-coverage", "Familiarity-adjusted coverage",
-        (result) => result.summary.metrics.familiarity_adjusted_coverage),
-      metric("training-adjusted-workload", "Training-adjusted strategic workload",
-        (result) => result.summary.metrics.training_adjusted_workload),
-      metric("strategic-entropy", "Strategic entropy",
-        (result) => result.summary.metrics.strategic_entropy),
+      metric(
+        "familiarity-adjusted-coverage",
+        "Familiarity-adjusted coverage",
+        (result) => result.summary.metrics.familiarity_adjusted_coverage,
+      ),
+      metric(
+        "training-adjusted-workload",
+        "Training-adjusted strategic workload",
+        (result) => result.summary.metrics.training_adjusted_workload,
+      ),
+      metric(
+        "strategic-entropy",
+        "Strategic entropy",
+        (result) => result.summary.metrics.strategic_entropy,
+      ),
     ],
     counts: [
-      count("unresolved-finding-count", "Unresolved findings",
-        (result) => result.summary.unresolved_finding_count),
-      count("strategic-family-count", "Strategic families",
-        (result) => result.summary.strategic_family_count),
+      count(
+        "unresolved-finding-count",
+        "Unresolved findings",
+        (result) => result.summary.unresolved_finding_count,
+      ),
+      count(
+        "strategic-family-count",
+        "Strategic families",
+        (result) => result.summary.strategic_family_count,
+      ),
       count("workload-rating", "Workload rating", (result) => result.summary.workload),
     ],
   };
@@ -185,14 +200,17 @@ function acceptanceOutcome(
   completed: StrategicFitCompletedResult,
 ): StrategicFitResolutionProofOutcome {
   const findings = completedFindings(completed);
-  const open = findings.find((finding) => finding.semantic_finding_id === tracked.semantic_finding_id);
+  const open = findings.find(
+    (finding) => finding.semantic_finding_id === tracked.semantic_finding_id,
+  );
   const summary = completed.reanalysis ?? null;
   if (open !== undefined) {
     return {
       kind: "still-open",
       finding: open,
       changed_evidence:
-        summary?.changed_evidence_semantic_finding_ids.includes(tracked.semantic_finding_id) === true,
+        summary?.changed_evidence_semantic_finding_ids.includes(tracked.semantic_finding_id) ===
+        true,
     };
   }
   const reconciled =
@@ -210,8 +228,9 @@ function undoOutcome(
   tracked: StrategicFitTrackedAcceptance,
   completed: StrategicFitCompletedResult,
 ): StrategicFitResolutionProofOutcome {
-  const open = completedFindings(completed)
-    .find((finding) => finding.semantic_finding_id === tracked.semantic_finding_id);
+  const open = completedFindings(completed).find(
+    (finding) => finding.semantic_finding_id === tracked.semantic_finding_id,
+  );
   return open !== undefined
     ? { kind: "restored-open", finding: open }
     : { kind: "restored-absent", semantic_finding_id: tracked.semantic_finding_id };
@@ -224,8 +243,11 @@ function newFindings(completed: StrategicFitCompletedResult): readonly Strategic
   return completedFindings(completed).filter((finding) => ids.has(finding.semantic_finding_id));
 }
 
-export function createStrategicFitResolutionProofState(boundary: StrategicFitResolutionProofBoundary) {
-  const [snapshot, setSnapshot] = createSignal<StrategicFitResolutionProofSnapshot>(initialSnapshot());
+export function createStrategicFitResolutionProofState(
+  boundary: StrategicFitResolutionProofBoundary,
+) {
+  const [snapshot, setSnapshot] =
+    createSignal<StrategicFitResolutionProofSnapshot>(initialSnapshot());
   let beforeCompleted: StrategicFitCompletedResult | null = null;
   let expectedRevision: number | null = null;
   let sequence = 0;
@@ -233,9 +255,9 @@ export function createStrategicFitResolutionProofState(boundary: StrategicFitRes
   const refreshUndoRecord = (stageId: string, requestSequence: number) => {
     void boundary.undoRecordForStage(stageId).then((record) => {
       if (sequence !== requestSequence) return;
-      setSnapshot((previous) => previous.tracked?.stage_id === stageId
-        ? { ...previous, undo_record: record }
-        : previous);
+      setSnapshot((previous) =>
+        previous.tracked?.stage_id === stageId ? { ...previous, undo_record: record } : previous,
+      );
     });
   };
 
@@ -288,16 +310,20 @@ export function createStrategicFitResolutionProofState(boundary: StrategicFitRes
         new_findings: [],
         reanalysis: null,
         claims: null,
-        superseded_reason: documentSnapshot.document_id !== tracked.document_id
-          ? "The repertoire document changed, so this change's rescan evidence no longer applies."
-          : `Another edit moved the document to revision ${documentSnapshot.repertoire_revision}, so no resolution claim can bind to revision ${expectedRevision}.`,
+        superseded_reason:
+          documentSnapshot.document_id !== tracked.document_id
+            ? "The repertoire document changed, so this change's rescan evidence no longer applies."
+            : `Another edit moved the document to revision ${documentSnapshot.repertoire_revision}, so no resolution claim can bind to revision ${expectedRevision}.`,
         error: null,
       }));
       return;
     }
     const lifecycle = boundary.lifecycle();
-    const proven: StrategicFitResolutionProofStatus = current.phase === "undo" ? "undone" : "proven";
-    let next: Partial<StrategicFitResolutionProofSnapshot> & { status: StrategicFitResolutionProofStatus };
+    const proven: StrategicFitResolutionProofStatus =
+      current.phase === "undo" ? "undone" : "proven";
+    let next: Partial<StrategicFitResolutionProofSnapshot> & {
+      status: StrategicFitResolutionProofStatus;
+    };
     if (lifecycle.status === "running" || lifecycle.status === "provisional") {
       next = { status: "rescanning" };
     } else if (lifecycle.status === "failed") {
@@ -319,9 +345,10 @@ export function createStrategicFitResolutionProofState(boundary: StrategicFitRes
       const completed = lifecycle.current_result;
       next = {
         status: proven,
-        outcome: current.phase === "undo"
-          ? undoOutcome(tracked, completed)
-          : acceptanceOutcome(tracked, completed),
+        outcome:
+          current.phase === "undo"
+            ? undoOutcome(tracked, completed)
+            : acceptanceOutcome(tracked, completed),
         new_findings: current.phase === "undo" ? [] : newFindings(completed),
         reanalysis: completed.reanalysis ?? null,
         claims: reportClaims(beforeCompleted, completed.result),
@@ -332,9 +359,10 @@ export function createStrategicFitResolutionProofState(boundary: StrategicFitRes
     }
     if (
       next.status === current.status &&
-      (next.status !== proven || current.claims?.after_report_id ===
-        (lifecycle.current_result?.result.report_id ?? null))
-    ) return;
+      (next.status !== proven ||
+        current.claims?.after_report_id === (lifecycle.current_result?.result.report_id ?? null))
+    )
+      return;
     setSnapshot((previous) => ({ ...previous, superseded_reason: null, ...next }));
   };
 
@@ -399,8 +427,13 @@ export function createStrategicFitResolutionProofState(boundary: StrategicFitRes
     setSnapshot(initialSnapshot());
   };
 
-  const setForTesting = (value: StrategicFitResolutionProofSnapshot, before: StrategicFitCompletedResult | null = null, expected: number | null = null) => {
-    if (!import.meta.env.DEV) throw new Error("Resolution proof fixture injection is development-only.");
+  const setForTesting = (
+    value: StrategicFitResolutionProofSnapshot,
+    before: StrategicFitCompletedResult | null = null,
+    expected: number | null = null,
+  ) => {
+    if (!import.meta.env.DEV)
+      throw new Error("Resolution proof fixture injection is development-only.");
     sequence++;
     beforeCompleted = before;
     expectedRevision = expected ?? value.tracked?.accepted_revision ?? null;

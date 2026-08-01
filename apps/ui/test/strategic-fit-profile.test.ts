@@ -24,7 +24,9 @@ import { defaultBrowserCommandDependencies } from "../src/application/browser-co
 
 function memoryProfileState(initial = createDefaultStrategicFitDocumentMetadata()) {
   let documentId = "document:a";
-  const documents = new Map<string, StrategicFitDocumentMetadata>([[documentId, structuredClone(initial)]]);
+  const documents = new Map<string, StrategicFitDocumentMetadata>([
+    [documentId, structuredClone(initial)],
+  ]);
   let replacements = 0;
   let invalidations = 0;
   const boundary = {
@@ -36,7 +38,9 @@ function memoryProfileState(initial = createDefaultStrategicFitDocumentMetadata(
       documents.set(documentId, structuredClone(result.metadata));
       return result;
     },
-    invalidateReports: () => { invalidations++; },
+    invalidateReports: () => {
+      invalidations++;
+    },
   };
   const state = createStrategicFitProfileState(boundary);
   return {
@@ -102,10 +106,14 @@ test("a custom profile round-trips every field through canonical document metada
 
   assert.equal(result.state, "updated");
   assert.deepEqual(result.profile, fixture.metadata().profile);
-  assert.equal(normalizeStrategicFitDocumentMetadata(
-    JSON.parse(JSON.stringify(fixture.metadata())),
-  ).state, "valid");
-  assert.deepEqual(structuredClone(fixture.metadata()).profile.preferences, result.profile.preferences);
+  assert.equal(
+    normalizeStrategicFitDocumentMetadata(JSON.parse(JSON.stringify(fixture.metadata()))).state,
+    "valid",
+  );
+  assert.deepEqual(
+    structuredClone(fixture.metadata()).profile.preferences,
+    result.profile.preferences,
+  );
 });
 
 test("inferred profiles remain provisional, confirmation is explicit, and explicit intent wins", () => {
@@ -151,10 +159,14 @@ test("unconfirmed inference is document-scoped in one session and absent from a 
   fixture.state.applyInferred("versatile", {
     preferred_concept_ids: ["concept:document-b"],
   });
-  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, ["concept:document-b"]);
+  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, [
+    "concept:document-b",
+  ]);
 
   fixture.switchDocument("document:a");
-  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, ["concept:document-a"]);
+  assert.deepEqual(fixture.state.profile().preferences.preferred_concept_ids, [
+    "concept:document-a",
+  ]);
   assert.equal(fixture.replacements(), 0);
   assert.equal(fixture.invalidations(), 2);
 
@@ -167,22 +179,26 @@ test("advanced values clamp deterministically while malformed edits preserve sib
   const defaults = createDefaultStrategicFitDocumentMetadata();
   const initial: StrategicFitDocumentMetadata = {
     ...defaults,
-    provenance: [{
-      source_id: "fixture:metadata",
-      kind: "repertoire",
-      state: "available",
-      version: null,
-      snapshot: null,
-      reason: null,
-    }],
-    training_references: [{
-      training_id: "training:keep",
-      finding_id: null,
-      repertoire_revision: "revision:1",
-      references: { position_ids: [], decision_ids: [], route_ids: [], source_san_paths: [] },
-      created_at: "2026-07-17T12:00:00.000Z",
-      provenance: [],
-    }],
+    provenance: [
+      {
+        source_id: "fixture:metadata",
+        kind: "repertoire",
+        state: "available",
+        version: null,
+        snapshot: null,
+        reason: null,
+      },
+    ],
+    training_references: [
+      {
+        training_id: "training:keep",
+        finding_id: null,
+        repertoire_revision: "revision:1",
+        references: { position_ids: [], decision_ids: [], route_ids: [], source_san_paths: [] },
+        created_at: "2026-07-17T12:00:00.000Z",
+        provenance: [],
+      },
+    ],
   };
   const fixture = memoryProfileState(initial);
   fixture.state.select("custom", {
@@ -227,9 +243,12 @@ test("advanced values clamp deterministically while malformed edits preserve sib
   assert.deepEqual(fixture.metadata().provenance, initial.provenance);
   assert.deepEqual(fixture.metadata().training_references, initial.training_references);
 
-  assert.deepEqual(normalizeStrategicFitProfilePreferences({
-    maximum_engine_loss_cp: 12.6,
-  }).maximum_engine_loss_cp, 13);
+  assert.deepEqual(
+    normalizeStrategicFitProfilePreferences({
+      maximum_engine_loss_cp: 12.6,
+    }).maximum_engine_loss_cp,
+    13,
+  );
 });
 
 test("profile edits invalidate reports once per semantic change without touching the game tree", () => {
@@ -277,25 +296,23 @@ test("browser analysis and congruence export inherit document profile, preserve 
     ...defaultBrowserCommandDependencies,
     currentStrategicFitProfile: () => documentProfile,
     openings: async () => new Map(),
-    analyse: async () => { throw new Error("profile-only congruence must remain engine-free"); },
-    strategicFitReport: async (
-      pgn: string,
-      options: AnalyzeStrategicFitOptions,
-    ) => {
+    analyse: async () => {
+      throw new Error("profile-only congruence must remain engine-free");
+    },
+    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) => {
       receivedProfile = options.profile;
-      return completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      ));
+      return completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      );
     },
   };
 
-  const inherited = await executeDirectBrowserCommand(
+  const inherited = (await executeDirectBrowserCommand(
     "analyze_repertoire_congruence",
     {},
     {},
     dependencies,
-  ) as { profile?: StrategicFitProfile };
+  )) as { profile?: StrategicFitProfile };
   assert.deepEqual(receivedProfile, documentProfile);
   assert.deepEqual(inherited.profile, documentProfile);
 
@@ -319,10 +336,9 @@ test("browser analysis and congruence export inherit document profile, preserve 
   const staleDependencies = {
     ...dependencies,
     strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) => {
-      const report = completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      ));
+      const report = completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      );
       documentProfile = strategicFitPresetProfile("balanced");
       return report;
     },
@@ -331,7 +347,8 @@ test("browser analysis and congruence export inherit document profile, preserve 
     await executeDirectBrowserCommand("analyze_repertoire_congruence", {}, {}, staleDependencies),
     {
       error: "strategic_fit_stale_report",
-      reason: "The document Strategic Fit profile changed while analysis was running; request a fresh report.",
+      reason:
+        "The document Strategic Fit profile changed while analysis was running; request a fresh report.",
     },
   );
 });

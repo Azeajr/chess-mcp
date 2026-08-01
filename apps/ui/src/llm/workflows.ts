@@ -1,4 +1,9 @@
-import { renderWorkflowGuidance, renderWorkflowOverview, WORKFLOW_INVARIANTS, type WorkflowFamily } from "@chess-mcp/chess-tools";
+import {
+  renderWorkflowGuidance,
+  renderWorkflowOverview,
+  WORKFLOW_INVARIANTS,
+  type WorkflowFamily,
+} from "@chess-mcp/chess-tools";
 
 export type ChatMode = "" | "general" | "repertoire" | "review" | "position" | "annotate";
 
@@ -28,6 +33,7 @@ const familyForMode = (mode: Exclude<ChatMode, "" | "general">): WorkflowFamily 
   mode === "annotate" ? "annotation" : mode;
 
 export function workflowPrompt(mode: ChatMode): string {
-  if (!mode || mode === "general") return `${GROUNDING}\n\n${renderWorkflowOverview("browser")}\n\n${GENERAL}\n\n${BROWSER_ADAPTATION}`;
+  if (!mode || mode === "general")
+    return `${GROUNDING}\n\n${renderWorkflowOverview("browser")}\n\n${GENERAL}\n\n${BROWSER_ADAPTATION}`;
   return `${renderWorkflowGuidance(familyForMode(mode), "browser")}\n\n${BROWSER_ADAPTATION}`;
 }

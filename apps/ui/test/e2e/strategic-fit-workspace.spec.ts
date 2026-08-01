@@ -29,47 +29,57 @@ type ChessHarness = {
   setStrategicFitWorkspaceRegionState(region: Region, state: RegionState): void;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
-const snapshot = (page: Page) => chess(page, (api) => ({
-  pgn: api.toPgn(),
-  document_id: api.documentId(),
-  revision: api.version(),
-  path: [...api.currentPath()],
-  color: api.color(),
-  dirty: api.dirty(),
-  file_name: api.fileName(),
-  preview: api.preview(),
-  commands: api.commandStates(),
-  metadata: api.strategicFitMetadata(),
-}));
+const snapshot = (page: Page) =>
+  chess(page, (api) => ({
+    pgn: api.toPgn(),
+    document_id: api.documentId(),
+    revision: api.version(),
+    path: [...api.currentPath()],
+    color: api.color(),
+    dirty: api.dirty(),
+    file_name: api.fileName(),
+    preview: api.preview(),
+    commands: api.commandStates(),
+    metadata: api.strategicFitMetadata(),
+  }));
 
-const workerStarts = (page: Page) => page.evaluate(() =>
-  [...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? [])],
-);
+const workerStarts = (page: Page) =>
+  page.evaluate(() => [
+    ...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? []),
+  ]);
 
-const persistedStrategicFitMetadata = (page: Page, documentId: string) => page.evaluate(
-  async (id) => new Promise<unknown>((resolve, reject) => {
-    const open = indexedDB.open("chess-repertoire", 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const request = db.transaction("kv", "readonly").objectStore("kv").get(`strategicFitMetadata:${id}`);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        db.close();
-        resolve(request.result);
-      };
-    };
-  }),
-  documentId,
-);
+const persistedStrategicFitMetadata = (page: Page, documentId: string) =>
+  page.evaluate(
+    async (id) =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open("chess-repertoire", 1);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const request = db
+            .transaction("kv", "readonly")
+            .objectStore("kv")
+            .get(`strategicFitMetadata:${id}`);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            db.close();
+            resolve(request.result);
+          };
+        };
+      }),
+    documentId,
+  );
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -89,7 +99,9 @@ test.beforeEach(async ({ page }) => {
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
 });
 
-test("desktop shell opens and closes without analysis, mutation, or state loss", async ({ page }) => {
+test("desktop shell opens and closes without analysis, mutation, or state loss", async ({
+  page,
+}) => {
   await chess(page, (api) => {
     api.loadPgn("1. e4 e5 2. Nf3 Nc6 (2... Nf6) 3. Bb5 *", "strategic-fit.pgn");
     api.applyEdit("add", ["e4", "e5", "Nf3", "Nc6", "Bb5"], { addMoves: ["a6"] });
@@ -108,8 +120,9 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"))
-    .toBeVisible();
+  await expect(
+    dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
+  ).toBeVisible();
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(3);
   await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Findings" })).toBeVisible();
@@ -128,7 +141,9 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   expect(await workerStarts(page)).toEqual(workersBefore);
 });
 
-test("focus is trapped in both directions and Escape restores the exact opener", async ({ page }) => {
+test("focus is trapped in both directions and Escape restores the exact opener", async ({
+  page,
+}) => {
   const opener = page.getByRole("button", { name: "Open workspace" });
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
@@ -148,10 +163,16 @@ test("focus is trapped in both directions and Escape restores the exact opener",
 
   for (let index = 0; index < 10; index++) {
     await page.keyboard.press(index % 2 === 0 ? "Tab" : "Shift+Tab");
-    expect(await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']")))).toBe(true);
+    expect(
+      await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']"))),
+    ).toBe(true);
   }
-  await page.locator(".topbar button", { hasText: "Open PGN" }).evaluate((button: HTMLElement) => button.focus());
-  expect(await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']")))).toBe(true);
+  await page
+    .locator(".topbar button", { hasText: "Open PGN" })
+    .evaluate((button: HTMLElement) => button.focus());
+  expect(
+    await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']"))),
+  ).toBe(true);
 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
@@ -181,7 +202,9 @@ test("phone shell exposes the four frozen stages one at a time", async ({ page }
     await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   }
 
-  expect(await dialog.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(390);
+  expect(
+    await dialog.evaluate((element) => Math.round(element.getBoundingClientRect().width)),
+  ).toBe(390);
 });
 
 test("shell regions render explicit empty, loading, and error states", async ({ page }) => {
@@ -198,10 +221,13 @@ test("shell regions render explicit empty, loading, and error states", async ({ 
   });
 
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await expect(dialog.locator("#strategic-fit-pane-overview").getByRole("status"))
-    .toContainText("Loading the overview fixture.");
-  await expect(dialog.locator("#strategic-fit-pane-findings").getByRole("alert"))
-    .toContainText("The findings fixture is unavailable.");
-  await expect(dialog.locator("#strategic-fit-pane-evidence [data-region-state='empty']"))
-    .toContainText("No evidence selected");
+  await expect(dialog.locator("#strategic-fit-pane-overview").getByRole("status")).toContainText(
+    "Loading the overview fixture.",
+  );
+  await expect(dialog.locator("#strategic-fit-pane-findings").getByRole("alert")).toContainText(
+    "The findings fixture is unavailable.",
+  );
+  await expect(
+    dialog.locator("#strategic-fit-pane-evidence [data-region-state='empty']"),
+  ).toContainText("No evidence selected");
 });

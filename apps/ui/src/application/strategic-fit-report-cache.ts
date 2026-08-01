@@ -10,7 +10,10 @@ import {
   type StrategicFitProgress,
   type StrategicFitReport,
 } from "@chess-mcp/chess-tools";
-import { createStrategicFitCheckpointPort, type StrategicFitCheckpointPort } from "./strategic-fit-checkpoint-store";
+import {
+  createStrategicFitCheckpointPort,
+  type StrategicFitCheckpointPort,
+} from "./strategic-fit-checkpoint-store";
 import { analyzeStrategicFitInWorker } from "./strategic-fit-worker";
 
 export interface StrategicFitReportExecutionOptions {

@@ -65,30 +65,30 @@ export interface StrategicFitWorkerErrorData {
 
 export type StrategicFitWorkerResponse =
   | {
-    readonly type: "progress";
-    readonly request_id: string;
-    readonly progress: StrategicFitProgress;
-  }
+      readonly type: "progress";
+      readonly request_id: string;
+      readonly progress: StrategicFitProgress;
+    }
   | {
-    readonly type: "checkpoint";
-    readonly request_id: string;
-    readonly checkpoint: StrategicFitJobCheckpoint;
-  }
+      readonly type: "checkpoint";
+      readonly request_id: string;
+      readonly checkpoint: StrategicFitJobCheckpoint;
+    }
   | {
-    readonly type: "recovery";
-    readonly request_id: string;
-    readonly recovery: StrategicFitJobRecovery;
-  }
+      readonly type: "recovery";
+      readonly request_id: string;
+      readonly recovery: StrategicFitJobRecovery;
+    }
   | {
-    readonly type: "result";
-    readonly request_id: string;
-    readonly result: StrategicFitAnalysisResult;
-  }
+      readonly type: "result";
+      readonly request_id: string;
+      readonly result: StrategicFitAnalysisResult;
+    }
   | {
-    readonly type: "error";
-    readonly request_id: string;
-    readonly error: StrategicFitWorkerErrorData;
-  };
+      readonly type: "error";
+      readonly request_id: string;
+      readonly error: StrategicFitWorkerErrorData;
+    };
 
 export interface StrategicFitWorkerExecutionOptions {
   readonly signal?: AbortSignal;
@@ -122,10 +122,10 @@ const abortError = (message = "Strategic Fit analysis cancelled") =>
   new DOMException(message, "AbortError");
 
 function defaultWorkerFactory(): StrategicFitWorkerLike {
-  return new Worker(
-    new URL("../workers/strategic-fit.worker.ts", import.meta.url),
-    { type: "module", name: "strategic-fit" },
-  );
+  return new Worker(new URL("../workers/strategic-fit.worker.ts", import.meta.url), {
+    type: "module",
+    name: "strategic-fit",
+  });
 }
 
 function requestPayload(
@@ -147,7 +147,7 @@ function requestPayload(
   } = options;
 
   const openingTableEntries = [...(openingTable ?? new Map()).entries()]
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([key, entry]) => [key, { eco: entry.eco, name: entry.name }] as const);
 
   return {
@@ -207,12 +207,15 @@ export class StrategicFitWorkerClient {
     try {
       worker = this.factory();
     } catch (error) {
-      return Promise.reject(new StrategicFitWorkerError({
-        code: "strategic_fit_worker_unavailable",
-        name: "StrategicFitWorkerError",
-        message: error instanceof Error ? error.message : "The Strategic Fit worker is unavailable.",
-        details: null,
-      }));
+      return Promise.reject(
+        new StrategicFitWorkerError({
+          code: "strategic_fit_worker_unavailable",
+          name: "StrategicFitWorkerError",
+          message:
+            error instanceof Error ? error.message : "The Strategic Fit worker is unavailable.",
+          details: null,
+        }),
+      );
     }
 
     return new Promise<StrategicFitAnalysisResult>((resolve, reject) => {
@@ -260,16 +263,18 @@ export class StrategicFitWorkerClient {
       worker.onerror = (event) => {
         if (this.active !== active || active.settled) return;
         this.finish(active);
-        reject(new StrategicFitWorkerError({
-          code: "strategic_fit_worker_runtime_error",
-          name: "StrategicFitWorkerError",
-          message: event.message || "The Strategic Fit worker failed.",
-          details: {
-            filename: event.filename || null,
-            lineno: event.lineno || null,
-            colno: event.colno || null,
-          },
-        }));
+        reject(
+          new StrategicFitWorkerError({
+            code: "strategic_fit_worker_runtime_error",
+            name: "StrategicFitWorkerError",
+            message: event.message || "The Strategic Fit worker failed.",
+            details: {
+              filename: event.filename || null,
+              lineno: event.lineno || null,
+              colno: event.colno || null,
+            },
+          }),
+        );
       };
 
       try {
@@ -280,12 +285,17 @@ export class StrategicFitWorkerClient {
         });
       } catch (error) {
         this.finish(active);
-        reject(new StrategicFitWorkerError({
-          code: "strategic_fit_worker_serialization_failed",
-          name: "StrategicFitWorkerError",
-          message: error instanceof Error ? error.message : "The Strategic Fit request could not be serialized.",
-          details: null,
-        }));
+        reject(
+          new StrategicFitWorkerError({
+            code: "strategic_fit_worker_serialization_failed",
+            name: "StrategicFitWorkerError",
+            message:
+              error instanceof Error
+                ? error.message
+                : "The Strategic Fit request could not be serialized.",
+            details: null,
+          }),
+        );
       }
     });
   }

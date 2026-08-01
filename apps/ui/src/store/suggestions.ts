@@ -61,42 +61,108 @@ export function stageEdit(
   action: EditAction,
   path: string[],
   opts: { addMoves?: string[]; promoteMove?: string } = {},
-): { ok: true; action_id: string; kind: "staged_edit"; action: EditAction; revision: number; path: string[]; line?: string[]; before: StagedEdit["before"]; after: StagedEdit["after"] } | { ok: false; error: string } {
+):
+  | {
+      ok: true;
+      action_id: string;
+      kind: "staged_edit";
+      action: EditAction;
+      revision: number;
+      path: string[];
+      line?: string[];
+      before: StagedEdit["before"];
+      after: StagedEdit["after"];
+    }
+  | { ok: false; error: string } {
   const source = currentTree();
   const result = source.edit(action, path, opts);
   if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
   const beforeStats = source.stats();
   const afterStats = result.tree.stats();
-  const before = { nodes: beforeStats.nodes, leaves: beforeStats.leaves, maxDepth: beforeStats.maxDepth };
-  const after = { nodes: afterStats.nodes, leaves: afterStats.leaves, maxDepth: afterStats.maxDepth };
+  const before = {
+    nodes: beforeStats.nodes,
+    leaves: beforeStats.leaves,
+    maxDepth: beforeStats.maxDepth,
+  };
+  const after = {
+    nodes: afterStats.nodes,
+    leaves: afterStats.leaves,
+    maxDepth: afterStats.maxDepth,
+  };
   const anchor = action === "add" ? (result.added?.from ?? path) : path;
-  const previewPath = source.indexPathOfSan(action === "prune" ? path.slice(0, -1) : anchor) ?? undefined;
+  const previewPath =
+    source.indexPathOfSan(action === "prune" ? path.slice(0, -1) : anchor) ?? undefined;
   let canonical = result.added?.moves ?? opts.addMoves;
   let firstUci: string | undefined;
   if (action === "add" && previewPath && canonical?.length) {
     const check = validateLine(source.fenAt(previewPath), canonical);
-    if (check.ok) { canonical = check.canonical; firstUci = check.firstUci; }
+    if (check.ok) {
+      canonical = check.canonical;
+      firstUci = check.firstUci;
+    }
   }
   const edit: StagedEdit = {
-    id: `edit-${nextId++}`, kind: "repertoire_edit", action, revision: version(), path: [...path],
-    addMoves: canonical, promoteMove: opts.promoteMove, before, after, status: "pending",
-    previewPath, previewSans: action === "add" ? canonical : undefined, firstUci,
+    id: `edit-${nextId++}`,
+    kind: "repertoire_edit",
+    action,
+    revision: version(),
+    path: [...path],
+    addMoves: canonical,
+    promoteMove: opts.promoteMove,
+    before,
+    after,
+    status: "pending",
+    previewPath,
+    previewSans: action === "add" ? canonical : undefined,
+    firstUci,
   };
   setStagedEdits((all) => [...all, edit]);
-  return { ok: true, action_id: edit.id, kind: "staged_edit", action, revision: edit.revision, path: edit.path, ...(canonical ? { line: canonical } : {}), before, after };
+  return {
+    ok: true,
+    action_id: edit.id,
+    kind: "staged_edit",
+    action,
+    revision: edit.revision,
+    path: edit.path,
+    ...(canonical ? { line: canonical } : {}),
+    before,
+    after,
+  };
 }
 
 export function acceptStagedEdit(id: string) {
   const edit = stagedEdits().find((item) => item.id === id);
   if (!edit || edit.status !== "pending") return { ok: false, error: "action_not_pending" };
-  const result = actions.applyEdit(edit.action, edit.path, { addMoves: edit.addMoves, promoteMove: edit.promoteMove }, edit.revision);
-  setStagedEdits((all) => all.map((item) => item.id === id ? { ...item, status: result.ok ? "accepted" : result.error === "stale_revision" ? "stale" : item.status } : item));
+  const result = actions.applyEdit(
+    edit.action,
+    edit.path,
+    { addMoves: edit.addMoves, promoteMove: edit.promoteMove },
+    edit.revision,
+  );
+  setStagedEdits((all) =>
+    all.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            status: result.ok
+              ? "accepted"
+              : result.error === "stale_revision"
+                ? "stale"
+                : item.status,
+          }
+        : item,
+    ),
+  );
   if (preview()?.id === id) setPreview(null);
   return result;
 }
 
 export function rejectStagedEdit(id: string) {
-  setStagedEdits((all) => all.map((item) => item.id === id && item.status === "pending" ? { ...item, status: "rejected" } : item));
+  setStagedEdits((all) =>
+    all.map((item) =>
+      item.id === id && item.status === "pending" ? { ...item, status: "rejected" } : item,
+    ),
+  );
   if (preview()?.id === id) setPreview(null);
 }
 
@@ -108,7 +174,9 @@ export function addSuggestion(sans: string[], comment?: string) {
   if (!check.ok) {
     return { ok: false, reason: `illegal move at index ${check.badIndex} in proposed line` };
   }
-  const staged = stageEdit("add", currentTree().sanPathAt(currentPath()), { addMoves: check.canonical });
+  const staged = stageEdit("add", currentTree().sanPathAt(currentPath()), {
+    addMoves: check.canonical,
+  });
   if (!staged.ok) return { ok: false, reason: staged.error };
   const s: Suggestion = {
     id: staged.action_id,
@@ -150,7 +218,8 @@ export function stagePreview(id: string) {
   }
   const edit = stagedEdit(id);
   const s = suggestions().find((x) => x.id === id);
-  if (edit?.previewPath && edit.previewSans) setPreview({ id, fromPath: edit.previewPath, sans: edit.previewSans, firstUci: edit.firstUci });
+  if (edit?.previewPath && edit.previewSans)
+    setPreview({ id, fromPath: edit.previewPath, sans: edit.previewSans, firstUci: edit.firstUci });
   else if (s) setPreview({ id: s.id, fromPath: s.fromPath, sans: s.sans, firstUci: s.firstUci });
 }
 

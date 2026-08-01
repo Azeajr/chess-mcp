@@ -44,8 +44,10 @@ ok(evalCache.get(FEN2, 2, 20) === null, "cross-multipv still respects the depth 
 // P4 — transposition keying: below halfmove clock 50 the key drops the clocks, so the same
 // position with different move counters (a transposition) hits; at clock >= 50 the full FEN
 // keys exactly (50-move-rule positions must not share entries across clocks).
-ok(evalCache.get("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 4 12", 1, 16) !== null,
-  "same position, different clocks → hit (transposition key)");
+ok(
+  evalCache.get("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 4 12", 1, 16) !== null,
+  "same position, different clocks → hit (transposition key)",
+);
 const HIGH_A = "8/8/4k3/8/8/4K3/4R3/8 w - - 60 80";
 const HIGH_B = "8/8/4k3/8/8/4K3/4R3/8 w - - 99 100";
 evalCache.put(HIGH_A, 1, 16, lines(16));

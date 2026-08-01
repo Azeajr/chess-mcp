@@ -107,7 +107,9 @@ function fallbackWarning(
   };
 }
 
-function durableMetadata(result: StrategicFitMetadataNormalizationResult): StrategicFitDocumentMetadata {
+function durableMetadata(
+  result: StrategicFitMetadataNormalizationResult,
+): StrategicFitDocumentMetadata {
   return result.state === "fallback"
     ? createDefaultStrategicFitDocumentMetadata()
     : result.metadata;
@@ -155,9 +157,10 @@ export function createStrategicFitMetadataPersistence(
       warning: {
         code,
         document_id: id,
-        message: code === "storage-read-failed"
-          ? "Strategic Fit settings could not be read. Defaults were loaded."
-          : "Strategic Fit settings could not be saved.",
+        message:
+          code === "storage-read-failed"
+            ? "Strategic Fit settings could not be read. Defaults were loaded."
+            : "Strategic Fit settings could not be saved.",
         issues: state.issues,
       },
     });
@@ -177,7 +180,8 @@ export function createStrategicFitMetadataPersistence(
         await operation();
       })
       .catch(() => {
-        if (warnOnFailure && epochFor(id) === epoch) publishStorageWarning(id, "storage-write-failed");
+        if (warnOnFailure && epochFor(id) === epoch)
+          publishStorageWarning(id, "storage-write-failed");
       });
     operationTails.set(id, next);
     return next;
@@ -212,9 +216,12 @@ export function createStrategicFitMetadataPersistence(
       timer: null,
     };
     if (!pausedDocuments.has(id)) {
-      pending.timer = setTimeout(() => {
-        void executePending(id);
-      }, Math.max(0, delay));
+      pending.timer = setTimeout(
+        () => {
+          void executePending(id);
+        },
+        Math.max(0, delay),
+      );
     }
     pendingWrites.set(id, pending);
   };
@@ -328,7 +335,12 @@ export function createStrategicFitMetadataPersistence(
       if (pending) {
         if (pending.timer !== null) clearTimeout(pending.timer);
         pendingWrites.delete(id);
-        await enqueue(id, pending.epoch, () => options.storage.set(id, cloneMetadata(pending.metadata)), true);
+        await enqueue(
+          id,
+          pending.epoch,
+          () => options.storage.set(id, cloneMetadata(pending.metadata)),
+          true,
+        );
       }
       await (operationTails.get(id) ?? Promise.resolve());
       let released = false;
@@ -366,14 +378,16 @@ export function createIndexedDbStrategicFitMetadataStorage(): StrategicFitMetada
   };
 }
 
-const [browserSnapshot, setBrowserSnapshot] = createSignal<StrategicFitMetadataPersistenceSnapshot>({
-  document_id: null,
-  status: "idle",
-  metadata: createDefaultStrategicFitDocumentMetadata(),
-  normalization_state: null,
-  issues: [],
-  warning: null,
-});
+const [browserSnapshot, setBrowserSnapshot] = createSignal<StrategicFitMetadataPersistenceSnapshot>(
+  {
+    document_id: null,
+    status: "idle",
+    metadata: createDefaultStrategicFitDocumentMetadata(),
+    normalization_state: null,
+    issues: [],
+    warning: null,
+  },
+);
 const [workingRestoreSettled, setWorkingRestoreSettled] = createSignal(false);
 const browserPersistence = createStrategicFitMetadataPersistence({
   storage: createIndexedDbStrategicFitMetadataStorage(),
@@ -426,7 +440,9 @@ export function strategicFitMetadataWarning(): StrategicFitMetadataWarning | nul
 }
 
 /** Minimal canonical replace boundary; profile-specific mutation semantics begin in Task 4.4. */
-export function replaceStrategicFitMetadata(input: unknown): StrategicFitMetadataNormalizationResult {
+export function replaceStrategicFitMetadata(
+  input: unknown,
+): StrategicFitMetadataNormalizationResult {
   return browserPersistence.replaceDocumentMetadata(documentId(), input);
 }
 
@@ -443,6 +459,8 @@ export function flushStrategicFitMetadata(targetDocumentId?: string): Promise<vo
 }
 
 /** Hold reactive metadata writes behind a Strategic Fit document transaction. */
-export function pauseStrategicFitMetadataPersistence(targetDocumentId: string): Promise<() => void> {
+export function pauseStrategicFitMetadataPersistence(
+  targetDocumentId: string,
+): Promise<() => void> {
   return browserPersistence.pause(targetDocumentId);
 }

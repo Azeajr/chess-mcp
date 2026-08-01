@@ -13,10 +13,7 @@ import {
   type StrategicCausalComparison,
   type StrategicCausalityReport,
 } from "./causality.js";
-import {
-  type StrategicCohortFormationOptions,
-  formStrategicCohorts,
-} from "./cohorts.js";
+import { type StrategicCohortFormationOptions, formStrategicCohorts } from "./cohorts.js";
 import { buildStrategicConceptDictionary, type StrategicConceptDictionary } from "./concepts.js";
 import {
   calculateFindingConfidence,
@@ -34,11 +31,7 @@ import {
   type StrategicAlternativeState,
   type StrategicFindingAssessment,
 } from "./findings.js";
-import {
-  buildRepertoireGraph,
-  type RepertoireGraph,
-  type RepertoireGraphRoute,
-} from "./graph.js";
+import { buildRepertoireGraph, type RepertoireGraph, type RepertoireGraphRoute } from "./graph.js";
 import {
   indexedRepertoireGraph,
   indexedStrategicTrajectories,
@@ -48,10 +41,7 @@ import {
   type StrategicFitJobCheckpointStage,
   type StrategicFitRecomputationScope,
 } from "./index-cache.js";
-import {
-  calculateStrategicFitOverview,
-  type StrategicTrainingMetricEvidence,
-} from "./metrics.js";
+import { calculateStrategicFitOverview, type StrategicTrainingMetricEvidence } from "./metrics.js";
 import {
   detectStrategicModes,
   type StrategicModeDetectionOptions,
@@ -336,13 +326,16 @@ function mergeSources(
 ): StrategicFitSourceProvenance[] {
   const sources = new Map<string, StrategicFitSourceProvenance>();
   for (const source of groups.flat()) {
-    const key = [source.source_id, source.version, source.snapshot, source.state].join(ID_SEPARATOR);
+    const key = [source.source_id, source.version, source.snapshot, source.state].join(
+      ID_SEPARATOR,
+    );
     if (!sources.has(key)) sources.set(key, source);
   }
-  return [...sources.values()].sort((left, right) =>
-    compareStrings(left.source_id, right.source_id) ||
-    compareStrings(left.version ?? "", right.version ?? "") ||
-    compareStrings(left.state, right.state)
+  return [...sources.values()].sort(
+    (left, right) =>
+      compareStrings(left.source_id, right.source_id) ||
+      compareStrings(left.version ?? "", right.version ?? "") ||
+      compareStrings(left.state, right.state),
   );
 }
 
@@ -381,9 +374,10 @@ function profileSource(profile: StrategicFitProfile): StrategicFitSourceProvenan
     state: "available",
     version: profile.schema_version,
     snapshot: null,
-    reason: profile.source === "inferred"
-      ? "The deterministic default or inferred profile remains provisional."
-      : null,
+    reason:
+      profile.source === "inferred"
+        ? "The deterministic default or inferred profile remains provisional."
+        : null,
   };
 }
 
@@ -392,7 +386,9 @@ function validateOptions(options: AnalyzeStrategicFitOptions): void {
     throw new Error("strategic_fit_analyze_missing_repertoire_revision");
   }
   if (options.profile && options.profile.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION) {
-    throw new Error(`strategic_fit_analyze_profile_version_mismatch: ${options.profile.schema_version}`);
+    throw new Error(
+      `strategic_fit_analyze_profile_version_mismatch: ${options.profile.schema_version}`,
+    );
   }
   const offset = options.page?.offset ?? 0;
   const limit = options.page?.limit ?? STRATEGIC_FIT_DEFAULT_PAGE_LIMIT;
@@ -405,9 +401,10 @@ function validateOptions(options: AnalyzeStrategicFitOptions): void {
   const seenRouteIds = new Set<string>();
   const seenAssessmentIds = new Set<string>();
   for (const assessment of options.routeAssessments ?? []) {
-    const assessmentId = assessment.semantic_finding_id === undefined
-      ? assessment.route_id
-      : `${assessment.route_id}${ID_SEPARATOR}${assessment.semantic_finding_id}`;
+    const assessmentId =
+      assessment.semantic_finding_id === undefined
+        ? assessment.route_id
+        : `${assessment.route_id}${ID_SEPARATOR}${assessment.semantic_finding_id}`;
     if (
       seenAssessmentIds.has(assessmentId) ||
       (assessment.semantic_finding_id === undefined && seenRouteIds.has(assessment.route_id)) ||
@@ -435,10 +432,10 @@ function progress(
     state,
     completed_units: state === "completed" ? 1 : 0,
     total_units: 1,
-    provisional_findings: !(phaseIndex === STRATEGIC_FIT_PROGRESS_PHASES.length - 1 && state === "completed"),
-    message: state === "cancelled"
-      ? `${PHASE_MESSAGES[phase]} cancelled`
-      : PHASE_MESSAGES[phase],
+    provisional_findings: !(
+      phaseIndex === STRATEGIC_FIT_PROGRESS_PHASES.length - 1 && state === "completed"
+    ),
+    message: state === "cancelled" ? `${PHASE_MESSAGES[phase]} cancelled` : PHASE_MESSAGES[phase],
   };
 }
 
@@ -485,17 +482,33 @@ function unavailableMetric<T>(
 }
 
 function blockedOverview(preflight: StrategicFitPreflight): StrategicFitOverview {
-  const reason = "Strategic Fit metrics are unavailable because preflight blocked position analysis.";
+  const reason =
+    "Strategic Fit metrics are unavailable because preflight blocked position analysis.";
   const sources = preflight.issues.flatMap((issue) => issue.provenance);
   const metrics: StrategicFitMetrics = {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     strategic_entropy: unavailableMetric("strategic-entropy", "entropy", reason, sources),
     concept_reuse: unavailableMetric("concept-reuse", "fraction", reason, sources),
     exception_burden: unavailableMetric("exception-burden", "composite", reason, sources),
-    forced_diversity_floor: unavailableMetric("forced-diversity-floor", "fraction", reason, sources),
+    forced_diversity_floor: unavailableMetric(
+      "forced-diversity-floor",
+      "fraction",
+      reason,
+      sources,
+    ),
     homogenization_cost: unavailableMetric("homogenization-cost", "composite", reason, sources),
-    familiarity_adjusted_coverage: unavailableMetric("familiarity-adjusted-coverage", "fraction", reason, sources),
-    training_adjusted_workload: unavailableMetric("training-adjusted-workload", "score", reason, sources),
+    familiarity_adjusted_coverage: unavailableMetric(
+      "familiarity-adjusted-coverage",
+      "fraction",
+      reason,
+      sources,
+    ),
+    training_adjusted_workload: unavailableMetric(
+      "training-adjusted-workload",
+      "score",
+      reason,
+      sources,
+    ),
     repertoire_regret: unavailableMetric("repertoire-regret", "score", reason, sources),
     move_order_resilience: unavailableMetric("move-order-resilience", "fraction", reason, sources),
     concept_centrality: unavailableMetric("concept-centrality", "composite", reason, sources),
@@ -526,7 +539,10 @@ function provenance(
   };
 }
 
-function pageInfo(totalCount: number, options: AnalyzeStrategicFitOptions): StrategicFitFindingPage {
+function pageInfo(
+  totalCount: number,
+  options: AnalyzeStrategicFitOptions,
+): StrategicFitFindingPage {
   const offset = options.page?.offset ?? 0;
   const limit = options.page?.limit ?? STRATEGIC_FIT_DEFAULT_PAGE_LIMIT;
   const returnedCount = Math.max(0, Math.min(limit, totalCount - offset));
@@ -567,16 +583,20 @@ function attachPreflightRouteIds(
     ...preflight,
     issues: preflight.issues.map((issue) => ({
       ...issue,
-      affected_route_ids: issue.affected_source_paths.length === 0
-        ? []
-        : graph.routes
-          .filter((route) => route.source_san_paths.some((routePath) =>
-            issue.affected_source_paths.some((issuePath) =>
-              isPathPrefix(issuePath, routePath) || isPathPrefix(routePath, issuePath)
-            )
-          ))
-          .map((route) => route.route_id)
-          .sort(compareStrings),
+      affected_route_ids:
+        issue.affected_source_paths.length === 0
+          ? []
+          : graph.routes
+              .filter((route) =>
+                route.source_san_paths.some((routePath) =>
+                  issue.affected_source_paths.some(
+                    (issuePath) =>
+                      isPathPrefix(issuePath, routePath) || isPathPrefix(routePath, issuePath),
+                  ),
+                ),
+              )
+              .map((route) => route.route_id)
+              .sort(compareStrings),
     })),
   };
 }
@@ -598,17 +618,21 @@ function routeById(graph: RepertoireGraph): ReadonlyMap<string, RepertoireGraphR
   return new Map(graph.routes.map((route) => [route.route_id, route]));
 }
 
-function trajectoryById(report: StrategicTrajectoryReport): ReadonlyMap<string, StrategicTrajectory> {
+function trajectoryById(
+  report: StrategicTrajectoryReport,
+): ReadonlyMap<string, StrategicTrajectory> {
   return new Map(report.trajectories.map((trajectory) => [trajectory.route_id, trajectory]));
 }
 
 function causalityByComparison(
   report: StrategicCausalityReport,
 ): ReadonlyMap<string, StrategicCausalComparison> {
-  return new Map(report.comparisons.map((comparison) => [
-    [comparison.cohort_id, comparison.affected_route_id, comparison.mode_id].join(ID_SEPARATOR),
-    comparison,
-  ]));
+  return new Map(
+    report.comparisons.map((comparison) => [
+      [comparison.cohort_id, comparison.affected_route_id, comparison.mode_id].join(ID_SEPARATOR),
+      comparison,
+    ]),
+  );
 }
 
 function nearestComparison(
@@ -616,16 +640,20 @@ function nearestComparison(
   cohortId: string,
   routeId: string,
 ): StrategicRouteModeDistance | null {
-  return distances.comparisons
-    .filter((comparison) =>
-      comparison.cohort_id === cohortId &&
-      comparison.left_route_id === routeId &&
-      comparison.state === "available" &&
-      comparison.distance !== null
-    )
-    .sort((left, right) =>
-      left.distance! - right.distance! || compareStrings(left.mode_id, right.mode_id)
-    )[0] ?? null;
+  return (
+    distances.comparisons
+      .filter(
+        (comparison) =>
+          comparison.cohort_id === cohortId &&
+          comparison.left_route_id === routeId &&
+          comparison.state === "available" &&
+          comparison.distance !== null,
+      )
+      .sort(
+        (left, right) =>
+          left.distance! - right.distance! || compareStrings(left.mode_id, right.mode_id),
+      )[0] ?? null
+  );
 }
 
 function candidates(context: FindingContext): FindingCandidate[] {
@@ -637,15 +665,19 @@ function candidates(context: FindingContext): FindingCandidate[] {
     const cohort = cohortById.get(selection.cohort_id)!;
     if (selection.state === "excluded") continue;
     if (selection.state === "mixed-profile") {
-      const comparison = context.distances.comparisons
-        .filter((item) => item.cohort_id === cohort.cohort_id && item.distance !== null)
-        .sort((left, right) =>
-          right.distance! - left.distance! ||
-          compareStrings(left.left_route_id, right.left_route_id) ||
-          compareStrings(left.mode_id, right.mode_id)
-        )[0] ?? null;
+      const comparison =
+        context.distances.comparisons
+          .filter((item) => item.cohort_id === cohort.cohort_id && item.distance !== null)
+          .sort(
+            (left, right) =>
+              right.distance! - left.distance! ||
+              compareStrings(left.left_route_id, right.left_route_id) ||
+              compareStrings(left.mode_id, right.mode_id),
+          )[0] ?? null;
       const causal = comparison
-        ? causalByKey.get([cohort.cohort_id, comparison.left_route_id, comparison.mode_id].join(ID_SEPARATOR))
+        ? causalByKey.get(
+            [cohort.cohort_id, comparison.left_route_id, comparison.mode_id].join(ID_SEPARATOR),
+          )
         : null;
       result.push({
         kind: "mixed-profile",
@@ -654,7 +686,8 @@ function candidates(context: FindingContext): FindingCandidate[] {
         routeIds: cohort.route_ids,
         modes: cohort.modes,
         comparison,
-        causality: causal?.attribution ?? unknownCausality("Several supported modes form the baseline."),
+        causality:
+          causal?.attribution ?? unknownCausality("Several supported modes form the baseline."),
         transpositionallyEquivalent: false,
       });
       continue;
@@ -667,7 +700,9 @@ function candidates(context: FindingContext): FindingCandidate[] {
         routeIds: cohort.route_ids,
         modes: [],
         comparison: null,
-        causality: unknownCausality("Comparable stable evidence is insufficient for causal attribution."),
+        causality: unknownCausality(
+          "Comparable stable evidence is insufficient for causal attribution.",
+        ),
         transpositionallyEquivalent: false,
       });
       continue;
@@ -684,7 +719,8 @@ function candidates(context: FindingContext): FindingCandidate[] {
         routeIds: [routeId],
         modes: cohort.modes,
         comparison,
-        causality: causal?.attribution ?? unknownCausality("No supported causal comparison is available."),
+        causality:
+          causal?.attribution ?? unknownCausality("No supported causal comparison is available."),
         transpositionallyEquivalent: false,
       });
     }
@@ -712,17 +748,21 @@ function candidates(context: FindingContext): FindingCandidate[] {
       transpositionallyEquivalent: true,
     });
   }
-  return result.sort((left, right) =>
-    compareStrings(left.cohort?.cohort_id ?? "", right.cohort?.cohort_id ?? "") ||
-    compareStrings(left.kind, right.kind) ||
-    compareStrings(left.routeIds.join(ID_SEPARATOR), right.routeIds.join(ID_SEPARATOR))
+  return result.sort(
+    (left, right) =>
+      compareStrings(left.cohort?.cohort_id ?? "", right.cohort?.cohort_id ?? "") ||
+      compareStrings(left.kind, right.kind) ||
+      compareStrings(left.routeIds.join(ID_SEPARATOR), right.routeIds.join(ID_SEPARATOR)),
   );
 }
 
 function signalValue(snapshot: StrategicSnapshot, featureId: string): readonly JsonValue[] {
   return snapshot.signals
-    .filter((signal) => signal.feature_id === featureId &&
-      (signal.persistence === "stable" || signal.persistence === "irreversible"))
+    .filter(
+      (signal) =>
+        signal.feature_id === featureId &&
+        (signal.persistence === "stable" || signal.persistence === "irreversible"),
+    )
     .map((signal) => signal.value);
 }
 
@@ -733,7 +773,9 @@ function distinctFeatureValues(
   if (!trajectory) return null;
   const values = trajectory.snapshots.flatMap((snapshot) => signalValue(snapshot, featureId));
   const unique = new Map(values.map((value) => [stableSerialize(value), value]));
-  const sorted = [...unique.entries()].sort(([left], [right]) => compareStrings(left, right)).map(([, value]) => value);
+  const sorted = [...unique.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
+    .map(([, value]) => value);
   if (sorted.length === 0) return null;
   return sorted.length === 1 ? sorted[0]! : sorted;
 }
@@ -746,12 +788,20 @@ function dimensions(
   if (!comparison) return [];
   return comparison.feature_contributions.map((contribution) => ({
     dimension_id: `${contribution.family}.${contribution.feature_id}`,
-    typical_value: contribution.family === "learning-concepts"
-      ? null
-      : distinctFeatureValues(trajectories.get(comparison.right_route_id), contribution.feature_id),
-    affected_value: contribution.family === "learning-concepts"
-      ? null
-      : distinctFeatureValues(trajectories.get(comparison.left_route_id), contribution.feature_id),
+    typical_value:
+      contribution.family === "learning-concepts"
+        ? null
+        : distinctFeatureValues(
+            trajectories.get(comparison.right_route_id),
+            contribution.feature_id,
+          ),
+    affected_value:
+      contribution.family === "learning-concepts"
+        ? null
+        : distinctFeatureValues(
+            trajectories.get(comparison.left_route_id),
+            contribution.feature_id,
+          ),
     contribution: contribution.contribution,
     explanation: `${contribution.feature_id} contributes ${Math.round(contribution.contribution * 100)}% of the normalized distance.`,
   }));
@@ -762,12 +812,18 @@ function conceptsForRoute(
   routeId: string | undefined,
 ): readonly string[] {
   if (!routeId) return [];
-  return dictionary.routes.find((route) => route.route_id === routeId)?.concepts
-    .map((concept) => concept.concept_id)
-    .sort(compareStrings) ?? [];
+  return (
+    dictionary.routes
+      .find((route) => route.route_id === routeId)
+      ?.concepts.map((concept) => concept.concept_id)
+      .sort(compareStrings) ?? []
+  );
 }
 
-function newConceptIds(candidate: FindingCandidate, concepts: StrategicConceptDictionary): string[] {
+function newConceptIds(
+  candidate: FindingCandidate,
+  concepts: StrategicConceptDictionary,
+): string[] {
   const affectedId = candidate.comparison?.left_route_id ?? candidate.routeIds[0];
   const baselineId = candidate.comparison?.representative_route_id;
   const affected = conceptsForRoute(concepts, affectedId);
@@ -777,7 +833,9 @@ function newConceptIds(candidate: FindingCandidate, concepts: StrategicConceptDi
 
 function stableFromPly(candidate: FindingCandidate): number | null {
   const stable = candidate.causality.timeline
-    .filter((event) => event.kind === "difference-stable" || event.kind === "first-strategic-difference")
+    .filter(
+      (event) => event.kind === "difference-stable" || event.kind === "first-strategic-difference",
+    )
     .map((event) => event.ply)
     .sort((left, right) => left - right)[0];
   return stable ?? null;
@@ -791,12 +849,16 @@ function temporalPersistence(candidate: FindingCandidate): number {
 
 function classifierConfidence(trajectory: StrategicTrajectory | undefined): number {
   if (!trajectory || trajectory.snapshots.length === 0) return 0;
-  return round(trajectory.snapshots.reduce((sum, snapshot) => sum + snapshot.classifier_confidence, 0) /
-    trajectory.snapshots.length);
+  return round(
+    trajectory.snapshots.reduce((sum, snapshot) => sum + snapshot.classifier_confidence, 0) /
+      trajectory.snapshots.length,
+  );
 }
 
 function openingAvailable(context: FindingContext, routeIds: readonly string[]): boolean {
-  const byRoute = new Map(context.taxonomy.routes.map((route) => [route.route_id, route.taxonomy.state]));
+  const byRoute = new Map(
+    context.taxonomy.routes.map((route) => [route.route_id, route.taxonomy.state]),
+  );
   return routeIds.every((routeId) => byRoute.get(routeId) === "classified");
 }
 
@@ -812,9 +874,14 @@ function findingDifference(
   });
 }
 
-function expectedFrequency(candidate: FindingCandidate, weights: StrategicRouteWeightingReport): number {
+function expectedFrequency(
+  candidate: FindingCandidate,
+  weights: StrategicRouteWeightingReport,
+): number {
   const byRoute = new Map(weights.routes.map((route) => [route.route_id, route.normalized_weight]));
-  return round(clamp(candidate.routeIds.reduce((sum, routeId) => sum + (byRoute.get(routeId) ?? 0), 0)));
+  return round(
+    clamp(candidate.routeIds.reduce((sum, routeId) => sum + (byRoute.get(routeId) ?? 0), 0)),
+  );
 }
 
 function semanticFindingId(candidate: FindingCandidate): string {
@@ -830,9 +897,11 @@ function assessmentForCandidate(
   candidate: FindingCandidate,
 ): StrategicFitRouteAssessmentInput | undefined {
   const findingIdentity = semanticFindingId(candidate);
-  return assessments.find((assessment) =>
-    candidate.routeIds.includes(assessment.route_id) &&
-    (assessment.semantic_finding_id === undefined || assessment.semantic_finding_id === findingIdentity)
+  return assessments.find(
+    (assessment) =>
+      candidate.routeIds.includes(assessment.route_id) &&
+      (assessment.semantic_finding_id === undefined ||
+        assessment.semantic_finding_id === findingIdentity),
   );
 }
 
@@ -847,21 +916,26 @@ function findingAssessment(
 } {
   const trajectories = trajectoryById(context.trajectories);
   const affected = trajectories.get(candidate.comparison?.left_route_id ?? candidate.routeIds[0]!);
-  const incompleteShare = candidate.routeIds.filter((routeId) => trajectories.get(routeId)?.state !== "complete").length /
+  const incompleteShare =
+    candidate.routeIds.filter((routeId) => trajectories.get(routeId)?.state !== "complete").length /
     candidate.routeIds.length;
   const persistence = temporalPersistence(candidate);
   const hasTaxonomy = openingAvailable(context, candidate.routeIds);
-  const causalityQuality = candidate.causality.controllability === null
-    ? 0
-    : candidate.causality.timeline.length > 0 ? 1 : 0.6;
+  const causalityQuality =
+    candidate.causality.controllability === null
+      ? 0
+      : candidate.causality.timeline.length > 0
+        ? 1
+        : 0.6;
   const confidence = calculateFindingConfidence({
     classifier_confidence: classifierConfidence(affected),
     checkpoint_completeness: affected?.evidence_coverage ?? 0,
     effective_sample_size: candidate.cohort?.effective_sample_size ?? 1,
     temporal_persistence: persistence,
-    cohort_coherence: candidate.comparison?.distance === null || candidate.comparison === null
-      ? 0
-      : clamp(1 - candidate.comparison.distance),
+    cohort_coherence:
+      candidate.comparison?.distance === null || candidate.comparison === null
+        ? 0
+        : clamp(1 - candidate.comparison.distance),
     opening_data_quality: hasTaxonomy ? 1 : 0.5,
     causal_attribution_quality: causalityQuality,
     substantial_incomplete_line_share: incompleteShare >= 0.25,
@@ -875,13 +949,16 @@ function findingAssessment(
     new_concept_count: difference.new_concept_count,
     stable_from_ply: difference.stable_from_ply,
   }).score;
-  const learningBurden = round(clamp((magnitude + difference.new_concept_count / (difference.new_concept_count + 1)) / 2));
+  const learningBurden = round(
+    clamp((magnitude + difference.new_concept_count / (difference.new_concept_count + 1)) / 2),
+  );
   const routeAssessment = assessmentForCandidate(context.options.routeAssessments ?? [], candidate);
   const selectionIsExplicit = candidate.selectionState === "explicit-target";
-  const profileConflict = candidate.kind === "route-exception" && (
-    selectionIsExplicit ||
-    (context.options.profile?.source === "explicit" && context.options.profile.mode === "familiar-plans")
-  );
+  const profileConflict =
+    candidate.kind === "route-exception" &&
+    (selectionIsExplicit ||
+      (context.options.profile?.source === "explicit" &&
+        context.options.profile.mode === "familiar-plans"));
   return {
     learningBurden,
     confidence,
@@ -891,7 +968,8 @@ function findingAssessment(
       causality: candidate.causality,
       mode_selection_state: candidate.selectionState,
       conflicts_with_selected_profile: profileConflict,
-      introduces_meaningful_additional_learning: difference.new_concept_count > 0 || magnitude >= 1 / 3,
+      introduces_meaningful_additional_learning:
+        difference.new_concept_count > 0 || magnitude >= 1 / 3,
       alternative_state: routeAssessment?.alternative_state ?? "not-assessed",
       intent: {
         matches_declared_objective: routeAssessment?.matches_declared_objective ?? false,
@@ -918,22 +996,30 @@ function affectedIssueIds(
   routes: readonly RepertoireGraphRoute[],
 ): string[] {
   return context.preflight.issues
-    .filter((issue) =>
-      issue.affected_source_paths.length === 0 ||
-      routes.some((route) => route.source_san_paths.some((routePath) =>
-        issue.affected_source_paths.some((issuePath) =>
-          isPathPrefix(issuePath, routePath) || isPathPrefix(routePath, issuePath)
-        )
-      ))
+    .filter(
+      (issue) =>
+        issue.affected_source_paths.length === 0 ||
+        routes.some((route) =>
+          route.source_san_paths.some((routePath) =>
+            issue.affected_source_paths.some(
+              (issuePath) =>
+                isPathPrefix(issuePath, routePath) || isPathPrefix(routePath, issuePath),
+            ),
+          ),
+        ),
     )
     .map((issue) => issue.issue_id)
     .sort(compareStrings);
 }
 
-function analysisWindow(trajectories: readonly StrategicTrajectory[]): readonly [number, number] | null {
-  const plies = trajectories.flatMap((trajectory) => trajectory.snapshots
-    .filter((snapshot) => snapshot.checkpoint.comparability === "comparable")
-    .map((snapshot) => snapshot.checkpoint.ply));
+function analysisWindow(
+  trajectories: readonly StrategicTrajectory[],
+): readonly [number, number] | null {
+  const plies = trajectories.flatMap((trajectory) =>
+    trajectory.snapshots
+      .filter((snapshot) => snapshot.checkpoint.comparability === "comparable")
+      .map((snapshot) => snapshot.checkpoint.ply),
+  );
   return plies.length === 0 ? null : [Math.min(...plies), Math.max(...plies)];
 }
 
@@ -946,10 +1032,11 @@ function evidence(
   const routeTrajectories = candidate.routeIds
     .map((routeId) => trajectoriesByRoute.get(routeId))
     .filter((trajectory): trajectory is StrategicTrajectory => trajectory !== undefined);
-  const coverage = routeTrajectories.length === 0
-    ? 0
-    : routeTrajectories.reduce((sum, trajectory) => sum + trajectory.evidence_coverage, 0) /
-      routeTrajectories.length;
+  const coverage =
+    routeTrajectories.length === 0
+      ? 0
+      : routeTrajectories.reduce((sum, trajectory) => sum + trajectory.evidence_coverage, 0) /
+        routeTrajectories.length;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     cohort_id: candidate.cohort?.cohort_id ?? "cohort:transposition",
@@ -1004,11 +1091,18 @@ function baselinePercentage(candidate: FindingCandidate): number {
   return round(clamp(Math.max(...candidate.modes.map((mode) => mode.normalized_weight))) * 100);
 }
 
-function findingFromCandidate(context: FindingContext, candidate: FindingCandidate): StrategicFinding {
+function findingFromCandidate(
+  context: FindingContext,
+  candidate: FindingCandidate,
+): StrategicFinding {
   const routesById = routeById(context.graph);
   const routes = candidate.routeIds.map((routeId) => routesById.get(routeId)!).filter(Boolean);
   const difference = findingDifference(candidate, context.concepts);
-  const { assessment, learningBurden, confidence } = findingAssessment(context, candidate, difference);
+  const { assessment, learningBurden, confidence } = findingAssessment(
+    context,
+    candidate,
+    difference,
+  );
   const assessmentInput = assessmentForCandidate(context.options.routeAssessments ?? [], candidate);
   const resolutionState = assessmentInput?.resolution_state ?? "unresolved";
   const semanticFindingIdentity = semanticFindingId(candidate);
@@ -1027,13 +1121,18 @@ function findingFromCandidate(context: FindingContext, candidate: FindingCandida
     classification: assessment.classification,
     plain_language_category: category(assessment.classification),
     opening_scope: openingScope(context, candidate.routeIds[0]!),
-    affected_line_summary: routes.length === 1
-      ? routes[0]!.san_moves.join(" ")
-      : `${routes.length} related repertoire routes`,
+    affected_line_summary:
+      routes.length === 1
+        ? routes[0]!.san_moves.join(" ")
+        : `${routes.length} related repertoire routes`,
     explanation: explanation(assessment),
     references: {
-      position_ids: [...new Set(routes.flatMap((route) => route.position_ids))].sort(compareStrings),
-      decision_ids: [...new Set(routes.flatMap((route) => route.decision_ids))].sort(compareStrings),
+      position_ids: [...new Set(routes.flatMap((route) => route.position_ids))].sort(
+        compareStrings,
+      ),
+      decision_ids: [...new Set(routes.flatMap((route) => route.decision_ids))].sort(
+        compareStrings,
+      ),
       route_ids: [...candidate.routeIds].sort(compareStrings),
       source_san_paths: routes.flatMap((route) => route.source_san_paths.map((path) => [...path])),
     },
@@ -1101,17 +1200,18 @@ export function analyzeStrategicFit(
 ): StrategicFitAnalysisResult {
   validateOptions(options);
   const profile = options.profile ?? defaultProfile();
-  const runId = options.runId ?? semanticId("strategic-fit-run", [
-    options.repertoireRevision,
-    STRATEGIC_FIT_ANALYSIS_MANIFEST,
-    profile,
-    analysisIdentity(options),
-  ]);
+  const runId =
+    options.runId ??
+    semanticId("strategic-fit-run", [
+      options.repertoireRevision,
+      STRATEGIC_FIT_ANALYSIS_MANIFEST,
+      profile,
+      analysisIdentity(options),
+    ]);
 
   const index = options.index;
-  const generation = index === undefined
-    ? null
-    : strategicFitIndexGeneration(strategicFitIndexSettings(options));
+  const generation =
+    index === undefined ? null : strategicFitIndexGeneration(strategicFitIndexSettings(options));
 
   const normalized = runPhase(options, runId, 0, () => {
     const preflight = preflightStrategicFit(tree, {
@@ -1123,11 +1223,8 @@ export function analyzeStrategicFit(
     }
     const repertoireColor = options.repertoireColor;
     const contentKey = tree.toPgn();
-    const graph = indexedRepertoireGraph(
-      index,
-      generation,
-      contentKey,
-      () => buildRepertoireGraph(tree, repertoireColor),
+    const graph = indexedRepertoireGraph(index, generation, contentKey, () =>
+      buildRepertoireGraph(tree, repertoireColor),
     );
     return { preflight: attachPreflightRouteIds(preflight, graph), graph, contentKey } as const;
   });
@@ -1135,10 +1232,7 @@ export function analyzeStrategicFit(
   const graph = normalized.graph;
   const contentKey = normalized.contentKey;
   /** Emitted after a phase completes, so an interrupted job keeps exactly what it finished. */
-  const checkpoint = (
-    phaseIndex: number,
-    trajectories: StrategicTrajectoryReport | null,
-  ): void => {
+  const checkpoint = (phaseIndex: number, trajectories: StrategicTrajectoryReport | null): void => {
     if (options.onCheckpoint === undefined || generation === null) return;
     options.onCheckpoint({
       generation,
@@ -1160,16 +1254,17 @@ export function analyzeStrategicFit(
 
   const comparable = runPhase(options, runId, 1, () => {
     const taxonomy = buildOpeningTaxonomy(graph, options.openingTable);
-    const weighting = options.weighting === undefined
-      ? undefined
-      : {
-          ...options.weighting,
-          source_coefficients: {
-            market: profile.preferences.opponent_popularity_importance,
-            personal: profile.preferences.personal_game_frequency_importance,
-            manual: profile.preferences.manual_weight_importance,
-          },
-        };
+    const weighting =
+      options.weighting === undefined
+        ? undefined
+        : {
+            ...options.weighting,
+            source_coefficients: {
+              market: profile.preferences.opponent_popularity_importance,
+              personal: profile.preferences.personal_game_frequency_importance,
+              manual: profile.preferences.manual_weight_importance,
+            },
+          };
     const weights = calculateStrategicRouteWeights(graph, weighting);
     const trajectories = indexedStrategicTrajectories(index, generation, graph, () =>
       buildStrategicTrajectories(graph, {
@@ -1178,7 +1273,8 @@ export function analyzeStrategicFit(
         ...(index === undefined || generation === null
           ? {}
           : { signalIndex: index.signalIndex(generation) }),
-      }));
+      }),
+    );
     const cohorts = formStrategicCohorts(graph, taxonomy, trajectories, weights, options.cohorts);
     return { taxonomy, weights, trajectories, cohorts };
   });
@@ -1204,35 +1300,42 @@ export function analyzeStrategicFit(
       comparable.trajectories,
       patterns.concepts,
       strategicFitProfileDistanceOptions(profile, options.distance),
-    )
+    ),
   );
 
   const causality = runPhase(options, runId, 4, () =>
-    calculateStrategicCausality(graph, comparable.trajectories, distances)
+    calculateStrategicCausality(graph, comparable.trajectories, distances),
   );
 
   return runPhase(options, runId, 5, () => {
-    const reportProvenance = provenance(options, mergeSources(
-      comparable.taxonomy.routes.flatMap((route) => route.taxonomy.state === "unknown"
-        ? [{
-            source_id: "strategic-fit:opening-taxonomy",
-            kind: "opening-taxonomy" as const,
-            state: "unavailable" as const,
-            version: comparable.taxonomy.taxonomy_version,
-            snapshot: null,
-            reason: route.taxonomy.provenance.explanation,
-          }]
-        : []),
-      comparable.weights.provenance,
-      comparable.trajectories.provenance,
-      patterns.concepts.provenance,
-      patterns.modes.provenance,
-      distances.provenance,
-      causality.provenance,
-      options.training?.provenance ?? [],
-      ...(options.training?.concept_mastery ?? []).map((concept) => concept.provenance ?? []),
-      [profileSource(profile)],
-    ));
+    const reportProvenance = provenance(
+      options,
+      mergeSources(
+        comparable.taxonomy.routes.flatMap((route) =>
+          route.taxonomy.state === "unknown"
+            ? [
+                {
+                  source_id: "strategic-fit:opening-taxonomy",
+                  kind: "opening-taxonomy" as const,
+                  state: "unavailable" as const,
+                  version: comparable.taxonomy.taxonomy_version,
+                  snapshot: null,
+                  reason: route.taxonomy.provenance.explanation,
+                },
+              ]
+            : [],
+        ),
+        comparable.weights.provenance,
+        comparable.trajectories.provenance,
+        patterns.concepts.provenance,
+        patterns.modes.provenance,
+        distances.provenance,
+        causality.provenance,
+        options.training?.provenance ?? [],
+        ...(options.training?.concept_mastery ?? []).map((concept) => concept.provenance ?? []),
+        [profileSource(profile)],
+      ),
+    );
     const context: FindingContext = {
       options: { ...options, profile },
       graph,

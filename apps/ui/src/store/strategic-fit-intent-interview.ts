@@ -78,7 +78,12 @@ export interface StrategicFitProfileProposalResult {
 }
 
 export type StrategicFitProposalDecisionResult =
-  | { readonly ok: true; readonly proposal_id: string; readonly status: StrategicFitProposalStatus; readonly mode: StrategicFitProfileMode }
+  | {
+      readonly ok: true;
+      readonly proposal_id: string;
+      readonly status: StrategicFitProposalStatus;
+      readonly mode: StrategicFitProfileMode;
+    }
   | { readonly ok: false; readonly error: string; readonly reason: string };
 
 export interface StrategicFitIntentInterviewBoundary {
@@ -86,12 +91,8 @@ export interface StrategicFitIntentInterviewBoundary {
   currentRevision(): number;
   currentProfile(): StrategicFitProfile;
   currentSettingsIdentity(): string;
-  selectProfile(
-    mode: StrategicFitProfileMode,
-  ): StrategicFitProfileMutationResult;
-  updateCustom(
-    preferences: StrategicFitProfile["preferences"],
-  ): StrategicFitProfileMutationResult;
+  selectProfile(mode: StrategicFitProfileMode): StrategicFitProfileMutationResult;
+  updateCustom(preferences: StrategicFitProfile["preferences"]): StrategicFitProfileMutationResult;
   now(): string;
 }
 
@@ -109,7 +110,8 @@ function staleReason(
   boundary: StrategicFitIntentInterviewBoundary,
 ): string | null {
   if (proposal.document_id !== boundary.currentDocumentId()) return "A different document is open.";
-  if (proposal.repertoire_revision !== boundary.currentRevision()) return "The repertoire changed after this proposal was made.";
+  if (proposal.repertoire_revision !== boundary.currentRevision())
+    return "The repertoire changed after this proposal was made.";
   if (proposal.profile_identity !== strategicFitProfileIdentity(boundary.currentProfile())) {
     return "The Strategic Fit profile changed after this proposal was made.";
   }
@@ -126,8 +128,9 @@ export function createStrategicFitIntentInterviewState(
   let nextId = 1;
 
   const update = (proposalId: string, status: StrategicFitProposalStatus) =>
-    setProposals((all) => all.map((entry) =>
-      entry.proposal_id === proposalId ? { ...entry, status } : entry));
+    setProposals((all) =>
+      all.map((entry) => (entry.proposal_id === proposalId ? { ...entry, status } : entry)),
+    );
 
   const find = (proposalId: string) =>
     proposals().find((entry) => entry.proposal_id === proposalId);
@@ -142,21 +145,22 @@ export function createStrategicFitIntentInterviewState(
       // A bare preset restores that preset's defaults; a preference edit on top of any mode becomes
       // custom, matching what the settings form already does when the user saves a change.
       const presetOnly = patch.mode !== null && !patch.touches_preferences;
-      const basePreferences = patch.mode === null
-        ? current.preferences
-        : strategicFitPresetProfile(patch.mode).preferences;
+      const basePreferences =
+        patch.mode === null
+          ? current.preferences
+          : strategicFitPresetProfile(patch.mode).preferences;
       const resulting: StrategicFitProfile = presetOnly
         ? strategicFitPresetProfile(patch.mode!)
         : {
-          ...current,
-          mode: "custom",
-          source: "explicit",
-          provisional: false,
-          preferences: normalizeStrategicFitProfilePreferences(
-            patch.preferences ?? {},
-            basePreferences,
-          ),
-        };
+            ...current,
+            mode: "custom",
+            source: "explicit",
+            provisional: false,
+            preferences: normalizeStrategicFitProfilePreferences(
+              patch.preferences ?? {},
+              basePreferences,
+            ),
+          };
       const diff = diffStrategicFitProfiles(current, resulting);
       const confirmsProvisional = current.provisional || current.source === "inferred";
       // A value-identical proposal against a still-provisional profile is not empty: accepting it
@@ -197,7 +201,8 @@ export function createStrategicFitIntentInterviewState(
         rationale: proposal.rationale,
         persisted: false,
         scope: "profile-preferences-only",
-        next_step: "Nothing has been saved. Summarize the difference and let the user accept or reject it in the application; never state that the profile changed until they do.",
+        next_step:
+          "Nothing has been saved. Summarize the difference and let the user accept or reject it in the application; never state that the profile changed until they do.",
       };
     },
 

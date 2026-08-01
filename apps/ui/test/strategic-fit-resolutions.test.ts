@@ -35,7 +35,9 @@ function fixture() {
       metadata = result.metadata;
       return result;
     },
-    invalidateReports: () => { invalidations++; },
+    invalidateReports: () => {
+      invalidations++;
+    },
     now: () => `2026-07-17T12:00:${String(clock++).padStart(2, "0")}.000Z`,
   };
   return {
@@ -50,14 +52,18 @@ function fixture() {
   };
 }
 
-function resolutionInput(f: ReturnType<typeof fixture>, state: StrategicFitPersistedResolutionState, id = state) {
+function resolutionInput(
+  f: ReturnType<typeof fixture>,
+  state: StrategicFitPersistedResolutionState,
+  id = state,
+) {
   const route = f.graph().routes[0]!;
   return {
     resolution_id: `resolution:${id}`,
     finding_id: `finding:${id}`,
     semantic_finding_id: `semantic-finding:${id}`,
     state,
-    intentional_reason: state === "keep-intentionally" ? "already-understood" as const : null,
+    intentional_reason: state === "keep-intentionally" ? ("already-understood" as const) : null,
     note: `Decision ${id}`,
     reason: `Reason ${id}`,
     references: {
@@ -82,16 +88,31 @@ test("every persisted resolution kind adds, updates, removes, and reopens throug
     "automatically-resolved-by-another-edit",
     "invalid-comparison",
   ];
-  for (const state of states) assert.equal(f.state.upsertResolution(resolutionInput(f, state)).state, "updated");
-  assert.deepEqual(f.metadata().resolutions.map((entry) => entry.state).sort(), [...states].sort());
-  assert.ok(f.metadata().resolutions.every((entry) =>
-    entry.record_state === "active" && entry.provenance.length > 0 && entry.reason !== null
-  ));
+  for (const state of states)
+    assert.equal(f.state.upsertResolution(resolutionInput(f, state)).state, "updated");
+  assert.deepEqual(
+    f
+      .metadata()
+      .resolutions.map((entry) => entry.state)
+      .sort(),
+    [...states].sort(),
+  );
+  assert.ok(
+    f
+      .metadata()
+      .resolutions.every(
+        (entry) =>
+          entry.record_state === "active" && entry.provenance.length > 0 && entry.reason !== null,
+      ),
+  );
 
   const beforeNoop = f.invalidations();
   assert.equal(f.state.upsertResolution(resolutionInput(f, "defer")).state, "unchanged");
   assert.equal(f.invalidations(), beforeNoop);
-  assert.equal(f.state.upsertResolution({ ...resolutionInput(f, "defer"), note: "Updated" }).state, "updated");
+  assert.equal(
+    f.state.upsertResolution({ ...resolutionInput(f, "defer"), note: "Updated" }).state,
+    "updated",
+  );
   assert.equal(f.state.removeResolution("resolution:defer").state, "removed");
   assert.equal(f.state.removeResolution("resolution:missing").state, "missing");
   assert.equal(f.state.reopenResolution("resolution:keep-intentionally").state, "removed");
@@ -115,9 +136,15 @@ test("a semantic finding has one replaceable resolution and reopen cannot expose
     [{ resolution_id: "resolution:b", state: "train-as-exception" }],
   );
   assert.equal(f.state.removeResolution("resolution:a").state, "missing");
-  assert.equal(f.state.analysisSettings().inputs.route_assessments?.[0]?.resolution_state, "train-as-exception");
+  assert.equal(
+    f.state.analysisSettings().inputs.route_assessments?.[0]?.resolution_state,
+    "train-as-exception",
+  );
 
-  assert.equal(f.state.upsertResolution({ ...replacement, note: "Updated replacement" }).state, "updated");
+  assert.equal(
+    f.state.upsertResolution({ ...replacement, note: "Updated replacement" }).state,
+    "updated",
+  );
   assert.equal(f.metadata().resolutions.length, 1);
   assert.equal(f.metadata().resolutions[0]?.note, "Updated replacement");
   assert.equal(f.state.reopenResolution("resolution:b").state, "removed");
@@ -132,50 +159,76 @@ test("merge, split, exclusion, manual weights, provenance, reasons, and removals
   const decisionId = graph.decisions[0]!.decision_id;
   const before = f.invalidations();
 
-  assert.equal(f.state.upsertCohortOverride({
-    override_id: "override:merge",
-    kind: "merge",
-    route_ids: routeIds,
-    reason: "Same practical system",
-  }).state, "updated");
-  assert.equal(f.state.upsertCohortOverride({
-    override_id: "override:split",
-    kind: "split",
-    route_ids: [routeIds[0]!],
-  }).state, "updated");
-  assert.equal(f.state.upsertCohortOverride({
-    override_id: "override:exclude",
-    kind: "exclude",
-    decision_ids: [decisionId],
-    reason: "Invalid comparison",
-  }).state, "updated");
-  assert.equal(f.state.upsertRouteWeight({ target_id: routeIds[0]!, weight: 4, reason: "Frequent" }).state, "updated");
+  assert.equal(
+    f.state.upsertCohortOverride({
+      override_id: "override:merge",
+      kind: "merge",
+      route_ids: routeIds,
+      reason: "Same practical system",
+    }).state,
+    "updated",
+  );
+  assert.equal(
+    f.state.upsertCohortOverride({
+      override_id: "override:split",
+      kind: "split",
+      route_ids: [routeIds[0]!],
+    }).state,
+    "updated",
+  );
+  assert.equal(
+    f.state.upsertCohortOverride({
+      override_id: "override:exclude",
+      kind: "exclude",
+      decision_ids: [decisionId],
+      reason: "Invalid comparison",
+    }).state,
+    "updated",
+  );
+  assert.equal(
+    f.state.upsertRouteWeight({ target_id: routeIds[0]!, weight: 4, reason: "Frequent" }).state,
+    "updated",
+  );
   assert.equal(f.state.upsertDecisionWeight({ target_id: decisionId, weight: 2 }).state, "updated");
   assert.equal(f.invalidations(), before + 5);
-  assert.equal(f.state.upsertCohortOverride({
-    override_id: "override:merge",
-    kind: "merge",
-    route_ids: routeIds,
-    reason: "Same practical system",
-  }).state, "unchanged");
-  assert.equal(f.state.upsertRouteWeight({
-    target_id: routeIds[0]!,
-    weight: 4,
-    reason: "Frequent",
-  }).state, "unchanged");
-  assert.equal(f.state.upsertDecisionWeight({ target_id: decisionId, weight: 2 }).state, "unchanged");
+  assert.equal(
+    f.state.upsertCohortOverride({
+      override_id: "override:merge",
+      kind: "merge",
+      route_ids: routeIds,
+      reason: "Same practical system",
+    }).state,
+    "unchanged",
+  );
+  assert.equal(
+    f.state.upsertRouteWeight({
+      target_id: routeIds[0]!,
+      weight: 4,
+      reason: "Frequent",
+    }).state,
+    "unchanged",
+  );
+  assert.equal(
+    f.state.upsertDecisionWeight({ target_id: decisionId, weight: 2 }).state,
+    "unchanged",
+  );
   assert.equal(f.invalidations(), before + 5, "semantic no-ops do not invalidate reports");
 
   const metadata = f.metadata();
-  assert.deepEqual(metadata.cohort_overrides.map((entry) => entry.kind), ["merge", "split"]);
+  assert.deepEqual(
+    metadata.cohort_overrides.map((entry) => entry.kind),
+    ["merge", "split"],
+  );
   assert.equal(metadata.exclusions[0]!.reason, "Invalid comparison");
   assert.equal(metadata.manual_weights.route_weights[0]!.reason, "Frequent");
-  assert.ok([
-    ...metadata.cohort_overrides,
-    ...metadata.exclusions,
-    ...metadata.manual_weights.route_weights,
-    ...metadata.manual_weights.decision_weights,
-  ].every((entry) => entry.provenance[0]?.source_id === "strategic-fit:browser-user-metadata"));
+  assert.ok(
+    [
+      ...metadata.cohort_overrides,
+      ...metadata.exclusions,
+      ...metadata.manual_weights.route_weights,
+      ...metadata.manual_weights.decision_weights,
+    ].every((entry) => entry.provenance[0]?.source_id === "strategic-fit:browser-user-metadata"),
+  );
 
   assert.equal(f.state.removeCohortOverride("override:merge").state, "removed");
   assert.equal(f.state.removeRouteWeight(routeIds[0]!).state, "removed");
@@ -186,38 +239,53 @@ test("user-facing cohort labels persist without changing analyzer inputs and res
   const f = fixture();
   const beforeInputs = f.state.analysisSettings().inputs;
 
-  assert.equal(f.state.upsertCohortLabel({
-    label_id: "cohort-label:semantic",
-    cohort_id: "cohort:semantic",
-    display_name: "  Quiet anti-Sicilian  ",
-    reason: "Useful repertoire label",
-  }).state, "updated");
-  assert.deepEqual(f.metadata().cohort_labels.map((entry) => ({
-    label_id: entry.label_id,
-    cohort_id: entry.cohort_id,
-    display_name: entry.display_name,
-    reason: entry.reason,
-  })), [{
-    label_id: "cohort-label:semantic",
-    cohort_id: "cohort:semantic",
-    display_name: "Quiet anti-Sicilian",
-    reason: "Useful repertoire label",
-  }]);
+  assert.equal(
+    f.state.upsertCohortLabel({
+      label_id: "cohort-label:semantic",
+      cohort_id: "cohort:semantic",
+      display_name: "  Quiet anti-Sicilian  ",
+      reason: "Useful repertoire label",
+    }).state,
+    "updated",
+  );
+  assert.deepEqual(
+    f.metadata().cohort_labels.map((entry) => ({
+      label_id: entry.label_id,
+      cohort_id: entry.cohort_id,
+      display_name: entry.display_name,
+      reason: entry.reason,
+    })),
+    [
+      {
+        label_id: "cohort-label:semantic",
+        cohort_id: "cohort:semantic",
+        display_name: "Quiet anti-Sicilian",
+        reason: "Useful repertoire label",
+      },
+    ],
+  );
   assert.deepEqual(f.state.analysisSettings().inputs, beforeInputs);
-  assert.equal(f.state.upsertCohortLabel({
-    label_id: "cohort-label:semantic",
-    cohort_id: "cohort:semantic",
-    display_name: "Quiet anti-Sicilian",
-    reason: "Useful repertoire label",
-  }).state, "unchanged");
-  assert.equal(f.state.upsertCohortLabel({
-    label_id: "cohort-label:replacement",
-    cohort_id: "cohort:semantic",
-    display_name: "Rossolimo structures",
-  }).state, "updated");
-  assert.deepEqual(f.metadata().cohort_labels.map((entry) => entry.label_id), [
-    "cohort-label:replacement",
-  ]);
+  assert.equal(
+    f.state.upsertCohortLabel({
+      label_id: "cohort-label:semantic",
+      cohort_id: "cohort:semantic",
+      display_name: "Quiet anti-Sicilian",
+      reason: "Useful repertoire label",
+    }).state,
+    "unchanged",
+  );
+  assert.equal(
+    f.state.upsertCohortLabel({
+      label_id: "cohort-label:replacement",
+      cohort_id: "cohort:semantic",
+      display_name: "Rossolimo structures",
+    }).state,
+    "updated",
+  );
+  assert.deepEqual(
+    f.metadata().cohort_labels.map((entry) => entry.label_id),
+    ["cohort-label:replacement"],
+  );
   assert.equal(f.state.removeCohortLabel("cohort-label:semantic").state, "missing");
   assert.equal(f.state.removeCohortLabel("cohort-label:replacement").state, "removed");
   assert.deepEqual(f.metadata().cohort_labels, []);
@@ -283,18 +351,24 @@ test("report reconciliation records exact automatic resolutions and removes them
     },
   } as unknown as StrategicFinding;
 
-  assert.equal(f.state.reconcileReportFindings({
-    automatically_resolve: [disappeared],
-    reopen_semantic_finding_ids: [],
-  }).state, "updated");
+  assert.equal(
+    f.state.reconcileReportFindings({
+      automatically_resolve: [disappeared],
+      reopen_semantic_finding_ids: [],
+    }).state,
+    "updated",
+  );
   assert.equal(f.metadata().resolutions[0]!.state, "automatically-resolved-by-another-edit");
   assert.equal(f.metadata().resolutions[0]!.repertoire_revision, "browser:1");
   assert.deepEqual(f.state.analysisSettings().inputs.route_assessments, undefined);
 
-  assert.equal(f.state.reconcileReportFindings({
-    automatically_resolve: [],
-    reopen_semantic_finding_ids: ["semantic-finding:gone"],
-  }).state, "updated");
+  assert.equal(
+    f.state.reconcileReportFindings({
+      automatically_resolve: [],
+      reopen_semantic_finding_ids: ["semantic-finding:gone"],
+    }).state,
+    "updated",
+  );
   assert.deepEqual(f.metadata().resolutions, []);
 });
 

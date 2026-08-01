@@ -112,34 +112,39 @@ function matchesIntent(
   if (filter.kind === "classification") return finding.classification === filter.classification;
   if (filter.kind === "resolution") return resolutionState === filter.resolution;
   if (filter.kind === "evidence") {
-    return finding.classification === "uncertain" ||
+    return (
+      finding.classification === "uncertain" ||
       finding.classification === "data-quality-issue" ||
       resolutionState === "insufficient-evidence" ||
       finding.replacement_priority.label === "insufficient-evidence" ||
-      finding.training_priority.label === "insufficient-evidence";
+      finding.training_priority.label === "insufficient-evidence"
+    );
   }
   return true;
 }
 
 export function buildStrategicFitFindingQueueView(
   state: StrategicFitFindingQueueSnapshot,
-  resolutionState: (finding: StrategicFinding) => StrategicFitDisplayedResolutionState =
-    (finding) => finding.resolution_state,
+  resolutionState: (finding: StrategicFinding) => StrategicFitDisplayedResolutionState = (
+    finding,
+  ) => finding.resolution_state,
 ): StrategicFitFindingQueueView {
   const intentFilter = state.intent?.filter ?? { kind: "all" as const };
-  const filtered = state.findings.filter((finding) =>
-    matchesIntent(finding, intentFilter, resolutionState(finding)) &&
-    (state.priority_filter === "all" ||
-      (state.priority_kind === "replacement"
-        ? finding.replacement_priority.label
-        : finding.training_priority.label) === state.priority_filter) &&
-    (state.opening_filter === "" || finding.opening_scope === state.opening_filter)
+  const filtered = state.findings.filter(
+    (finding) =>
+      matchesIntent(finding, intentFilter, resolutionState(finding)) &&
+      (state.priority_filter === "all" ||
+        (state.priority_kind === "replacement"
+          ? finding.replacement_priority.label
+          : finding.training_priority.label) === state.priority_filter) &&
+      (state.opening_filter === "" || finding.opening_scope === state.opening_filter),
   );
   const sorted = sortStrategicFitFindings(filtered, state.sort);
-  const lastOffset = sorted.length === 0
-    ? 0
-    : Math.floor((sorted.length - 1) / STRATEGIC_FIT_QUEUE_PAGE_SIZE) *
-      STRATEGIC_FIT_QUEUE_PAGE_SIZE;
+  const lastOffset =
+    sorted.length === 0
+      ? 0
+      : Math.floor((sorted.length - 1) / STRATEGIC_FIT_QUEUE_PAGE_SIZE) *
+        STRATEGIC_FIT_QUEUE_PAGE_SIZE;
   const offset = Math.min(Math.max(0, state.page_offset), lastOffset);
   const findings = sorted.slice(offset, offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE);
   /**
@@ -147,16 +152,19 @@ export function buildStrategicFitFindingQueueView(
    * selection that sits on another page keeps its identity and reports where to find it; one the
    * current filters exclude is disclosed as excluded rather than silently discarded.
    */
-  const selectedIndex = state.selected_finding_id === null
-    ? -1
-    : sorted.findIndex((finding) => finding.finding_id === state.selected_finding_id);
-  const selectedRetained = state.selected_finding_id !== null &&
+  const selectedIndex =
+    state.selected_finding_id === null
+      ? -1
+      : sorted.findIndex((finding) => finding.finding_id === state.selected_finding_id);
+  const selectedRetained =
+    state.selected_finding_id !== null &&
     state.findings.some((finding) => finding.finding_id === state.selected_finding_id);
   return {
     findings,
     filtered_findings: sorted,
-    opening_options: [...new Set(state.findings.map((finding) => finding.opening_scope))]
-      .sort(compareStrings),
+    opening_options: [...new Set(state.findings.map((finding) => finding.opening_scope))].sort(
+      compareStrings,
+    ),
     page: {
       offset,
       limit: STRATEGIC_FIT_QUEUE_PAGE_SIZE,
@@ -167,9 +175,10 @@ export function buildStrategicFitFindingQueueView(
     canonical_total_count: state.canonical_total_count,
     selected_finding_id: selectedRetained ? state.selected_finding_id : null,
     selected_on_page: selectedIndex >= offset && selectedIndex < offset + findings.length,
-    selected_page_offset: selectedIndex < 0
-      ? null
-      : Math.floor(selectedIndex / STRATEGIC_FIT_QUEUE_PAGE_SIZE) * STRATEGIC_FIT_QUEUE_PAGE_SIZE,
+    selected_page_offset:
+      selectedIndex < 0
+        ? null
+        : Math.floor(selectedIndex / STRATEGIC_FIT_QUEUE_PAGE_SIZE) * STRATEGIC_FIT_QUEUE_PAGE_SIZE,
     selected_position: selectedIndex < 0 ? null : selectedIndex + 1,
     selected_filtered_out: selectedRetained && selectedIndex < 0,
   };
@@ -212,8 +221,8 @@ function validPage(
     page.limit < 1 ||
     page.limit > STRATEGIC_FIT_MAX_PAGE_SIZE ||
     page.returned_count > page.limit ||
-    page.returned_count === 0 && expectedOffset < expectedTotal ||
-    page.has_more !== (page.offset + page.returned_count < page.total_count)
+    (page.returned_count === 0 && expectedOffset < expectedTotal) ||
+    page.has_more !== page.offset + page.returned_count < page.total_count
   ) {
     throw new Error("The finding page did not match the current immutable report.");
   }
@@ -229,7 +238,7 @@ function validPage(
   }
   return {
     result: candidate as StrategicFitAnalysisResult,
-    next_cursor: page.has_more ? nextCursor as string : null,
+    next_cursor: page.has_more ? (nextCursor as string) : null,
   };
 }
 
@@ -237,11 +246,13 @@ function sameIntent(
   left: StrategicFitFindingQueueIntent | null,
   right: StrategicFitFindingQueueIntent | null,
 ): boolean {
-  return left?.report_id === right?.report_id &&
+  return (
+    left?.report_id === right?.report_id &&
     left?.source === right?.source &&
     left?.label === right?.label &&
     strategicFitFindingQueueFilterKey(left?.filter ?? { kind: "all" }) ===
-      strategicFitFindingQueueFilterKey(right?.filter ?? { kind: "all" });
+      strategicFitFindingQueueFilterKey(right?.filter ?? { kind: "all" })
+  );
 }
 
 function currentIntent(
@@ -279,12 +290,17 @@ export function createStrategicFitFindingQueueState(
     let cursor: string | null = null;
     try {
       while (offset < report.finding_page.total_count) {
-        const value = await boundary.execute("analyze_repertoire_congruence", {
-          sort: "finding-id",
-          page: cursor === null
-            ? { offset: 0, limit: STRATEGIC_FIT_MAX_PAGE_SIZE }
-            : { cursor, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
-        }, { signal: controller.signal });
+        const value = await boundary.execute(
+          "analyze_repertoire_congruence",
+          {
+            sort: "finding-id",
+            page:
+              cursor === null
+                ? { offset: 0, limit: STRATEGIC_FIT_MAX_PAGE_SIZE }
+                : { cursor, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
+          },
+          { signal: controller.signal },
+        );
         if (controller.signal.aborted || sequence !== loadSequence) return;
         const page = validPage(
           value,
@@ -307,25 +323,29 @@ export function createStrategicFitFindingQueueState(
         }
       }
       if (controller.signal.aborted || sequence !== loadSequence) return;
-      setState((previous) => previous.report_id === report.report_id
-        ? {
-            ...previous,
-            status: "ready",
-            findings: all,
-            canonical_total_count: report.finding_page.total_count,
-            error: null,
-          }
-        : previous);
+      setState((previous) =>
+        previous.report_id === report.report_id
+          ? {
+              ...previous,
+              status: "ready",
+              findings: all,
+              canonical_total_count: report.finding_page.total_count,
+              error: null,
+            }
+          : previous,
+      );
     } catch (error) {
       if (controller.signal.aborted || sequence !== loadSequence) return;
-      setState((previous) => previous.report_id === report.report_id
-        ? {
-            ...previous,
-            status: "error",
-            findings: [],
-            error: error instanceof Error ? error.message : String(error),
-          }
-        : previous);
+      setState((previous) =>
+        previous.report_id === report.report_id
+          ? {
+              ...previous,
+              status: "error",
+              findings: [],
+              error: error instanceof Error ? error.message : String(error),
+            }
+          : previous,
+      );
     } finally {
       if (activeController === controller) activeController = null;
     }
@@ -359,8 +379,8 @@ export function createStrategicFitFindingQueueState(
 
     activeController?.abort();
     const sequence = ++loadSequence;
-    const needsCompleteReload = report.finding_page.has_more ||
-      report.findings.length < report.finding_page.total_count;
+    const needsCompleteReload =
+      report.finding_page.has_more || report.findings.length < report.finding_page.total_count;
     setState({
       ...initialSnapshot(),
       report_id: report.report_id,
@@ -387,10 +407,11 @@ export function createStrategicFitFindingQueueState(
     setOpeningFilter: (opening_filter) => resetPage({ opening_filter }),
     setPageOffset: (requestedOffset) => {
       const current = buildStrategicFitFindingQueueView(state());
-      const lastOffset = current.page.total_count === 0
-        ? 0
-        : Math.floor((current.page.total_count - 1) / STRATEGIC_FIT_QUEUE_PAGE_SIZE) *
-          STRATEGIC_FIT_QUEUE_PAGE_SIZE;
+      const lastOffset =
+        current.page.total_count === 0
+          ? 0
+          : Math.floor((current.page.total_count - 1) / STRATEGIC_FIT_QUEUE_PAGE_SIZE) *
+            STRATEGIC_FIT_QUEUE_PAGE_SIZE;
       setState((previous) => ({
         ...previous,
         page_offset: Math.min(Math.max(0, Math.floor(requestedOffset)), lastOffset),
@@ -399,15 +420,17 @@ export function createStrategicFitFindingQueueState(
     selectFinding: (selected_finding_id) => {
       setState((previous) => ({
         ...previous,
-        selected_finding_id: selected_finding_id !== null &&
+        selected_finding_id:
+          selected_finding_id !== null &&
           previous.findings.some((finding) => finding.finding_id === selected_finding_id)
-          ? selected_finding_id
-          : null,
+            ? selected_finding_id
+            : null,
       }));
       // A selection made from another view — the map, the flow, the heatmap — lands on whatever
       // page holds it, so the finding it names is reachable instead of merely remembered.
       const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
-      if (selectedOffset !== null) setState((previous) => ({ ...previous, page_offset: selectedOffset }));
+      if (selectedOffset !== null)
+        setState((previous) => ({ ...previous, page_offset: selectedOffset }));
     },
     revealSelectedFinding: () => {
       const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;

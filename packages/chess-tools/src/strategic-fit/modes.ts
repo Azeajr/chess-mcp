@@ -8,12 +8,14 @@
  * real route. Route weights affect both medoid choice and mode support.
  */
 import type { StrategicCohortReport, StrategicComparableCohort } from "./cohorts.js";
-import type { JsonValue, StrategicFitSourceProvenance, StrategicMode, StrategicTrajectory } from "./types.js";
+import type {
+  JsonValue,
+  StrategicFitSourceProvenance,
+  StrategicMode,
+  StrategicTrajectory,
+} from "./types.js";
 import type { StrategicTrajectoryReport } from "./trajectory.js";
-import {
-  calculateEffectiveSampleSize,
-  type StrategicRouteWeightingReport,
-} from "./weights.js";
+import { calculateEffectiveSampleSize, type StrategicRouteWeightingReport } from "./weights.js";
 import {
   STRATEGIC_FIT_ANALYSIS_MANIFEST,
   STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -85,8 +87,7 @@ export interface StrategicModeCohortSelection {
   readonly reasons: readonly StrategicModeSelectionReason[];
 }
 
-export interface StrategicModeReport
-  extends Omit<StrategicCohortReport, "cohorts" | "provenance"> {
+export interface StrategicModeReport extends Omit<StrategicCohortReport, "cohorts" | "provenance"> {
   readonly mode_version: string;
   readonly cohorts: readonly StrategicComparableCohort[];
   readonly selections: readonly StrategicModeCohortSelection[];
@@ -151,9 +152,10 @@ function isObject(value: JsonValue): value is { readonly [key: string]: JsonValu
 function stableSerialize(value: JsonValue): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   if (isObject(value)) {
-    return `{${Object.keys(value).sort(compareStrings).map((key) =>
-      `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`
-    ).join(",")}}`;
+    return `{${Object.keys(value)
+      .sort(compareStrings)
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -219,9 +221,13 @@ function validateExplicitTargets(
     const cohort = cohortById.get(target.cohort_id);
     if (!cohort) throw new Error(`strategic_fit_modes_unknown_cohort: ${target.cohort_id}`);
     if (!cohort.route_ids.includes(target.representative_route_id)) {
-      throw new Error(`strategic_fit_modes_target_route_outside_cohort: ${target.representative_route_id}`);
+      throw new Error(
+        `strategic_fit_modes_target_route_outside_cohort: ${target.representative_route_id}`,
+      );
     }
-    const supportingRouteIds = sortedUnique(target.supporting_route_ids ?? [target.representative_route_id]);
+    const supportingRouteIds = sortedUnique(
+      target.supporting_route_ids ?? [target.representative_route_id],
+    );
     if (!supportingRouteIds.includes(target.representative_route_id)) {
       throw new Error(`strategic_fit_modes_target_missing_representative: ${target.target_id}`);
     }
@@ -229,10 +235,12 @@ function validateExplicitTargets(
       throw new Error(`strategic_fit_modes_target_support_outside_cohort: ${target.target_id}`);
     }
     const existing = result.get(target.cohort_id) ?? [];
-    if (existing.some((item) => {
-      const itemRoutes = new Set(item.supporting_route_ids ?? [item.representative_route_id]);
-      return supportingRouteIds.some((routeId) => itemRoutes.has(routeId));
-    })) {
+    if (
+      existing.some((item) => {
+        const itemRoutes = new Set(item.supporting_route_ids ?? [item.representative_route_id]);
+        return supportingRouteIds.some((routeId) => itemRoutes.has(routeId));
+      })
+    ) {
       throw new Error(`strategic_fit_modes_overlapping_targets: ${target.cohort_id}`);
     }
     existing.push({ ...target, supporting_route_ids: supportingRouteIds });
@@ -250,10 +258,12 @@ function routeEvidence(trajectory: StrategicTrajectory): RouteEvidence {
     if (
       snapshot.checkpoint.comparability !== "comparable" ||
       snapshot.checkpoint.kind === "final-valid-position"
-    ) continue;
-    const checkpoint = snapshot.checkpoint.kind === "configured-ply"
-      ? `${snapshot.checkpoint.kind}:${snapshot.checkpoint.ply}`
-      : snapshot.checkpoint.kind;
+    )
+      continue;
+    const checkpoint =
+      snapshot.checkpoint.kind === "configured-ply"
+        ? `${snapshot.checkpoint.kind}:${snapshot.checkpoint.ply}`
+        : snapshot.checkpoint.kind;
     for (const signal of snapshot.signals) {
       if (signal.persistence !== "stable" && signal.persistence !== "irreversible") continue;
       const slot = [checkpoint, signal.family, signal.feature_id].join(ID_SEPARATOR);
@@ -264,7 +274,9 @@ function routeEvidence(trajectory: StrategicTrajectory): RouteEvidence {
   }
   return {
     routeId: trajectory.route_id,
-    features: new Map([...mutable.entries()].sort(([left], [right]) => compareStrings(left, right))),
+    features: new Map(
+      [...mutable.entries()].sort(([left], [right]) => compareStrings(left, right)),
+    ),
   };
 }
 
@@ -278,8 +290,12 @@ function setDistance(left: ReadonlySet<string>, right: ReadonlySet<string>): num
 function evidenceDistance(left: RouteEvidence, right: RouteEvidence): number | null {
   const sharedSlots = [...left.features.keys()].filter((slot) => right.features.has(slot));
   if (sharedSlots.length === 0) return null;
-  return round(sharedSlots.reduce((sum, slot) =>
-    sum + setDistance(left.features.get(slot)!, right.features.get(slot)!), 0) / sharedSlots.length);
+  return round(
+    sharedSlots.reduce(
+      (sum, slot) => sum + setDistance(left.features.get(slot)!, right.features.get(slot)!),
+      0,
+    ) / sharedSlots.length,
+  );
 }
 
 function clusterIdentity(cluster: RouteCluster): string {
@@ -294,7 +310,10 @@ function clusterMaximumDistance(
   let maximum = 0;
   for (const leftId of left.routeIds) {
     for (const rightId of right.routeIds) {
-      const distance = evidenceDistance(evidenceByRoute.get(leftId)!, evidenceByRoute.get(rightId)!);
+      const distance = evidenceDistance(
+        evidenceByRoute.get(leftId)!,
+        evidenceByRoute.get(rightId)!,
+      );
       if (distance === null) return null;
       maximum = Math.max(maximum, distance);
     }
@@ -315,8 +334,10 @@ function clusterRoutes(evidence: readonly RouteEvidence[]): RouteCluster[] {
         if (distance === null || distance > STRATEGIC_MODE_CLUSTER_DISTANCE + EPSILON) continue;
         const identity = `${clusterIdentity(clusters[left]!)}${ID_SEPARATOR}${clusterIdentity(clusters[right]!)}`;
         if (
-          best === null || distance < best.distance - EPSILON ||
-          (Math.abs(distance - best.distance) <= EPSILON && compareStrings(identity, best.identity) < 0)
+          best === null ||
+          distance < best.distance - EPSILON ||
+          (Math.abs(distance - best.distance) <= EPSILON &&
+            compareStrings(identity, best.identity) < 0)
         ) {
           best = { left, right, distance, identity };
         }
@@ -324,10 +345,7 @@ function clusterRoutes(evidence: readonly RouteEvidence[]): RouteCluster[] {
     }
     if (!best) break;
     const merged: RouteCluster = {
-      routeIds: sortedUnique([
-        ...clusters[best.left]!.routeIds,
-        ...clusters[best.right]!.routeIds,
-      ]),
+      routeIds: sortedUnique([...clusters[best.left]!.routeIds, ...clusters[best.right]!.routeIds]),
     };
     clusters = clusters.filter((_, index) => index !== best.left && index !== best.right);
     clusters.push(merged);
@@ -355,18 +373,26 @@ function medoidCandidate(
   routeWeightById: ReadonlyMap<string, number>,
   unitIdByRoute: ReadonlyMap<string, string>,
 ): StrategicModeMedoidCandidate {
-  const clusterWeight = cluster.routeIds.reduce((sum, routeId) => sum + routeWeightById.get(routeId)!, 0);
+  const clusterWeight = cluster.routeIds.reduce(
+    (sum, routeId) => sum + routeWeightById.get(routeId)!,
+    0,
+  );
   let representative = cluster.routeIds[0]!;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const candidateId of cluster.routeIds) {
-    const weightedDistance = cluster.routeIds.reduce((sum, routeId) => {
-      const distance = evidenceDistance(evidenceByRoute.get(candidateId)!, evidenceByRoute.get(routeId)!);
-      if (distance === null) throw new Error("strategic_fit_modes_incomparable_cluster");
-      return sum + routeWeightById.get(routeId)! * distance;
-    }, 0) / clusterWeight;
+    const weightedDistance =
+      cluster.routeIds.reduce((sum, routeId) => {
+        const distance = evidenceDistance(
+          evidenceByRoute.get(candidateId)!,
+          evidenceByRoute.get(routeId)!,
+        );
+        if (distance === null) throw new Error("strategic_fit_modes_incomparable_cluster");
+        return sum + routeWeightById.get(routeId)! * distance;
+      }, 0) / clusterWeight;
     if (
       weightedDistance < bestDistance - EPSILON ||
-      (Math.abs(weightedDistance - bestDistance) <= EPSILON && compareStrings(candidateId, representative) < 0)
+      (Math.abs(weightedDistance - bestDistance) <= EPSILON &&
+        compareStrings(candidateId, representative) < 0)
     ) {
       representative = candidateId;
       bestDistance = weightedDistance;
@@ -376,7 +402,9 @@ function medoidCandidate(
     representative_route_id: representative,
     supporting_route_ids: [...cluster.routeIds],
     normalized_weight: round(clusterWeight),
-    effective_sample_size: round(unitEffectiveSampleSize(cluster.routeIds, routeWeightById, unitIdByRoute)),
+    effective_sample_size: round(
+      unitEffectiveSampleSize(cluster.routeIds, routeWeightById, unitIdByRoute),
+    ),
     weighted_distance: round(bestDistance),
     supported: clusterWeight + EPSILON >= STRATEGIC_MODE_MINIMUM_WEIGHT,
   };
@@ -422,8 +450,12 @@ function explicitSelection(
     const candidate: StrategicModeMedoidCandidate = {
       representative_route_id: target.representative_route_id,
       supporting_route_ids: routeIds,
-      normalized_weight: round(routeIds.reduce((sum, routeId) => sum + routeWeightById.get(routeId)!, 0)),
-      effective_sample_size: round(unitEffectiveSampleSize(routeIds, routeWeightById, unitIdByRoute)),
+      normalized_weight: round(
+        routeIds.reduce((sum, routeId) => sum + routeWeightById.get(routeId)!, 0),
+      ),
+      effective_sample_size: round(
+        unitEffectiveSampleSize(routeIds, routeWeightById, unitIdByRoute),
+      ),
       weighted_distance: 0,
       supported: true,
     };
@@ -437,11 +469,12 @@ function explicitSelection(
     );
   });
   const assigned = new Set(modes.flatMap((mode) => mode.supporting_route_ids));
-  const state = cohort.state === "insufficient-evidence"
-    ? "insufficient-evidence" as const
-    : targets.length > 1
-      ? "mixed-profile" as const
-      : "actionable" as const;
+  const state =
+    cohort.state === "insufficient-evidence"
+      ? ("insufficient-evidence" as const)
+      : targets.length > 1
+        ? ("mixed-profile" as const)
+        : ("actionable" as const);
   return {
     cohort: {
       ...cohort,
@@ -465,7 +498,9 @@ function explicitSelection(
         weighted_distance: 0,
         supported: true,
       })),
-      unassigned_route_ids: cohort.route_ids.filter((routeId) => !assigned.has(routeId)).sort(compareStrings),
+      unassigned_route_ids: cohort.route_ids
+        .filter((routeId) => !assigned.has(routeId))
+        .sort(compareStrings),
       effective_sample_size: cohort.effective_sample_size,
       reasons: ["explicit-profile-intent"],
     },
@@ -510,13 +545,19 @@ function inferredSelection(
   const evidence = cohort.route_ids.map((routeId) => routeEvidence(trajectories.get(routeId)!));
   const evidenceByRoute = new Map(evidence.map((item) => [item.routeId, item]));
   const clusters = clusterRoutes(evidence);
-  const candidates: CandidateContext[] = clusters.map((cluster) => ({
-    cluster,
-    candidate: medoidCandidate(cluster, evidenceByRoute, routeWeightById, unitIdByRoute),
-  })).sort((left, right) =>
-    right.candidate.normalized_weight - left.candidate.normalized_weight ||
-    compareStrings(left.candidate.representative_route_id, right.candidate.representative_route_id)
-  );
+  const candidates: CandidateContext[] = clusters
+    .map((cluster) => ({
+      cluster,
+      candidate: medoidCandidate(cluster, evidenceByRoute, routeWeightById, unitIdByRoute),
+    }))
+    .sort(
+      (left, right) =>
+        right.candidate.normalized_weight - left.candidate.normalized_weight ||
+        compareStrings(
+          left.candidate.representative_route_id,
+          right.candidate.representative_route_id,
+        ),
+    );
   const supported = candidates.filter((item) => item.candidate.supported);
   const evidenceRoutes = new Set(clusters.flatMap((cluster) => cluster.routeIds));
   let state: StrategicModeSelectionState;
@@ -535,7 +576,10 @@ function inferredSelection(
     state = "insufficient-evidence";
     reasons = ["no-supported-mode"];
     selected = [];
-  } else if (cohort.effective_sample_size + EPSILON < STRATEGIC_MODE_MINIMUM_EFFECTIVE_SAMPLE_SIZE) {
+  } else if (
+    cohort.effective_sample_size + EPSILON <
+    STRATEGIC_MODE_MINIMUM_EFFECTIVE_SAMPLE_SIZE
+  ) {
     state = "insufficient-evidence";
     reasons = ["minimum-effective-sample-not-met"];
     selected = [];
@@ -545,14 +589,19 @@ function inferredSelection(
     selected = supported;
   }
 
-  const modes = selected.map(({ candidate }) => makeMode(cohort, candidate, "inferred-medoid", [], []));
+  const modes = selected.map(({ candidate }) =>
+    makeMode(cohort, candidate, "inferred-medoid", [], []),
+  );
   const assigned = new Set(selected.flatMap((item) => item.cluster.routeIds));
-  const unassigned = cohort.route_ids.filter((routeId) => !assigned.has(routeId)).sort(compareStrings);
-  const cohortState = state === "mixed-profile"
-    ? "mixed-profile" as const
-    : state === "insufficient-evidence"
-      ? "insufficient-evidence" as const
-      : "actionable" as const;
+  const unassigned = cohort.route_ids
+    .filter((routeId) => !assigned.has(routeId))
+    .sort(compareStrings);
+  const cohortState =
+    state === "mixed-profile"
+      ? ("mixed-profile" as const)
+      : state === "insufficient-evidence"
+        ? ("insufficient-evidence" as const)
+        : ("actionable" as const);
   return {
     cohort: {
       ...cohort,
@@ -584,15 +633,23 @@ export function detectStrategicModes(
   const trajectoryByRoute = new Map(
     trajectoryReport.trajectories.map((trajectory) => [trajectory.route_id, trajectory]),
   );
-  const unitIdByRoute = new Map(weightReport.routes.map((route) => [route.route_id, route.weighting_unit_id]));
-  const cohortResults = cohortReport.cohorts.map((cohort) => {
-    const routeWeightById = new Map(cohort.route_weights.map((route) => [route.route_id, route.normalized_weight]));
-    const explicitTargets = explicitByCohort.get(cohort.cohort_id);
-    return explicitTargets
-      ? explicitSelection(cohort, explicitTargets, routeWeightById, unitIdByRoute)
-      : inferredSelection(cohort, trajectoryByRoute, routeWeightById, unitIdByRoute);
-  }).sort((left, right) => compareStrings(left.cohort.cohort_id, right.cohort.cohort_id));
-  const explicitProvenance = (options.explicit_targets ?? []).flatMap((target) => target.provenance ?? []);
+  const unitIdByRoute = new Map(
+    weightReport.routes.map((route) => [route.route_id, route.weighting_unit_id]),
+  );
+  const cohortResults = cohortReport.cohorts
+    .map((cohort) => {
+      const routeWeightById = new Map(
+        cohort.route_weights.map((route) => [route.route_id, route.normalized_weight]),
+      );
+      const explicitTargets = explicitByCohort.get(cohort.cohort_id);
+      return explicitTargets
+        ? explicitSelection(cohort, explicitTargets, routeWeightById, unitIdByRoute)
+        : inferredSelection(cohort, trajectoryByRoute, routeWeightById, unitIdByRoute);
+    })
+    .sort((left, right) => compareStrings(left.cohort.cohort_id, right.cohort.cohort_id));
+  const explicitProvenance = (options.explicit_targets ?? []).flatMap(
+    (target) => target.provenance ?? [],
+  );
   return {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,

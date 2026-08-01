@@ -19,19 +19,20 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-const report = (id: string, revision = "browser:1", extra: Record<string, unknown> = {}) => ({
-  report_id: id,
-  repertoire_revision: revision,
-  preflight: {
-    analysis_version: "2.0.0",
-    state: "ready",
-    issues: [],
-    route_count: 2,
-    comparable_route_count: 2,
-    incomplete_route_count: 0,
-  },
-  ...extra,
-}) as unknown as StrategicFitAnalysisResult;
+const report = (id: string, revision = "browser:1", extra: Record<string, unknown> = {}) =>
+  ({
+    report_id: id,
+    repertoire_revision: revision,
+    preflight: {
+      analysis_version: "2.0.0",
+      state: "ready",
+      issues: [],
+      route_count: 2,
+      comparable_route_count: 2,
+      incomplete_route_count: 0,
+    },
+    ...extra,
+  }) as unknown as StrategicFitAnalysisResult;
 
 function fixture(
   reconcileReports?: StrategicFitLifecycleBoundary["reconcileReports"],
@@ -89,7 +90,12 @@ test("idle, running, provisional, and completed transitions use the canonical co
   });
   assert.equal(subject.state.snapshot().status, "provisional");
   assert.equal(subject.state.snapshot().phase_history[0]?.state, "running");
-  assert.ok(subject.state.snapshot().phase_history.slice(1).every((phase) => phase.state === "pending"));
+  assert.ok(
+    subject.state
+      .snapshot()
+      .phase_history.slice(1)
+      .every((phase) => phase.state === "pending"),
+  );
   subject.calls[0]!.options.onProgress?.(3, 6);
   subject.calls[0]!.options.onProgress?.(2, 6, "Extracting strategic patterns");
   assert.deepEqual(subject.state.snapshot().progress, {
@@ -97,9 +103,10 @@ test("idle, running, provisional, and completed transitions use the canonical co
     total: 6,
     detail: "Measuring learning burden",
   });
-  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
-    "completed", "completed", "completed", "running", "pending", "pending",
-  ]);
+  assert.deepEqual(
+    subject.state.snapshot().phase_history.map((phase) => phase.state),
+    ["completed", "completed", "completed", "running", "pending", "pending"],
+  );
 
   subject.calls[0]!.result.resolve(report("report:one"));
   await pending;
@@ -162,7 +169,9 @@ test("reanalysis atomically reconciles settings and publishes the exact resolvin
   assert.equal(completed.status, "completed");
   assert.equal(completed.current_result?.request_snapshot.settings_identity, "settings:reconciled");
   assert.equal(completed.current_result?.reanalysis?.resolving_revision, "browser:2");
-  assert.deepEqual(completed.current_result?.reanalysis?.auto_resolved_semantic_finding_ids, ["semantic:gone"]);
+  assert.deepEqual(completed.current_result?.reanalysis?.auto_resolved_semantic_finding_ids, [
+    "semantic:gone",
+  ]);
 });
 
 test("newer and cancelled reanalysis requests never publish superseded work", async () => {
@@ -172,7 +181,11 @@ test("newer and cancelled reanalysis requests never publish superseded work", as
   await initial;
   const request = {
     trigger: "profile-change" as const,
-    scope: { kind: "affected-cohorts" as const, cohort_ids: ["cohort:a"], reason: "Profile changed." },
+    scope: {
+      kind: "affected-cohorts" as const,
+      cohort_ids: ["cohort:a"],
+      reason: "Profile changed.",
+    },
   };
 
   const superseded = subject.state.reanalyze(request);
@@ -261,9 +274,10 @@ test("an identity edit during analysis aborts the command and discards its late 
 
   assert.equal(subject.calls[0]!.options.signal?.aborted, true);
   assert.equal(subject.state.snapshot().status, "stale");
-  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
-    "completed", "cancelled", "pending", "pending", "pending", "pending",
-  ]);
+  assert.deepEqual(
+    subject.state.snapshot().phase_history.map((phase) => phase.state),
+    ["completed", "cancelled", "pending", "pending", "pending", "pending"],
+  );
   subject.calls[0]!.options.onProgress?.(6, 6);
   subject.calls[0]!.result.resolve(report("report:late", "browser:1"));
   await pending;
@@ -284,9 +298,10 @@ test("cancellation retains the last completed report as previous and never publi
   assert.equal(subject.state.snapshot().status, "cancelled");
   assert.equal(subject.state.snapshot().current_result, null);
   assert.equal(subject.state.snapshot().last_completed?.report_id, "report:first");
-  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
-    "completed", "completed", "cancelled", "pending", "pending", "pending",
-  ]);
+  assert.deepEqual(
+    subject.state.snapshot().phase_history.map((phase) => phase.state),
+    ["completed", "completed", "cancelled", "pending", "pending", "pending"],
+  );
 
   subject.calls[1]!.result.resolve(report("report:cancelled-late"));
   await cancelled;
@@ -297,9 +312,11 @@ test("cancellation retains the last completed report as previous and never publi
 test("retry after failure snapshots current inputs and structured stale adapter results stay non-current", async () => {
   const subject = fixture();
   const failed = subject.state.analyze();
-  subject.calls[0]!.result.reject(Object.assign(new Error("worker unavailable"), {
-    code: "strategic_fit_worker_unavailable",
-  }));
+  subject.calls[0]!.result.reject(
+    Object.assign(new Error("worker unavailable"), {
+      code: "strategic_fit_worker_unavailable",
+    }),
+  );
   await failed;
   assert.equal(subject.state.snapshot().status, "failed");
   assert.deepEqual(subject.state.snapshot().error, {
@@ -347,30 +364,29 @@ test("a newer request supersedes old progress, results, and errors", async () =>
 test("native degraded reports are completed evidence, not fabricated failures or consistency", async () => {
   const subject = fixture();
   const pending = subject.state.analyze();
-  subject.calls[0]!.result.resolve(report("report:degraded", "browser:1", {
-    preflight: {
-      analysis_version: "2.0.0",
-      state: "degraded",
-      issues: [{ code: "missing-opening-classification" }],
-      route_count: 2,
-      comparable_route_count: 2,
-      incomplete_route_count: 0,
-    },
-  }));
+  subject.calls[0]!.result.resolve(
+    report("report:degraded", "browser:1", {
+      preflight: {
+        analysis_version: "2.0.0",
+        state: "degraded",
+        issues: [{ code: "missing-opening-classification" }],
+        route_count: 2,
+        comparable_route_count: 2,
+        incomplete_route_count: 0,
+      },
+    }),
+  );
   await pending;
 
   assert.equal(subject.state.snapshot().status, "completed");
-  assert.deepEqual(
-    subject.state.snapshot().current_result?.result.preflight,
-    {
-      analysis_version: "2.0.0",
-      state: "degraded",
-      issues: [{ code: "missing-opening-classification" }],
-      route_count: 2,
-      comparable_route_count: 2,
-      incomplete_route_count: 0,
-    },
-  );
+  assert.deepEqual(subject.state.snapshot().current_result?.result.preflight, {
+    analysis_version: "2.0.0",
+    state: "degraded",
+    issues: [{ code: "missing-opening-classification" }],
+    route_count: 2,
+    comparable_route_count: 2,
+    incomplete_route_count: 0,
+  });
   assert.ok(subject.state.snapshot().phase_history.every((phase) => phase.state === "completed"));
 });
 
@@ -379,27 +395,31 @@ test("blocked preflight completes normalization only and leaves dependent phases
   const pending = subject.state.analyze();
   subject.calls[0]!.options.onProgress?.(0, 6, "Normalizing move orders");
   subject.calls[0]!.options.onProgress?.(1, 6, "Normalizing move orders");
-  subject.calls[0]!.result.resolve(report("report:blocked", "browser:1", {
-    preflight: {
-      analysis_version: "2.0.0",
-      state: "blocked",
-      issues: [{ code: "empty-repertoire", kind: "error", severity: "blocking" }],
-      route_count: 0,
-      comparable_route_count: 0,
-      incomplete_route_count: 0,
-    },
-  }));
+  subject.calls[0]!.result.resolve(
+    report("report:blocked", "browser:1", {
+      preflight: {
+        analysis_version: "2.0.0",
+        state: "blocked",
+        issues: [{ code: "empty-repertoire", kind: "error", severity: "blocking" }],
+        route_count: 0,
+        comparable_route_count: 0,
+        incomplete_route_count: 0,
+      },
+    }),
+  );
   await pending;
 
   assert.equal(subject.state.snapshot().status, "completed");
-  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
-    "completed", "pending", "pending", "pending", "pending", "pending",
-  ]);
+  assert.deepEqual(
+    subject.state.snapshot().phase_history.map((phase) => phase.state),
+    ["completed", "pending", "pending", "pending", "pending", "pending"],
+  );
 
   subject.patchSnapshot({ profile_identity: "profile:versatile" });
   subject.state.synchronize();
   assert.equal(subject.state.snapshot().status, "stale");
-  assert.deepEqual(subject.state.snapshot().phase_history.map((phase) => phase.state), [
-    "completed", "pending", "pending", "pending", "pending", "pending",
-  ]);
+  assert.deepEqual(
+    subject.state.snapshot().phase_history.map((phase) => phase.state),
+    ["completed", "pending", "pending", "pending", "pending", "pending"],
+  );
 });

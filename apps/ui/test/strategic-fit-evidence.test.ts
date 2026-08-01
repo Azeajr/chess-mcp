@@ -8,12 +8,8 @@ import {
   type PreflightIssue,
   type StrategicFinding,
 } from "@chess-mcp/chess-tools";
-import {
-  buildConceptComparisonPresentation,
-} from "../src/components/strategic-fit/ConceptComparison.tsx";
-import {
-  buildConfidencePresentation,
-} from "../src/components/strategic-fit/ConfidenceDetails.tsx";
+import { buildConceptComparisonPresentation } from "../src/components/strategic-fit/ConceptComparison.tsx";
+import { buildConfidencePresentation } from "../src/components/strategic-fit/ConfidenceDetails.tsx";
 import {
   buildEvidencePresentation,
   buildObjectivePresentation,
@@ -49,11 +45,7 @@ function finding(confidenceLabel: ConfidenceLabel = "high"): StrategicFinding {
       position_ids: ["position:a", "position:b"],
       decision_ids: ["decision:a", "decision:b"],
       route_ids: ["route:a", "route:b"],
-      source_san_paths: [
-        ["e4", "c5", "c3", "Nf6"],
-        ["e4", "c5", "Nf3", "e6", "c3"],
-        [],
-      ],
+      source_san_paths: [["e4", "c5", "c3", "Nf6"], ["e4", "c5", "Nf3", "e6", "c3"], []],
     },
     weighted_baseline_percentage: 72,
     expected_frequency: 0.2,
@@ -193,28 +185,31 @@ const issue = {
 
 test("typical-versus-branch dimensions retain null evidence and reconcile contributions honestly", () => {
   const presentation = buildConceptComparisonPresentation(finding());
-  assert.deepEqual(presentation.dimensions.map((dimension) => ({
-    id: dimension.dimension_id,
-    label: dimension.label,
-    typical: dimension.typical,
-    affected: dimension.affected,
-    contribution: dimension.contribution_label,
-  })), [
-    {
-      id: "center-dynamics.center-state",
-      label: "Center state",
-      typical: "Open iqp",
-      affected: "Closed",
-      contribution: "30% of normalized strategic distance",
-    },
-    {
-      id: "learning-concepts.unique-concepts",
-      label: "Unique concepts",
-      typical: "Unavailable",
-      affected: "Minority attack, e5-break",
-      contribution: "20% of normalized strategic distance",
-    },
-  ]);
+  assert.deepEqual(
+    presentation.dimensions.map((dimension) => ({
+      id: dimension.dimension_id,
+      label: dimension.label,
+      typical: dimension.typical,
+      affected: dimension.affected,
+      contribution: dimension.contribution_label,
+    })),
+    [
+      {
+        id: "center-dynamics.center-state",
+        label: "Center state",
+        typical: "Open iqp",
+        affected: "Closed",
+        contribution: "30% of normalized strategic distance",
+      },
+      {
+        id: "learning-concepts.unique-concepts",
+        label: "Unique concepts",
+        typical: "Unavailable",
+        affected: "Minority attack, e5-break",
+        contribution: "20% of normalized strategic distance",
+      },
+    ],
+  );
   assert.deepEqual(presentation.reconciliation, {
     state: "reconciled",
     listed_total: 0.5,
@@ -237,19 +232,25 @@ test("typical-versus-branch dimensions retain null evidence and reconcile contri
     listed_total: null,
     report_distance: 0.5,
     unlisted_difference: null,
-    summary: "Contribution breakdown is unavailable because this finding has no comparable dimensions.",
+    summary:
+      "Contribution breakdown is unavailable because this finding has no comparable dimensions.",
   });
 });
 
 test("high, moderate, and low confidence stay distinct while all active caps explain themselves", () => {
-  assert.deepEqual(["high", "moderate", "low"].map((label) => {
-    const presentation = buildConfidencePresentation(finding(label as ConfidenceLabel).confidence);
-    return [presentation.label, presentation.score, presentation.missing_component_count];
-  }), [
-    ["High confidence", 84, 0],
-    ["Moderate confidence", 62, 0],
-    ["Low confidence", 31, 0],
-  ]);
+  assert.deepEqual(
+    ["high", "moderate", "low"].map((label) => {
+      const presentation = buildConfidencePresentation(
+        finding(label as ConfidenceLabel).confidence,
+      );
+      return [presentation.label, presentation.score, presentation.missing_component_count];
+    }),
+    [
+      ["High confidence", 84, 0],
+      ["Moderate confidence", 62, 0],
+      ["Low confidence", 31, 0],
+    ],
+  );
 
   const capped = structuredClone(finding());
   Object.assign(capped.confidence, {
@@ -261,7 +262,10 @@ test("high, moderate, and low confidence stay distinct while all active caps exp
     components: capped.confidence.components.slice(0, 5),
   });
   const presentation = buildConfidencePresentation(capped.confidence);
-  assert.deepEqual(presentation.caps.map((cap) => cap.reason), CONFIDENCE_CAP_REASONS);
+  assert.deepEqual(
+    presentation.caps.map((cap) => cap.reason),
+    CONFIDENCE_CAP_REASONS,
+  );
   assert.ok(presentation.caps.every((cap) => cap.label !== cap.reason));
   assert.ok(presentation.caps.every((cap) => cap.explanation.startsWith("Plain explanation")));
   assert.equal(presentation.missing_component_count, 2);
@@ -270,37 +274,37 @@ test("high, moderate, and low confidence stay distinct while all active caps exp
 
 test("comparison basis, provenance, source paths, and every missing-data limitation remain explicit", () => {
   const presentation = buildEvidencePresentation(finding(), [issue], "white");
-  assert.deepEqual({
-    effective_branches: presentation.effective_branches,
-    weighted_reference_games: presentation.weighted_reference_games,
-    structural_coverage: presentation.structural_coverage,
-    analysis_window: presentation.analysis_window,
-    taxonomy_version: presentation.taxonomy_version,
-    profile: presentation.profile,
-  }, {
-    effective_branches: "14",
-    weighted_reference_games: "Unavailable",
-    structural_coverage: "91%",
-    analysis_window: "Plies 10–24",
-    taxonomy_version: "opening-taxonomy:3",
-    profile: "Balanced",
-  });
-  assert.deepEqual(presentation.paths, [
-    "e4 c5 c3 Nf6",
-    "e4 c5 Nf3 e6 c3",
-    "Start position",
-  ]);
+  assert.deepEqual(
+    {
+      effective_branches: presentation.effective_branches,
+      weighted_reference_games: presentation.weighted_reference_games,
+      structural_coverage: presentation.structural_coverage,
+      analysis_window: presentation.analysis_window,
+      taxonomy_version: presentation.taxonomy_version,
+      profile: presentation.profile,
+    },
+    {
+      effective_branches: "14",
+      weighted_reference_games: "Unavailable",
+      structural_coverage: "91%",
+      analysis_window: "Plies 10–24",
+      taxonomy_version: "opening-taxonomy:3",
+      profile: "Balanced",
+    },
+  );
+  assert.deepEqual(presentation.paths, ["e4 c5 c3 Nf6", "e4 c5 Nf3 e6 c3", "Start position"]);
   assert.ok(presentation.limitations.some((limitation) => /not shown as zero/i.test(limitation)));
   assert.ok(presentation.limitations.includes("Weighted reference-game evidence is unavailable."));
   assert.ok(presentation.limitations.includes(issue.message));
   assert.ok(presentation.limitations.includes("One route has partial structural classification."));
-  assert.deepEqual(presentation.sources.map((entry) => [
-    entry.group, entry.source.source_id, entry.source.state,
-  ]), [
-    ["Finding report", "core:fixture", "available"],
-    ["Comparison evidence", "structure:fixture", "partial"],
-    ["Objective quality", "engine:fixture", "available"],
-  ]);
+  assert.deepEqual(
+    presentation.sources.map((entry) => [entry.group, entry.source.source_id, entry.source.state]),
+    [
+      ["Finding report", "core:fixture", "available"],
+      ["Comparison evidence", "structure:fixture", "partial"],
+      ["Objective quality", "engine:fixture", "available"],
+    ],
+  );
 });
 
 test("objective verdicts and engine values use explicit Black repertoire POV without invented zeroes", () => {

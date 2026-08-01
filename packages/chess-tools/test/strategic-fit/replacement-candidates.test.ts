@@ -75,12 +75,17 @@ function decisionAt(
 ): RepertoireGraphDecision {
   const index = route.san_moves.indexOf(san);
   assert.notEqual(index, -1, `${san} exists on route`);
-  const decision = graph.decisions.find((candidate) => candidate.decision_id === route.decision_ids[index]);
+  const decision = graph.decisions.find(
+    (candidate) => candidate.decision_id === route.decision_ids[index],
+  );
   assert.ok(decision, `decision for ${san}`);
   return decision;
 }
 
-function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecision): CausalAttribution {
+function attribution(
+  route: RepertoireGraphRoute,
+  decision: RepertoireGraphDecision,
+): CausalAttribution {
   const ply = route.decision_ids.indexOf(decision.decision_id) + 1;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -89,15 +94,17 @@ function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecis
     player_contribution: 0.9,
     opponent_contribution: 0.1,
     likely_causal_decision_ids: [decision.decision_id],
-    timeline: [{
-      event_id: `event:${decision.decision_id}`,
-      kind: "player-decision",
-      ply,
-      position_id: route.position_ids[ply - 1]!,
-      decision_id: decision.decision_id,
-      san: decision.san,
-      explanation: "Candidate-generation fixture pivot.",
-    }],
+    timeline: [
+      {
+        event_id: `event:${decision.decision_id}`,
+        kind: "player-decision",
+        ply,
+        position_id: route.position_ids[ply - 1]!,
+        decision_id: decision.decision_id,
+        san: decision.san,
+        explanation: "Candidate-generation fixture pivot.",
+      },
+    ],
     explanation: "Fixture causality.",
   };
 }
@@ -187,14 +194,16 @@ function databaseMove(
       black_pct: 30,
       average_rating: 1900,
     },
-    provenance: [{
-      source_id: sourceId,
-      kind: "opening-explorer",
-      state: "available",
-      version: "database-v1",
-      snapshot: "snapshot:2026-07",
-      reason: null,
-    }],
+    provenance: [
+      {
+        source_id: sourceId,
+        kind: "opening-explorer",
+        state: "available",
+        version: "database-v1",
+        snapshot: "snapshot:2026-07",
+        reason: null,
+      },
+    ],
   };
 }
 
@@ -205,8 +214,8 @@ function databaseEvidence(
   evidenceId = `evidence:${state}`,
 ): ReplacementOpeningDatabaseEvidence {
   assert.equal(candidateSetup.input.pivot_result.status, "selected");
-  const pivotPosition = candidateSetup.graph.positions.find((position) =>
-    position.position_id === candidateSetup.input.pivot_result.pivot.position_id
+  const pivotPosition = candidateSetup.graph.positions.find(
+    (position) => position.position_id === candidateSetup.input.pivot_result.pivot.position_id,
   );
   assert.ok(pivotPosition);
   return {
@@ -239,14 +248,23 @@ function databaseEvidence(
       provenance: move.provenance.map((item) => ({ ...item })),
     })),
     reason: state === "available" ? null : `Fixture ${state} evidence.`,
-    provenance: [{
-      source_id: `opening-explorer:${evidenceId}`,
-      kind: "opening-explorer",
-      state: state === "available" ? "available" : state === "partial" ? "partial" : state === "stale" ? "stale" : "unavailable",
-      version: "database-v1",
-      snapshot: "snapshot:2026-07",
-      reason: state === "available" ? null : `Fixture ${state} evidence.`,
-    }],
+    provenance: [
+      {
+        source_id: `opening-explorer:${evidenceId}`,
+        kind: "opening-explorer",
+        state:
+          state === "available"
+            ? "available"
+            : state === "partial"
+              ? "partial"
+              : state === "stale"
+                ? "stale"
+                : "unavailable",
+        version: "database-v1",
+        snapshot: "snapshot:2026-07",
+        reason: state === "available" ? null : `Fixture ${state} evidence.`,
+      },
+    ],
   };
 }
 
@@ -288,7 +306,10 @@ test("canonical outcome deduplicates local and database sources while preserving
   const evidence = databaseEvidence(candidateSetup, "available", [
     databaseMove("db-nf3", "Nf3", "g1f3", 64),
   ]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
   const nf3 = result.candidates.filter((candidate) => candidate.san === "Nf3");
 
   assert.equal(nf3.length, 1);
@@ -299,11 +320,19 @@ test("canonical outcome deduplicates local and database sources while preserving
 
 test("duplicate database source merges complete evidence and distinct nested provenance", () => {
   const candidateSetup = setup();
-  const evidence = databaseEvidence(candidateSetup, "available", [
-    databaseMove("db-d3-a", "d3", "d2d3", 20, "opening-explorer:sample-a"),
-    databaseMove("db-d3-b", "d3", "d2d3", 25, "opening-explorer:sample-b"),
-  ], "evidence:duplicate-source");
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const evidence = databaseEvidence(
+    candidateSetup,
+    "available",
+    [
+      databaseMove("db-d3-a", "d3", "d2d3", 20, "opening-explorer:sample-a"),
+      databaseMove("db-d3-b", "d3", "d2d3", 25, "opening-explorer:sample-b"),
+    ],
+    "evidence:duplicate-source",
+  );
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
   const d3 = result.candidates.find((candidate) => candidate.san === "d3");
   assert.ok(d3);
   const databaseSource = d3.provenance.find((item) => item.kind === "opening-database");
@@ -329,30 +358,46 @@ test("ordering and identities are independent of repertoire, evidence, and move 
     databaseEvidence(reverse, "available", [databaseMove("d3", "d3", "d2d3", 20)], "evidence:a"),
   ].reverse();
 
-  const first = generateReplacementCandidates({ ...forward.input, database_evidence: forwardEvidence });
-  const second = generateReplacementCandidates({ ...reverse.input, database_evidence: reverseEvidence });
+  const first = generateReplacementCandidates({
+    ...forward.input,
+    database_evidence: forwardEvidence,
+  });
+  const second = generateReplacementCandidates({
+    ...reverse.input,
+    database_evidence: reverseEvidence,
+  });
   assert.deepEqual(candidateProjection(first), candidateProjection(second));
 });
 
 test("maximum-candidate budget applies after canonical deduplication", () => {
-  const candidateSetup = setup(WHITE_GAMES, "white", "e4 e5 Bc4", "Bc4", [
-    "existing-repertoire-transposition",
-    "move-order-shortcut",
-    "opening-database",
-  ], 1);
+  const candidateSetup = setup(
+    WHITE_GAMES,
+    "white",
+    "e4 e5 Bc4",
+    "Bc4",
+    ["existing-repertoire-transposition", "move-order-shortcut", "opening-database"],
+    1,
+  );
   const evidence = databaseEvidence(candidateSetup, "available", [
     databaseMove("d3", "d3", "d2d3", 50),
     databaseMove("h3", "h3", "h2h3", 40),
   ]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
 
   assert.equal(result.candidates.length, 1);
   assert.ok(result.discovered_candidate_count > result.candidates.length);
   assert.ok(result.database_item_results.every((item) => item.status === "budget-excluded"));
-  assert.ok(result.source_results
-    .filter((item) => item.kind !== "opening-database")
-    .every((item) => item.accepted_item_count <= result.candidates.length));
-  const excludedShortcut = result.source_results.find((item) => item.kind === "move-order-shortcut");
+  assert.ok(
+    result.source_results
+      .filter((item) => item.kind !== "opening-database")
+      .every((item) => item.accepted_item_count <= result.candidates.length),
+  );
+  const excludedShortcut = result.source_results.find(
+    (item) => item.kind === "move-order-shortcut",
+  );
   assert.equal(excludedShortcut?.accepted_item_count, 0);
   assert.equal(excludedShortcut?.rejected_item_count, 1);
   assert.match(excludedShortcut?.reason ?? "", /maximum-candidate budget/);
@@ -363,10 +408,15 @@ test("offline and unavailable database states retain usable local candidates", (
   const candidateSetup = setup();
   for (const state of ["offline", "unavailable"] as const) {
     const evidence = databaseEvidence(candidateSetup, state, []);
-    const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+    const result = generateReplacementCandidates({
+      ...candidateSetup.input,
+      database_evidence: [evidence],
+    });
     assert.equal(result.status, "partial");
     assert.ok(result.candidates.some((candidate) => candidate.san === "Nc3"));
-    const sourceResult = result.source_results.find((item) => item.source_id.endsWith(evidence.evidence_id));
+    const sourceResult = result.source_results.find((item) =>
+      item.source_id.endsWith(evidence.evidence_id),
+    );
     assert.equal(sourceResult?.evidence_state, state);
     assert.equal(sourceResult?.status, "unavailable");
   }
@@ -374,14 +424,27 @@ test("offline and unavailable database states retain usable local candidates", (
 
 test("partial and stale evidence remain explicit while legal partial items stay usable", () => {
   const candidateSetup = setup();
-  const partial = databaseEvidence(candidateSetup, "partial", [databaseMove("d3", "d3", "d2d3", 21)]);
+  const partial = databaseEvidence(candidateSetup, "partial", [
+    databaseMove("d3", "d3", "d2d3", 21),
+  ]);
   const stale = databaseEvidence(candidateSetup, "stale", [databaseMove("h3", "h3", "h2h3", 8)]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [stale, partial] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [stale, partial],
+  });
 
   assert.equal(result.status, "partial");
   assert.ok(result.candidates.some((candidate) => candidate.san === "d3"));
-  assert.deepEqual(result.database_item_results.map((item) => item.status), ["accepted", "stale"]);
-  assert.deepEqual(result.source_results.filter((item) => item.kind === "opening-database").map((item) => item.evidence_state), ["partial", "stale"]);
+  assert.deepEqual(
+    result.database_item_results.map((item) => item.status),
+    ["accepted", "stale"],
+  );
+  assert.deepEqual(
+    result.source_results
+      .filter((item) => item.kind === "opening-database")
+      .map((item) => item.evidence_state),
+    ["partial", "stale"],
+  );
 });
 
 test("illegal SAN, malformed UCI, and SAN/UCI mismatch return independent item errors", () => {
@@ -391,10 +454,19 @@ test("illegal SAN, malformed UCI, and SAN/UCI mismatch return independent item e
     databaseMove("bad-uci", "d3", "not-uci", 9),
     databaseMove("mismatch", "d3", "h2h3", 8),
   ]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
 
-  assert.deepEqual(result.database_item_results.map((item) => item.status), ["illegal", "illegal", "illegal"]);
-  assert.deepEqual(result.database_item_results.map((item) => item.error_code), ["illegal-san", "illegal-uci", "san-uci-mismatch"]);
+  assert.deepEqual(
+    result.database_item_results.map((item) => item.status),
+    ["illegal", "illegal", "illegal"],
+  );
+  assert.deepEqual(
+    result.database_item_results.map((item) => item.error_code),
+    ["illegal-san", "illegal-uci", "san-uci-mismatch"],
+  );
   assert.ok(result.candidates.some((candidate) => candidate.memory_class === "low"));
 });
 
@@ -428,7 +500,7 @@ test("stale pivot identity and stale evidence position return structured results
     positions: candidateSetup.graph.positions.map((position) =>
       position.position_id === pivotPositionId
         ? { ...position, fen: `${position.fen.split(" ").slice(0, 4).join(" ")} invalid clocks` }
-        : position
+        : position,
     ),
   };
   const malformed = generateReplacementCandidates({
@@ -438,9 +510,17 @@ test("stale pivot identity and stale evidence position return structured results
   assert.equal(malformed.status, "stale");
   assert.equal(malformed.error_code, "pivot-position-stale");
 
-  const evidence = databaseEvidence(candidateSetup, "available", [databaseMove("d3", "d3", "d2d3", 20)]);
-  const stalePosition = { ...evidence, position: { ...evidence.position, position_key: "stale-position-key" } };
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [stalePosition] });
+  const evidence = databaseEvidence(candidateSetup, "available", [
+    databaseMove("d3", "d3", "d2d3", 20),
+  ]);
+  const stalePosition = {
+    ...evidence,
+    position: { ...evidence.position, position_key: "stale-position-key" },
+  };
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [stalePosition],
+  });
   assert.equal(result.database_item_results[0]?.status, "stale");
   assert.equal(result.database_item_results[0]?.error_code, "stale-pivot-position");
   assert.ok(result.candidates.some((candidate) => candidate.san === "Nc3"));
@@ -452,7 +532,10 @@ test("accepted and rejected items retain database filters, snapshots, popularity
     databaseMove("legal", "d3", "d2d3", 37),
     databaseMove("illegal", "Qa9", "d2d3", 2),
   ]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
 
   for (const item of result.database_item_results) {
     assert.equal(item.database, evidence.database);
@@ -473,8 +556,13 @@ test("accepted and rejected items retain database filters, snapshots, popularity
 
 test("Black repertoire uses Black-owned pivot legality without reversing White-POV database evidence", () => {
   const candidateSetup = setup(BLACK_GAMES, "black", "e4 c5", "c5");
-  const evidence = databaseEvidence(candidateSetup, "available", [databaseMove("black-d5", "d5", "d7d5", 12)]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const evidence = databaseEvidence(candidateSetup, "available", [
+    databaseMove("black-d5", "d5", "d7d5", 12),
+  ]);
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
   const e5 = result.candidates.find((candidate) => candidate.san === "e5");
   const d5 = result.candidates.find((candidate) => candidate.san === "d5");
 
@@ -487,12 +575,17 @@ test("Black repertoire uses Black-owned pivot legality without reversing White-P
 
 test("generation preserves repertoire, graph, pivot result, and injected evidence byte-for-byte", () => {
   const candidateSetup = setup();
-  const evidence = databaseEvidence(candidateSetup, "available", [databaseMove("d3", "d3", "d2d3", 20)]);
+  const evidence = databaseEvidence(candidateSetup, "available", [
+    databaseMove("d3", "d3", "d2d3", 20),
+  ]);
   const beforeTree = candidateSetup.tree.toPgn();
   const beforeGraph = JSON.stringify(candidateSetup.graph);
   const beforePivot = JSON.stringify(candidateSetup.input.pivot_result);
   const beforeEvidence = JSON.stringify(evidence);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
 
   assert.equal(candidateSetup.tree.toPgn(), beforeTree);
   assert.equal(JSON.stringify(candidateSetup.graph), beforeGraph);
@@ -510,7 +603,10 @@ test("result serialization preserves versions, identity chain, provenance, and s
     databaseMove("nf3-a", "Nf3", "g1f3", 50),
     databaseMove("nf3-b", "Nf3", "g1f3", 45),
   ]);
-  const result = generateReplacementCandidates({ ...candidateSetup.input, database_evidence: [evidence] });
+  const result = generateReplacementCandidates({
+    ...candidateSetup.input,
+    database_evidence: [evidence],
+  });
   const roundTrip = JSON.parse(JSON.stringify(result));
 
   assert.deepEqual(roundTrip, result);
@@ -524,6 +620,11 @@ test("result serialization preserves versions, identity chain, provenance, and s
   assert.equal(result.cohort_id, candidateSetup.input.request.cohort_id);
   assert.equal(result.repertoire_revision, candidateSetup.input.request.repertoire_revision);
   assert.equal(result.candidates.filter((candidate) => candidate.san === "Nf3").length, 1);
-  assert.ok(result.provenance.some((item) => item.source_id === "strategic-fit:replacement-candidates"));
-  assert.equal(positionKey(result.candidates.find((candidate) => candidate.san === "Nf3")!.outcome_fen), result.candidates.find((candidate) => candidate.san === "Nf3")!.outcome_position_key);
+  assert.ok(
+    result.provenance.some((item) => item.source_id === "strategic-fit:replacement-candidates"),
+  );
+  assert.equal(
+    positionKey(result.candidates.find((candidate) => candidate.san === "Nf3")!.outcome_fen),
+    result.candidates.find((candidate) => candidate.san === "Nf3")!.outcome_position_key,
+  );
 });

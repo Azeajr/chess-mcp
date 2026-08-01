@@ -27,7 +27,16 @@ import {
   strategicFitTrainingPerformanceWarning,
 } from "./store/strategic-fit-training";
 import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
-import { resizeSide, resizeSideChat, effSideWidth, effChatWidth, persistLayout, boardSize, setBoardSize, persistBoard } from "./store/layout";
+import {
+  resizeSide,
+  resizeSideChat,
+  effSideWidth,
+  effChatWidth,
+  persistLayout,
+  boardSize,
+  setBoardSize,
+  persistBoard,
+} from "./store/layout";
 
 export default function App() {
   startAutosave();
@@ -52,7 +61,12 @@ export default function App() {
         void saveFile();
         return;
       }
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         actions.undo();
@@ -74,10 +88,18 @@ export default function App() {
       >
         <TopBar />
         <Show when={strategicFitMetadataWarning()}>
-          {(warning) => <div class="strategic-fit-metadata-warning" role="alert">{warning().message}</div>}
+          {(warning) => (
+            <div class="strategic-fit-metadata-warning" role="alert">
+              {warning().message}
+            </div>
+          )}
         </Show>
         <Show when={strategicFitTrainingPerformanceWarning()}>
-          {(warning) => <div class="strategic-fit-metadata-warning" role="alert">{warning()}</div>}
+          {(warning) => (
+            <div class="strategic-fit-metadata-warning" role="alert">
+              {warning()}
+            </div>
+          )}
         </Show>
         <div
           class="workspace"
@@ -93,7 +115,10 @@ export default function App() {
           <Divider
             axis="y"
             onResize={(d) => {
-              const base = boardSize() || (document.querySelector(".board-wrap") as HTMLElement | null)?.clientWidth || 320;
+              const base =
+                boardSize() ||
+                (document.querySelector(".board-wrap") as HTMLElement | null)?.clientWidth ||
+                320;
               setBoardSize(base + d);
             }}
             onEnd={persistBoard}
@@ -118,7 +143,9 @@ export default function App() {
         <PromotionModal />
         <ColorPickerModal />
       </div>
-      <Show when={strategicFitWorkspaceOpen()}><StrategicFitWorkspace /></Show>
+      <Show when={strategicFitWorkspaceOpen()}>
+        <StrategicFitWorkspace />
+      </Show>
     </div>
   );
 }

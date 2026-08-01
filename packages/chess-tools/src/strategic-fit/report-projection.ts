@@ -247,11 +247,7 @@ function pageCursor(reportId: string, sort: StrategicFitFindingSort, offset: num
   return [PAGE_CURSOR_PREFIX, reportId, sort, offset].map(encodeURIComponent).join("|");
 }
 
-function cursorOffset(
-  cursor: string,
-  reportId: string,
-  sort: StrategicFitFindingSort,
-): number {
+function cursorOffset(cursor: string, reportId: string, sort: StrategicFitFindingSort): number {
   const parts = cursor.split("|").map((part) => {
     try {
       return decodeURIComponent(part);
@@ -259,7 +255,12 @@ function cursorOffset(
       return "";
     }
   });
-  if (parts.length !== 4 || parts[0] !== PAGE_CURSOR_PREFIX || parts[1] !== reportId || parts[2] !== sort) {
+  if (
+    parts.length !== 4 ||
+    parts[0] !== PAGE_CURSOR_PREFIX ||
+    parts[1] !== reportId ||
+    parts[2] !== sort
+  ) {
     throw new StrategicFitReportProjectionError(
       "strategic_fit_stale_page_cursor",
       "The Strategic Fit page cursor belongs to a different report or sort order.",
@@ -286,9 +287,10 @@ function pageProjection(
       "Use either a Strategic Fit page cursor or an offset, not both.",
     );
   }
-  const offset = request.page?.cursor === undefined
-    ? request.page?.offset ?? 0
-    : cursorOffset(request.page.cursor, report.report_id, sort);
+  const offset =
+    request.page?.cursor === undefined
+      ? (request.page?.offset ?? 0)
+      : cursorOffset(request.page.cursor, report.report_id, sort);
   const requestedLimit = request.page?.limit ?? STRATEGIC_FIT_MAX_PAGE_SIZE;
   if (!Number.isSafeInteger(offset) || offset < 0) {
     throw new StrategicFitReportProjectionError(
@@ -357,7 +359,9 @@ export function projectStrategicFitReport(
   }
   if (request.kind === "page") return pageProjection(report, request);
   if (request.kind === "finding") {
-    const finding = report.findings.find((candidate) => candidate.finding_id === request.finding_id);
+    const finding = report.findings.find(
+      (candidate) => candidate.finding_id === request.finding_id,
+    );
     if (!finding || finding.repertoire_revision !== request.expected_repertoire_revision) {
       throw new StrategicFitReportProjectionError(
         "strategic_fit_finding_not_found",

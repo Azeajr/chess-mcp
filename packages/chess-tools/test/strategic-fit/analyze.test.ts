@@ -21,10 +21,12 @@ import {
   parseStrategicFitFixture,
 } from "./fixtures.ts";
 
-function analyzeBroad(options: Parameters<typeof analyzeStrategicFit>[1] = {
-  repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
-  repertoireRevision: "revision:broad",
-}) {
+function analyzeBroad(
+  options: Parameters<typeof analyzeStrategicFit>[1] = {
+    repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
+    repertoireRevision: "revision:broad",
+  },
+) {
   return analyzeStrategicFit(parseStrategicFitFixture(BROAD_ECO_FIXTURE), options);
 }
 
@@ -47,10 +49,13 @@ test("one engine-free call composes a versioned, provenance-bearing V2 report", 
     assert.equal(report.finding_page.total_count, report.summary.unresolved_finding_count);
     assert.ok(report.cohorts.length > 0);
     assert.ok(report.findings.length > 0);
-    assert.ok(report.findings.every((finding) =>
-      finding.objective_quality.state === "unavailable" &&
-      finding.objective_quality.provenance[0]?.kind === "engine"
-    ));
+    assert.ok(
+      report.findings.every(
+        (finding) =>
+          finding.objective_quality.state === "unavailable" &&
+          finding.objective_quality.provenance[0]?.kind === "engine",
+      ),
+    );
     assert.doesNotMatch(JSON.stringify(report), /consistent/i);
     assert.equal(fetchCalls, 0);
   } finally {
@@ -61,8 +66,9 @@ test("one engine-free call composes a versioned, provenance-bearing V2 report", 
 test("the analyzer applies profile source coefficients before cohort and metric calculation", () => {
   const tree = parseStrategicFitFixture(BLACK_REPERTOIRE_FIXTURE);
   const graph = buildRepertoireGraph(tree, "black");
-  const rootDecisions = graph.decisions.filter((decision) =>
-    decision.owner === "opponent" && decision.from_position_id === graph.root_position_id
+  const rootDecisions = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" && decision.from_position_id === graph.root_position_id,
   );
   const report = analyzeStrategicFit(tree, {
     repertoireColor: "black",
@@ -111,8 +117,8 @@ test("the analyzer applies profile source coefficients before cohort and metric 
     },
   });
 
-  const composition = report.provenance.sources.find((source) =>
-    source.source_id === "strategic-fit:weight-composition"
+  const composition = report.provenance.sources.find(
+    (source) => source.source_id === "strategic-fit:weight-composition",
   );
   assert.equal(composition?.snapshot, "market=0.75:used,personal=0.25:used,manual=0:unavailable");
   assert.deepEqual(strategicFitProfileDistanceOptions(report.profile).feature_family_weights, {
@@ -146,7 +152,9 @@ test("progress traverses the six frozen phases monotonically", () => {
       [phaseIndex, "completed", 1],
     ]),
   );
-  assert.ok(events.every((event) => event.run_id === "run:progress-test" && event.phase_count === 6));
+  assert.ok(
+    events.every((event) => event.run_id === "run:progress-test" && event.phase_count === 6),
+  );
   assert.ok(events.slice(0, -1).every((event) => event.provisional_findings));
   assert.equal(events.at(-1)?.provisional_findings, false);
 });
@@ -156,16 +164,17 @@ test("cancellation is cooperative at deterministic phase boundaries", () => {
   let cancelled = false;
 
   assert.throws(
-    () => analyzeBroad({
-      repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
-      repertoireRevision: "revision:cancel",
-      runId: "run:cancel-test",
-      shouldCancel: () => cancelled,
-      onProgress: (event) => {
-        events.push(event);
-        if (event.phase_index === 2 && event.state === "running") cancelled = true;
-      },
-    }),
+    () =>
+      analyzeBroad({
+        repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
+        repertoireRevision: "revision:cancel",
+        runId: "run:cancel-test",
+        shouldCancel: () => cancelled,
+        onProgress: (event) => {
+          events.push(event);
+          if (event.phase_index === 2 && event.state === "running") cancelled = true;
+        },
+      }),
     (error: unknown) => {
       assert.ok(error instanceof StrategicFitAnalysisCancelledError);
       assert.equal(error.code, "strategic_fit_analysis_cancelled");
@@ -209,7 +218,9 @@ test("deterministic reruns preserve report, finding, and run identities", () => 
 
   assert.deepEqual(first, second);
   assert.deepEqual(firstProgress, secondProgress);
-  assert.ok(first.findings.some((finding) => finding.classification === "transpositional-equivalence"));
+  assert.ok(
+    first.findings.some((finding) => finding.classification === "transpositional-equivalence"),
+  );
 });
 
 test("paging slices stable sorted findings without changing logical totals", () => {
@@ -252,10 +263,10 @@ test("empty blocking input returns an explicit report without starting dependent
   });
 
   assert.equal(report.preflight.state, "blocked");
-  assert.deepEqual(report.preflight.issues.map((issue) => issue.code), [
-    "empty-repertoire",
-    "missing-opening-classification",
-  ]);
+  assert.deepEqual(
+    report.preflight.issues.map((issue) => issue.code),
+    ["empty-repertoire", "missing-opening-classification"],
+  );
   assert.deepEqual(report.trajectories, []);
   assert.deepEqual(report.cohorts, []);
   assert.deepEqual(report.findings, []);
@@ -263,10 +274,13 @@ test("empty blocking input returns an explicit report without starting dependent
   assert.equal(report.summary.metrics.strategic_entropy.state, "unavailable");
   assert.equal(report.summary.metrics.strategic_entropy.value, null);
   assert.equal(report.finding_page.total_count, 0);
-  assert.deepEqual(events.map((event) => [event.phase_index, event.state]), [
-    [0, "running"],
-    [0, "completed"],
-  ]);
+  assert.deepEqual(
+    events.map((event) => [event.phase_index, event.state]),
+    [
+      [0, "running"],
+      [0, "completed"],
+    ],
+  );
   assert.doesNotMatch(JSON.stringify(report), /consistent/i);
 });
 
@@ -312,13 +326,19 @@ test("degraded shallow evidence remains uncertain instead of becoming a defect",
 
   assert.equal(report.preflight.state, "degraded");
   assert.equal(report.preflight.comparable_route_count, 0);
-  assert.equal(report.summary.insufficient_evidence_branch_count, SHALLOW_LINES_FIXTURE.expected.leaves);
+  assert.equal(
+    report.summary.insufficient_evidence_branch_count,
+    SHALLOW_LINES_FIXTURE.expected.leaves,
+  );
   assert.ok(report.findings.length > 0);
-  assert.ok(report.findings.every((finding) =>
-    finding.classification === "uncertain" &&
-    finding.replacement_priority.label === "insufficient-evidence" &&
-    finding.confidence.label === "low"
-  ));
+  assert.ok(
+    report.findings.every(
+      (finding) =>
+        finding.classification === "uncertain" &&
+        finding.replacement_priority.label === "insufficient-evidence" &&
+        finding.confidence.label === "low",
+    ),
+  );
 });
 
 test("independent analyses do not leak global mutable state", () => {
@@ -342,19 +362,21 @@ test("independent analyses do not leak global mutable state", () => {
 
 test("invalid paging and stale route assessment inputs fail explicitly", () => {
   assert.throws(
-    () => analyzeBroad({
-      repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
-      repertoireRevision: "revision:bad-page",
-      page: { offset: -1, limit: 2 },
-    }),
+    () =>
+      analyzeBroad({
+        repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
+        repertoireRevision: "revision:bad-page",
+        page: { offset: -1, limit: 2 },
+      }),
     /strategic_fit_analyze_invalid_page_offset/,
   );
   assert.throws(
-    () => analyzeBroad({
-      repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
-      repertoireRevision: "revision:bad-route",
-      routeAssessments: [{ route_id: "route:missing", resolution_state: "keep-intentionally" }],
-    }),
+    () =>
+      analyzeBroad({
+        repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
+        repertoireRevision: "revision:bad-route",
+        routeAssessments: [{ route_id: "route:missing", resolution_state: "keep-intentionally" }],
+      }),
     /strategic_fit_analyze_unknown_assessment_route/,
   );
 });

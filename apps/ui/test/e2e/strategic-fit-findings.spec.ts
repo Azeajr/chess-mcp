@@ -55,8 +55,15 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
     provenance: [source],
   };
   const axisIds = [
-    "strategic-fit", "strategic-familiarity", "memorization-burden", "expected-coverage",
-    "new-concepts", "theory-size", "popularity", "homogenization-cost", "training-cost",
+    "strategic-fit",
+    "strategic-familiarity",
+    "memorization-burden",
+    "expected-coverage",
+    "new-concepts",
+    "theory-size",
+    "popularity",
+    "homogenization-cost",
+    "training-cost",
   ];
   const makeCandidate = (
     id: string,
@@ -91,33 +98,37 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
       source_san_paths: [[san]],
       transposition_target_position_id: index === edgeCount ? "position:prepared" : null,
     }));
-    const subtree = unavailable ? null : {
-      ...version,
-      subtree_id: `subtree:${id}`,
-      root_position_id: nodes[0]!.position_id,
-      root_node_id: nodes[0]!.node_id,
-      nodes,
-      edges,
-      routes: [{
-        analysis_version: "2.0.0",
-        route_id: `route:${id}:long`,
-        node_ids: nodes.map((node) => node.node_id),
-        edge_ids: edges.map((edge) => edge.edge_id),
-        terminal_node_id: nodes.at(-1)!.node_id,
-        termination: "existing-preparation",
-        expected_opponent_frequency: 1,
-      }],
-      strategic_horizon_ply: 48,
-      important_reply_count: 4,
-      covered_important_reply_count: 4,
-      forcing_reply_count: 2,
-      covered_forcing_reply_count: 2,
-      unresolved_risk_ids: [],
-      provenance: [sourceRecord],
-      status: "complete",
-      completion: { kind: "immediate-transposition", target_position_id: "position:prepared" },
-      truncation_reasons: [],
-    };
+    const subtree = unavailable
+      ? null
+      : {
+          ...version,
+          subtree_id: `subtree:${id}`,
+          root_position_id: nodes[0]!.position_id,
+          root_node_id: nodes[0]!.node_id,
+          nodes,
+          edges,
+          routes: [
+            {
+              analysis_version: "2.0.0",
+              route_id: `route:${id}:long`,
+              node_ids: nodes.map((node) => node.node_id),
+              edge_ids: edges.map((edge) => edge.edge_id),
+              terminal_node_id: nodes.at(-1)!.node_id,
+              termination: "existing-preparation",
+              expected_opponent_frequency: 1,
+            },
+          ],
+          strategic_horizon_ply: 48,
+          important_reply_count: 4,
+          covered_important_reply_count: 4,
+          forcing_reply_count: 2,
+          covered_forcing_reply_count: 2,
+          unresolved_risk_ids: [],
+          provenance: [sourceRecord],
+          status: "complete",
+          completion: { kind: "immediate-transposition", target_position_id: "position:prepared" },
+          truncation_reasons: [],
+        };
     return {
       ...version,
       candidate_id: id,
@@ -140,22 +151,30 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
           san,
           provenance: [sourceRecord],
         },
-        evidence_item_results: unavailable ? [{
-          error_code: "provider-unavailable",
-          status: "unavailable",
-          explanation: "Provider unavailable; candidate evidence retained.",
-        }] : [],
+        evidence_item_results: unavailable
+          ? [
+              {
+                error_code: "provider-unavailable",
+                status: "unavailable",
+                explanation: "Provider unavailable; candidate evidence retained.",
+              },
+            ]
+          : [],
         omissions: [],
-        unresolved_risks: unavailable ? [{
-          analysis_version: "2.0.0",
-          risk_id: `risk:${id}`,
-          kind: "incomplete-expansion",
-          status: "open",
-          explanation: "Expansion unavailable.",
-          affected_position_ids: [],
-          affected_route_ids: [],
-          provenance: [source],
-        }] : [],
+        unresolved_risks: unavailable
+          ? [
+              {
+                analysis_version: "2.0.0",
+                risk_id: `risk:${id}`,
+                kind: "incomplete-expansion",
+                status: "open",
+                explanation: "Expansion unavailable.",
+                affected_position_ids: [],
+                affected_route_ids: [],
+                provenance: [source],
+              },
+            ]
+          : [],
         status: unavailable ? "unavailable" : "complete",
         subtree,
       },
@@ -181,7 +200,8 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
           state: unavailable ? "unavailable" : "available",
           normalized_score: unavailable ? null : 0.9 - index * 0.05,
           raw_value: unavailable ? null : 0.9 - index * 0.05,
-          unit: axis === "new-concepts" ? "concepts" : axis === "theory-size" ? "nodes" : "fraction",
+          unit:
+            axis === "new-concepts" ? "concepts" : axis === "theory-size" ? "nodes" : "fraction",
           higher_is_better: !axis.includes("burden") && !axis.includes("cost"),
           reason: unavailable ? "Canonical axis unavailable." : "Canonical Phase 8 axis.",
           provenance: [source],
@@ -193,11 +213,12 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
         status: paretoStatus,
         axis_ids: unavailable ? [] : ["objective-quality", ...axisIds],
         dominated_by_candidate_ids: paretoStatus === "dominated" ? ["candidate:e2e:tradeoff"] : [],
-        reason: paretoStatus === "pareto-optimal"
-          ? "No candidate dominates this tradeoff; no single best is inferred."
-          : paretoStatus === "dominated"
-            ? "Exact canonical dominator retained."
-            : "Unavailable evidence cannot enter frontier.",
+        reason:
+          paretoStatus === "pareto-optimal"
+            ? "No candidate dominates this tradeoff; no single best is inferred."
+            : paretoStatus === "dominated"
+              ? "Exact canonical dominator retained."
+              : "Unavailable evidence cannot enter frontier.",
       },
     };
   };
@@ -229,15 +250,21 @@ function replacementComparisonFixture(color: "white" | "black" = "white") {
 }
 
 function replacementChangeReviewFixture(color: "white" | "black" = "white") {
-  const version = { schema_version: "1.0.0", analysis_version: "2.0.0", replacement_schema_version: "1.0.0" };
-  const provenance = [{
-    source_id: "source:e2e:change-review",
-    kind: "deterministic-core",
-    state: "available",
-    version: "2.0.0",
-    snapshot: "snapshot:e2e:change-review",
-    reason: null,
-  }];
+  const version = {
+    schema_version: "1.0.0",
+    analysis_version: "2.0.0",
+    replacement_schema_version: "1.0.0",
+  };
+  const provenance = [
+    {
+      source_id: "source:e2e:change-review",
+      kind: "deterministic-core",
+      state: "available",
+      version: "2.0.0",
+      snapshot: "snapshot:e2e:change-review",
+      reason: null,
+    },
+  ];
   const objective = (cp: number) => ({
     ...version,
     state: "available",
@@ -293,105 +320,327 @@ function replacementChangeReviewFixture(color: "white" | "black" = "white") {
     required_reply_count_before: 8,
     required_reply_count_after: 9,
     newly_uncovered_replies: [],
-    newly_covered_replies: [{
-      analysis_version: "2.0.0",
-      state: "available",
-      position_id: "position:new-reply",
-      decision_id: "decision:new-reply",
-      san: "Nf6",
-      expected_frequency: 0.18,
-      forcing: true,
-      source_san_paths: [["e4", "e5", "Nf3", "Nf6"]],
-      reason: "Canonical newly covered forcing reply.",
-      provenance,
-    }],
+    newly_covered_replies: [
+      {
+        analysis_version: "2.0.0",
+        state: "available",
+        position_id: "position:new-reply",
+        decision_id: "decision:new-reply",
+        san: "Nf6",
+        expected_frequency: 0.18,
+        forcing: true,
+        source_san_paths: [["e4", "e5", "Nf3", "Nf6"]],
+        reason: "Canonical newly covered forcing reply.",
+        provenance,
+      },
+    ],
     duplicate_branch_ids: [],
     new_transposition_position_ids: ["position:prepared"],
-    affected_metrics: [{
-      analysis_version: "2.0.0",
-      metric_id: "training-adjusted-workload",
-      state: "partial",
-      before: 0.42,
-      after: 0.24,
-      delta: -0.18,
-      unit: "fraction",
-      reason: "Partial personal training evidence retained.",
-      provenance,
-    }],
+    affected_metrics: [
+      {
+        analysis_version: "2.0.0",
+        metric_id: "training-adjusted-workload",
+        state: "partial",
+        before: 0.42,
+        after: 0.24,
+        delta: -0.18,
+        unit: "fraction",
+        reason: "Partial personal training evidence retained.",
+        provenance,
+      },
+    ],
     reason: "One metric remains partial.",
     provenance,
   };
-  const target = { position_id: "position:old", decision_id: "decision:old", source_san_path: ["e4", "e5", "Nf3", "Nc6", "Bb5"] };
-  const operations = [{
-    analysis_version: "2.0.0", operation_id: "operation:add", sequence: 0, kind: "add-subtree",
-    parent: { position_id: "position:pivot", decision_id: "decision:pivot", source_san_path: ["e4", "e5", "Nf3"] },
-    subtree: { subtree_id: "subtree:e2e:long" }, provenance,
-  }, {
-    analysis_version: "2.0.0", operation_id: "operation:link", sequence: 1, kind: "link-transposition",
-    source: { position_id: "position:new", decision_id: "decision:new", source_san_path: ["e4", "e5", "Nf3", "Nf6"] },
-    target_position_id: "position:prepared", provenance,
-  }, {
-    analysis_version: "2.0.0", operation_id: "operation:annotation", sequence: 2, kind: "preserve-annotation",
-    source: target, target: { ...target, source_san_path: ["e4", "e5", "Nf3", "Nf6"] },
-    comments: ["Long exact annotation retained"], nags: [1], semantic_equivalence_verified: true, provenance,
-  }, {
-    analysis_version: "2.0.0", operation_id: "operation:archive", sequence: 3, kind: "archive-subtree",
-    archive_id: "archive:e2e:old-line", target, archive_pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
-    references: { position_ids: ["position:old"], decision_ids: ["decision:old"], route_ids: ["route:old"], source_san_paths: [target.source_san_path] }, provenance,
-  }, {
-    analysis_version: "2.0.0", operation_id: "operation:prune", sequence: 4, kind: "prune-subtree",
-    target, archive_operation_id: "operation:archive", explicitly_confirmed: true, provenance,
-  }];
+  const target = {
+    position_id: "position:old",
+    decision_id: "decision:old",
+    source_san_path: ["e4", "e5", "Nf3", "Nc6", "Bb5"],
+  };
+  const operations = [
+    {
+      analysis_version: "2.0.0",
+      operation_id: "operation:add",
+      sequence: 0,
+      kind: "add-subtree",
+      parent: {
+        position_id: "position:pivot",
+        decision_id: "decision:pivot",
+        source_san_path: ["e4", "e5", "Nf3"],
+      },
+      subtree: { subtree_id: "subtree:e2e:long" },
+      provenance,
+    },
+    {
+      analysis_version: "2.0.0",
+      operation_id: "operation:link",
+      sequence: 1,
+      kind: "link-transposition",
+      source: {
+        position_id: "position:new",
+        decision_id: "decision:new",
+        source_san_path: ["e4", "e5", "Nf3", "Nf6"],
+      },
+      target_position_id: "position:prepared",
+      provenance,
+    },
+    {
+      analysis_version: "2.0.0",
+      operation_id: "operation:annotation",
+      sequence: 2,
+      kind: "preserve-annotation",
+      source: target,
+      target: { ...target, source_san_path: ["e4", "e5", "Nf3", "Nf6"] },
+      comments: ["Long exact annotation retained"],
+      nags: [1],
+      semantic_equivalence_verified: true,
+      provenance,
+    },
+    {
+      analysis_version: "2.0.0",
+      operation_id: "operation:archive",
+      sequence: 3,
+      kind: "archive-subtree",
+      archive_id: "archive:e2e:old-line",
+      target,
+      archive_pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
+      references: {
+        position_ids: ["position:old"],
+        decision_ids: ["decision:old"],
+        route_ids: ["route:old"],
+        source_san_paths: [target.source_san_path],
+      },
+      provenance,
+    },
+    {
+      analysis_version: "2.0.0",
+      operation_id: "operation:prune",
+      sequence: 4,
+      kind: "prune-subtree",
+      target,
+      archive_operation_id: "operation:archive",
+      explicitly_confirmed: true,
+      provenance,
+    },
+  ];
   const diffs = operations.map((operation, index) => ({
-    analysis_version: "2.0.0", operation_id: operation.operation_id, sequence: index, kind: operation.kind,
-    added_paths: index === 0 ? [["e4", "e5", "Nf3", "Nf6", ...Array.from({ length: 36 }, (_, i) => `Move${i}`)]] : [],
+    analysis_version: "2.0.0",
+    operation_id: operation.operation_id,
+    sequence: index,
+    kind: operation.kind,
+    added_paths:
+      index === 0
+        ? [["e4", "e5", "Nf3", "Nf6", ...Array.from({ length: 36 }, (_, i) => `Move${i}`)]]
+        : [],
     removed_paths: index === 4 ? [target.source_san_path] : [],
     annotated_paths: index === 2 ? [["e4", "e5", "Nf3", "Nf6"]] : [],
     linked_paths: index === 1 ? [["e4", "e5", "Nf3", "Nf6"]] : [],
     archived_paths: index === 3 ? [target.source_san_path] : [],
-    reordered_parent_paths: [], linked_position_ids: index === 1 ? ["position:prepared"] : [],
+    reordered_parent_paths: [],
+    linked_position_ids: index === 1 ? ["position:prepared"] : [],
     archive_ids: index === 3 ? ["archive:e2e:old-line"] : [],
   }));
-  const safetyChecks = ["legality", "engine-sanity", "coverage", "gap-scan", "transpositions", "duplicates", "stale-revision", "affected-cohort-preview"].map((kind) => ({
-    analysis_version: "2.0.0", kind, status: kind === "affected-cohort-preview" ? "warning" : "passed",
-    explanation: kind === "affected-cohort-preview" ? "Partial training evidence remains visible." : `${kind} passed canonical Phase 8 evidence.`,
-    risk_ids: kind === "affected-cohort-preview" ? ["risk:e2e:partial"] : [], provenance,
+  const safetyChecks = [
+    "legality",
+    "engine-sanity",
+    "coverage",
+    "gap-scan",
+    "transpositions",
+    "duplicates",
+    "stale-revision",
+    "affected-cohort-preview",
+  ].map((kind) => ({
+    analysis_version: "2.0.0",
+    kind,
+    status: kind === "affected-cohort-preview" ? "warning" : "passed",
+    explanation:
+      kind === "affected-cohort-preview"
+        ? "Partial training evidence remains visible."
+        : `${kind} passed canonical Phase 8 evidence.`,
+    risk_ids: kind === "affected-cohort-preview" ? ["risk:e2e:partial"] : [],
+    provenance,
   }));
   const preview = {
     ...version,
-    before: { analysis_version: "2.0.0", position_count: 20, decision_count: 19, route_count: 8, source_route_count: 8, transposition_count: 1 },
-    after: { analysis_version: "2.0.0", position_count: 27, decision_count: 25, route_count: 9, source_route_count: 9, transposition_count: 2 },
-    objective_quality_before: objective(20), objective_quality_after: objective(35),
-    strategic_score_before: score(false), strategic_score_after: score(true), coverage_effects: coverage,
-    affected_paths: diffs.flatMap((diff) => [...diff.added_paths, ...diff.removed_paths, ...diff.annotated_paths, ...diff.linked_paths, ...diff.archived_paths]),
-    preserved_annotation_count: 1, archive_ids: ["archive:e2e:old-line"], operation_diffs: diffs,
-    archive_payloads: [{
-      analysis_version: "2.0.0", archive_id: "archive:e2e:old-line", operation_id: "operation:archive", target,
-      pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
-      references: { position_ids: ["position:old"], decision_ids: ["decision:old"], route_ids: ["route:old"], source_san_paths: [target.source_san_path] }, provenance,
-    }],
-    finding_changes_state: "not-reanalyzed", changed_finding_ids: [], new_finding_ids: [], resolved_finding_ids: [],
+    before: {
+      analysis_version: "2.0.0",
+      position_count: 20,
+      decision_count: 19,
+      route_count: 8,
+      source_route_count: 8,
+      transposition_count: 1,
+    },
+    after: {
+      analysis_version: "2.0.0",
+      position_count: 27,
+      decision_count: 25,
+      route_count: 9,
+      source_route_count: 9,
+      transposition_count: 2,
+    },
+    objective_quality_before: objective(20),
+    objective_quality_after: objective(35),
+    strategic_score_before: score(false),
+    strategic_score_after: score(true),
+    coverage_effects: coverage,
+    affected_paths: diffs.flatMap((diff) => [
+      ...diff.added_paths,
+      ...diff.removed_paths,
+      ...diff.annotated_paths,
+      ...diff.linked_paths,
+      ...diff.archived_paths,
+    ]),
+    preserved_annotation_count: 1,
+    archive_ids: ["archive:e2e:old-line"],
+    operation_diffs: diffs,
+    archive_payloads: [
+      {
+        analysis_version: "2.0.0",
+        archive_id: "archive:e2e:old-line",
+        operation_id: "operation:archive",
+        target,
+        pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 {old line archived exactly} *",
+        references: {
+          position_ids: ["position:old"],
+          decision_ids: ["decision:old"],
+          route_ids: ["route:old"],
+          source_san_paths: [target.source_san_path],
+        },
+        provenance,
+      },
+    ],
+    finding_changes_state: "not-reanalyzed",
+    changed_finding_ids: [],
+    new_finding_ids: [],
+    resolved_finding_ids: [],
   };
   const safetyCandidate = {
-    ...version, candidate_id: "candidate:e2e:tradeoff", request_id: "request:e2e:comparison", report_id: "report:fixture",
-    finding_id: "finding:01", semantic_finding_id: "semantic:finding:01", cohort_id: "cohort:fixture",
-    repertoire_revision: "browser:fixture", repertoire_color: color, pivot_id: "pivot:e2e", action: "replace", action_label: "Replace line",
-    status: "safe", error_code: null, explanation: "Safe replacement retained.", source_graph_identity: "graph:e2e", simulated_graph_identity: "graph:e2e:after",
-    coverage_effects: coverage, safety_checks: safetyChecks,
-    scored_candidate: { expansion: { unresolved_risks: [{ analysis_version: "2.0.0", risk_id: "risk:e2e:partial", kind: "engine-unverified", status: "open", explanation: "Deeper verification remains optional.", affected_position_ids: ["position:new"], affected_route_ids: ["route:new"], provenance }] } },
-    provenance, source_tree_unchanged: true, source_scoring_unchanged: true, inputs_unchanged: true,
+    ...version,
+    candidate_id: "candidate:e2e:tradeoff",
+    request_id: "request:e2e:comparison",
+    report_id: "report:fixture",
+    finding_id: "finding:01",
+    semantic_finding_id: "semantic:finding:01",
+    cohort_id: "cohort:fixture",
+    repertoire_revision: "browser:fixture",
+    repertoire_color: color,
+    pivot_id: "pivot:e2e",
+    action: "replace",
+    action_label: "Replace line",
+    status: "safe",
+    error_code: null,
+    explanation: "Safe replacement retained.",
+    source_graph_identity: "graph:e2e",
+    simulated_graph_identity: "graph:e2e:after",
+    coverage_effects: coverage,
+    safety_checks: safetyChecks,
+    scored_candidate: {
+      expansion: {
+        unresolved_risks: [
+          {
+            analysis_version: "2.0.0",
+            risk_id: "risk:e2e:partial",
+            kind: "engine-unverified",
+            status: "open",
+            explanation: "Deeper verification remains optional.",
+            affected_position_ids: ["position:new"],
+            affected_route_ids: ["route:new"],
+            provenance,
+          },
+        ],
+      },
+    },
+    provenance,
+    source_tree_unchanged: true,
+    source_scoring_unchanged: true,
+    inputs_unchanged: true,
   };
   const stage = {
-    stage_id: "stage:e2e:change-review", status: "staged", result_status: "previewed", document_id: "document:e2e",
-    base_revision: 7, base_repertoire_revision: "browser:7", tree_identity: "tree:e2e", metadata_identity: "metadata:e2e",
-    safety_identity: "safety:e2e", change_set_identity: "change-set:e2e", preview_identity: "preview:e2e",
-    archive_identity: "archive:e2e", provenance_identity: "provenance:e2e",
-    safety: { ...version, request_id: "request:e2e:comparison", report_id: "report:fixture", finding_id: "finding:01", semantic_finding_id: "semantic:finding:01", cohort_id: "cohort:fixture", repertoire_revision: "browser:7", repertoire_color: color, pivot_id: "pivot:e2e", candidates: [safetyCandidate], provenance },
-    change_set: { ...version, change_set_id: "change-set:e2e", request_id: "request:e2e:comparison", candidate_id: "candidate:e2e:tradeoff", base_repertoire_revision: "browser:7", status: "validated", atomic: true, staged: true, retention: { archive: "archive", prune: "prune", prune_explicitly_confirmed: true, archive_before_prune: true }, operations, safety_checks: safetyChecks, unresolved_risk_ids: ["risk:e2e:partial"], provenance },
-    preview: { ...version, change_set_id: "change-set:e2e", base_repertoire_revision: "browser:7", atomic: true, source_tree_unchanged: true, operation_results: operations.map((operation) => ({ analysis_version: "2.0.0", operation_id: operation.operation_id, status: "applied", error_code: null, explanation: "Previewed on clone." })), provenance, status: "previewed", result: { repertoire_revision: null, pgn: "fixture", preview }, failure: null },
-    navigation_san_path: ["e4", "e5", "Nf3"], created_at: "2026-07-29T12:00:00.000Z", accepted_revision: null, error_code: null,
+    stage_id: "stage:e2e:change-review",
+    status: "staged",
+    result_status: "previewed",
+    document_id: "document:e2e",
+    base_revision: 7,
+    base_repertoire_revision: "browser:7",
+    tree_identity: "tree:e2e",
+    metadata_identity: "metadata:e2e",
+    safety_identity: "safety:e2e",
+    change_set_identity: "change-set:e2e",
+    preview_identity: "preview:e2e",
+    archive_identity: "archive:e2e",
+    provenance_identity: "provenance:e2e",
+    safety: {
+      ...version,
+      request_id: "request:e2e:comparison",
+      report_id: "report:fixture",
+      finding_id: "finding:01",
+      semantic_finding_id: "semantic:finding:01",
+      cohort_id: "cohort:fixture",
+      repertoire_revision: "browser:7",
+      repertoire_color: color,
+      pivot_id: "pivot:e2e",
+      candidates: [safetyCandidate],
+      provenance,
+    },
+    change_set: {
+      ...version,
+      change_set_id: "change-set:e2e",
+      request_id: "request:e2e:comparison",
+      candidate_id: "candidate:e2e:tradeoff",
+      base_repertoire_revision: "browser:7",
+      status: "validated",
+      atomic: true,
+      staged: true,
+      retention: {
+        archive: "archive",
+        prune: "prune",
+        prune_explicitly_confirmed: true,
+        archive_before_prune: true,
+      },
+      operations,
+      safety_checks: safetyChecks,
+      unresolved_risk_ids: ["risk:e2e:partial"],
+      provenance,
+    },
+    preview: {
+      ...version,
+      change_set_id: "change-set:e2e",
+      base_repertoire_revision: "browser:7",
+      atomic: true,
+      source_tree_unchanged: true,
+      operation_results: operations.map((operation) => ({
+        analysis_version: "2.0.0",
+        operation_id: operation.operation_id,
+        status: "applied",
+        error_code: null,
+        explanation: "Previewed on clone.",
+      })),
+      provenance,
+      status: "previewed",
+      result: { repertoire_revision: null, pgn: "fixture", preview },
+      failure: null,
+    },
+    navigation_san_path: ["e4", "e5", "Nf3"],
+    created_at: "2026-07-29T12:00:00.000Z",
+    accepted_revision: null,
+    error_code: null,
   };
-  return { candidate_id: "candidate:e2e:tradeoff", action: "replace", status: "ready", evidence: { action: "replace", safety: stage.safety, item: { candidate_id: "candidate:e2e:tradeoff", status: "previewed", stage: { ok: true, stage } } }, stage, error: null };
+  return {
+    candidate_id: "candidate:e2e:tradeoff",
+    action: "replace",
+    status: "ready",
+    evidence: {
+      action: "replace",
+      safety: stage.safety,
+      item: {
+        candidate_id: "candidate:e2e:tradeoff",
+        status: "previewed",
+        stage: { ok: true, stage },
+      },
+    },
+    stage,
+    error: null,
+  };
 }
 
 function resolutionProofFixture(
@@ -439,13 +688,16 @@ async function downloadText(download: Download): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 async function installFindingWorkerFixture(page: Page, replacementLabFixture = false) {
   await page.addInitScript((replacementLabFixture) => {
@@ -500,15 +752,32 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
               "unresolved",
             ];
             const priorityLabels = [
-              "review-now", "review-now", "review-later", "informational",
-              "review-now", "insufficient-evidence", "insufficient-evidence", "informational",
-              "review-later", "review-now", "review-later", "informational",
+              "review-now",
+              "review-now",
+              "review-later",
+              "informational",
+              "review-now",
+              "insufficient-evidence",
+              "insufficient-evidence",
+              "informational",
+              "review-later",
+              "review-now",
+              "review-later",
+              "informational",
             ];
             const openings = [
-              "Sicilian · Alapin", "French · Advance", "Queen's Gambit · Exchange",
-              "Caro-Kann · Classical", "English · Four Knights", "French · Advance",
-              "Sicilian · Alapin", "Ruy Lopez · Berlin", "Queen's Gambit · Exchange",
-              "French · Advance", "Caro-Kann · Classical", "English · Four Knights",
+              "Sicilian · Alapin",
+              "French · Advance",
+              "Queen's Gambit · Exchange",
+              "Caro-Kann · Classical",
+              "English · Four Knights",
+              "French · Advance",
+              "Sicilian · Alapin",
+              "Ruy Lopez · Berlin",
+              "Queen's Gambit · Exchange",
+              "French · Advance",
+              "Caro-Kann · Classical",
+              "English · Four Knights",
             ];
             const confidenceComponents = [
               "classifier-confidence",
@@ -529,7 +798,8 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
               kind,
               state,
               version: "2.0.0",
-              snapshot: "e2e-fixture:strategic-fit-classifier-snapshot-with-a-deliberately-long-unbroken-provenance-identifier-0123456789abcdef",
+              snapshot:
+                "e2e-fixture:strategic-fit-classifier-snapshot-with-a-deliberately-long-unbroken-provenance-identifier-0123456789abcdef",
               reason,
             });
             const boardFens = [
@@ -606,14 +876,22 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                 snapshot("route:d0915031cdecff76", "configured-ply", 12, 3),
                 snapshot("route:d0915031cdecff76", "final-valid-position", 14, 3, "not-comparable"),
               ]),
-              trajectory("route:e93bfad5d54ea7a2", "incomplete", [
-                snapshot("route:e93bfad5d54ea7a2", "opening-exit", 4, 0),
-                snapshot("route:e93bfad5d54ea7a2", "central-resolution", 8, 1, "incomplete"),
-                snapshot("route:e93bfad5d54ea7a2", "configured-ply", 14, 3),
-              ], [{
-                kind: "irreversible-transformation",
-                reason: "This affected route ends before an irreversible checkpoint is available.",
-              }]),
+              trajectory(
+                "route:e93bfad5d54ea7a2",
+                "incomplete",
+                [
+                  snapshot("route:e93bfad5d54ea7a2", "opening-exit", 4, 0),
+                  snapshot("route:e93bfad5d54ea7a2", "central-resolution", 8, 1, "incomplete"),
+                  snapshot("route:e93bfad5d54ea7a2", "configured-ply", 14, 3),
+                ],
+                [
+                  {
+                    kind: "irreversible-transformation",
+                    reason:
+                      "This affected route ends before an irreversible checkpoint is available.",
+                  },
+                ],
+              ),
               trajectory("route:baseline:01:a", "complete", [
                 snapshot("route:baseline:01:a", "opening-exit", 6, 0),
                 snapshot("route:baseline:01:a", "central-resolution", 10, 1),
@@ -640,47 +918,67 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                 classification,
                 plain_language_category: category[classification],
                 opening_scope: openings[index],
-                affected_line_summary: index === 0 ? "Alapin, 6...Nf6 branch" : `Fixture line ${index + 1}`,
-                explanation: index === 0
-                  ? message.payload.options.profile?.mode === "familiar-plans"
-                    ? "Fresh evidence shows a familiar closed center against the weighted baseline."
-                    : "This branch produces a closed center while the weighted baseline produces an open IQP position."
-                  : `Plain-language explanation for fixture finding ${index + 1}.`,
+                affected_line_summary:
+                  index === 0 ? "Alapin, 6...Nf6 branch" : `Fixture line ${index + 1}`,
+                explanation:
+                  index === 0
+                    ? message.payload.options.profile?.mode === "familiar-plans"
+                      ? "Fresh evidence shows a familiar closed center against the weighted baseline."
+                      : "This branch produces a closed center while the weighted baseline produces an open IQP position."
+                    : `Plain-language explanation for fixture finding ${index + 1}.`,
                 references: {
-                  position_ids: index === 0
-                    ? [
-                        "position:e7550032f70614fc",
-                        "position:2b1fd1b2aadfbfa3",
-                        "position:5022598b73716fd2",
-                        "position:373d8f8d0de0d9bf",
-                        "position:27ed4375501ec11a",
-                        "position:38fa52ee143b5f1a",
-                      ]
-                    : [`position:${id}:a`, `position:${id}:b`],
-                  decision_ids: index === 0
-                    ? [
-                        "decision:e4e5e82a5c33c5ff",
-                        "decision:c355600852e94946",
-                        "decision:a191661d710d7004",
-                        "decision:42f4ab66c74a8a67",
-                        "decision:ae1f88a65ccff091",
-                      ]
-                    : [`decision:${id}:a`, `decision:${id}:b`],
-                  route_ids: index === 0
-                    ? ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"]
-                    : [`route:${id}:a`, `route:${id}:b`],
-                  source_san_paths: index === 0
-                    ? [
-                        ["e4", "c5", "c3", "Nf6"],
-                        ["e4", "c5", "Nf3", "e6", "c3"],
-                        ["e4", "c5", "c3", "d5"],
-                        ["e4", "e5", "Nf3", "Nc6"],
-                        [
-                          "e4", "c5", "c3", "Nf6", "e5", "Nd5", "d4", "cxd4",
-                          "Nf3", "Nc6", "cxd4", "d6", "Bc4", "Nb6", "Bb5", "dxe5",
-                        ],
-                      ]
-                    : [["e4", "e5", `fixture-${index + 1}`]],
+                  position_ids:
+                    index === 0
+                      ? [
+                          "position:e7550032f70614fc",
+                          "position:2b1fd1b2aadfbfa3",
+                          "position:5022598b73716fd2",
+                          "position:373d8f8d0de0d9bf",
+                          "position:27ed4375501ec11a",
+                          "position:38fa52ee143b5f1a",
+                        ]
+                      : [`position:${id}:a`, `position:${id}:b`],
+                  decision_ids:
+                    index === 0
+                      ? [
+                          "decision:e4e5e82a5c33c5ff",
+                          "decision:c355600852e94946",
+                          "decision:a191661d710d7004",
+                          "decision:42f4ab66c74a8a67",
+                          "decision:ae1f88a65ccff091",
+                        ]
+                      : [`decision:${id}:a`, `decision:${id}:b`],
+                  route_ids:
+                    index === 0
+                      ? ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"]
+                      : [`route:${id}:a`, `route:${id}:b`],
+                  source_san_paths:
+                    index === 0
+                      ? [
+                          ["e4", "c5", "c3", "Nf6"],
+                          ["e4", "c5", "Nf3", "e6", "c3"],
+                          ["e4", "c5", "c3", "d5"],
+                          ["e4", "e5", "Nf3", "Nc6"],
+                          [
+                            "e4",
+                            "c5",
+                            "c3",
+                            "Nf6",
+                            "e5",
+                            "Nd5",
+                            "d4",
+                            "cxd4",
+                            "Nf3",
+                            "Nc6",
+                            "cxd4",
+                            "d6",
+                            "Bc4",
+                            "Nb6",
+                            "Bb5",
+                            "dxe5",
+                          ],
+                        ]
+                      : [["e4", "e5", `fixture-${index + 1}`]],
                 },
                 weighted_baseline_percentage: 78 - index,
                 expected_frequency: optionalUnavailable ? null : 0.24 - index * 0.01,
@@ -697,16 +995,21 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                       weight: 1,
                       explanation: `Fixture explanation for ${component}.`,
                     })),
-                  applied_caps: index === 1
-                    ? [{
-                        reason: "effective-sample-below-four",
-                        maximum_score: 39,
-                        explanation: "Effective sample size is below four, so confidence cannot exceed 39.",
-                      }]
-                    : [],
-                  explanation: index === 1
-                    ? "Low confidence: the component score is limited by a small comparison set."
-                    : "High-confidence fixture comparison supported across the reported components.",
+                  applied_caps:
+                    index === 1
+                      ? [
+                          {
+                            reason: "effective-sample-below-four",
+                            maximum_score: 39,
+                            explanation:
+                              "Effective sample size is below four, so confidence cannot exceed 39.",
+                          },
+                        ]
+                      : [],
+                  explanation:
+                    index === 1
+                      ? "Low confidence: the component score is limited by a small comparison set."
+                      : "High-confidence fixture comparison supported across the reported components.",
                 },
                 difference: {
                   analysis_version: analysisVersion,
@@ -728,12 +1031,14 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                       database_performance: null,
                       theoretical_status: null,
                       reason: "No engine verification was requested for this base scan.",
-                      provenance: [source(
-                        "engine:fixture",
-                        "engine",
-                        "unavailable",
-                        "No engine verification was requested for this base scan.",
-                      )],
+                      provenance: [
+                        source(
+                          "engine:fixture",
+                          "engine",
+                          "unavailable",
+                          "No engine verification was requested for this base scan.",
+                        ),
+                      ],
                     }
                   : {
                       analysis_version: analysisVersion,
@@ -776,54 +1081,62 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                   analysis_version: analysisVersion,
                   cohort_id: "cohort:fixture",
                   baseline_mode_ids: ["mode:fixture"],
-                  representative_route_ids: index === 0
-                    ? ["route:baseline:01:a", "route:baseline:01:b"]
-                    : [`route:${id}:a`],
-                  dimensions: index === 0
-                    ? [
-                        {
-                          dimension_id: "center-dynamics.center-state",
-                          typical_value: "open-iqp",
-                          affected_value: "closed",
-                          contribution: 0.3,
-                          explanation: "Center state contributes 30% of normalized distance.",
-                        },
-                        {
-                          dimension_id: "center-dynamics.primary-break",
-                          typical_value: "d4-d5",
-                          affected_value: "f2-f4",
-                          contribution: 0.2,
-                          explanation: "Primary break contributes 20% of normalized distance.",
-                        },
-                        {
-                          dimension_id: "king-and-piece-setup.king-setup",
-                          typical_value: {
-                            setup: "short-castling",
-                            classifier_snapshot_id: "snapshot_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz",
+                  representative_route_ids:
+                    index === 0
+                      ? ["route:baseline:01:a", "route:baseline:01:b"]
+                      : [`route:${id}:a`],
+                  dimensions:
+                    index === 0
+                      ? [
+                          {
+                            dimension_id: "center-dynamics.center-state",
+                            typical_value: "open-iqp",
+                            affected_value: "closed",
+                            contribution: 0.3,
+                            explanation: "Center state contributes 30% of normalized distance.",
                           },
-                          affected_value: {
-                            setup: "long-castling",
-                            classifier_snapshot_id: "snapshot_abcdefghijklmnopqrstuvwxyz9876543210ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                          {
+                            dimension_id: "center-dynamics.primary-break",
+                            typical_value: "d4-d5",
+                            affected_value: "f2-f4",
+                            contribution: 0.2,
+                            explanation: "Primary break contributes 20% of normalized distance.",
                           },
-                          contribution: 0.1,
-                          explanation: "King setup contributes 10% of normalized distance.",
-                        },
-                      ]
-                    : index === 1
-                      ? [{
-                          dimension_id: "learning-concepts.unique-concepts",
-                          typical_value: null,
-                          affected_value: ["new-plan"],
-                          contribution: 0.2,
-                          explanation: "Available concept evidence contributes 20%.",
-                        }]
-                      : [{
-                          dimension_id: "dynamic-character.tactical-level",
-                          typical_value: "moderate",
-                          affected_value: "high",
-                          contribution: 0.8 - index * 0.02,
-                          explanation: "Tactical character accounts for the reported distance.",
-                        }],
+                          {
+                            dimension_id: "king-and-piece-setup.king-setup",
+                            typical_value: {
+                              setup: "short-castling",
+                              classifier_snapshot_id:
+                                "snapshot_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz",
+                            },
+                            affected_value: {
+                              setup: "long-castling",
+                              classifier_snapshot_id:
+                                "snapshot_abcdefghijklmnopqrstuvwxyz9876543210ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                            },
+                            contribution: 0.1,
+                            explanation: "King setup contributes 10% of normalized distance.",
+                          },
+                        ]
+                      : index === 1
+                        ? [
+                            {
+                              dimension_id: "learning-concepts.unique-concepts",
+                              typical_value: null,
+                              affected_value: ["new-plan"],
+                              contribution: 0.2,
+                              explanation: "Available concept evidence contributes 20%.",
+                            },
+                          ]
+                        : [
+                            {
+                              dimension_id: "dynamic-character.tactical-level",
+                              typical_value: "moderate",
+                              affected_value: "high",
+                              contribution: 0.8 - index * 0.02,
+                              explanation: "Tactical character accounts for the reported distance.",
+                            },
+                          ],
                   comparison_basis: {
                     effective_branches: index === 1 ? 2 : 14,
                     weighted_reference_games: index === 1 ? null : 2840,
@@ -838,82 +1151,91 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                     label: index % 2 === 0 ? "mostly-player-controlled" : "mostly-opponent-forced",
                     player_contribution: 0.8,
                     opponent_contribution: 0.2,
-                    likely_causal_decision_ids: index === 0
-                      ? [message.payload.repertoire_color === "black"
-                          ? "decision:c355600852e94946"
-                          : "decision:a191661d710d7004"]
-                      : [`decision:${id}:a`],
-                    timeline: index === 0
-                      ? [
-                          {
-                            event_id: "event:opponent-divergence",
-                            kind: "opponent-divergence",
-                            ply: 2,
-                            position_id: "position:finding:01:opponent",
-                            decision_id: "decision:finding:01:opponent",
-                            san: "c5",
-                            explanation: "The opponent chooses the Sicilian structure.",
-                          },
-                          {
-                            event_id: "event:player-decision",
-                            kind: "player-decision",
-                            ply: 3,
-                            position_id: "position:finding:01:player",
-                            decision_id: message.payload.repertoire_color === "black"
+                    likely_causal_decision_ids:
+                      index === 0
+                        ? [
+                            message.payload.repertoire_color === "black"
                               ? "decision:c355600852e94946"
                               : "decision:a191661d710d7004",
-                            san: message.payload.repertoire_color === "black" ? "e5" : "Nf3",
-                            explanation: "The repertoire chooses the causal fixture move.",
-                          },
-                          {
-                            event_id: "event:irreversible",
-                            kind: "irreversible-event",
-                            ply: 7,
-                            position_id: "position:finding:01:irreversible",
-                            decision_id: "decision:finding:01:b",
-                            san: "d4",
-                            explanation: "The central pawn commitment cannot be reversed.",
-                          },
-                          {
-                            event_id: "event:first-difference",
-                            kind: "first-strategic-difference",
-                            ply: 8,
-                            position_id: "position:finding:01:difference",
-                            decision_id: null,
-                            san: "cxd4",
-                            explanation: "The first persistent center-state difference appears.",
-                          },
-                          {
-                            event_id: "event:stable",
-                            kind: "difference-stable",
-                            ply: 12,
-                            position_id: "position:finding:01:stable",
-                            decision_id: null,
-                            san: "d6",
-                            explanation: "The difference remains stable at the matched checkpoint.",
-                          },
-                          {
-                            event_id: "event:transposition",
-                            kind: "transposition",
-                            ply: 14,
-                            position_id: "position:finding:01:transposition",
-                            decision_id: null,
-                            san: null,
-                            explanation: "Another move order reaches this canonical position.",
-                          },
-                        ]
-                      : [],
+                          ]
+                        : [`decision:${id}:a`],
+                    timeline:
+                      index === 0
+                        ? [
+                            {
+                              event_id: "event:opponent-divergence",
+                              kind: "opponent-divergence",
+                              ply: 2,
+                              position_id: "position:finding:01:opponent",
+                              decision_id: "decision:finding:01:opponent",
+                              san: "c5",
+                              explanation: "The opponent chooses the Sicilian structure.",
+                            },
+                            {
+                              event_id: "event:player-decision",
+                              kind: "player-decision",
+                              ply: 3,
+                              position_id: "position:finding:01:player",
+                              decision_id:
+                                message.payload.repertoire_color === "black"
+                                  ? "decision:c355600852e94946"
+                                  : "decision:a191661d710d7004",
+                              san: message.payload.repertoire_color === "black" ? "e5" : "Nf3",
+                              explanation: "The repertoire chooses the causal fixture move.",
+                            },
+                            {
+                              event_id: "event:irreversible",
+                              kind: "irreversible-event",
+                              ply: 7,
+                              position_id: "position:finding:01:irreversible",
+                              decision_id: "decision:finding:01:b",
+                              san: "d4",
+                              explanation: "The central pawn commitment cannot be reversed.",
+                            },
+                            {
+                              event_id: "event:first-difference",
+                              kind: "first-strategic-difference",
+                              ply: 8,
+                              position_id: "position:finding:01:difference",
+                              decision_id: null,
+                              san: "cxd4",
+                              explanation: "The first persistent center-state difference appears.",
+                            },
+                            {
+                              event_id: "event:stable",
+                              kind: "difference-stable",
+                              ply: 12,
+                              position_id: "position:finding:01:stable",
+                              decision_id: null,
+                              san: "d6",
+                              explanation:
+                                "The difference remains stable at the matched checkpoint.",
+                            },
+                            {
+                              event_id: "event:transposition",
+                              kind: "transposition",
+                              ply: 14,
+                              position_id: "position:finding:01:transposition",
+                              decision_id: null,
+                              san: null,
+                              explanation: "Another move order reaches this canonical position.",
+                            },
+                          ]
+                        : [],
                     explanation: "Fixture attribution.",
                   },
                   data_quality_issue_ids: index === 1 ? ["issue:opening-evidence"] : [],
-                  provenance: index === 1
-                    ? [source(
-                        "structure:fixture",
-                        "structure-classifier",
-                        "partial",
-                        "One affected route has partial structural evidence.",
-                      )]
-                    : [source("structure:fixture", "structure-classifier")],
+                  provenance:
+                    index === 1
+                      ? [
+                          source(
+                            "structure:fixture",
+                            "structure-classifier",
+                            "partial",
+                            "One affected route has partial structural evidence.",
+                          ),
+                        ]
+                      : [source("structure:fixture", "structure-classifier")],
                 },
                 resolution_state: resolutions[index],
                 provisional: false,
@@ -954,40 +1276,55 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
               })),
               effective_sample_size: routeIds.length,
               transposition_position_ids: [],
-              modes: routeIds.length === 0 ? [] : [{
-                analysis_version: analysisVersion,
-                mode_id: `mode:${cohortId}`,
-                cohort_id: cohortId,
-                representative_route_id: routeIds[0],
-                supporting_route_ids: routeIds,
-                concept_ids: [],
-                normalized_weight: 1,
-                effective_sample_size: routeIds.length,
-                source: "inferred-medoid",
-                provenance: [source("cohort:fixture", "deterministic-core")],
-              }],
+              modes:
+                routeIds.length === 0
+                  ? []
+                  : [
+                      {
+                        analysis_version: analysisVersion,
+                        mode_id: `mode:${cohortId}`,
+                        cohort_id: cohortId,
+                        representative_route_id: routeIds[0],
+                        supporting_route_ids: routeIds,
+                        concept_ids: [],
+                        normalized_weight: 1,
+                        effective_sample_size: routeIds.length,
+                        source: "inferred-medoid",
+                        provenance: [source("cohort:fixture", "deterministic-core")],
+                      },
+                    ],
               override_ids: requestedOverrides.map((entry: any) => entry.override_id),
               provenance: [source("cohort:fixture", "deterministic-core")],
             });
-            const cohorts = requestedKind === "merge"
-              ? [cohort("cohort:merged", [routeA, routeB])]
-              : requestedKind === "split"
-                ? [cohort("cohort:split:a", [routeA]), cohort("cohort:split:b", [routeB])]
-                : requestedKind === "exclude"
-                  ? [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [], [routeB])]
-                  : replacementLabFixture
+            const cohorts =
+              requestedKind === "merge"
+                ? [cohort("cohort:merged", [routeA, routeB])]
+                : requestedKind === "split"
+                  ? [cohort("cohort:split:a", [routeA]), cohort("cohort:split:b", [routeB])]
+                  : requestedKind === "exclude"
                     ? [
-                        { ...cohort("cohort:fixture", [routeA, routeB]), state: "actionable" },
-                        { ...cohort("cohort:alternative", [routeB]), state: "actionable" },
+                        cohort("cohort:fixture", [routeA]),
+                        cohort("cohort:alternative", [], [routeB]),
                       ]
-                    : [cohort("cohort:fixture", [routeA]), cohort("cohort:alternative", [routeB])];
+                    : replacementLabFixture
+                      ? [
+                          { ...cohort("cohort:fixture", [routeA, routeB]), state: "actionable" },
+                          { ...cohort("cohort:alternative", [routeB]), state: "actionable" },
+                        ]
+                      : [
+                          cohort("cohort:fixture", [routeA]),
+                          cohort("cohort:alternative", [routeB]),
+                        ];
             const effectiveFindings = findings.map((entry, index) => ({
               ...entry,
               evidence: {
                 ...entry.evidence,
-                cohort_id: requestedKind === "merge"
-                  ? "cohort:merged"
-                  : index === 0 ? cohorts[0].cohort_id : cohorts.at(-1).cohort_id,
+                cohort_id:
+                  requestedKind === "merge"
+                    ? "cohort:merged"
+                    : index === 0
+                      ? cohorts[0].cohort_id
+                      : cohorts.at(-1).cohort_id,
               },
             }));
             const metric = (metricId: string, unit: string, value: unknown) => ({
@@ -1017,18 +1354,20 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                   preflight: {
                     analysis_version: analysisVersion,
                     state: "degraded",
-                    issues: [{
-                      analysis_version: analysisVersion,
-                      issue_id: "issue:opening-evidence",
-                      code: "missing-opening-classification",
-                      kind: "evidence-limitation",
-                      severity: "degraded",
-                      message: "Opening classification is incomplete for one affected route.",
-                      affected_route_ids: ["route:finding:02:a"],
-                      affected_source_paths: [["e4", "e5"]],
-                      details: {},
-                      provenance: [],
-                    }],
+                    issues: [
+                      {
+                        analysis_version: analysisVersion,
+                        issue_id: "issue:opening-evidence",
+                        code: "missing-opening-classification",
+                        kind: "evidence-limitation",
+                        severity: "degraded",
+                        message: "Opening classification is incomplete for one affected route.",
+                        affected_route_ids: ["route:finding:02:a"],
+                        affected_source_paths: [["e4", "e5"]],
+                        details: {},
+                        provenance: [],
+                      },
+                    ],
                     route_count: 12,
                     comparable_route_count: 12,
                     incomplete_route_count: 0,
@@ -1057,8 +1396,16 @@ async function installFindingWorkerFixture(page: Page, replacementLabFixture = f
                         popularity_loss: null,
                         coverage_loss: null,
                       }),
-                      familiarity_adjusted_coverage: metric("familiarity-adjusted-coverage", "fraction", 0.7),
-                      training_adjusted_workload: metric("training-adjusted-workload", "score", 0.5),
+                      familiarity_adjusted_coverage: metric(
+                        "familiarity-adjusted-coverage",
+                        "fraction",
+                        0.7,
+                      ),
+                      training_adjusted_workload: metric(
+                        "training-adjusted-workload",
+                        "score",
+                        0.5,
+                      ),
                       repertoire_regret: metric("repertoire-regret", "score", 0.2),
                       move_order_resilience: metric("move-order-resilience", "fraction", 0.8),
                       concept_centrality: metric("concept-centrality", "composite", []),
@@ -1093,10 +1440,7 @@ async function bootstrap(
   await installFindingWorkerFixture(page, replacementLabFixture);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
-  await chess(page, (api) => api.loadPgn(
-    "1. e4 e5 (1... c5) 2. Nf3 Nc6 *",
-    "finding-queue.pgn",
-  ));
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "finding-queue.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await chess(page, (api, color) => api.setColor(color), repertoireColor);
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
@@ -1109,7 +1453,9 @@ async function bootstrap(
   return { dialog, before, pathBefore };
 }
 
-test("finding queue renders frozen card fields, stable pages, composed filters, and keyboard selection", async ({ page }) => {
+test("finding queue renders frozen card fields, stable pages, composed filters, and keyboard selection", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const pane = dialog.locator("#strategic-fit-pane-findings");
   const queue = pane.getByRole("region", { name: "Strategic Fit finding queue" });
@@ -1151,16 +1497,21 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   const firstEvidence = evidencePane.locator("[data-evidence-finding-id='finding:01']");
   await expect(firstEvidence).toBeVisible();
   await expect(firstEvidence.locator("[data-dimension-id]")).toHaveCount(3);
-  await expect(firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"))
-    .toContainText("Open iqp");
-  await expect(firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"))
-    .toContainText("Closed");
-  await expect(firstEvidence.locator("[data-reconciliation-state='reconciled']"))
-    .toContainText("60% strategic distance");
+  await expect(
+    firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"),
+  ).toContainText("Open iqp");
+  await expect(
+    firstEvidence.locator("[data-dimension-id='center-dynamics.center-state']"),
+  ).toContainText("Closed");
+  await expect(firstEvidence.locator("[data-reconciliation-state='reconciled']")).toContainText(
+    "60% strategic distance",
+  );
   await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("14");
   await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("2,840");
   await expect(firstEvidence.locator(".strategic-fit-comparison-basis")).toContainText("91%");
-  await expect(firstEvidence.locator("[data-confidence-label='high']")).toHaveText("High confidence");
+  await expect(firstEvidence.locator("[data-confidence-label='high']")).toHaveText(
+    "High confidence",
+  );
   await expect(firstEvidence.locator(".strategic-fit-evidence-paths li")).toHaveCount(5);
   await expect(firstEvidence.locator(".strategic-fit-evidence-sources")).toContainText(
     "Deterministic analysis",
@@ -1189,46 +1540,65 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await expect(evidencePane).toBeFocused();
   const secondEvidence = evidencePane.locator("[data-evidence-finding-id='finding:02']");
   await expect(secondEvidence).toBeVisible();
-  await expect(secondEvidence.locator("[data-confidence-label='low']")).toHaveText("Low confidence");
-  await expect(secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"))
-    .toContainText("Small comparison set");
-  await expect(secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"))
-    .toContainText("confidence cannot exceed 39");
+  await expect(secondEvidence.locator("[data-confidence-label='low']")).toHaveText(
+    "Low confidence",
+  );
+  await expect(
+    secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"),
+  ).toContainText("Small comparison set");
+  await expect(
+    secondEvidence.locator("[data-confidence-cap='effective-sample-below-four']"),
+  ).toContainText("confidence cannot exceed 39");
   await expect(secondEvidence).toContainText("2 of 7 confidence components are unavailable");
-  await expect(secondEvidence.locator("[data-value-state='unavailable']")).toHaveText("Unavailable");
-  await expect(secondEvidence.locator("[data-reconciliation-state='partial']"))
-    .toContainText("gap is not assigned");
+  await expect(secondEvidence.locator("[data-value-state='unavailable']")).toHaveText(
+    "Unavailable",
+  );
+  await expect(secondEvidence.locator("[data-reconciliation-state='partial']")).toContainText(
+    "gap is not assigned",
+  );
   await expect(secondEvidence.locator(".strategic-fit-data-quality")).toContainText(
     "Opening classification is incomplete for one affected route.",
   );
-  await expect(secondEvidence.locator(".strategic-fit-evidence-sources"))
-    .toContainText("One affected route has partial structural evidence.");
+  await expect(secondEvidence.locator(".strategic-fit-evidence-sources")).toContainText(
+    "One affected route has partial structural evidence.",
+  );
 
   await queue.getByRole("button", { name: "Next findings" }).click();
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
-  await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute("data-finding-id", "finding:07");
+  await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute(
+    "data-finding-id",
+    "finding:07",
+  );
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText("Showing 7–12 of 12");
 
   await queue.getByLabel("Sort findings").selectOption({ label: "Opening / system" });
-  await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute("data-finding-id", "finding:04");
+  await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute(
+    "data-finding-id",
+    "finding:04",
+  );
   await queue.getByLabel("Priority type").selectOption({ label: "Training" });
   await queue.getByLabel("Priority", { exact: true }).selectOption({ label: "Review now" });
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
   await queue.getByLabel("Opening / system").selectOption({ label: "Sicilian · Alapin" });
   await expect(queue.locator("[data-finding-id]")).toHaveCount(2);
-  expect(await queue.locator("[data-finding-id]").evaluateAll((cards) =>
-    cards.map((card) => card.getAttribute("data-finding-id"))
-  )).toEqual(["finding:01", "finding:07"]);
+  expect(
+    await queue
+      .locator("[data-finding-id]")
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-finding-id"))),
+  ).toEqual(["finding:01", "finding:07"]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("finding resolutions are reversible, persistent, count-aware, and automatically reconciled", async ({ page }) => {
+test("finding resolutions are reversible, persistent, count-aware, and automatically reconciled", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
   const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   const first = queue.locator("[data-finding-id='finding:01']");
   await first.locator("[data-finding-select]").click();
@@ -1236,18 +1606,23 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
   await expect(actions).toBeVisible();
   await actions.getByRole("radio", { name: /Keep intentionally/ }).check();
-  await actions.getByLabel("Optional keep-intentionally reason").selectOption("objectively-strongest");
+  await actions
+    .getByLabel("Optional keep-intentionally reason")
+    .selectOption("objectively-strongest");
   await actions.getByLabel("Optional note").fill("Best practical choice for this repertoire.");
   await actions.getByRole("button", { name: "Save resolution" }).click();
 
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("resolution-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "keep-intentionally");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
-  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
-    .toHaveText("2");
+  await expect(
+    dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
+  ).toHaveText("2");
   await dialog.getByRole("button", { name: "Review unresolved findings" }).click();
   await expect(queue.locator("[data-finding-id='finding:01']")).toHaveCount(0);
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
@@ -1257,42 +1632,51 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Kept intentionally");
   await first.locator("[data-finding-select]").click();
   const persistedKeep = await chess(page, (api) => api.strategicFitMetadata().resolutions);
-  expect(persistedKeep).toMatchObject([{
-    state: "keep-intentionally",
-    intentional_reason: "objectively-strongest",
-    note: "Best practical choice for this repertoire.",
-    record_state: "active",
-    semantic_finding_id: "semantic:finding:01",
-  }]);
+  expect(persistedKeep).toMatchObject([
+    {
+      state: "keep-intentionally",
+      intentional_reason: "objectively-strongest",
+      note: "Best practical choice for this repertoire.",
+      record_state: "active",
+      semantic_finding_id: "semantic:finding:01",
+    },
+  ]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => api.version())).toBe(initialVersion);
   expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
   expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
 
-  const beforeReopenRequest = await chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.request_id ?? null
+  const beforeReopenRequest = await chess(
+    page,
+    (api) => api.strategicFitLifecycle().current_result?.request_id ?? null,
   );
   await actions.getByRole("button", { name: "Reopen finding" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.request_id ?? null
-  )).not.toBe(beforeReopenRequest);
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.request_id ?? null),
+    )
+    .not.toBe(beforeReopenRequest);
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "unresolved");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Unresolved");
-  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
-    .toHaveText("3");
+  await expect(
+    dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
+  ).toHaveText("3");
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toEqual([]);
 
-  const beforeDeferRequest = await chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.request_id ?? null
+  const beforeDeferRequest = await chess(
+    page,
+    (api) => api.strategicFitLifecycle().current_result?.request_id ?? null,
   );
   await actions.getByRole("radio", { name: /Defer/ }).check();
   await actions.getByLabel("Optional note").fill("Review after the next event.");
   await actions.getByRole("button", { name: "Save resolution" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.request_id ?? null
-  )).not.toBe(beforeDeferRequest);
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.request_id ?? null),
+    )
+    .not.toBe(beforeDeferRequest);
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "defer");
   await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Deferred");
@@ -1305,12 +1689,15 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   const restoredDialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await restoredDialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
-  const restoredQueue = restoredDialog.locator("#strategic-fit-pane-findings")
+  const restoredQueue = restoredDialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
-  await expect(restoredQueue.locator("[data-finding-id='finding:01'] .strategic-fit-finding-resolution"))
-    .toHaveText("Deferred");
-  await expect(restoredDialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
-    .toHaveText("2");
+  await expect(
+    restoredQueue.locator("[data-finding-id='finding:01'] .strategic-fit-finding-resolution"),
+  ).toHaveText("Deferred");
+  await expect(
+    restoredDialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
+  ).toHaveText("2");
 
   await restoredQueue.locator("[data-finding-id='finding:02'] [data-finding-select]").click();
   const staleSemantic = restoredDialog.locator("[data-resolution-finding-id='finding:02']");
@@ -1321,20 +1708,28 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toHaveLength(1);
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("profile-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("profile-change");
   await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
 });
 
-test("review completion blocks unreviewed findings, exports provenance, and records reopen history", async ({ page }) => {
+test("review completion blocks unreviewed findings, exports provenance, and records reopen history", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   const review = dialog.locator("[data-review-state]");
   await expect(review).toHaveAttribute("data-review-state", "incomplete");
   await expect(review.getByRole("button", { name: "Complete review" })).toHaveCount(0);
-  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute("data-unreviewed-count", "3");
+  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute(
+    "data-unreviewed-count",
+    "3",
+  );
 
   await chess(page, (api) => {
     for (const suffix of ["10", "12"]) {
@@ -1355,19 +1750,25 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
   });
   await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
   await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute("data-unreviewed-count", "1");
+  await expect(review.locator("[data-unreviewed-count]")).toHaveAttribute(
+    "data-unreviewed-count",
+    "1",
+  );
 
   const deferFinding = async (findingId: string) => {
-    const beforeRequest = await chess(page, (api) =>
-      api.strategicFitLifecycle().current_result?.request_id ?? null
+    const beforeRequest = await chess(
+      page,
+      (api) => api.strategicFitLifecycle().current_result?.request_id ?? null,
     );
     await queue.locator(`[data-finding-id='${findingId}'] [data-finding-select]`).click();
     const actions = dialog.locator(`[data-resolution-finding-id='${findingId}']`);
     await actions.getByRole("radio", { name: /Defer/ }).check();
     await actions.getByRole("button", { name: "Save resolution" }).click();
-    await expect.poll(() => chess(page, (api) =>
-      api.strategicFitLifecycle().current_result?.request_id ?? null
-    )).not.toBe(beforeRequest);
+    await expect
+      .poll(() =>
+        chess(page, (api) => api.strategicFitLifecycle().current_result?.request_id ?? null),
+      )
+      .not.toBe(beforeRequest);
   };
   await deferFinding("finding:01");
 
@@ -1391,9 +1792,11 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
   ]);
 
   await review.getByRole("button", { name: "Reopen semantic:finding:01" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("resolution-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
   await expect(review).toHaveAttribute("data-review-state", "incomplete");
   await review.getByText(/Review history/).click();
   await expect(review.locator("[data-history-state='reopened']")).toBeVisible();
@@ -1402,28 +1805,40 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({ page }) => {
+test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   const first = queue.locator("[data-finding-id='finding:01']");
   await first.locator("[data-finding-select]").click();
 
   const training = dialog.locator("[data-training-finding-id='finding:01']");
   await expect(training).toBeVisible();
-  await training.getByLabel("Optional training notes").fill("Practice Nf3 from the matched checkpoints.");
+  await training
+    .getByLabel("Optional training notes")
+    .fill("Practice Nf3 from the matched checkpoints.");
   await training.getByRole("button", { name: "Create training item" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("resolution-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
   await first.locator("[data-finding-select]").click();
-  await expect(dialog.locator("[data-training-finding-id='finding:01']")).toContainText("Semantic positions2");
-  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Train as an exception");
+  await expect(dialog.locator("[data-training-finding-id='finding:01']")).toContainText(
+    "Semantic positions2",
+  );
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText(
+    "Train as an exception",
+  );
   await expect(first).toBeVisible();
-  await expect(dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"))
-    .toHaveText("2");
+  await expect(
+    dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
+  ).toHaveText("2");
 
   const persisted = await chess(page, (api) => api.strategicFitMetadata());
   expect(persisted.training_references).toHaveLength(1);
@@ -1431,12 +1846,14 @@ test("training items persist semantic references, keep findings visible, and exp
     "position:5022598b73716fd2",
     "position:e7550032f70614fc",
   ]);
-  expect(persisted.resolutions).toMatchObject([{
-    state: "train-as-exception",
-    semantic_finding_id: "semantic:finding:01",
-    note: "Practice Nf3 from the matched checkpoints.",
-    linked_training_ids: [persisted.training_references[0].training_id],
-  }]);
+  expect(persisted.resolutions).toMatchObject([
+    {
+      state: "train-as-exception",
+      semantic_finding_id: "semantic:finding:01",
+      note: "Practice Nf3 from the matched checkpoints.",
+      linked_training_ids: [persisted.training_references[0].training_id],
+    },
+  ]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => api.version())).toBe(initialVersion);
@@ -1447,18 +1864,20 @@ test("training items persist semantic references, keep findings visible, and exp
   const download = await downloadEvent;
   const artifact = JSON.parse(await downloadText(download));
   expect(artifact.artifact_kind).toBe("chess-mcp/strategic-fit-basic-drill");
-  expect(artifact.drills).toEqual(expect.arrayContaining([
-    expect.objectContaining({
-      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      expected_san: "e4",
-      source_san_path: [],
-    }),
-    expect.objectContaining({
-      fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
-      expected_san: "Nf3",
-      source_san_path: ["e4", "e5"],
-    }),
-  ]));
+  expect(artifact.drills).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        expected_san: "e4",
+        source_san_path: [],
+      }),
+      expect.objectContaining({
+        fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        expected_san: "Nf3",
+        source_san_path: ["e4", "e5"],
+      }),
+    ]),
+  );
 
   await chess(page, (api) => api.flushStrategicFitMetadata());
   await page.reload();
@@ -1467,23 +1886,28 @@ test("training items persist semantic references, keep findings visible, and exp
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
   await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
-  const restoredQueue = restored.locator("#strategic-fit-pane-findings")
+  const restoredQueue = restored
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await expect(restored.locator("[data-training-finding-id='finding:01']"))
-    .toContainText("Training item saved");
+  await expect(restored.locator("[data-training-finding-id='finding:01']")).toContainText(
+    "Training item saved",
+  );
   await expect(restored.locator("[data-training-record-id]")).toHaveAttribute(
     "data-training-record-id",
     persisted.training_references[0].training_id,
   );
 });
 
-test("cohort adjustments preview exact impact, persist metadata-only, reanalyze, reset, and block stale confirmation", async ({ page }) => {
+test("cohort adjustments preview exact impact, persist metadata-only, reanalyze, reset, and block stale confirmation", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
   const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   const selectFirst = async () => {
     await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
@@ -1498,30 +1922,44 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
 
   await editor.locator("input[value='route:d0915031cdecff76']").check();
   await editor.locator("input[value='route:e93bfad5d54ea7a2']").check();
-  await editor.getByLabel("Optional reason").fill("These routes share one practical repertoire plan.");
+  await editor
+    .getByLabel("Optional reason")
+    .fill("These routes share one practical repertoire plan.");
   await editor.getByRole("button", { name: "Preview adjustment" }).click();
   const mergePreview = editor.locator(".strategic-fit-cohort-preview");
   await expect(mergePreview).toContainText("Exact impact before confirmation");
   await expect(mergePreview.locator("dl > div", { hasText: "Current cohorts" })).toContainText("2");
-  await expect(mergePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText("1");
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText(
+    "1",
+  );
   await expect(mergePreview.locator("dl > div", { hasText: "Affected routes" })).toContainText("2");
   await expect(mergePreview).toContainText("route:d0915031cdecff76");
   await expect(mergePreview).toContainText("route:e93bfad5d54ea7a2");
-  await expect(mergePreview.locator("dl > div", { hasText: "Current baselines" })).toContainText("2");
-  await expect(mergePreview.locator("dl > div", { hasText: "Proposed baselines" })).toContainText("1");
-  await expect(mergePreview.locator("dl > div", { hasText: "Current findings" })).toContainText("12");
-  await expect(mergePreview.locator("dl > div", { hasText: "Proposed findings" })).toContainText("12");
+  await expect(mergePreview.locator("dl > div", { hasText: "Current baselines" })).toContainText(
+    "2",
+  );
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed baselines" })).toContainText(
+    "1",
+  );
+  await expect(mergePreview.locator("dl > div", { hasText: "Current findings" })).toContainText(
+    "12",
+  );
+  await expect(mergePreview.locator("dl > div", { hasText: "Proposed findings" })).toContainText(
+    "12",
+  );
   expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 
   await mergePreview.getByRole("button", { name: "Confirm and analyze again" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.report_id ?? null
-  )).toContain(":merge");
-  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toMatchObject([{
-    kind: "merge",
-    route_ids: ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"],
-    record_state: "active",
-  }]);
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id ?? null))
+    .toContain(":merge");
+  expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toMatchObject([
+    {
+      kind: "merge",
+      route_ids: ["route:d0915031cdecff76", "route:e93bfad5d54ea7a2"],
+      record_state: "active",
+    },
+  ]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => api.version())).toBe(initialVersion);
@@ -1534,24 +1972,33 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   await editor.getByRole("button", { name: "Preview adjustment" }).click();
   await expect(editor.locator(".strategic-fit-cohort-preview")).toContainText("cohort:fixture");
   await editor.getByRole("button", { name: "Confirm and analyze again" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.report_id ?? null
-  )).toContain(":automatic");
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id ?? null))
+    .toContain(":automatic");
   expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 
   editor = await selectFirst();
   await editor.getByRole("radio", { name: /Rename cohort/ }).check();
-  await editor.getByRole("textbox", { name: "User-facing name", exact: true })
+  await editor
+    .getByRole("textbox", { name: "User-facing name", exact: true })
     .fill("Unified e4 repertoire");
   await editor.getByRole("button", { name: "Preview adjustment" }).click();
   const renamePreview = editor.locator(".strategic-fit-cohort-preview");
-  await expect(renamePreview.locator("dl > div", { hasText: "Current cohorts" })).toContainText("cohort:fixture");
-  await expect(renamePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText("cohort:fixture");
+  await expect(renamePreview.locator("dl > div", { hasText: "Current cohorts" })).toContainText(
+    "cohort:fixture",
+  );
+  await expect(renamePreview.locator("dl > div", { hasText: "Proposed cohorts" })).toContainText(
+    "cohort:fixture",
+  );
   await renamePreview.getByRole("button", { name: "Confirm and analyze again" }).click();
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitMetadata().cohort_labels[0]?.display_name ?? null
-  )).toBe("Unified e4 repertoire");
-  await expect(queue.locator("[data-finding-id='finding:01']")).toContainText("Unified e4 repertoire");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitMetadata().cohort_labels[0]?.display_name ?? null),
+    )
+    .toBe("Unified e4 repertoire");
+  await expect(queue.locator("[data-finding-id='finding:01']")).toContainText(
+    "Unified e4 repertoire",
+  );
   await chess(page, (api) => api.flushStrategicFitMetadata());
 
   await page.reload();
@@ -1561,17 +2008,21 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
   await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
-  const restoredQueue = restored.locator("#strategic-fit-pane-findings")
+  const restoredQueue = restored
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
-  await expect(restoredQueue.locator("[data-finding-id='finding:01']"))
-    .toContainText("Unified e4 repertoire");
+  await expect(restoredQueue.locator("[data-finding-id='finding:01']")).toContainText(
+    "Unified e4 repertoire",
+  );
   await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   const restoredEditor = restored.locator("[data-cohort-editor]");
   await restoredEditor.getByRole("radio", { name: /Restore automatic cohorts/ }).check();
   await restoredEditor.getByLabel("Saved adjustment to remove").selectOption({ index: 1 });
   await restoredEditor.getByRole("button", { name: "Preview adjustment" }).click();
   await restoredEditor.getByRole("button", { name: "Confirm and analyze again" }).click();
-  await expect.poll(() => chess(page, (api) => api.strategicFitMetadata().cohort_labels.length)).toBe(0);
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitMetadata().cohort_labels.length))
+    .toBe(0);
 
   await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   const staleEditor = restored.locator("[data-cohort-editor]");
@@ -1580,20 +2031,25 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   await staleEditor.getByRole("button", { name: "Preview adjustment" }).click();
   await expect(staleEditor.locator(".strategic-fit-cohort-preview")).toBeVisible();
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("profile-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("profile-change");
   await expect(staleEditor.locator(".strategic-fit-cohort-preview")).toHaveCount(0);
   expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 });
 
-test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({ page }) => {
+test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
   const initialPreview = await chess(page, (api) => JSON.stringify(api.preview()));
   const initialMetadata = await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()));
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
@@ -1617,8 +2073,9 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   await comparison.getByLabel("Strategic milestone").selectOption("irreversible-transformation");
   await expect(sync).toHaveAttribute("data-milestone-state", "incomplete");
   await expect(sync).toContainText("affected branch is missing");
-  await expect(comparison.locator("[data-board-role='affected'] .strategic-fit-comparison-board-missing"))
-    .toContainText("Board unavailable at this milestone");
+  await expect(
+    comparison.locator("[data-board-role='affected'] .strategic-fit-comparison-board-missing"),
+  ).toContainText("Board unavailable at this milestone");
 
   await comparison.getByLabel("Affected branch route").selectOption("route:d0915031cdecff76");
   await comparison.getByLabel("Typical cohort route").selectOption("route:baseline:01:b");
@@ -1631,16 +2088,24 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
 
   const timeline = evidence.locator(".strategic-fit-causal-timeline");
   await expect(timeline.locator("[data-causal-event]")).toHaveCount(6);
-  await expect(timeline.locator("[data-causal-event='opponent-divergence']"))
-    .toContainText("Opponent divergence");
-  await expect(timeline.locator("[data-causal-event='player-decision']")).toContainText("Player decision");
-  await expect(timeline.locator("[data-causal-event='irreversible-event']"))
-    .toContainText("Irreversible event");
-  await expect(timeline.locator("[data-causal-event='first-strategic-difference']"))
-    .toContainText("First strategic difference");
-  await expect(timeline.locator("[data-causal-event='difference-stable']"))
-    .toContainText("Difference becomes stable");
-  await expect(timeline.locator("[data-causal-event='transposition']")).toContainText("Transposition");
+  await expect(timeline.locator("[data-causal-event='opponent-divergence']")).toContainText(
+    "Opponent divergence",
+  );
+  await expect(timeline.locator("[data-causal-event='player-decision']")).toContainText(
+    "Player decision",
+  );
+  await expect(timeline.locator("[data-causal-event='irreversible-event']")).toContainText(
+    "Irreversible event",
+  );
+  await expect(timeline.locator("[data-causal-event='first-strategic-difference']")).toContainText(
+    "First strategic difference",
+  );
+  await expect(timeline.locator("[data-causal-event='difference-stable']")).toContainText(
+    "Difference becomes stable",
+  );
+  await expect(timeline.locator("[data-causal-event='transposition']")).toContainText(
+    "Transposition",
+  );
   await expect(timeline).toContainText("Dotted marker");
   await expect(timeline).toContainText("Striped marker");
 
@@ -1648,16 +2113,19 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   await sourceLine.selectOption("4");
   const goToLine = comparison.getByRole("button", { name: "Go to line" });
   await expect(goToLine).toBeDisabled();
-  await expect(comparison.locator(".strategic-fit-line-navigation code"))
-    .toContainText("Bb5 dxe5");
-  expect(await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(comparison.locator(".strategic-fit-line-navigation code")).toContainText("Bb5 dxe5");
+  expect(await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
 
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.version())).toBe(initialVersion);
   expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
   expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
-  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(initialMetadata);
+  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(
+    initialMetadata,
+  );
 
   await sourceLine.selectOption("3");
   await expect(goToLine).toBeEnabled();
@@ -1667,43 +2135,60 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   expect(await chess(page, (api) => api.version())).toBe(initialVersion);
   expect(await chess(page, (api) => api.dirty())).toBe(initialDirty);
   expect(await chess(page, (api) => JSON.stringify(api.preview()))).toBe(initialPreview);
-  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(initialMetadata);
+  expect(await chess(page, (api) => JSON.stringify(api.strategicFitMetadata()))).toBe(
+    initialMetadata,
+  );
 });
 
-test("automatic replacement reports clear comparison selection and local route state", async ({ page }) => {
+test("automatic replacement reports clear comparison selection and local route state", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
   await expect(evidencePane.locator("[data-board-read-only='true']")).toHaveCount(2);
   await evidencePane.getByLabel("Affected branch route").selectOption("route:e93bfad5d54ea7a2");
   await evidencePane.getByLabel("Strategic milestone").selectOption("central-resolution");
-  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
-    .toHaveAttribute("data-milestone-state", "incomplete");
+  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status")).toHaveAttribute(
+    "data-milestone-state",
+    "incomplete",
+  );
 
   await chess(page, (api) => api.selectStrategicFitProfile("familiar-plans"));
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("profile-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("profile-change");
   await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
 
-  const refreshedQueue = dialog.locator("#strategic-fit-pane-findings")
+  const refreshedQueue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await expect(refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-changed-evidence='true']"))
-    .toContainText("Review this finding again");
-  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status"))
-    .toHaveAttribute("data-milestone-key", "opening-exit");
-  await expect(evidencePane.getByLabel("Affected branch route"))
-    .toHaveValue("route:d0915031cdecff76");
+  await expect(
+    refreshedQueue.locator("[data-finding-id='finding:01'] [data-finding-changed-evidence='true']"),
+  ).toContainText("Review this finding again");
+  await expect(evidencePane.locator(".strategic-fit-comparison-sync-status")).toHaveAttribute(
+    "data-milestone-key",
+    "opening-exit",
+  );
+  await expect(evidencePane.getByLabel("Affected branch route")).toHaveValue(
+    "route:d0915031cdecff76",
+  );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("Black repertoire evidence labels every engine value from the repertoire point of view", async ({ page }) => {
+test("Black repertoire evidence labels every engine value from the repertoire point of view", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page, "black");
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
@@ -1711,7 +2196,9 @@ test("Black repertoire evidence labels every engine value from the repertoire po
   await expect(evidencePane).toBeFocused();
   const evidence = evidencePane.locator("[data-evidence-finding-id='finding:01']");
   await expect(evidence).toContainText("The line is objectively sound for the Black repertoire.");
-  await expect(evidence.getByText("White repertoire POV evaluation", { exact: true })).toHaveCount(0);
+  await expect(evidence.getByText("White repertoire POV evaluation", { exact: true })).toHaveCount(
+    0,
+  );
   await expect(evidence.locator("[data-board-orientation='black']")).toHaveCount(2);
   await expect(evidence.locator("[data-board-read-only='true']")).toHaveCount(2);
 
@@ -1725,7 +2212,9 @@ test("Black repertoire evidence labels every engine value from the repertoire po
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("overview intents filter only the current report queue and can return to all findings", async ({ page }) => {
+test("overview intents filter only the current report queue and can return to all findings", async ({
+  page,
+}) => {
   const { dialog, before } = await bootstrap(page);
   await dialog.getByRole("button", { name: "Review opponent-forced findings" }).click();
 
@@ -1740,18 +2229,22 @@ test("overview intents filter only the current report queue and can return to al
 
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(pane).toHaveAttribute("data-queue-filter", "none");
-  await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText("of 12 matching findings");
+  await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
+    "of 12 matching findings",
+  );
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: "Open workspace" }).click();
   const reopened = page.getByRole("dialog", { name: "Strategic Fit" });
-  const reopenedQueue = reopened.locator("#strategic-fit-pane-findings")
+  const reopenedQueue = reopened
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await expect(reopenedQueue).toHaveAttribute("data-queue-status", "ready");
   await expect(reopenedQueue.locator("[data-finding-id]")).toHaveCount(6);
-  await expect(reopenedQueue.locator(".strategic-fit-queue-summary p"))
-    .toContainText("of 12 matching findings");
+  await expect(reopenedQueue.locator(".strategic-fit-queue-summary p")).toContainText(
+    "of 12 matching findings",
+  );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
@@ -1783,16 +2276,21 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   expect(firstBoard).not.toBeNull();
   expect(secondBoard).not.toBeNull();
   expect(secondBoard!.y).toBeGreaterThan(firstBoard!.y + firstBoard!.height - 1);
-  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("phone resolution controls are keyboard-operable, accessible, and touch-sized", async ({ page }) => {
+test("phone resolution controls are keyboard-operable, accessible, and touch-sized", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog, before, pathBefore } = await bootstrap(page);
   await dialog.getByRole("tab", { name: "Findings" }).click();
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   const resolutionTab = dialog.getByRole("tab", { name: "Resolution" });
@@ -1813,9 +2311,11 @@ test("phone resolution controls are keyboard-operable, accessible, and touch-siz
   const save = actions.getByRole("button", { name: "Save resolution" });
   await save.focus();
   await page.keyboard.press("Enter");
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("resolution-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
   await dialog.getByRole("tab", { name: "Findings" }).click();
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await dialog.getByRole("tab", { name: "Resolution" }).click();
@@ -1829,7 +2329,9 @@ test("phone resolution controls are keyboard-operable, accessible, and touch-siz
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
 
-test("phone can complete the full review journey with the keyboard only and return safely", async ({ page }) => {
+test("phone can complete the full review journey with the keyboard only and return safely", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installFindingWorkerFixture(page);
   await page.goto("/");
@@ -1865,7 +2367,11 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
 
   const overviewTab = dialog.getByRole("tab", { name: "Overview" });
-  for (let index = 0; index < 6 && !(await overviewTab.evaluate((element) => element === document.activeElement)); index++) {
+  for (
+    let index = 0;
+    index < 6 && !(await overviewTab.evaluate((element) => element === document.activeElement));
+    index++
+  ) {
     await page.keyboard.press("Tab");
   }
   await expect(overviewTab).toBeFocused();
@@ -1875,7 +2381,11 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(dialog.locator("#strategic-fit-pane-findings")).toBeVisible();
 
   const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
-  for (let index = 0; index < 12 && !(await firstFinding.evaluate((element) => element === document.activeElement)); index++) {
+  for (
+    let index = 0;
+    index < 12 && !(await firstFinding.evaluate((element) => element === document.activeElement));
+    index++
+  ) {
     await page.keyboard.press("Tab");
   }
   await expect(firstFinding).toBeFocused();
@@ -1889,7 +2399,11 @@ test("phone can complete the full review journey with the keyboard only and retu
     name: "Affected source line",
     exact: true,
   });
-  for (let index = 0; index < 8 && !(await sourceLine.evaluate((element) => element === document.activeElement)); index++) {
+  for (
+    let index = 0;
+    index < 8 && !(await sourceLine.evaluate((element) => element === document.activeElement));
+    index++
+  ) {
     await page.keyboard.press("Tab");
   }
   await expect(sourceLine).toBeFocused();
@@ -1901,23 +2415,33 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(goToLine).toBeFocused();
   await page.keyboard.press("Enter");
   expect(await chess(page, (api) => api.currentPath())).toEqual([0, 0, 0, 0]);
-  expect(await chess(page, (api) => ({
-    pgn: api.toPgn(),
-    version: api.version(),
-    dirty: api.dirty(),
-    preview: JSON.stringify(api.preview()),
-    metadata: JSON.stringify(api.strategicFitMetadata()),
-  }))).toEqual(settledBefore);
+  expect(
+    await chess(page, (api) => ({
+      pgn: api.toPgn(),
+      version: api.version(),
+      dirty: api.dirty(),
+      preview: JSON.stringify(api.preview()),
+      metadata: JSON.stringify(api.strategicFitMetadata()),
+    })),
+  ).toEqual(settledBefore);
 
   const evidenceTab = dialog.getByRole("tab", { name: "Evidence" });
-  for (let index = 0; index < 8 && !(await evidenceTab.evaluate((element) => element === document.activeElement)); index++) {
+  for (
+    let index = 0;
+    index < 8 && !(await evidenceTab.evaluate((element) => element === document.activeElement));
+    index++
+  ) {
     await page.keyboard.press("Shift+Tab");
   }
   await expect(evidenceTab).toBeFocused();
   await page.keyboard.press("Home");
   await expect(overviewTab).toBeFocused();
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
-  for (let index = 0; index < 6 && !(await close.evaluate((element) => element === document.activeElement)); index++) {
+  for (
+    let index = 0;
+    index < 6 && !(await close.evaluate((element) => element === document.activeElement));
+    index++
+  ) {
     await page.keyboard.press("Shift+Tab");
   }
   await expect(close).toBeFocused();
@@ -1926,7 +2450,9 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(opener).toBeFocused();
 });
 
-test("completed desktop and phone review pass accessibility, overflow, and visual baselines", async ({ page }) => {
+test("completed desktop and phone review pass accessibility, overflow, and visual baselines", async ({
+  page,
+}) => {
   const { dialog } = await bootstrap(page);
   const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
   await firstFinding.click();
@@ -1938,46 +2464,61 @@ test("completed desktop and phone review pass accessibility, overflow, and visua
   await page.keyboard.press("Shift+Tab");
   const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
   await expect(previewAdjustment).toBeFocused();
-  expect(await previewAdjustment.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
-  })).toBe(true);
+  expect(
+    await previewAdjustment.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
+    }),
+  ).toBe(true);
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
 
   await expert.locator("summary").click();
-  await evidencePane.getByRole("combobox", {
-    name: "Affected source line",
-    exact: true,
-  }).selectOption("4");
+  await evidencePane
+    .getByRole("combobox", {
+      name: "Affected source line",
+      exact: true,
+    })
+    .selectOption("4");
   await expectBasicAccessibility(dialog);
   expect(await contrastViolations(dialog)).toEqual([]);
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
   await expect(dialog).toHaveScreenshot("strategic-fit-review-desktop.png", {
     animations: "disabled",
     caret: "hide",
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expectBasicAccessibility(dialog);
   expect(await touchTargetViolations(dialog)).toEqual([]);
   expect(await contrastViolations(dialog)).toEqual([]);
-  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
   await expect(dialog).toHaveScreenshot("strategic-fit-review-phone.png", {
     animations: "disabled",
     caret: "hide",
   });
 });
 
-test("Replacement Lab opens only from an actionable current finding and closes without mutation", async ({ page }) => {
+test("Replacement Lab opens only from an actionable current finding and closes without mutation", async ({
+  page,
+}) => {
   const { dialog, before, pathBefore } = await bootstrap(page, "white", true);
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  const action = dialog.locator("[data-resolution-finding-id='finding:01']")
+  const action = dialog
+    .locator("[data-resolution-finding-id='finding:01']")
     .getByRole("button", { name: "Open Replacement Lab" });
   await expect(action).toBeEnabled();
   await action.click();
@@ -1993,7 +2534,9 @@ test("Replacement Lab opens only from an actionable current finding and closes w
   await pivot.check();
   await expect(lab.getByRole("button", { name: "Confirm semantic pivot" })).toBeEnabled();
   await expect(lab.getByRole("checkbox", { name: /Existing preparation/ })).toBeChecked();
-  await expect(lab.getByRole("checkbox", { name: /Structurally similar preparation/ })).toBeDisabled();
+  await expect(
+    lab.getByRole("checkbox", { name: /Structurally similar preparation/ }),
+  ).toBeDisabled();
   const depth = lab.getByRole("spinbutton", { name: "Engine depth" });
   await depth.fill("12");
   await expect(depth).toHaveValue("12");
@@ -2018,20 +2561,26 @@ test("Replacement Lab opens only from an actionable current finding and closes w
   await expect(forced).toContainText("This difference is forced");
 });
 
-test("Black Replacement Lab is keyboard-contained, touch-sized, and transient across reload", async ({ page }) => {
+test("Black Replacement Lab is keyboard-contained, touch-sized, and transient across reload", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog, before } = await bootstrap(page, "black", true);
   await dialog.getByRole("tab", { name: "Findings" }).click();
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await dialog.getByRole("tab", { name: "Resolution" }).click();
-  const action = dialog.locator("[data-resolution-finding-id='finding:01']")
+  const action = dialog
+    .locator("[data-resolution-finding-id='finding:01']")
     .getByRole("button", { name: "Open Replacement Lab" });
   await action.click();
 
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
-  await expect(lab.locator("[data-repertoire-color='black']")).toContainText("Black repertoire POV");
+  await expect(lab.locator("[data-repertoire-color='black']")).toContainText(
+    "Black repertoire POV",
+  );
   await expect(lab).toContainText("White POV");
   const pivot = lab.getByRole("radio", { name: /e5 · ply 2/ });
   await expect(pivot).not.toBeChecked();
@@ -2054,7 +2603,9 @@ test("Black Replacement Lab is keyboard-contained, touch-sized, and transient ac
   await expect(page.getByRole("dialog", { name: "Replacement Lab" })).toHaveCount(0);
 });
 
-test("Replacement comparison synchronizes accessible table and Pareto selection without mutation", async ({ page }) => {
+test("Replacement comparison synchronizes accessible table and Pareto selection without mutation", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const { dialog, before, pathBefore } = await bootstrap(page, "white", true);
   const stateBefore = await chess(page, (api) => ({
@@ -2062,16 +2613,26 @@ test("Replacement comparison synchronizes accessible table and Pareto selection 
     dirty: api.dirty(),
     preview: JSON.stringify(api.preview()),
   }));
-  const queue = dialog.locator("#strategic-fit-pane-findings")
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await dialog.locator("[data-resolution-finding-id='finding:01']")
-    .getByRole("button", { name: "Open Replacement Lab" }).click();
+  await dialog
+    .locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" })
+    .click();
 
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
-  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture());
-  await expect(page.locator("[data-replacement-lab-status='complete'], [data-replacement-lab-status='partial']"))
-    .toBeVisible();
+  await chess(
+    page,
+    (api, result) => api.setReplacementLabResultForTesting(result),
+    replacementComparisonFixture(),
+  );
+  await expect(
+    page.locator(
+      "[data-replacement-lab-status='complete'], [data-replacement-lab-status='partial']",
+    ),
+  ).toBeVisible();
 
   const table = lab.getByRole("table", { name: /Candidate comparison/ });
   await expect(table).toBeVisible();
@@ -2092,10 +2653,14 @@ test("Replacement comparison synchronizes accessible table and Pareto selection 
   await expect(lab.getByRole("heading", { name: "Canonical strategic axes" })).toBeVisible();
   await expect(lab.getByRole("heading", { name: "Complete proposed subtree" })).toBeVisible();
   await expect(lab).toContainText("White-POV engine transport");
-  expect(await lab.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
-    const style = getComputedStyle(child);
-    return style.animationDuration === "0s" && style.transitionDuration === "0s";
-  }))).toBe(true);
+  expect(
+    await lab.evaluate((element) =>
+      [...element.querySelectorAll("*")].every((child) => {
+        const style = getComputedStyle(child);
+        return style.animationDuration === "0s" && style.transitionDuration === "0s";
+      }),
+    ),
+  ).toBe(true);
   await expect(table.locator("caption")).toContainText("Candidate comparison");
   await expect(table.locator("thead th[scope='col']")).toHaveCount(8);
   await expect(table.locator("tbody th[scope='row']")).toHaveCount(3);
@@ -2111,25 +2676,49 @@ test("Replacement comparison synchronizes accessible table and Pareto selection 
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
-  expect(await chess(page, (api) => ({
+  expect(
+    await chess(page, (api) => ({
+      version: api.version(),
+      dirty: api.dirty(),
+      preview: JSON.stringify(api.preview()),
+    })),
+  ).toEqual(stateBefore);
+});
+
+test("staged change review is revision-bound, accessible, responsive, and non-mutating before confirmation", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
+  const { dialog, before, pathBefore } = await bootstrap(page, "black", true);
+  const stateBefore = await chess(page, (api) => ({
     version: api.version(),
     dirty: api.dirty(),
     preview: JSON.stringify(api.preview()),
-  }))).toEqual(stateBefore);
-});
-
-test("staged change review is revision-bound, accessible, responsive, and non-mutating before confirmation", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
-  const { dialog, before, pathBefore } = await bootstrap(page, "black", true);
-  const stateBefore = await chess(page, (api) => ({ version: api.version(), dirty: api.dirty(), preview: JSON.stringify(api.preview()) }));
-  const queue = dialog.locator("#strategic-fit-pane-findings").getByRole("region", { name: "Strategic Fit finding queue" });
+  }));
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await dialog.locator("[data-resolution-finding-id='finding:01']").getByRole("button", { name: "Open Replacement Lab" }).click();
+  await dialog
+    .locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" })
+    .click();
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
-  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture("black"));
-  const candidate = lab.getByRole("table", { name: /Candidate comparison/ }).locator("tbody th button").first();
+  await chess(
+    page,
+    (api, result) => api.setReplacementLabResultForTesting(result),
+    replacementComparisonFixture("black"),
+  );
+  const candidate = lab
+    .getByRole("table", { name: /Candidate comparison/ })
+    .locator("tbody th button")
+    .first();
   await candidate.click();
-  await chess(page, (api, review) => api.setReplacementLabReviewForTesting(review), replacementChangeReviewFixture("black"));
+  await chess(
+    page,
+    (api, review) => api.setReplacementLabReviewForTesting(review),
+    replacementChangeReviewFixture("black"),
+  );
 
   const review = lab.locator(".replacement-change-review");
   await expect(review).toBeVisible();
@@ -2144,7 +2733,9 @@ test("staged change review is revision-bound, accessible, responsive, and non-mu
   await expect(review).toContainText("Partial personal training evidence retained");
   await expect(review).toContainText("Black repertoire POV before");
   await expect(review).toContainText("White-POV engine transport before");
-  await expect(review.getByRole("table", { name: "Exact canonical tree statistics" })).toBeVisible();
+  await expect(
+    review.getByRole("table", { name: "Exact canonical tree statistics" }),
+  ).toBeVisible();
   await expect(review.getByRole("table", { name: /Exact metric deltas/ })).toBeVisible();
   await expect(review.locator("[data-operation-kind='archive-subtree']")).toBeVisible();
   await expect(review.locator("[data-operation-kind='prune-subtree']")).toBeVisible();
@@ -2156,10 +2747,14 @@ test("staged change review is revision-bound, accessible, responsive, and non-mu
   await confirmation.focus();
   await page.keyboard.press("Space");
   await expect(accept).toBeEnabled();
-  expect(await review.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
-    const style = getComputedStyle(child);
-    return style.animationDuration === "0s" && style.transitionDuration === "0s";
-  }))).toBe(true);
+  expect(
+    await review.evaluate((element) =>
+      [...element.querySelectorAll("*")].every((child) => {
+        const style = getComputedStyle(child);
+        return style.animationDuration === "0s" && style.transitionDuration === "0s";
+      }),
+    ),
+  ).toBe(true);
   expect(await contrastViolations(review)).toEqual([]);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -2169,53 +2764,103 @@ test("staged change review is revision-bound, accessible, responsive, and non-mu
   await expect(review).toContainText("Preview rejected without mutation");
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
-  expect(await chess(page, (api) => ({ version: api.version(), dirty: api.dirty(), preview: JSON.stringify(api.preview()) }))).toEqual(stateBefore);
+  expect(
+    await chess(page, (api) => ({
+      version: api.version(),
+      dirty: api.dirty(),
+      preview: JSON.stringify(api.preview()),
+    })),
+  ).toEqual(stateBefore);
 });
 
-test("resolution proof stays claimless before rescan, binds post-commit report evidence, and blocks stale undo without mutation", async ({ page }) => {
+test("resolution proof stays claimless before rescan, binds post-commit report evidence, and blocks stale undo without mutation", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
   const { dialog, before, pathBefore } = await bootstrap(page, "black", true);
-  const queue = dialog.locator("#strategic-fit-pane-findings").getByRole("region", { name: "Strategic Fit finding queue" });
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await dialog.locator("[data-resolution-finding-id='finding:01']").getByRole("button", { name: "Open Replacement Lab" }).click();
+  await dialog
+    .locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" })
+    .click();
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
-  await chess(page, (api, result) => api.setReplacementLabResultForTesting(result), replacementComparisonFixture("black"));
-  await lab.getByRole("table", { name: /Candidate comparison/ }).locator("tbody th button").first().click();
+  await chess(
+    page,
+    (api, result) => api.setReplacementLabResultForTesting(result),
+    replacementComparisonFixture("black"),
+  );
+  await lab
+    .getByRole("table", { name: /Candidate comparison/ })
+    .locator("tbody th button")
+    .first()
+    .click();
   const acceptedReview = replacementChangeReviewFixture("black");
-  await chess(page, (api, review) => api.setReplacementLabReviewForTesting({
-    ...review,
-    status: "accepted",
-    stage: { ...review.stage, status: "accepted", result_status: "accepted", accepted_revision: api.version() },
-  }), acceptedReview);
-  const documentId = await chess(page, (api) => api.documentId()) as string;
-  const version = await chess(page, (api) => api.version()) as number;
+  await chess(
+    page,
+    (api, review) =>
+      api.setReplacementLabReviewForTesting({
+        ...review,
+        status: "accepted",
+        stage: {
+          ...review.stage,
+          status: "accepted",
+          result_status: "accepted",
+          accepted_revision: api.version(),
+        },
+      }),
+    acceptedReview,
+  );
+  const documentId = (await chess(page, (api) => api.documentId())) as string;
+  const version = (await chess(page, (api) => api.version())) as number;
 
   const proof = lab.locator(".replacement-resolution-proof");
-  await chess(page, (api, fixture) => api.setResolutionProofForTesting(fixture), resolutionProofFixture(documentId, version + 1, "black"));
+  await chess(
+    page,
+    (api, fixture) => api.setResolutionProofForTesting(fixture),
+    resolutionProofFixture(documentId, version + 1, "black"),
+  );
   await expect(proof).toBeVisible();
   await expect(proof.getByRole("heading", { name: "Rescan and resolution proof" })).toBeVisible();
   await expect(proof).toHaveAttribute("data-proof-status", "superseded");
-  await expect(proof).toContainText("No success or resolution claim is made before a completed rescan");
+  await expect(proof).toContainText(
+    "No success or resolution claim is made before a completed rescan",
+  );
   await expect(proof).toContainText(`Another edit moved the document to revision ${version}`);
 
-  await chess(page, (api, fixture) => api.setResolutionProofForTesting(fixture), resolutionProofFixture(documentId, version, "black"));
+  await chess(
+    page,
+    (api, fixture) => api.setResolutionProofForTesting(fixture),
+    resolutionProofFixture(documentId, version, "black"),
+  );
   await expect(proof).toHaveAttribute("data-proof-status", "proven");
-  await expect(proof.locator(".replacement-proof-outcome")).toHaveAttribute("data-proof-outcome", "still-open");
+  await expect(proof.locator(".replacement-proof-outcome")).toHaveAttribute(
+    "data-proof-outcome",
+    "still-open",
+  );
   await expect(proof).toContainText("Still open.");
   await expect(proof).toContainText("it remains unresolved");
   const claims = proof.getByRole("table", { name: "Post-commit report metric claims" });
   await expect(claims).toBeVisible();
-  await expect(proof).toContainText("Every value comes from complete reports, not from staged predictions");
+  await expect(proof).toContainText(
+    "Every value comes from complete reports, not from staged predictions",
+  );
   await expect(proof).toContainText(`report:findings:browser:${version}`);
   await expect(claims).toContainText("unavailable: no pre-change report was retained");
   await expect(claims).toContainText("70.0%");
   await expect(proof).toContainText("Black repertoire POV");
   await expect(proof).toContainText("White POV");
 
-  expect(await proof.evaluate((element) => [...element.querySelectorAll("*")].every((child) => {
-    const style = getComputedStyle(child);
-    return style.animationDuration === "0s" && style.transitionDuration === "0s";
-  }))).toBe(true);
+  expect(
+    await proof.evaluate((element) =>
+      [...element.querySelectorAll("*")].every((child) => {
+        const style = getComputedStyle(child);
+        return style.animationDuration === "0s" && style.transitionDuration === "0s";
+      }),
+    ),
+  ).toBe(true);
   expect(await contrastViolations(proof)).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await proof.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);

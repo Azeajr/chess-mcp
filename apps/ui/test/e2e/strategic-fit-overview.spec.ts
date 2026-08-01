@@ -38,13 +38,16 @@ type ChessHarness = {
   };
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 const COMPLETE_REPERTOIRE = `[Event "Strategic Fit overview: family one"]
 [Result "*"]
@@ -65,15 +68,21 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   await page.getByRole("button", { name: "Open workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   return dialog;
 }
 
-const summary = (page: Page) => chess(page, (api) =>
-  api.strategicFitLifecycle().current_result?.result.summary ?? null
-) as Promise<OverviewSummary>;
+const summary = (page: Page) =>
+  chess(
+    page,
+    (api) => api.strategicFitLifecycle().current_result?.result.summary ?? null,
+  ) as Promise<OverviewSummary>;
 
-test("complete overview reconciles canonical report values and carries metric queue intent", async ({ page }) => {
+test("complete overview reconciles canonical report values and carries metric queue intent", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, COMPLETE_REPERTOIRE, "overview-complete.pgn");
   const before = await chess(page, (api) => api.toPgn());
   const canonical = await summary(page);
@@ -120,21 +129,27 @@ test("complete overview reconciles canonical report values and carries metric qu
       : String(canonical.metrics.strategic_entropy.value),
   );
   await expect(item("familiar-plan-coverage")).toHaveAttribute("data-metric-state", "unavailable");
-  await expect(item("familiar-plan-coverage").locator("[data-overview-value]")).toHaveText("Unavailable");
+  await expect(item("familiar-plan-coverage").locator("[data-overview-value]")).toHaveText(
+    "Unavailable",
+  );
   await expect(item("familiar-plan-coverage")).toContainText(
     canonical.metrics.familiarity_adjusted_coverage.reason ?? "",
   );
 
   await overview.getByText("How strategic workload is distributed").click();
-  await expect(overview.locator(".strategic-fit-overview-entropy > p").first())
-    .toContainText("Lower entropy is not universally better");
+  await expect(overview.locator(".strategic-fit-overview-entropy > p").first()).toContainText(
+    "Lower entropy is not universally better",
+  );
   const screenReaderSummary = overview.locator("[data-overview-screen-reader-summary]");
   await expect(screenReaderSummary).toContainText("Strategic workload");
   await expect(screenReaderSummary).toContainText("Familiar-plan coverage: Unavailable");
   await expect(screenReaderSummary).toContainText("Lower entropy is not universally better");
 
   await overview.getByRole("button", { name: "Review opponent-forced findings" }).click();
-  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute("data-stage", "findings");
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
   const findings = dialog.locator("#strategic-fit-pane-findings");
   await expect(findings).toHaveAttribute("data-queue-filter", "classification:forced-diversity");
   await expect(findings).toBeFocused();
@@ -142,7 +157,9 @@ test("complete overview reconciles canonical report values and carries metric qu
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("degraded overview retains partial values, reasons, and insufficient-evidence navigation", async ({ page }) => {
+test("degraded overview retains partial values, reasons, and insufficient-evidence navigation", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, "1. e4 e5 *", "overview-degraded.pgn");
   const canonical = await summary(page);
   const overview = dialog.getByRole("region", { name: "Strategic overview" });
@@ -168,10 +185,13 @@ test("degraded overview retains partial values, reasons, and insufficient-eviden
 
   expect(canonical.insufficient_evidence_branch_count).toBeGreaterThan(0);
   await overview.getByRole("button", { name: "Review insufficient-evidence findings" }).click();
-  await expect(dialog.locator("#strategic-fit-pane-findings"))
-    .toHaveAttribute("data-queue-filter", "evidence:insufficient");
-  await expect(dialog.locator("#strategic-fit-pane-findings").getByRole("status"))
-    .toContainText("Review insufficient-evidence findings");
+  await expect(dialog.locator("#strategic-fit-pane-findings")).toHaveAttribute(
+    "data-queue-filter",
+    "evidence:insufficient",
+  );
+  await expect(dialog.locator("#strategic-fit-pane-findings").getByRole("status")).toContainText(
+    "Review insufficient-evidence findings",
+  );
 });
 
 test("blocked overview labels unavailable analysis values instead of zero", async ({ page }) => {
@@ -193,9 +213,11 @@ test("blocked overview labels unavailable analysis values instead of zero", asyn
     await expect(item.locator("[data-overview-value]")).toHaveText("Unavailable");
     await expect(item).not.toContainText("0%");
   }
-  await expect(overview.locator("[data-overview-item='incomplete-branches'] [data-overview-value]"))
-    .toHaveText("0");
-  await expect(overview.locator("[data-overview-screen-reader-summary]"))
-    .toContainText("Preflight blocked position analysis");
+  await expect(
+    overview.locator("[data-overview-item='incomplete-branches'] [data-overview-value]"),
+  ).toHaveText("0");
+  await expect(overview.locator("[data-overview-screen-reader-summary]")).toContainText(
+    "Preflight blocked position analysis",
+  );
   await expect(overview.getByRole("button")).toHaveCount(0);
 });

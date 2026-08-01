@@ -17,7 +17,12 @@ import {
   type StrategicFitToolArguments,
 } from "@chess-mcp/chess-tools";
 import { actions, currentTree, version } from "../src/store/game.ts";
-import { acceptStagedEdit, rejectStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
+import {
+  acceptStagedEdit,
+  rejectStagedEdit,
+  stageEdit,
+  stagedEdit,
+} from "../src/store/suggestions.ts";
 import { artifactById, createArtifact } from "../src/store/artifacts.ts";
 import { defaultBrowserCommandDependencies } from "../src/application/browser-commands/default-context.ts";
 import { executeDirectBrowserCommand } from "../src/store/commands.ts";
@@ -27,36 +32,63 @@ import { findArtifactMetadata, strategicFitChatState } from "../src/components/T
 import { requestedDepth } from "../src/application/browser-commands/types.ts";
 import { replacementFixture } from "../../../packages/chess-tools/test/strategic-fit/replacement-change-set.fixtures.ts";
 
-const sse = (...frames: unknown[]) => new ReadableStream({
-  start(controller) {
-    const encoder = new TextEncoder();
-    for (const frame of frames) controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
-    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-    controller.close();
-  },
-});
+const sse = (...frames: unknown[]) =>
+  new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      for (const frame of frames)
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
 
 test("canonical browser validation rejects malformed and unknown arguments", () => {
   assert.equal(validateToolArguments("evaluate_position", null, "browser").ok, false);
   const unknown = validateToolArguments("evaluate_position", { surprise: true }, "browser");
-  assert.deepEqual(unknown, { ok: false, error: "invalid_arguments", reason: "unknown argument: surprise" });
-  assert.deepEqual(validateToolArguments("load_repertoire", { pgn: "*", color: "white" }, "browser"), {
-    ok: false, error: "invalid_arguments", reason: "load_repertoire is not available on the browser host",
+  assert.deepEqual(unknown, {
+    ok: false,
+    error: "invalid_arguments",
+    reason: "unknown argument: surprise",
   });
+  assert.deepEqual(
+    validateToolArguments("load_repertoire", { pgn: "*", color: "white" }, "browser"),
+    {
+      ok: false,
+      error: "invalid_arguments",
+      reason: "load_repertoire is not available on the browser host",
+    },
+  );
   assert.deepEqual(validateToolArguments("propose_line", { moves: ["e4"] }, "mcp"), {
-    ok: false, error: "invalid_arguments", reason: "propose_line is not available on the mcp host",
+    ok: false,
+    error: "invalid_arguments",
+    reason: "propose_line is not available on the mcp host",
   });
-  assert.equal(validateToolArguments("position_popularity", {
-    db: "lichess",
-    speeds: ["rapid"],
-    ratings: [1600, 1800],
-    since: "2024-01",
-    until: "2026-06",
-  }, "browser").ok, true);
-  assert.equal(validateToolArguments("position_popularity", {
-    db: "masters",
-    ratings: [2200],
-  }, "browser").ok, false);
+  assert.equal(
+    validateToolArguments(
+      "position_popularity",
+      {
+        db: "lichess",
+        speeds: ["rapid"],
+        ratings: [1600, 1800],
+        since: "2024-01",
+        until: "2026-06",
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "position_popularity",
+      {
+        db: "masters",
+        ratings: [2200],
+      },
+      "browser",
+    ).ok,
+    false,
+  );
 });
 
 test("canonical Strategic Fit schema validates bounded nested V2 arguments", () => {
@@ -72,79 +104,169 @@ test("canonical Strategic Fit schema validates bounded nested V2 arguments", () 
     weighting: { mode: "equal" },
     page: { offset: 0, limit: 12 },
     sort: "expected-frequency",
-    cohort_overrides: [{
-      override_id: "override:exclude",
-      kind: "exclude",
-      decision_ids: ["decision:one"],
-    }],
-    route_assessments: [{
-      route_id: "route:one",
-      resolution_state: "keep-intentionally",
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:exclude",
+        kind: "exclude",
+        decision_ids: ["decision:one"],
+      },
+    ],
+    route_assessments: [
+      {
+        route_id: "route:one",
+        resolution_state: "keep-intentionally",
+      },
+    ],
   };
   assert.equal(validateToolArguments("analyze_repertoire_congruence", valid, "browser").ok, true);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    popularity: {
-      db: "lichess",
-      speeds: ["blitz", "rapid"],
-      ratings: [1600, 1800],
-      since: "2024-01",
-      until: "2026-06",
-      max_positions: 40,
-    },
-  }, "browser").ok, true);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    popularity: { db: "masters", speeds: ["rapid"] },
-  }, "browser").ok, false);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    popularity: { db: "lichess", since: "2024" },
-  }, "browser").ok, false);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    personal_history: { username: "SampleUser", max_games: 40 },
-  }, "browser").ok, true);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    popularity: { db: "lichess" },
-    personal_history: { username: "SampleUser", platform: "chesscom", year: 2026, month: 7 },
-  }, "browser").ok, true);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    personal_history: { username: "SampleUser", platform: "chesscom" },
-  }, "browser").ok, false);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    personal_history: { username: "SampleUser", platform: "lichess", year: 2026, month: 7 },
-  }, "browser").ok, false);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    personal_history: { username: "   " },
-  }, "browser").ok, false);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    weighting: { mode: "equal" },
-    popularity: { db: "lichess" },
-  }, "browser").ok, true);
-  assert.equal(validateToolArguments("analyze_repertoire_congruence", {
-    weighting: { mode: "equal" },
-    personal_history: { username: "SampleUser" },
-  }, "browser").ok, true);
   assert.equal(
-    validateToolArguments("analyze_repertoire_congruence", {
-      profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.1 } },
-    }, "browser").ok,
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        popularity: {
+          db: "lichess",
+          speeds: ["blitz", "rapid"],
+          ratings: [1600, 1800],
+          since: "2024-01",
+          until: "2026-06",
+          max_positions: 40,
+        },
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        popularity: { db: "masters", speeds: ["rapid"] },
+      },
+      "browser",
+    ).ok,
     false,
   );
   assert.equal(
-    validateToolArguments("analyze_repertoire_congruence", {
-      profile: { mode: "balanced", preferences: { invented: true } },
-    }, "browser").ok,
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        popularity: { db: "lichess", since: "2024" },
+      },
+      "browser",
+    ).ok,
     false,
   );
   assert.equal(
-    validateToolArguments("analyze_repertoire_congruence", {
-      cohort_overrides: [{ override_id: "override:empty", kind: "merge" }],
-    }, "browser").ok,
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        personal_history: { username: "SampleUser", max_games: 40 },
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        popularity: { db: "lichess" },
+        personal_history: { username: "SampleUser", platform: "chesscom", year: 2026, month: 7 },
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        personal_history: { username: "SampleUser", platform: "chesscom" },
+      },
+      "browser",
+    ).ok,
     false,
   );
   assert.equal(
-    validateToolArguments("analyze_repertoire_congruence", {
-      page: { offset: 0, limit: 51 },
-    }, "browser").ok,
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        personal_history: { username: "SampleUser", platform: "lichess", year: 2026, month: 7 },
+      },
+      "browser",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        personal_history: { username: "   " },
+      },
+      "browser",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        weighting: { mode: "equal" },
+        popularity: { db: "lichess" },
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        weighting: { mode: "equal" },
+        personal_history: { username: "SampleUser" },
+      },
+      "browser",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        profile: { mode: "custom", preferences: { opponent_popularity_importance: 1.1 } },
+      },
+      "browser",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        profile: { mode: "balanced", preferences: { invented: true } },
+      },
+      "browser",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        cohort_overrides: [{ override_id: "override:empty", kind: "merge" }],
+      },
+      "browser",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments(
+      "analyze_repertoire_congruence",
+      {
+        page: { offset: 0, limit: 51 },
+      },
+      "browser",
+    ).ok,
     false,
   );
 
@@ -166,7 +288,11 @@ test("deep analysis forces every browser engine request to depth 30", () => {
 });
 
 test("canonical replacement schema validates the complete V2 envelope without capability expansion", () => {
-  assert.equal(validateToolArguments("suggest_replacement_line", { outlier_variation_path: ["e4"] }, "browser").ok, false);
+  assert.equal(
+    validateToolArguments("suggest_replacement_line", { outlier_variation_path: ["e4"] }, "browser")
+      .ok,
+    false,
+  );
   assert.equal(validateToolArguments("suggest_replacement_line", {}, "browser").ok, false);
   const fixture = replacementFixture("canonical public validation");
   const request = fixture.request;
@@ -184,26 +310,51 @@ test("canonical replacement schema validates the complete V2 envelope without ca
     profile: request.profile,
     sources: request.candidate_sources,
     budget: request.budget,
-    engine: { depth: request.budget.engine_depth, multipv: request.budget.engine_multipv, allow_unavailable_evidence: true },
+    engine: {
+      depth: request.budget.engine_depth,
+      multipv: request.budget.engine_multipv,
+      allow_unavailable_evidence: true,
+    },
     coverage: {
       minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
       require_all_forcing_replies: request.budget.include_all_forcing_replies,
     },
-    retention: [{ candidate_id: fixture.candidate.candidate_id, action: "replace", prune_explicitly_confirmed: true }],
+    retention: [
+      {
+        candidate_id: fixture.candidate.candidate_id,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ],
     candidate_ids: [fixture.candidate.candidate_id],
     safety: fixture.safety,
   };
   assert.equal(validateToolArguments("suggest_replacement_line", v2, "browser").ok, true);
-  assert.equal(validateToolArguments("suggest_replacement_line", { ...v2, depth: 20 }, "browser").ok, false);
-  assert.equal(validateToolArguments("suggest_replacement_line", { ...v2, safety: undefined }, "browser").ok, false);
-  assert.equal(validateToolArguments("suggest_replacement_line", { repertoire_id: "handle", ...v2 }, "mcp").ok, true);
+  assert.equal(
+    validateToolArguments("suggest_replacement_line", { ...v2, depth: 20 }, "browser").ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments("suggest_replacement_line", { ...v2, safety: undefined }, "browser").ok,
+    false,
+  );
+  assert.equal(
+    validateToolArguments("suggest_replacement_line", { repertoire_id: "handle", ...v2 }, "mcp").ok,
+    true,
+  );
   const browserSchema = jsonSchemaForTool("suggest_replacement_line", "browser")!;
   const mcpSchema = jsonSchemaForTool("suggest_replacement_line", "mcp")!;
   assert.deepEqual(browserSchema.required ?? [], []);
   assert.deepEqual(mcpSchema.required, ["repertoire_id"]);
   assert.equal(toolContract("suggest_replacement_line").hosts.length, 2);
-  assert.match(toolContract("suggest_replacement_line").result.compatibility ?? "", /retained safety envelope/);
-  assert.match(toolContract("suggest_replacement_line").hostAdaptation.resultDifference ?? "", /archive persistence or undo/);
+  assert.match(
+    toolContract("suggest_replacement_line").result.compatibility ?? "",
+    /retained safety envelope/,
+  );
+  assert.match(
+    toolContract("suggest_replacement_line").hostAdaptation.resultDifference ?? "",
+    /archive persistence or undo/,
+  );
 });
 
 test("replacement history compaction preserves complete follow-up identity chain", async () => {
@@ -217,43 +368,81 @@ test("replacement history compaction preserves complete follow-up identity chain
     cohort_id: "cohort:one",
     pivot_id: "pivot:one",
     repertoire_revision: "browser:4",
-    items: [{
-      candidate_id: "candidate:one",
-      change_set_id: "change-set:one",
-      base_repertoire_revision: "browser:4",
-      stage: { stage_id: "stage:one" },
-      preview: { archive_id: "archive:one", operation_id: "operation:one" },
-    }],
+    items: [
+      {
+        candidate_id: "candidate:one",
+        change_set_id: "change-set:one",
+        base_repertoire_revision: "browser:4",
+        stage: { stage_id: "stage:one" },
+        preview: { archive_id: "archive:one", operation_id: "operation:one" },
+      },
+    ],
     padding: "x".repeat(7000),
   });
   const compacted = compactToolResult(content);
   for (const identity of [
-    "request:one", "report:one", "finding:one", "semantic-finding:one", "cohort:one", "pivot:one",
-    "candidate:one", "change-set:one", "stage:one", "archive:one", "operation:one", "browser:4",
-  ]) assert.equal(compacted.includes(identity), true, `missing ${identity}`);
+    "request:one",
+    "report:one",
+    "finding:one",
+    "semantic-finding:one",
+    "cohort:one",
+    "pivot:one",
+    "candidate:one",
+    "change-set:one",
+    "stage:one",
+    "archive:one",
+    "operation:one",
+    "browser:4",
+  ])
+    assert.equal(compacted.includes(identity), true, `missing ${identity}`);
 });
 
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {
   const browser = new Set(contractsForHost("browser").map((contract) => contract.name));
-  for (const name of ["audit_repertoire_moves", "find_only_moves", "find_structures", "export_annotated_repertoire", "export_strategic_fit_metadata", "export_strategic_fit_intent_pgn", "prep_vs_opponent"])
+  for (const name of [
+    "audit_repertoire_moves",
+    "find_only_moves",
+    "find_structures",
+    "export_annotated_repertoire",
+    "export_strategic_fit_metadata",
+    "export_strategic_fit_intent_pgn",
+    "prep_vs_opponent",
+  ])
     assert.equal(browser.has(name), true, `${name} is a browser command`);
   assert.equal(toolDefault("audit_repertoire_moves", "max_positions", 0), 20);
   assert.equal(toolDefault("find_only_moves", "min_margin", 0), 100);
   assert.equal(validateToolArguments("prep_vs_opponent", {}, "browser").ok, false);
   assert.equal(validateToolArguments("find_only_moves", { export_deck: true }, "browser").ok, true);
-  assert.equal(validateToolArguments("find_only_moves", { export_path: "deck.csv" }, "browser").ok, false);
+  assert.equal(
+    validateToolArguments("find_only_moves", { export_path: "deck.csv" }, "browser").ok,
+    false,
+  );
   assert.equal(browser.has("inspect_shortcut"), true);
   assert.equal(toolDefault("inspect_shortcut", "max_positions", 0), 12);
-  assert.equal(validateToolArguments("inspect_shortcut", { line_path: [], at_ply: 0 }, "browser").ok, false);
+  assert.equal(
+    validateToolArguments("inspect_shortcut", { line_path: [], at_ply: 0 }, "browser").ok,
+    false,
+  );
 });
 
 test("direct and chat adapters share one semantic command result with injected providers", async () => {
   actions.loadPgn("1. e4 e5 *");
-  const networkGames = [{
-    white: "someone", black: "alice", result: "1-0", white_elo: 1800, black_elo: 1800,
-    eco: null, opening: null, date: null, time_control: null, user_color: "black" as const,
-    user_result: "loss" as const, pgn: '[White "someone"]\n[Black "alice"]\n[Result "1-0"]\n\n1. e4 e5 1-0',
-  }];
+  const networkGames = [
+    {
+      white: "someone",
+      black: "alice",
+      result: "1-0",
+      white_elo: 1800,
+      black_elo: 1800,
+      eco: null,
+      opening: null,
+      date: null,
+      time_control: null,
+      user_color: "black" as const,
+      user_result: "loss" as const,
+      pgn: '[White "someone"]\n[Black "alice"]\n[Result "1-0"]\n\n1. e4 e5 1-0',
+    },
+  ];
   const dependencies = {
     ...defaultBrowserCommandDependencies,
     analyse: async () => [{ uci: "e2e4", cp: 24, mate: null, depth: 12, pv: ["e2e4", "e7e5"] }],
@@ -272,21 +461,42 @@ test("direct and chat adapters share one semantic command result with injected p
   });
 
   const prepArgs = { username: "alice", max_games: 1 };
-  const directPrep = await executeDirectBrowserCommand("prep_vs_opponent", prepArgs, {}, dependencies);
+  const directPrep = await executeDirectBrowserCommand(
+    "prep_vs_opponent",
+    prepArgs,
+    {},
+    dependencies,
+  );
   const chatPrep = await runTool("prep_vs_opponent", prepArgs, {}, dependencies);
   assert.deepEqual(chatPrep, directPrep);
   assert.deepEqual(directPrep, {
-    username: "alice", opponent_color: "black", games_total: 1, games_matched_color: 1,
-    games_skipped_fen_setup: 0, games_reached_prep: 1, coverage_pct: 100,
-    avg_in_book_plies: 2, uncovered_opponent_moves: [],
-    lines: [{ name: "Unclassified", eco: null, games: 1, hit_rate: 100, win_rate: 0, draw_rate: 0, loss_rate: 100 }],
+    username: "alice",
+    opponent_color: "black",
+    games_total: 1,
+    games_matched_color: 1,
+    games_skipped_fen_setup: 0,
+    games_reached_prep: 1,
+    coverage_pct: 100,
+    avg_in_book_plies: 2,
+    uncovered_opponent_moves: [],
+    lines: [
+      {
+        name: "Unclassified",
+        eco: null,
+        games: 1,
+        hit_rate: 100,
+        win_rate: 0,
+        draw_rate: 0,
+        loss_rate: 100,
+      },
+    ],
   });
 });
 
 test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixture", async () => {
   actions.loadPgn(
     "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ " +
-    "(4... O-O 5. Bd3 d5 6. Nf3 c5) (4... b6 5. Bd3 Bb7 6. Nf3 O-O) 5. bxc3 O-O *",
+      "(4... O-O 5. Bd3 d5 6. Nf3 c5) (4... b6 5. Bd3 Bb7 6. Nf3 O-O) 5. bxc3 O-O *",
   );
   const openings = new Map();
   const progress: Array<[number, number | undefined, string | undefined]> = [];
@@ -302,12 +512,18 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
     strategicFitReport: async (
       pgn: string,
       options: Parameters<typeof analyzeStrategicFit>[1],
-      execution?: { signal?: AbortSignal; onProgress?: Parameters<typeof analyzeStrategicFit>[1]["onProgress"] },
-    ) => completeStrategicFitReport(analyzeStrategicFit(GameTree.fromPgn(pgn), {
-      ...strategicFitCompleteAnalysisOptions(options),
-      shouldCancel: () => execution?.signal?.aborted ?? false,
-      onProgress: execution?.onProgress,
-    })),
+      execution?: {
+        signal?: AbortSignal;
+        onProgress?: Parameters<typeof analyzeStrategicFit>[1]["onProgress"];
+      },
+    ) =>
+      completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), {
+          ...strategicFitCompleteAnalysisOptions(options),
+          shouldCancel: () => execution?.signal?.aborted ?? false,
+          onProgress: execution?.onProgress,
+        }),
+      ),
   };
 
   const browser = await executeDirectBrowserCommand(
@@ -323,10 +539,9 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
   });
   // Both hosts project one page of the cached complete report and return its cursors with it.
   const equivalentPage = projectStrategicFitReport(
-    completeStrategicFitReport(analyzeStrategicFit(
-      currentTree(),
-      strategicFitCompleteAnalysisOptions(equivalentOptions),
-    )),
+    completeStrategicFitReport(
+      analyzeStrategicFit(currentTree(), strategicFitCompleteAnalysisOptions(equivalentOptions)),
+    ),
     {
       kind: "page",
       expected_repertoire_revision: `browser:${version()}`,
@@ -380,14 +595,10 @@ test("browser Strategic Fit adapter fails closed when the document changes durin
     ...defaultBrowserCommandDependencies,
     currentRevision: () => currentRevision,
     openings: async () => new Map(),
-    strategicFitReport: async (
-      pgn: string,
-      options: Parameters<typeof analyzeStrategicFit>[1],
-    ) => {
-      const report = completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      ));
+    strategicFitReport: async (pgn: string, options: Parameters<typeof analyzeStrategicFit>[1]) => {
+      const report = completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      );
       currentRevision++;
       return report;
     },
@@ -397,7 +608,8 @@ test("browser Strategic Fit adapter fails closed when the document changes durin
     await executeDirectBrowserCommand("analyze_repertoire_congruence", {}, {}, dependencies),
     {
       error: "strategic_fit_stale_report",
-      reason: "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
+      reason:
+        "The repertoire or analysis color changed while Strategic Fit was running; request a fresh report.",
     },
   );
 });
@@ -412,15 +624,11 @@ test("browser Strategic Fit injects training evidence and rejects an in-flight m
     currentStrategicFitTrainingEvidence: () => ({
       concept_mastery: [{ concept_id: "concept:center-control", mastery }],
     }),
-    strategicFitReport: async (
-      pgn: string,
-      options: Parameters<typeof analyzeStrategicFit>[1],
-    ) => {
+    strategicFitReport: async (pgn: string, options: Parameters<typeof analyzeStrategicFit>[1]) => {
       receivedMastery = options.training?.concept_mastery[0]?.mastery;
-      const report = completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      ));
+      const report = completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      );
       mastery = 0.75;
       return report;
     },
@@ -430,7 +638,8 @@ test("browser Strategic Fit injects training evidence and rejects an in-flight m
     await executeDirectBrowserCommand("analyze_repertoire_congruence", {}, {}, dependencies),
     {
       error: "strategic_fit_stale_report",
-      reason: "Strategic Fit training evidence changed while analysis was running; request a fresh report.",
+      reason:
+        "Strategic Fit training evidence changed while analysis was running; request a fresh report.",
     },
   );
   assert.equal(receivedMastery, 0.5);
@@ -445,7 +654,10 @@ test("Strategic Fit chat state preserves incomplete and blocked evidence semanti
 
 test("browser annotation guidance validates pasted PGN only and keeps artifact types distinct", () => {
   assert.match(workflowPrompt(""), /Shared grounding contract/);
-  assert.match(workflowPrompt(""), /When the user explicitly names an analysis or export, call its matching command/);
+  assert.match(
+    workflowPrompt(""),
+    /When the user explicitly names an analysis or export, call its matching command/,
+  );
   assert.match(workflowPrompt(""), /validate the line once and evaluate its returned final FEN/);
   assert.match(workflowPrompt("general"), /White-POV centipawns/);
   const prompt = workflowPrompt("annotate");
@@ -454,7 +666,10 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
   assert.match(prompt, /export_annotated_repertoire/);
   assert.doesNotMatch(prompt, /omit pgn to annotate/);
   assert.match(workflowPrompt("repertoire"), /preserve report_id and finding_id exactly/);
-  assert.match(workflowPrompt("repertoire"), /insufficient-evidence result is not evidence of consistency/);
+  assert.match(
+    workflowPrompt("repertoire"),
+    /insufficient-evidence result is not evidence of consistency/,
+  );
 });
 
 test("actual chat requests transmit every canonical browser schema on natural, follow-up, and preset turns", async (t) => {
@@ -472,7 +687,8 @@ test("actual chat requests transmit every canonical browser schema on natural, f
   const settings = await import("../src/store/settings.ts");
   const chat = await import("../src/store/chat.ts");
   settings.setApiKey("test-key");
-  const requests: { tools: ToolSchema[]; messages: { role: string; content: string | null }[] }[] = [];
+  const requests: { tools: ToolSchema[]; messages: { role: string; content: string | null }[] }[] =
+    [];
   const executed: string[] = [];
   const expectedByText = new Map([
     ["audit my repertoire moves", "audit_repertoire_moves"],
@@ -493,7 +709,19 @@ test("actual chat requests transmit every canonical browser schema on natural, f
     const last = opts.messages.at(-1);
     const command = last?.role === "user" ? expectedByText.get(last.content ?? "") : undefined;
     return command
-      ? { content: "", toolCalls: [{ id: `call-${requests.length}`, type: "function", function: { name: command, arguments: command === "prep_vs_opponent" ? '{"username":"alice"}' : "{}" } }] }
+      ? {
+          content: "",
+          toolCalls: [
+            {
+              id: `call-${requests.length}`,
+              type: "function",
+              function: {
+                name: command,
+                arguments: command === "prep_vs_opponent" ? '{"username":"alice"}' : "{}",
+              },
+            },
+          ],
+        }
       : { content: "done", toolCalls: [] };
   });
   chat.setChatToolExecutorForTesting(async (name) => {
@@ -516,35 +744,57 @@ test("actual chat requests transmit every canonical browser schema on natural, f
     assert.equal(names.length, canonicalBrowserSchemas);
     assert.equal(new Set(names).size, canonicalBrowserSchemas);
     assert.equal(names.includes(command), true);
-    if (command === "export_annotated_repertoire") assert.equal(executed.at(-1), "export_annotated_repertoire");
+    if (command === "export_annotated_repertoire")
+      assert.equal(executed.at(-1), "export_annotated_repertoire");
   }
 
   chat.clearChat();
   await chat.send("evaluate this position");
   await chat.send("what about g4");
   assert.deepEqual(executed.slice(-2), ["evaluate_position", "evaluate_position"]);
-  assert.equal(requests.at(-2)!.tools.some((tool) => tool.function.name === "evaluate_position"), true);
+  assert.equal(
+    requests.at(-2)!.tools.some((tool) => tool.function.name === "evaluate_position"),
+    true,
+  );
 
   chat.clearChat();
   await chat.send("evaluate this position");
   await chat.send("now audit this repertoire");
   await chat.send("review this game");
-  assert.deepEqual(executed.slice(-3), ["evaluate_position", "audit_repertoire_moves", "get_game_summary"]);
-  assert.equal(requests.slice(-6).filter((_request, index) => index % 2 === 0).every((request) => request.tools.length === canonicalBrowserSchemas), true);
+  assert.deepEqual(executed.slice(-3), [
+    "evaluate_position",
+    "audit_repertoire_moves",
+    "get_game_summary",
+  ]);
+  assert.equal(
+    requests
+      .slice(-6)
+      .filter((_request, index) => index % 2 === 0)
+      .every((request) => request.tools.length === canonicalBrowserSchemas),
+    true,
+  );
 
   settings.setChatMode("repertoire");
   chat.clearChat();
   await chat.send("find structures in my repertoire");
-  assert.equal(requests.at(-2)!.tools.length, canonicalBrowserSchemas, "preset changes guidance, not availability");
+  assert.equal(
+    requests.at(-2)!.tools.length,
+    canonicalBrowserSchemas,
+    "preset changes guidance, not availability",
+  );
 
-  chat.setChatToolExecutorForTesting(async (_name, _args, options) => new Promise((_resolve, reject) => {
-    const abort = () => reject(new DOMException("Cancelled", "AbortError"));
-    if (options.signal?.aborted) abort();
-    else options.signal?.addEventListener("abort", abort, { once: true });
-  }));
+  chat.setChatToolExecutorForTesting(
+    async (_name, _args, options) =>
+      new Promise((_resolve, reject) => {
+        const abort = () => reject(new DOMException("Cancelled", "AbortError"));
+        if (options.signal?.aborted) abort();
+        else options.signal?.addEventListener("abort", abort, { once: true });
+      }),
+  );
   chat.clearChat();
   const pending = chat.send("long audit");
-  while (!chat.toolRuns().some((run) => run.status === "running")) await new Promise((resolve) => setTimeout(resolve, 0));
+  while (!chat.toolRuns().some((run) => run.status === "running"))
+    await new Promise((resolve) => setTimeout(resolve, 0));
   chat.stop();
   await pending;
   assert.equal(chat.busy(), false, "chat settles promptly after Stop during a command");
@@ -555,39 +805,50 @@ test("current-document annotation and pasted-PGN validation use distinct valid p
   actions.loadPgn("1. e4 e5 *", "game.pgn");
   const dependencies = {
     ...defaultBrowserCommandDependencies,
-    analyse: async (fen: string) => [{ uci: fen.split(" ")[1] === "w" ? "e2e4" : "e7e5", cp: 20, mate: null, depth: 12, pv: [] }],
+    analyse: async (fen: string) => [
+      { uci: fen.split(" ")[1] === "w" ? "e2e4" : "e7e5", cp: 20, mate: null, depth: 12, pv: [] },
+    ],
   };
-  const pasted = await runTool("validate_pgn", { pgn: "1. d4 d5 *" }, {}, dependencies) as { valid?: boolean };
+  const pasted = (await runTool("validate_pgn", { pgn: "1. d4 d5 *" }, {}, dependencies)) as {
+    valid?: boolean;
+  };
   assert.equal(pasted.valid, true);
   const missing = await runTool("validate_pgn", {}, {}, dependencies);
-  assert.deepEqual(missing, { error: "invalid_arguments", reason: "missing required argument: pgn" });
-  const current = await runTool("export_annotated_pgn", { depth: 12 }, {}, dependencies) as { kind?: string; artifact_id?: string };
+  assert.deepEqual(missing, {
+    error: "invalid_arguments",
+    reason: "missing required argument: pgn",
+  });
+  const current = (await runTool("export_annotated_pgn", { depth: 12 }, {}, dependencies)) as {
+    kind?: string;
+    artifact_id?: string;
+  };
   assert.equal(current.kind, "artifact");
   assert.equal(typeof current.artifact_id, "string");
 });
 
 test("browser repertoire annotation exports native V2 evidence through the artifact boundary", async () => {
-  actions.loadPgn(`1. e4 e5 *
+  actions.loadPgn(
+    `1. e4 e5 *
 
 1. d4 d5 2. c4 *
 
-1. c4 *`, "strategic-fit.pgn");
+1. c4 *`,
+    "strategic-fit.pgn",
+  );
   const source = currentTree().toPgn();
   let artifact: { format: string; content: string; name: string } | undefined;
   let injectedRevision: string | undefined;
   const dependencies = {
     ...defaultBrowserCommandDependencies,
     openings: async () => new Map(),
-    analyse: async () => { throw new Error("congruence-only export must not invoke the engine"); },
-    strategicFitReport: async (
-      pgn: string,
-      options: Parameters<typeof analyzeStrategicFit>[1],
-    ) => {
+    analyse: async () => {
+      throw new Error("congruence-only export must not invoke the engine");
+    },
+    strategicFitReport: async (pgn: string, options: Parameters<typeof analyzeStrategicFit>[1]) => {
       injectedRevision = options.repertoireRevision;
-      return completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      ));
+      return completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      );
     },
     createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => {
       artifact = { format, content, name };
@@ -595,12 +856,12 @@ test("browser repertoire annotation exports native V2 evidence through the artif
     },
   };
 
-  const result = await executeDirectBrowserCommand(
+  const result = (await executeDirectBrowserCommand(
     "export_annotated_repertoire",
     { include: ["congruence"] },
     {},
     dependencies,
-  ) as { kind?: string; artifact_id?: string; annotated?: { congruence: number } };
+  )) as { kind?: string; artifact_id?: string; annotated?: { congruence: number } };
 
   assert.equal(result.kind, "artifact");
   assert.equal(result.artifact_id, "artifact:strategic-fit");
@@ -610,14 +871,22 @@ test("browser repertoire annotation exports native V2 evidence through the artif
   assert.equal(artifact?.name, "strategic-fit-annotated.pgn");
   assert.match(artifact?.content ?? "", /Strategic Fit evidence \[analysis=2\.0\.0;/);
   assert.match(artifact?.content ?? "", /status=uncertain-evidence-only/);
-  assert.equal(currentTree().toPgn(), source, "browser artifact export leaves the source document unchanged");
+  assert.equal(
+    currentTree().toPgn(),
+    source,
+    "browser artifact export leaves the source document unchanged",
+  );
 });
 
 test("chat reports round exhaustion, malformed tool JSON, and clean Retry", async (t) => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
-    value: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
   });
   const settings = await import("../src/store/settings.ts");
   const chat = await import("../src/store/chat.ts");
@@ -634,7 +903,16 @@ test("chat reports round exhaustion, malformed tool JSON, and clean Retry", asyn
   chat.setChatTransportForTesting(async (options) => {
     roundRequests++;
     return options.tools.length
-      ? { content: "", toolCalls: [{ id: `round-${roundRequests}`, type: "function", function: { name: "get_position", arguments: "{}" } }] }
+      ? {
+          content: "",
+          toolCalls: [
+            {
+              id: `round-${roundRequests}`,
+              type: "function",
+              function: { name: "get_position", arguments: "{}" },
+            },
+          ],
+        }
       : { content: "Incomplete: the bounded loop ended cleanly.", toolCalls: [] };
   });
   chat.setChatToolExecutorForTesting(async () => ({ grounded: true }));
@@ -646,11 +924,24 @@ test("chat reports round exhaustion, malformed tool JSON, and clean Retry", asyn
   chat.clearChat();
   let malformedRound = 0;
   chat.setChatToolExecutorForTesting();
-  chat.setChatTransportForTesting(async () => ++malformedRound === 1
-    ? { content: "", toolCalls: [{ id: "bad-json", type: "function", function: { name: "get_position", arguments: "{" } }] }
-    : { content: "Recovered from invalid arguments.", toolCalls: [] });
+  chat.setChatTransportForTesting(async () =>
+    ++malformedRound === 1
+      ? {
+          content: "",
+          toolCalls: [
+            {
+              id: "bad-json",
+              type: "function",
+              function: { name: "get_position", arguments: "{" },
+            },
+          ],
+        }
+      : { content: "Recovered from invalid arguments.", toolCalls: [] },
+  );
   await chat.send("malformed call");
-  const malformed = chat.history().find((message) => message.role === "tool" && message.tool_call_id === "bad-json");
+  const malformed = chat
+    .history()
+    .find((message) => message.role === "tool" && message.tool_call_id === "bad-json");
   assert.match(malformed?.content ?? "", /invalid_arguments/);
   assert.equal(chat.history().at(-1)?.content, "Recovered from invalid arguments.");
 
@@ -671,16 +962,57 @@ test("chat reports round exhaustion, malformed tool JSON, and clean Retry", asyn
 test("fake model stream reassembles multiple tool calls", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
-  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://test" } }, configurable: true });
-  globalThis.fetch = async () => new Response(sse(
-    { choices: [{ delta: { tool_calls: [{ index: 0, id: "a", function: { name: "get_position", arguments: "{}" } }, { index: 1, id: "b", function: { name: "evaluate_position", arguments: "{\"lines\":" } }] } }] },
-    { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: "3}" } }] }, finish_reason: "tool_calls" }] },
-    { choices: [], usage: { prompt_tokens: 4000, completion_tokens: 20, total_tokens: 4020, cost: 0.01 } },
-  ), { status: 200, headers: { "X-Generation-Id": "gen-test" } });
-  t.after(() => { globalThis.fetch = originalFetch; Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true }); });
-  const result = await streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], onText() {} });
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { origin: "http://test" } },
+    configurable: true,
+  });
+  globalThis.fetch = async () =>
+    new Response(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "a", function: { name: "get_position", arguments: "{}" } },
+                  {
+                    index: 1,
+                    id: "b",
+                    function: { name: "evaluate_position", arguments: '{"lines":' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          choices: [
+            {
+              delta: { tool_calls: [{ index: 1, function: { arguments: "3}" } }] },
+              finish_reason: "tool_calls",
+            },
+          ],
+        },
+        {
+          choices: [],
+          usage: { prompt_tokens: 4000, completion_tokens: 20, total_tokens: 4020, cost: 0.01 },
+        },
+      ),
+      { status: 200, headers: { "X-Generation-Id": "gen-test" } },
+    );
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true });
+  });
+  const result = await streamChat({
+    apiKey: "x",
+    model: "fake",
+    messages: [],
+    tools: [],
+    onText() {},
+  });
   assert.equal(result.toolCalls.length, 2);
-  assert.equal(result.toolCalls[1]!.function.arguments, "{\"lines\":3}");
+  assert.equal(result.toolCalls[1]!.function.arguments, '{"lines":3}');
   assert.equal(result.usage?.total_tokens, 4020);
   assert.equal(result.generationId, "gen-test");
 });
@@ -688,16 +1020,42 @@ test("fake model stream reassembles multiple tool calls", async (t) => {
 test("fake model stream reports abnormal finish and respects cancellation", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
-  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://test" } }, configurable: true });
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { origin: "http://test" } },
+    configurable: true,
+  });
   globalThis.fetch = async (_input, init) => {
     if (init?.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
-    return new Response(sse({ choices: [{ delta: { content: "partial" }, finish_reason: "length" }] }), { status: 200 });
+    return new Response(
+      sse({ choices: [{ delta: { content: "partial" }, finish_reason: "length" }] }),
+      { status: 200 },
+    );
   };
-  t.after(() => { globalThis.fetch = originalFetch; Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true }); });
-  const abnormal = await streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], onText() {} });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true });
+  });
+  const abnormal = await streamChat({
+    apiKey: "x",
+    model: "fake",
+    messages: [],
+    tools: [],
+    onText() {},
+  });
   assert.equal(abnormal.abnormalFinish, "length");
-  const controller = new AbortController(); controller.abort();
-  await assert.rejects(streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], signal: controller.signal, onText() {} }), { name: "AbortError" });
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    streamChat({
+      apiKey: "x",
+      model: "fake",
+      messages: [],
+      tools: [],
+      signal: controller.signal,
+      onText() {},
+    }),
+    { name: "AbortError" },
+  );
 });
 
 test("staged add, prune, and reorder edits require acceptance and share the game command", () => {
@@ -737,7 +1095,7 @@ test("staged edits cannot apply after the tree revision changes", () => {
 });
 
 test("artifact results expose metadata by reference without repeating content", () => {
-  const content = "[Event \"Annotated\"]\n\n1. e4 *";
+  const content = '[Event "Annotated"]\n\n1. e4 *';
   const result = createArtifact("pgn", content, "game-annotated.pgn");
   assert.equal("content" in result, false);
   assert.equal(result.format, "pgn");
@@ -745,7 +1103,7 @@ test("artifact results expose metadata by reference without repeating content", 
   const deck = createArtifact("csv", "fen,move\nstart,e4", "only-moves.csv");
   assert.equal(deck.media_type, "text/csv");
   assert.equal(artifactById(deck.artifact_id)?.name, "only-moves.csv");
-  const sidecar = createArtifact("json", "{\"sidecar_version\":\"1.0.0\"}\n", "strategic-fit.json");
+  const sidecar = createArtifact("json", '{"sidecar_version":"1.0.0"}\n', "strategic-fit.json");
   assert.equal(sidecar.media_type, "application/json");
   assert.equal("content" in sidecar, false);
   assert.deepEqual(findArtifactMetadata({ findings: [], deck }), [deck]);
@@ -755,24 +1113,40 @@ test("history compaction preserves Strategic Fit identities, artifacts, actions,
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
-    value: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
   });
   const { compactToolResult } = await import("../src/store/chat.ts");
-  const compacted = JSON.parse(compactToolResult(JSON.stringify({
-    report_id: "strategic-fit-report:abc",
-    repertoire_revision: "browser:7",
-    findings: [{
-      finding_id: "finding:def",
-      references: { source_san_paths: [["e4", "e5"]] },
-      path: ["e4", "e5"],
-      fen: "fen-value",
-      detail: "x".repeat(7000),
-    }],
-    deck: { kind: "artifact", artifact_id: "artifact-9", format: "csv", name: "drill.csv", bytes: 12 },
-    action: { kind: "staged_edit", action_id: "edit-3", revision: 7, path: ["e4"] },
-    next_page: "cursor-2",
-    partial: true,
-  }))) as { references: Record<string, unknown>[] };
+  const compacted = JSON.parse(
+    compactToolResult(
+      JSON.stringify({
+        report_id: "strategic-fit-report:abc",
+        repertoire_revision: "browser:7",
+        findings: [
+          {
+            finding_id: "finding:def",
+            references: { source_san_paths: [["e4", "e5"]] },
+            path: ["e4", "e5"],
+            fen: "fen-value",
+            detail: "x".repeat(7000),
+          },
+        ],
+        deck: {
+          kind: "artifact",
+          artifact_id: "artifact-9",
+          format: "csv",
+          name: "drill.csv",
+          bytes: 12,
+        },
+        action: { kind: "staged_edit", action_id: "edit-3", revision: 7, path: ["e4"] },
+        next_page: "cursor-2",
+        partial: true,
+      }),
+    ),
+  ) as { references: Record<string, unknown>[] };
   const serialized = JSON.stringify(compacted.references);
   assert.match(serialized, /artifact-9/);
   assert.match(serialized, /edit-3/);

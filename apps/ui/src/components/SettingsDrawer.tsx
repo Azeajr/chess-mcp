@@ -45,7 +45,9 @@ export default function SettingsDrawer() {
               value={model()}
               onChange={(e) => setModel(e.currentTarget.value)}
             />
-            <small>Pick a model below, or type any OpenRouter slug. See openrouter.ai/models.</small>
+            <small>
+              Pick a model below, or type any OpenRouter slug. See openrouter.ai/models.
+            </small>
             <div class="model-chips">
               <For each={MODEL_SUGGESTIONS}>
                 {(m) => (
@@ -72,8 +74,8 @@ export default function SettingsDrawer() {
             />
             <small>
               Personal token, no scopes needed — lichess.org/account/oauth/token. Enables the
-              opening-explorer tools (position popularity, theory depth, gap popularity). Stored
-              in localStorage (plaintext).
+              opening-explorer tools (position popularity, theory depth, gap popularity). Stored in
+              localStorage (plaintext).
             </small>
           </label>
 
@@ -85,8 +87,8 @@ export default function SettingsDrawer() {
               onChange={(e) => setCloudEvalEnabled(e.currentTarget.checked)}
             />
             <small>
-              Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn
-              off to keep prep lines fully on this machine — local Stockfish is unaffected.
+              Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off
+              to keep prep lines fully on this machine — local Stockfish is unaffected.
             </small>
           </label>
         </div>

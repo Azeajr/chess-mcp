@@ -7,10 +7,7 @@
  */
 import type { OpeningEntry, OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export const OPENING_TAXONOMY_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.taxonomy;
 
@@ -230,9 +227,9 @@ function exactTaxonomy(
 ): ExactTaxonomy | null {
   const parts = classifyOpeningName(entry.name);
   if (!parts) return null;
-  const path = nodeSpecs(parts).map((spec) => catalog.get(nodeKey(spec.level, spec.pathLabels))).filter(
-    (node): node is OpeningTaxonomyNode => node !== undefined,
-  );
+  const path = nodeSpecs(parts)
+    .map((spec) => catalog.get(nodeKey(spec.level, spec.pathLabels)))
+    .filter((node): node is OpeningTaxonomyNode => node !== undefined);
   return path.length > 0 ? { path, entry } : null;
 }
 
@@ -248,7 +245,9 @@ function provenance(
   return {
     kind,
     source_position_ids: sortedUnique(candidates.map((candidate) => candidate.sourcePositionId)),
-    source_eco_codes: sortedUnique(candidates.map((candidate) => normalizeEcoCode(candidate.entry.eco))),
+    source_eco_codes: sortedUnique(
+      candidates.map((candidate) => normalizeEcoCode(candidate.entry.eco)),
+    ),
     exact_source_names: sortedUnique(candidates.map((candidate) => candidate.entry.name)),
     explanation,
   };
@@ -276,7 +275,10 @@ function taxonomyFromPath(
 }
 
 function unknownTaxonomy(
-  kind: Extract<OpeningTaxonomyProvenanceKind, "ambiguous-inheritance" | "missing-table" | "no-match">,
+  kind: Extract<
+    OpeningTaxonomyProvenanceKind,
+    "ambiguous-inheritance" | "missing-table" | "no-match"
+  >,
   candidates: readonly InheritedCandidate[],
 ): OpeningTaxonomy {
   const explanation =
@@ -305,7 +307,10 @@ function commonPath(candidates: readonly InheritedCandidate[]): OpeningTaxonomyN
   const common: OpeningTaxonomyNode[] = [];
   for (let index = 0; index < first.length; index++) {
     const expected = first[index]!;
-    if (!candidates.every((candidate) => candidate.path[index]?.taxonomy_id === expected.taxonomy_id)) break;
+    if (
+      !candidates.every((candidate) => candidate.path[index]?.taxonomy_id === expected.taxonomy_id)
+    )
+      break;
     common.push(expected);
   }
   return common;
@@ -316,7 +321,11 @@ function inheritedTaxonomy(candidates: readonly InheritedCandidate[]): OpeningTa
   const common = commonPath(candidates);
   if (common.length === 0) return unknownTaxonomy("ambiguous-inheritance", candidates);
 
-  const distinctPaths = new Set(candidates.map((candidate) => candidate.path.map((node) => node.taxonomy_id).join(PATH_SEPARATOR)));
+  const distinctPaths = new Set(
+    candidates.map((candidate) =>
+      candidate.path.map((node) => node.taxonomy_id).join(PATH_SEPARATOR),
+    ),
+  );
   const kind = distinctPaths.size === 1 ? "inherited-position" : "inherited-common-ancestor";
   const explanation =
     kind === "inherited-position"
@@ -340,7 +349,9 @@ export function buildOpeningTaxonomy(
       position_id: position.position_id,
       taxonomy: unknownTaxonomy("missing-table", []),
     }));
-    const positionById = new Map(positions.map((position) => [position.position_id, position.taxonomy]));
+    const positionById = new Map(
+      positions.map((position) => [position.position_id, position.taxonomy]),
+    );
     return {
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       taxonomy_version: OPENING_TAXONOMY_VERSION,
@@ -384,7 +395,11 @@ export function buildOpeningTaxonomy(
         position_id: position.position_id,
         taxonomy: taxonomyFromPath(
           exact.path,
-          provenance("exact-position", [candidate], "The canonical position has an exact opening-table hit."),
+          provenance(
+            "exact-position",
+            [candidate],
+            "The canonical position has an exact opening-table hit.",
+          ),
         ),
       };
     }
@@ -393,7 +408,9 @@ export function buildOpeningTaxonomy(
       taxonomy: inheritedTaxonomy(inheritedByPosition.get(position.position_id) ?? []),
     };
   });
-  const positionById = new Map(positions.map((position) => [position.position_id, position.taxonomy]));
+  const positionById = new Map(
+    positions.map((position) => [position.position_id, position.taxonomy]),
+  );
 
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,

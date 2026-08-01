@@ -9,10 +9,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import { executeDirectBrowserCommand } from "./commands";
 import { actions, color, documentId, version } from "./game";
-import {
-  strategicFitProfile,
-  strategicFitProfileIdentity,
-} from "./strategic-fit-profile";
+import { strategicFitProfile, strategicFitProfileIdentity } from "./strategic-fit-profile";
 import {
   reconcileStrategicFitReportFindings,
   strategicFitAnalysisSettingsIdentity,
@@ -193,14 +190,15 @@ function stopPhaseHistory(
   history: readonly StrategicFitLifecyclePhase[],
 ): StrategicFitLifecyclePhase[] {
   const runningIndex = history.findIndex((entry) => entry.state === "running");
-  const stoppedIndex = runningIndex >= 0
-    ? runningIndex
-    : history.findIndex((entry) => entry.state === "pending");
-  return history.map((entry, index) => index === stoppedIndex
-    ? { ...entry, state: "cancelled" }
-    : entry.state === "running"
-      ? { ...entry, state: "pending" }
-      : entry);
+  const stoppedIndex =
+    runningIndex >= 0 ? runningIndex : history.findIndex((entry) => entry.state === "pending");
+  return history.map((entry, index) =>
+    index === stoppedIndex
+      ? { ...entry, state: "cancelled" }
+      : entry.state === "running"
+        ? { ...entry, state: "pending" }
+        : entry,
+  );
 }
 
 function completedPhaseHistory(blocked: boolean): StrategicFitLifecyclePhase[] {
@@ -210,13 +208,18 @@ function completedPhaseHistory(blocked: boolean): StrategicFitLifecyclePhase[] {
   }));
 }
 
-function sameSnapshot(left: StrategicFitRequestSnapshot, right: StrategicFitRequestSnapshot): boolean {
-  return left.document_id === right.document_id
-    && left.repertoire_revision === right.repertoire_revision
-    && left.repertoire_pgn === right.repertoire_pgn
-    && left.repertoire_color === right.repertoire_color
-    && left.profile_identity === right.profile_identity
-    && left.settings_identity === right.settings_identity;
+function sameSnapshot(
+  left: StrategicFitRequestSnapshot,
+  right: StrategicFitRequestSnapshot,
+): boolean {
+  return (
+    left.document_id === right.document_id &&
+    left.repertoire_revision === right.repertoire_revision &&
+    left.repertoire_pgn === right.repertoire_pgn &&
+    left.repertoire_color === right.repertoire_color &&
+    left.profile_identity === right.profile_identity &&
+    left.settings_identity === right.settings_identity
+  );
 }
 
 function staleReason(
@@ -228,7 +231,8 @@ function staleReason(
     previous.repertoire_revision !== current.repertoire_revision ||
     previous.repertoire_pgn !== current.repertoire_pgn ||
     previous.repertoire_color !== current.repertoire_color
-  ) return "The repertoire document, content, revision, or analysis color changed.";
+  )
+    return "The repertoire document, content, revision, or analysis color changed.";
   if (previous.profile_identity !== current.profile_identity) {
     return "The Strategic Fit profile changed.";
   }
@@ -249,29 +253,36 @@ function thrownError(value: unknown): StrategicFitLifecycleError {
   if (typeof value === "object" && value !== null) {
     const candidate = value as { code?: unknown; message?: unknown; name?: unknown };
     return {
-      code: typeof candidate.code === "string"
-        ? candidate.code
-        : typeof candidate.name === "string"
-          ? candidate.name
-          : "strategic_fit_analysis_failed",
-      message: typeof candidate.message === "string"
-        ? candidate.message
-        : "Strategic Fit analysis failed.",
+      code:
+        typeof candidate.code === "string"
+          ? candidate.code
+          : typeof candidate.name === "string"
+            ? candidate.name
+            : "strategic_fit_analysis_failed",
+      message:
+        typeof candidate.message === "string"
+          ? candidate.message
+          : "Strategic Fit analysis failed.",
     };
   }
   return { code: "strategic_fit_analysis_failed", message: String(value) };
 }
 
 function isAbortError(value: unknown): boolean {
-  return typeof value === "object" && value !== null && (value as { name?: unknown }).name === "AbortError";
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { name?: unknown }).name === "AbortError"
+  );
 }
 
 function analysisResult(value: unknown): StrategicFitAnalysisResult | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Partial<StrategicFitAnalysisResult>;
-  return typeof candidate.report_id === "string" && candidate.report_id.length > 0 &&
+  return typeof candidate.report_id === "string" &&
+    candidate.report_id.length > 0 &&
     typeof candidate.repertoire_revision === "string"
-    ? candidate as StrategicFitAnalysisResult
+    ? (candidate as StrategicFitAnalysisResult)
     : null;
 }
 
@@ -279,11 +290,13 @@ function sameSnapshotExceptSettings(
   left: StrategicFitRequestSnapshot,
   right: StrategicFitRequestSnapshot,
 ): boolean {
-  return left.document_id === right.document_id &&
+  return (
+    left.document_id === right.document_id &&
     left.repertoire_revision === right.repertoire_revision &&
     left.repertoire_pgn === right.repertoire_pgn &&
     left.repertoire_color === right.repertoire_color &&
-    left.profile_identity === right.profile_identity;
+    left.profile_identity === right.profile_identity
+  );
 }
 
 function validFindingPage(
@@ -293,13 +306,15 @@ function validFindingPage(
 ): StrategicFitAnalysisResult {
   const page = analysisResult(value);
   if (
-    page === null || page.report_id !== report.report_id ||
+    page === null ||
+    page.report_id !== report.report_id ||
     page.repertoire_revision !== report.repertoire_revision ||
     page.finding_page.offset !== offset ||
     page.finding_page.total_count !== report.finding_page.total_count ||
     page.finding_page.returned_count !== page.findings.length ||
     page.finding_page.returned_count <= 0
-  ) throw new Error("strategic_fit_reanalysis_invalid_finding_page");
+  )
+    throw new Error("strategic_fit_reanalysis_invalid_finding_page");
   return page;
 }
 
@@ -343,23 +358,32 @@ export function createStrategicFitLifecycleState(
       report.finding_page.offset === 0 &&
       report.finding_page.returned_count === report.finding_page.total_count &&
       report.findings.length === report.finding_page.total_count
-    ) return [...report.findings].sort((left, right) => left.finding_id.localeCompare(right.finding_id));
+    )
+      return [...report.findings].sort((left, right) =>
+        left.finding_id.localeCompare(right.finding_id),
+      );
 
     const findings: StrategicFinding[] = [];
     const seen = new Set<string>();
     let offset = 0;
     while (offset < report.finding_page.total_count) {
-      const value = await boundary.execute("analyze_repertoire_congruence", {
-        ...request.commandArguments,
-        sort: "finding-id",
-        page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
-      }, { signal: request.controller.signal });
+      const value = await boundary.execute(
+        "analyze_repertoire_congruence",
+        {
+          ...request.commandArguments,
+          sort: "finding-id",
+          page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
+        },
+        { signal: request.controller.signal },
+      );
       if (active !== request || request.controller.signal.aborted) return [];
       const pageError = commandError(value);
-      if (pageError !== null) throw Object.assign(new Error(pageError.message), { code: pageError.code });
+      if (pageError !== null)
+        throw Object.assign(new Error(pageError.message), { code: pageError.code });
       const page = validFindingPage(value, report, offset);
       for (const finding of page.findings) {
-        if (seen.has(finding.finding_id)) throw new Error("strategic_fit_reanalysis_duplicate_finding");
+        if (seen.has(finding.finding_id))
+          throw new Error("strategic_fit_reanalysis_duplicate_finding");
         seen.add(finding.finding_id);
         findings.push(finding);
       }
@@ -399,41 +423,54 @@ export function createStrategicFitLifecycleState(
     }));
 
     try {
-      const value = await boundary.execute("analyze_repertoire_congruence", request.commandArguments, {
-        signal: request.controller.signal,
-        onProgress: (done, total, detail) => {
-          if (active !== request || request.controller.signal.aborted) return;
-          setState((previous) => {
-            if (previous.request_id !== request.id ||
-              (previous.status !== "running" && previous.status !== "provisional")) return previous;
-            const boundedTotal = typeof total === "number" && Number.isFinite(total) && total > 0
-              ? Math.max(1, Math.floor(total))
-              : undefined;
-            const boundedDone = Math.max(0, Math.floor(Number.isFinite(done) ? done : 0));
-            const nextDone = Math.max(previous.progress?.done ?? 0, boundedDone);
-            const nextTotal = boundedTotal ?? previous.progress?.total;
-            const nextPhaseHistory = advancePhaseHistory(previous.phase_history, nextDone, detail);
-            const currentPhase = nextPhaseHistory.find((phase) => phase.state === "running");
-            const nextDetail = currentPhase === undefined
-              ? detail
-              : STRATEGIC_FIT_PHASE_LABELS[currentPhase.phase];
-            return {
-              ...previous,
-              status: "provisional",
-              progress: {
-                done: nextTotal === undefined ? nextDone : Math.min(nextDone, nextTotal),
-                ...(nextTotal === undefined ? {} : { total: nextTotal }),
-                ...(typeof nextDetail === "string" && nextDetail.length > 0
-                  ? { detail: nextDetail }
-                  : previous.progress?.detail === undefined
-                    ? {}
-                    : { detail: previous.progress.detail }),
-              },
-              phase_history: nextPhaseHistory,
-            };
-          });
+      const value = await boundary.execute(
+        "analyze_repertoire_congruence",
+        request.commandArguments,
+        {
+          signal: request.controller.signal,
+          onProgress: (done, total, detail) => {
+            if (active !== request || request.controller.signal.aborted) return;
+            setState((previous) => {
+              if (
+                previous.request_id !== request.id ||
+                (previous.status !== "running" && previous.status !== "provisional")
+              )
+                return previous;
+              const boundedTotal =
+                typeof total === "number" && Number.isFinite(total) && total > 0
+                  ? Math.max(1, Math.floor(total))
+                  : undefined;
+              const boundedDone = Math.max(0, Math.floor(Number.isFinite(done) ? done : 0));
+              const nextDone = Math.max(previous.progress?.done ?? 0, boundedDone);
+              const nextTotal = boundedTotal ?? previous.progress?.total;
+              const nextPhaseHistory = advancePhaseHistory(
+                previous.phase_history,
+                nextDone,
+                detail,
+              );
+              const currentPhase = nextPhaseHistory.find((phase) => phase.state === "running");
+              const nextDetail =
+                currentPhase === undefined
+                  ? detail
+                  : STRATEGIC_FIT_PHASE_LABELS[currentPhase.phase];
+              return {
+                ...previous,
+                status: "provisional",
+                progress: {
+                  done: nextTotal === undefined ? nextDone : Math.min(nextDone, nextTotal),
+                  ...(nextTotal === undefined ? {} : { total: nextTotal }),
+                  ...(typeof nextDetail === "string" && nextDetail.length > 0
+                    ? { detail: nextDetail }
+                    : previous.progress?.detail === undefined
+                      ? {}
+                      : { detail: previous.progress.detail }),
+                },
+                phase_history: nextPhaseHistory,
+              };
+            });
+          },
         },
-      });
+      );
 
       if (active !== request || request.controller.signal.aborted) return;
       const current = boundary.currentSnapshot();
@@ -484,7 +521,11 @@ export function createStrategicFitLifecycleState(
       }
       let reanalysisSummary: StrategicFitReanalysisSummary | null = null;
       let completedSnapshot = request.snapshot;
-      if (reanalysis !== null && previousCompleted !== null && boundary.reconcileReports !== undefined) {
+      if (
+        reanalysis !== null &&
+        previousCompleted !== null &&
+        boundary.reconcileReports !== undefined
+      ) {
         request.reconciling = true;
         let reconciled: ReturnType<NonNullable<StrategicFitLifecycleBoundary["reconcileReports"]>>;
         try {
@@ -512,7 +553,7 @@ export function createStrategicFitLifecycleState(
             "analyze_repertoire_congruence",
             boundary.currentCommandArguments?.() ?? {},
             {
-            signal: request.controller.signal,
+              signal: request.controller.signal,
             },
           );
           if (active !== request || request.controller.signal.aborted) return;
@@ -612,11 +653,12 @@ export function createStrategicFitLifecycleState(
       if (wasPrepared) preparedResolutionReportId = null;
       if (!wasPrepared) return false;
       const previous = state();
-      const completed = previous.current_result?.report_id === reportId
-        ? previous.current_result
-        : previous.last_completed?.report_id === reportId
-          ? previous.last_completed
-          : null;
+      const completed =
+        previous.current_result?.report_id === reportId
+          ? previous.current_result
+          : previous.last_completed?.report_id === reportId
+            ? previous.last_completed
+            : null;
       if (completed === null || active !== null) return false;
       const current = boundary.currentSnapshot();
       const snapshot = completed.request_snapshot;
@@ -626,7 +668,8 @@ export function createStrategicFitLifecycleState(
         snapshot.repertoire_pgn !== current.repertoire_pgn ||
         snapshot.repertoire_color !== current.repertoire_color ||
         snapshot.profile_identity !== current.profile_identity
-      ) return false;
+      )
+        return false;
 
       // A review resolution changes analyzer settings but not the immutable evidence in the
       // completed report. Task 6.4 owns the later affected-cohort reanalysis. Rebind only the
@@ -651,7 +694,8 @@ export function createStrategicFitLifecycleState(
     synchronize(suppliedCurrent) {
       const current = suppliedCurrent ?? boundary.currentSnapshot();
       if (
-        active && !sameSnapshot(active.snapshot, current) &&
+        active &&
+        !sameSnapshot(active.snapshot, current) &&
         !(active.reconciling && sameSnapshotExceptSettings(active.snapshot, current))
       ) {
         finishAsStale(active, current);
@@ -667,7 +711,8 @@ export function createStrategicFitLifecycleState(
           snapshot.repertoire_pgn === current.repertoire_pgn &&
           snapshot.repertoire_color === current.repertoire_color &&
           snapshot.profile_identity === current.profile_identity
-        ) return;
+        )
+          return;
         setState((previous) => ({
           ...previous,
           status: "stale",
@@ -710,18 +755,19 @@ const browserLifecycle = createStrategicFitLifecycleState({
       request,
     );
     const reopenIds = new Set(reconciliation.actions.reopen_semantic_finding_ids);
-    const requiresFollowUp = metadata.resolutions.some((resolution) =>
-      resolution.record_state === "active" &&
-      resolution.semantic_finding_id !== null &&
-      reopenIds.has(resolution.semantic_finding_id) &&
-      resolution.state !== "automatically-resolved-by-another-edit"
+    const requiresFollowUp = metadata.resolutions.some(
+      (resolution) =>
+        resolution.record_state === "active" &&
+        resolution.semantic_finding_id !== null &&
+        reopenIds.has(resolution.semantic_finding_id) &&
+        resolution.state !== "automatically-resolved-by-another-edit",
     );
     reconcileStrategicFitReportFindings(reconciliation.actions);
-    const reconciledBySemanticId = new Map(reconciliation.findings.map((finding) =>
-      [finding.semantic_finding_id, finding]
-    ));
-    const findings = next.findings.map((finding) =>
-      reconciledBySemanticId.get(finding.semantic_finding_id) ?? finding
+    const reconciledBySemanticId = new Map(
+      reconciliation.findings.map((finding) => [finding.semantic_finding_id, finding]),
+    );
+    const findings = next.findings.map(
+      (finding) => reconciledBySemanticId.get(finding.semantic_finding_id) ?? finding,
     );
     return {
       result: {
@@ -729,8 +775,8 @@ const browserLifecycle = createStrategicFitLifecycleState({
         findings,
         summary: {
           ...next.summary,
-          unresolved_finding_count: reconciliation.findings.filter((finding) =>
-            finding.resolution_state === "unresolved"
+          unresolved_finding_count: reconciliation.findings.filter(
+            (finding) => finding.resolution_state === "unresolved",
           ).length,
         },
       },
@@ -751,20 +797,19 @@ function mergeReanalysisRequests(
   next: StrategicFitReanalysisRequest,
 ): StrategicFitReanalysisRequest {
   if (previous === null) return next;
-  const cohortIds = [...new Set([
-    ...previous.scope.cohort_ids,
-    ...next.scope.cohort_ids,
-  ])].sort();
+  const cohortIds = [...new Set([...previous.scope.cohort_ids, ...next.scope.cohort_ids])].sort();
   return {
     trigger: next.trigger,
     scope: {
-      kind: previous.scope.kind === "full-scan" || next.scope.kind === "full-scan"
-        ? "full-scan"
-        : "affected-cohorts",
+      kind:
+        previous.scope.kind === "full-scan" || next.scope.kind === "full-scan"
+          ? "full-scan"
+          : "affected-cohorts",
       cohort_ids: cohortIds,
-      reason: previous.scope.reason === next.scope.reason
-        ? next.scope.reason
-        : `${previous.scope.reason} ${next.scope.reason}`,
+      reason:
+        previous.scope.reason === next.scope.reason
+          ? next.scope.reason
+          : `${previous.scope.reason} ${next.scope.reason}`,
     },
   };
 }
@@ -778,7 +823,8 @@ export function scheduleStrategicFitReanalysis(request: StrategicFitReanalysisRe
     const pending = pendingBrowserReanalysis;
     pendingBrowserReanalysis = null;
     const lifecycle = browserLifecycle.snapshot();
-    if (pending === null || !strategicFitWorkspaceOpen() || lifecycle.last_completed === null) return;
+    if (pending === null || !strategicFitWorkspaceOpen() || lifecycle.last_completed === null)
+      return;
     void browserLifecycle.reanalyze(pending);
   });
 }
@@ -798,28 +844,33 @@ export function startStrategicFitLifecycle(): void {
       observedBrowserSnapshot = current;
       observedBrowserDataSourceIdentity = dataSourceIdentity;
       browserLifecycle.synchronize(current);
-      if (!workspaceOpen || previous === null || previous.document_id !== current.document_id) return;
+      if (!workspaceOpen || previous === null || previous.document_id !== current.document_id)
+        return;
       const completed = browserLifecycle.snapshot().last_completed;
       if (completed === null) return;
       if (previous.profile_identity !== current.profile_identity) {
-        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
-          completed.result,
-          completed.request_snapshot,
-          current,
-          "profile-change",
-        ));
+        scheduleStrategicFitReanalysis(
+          planStrategicFitReanalysis(
+            completed.result,
+            completed.request_snapshot,
+            current,
+            "profile-change",
+          ),
+        );
         return;
       }
       if (
-        previousDataSourceIdentity !== null
-        && previousDataSourceIdentity !== dataSourceIdentity
+        previousDataSourceIdentity !== null &&
+        previousDataSourceIdentity !== dataSourceIdentity
       ) {
-        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
-          completed.result,
-          completed.request_snapshot,
-          current,
-          "source-change",
-        ));
+        scheduleStrategicFitReanalysis(
+          planStrategicFitReanalysis(
+            completed.result,
+            completed.request_snapshot,
+            current,
+            "source-change",
+          ),
+        );
         return;
       }
       if (
@@ -827,12 +878,14 @@ export function startStrategicFitLifecycle(): void {
         previous.repertoire_pgn !== current.repertoire_pgn ||
         previous.repertoire_color !== current.repertoire_color
       ) {
-        scheduleStrategicFitReanalysis(planStrategicFitReanalysis(
-          completed.result,
-          completed.request_snapshot,
-          current,
-          "document-change",
-        ));
+        scheduleStrategicFitReanalysis(
+          planStrategicFitReanalysis(
+            completed.result,
+            completed.request_snapshot,
+            current,
+            "document-change",
+          ),
+        );
       }
     });
   });

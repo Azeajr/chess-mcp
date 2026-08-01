@@ -19,10 +19,7 @@ import {
 export const STRATEGIC_FIT_REVIEW_SUMMARY_KIND = "chess-mcp/strategic-fit-review-summary";
 export const STRATEGIC_FIT_REVIEW_SUMMARY_VERSION = "1.0.0";
 
-export type StrategicFitReviewMetricId =
-  | "coverage"
-  | "objective-evaluation"
-  | "strategic-workload";
+export type StrategicFitReviewMetricId = "coverage" | "objective-evaluation" | "strategic-workload";
 
 export interface StrategicFitReviewMetricDelta {
   readonly metric_id: StrategicFitReviewMetricId;
@@ -159,14 +156,20 @@ function completeFindings(result: StrategicFitCompletedResult): readonly Strateg
     findings === undefined ||
     findings.length !== result.result.finding_page.total_count ||
     new Set(findings.map((finding) => finding.semantic_finding_id)).size !== findings.length
-  ) return null;
+  )
+    return null;
   return findings;
 }
 
-function activeResolutions(metadata: StrategicFitDocumentMetadata): StrategicFitPersistedResolution[] {
+function activeResolutions(
+  metadata: StrategicFitDocumentMetadata,
+): StrategicFitPersistedResolution[] {
   return metadata.resolutions
-    .filter((resolution): resolution is StrategicFitPersistedResolution & { semantic_finding_id: string } =>
-      resolution.record_state === "active" && resolution.semantic_finding_id !== null
+    .filter(
+      (
+        resolution,
+      ): resolution is StrategicFitPersistedResolution & { semantic_finding_id: string } =>
+        resolution.record_state === "active" && resolution.semantic_finding_id !== null,
     )
     .sort((left, right) => compareStrings(left.resolution_id, right.resolution_id));
 }
@@ -206,13 +209,15 @@ function reportMetrics(result: StrategicFitCompletedResult): ReviewMetrics {
       provenance: objective.provenance,
     },
     "strategic-workload": {
-      value: typeof summary.expected_concept_burden === "number"
-        ? summary.expected_concept_burden
-        : null,
+      value:
+        typeof summary.expected_concept_burden === "number"
+          ? summary.expected_concept_burden
+          : null,
       unit: "expected-concept-burden",
-      reason: summary.expected_concept_burden === null
-        ? "The report did not provide an expected concept burden."
-        : null,
+      reason:
+        summary.expected_concept_burden === null
+          ? "The report did not provide an expected concept burden."
+          : null,
       provenance: reportSources,
     },
   };
@@ -224,7 +229,10 @@ const METRIC_LABELS: Readonly<Record<StrategicFitReviewMetricId, string>> = {
   "strategic-workload": "Expected concept burden",
 };
 
-function metricDeltas(before: ReviewMetrics, after: ReviewMetrics): StrategicFitReviewMetricDelta[] {
+function metricDeltas(
+  before: ReviewMetrics,
+  after: ReviewMetrics,
+): StrategicFitReviewMetricDelta[] {
   return (Object.keys(METRIC_LABELS) as StrategicFitReviewMetricId[]).map((metricId) => {
     const previous = before[metricId];
     const current = after[metricId];
@@ -237,7 +245,9 @@ function metricDeltas(before: ReviewMetrics, after: ReviewMetrics): StrategicFit
       after: current.value,
       delta: available ? current.value! - previous.value! : null,
       unit: current.unit,
-      reason: available ? null : current.reason ?? previous.reason ?? "Comparable metric evidence is unavailable.",
+      reason: available
+        ? null
+        : (current.reason ?? previous.reason ?? "Comparable metric evidence is unavailable."),
       provenance: current.provenance,
     };
   });
@@ -264,7 +274,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     const history = historyByDocument.get(documentId) ?? [];
     const lifecycle = boundary.currentLifecycle();
     const current = lifecycle.current_result;
-    if (lifecycle.status === "stale" || current === null && history.length > 0) {
+    if (lifecycle.status === "stale" || (current === null && history.length > 0)) {
       const next: StrategicFitReviewSnapshot = {
         status: "stale",
         report_id: null,
@@ -288,7 +298,10 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       setSnapshot(next);
       return next;
     }
-    baselineByDocument.set(documentId, baselineByDocument.get(documentId) ?? reportMetrics(current));
+    baselineByDocument.set(
+      documentId,
+      baselineByDocument.get(documentId) ?? reportMetrics(current),
+    );
     const findings = completeFindings(current);
     if (findings === null) {
       const next: StrategicFitReviewSnapshot = {
@@ -297,39 +310,52 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
         unreviewed_semantic_finding_ids: [],
         current_summary: null,
         history,
-        message: "Review completion is unavailable because the complete canonical finding set is missing.",
+        message:
+          "Review completion is unavailable because the complete canonical finding set is missing.",
       };
       setSnapshot(next);
       return next;
     }
     const resolutions = activeResolutions(boundary.currentMetadata());
-    const bySemanticId = new Map(resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]));
+    const bySemanticId = new Map(
+      resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]),
+    );
     const unreviewed = findings
       .filter((finding) => currentResolutionState(finding, bySemanticId) === "unresolved")
       .map((finding) => finding.semantic_finding_id)
       .sort(compareStrings);
-    const reopenedCurrentRequest = [...history].reverse().find((entry) =>
-      entry.state === "reopened" && entry.request_id === current.request_id
-    )?.reopened_semantic_finding_id;
+    const reopenedCurrentRequest = [...history]
+      .reverse()
+      .find(
+        (entry) => entry.state === "reopened" && entry.request_id === current.request_id,
+      )?.reopened_semantic_finding_id;
     if (reopenedCurrentRequest !== null && reopenedCurrentRequest !== undefined) {
       unreviewed.push(reopenedCurrentRequest);
       unreviewed.sort(compareStrings);
     }
     const uniqueUnreviewed = [...new Set(unreviewed)];
-    const currentSummary = [...history].reverse().find((entry) =>
-      entry.state === "completed" && entry.request_id === current.request_id
-    ) ?? null;
+    const currentSummary =
+      [...history]
+        .reverse()
+        .find((entry) => entry.state === "completed" && entry.request_id === current.request_id) ??
+      null;
     const next: StrategicFitReviewSnapshot = {
-      status: uniqueUnreviewed.length > 0 ? "incomplete" : currentSummary === null ? "ready" : "completed",
+      status:
+        uniqueUnreviewed.length > 0
+          ? "incomplete"
+          : currentSummary === null
+            ? "ready"
+            : "completed",
       report_id: current.report_id,
       unreviewed_semantic_finding_ids: uniqueUnreviewed,
       current_summary: currentSummary,
       history,
-      message: uniqueUnreviewed.length > 0
-        ? `${uniqueUnreviewed.length} current finding(s) still require a terminal review decision.`
-        : currentSummary === null
-          ? "Every current finding has a terminal review state. The review can now be completed."
-          : "This revision-bound review is complete.",
+      message:
+        uniqueUnreviewed.length > 0
+          ? `${uniqueUnreviewed.length} current finding(s) still require a terminal review decision.`
+          : currentSummary === null
+            ? "Every current finding has a terminal review state. The review can now be completed."
+            : "This revision-bound review is complete.",
     };
     setSnapshot(next);
     return next;
@@ -350,7 +376,9 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     const findings = completeFindings(current)!;
     const metadata = boundary.currentMetadata();
     const resolutions = activeResolutions(metadata);
-    const bySemanticId = new Map(resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]));
+    const bySemanticId = new Map(
+      resolutions.map((resolution) => [resolution.semantic_finding_id!, resolution]),
+    );
     const counts: Record<string, number> = {};
     for (const finding of findings) {
       const state = currentResolutionState(finding, bySemanticId);
@@ -358,7 +386,7 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     }
     const currentSemanticIds = new Set(findings.map((finding) => finding.semantic_finding_id));
     const currentResolutions = resolutions.filter((resolution) =>
-      currentSemanticIds.has(resolution.semantic_finding_id!)
+      currentSemanticIds.has(resolution.semantic_finding_id!),
     );
     const resolutionSummaries = currentResolutions.map((resolution) => ({
       resolution_id: resolution.resolution_id,
@@ -369,9 +397,12 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       linked_training_ids: [...resolution.linked_training_ids],
       linked_staged_edit_ids: [...resolution.linked_staged_edit_ids],
     }));
-    const stateBySemanticId = new Map(findings.map((finding) =>
-      [finding.semantic_finding_id, currentResolutionState(finding, bySemanticId)]
-    ));
+    const stateBySemanticId = new Map(
+      findings.map((finding) => [
+        finding.semantic_finding_id,
+        currentResolutionState(finding, bySemanticId),
+      ]),
+    );
     const deferred = [...stateBySemanticId.entries()]
       .filter(([, state]) => state === "defer")
       .map(([semanticId]) => semanticId)
@@ -379,8 +410,12 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     const uncertain = findings
       .filter((finding) => {
         const state = stateBySemanticId.get(finding.semantic_finding_id);
-        return state === "insufficient-evidence" || state === "invalid-comparison" ||
-          finding.classification === "uncertain" || finding.classification === "data-quality-issue";
+        return (
+          state === "insufficient-evidence" ||
+          state === "invalid-comparison" ||
+          finding.classification === "uncertain" ||
+          finding.classification === "data-quality-issue"
+        );
       })
       .map((finding) => finding.semantic_finding_id)
       .sort(compareStrings);
@@ -411,9 +446,9 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       profile_identity: current.request_snapshot.profile_identity,
       settings_identity: current.request_snapshot.settings_identity,
       finding_count: findings.length,
-      resolution_counts: Object.fromEntries(Object.entries(counts).sort(([left], [right]) =>
-        compareStrings(left, right)
-      )),
+      resolution_counts: Object.fromEntries(
+        Object.entries(counts).sort(([left], [right]) => compareStrings(left, right)),
+      ),
       edits_made_resolution_ids: currentResolutions
         .filter((resolution) => resolution.state === "change-repertoire")
         .map((resolution) => resolution.resolution_id),
@@ -422,19 +457,21 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
         .map(([semanticId]) => semanticId)
         .sort(compareStrings),
       retained_exception_resolution_ids: currentResolutions
-        .filter((resolution) => [
-          "keep-intentionally", "exclude-from-analysis", "reclassify-cohort",
-        ].includes(resolution.state))
+        .filter((resolution) =>
+          ["keep-intentionally", "exclude-from-analysis", "reclassify-cohort"].includes(
+            resolution.state,
+          ),
+        )
         .map((resolution) => resolution.resolution_id),
       retained_exception_semantic_finding_ids: [...stateBySemanticId.entries()]
-        .filter(([, state]) => [
-          "keep-intentionally", "exclude-from-analysis", "reclassify-cohort",
-        ].includes(state))
+        .filter(([, state]) =>
+          ["keep-intentionally", "exclude-from-analysis", "reclassify-cohort"].includes(state),
+        )
         .map(([semanticId]) => semanticId)
         .sort(compareStrings),
-      training_item_ids: [...new Set(currentResolutions.flatMap((resolution) =>
-        resolution.linked_training_ids
-      ))].sort(compareStrings),
+      training_item_ids: [
+        ...new Set(currentResolutions.flatMap((resolution) => resolution.linked_training_ids)),
+      ].sort(compareStrings),
       deferred_semantic_finding_ids: deferred,
       uncertain_semantic_finding_ids: uncertain,
       remaining_uncertainty_count: new Set([...deferred, ...uncertain]).size,
@@ -460,24 +497,27 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     };
   };
 
-  const reopen = (
-    summaryId: string,
-    semanticFindingId: string,
-  ): StrategicFitReviewActionResult => {
+  const reopen = (summaryId: string, semanticFindingId: string): StrategicFitReviewActionResult => {
     const current = synchronize();
     const summary = current.current_summary;
     const lifecycle = boundary.currentLifecycle().current_result;
     if (summary === null || summary.summary_id !== summaryId || lifecycle === null) {
-      return blocked("strategic_fit_review_summary_stale", "Only the current completed review can be reopened.");
+      return blocked(
+        "strategic_fit_review_summary_stale",
+        "Only the current completed review can be reopened.",
+      );
     }
-    const resolution = summary.resolutions.find((entry) =>
-      entry.semantic_finding_id === semanticFindingId
+    const resolution = summary.resolutions.find(
+      (entry) => entry.semantic_finding_id === semanticFindingId,
     );
-    const finding = completeFindings(lifecycle)?.find((entry) =>
-      entry.semantic_finding_id === semanticFindingId
+    const finding = completeFindings(lifecycle)?.find(
+      (entry) => entry.semantic_finding_id === semanticFindingId,
     );
     if (resolution === undefined || finding === undefined) {
-      return blocked("strategic_fit_review_resolution_missing", "That current review resolution cannot be reopened.");
+      return blocked(
+        "strategic_fit_review_resolution_missing",
+        "That current review resolution cannot be reopened.",
+      );
     }
     const reopened = boundary.reopen({
       report_id: lifecycle.report_id,
@@ -495,9 +535,10 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
       reopened_at: boundary.now(),
       reopened_semantic_finding_id: semanticFindingId,
     };
-    historyByDocument.set(documentId, history.map((entry) =>
-      entry.summary_id === summary.summary_id ? reopenedSummary : entry
-    ));
+    historyByDocument.set(
+      documentId,
+      history.map((entry) => (entry.summary_id === summary.summary_id ? reopenedSummary : entry)),
+    );
     synchronize();
     return {
       state: "reopened",
@@ -512,7 +553,10 @@ export function createStrategicFitReviewState(boundary: StrategicFitReviewBounda
     const documentHistory = historyByDocument.get(boundary.currentDocumentId()) ?? [];
     const summary = documentHistory.find((entry) => entry.summary_id === summaryId);
     if (summary === undefined) {
-      return blocked("strategic_fit_review_summary_missing", "The requested review summary is unavailable.");
+      return blocked(
+        "strategic_fit_review_summary_missing",
+        "The requested review summary is unavailable.",
+      );
     }
     const artifact: StrategicFitReviewExport = {
       artifact_kind: STRATEGIC_FIT_REVIEW_SUMMARY_KIND,
@@ -551,9 +595,7 @@ const browserReview = createStrategicFitReviewState({
 export const strategicFitReview = () => browserReview.snapshot();
 export const synchronizeStrategicFitReview = () => browserReview.synchronize();
 export const completeStrategicFitReview = () => browserReview.complete();
-export const reopenCompletedStrategicFitReview = (
-  summaryId: string,
-  semanticFindingId: string,
-) => browserReview.reopen(summaryId, semanticFindingId);
+export const reopenCompletedStrategicFitReview = (summaryId: string, semanticFindingId: string) =>
+  browserReview.reopen(summaryId, semanticFindingId);
 export const exportStrategicFitReviewSummary = (summaryId: string) =>
   browserReview.exportSummary(summaryId);

@@ -48,7 +48,9 @@ function analyze(pgn: string, revision = "revision:map"): StrategicFitAnalysisRe
 
 test("the map view model plots deterministic explainable points with size, opacity, and labels", () => {
   const report = analyze(BROAD_PGN);
-  const first = buildStrategicMapViewModel(report, { cohortName: (id) => `Cohort ${id.slice(-4)}` });
+  const first = buildStrategicMapViewModel(report, {
+    cohortName: (id) => `Cohort ${id.slice(-4)}`,
+  });
   const second = buildStrategicMapViewModel(analyze(BROAD_PGN), {
     cohortName: (id) => `Cohort ${id.slice(-4)}`,
   });

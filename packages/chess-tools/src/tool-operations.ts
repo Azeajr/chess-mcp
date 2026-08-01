@@ -1,5 +1,12 @@
 import { legalMoves, validateFen } from "./validate.js";
-import { analyzeMainline, findRepertoireGaps, type Analyse, type EngineLine, type GapsOptions, type OperationControl } from "./enginetools.js";
+import {
+  analyzeMainline,
+  findRepertoireGaps,
+  type Analyse,
+  type EngineLine,
+  type GapsOptions,
+  type OperationControl,
+} from "./enginetools.js";
 import type { Color } from "./congruence.js";
 import type { MoveRecord } from "./enginetools.js";
 import { aggregateGames, moveAccuracy, walkGameVsRepertoire, type GameRecord } from "./game.js";
@@ -72,7 +79,12 @@ export function repertoireCoverageResult(tree: GameTree, color: Color, limit: nu
 export function gapScanOperation(
   tree: GameTree,
   color: Color,
-  args: { depth?: number; min_severity?: "low" | "medium" | "high"; max_positions?: number; limit?: number },
+  args: {
+    depth?: number;
+    min_severity?: "low" | "medium" | "high";
+    max_positions?: number;
+    limit?: number;
+  },
   analyse: Analyse,
   popularity?: GapsOptions["popularity"],
   control?: Pick<GapsOptions, "onProgress" | "shouldCancel">,
@@ -95,19 +107,41 @@ export function gapScanOperation(
 export function illustrativeLinesResult(tree: GameTree, color: Color, limit: number) {
   const { lines, illustrativeLeaves } = tree.illustrativeLines();
   const shown = lines.slice(0, limit);
-  return { color, leaves_total: tree.stats().leaves, illustrative_leaves: illustrativeLeaves, lines: shown, truncated: shown.length < lines.length };
+  return {
+    color,
+    leaves_total: tree.stats().leaves,
+    illustrative_leaves: illustrativeLeaves,
+    lines: shown,
+    truncated: shown.length < lines.length,
+  };
 }
 
 export function structuralProfileResult(tree: GameTree, color: Color, variationPath?: string[]) {
   if (variationPath?.length) {
     const pos = tree.positionAtSanPath(variationPath);
-    if (!pos) return { error: "variation_not_found" as const, reason: "path does not match a line in the repertoire" };
+    if (!pos)
+      return {
+        error: "variation_not_found" as const,
+        reason: "path does not match a line in the repertoire",
+      };
     return positionProfile(pos.board, color, makeFen(pos.toSetup()));
   }
-  return { color, ...aggregateProfile(tree.leafPositions().map((pos) => pos.board), color) };
+  return {
+    color,
+    ...aggregateProfile(
+      tree.leafPositions().map((pos) => pos.board),
+      color,
+    ),
+  };
 }
 
-const leanMove = (record: MoveRecord) => ({ ply: record.ply, color: record.color, san: record.san, cp_loss: record.cp_loss, classification: record.classification });
+const leanMove = (record: MoveRecord) => ({
+  ply: record.ply,
+  color: record.color,
+  san: record.san,
+  cp_loss: record.cp_loss,
+  classification: record.classification,
+});
 export function gameAnalysisResult(records: MoveRecord[]) {
   return { total_moves: records.length, moves: records.map(leanMove) };
 }
@@ -124,11 +158,22 @@ export function gameSummaryResult(records: MoveRecord[]) {
       accuracy_pct: moves.length ? Math.round((accuracy / moves.length) * 1000) / 10 : null,
     };
   };
-  return { total_moves: records.length, white: side("white"), black: side("black"), worst_moves: [...records].sort((a, b) => b.cp_loss - a.cp_loss).slice(0, 3).map(leanMove) };
+  return {
+    total_moves: records.length,
+    white: side("white"),
+    black: side("black"),
+    worst_moves: [...records]
+      .sort((a, b) => b.cp_loss - a.cp_loss)
+      .slice(0, 3)
+      .map(leanMove),
+  };
 }
 
 const REVIEW_NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
-export function annotatedGameResult(pgn: string, records: MoveRecord[]): { annotated_pgn: string } | { error: "invalid_pgn"; reason: string } {
+export function annotatedGameResult(
+  pgn: string,
+  records: MoveRecord[],
+): { annotated_pgn: string } | { error: "invalid_pgn"; reason: string } {
   let game;
   try {
     game = parsePgn(pgn)[0];
@@ -159,7 +204,10 @@ export function repertoireHistoryResult(
   let reached = 0;
   let plySum = 0;
   let skipped = 0;
-  const deviations = new Map<string, { ply: number; fen: string; prescribed: string[]; played: string; count: number }>();
+  const deviations = new Map<
+    string,
+    { ply: number; fen: string; prescribed: string[]; played: string; count: number }
+  >();
   const uncovered = new Map<string, { ply: number; fen: string; played: string; count: number }>();
   for (const game of matched) {
     let walk;
@@ -185,7 +233,8 @@ export function repertoireHistoryResult(
     }
   }
   const walked = matched.length - skipped;
-  const byCount = <T extends { count: number }>(items: Map<string, T>) => [...items.values()].sort((a, b) => b.count - a.count);
+  const byCount = <T extends { count: number }>(items: Map<string, T>) =>
+    [...items.values()].sort((a, b) => b.count - a.count);
   return {
     games_total: games.length,
     games_matched_color: matched.length,
@@ -199,16 +248,40 @@ export function repertoireHistoryResult(
 }
 
 /** Shared opponent-preparation report used by both the handle-based MCP host and browser document. */
-export function opponentPrepResult(tree: GameTree, color: Color, username: string, games: readonly GameMeta[], openings: OpeningTable) {
+export function opponentPrepResult(
+  tree: GameTree,
+  color: Color,
+  username: string,
+  games: readonly GameMeta[],
+  openings: OpeningTable,
+) {
   const opponentColor: Color = color === "white" ? "black" : "white";
   const matched = games.filter((game) => game.user_color === opponentColor && game.pgn);
   const moveMap = tree.moveMap();
   const uncovered = new Map<string, { ply: number; fen: string; played: string; count: number }>();
-  const lineMap = new Map<string, { name: string; eco: string | null; games: number; reached: number; wins: number; draws: number; losses: number }>();
-  let reached = 0, plySum = 0, skipped = 0;
+  const lineMap = new Map<
+    string,
+    {
+      name: string;
+      eco: string | null;
+      games: number;
+      reached: number;
+      wins: number;
+      draws: number;
+      losses: number;
+    }
+  >();
+  let reached = 0,
+    plySum = 0,
+    skipped = 0;
   for (const game of matched) {
     let walk;
-    try { walk = walkGameVsRepertoire(moveMap, color, game.pgn!); } catch { skipped++; continue; }
+    try {
+      walk = walkGameVsRepertoire(moveMap, color, game.pgn!);
+    } catch {
+      skipped++;
+      continue;
+    }
     const inPrep = walk.in_book_plies >= 1;
     if (inPrep) reached++;
     plySum += walk.in_book_plies;
@@ -220,7 +293,15 @@ export function opponentPrepResult(tree: GameTree, color: Color, username: strin
     }
     const opening = identifyDeepest(openings, game.pgn!);
     const key = opening?.name ?? "Unclassified";
-    const row = lineMap.get(key) ?? { name: key, eco: opening?.eco ?? null, games: 0, reached: 0, wins: 0, draws: 0, losses: 0 };
+    const row = lineMap.get(key) ?? {
+      name: key,
+      eco: opening?.eco ?? null,
+      games: 0,
+      reached: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+    };
     row.games++;
     if (inPrep) row.reached++;
     if (game.user_result === "win") row.wins++;
@@ -229,11 +310,35 @@ export function opponentPrepResult(tree: GameTree, color: Color, username: strin
     lineMap.set(key, row);
   }
   const walked = matched.length - skipped;
-  const lines = [...lineMap.values()].map((row) => {
-    const decided = row.wins + row.draws + row.losses;
-    return { name: row.name, eco: row.eco, games: row.games, hit_rate: Math.round(row.reached / row.games * 1000) / 10, win_rate: decided ? Math.round(row.wins / decided * 1000) / 10 : null, draw_rate: decided ? Math.round(row.draws / decided * 1000) / 10 : null, loss_rate: decided ? Math.round(row.losses / decided * 1000) / 10 : null };
-  }).sort((a, b) => b.games - a.games).slice(0, 15);
-  return { username, opponent_color: opponentColor, games_total: games.length, games_matched_color: matched.length, games_skipped_fen_setup: skipped, games_reached_prep: reached, coverage_pct: walked ? Math.round(reached / walked * 1000) / 10 : null, avg_in_book_plies: walked ? Math.round(plySum / walked * 10) / 10 : null, uncovered_opponent_moves: [...uncovered.values()].sort((a, b) => b.count - a.count).slice(0, 20), lines };
+  const lines = [...lineMap.values()]
+    .map((row) => {
+      const decided = row.wins + row.draws + row.losses;
+      return {
+        name: row.name,
+        eco: row.eco,
+        games: row.games,
+        hit_rate: Math.round((row.reached / row.games) * 1000) / 10,
+        win_rate: decided ? Math.round((row.wins / decided) * 1000) / 10 : null,
+        draw_rate: decided ? Math.round((row.draws / decided) * 1000) / 10 : null,
+        loss_rate: decided ? Math.round((row.losses / decided) * 1000) / 10 : null,
+      };
+    })
+    .sort((a, b) => b.games - a.games)
+    .slice(0, 15);
+  return {
+    username,
+    opponent_color: opponentColor,
+    games_total: games.length,
+    games_matched_color: matched.length,
+    games_skipped_fen_setup: skipped,
+    games_reached_prep: reached,
+    coverage_pct: walked ? Math.round((reached / walked) * 1000) / 10 : null,
+    avg_in_book_plies: walked ? Math.round((plySum / walked) * 10) / 10 : null,
+    uncovered_opponent_moves: [...uncovered.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20),
+    lines,
+  };
 }
 
 export async function batchReviewOperation(
@@ -243,12 +348,16 @@ export async function batchReviewOperation(
   analyse: Analyse,
   control: OperationControl = {},
 ) {
-  if (options.groupBy === "color" && !options.username) return { error: "missing_username" as const, reason: "color grouping requires username" };
+  if (options.groupBy === "color" && !options.username)
+    return { error: "missing_username" as const, reason: "color grouping requires username" };
   let games;
   try {
     games = parsePgn(pgn);
   } catch (error) {
-    return { error: "invalid_pgn" as const, reason: error instanceof Error ? error.message : String(error) };
+    return {
+      error: "invalid_pgn" as const,
+      reason: error instanceof Error ? error.message : String(error),
+    };
   }
   if (!games.length) return { error: "invalid_pgn" as const, reason: "no games" };
   games = games.slice(0, options.maxGames);
@@ -275,11 +384,15 @@ export async function batchReviewOperation(
     }
     if (moves === null) return { error: "engine_unavailable" as const };
     const relevant = userColor ? moves.filter((move) => move.color === userColor) : moves;
-    const avgCpl = relevant.length ? relevant.reduce((sum, move) => sum + move.cp_loss, 0) / relevant.length : 0;
-    const blunders = relevant.filter((move) => move.classification !== "good").map((move) => ({ move: move.san, classification: move.classification }));
+    const avgCpl = relevant.length
+      ? relevant.reduce((sum, move) => sum + move.cp_loss, 0) / relevant.length
+      : 0;
+    const blunders = relevant
+      .filter((move) => move.classification !== "good")
+      .map((move) => ({ move: move.san, classification: move.classification }));
     const opening = options.groupBy === "eco" ? identifyDeepest(openings, gamePgn) : null;
-    const groupKey = options.groupBy === "color" ? userColor! : opening?.eco ?? "unknown";
-    const groupName = options.groupBy === "color" ? userColor! : opening?.name ?? "Unknown";
+    const groupKey = options.groupBy === "color" ? userColor! : (opening?.eco ?? "unknown");
+    const groupName = options.groupBy === "color" ? userColor! : (opening?.name ?? "Unknown");
     let result: GameRecord["result"] = null;
     if (options.username) {
       const header = game.headers.get("Result") ?? "*";
@@ -287,8 +400,17 @@ export async function batchReviewOperation(
       else if (header === "1-0") result = userColor === "white" ? "win" : "loss";
       else if (header === "0-1") result = userColor === "black" ? "win" : "loss";
     }
-    records.push({ result, group_key: groupKey, group_name: groupName, avg_cpl: Math.round(avgCpl * 10) / 10, blunders });
+    records.push({
+      result,
+      group_key: groupKey,
+      group_name: groupName,
+      avg_cpl: Math.round(avgCpl * 10) / 10,
+      blunders,
+    });
     control.onProgress?.(records.length, games.length);
   }
-  return { ...aggregateGames(records, !!options.username), games_skipped_fen_setup: skippedFenSetup };
+  return {
+    ...aggregateGames(records, !!options.username),
+    games_skipped_fen_setup: skippedFenSetup,
+  };
 }

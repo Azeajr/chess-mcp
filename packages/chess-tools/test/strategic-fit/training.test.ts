@@ -18,10 +18,7 @@ const DOCUMENT_ID = "document:training-performance";
 const NOW = "2026-07-22T16:00:00.000Z";
 
 function fixture() {
-  const graph = buildRepertoireGraph(
-    GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *"),
-    "white",
-  );
+  const graph = buildRepertoireGraph(GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *"), "white");
   const decision = graph.decisions.find((entry) => entry.san === "e4")!;
   let data = createStrategicFitTrainingPerformanceData(DOCUMENT_ID);
   data = upsertStrategicFitTrainingTarget(data, {
@@ -152,10 +149,7 @@ test("stale semantic targets retain history and provenance but leave metric evid
     recalled: true,
     response_time_ms: 3_000,
   });
-  const changedGraph = buildRepertoireGraph(
-    GameTree.fromPgn("1. d4 d5 2. c4 e6 *"),
-    "white",
-  );
+  const changedGraph = buildRepertoireGraph(GameTree.fromPgn("1. d4 d5 2. c4 e6 *"), "white");
   const report = deriveStrategicFitTrainingMastery(data, changedGraph, NOW);
 
   assert.deepEqual(report.stale_target_ids, [subject.target.target_id]);
@@ -179,7 +173,10 @@ test("training performance exports and imports a strict versioned UTC-stable env
   const parsed = parseStrategicFitTrainingPerformance(serialized);
   assert.ok("ok" in parsed);
   if (!("ok" in parsed)) return;
-  assert.equal(parsed.data.training_performance_version, STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION);
+  assert.equal(
+    parsed.data.training_performance_version,
+    STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
+  );
   assert.equal(parsed.data.targets[0]?.created_at, "2026-07-20T16:00:00.000Z");
   assert.equal(parsed.data.attempts[0]?.attempted_at, "2026-07-22T16:00:00.000Z");
   assert.equal(parsed.data.attempts[0]?.scheduled_at, "2026-07-22T15:30:00.000Z");

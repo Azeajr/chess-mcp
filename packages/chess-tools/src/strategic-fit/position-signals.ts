@@ -12,12 +12,14 @@ import type { Color, Role } from "chessops/types";
 import { makeSquare, parseSquare, squareFile, squareRank } from "chessops/util";
 
 import { halfOpenFiles, openFiles } from "../structure.js";
-import type { JsonValue, SignalPersistenceState, StrategicFitSourceProvenance, StrategicSignal } from "./types.js";
+import type {
+  JsonValue,
+  SignalPersistenceState,
+  StrategicFitSourceProvenance,
+  StrategicSignal,
+} from "./types.js";
 import type { RepertoireGraph, RepertoireGraphRoute } from "./graph.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export type StrategicFitRelativeSide = "repertoire" | "opponent";
 export type StrategicFitBoardWing = "queenside" | "kingside";
@@ -158,9 +160,10 @@ function signal(
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     signal_id: `position-signal:${stableHash(identity)}`,
-    family: featureId.startsWith("space.") || featureId.startsWith("files.")
-      ? "space-and-files"
-      : "king-and-piece-setup",
+    family:
+      featureId.startsWith("space.") || featureId.startsWith("files.")
+        ? "space-and-files"
+        : "king-and-piece-setup",
     feature_id: featureId,
     kind: "observation",
     value,
@@ -170,7 +173,10 @@ function signal(
   };
 }
 
-function requireRoute(graph: RepertoireGraph, routeOrId: RepertoireGraphRoute | string): RepertoireGraphRoute {
+function requireRoute(
+  graph: RepertoireGraph,
+  routeOrId: RepertoireGraphRoute | string,
+): RepertoireGraphRoute {
   const routeId = typeof routeOrId === "string" ? routeOrId : routeOrId.route_id;
   const route = graph.routes.find((candidate) => candidate.route_id === routeId);
   if (!route) throw new Error(`strategic_fit_position_signals_unknown_route: ${routeId}`);
@@ -192,12 +198,16 @@ function boardsForRoute(graph: RepertoireGraph, route: RepertoireGraphRoute): Bo
   return route.position_ids.map((positionId) => {
     const position = positions.get(positionId);
     if (!position) {
-      throw new Error(`strategic_fit_position_signals_missing_position: ${route.route_id} ${positionId}`);
+      throw new Error(
+        `strategic_fit_position_signals_missing_position: ${route.route_id} ${positionId}`,
+      );
     }
     try {
       return parseFen(position.fen).unwrap().board;
     } catch {
-      throw new Error(`strategic_fit_position_signals_invalid_fen: ${route.route_id} ${positionId}`);
+      throw new Error(
+        `strategic_fit_position_signals_invalid_fen: ${route.route_id} ${positionId}`,
+      );
     }
   });
 }
@@ -223,7 +233,11 @@ function fianchettoWing(color: Color, square: number): StrategicFitBoardWing | n
   return null;
 }
 
-function observeFianchettos(board: Board, ply: number, state: Record<Color, HistoricalSideState>): void {
+function observeFianchettos(
+  board: Board,
+  ply: number,
+  state: Record<Color, HistoricalSideState>,
+): void {
   for (const color of ["white", "black"] as const) {
     for (const square of board.pieces(color, "bishop")) {
       const wing = fianchettoWing(color, square);
@@ -247,7 +261,12 @@ function observeCastling(
   const destination = before.get(to);
   // chessops represents standard castling in UCI_Chess960 form (king to the friendly rook square).
   const rookTarget = destination?.color === mover?.color && destination?.role === "rook";
-  if (!mover || mover.role !== "king" || (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2)) return;
+  if (
+    !mover ||
+    mover.role !== "king" ||
+    (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2)
+  )
+    return;
   if (!state[mover.color].castling) {
     state[mover.color].castling = {
       side: squareFile(to) < squareFile(from) ? "queenside" : "kingside",
@@ -375,10 +394,11 @@ function recurringPlacementValue(placements: ReadonlyMap<string, PlacementObserv
   return {
     placements: [...placements.values()]
       .filter((placement) => placement.plies.length >= 2)
-      .sort((left, right) =>
-        left.side.localeCompare(right.side) ||
-        left.role.localeCompare(right.role) ||
-        left.square.localeCompare(right.square)
+      .sort(
+        (left, right) =>
+          left.side.localeCompare(right.side) ||
+          left.role.localeCompare(right.role) ||
+          left.square.localeCompare(right.square),
       )
       .map((placement) => ({
         side: placement.side,
@@ -394,11 +414,12 @@ function recurringPlacementValue(placements: ReadonlyMap<string, PlacementObserv
 function exchangeValue(exchanges: ReadonlyMap<string, ExchangeObservation>): JsonValue {
   return {
     exchanges: [...exchanges.values()]
-      .sort((left, right) =>
-        left.firstPly - right.firstPly ||
-        left.capturingSide.localeCompare(right.capturingSide) ||
-        left.capturingRole.localeCompare(right.capturingRole) ||
-        left.capturedRole.localeCompare(right.capturedRole)
+      .sort(
+        (left, right) =>
+          left.firstPly - right.firstPly ||
+          left.capturingSide.localeCompare(right.capturingSide) ||
+          left.capturingRole.localeCompare(right.capturingRole) ||
+          left.capturedRole.localeCompare(right.capturedRole),
       )
       .map((exchange) => ({
         capturing_side: exchange.capturingSide,
@@ -414,7 +435,7 @@ function exchangeValue(exchanges: ReadonlyMap<string, ExchangeObservation>): Jso
 
 function advancedPawnSquares(board: Board, color: Color): string[] {
   return [...board.pieces(color, "pawn")]
-    .filter((square) => color === "white" ? squareRank(square) >= 3 : squareRank(square) <= 4)
+    .filter((square) => (color === "white" ? squareRank(square) >= 3 : squareRank(square) <= 4))
     .map(makeSquare)
     .sort();
 }
@@ -480,7 +501,9 @@ function observationSignals(
 ): StrategicSignal[] {
   const color = route.repertoire_color;
   const castling = relativePair(color, (sideColorValue) => sideHistoryValue(state[sideColorValue]));
-  const fianchetto = relativePair(color, (sideColorValue) => fianchettoHistoryValue(state[sideColorValue]));
+  const fianchetto = relativePair(color, (sideColorValue) =>
+    fianchettoHistoryValue(state[sideColorValue]),
+  );
   const bishopPair = relativePair(color, (sideColorValue) => ({
     bishop_count: board.pieces(sideColorValue, "bishop").size(),
     has_pair: board.pieces(sideColorValue, "bishop").size() >= 2,
@@ -490,8 +513,11 @@ function observationSignals(
     status: board.pieces(sideColorValue, "queen").isEmpty() ? "exchanged" : "retained",
     first_lost_ply: state[sideColorValue].queenLostAtPly,
   }));
-  const bothQueensGone = board.pieces("white", "queen").isEmpty() && board.pieces("black", "queen").isEmpty();
-  const colorComplex = relativePair(color, (sideColorValue) => colorComplexFor(board, sideColorValue));
+  const bothQueensGone =
+    board.pieces("white", "queen").isEmpty() && board.pieces("black", "queen").isEmpty();
+  const colorComplex = relativePair(color, (sideColorValue) =>
+    colorComplexFor(board, sideColorValue),
+  );
   const repertoireComplex = colorComplex.repertoire as { imbalance: number };
   const opponentComplex = colorComplex.opponent as { imbalance: number };
   const colorComplexConfidence = round(
@@ -502,10 +528,37 @@ function observationSignals(
     // Task 1.7 owns trajectory-level stability. Route history is retained here, but these raw
     // observations remain unknown until matched checkpoints apply the frozen persistence rules.
     signal(route, positionId, ply, "king.castling-history", castling, 1, "unknown", provenance),
-    signal(route, positionId, ply, "piece.fianchetto-history", fianchetto, 0.95, "unknown", provenance),
+    signal(
+      route,
+      positionId,
+      ply,
+      "piece.fianchetto-history",
+      fianchetto,
+      0.95,
+      "unknown",
+      provenance,
+    ),
     signal(route, positionId, ply, "piece.bishop-pair", bishopPair, 1, "unknown", provenance),
-    signal(route, positionId, ply, "piece.recurring-placements", recurringPlacementValue(placements), 0.9, "unknown", provenance),
-    signal(route, positionId, ply, "piece.exchange-history", exchangeValue(exchanges), 1, "unknown", provenance),
+    signal(
+      route,
+      positionId,
+      ply,
+      "piece.recurring-placements",
+      recurringPlacementValue(placements),
+      0.9,
+      "unknown",
+      provenance,
+    ),
+    signal(
+      route,
+      positionId,
+      ply,
+      "piece.exchange-history",
+      exchangeValue(exchanges),
+      1,
+      "unknown",
+      provenance,
+    ),
     signal(
       route,
       positionId,
@@ -516,8 +569,26 @@ function observationSignals(
       "unknown",
       provenance,
     ),
-    signal(route, positionId, ply, "space.pawn-advancement", spaceValue(board, color), 0.8, "unknown", provenance),
-    signal(route, positionId, ply, "files.open-and-half-open", filesValue(board, color), 1, "unknown", provenance),
+    signal(
+      route,
+      positionId,
+      ply,
+      "space.pawn-advancement",
+      spaceValue(board, color),
+      0.8,
+      "unknown",
+      provenance,
+    ),
+    signal(
+      route,
+      positionId,
+      ply,
+      "files.open-and-half-open",
+      filesValue(board, color),
+      1,
+      "unknown",
+      provenance,
+    ),
     signal(
       route,
       positionId,
@@ -582,7 +653,16 @@ export function extractRoutePositionSignals(
       route_id: route.route_id,
       position_id: positionId,
       ply,
-      signals: observationSignals(route, board, positionId, ply, state, placements, exchanges, provenance),
+      signals: observationSignals(
+        route,
+        board,
+        positionId,
+        ply,
+        state,
+        placements,
+        exchanges,
+        provenance,
+      ),
       provenance,
     });
   }

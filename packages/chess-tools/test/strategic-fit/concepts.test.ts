@@ -58,11 +58,13 @@ test("stable trajectory evidence has a deterministic concept extraction snapshot
     ],
   );
   assert.ok(result.routes[0]!.concepts.every((concept) => concept.evidence.length > 0));
-  assert.ok(result.routes[0]!.concepts.every((concept) =>
-    concept.evidence.every((evidence) =>
-      evidence.persistence === "stable" || evidence.persistence === "irreversible"
-    )
-  ));
+  assert.ok(
+    result.routes[0]!.concepts.every((concept) =>
+      concept.evidence.every(
+        (evidence) => evidence.persistence === "stable" || evidence.persistence === "irreversible",
+      ),
+    ),
+  );
 });
 
 test("observed plans use conservative deterministic prerequisites", () => {
@@ -71,16 +73,13 @@ test("observed plans use conservative deterministic prerequisites", () => {
     [3, 5, 7, 9, 11],
   );
   assert.deepEqual(
-    expansion.routes[0]!.concepts
-      .filter((concept) => concept.category === "plan")
-      .map((concept) => concept.concept_id),
+    expansion.routes[0]!.concepts.filter((concept) => concept.category === "plan").map(
+      (concept) => concept.concept_id,
+    ),
     ["plan.pawn-expansion.repertoire.queenside"],
   );
 
-  const ordinaryDevelopment = dictionary(
-    "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 *",
-    [5, 7],
-  );
+  const ordinaryDevelopment = dictionary("1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 *", [5, 7]);
   assert.deepEqual(
     ordinaryDevelopment.routes[0]!.concepts.filter((concept) => concept.category === "plan"),
     [],
@@ -93,9 +92,11 @@ test("transient and unsupported evidence does not invent concepts", () => {
 
   assert.equal(result.routes[0]!.concepts.length, 0);
   assert.equal(result.labels.length, 0);
-  assert.ok(result.routes[0]!.provenance.some((source) =>
-    source.source_id === "strategic-fit:concept-classifier"
-  ));
+  assert.ok(
+    result.routes[0]!.provenance.some(
+      (source) => source.source_id === "strategic-fit:concept-classifier",
+    ),
+  );
 });
 
 test("concept IDs are stable, unique, and independent from display labels", () => {
@@ -105,7 +106,10 @@ test("concept IDs are stable, unique, and independent from display labels", () =
 
   assert.deepEqual(first, second);
   assert.equal(new Set(ids).size, ids.length);
-  assert.deepEqual(first.labels.map((label) => label.concept_id), ids);
+  assert.deepEqual(
+    first.labels.map((label) => label.concept_id),
+    ids,
+  );
   assert.ok(first.routes[0]!.concepts.every((concept) => !("label" in concept)));
   assert.deepEqual(STRATEGIC_CONCEPT_CATEGORIES, [
     "pawn-break",
@@ -148,8 +152,8 @@ test("labels and classifier provenance serialize separately with explicit versio
   );
   const conceptId = "tactical-prerequisite.opposite-side-castling";
   const label = result.labels.find((candidate) => candidate.concept_id === conceptId);
-  const classifier = result.provenance.find((source) =>
-    source.source_id === "strategic-fit:concept-classifier"
+  const classifier = result.provenance.find(
+    (source) => source.source_id === "strategic-fit:concept-classifier",
   );
   assert.ok(result.routes[0]!.concepts.some((concept) => concept.concept_id === conceptId));
   assert.equal(

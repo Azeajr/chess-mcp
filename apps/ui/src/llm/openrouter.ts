@@ -122,7 +122,8 @@ export async function streamChat(opts: {
             : String(json.error);
         throw new Error(`OpenRouter stream error: ${String(msg).slice(0, 300)}`);
       }
-      if (json.usage && typeof json.usage === "object" && !Array.isArray(json.usage)) usage = json.usage;
+      if (json.usage && typeof json.usage === "object" && !Array.isArray(json.usage))
+        usage = json.usage;
       const choice = json.choices?.[0];
       const finish = choice?.finish_reason;
       if (typeof finish === "string" && finish !== "stop" && finish !== "tool_calls") {
@@ -136,8 +137,11 @@ export async function streamChat(opts: {
       }
       for (const tc of delta.tool_calls ?? []) {
         const idx = tc.index ?? 0;
-        const existing =
-          toolByIndex.get(idx) ?? { id: "", type: "function", function: { name: "", arguments: "" } };
+        const existing = toolByIndex.get(idx) ?? {
+          id: "",
+          type: "function",
+          function: { name: "", arguments: "" },
+        };
         if (tc.id) existing.id = tc.id;
         if (tc.function?.name) existing.function.name = tc.function.name;
         if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
@@ -148,5 +152,11 @@ export async function streamChat(opts: {
 
   const toolCalls = [...toolByIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
   const generationId = res.headers.get("X-Generation-Id") ?? undefined;
-  return { content, toolCalls, abnormalFinish, ...(usage ? { usage } : {}), ...(generationId ? { generationId } : {}) };
+  return {
+    content,
+    toolCalls,
+    abnormalFinish,
+    ...(usage ? { usage } : {}),
+    ...(generationId ? { generationId } : {}),
+  };
 }

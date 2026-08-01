@@ -82,7 +82,8 @@ function popularityFor(
   graph: ReturnType<typeof contextFixture>["graph"],
   state: StrategicPopularityCollection["state"] = "complete",
 ): StrategicPopularityCollection {
-  const decisionWeights = graph.decisions.filter((decision) => decision.owner === "opponent")
+  const decisionWeights = graph.decisions
+    .filter((decision) => decision.owner === "opponent")
     .map((decision, index) => ({
       decision_id: decision.decision_id,
       weight: index + 1,
@@ -91,8 +92,11 @@ function popularityFor(
   return {
     state,
     filters: normalizeExplorerFilters({ movesLimit: 30 }),
-    relevant_positions: new Set(graph.decisions.filter((decision) => decision.owner === "opponent")
-      .map((decision) => decision.from_position_id)).size,
+    relevant_positions: new Set(
+      graph.decisions
+        .filter((decision) => decision.owner === "opponent")
+        .map((decision) => decision.from_position_id),
+    ).size,
     positions_queried: state === "complete" ? decisionWeights.length : 1,
     positions_weighted: state === "complete" ? decisionWeights.length : 1,
     positions_skipped: state === "complete" ? 0 : Math.max(0, decisionWeights.length - 1),
@@ -103,12 +107,15 @@ function popularityFor(
       decision_weights: decisionWeights,
       provenance: [safetySource],
     },
-    provenance: [{
-      ...safetySource,
-      kind: "opening-explorer",
-      state: state === "complete" ? "available" : state === "unavailable" ? "unavailable" : "partial",
-      reason: state === "complete" ? null : "Fixture popularity evidence is partial.",
-    }],
+    provenance: [
+      {
+        ...safetySource,
+        kind: "opening-explorer",
+        state:
+          state === "complete" ? "available" : state === "unavailable" ? "unavailable" : "partial",
+        reason: state === "complete" ? null : "Fixture popularity evidence is partial.",
+      },
+    ],
   };
 }
 
@@ -122,12 +129,9 @@ function scoringFixture(
 ) {
   const values = completeFixture();
   const expansions = candidates ?? values.candidates;
-  const first = scoreReplacementCandidates(input(
-    values.fixture,
-    expansions,
-    null,
-    options.expansionStatus ?? "complete",
-  ));
+  const first = scoreReplacementCandidates(
+    input(values.fixture, expansions, null, options.expansionStatus ?? "complete"),
+  );
   const training = allCandidateConceptMastery(first);
   const baseInput = input(
     values.fixture,
@@ -170,8 +174,8 @@ function expandedNovelLine(
   const sans = ["Be7", "O-O", "Nf6", "d3", "O-O", "Nc3", "d6", "Re1", "a6"];
   let chess = Chess.fromSetup(parseFen(outcome.fen).unwrap()).unwrap();
   let fromNodeId = outcome.node_id;
-  const nodes: Array<typeof subtree.nodes[number]> = [];
-  const edges: Array<typeof subtree.edges[number]> = [];
+  const nodes: Array<(typeof subtree.nodes)[number]> = [];
+  const edges: Array<(typeof subtree.edges)[number]> = [];
   const nodeIds = [root.node_id, outcome.node_id];
   const edgeIds = [subtree.edges[0]!.edge_id];
   const opponentEdgeIds: string[] = [];
@@ -187,7 +191,8 @@ function expandedNovelLine(
     const positionId = semanticPositionId(fen);
     const nodeId = `node:${complete.candidate_id}:novel:${index}`;
     const edgeId = `edge:${complete.candidate_id}:novel:${index}`;
-    const owner = mover === complete.seed.repertoire_color ? "repertoire" as const : "opponent" as const;
+    const owner =
+      mover === complete.seed.repertoire_color ? ("repertoire" as const) : ("opponent" as const);
     const decisionId = `decision:${stableHash([fromPositionId, uci, positionId].join("\u001f"))}`;
     edges.push({
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -208,8 +213,12 @@ function expandedNovelLine(
     nodes.push({
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       node_id: nodeId,
-      kind: index === sans.length - 1 ? "terminal" : owner === "opponent"
-        ? "opponent-reply" : "repertoire-decision",
+      kind:
+        index === sans.length - 1
+          ? "terminal"
+          : owner === "opponent"
+            ? "opponent-reply"
+            : "repertoire-decision",
       position_id: positionId,
       fen,
       ply: outcome.ply + index + 1,
@@ -228,22 +237,28 @@ function expandedNovelLine(
     subtree: {
       ...subtree,
       subtree_id: `${subtree.subtree_id}:novel`,
-      nodes: [root, {
-        ...outcome,
-        kind: "repertoire-decision",
-        outgoing_edge_ids: [edges[0]!.edge_id],
-        transposition_target_position_id: null,
-      }, ...nodes] as typeof subtree.nodes,
+      nodes: [
+        root,
+        {
+          ...outcome,
+          kind: "repertoire-decision",
+          outgoing_edge_ids: [edges[0]!.edge_id],
+          transposition_target_position_id: null,
+        },
+        ...nodes,
+      ] as typeof subtree.nodes,
       edges: [subtree.edges[0]!, ...edges] as typeof subtree.edges,
-      routes: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        route_id: `route:${complete.candidate_id}:novel`,
-        node_ids: nodeIds,
-        edge_ids: edgeIds,
-        terminal_node_id: nodeIds.at(-1)!,
-        termination: "strategic-horizon",
-        expected_opponent_frequency: 1,
-      }],
+      routes: [
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          route_id: `route:${complete.candidate_id}:novel`,
+          node_ids: nodeIds,
+          edge_ids: edgeIds,
+          terminal_node_id: nodeIds.at(-1)!,
+          termination: "strategic-horizon",
+          expected_opponent_frequency: 1,
+        },
+      ],
       important_reply_count: opponentEdgeIds.length,
       covered_important_reply_count: opponentEdgeIds.length,
       forcing_reply_count: 1,
@@ -257,7 +272,10 @@ function expandedNovelLine(
   };
 }
 
-function safetyInput(values: ReturnType<typeof scoringFixture>, actions?: Parameters<typeof simulateReplacementSafety>[0]["candidate_actions"]) {
+function safetyInput(
+  values: ReturnType<typeof scoringFixture>,
+  actions?: Parameters<typeof simulateReplacementSafety>[0]["candidate_actions"],
+) {
   return {
     source_tree: values.tree,
     request: values.fixture.request,
@@ -276,9 +294,17 @@ test("safe add-only alternative uses exact label and clone-only simulation", () 
   assert.ok(result.candidates.length > 0);
   assert.ok(result.candidates.every((candidate) => candidate.action === "add-alternative"));
   assert.ok(result.candidates.every((candidate) => candidate.action_label === "Add alternative"));
-  assert.ok(result.candidates.every((candidate) => candidate.status !== "blocked" && candidate.status !== "unavailable"));
-  assert.ok(result.candidates.every((candidate) =>
-    candidate.safety_checks.find((check) => check.kind === "coverage")?.status === "passed"));
+  assert.ok(
+    result.candidates.every(
+      (candidate) => candidate.status !== "blocked" && candidate.status !== "unavailable",
+    ),
+  );
+  assert.ok(
+    result.candidates.every(
+      (candidate) =>
+        candidate.safety_checks.find((check) => check.kind === "coverage")?.status === "passed",
+    ),
+  );
   assert.equal(values.tree.toPgn(), treeBefore);
   assert.equal(result.source_tree_unchanged, true);
 });
@@ -303,19 +329,30 @@ test("safe replacement simulates explicit pruning without exposing an applied tr
     source_tree: GameTree.fromPgn(shortRuy),
     request: fixture.request,
     scoring,
-    candidate_actions: [{
-    candidate_id: candidateId,
-    action: "replace",
-    prune_explicitly_confirmed: true,
-    }],
+    candidate_actions: [
+      {
+        candidate_id: candidateId,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ],
   });
   const simulated = result.candidates.find((item) => item.candidate_id === candidateId)!;
-  assert.notEqual(simulated.status, "blocked",
+  assert.notEqual(
+    simulated.status,
+    "blocked",
     `${simulated.error_code}:${simulated.coverage_effects.newly_uncovered_replies
-      .map((reply) => `${reply.san}@${reply.source_san_paths.map((path) => path.join(" ")).join("|")}`)
-      .slice(0, 5).join(",")}`);
+      .map(
+        (reply) => `${reply.san}@${reply.source_san_paths.map((path) => path.join(" ")).join("|")}`,
+      )
+      .slice(0, 5)
+      .join(",")}`,
+  );
   assert.notEqual(simulated.status, "unavailable");
-  assert.equal(simulated.safety_checks.find((check) => check.kind === "coverage")!.status, "passed");
+  assert.equal(
+    simulated.safety_checks.find((check) => check.kind === "coverage")!.status,
+    "passed",
+  );
   assert.equal(simulated.coverage_effects.newly_uncovered_replies.length, 0);
   assert.equal(Object.hasOwn(simulated, "operations"), false);
   assert.equal(Object.hasOwn(simulated, "result"), false);
@@ -326,30 +363,48 @@ test("pruning coverage regression is blocked with exact newly uncovered replies"
   const popularity = popularityFor(initial.fixture.graph);
   const values = scoringFixture(undefined, { popularity });
   const candidateId = "candidate:familiar";
-  const result = simulateReplacementSafety(safetyInput(values, [{
-    candidate_id: candidateId,
-    action: "replace",
-    prune_explicitly_confirmed: true,
-  }]));
+  const result = simulateReplacementSafety(
+    safetyInput(values, [
+      {
+        candidate_id: candidateId,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ]),
+  );
   const candidate = result.candidates.find((item) => item.candidate_id === candidateId)!;
   assert.equal(candidate.status, "blocked");
   assert.equal(candidate.error_code, "required-reply-uncovered");
   assert.ok(candidate.coverage_effects.newly_uncovered_replies.length > 0);
-  assert.ok(candidate.coverage_effects.newly_uncovered_replies.every((reply) =>
-    reply.state === "available" && reply.provenance.length > 0 && reply.reason.length > 0));
-  assert.equal(candidate.safety_checks.find((check) => check.kind === "gap-scan")!.status, "blocked");
-  assert.equal(candidate.coverage_effects.required_reply_count_after,
-    candidate.coverage_effects.required_reply_count_before - candidate.coverage_effects.newly_uncovered_replies.length);
+  assert.ok(
+    candidate.coverage_effects.newly_uncovered_replies.every(
+      (reply) =>
+        reply.state === "available" && reply.provenance.length > 0 && reply.reason.length > 0,
+    ),
+  );
+  assert.equal(
+    candidate.safety_checks.find((check) => check.kind === "gap-scan")!.status,
+    "blocked",
+  );
+  assert.equal(
+    candidate.coverage_effects.required_reply_count_after,
+    candidate.coverage_effects.required_reply_count_before -
+      candidate.coverage_effects.newly_uncovered_replies.length,
+  );
 });
 
 test("opponent replies without popularity rows remain required and cannot be pruned silently", () => {
   const values = scoringFixture();
   const candidateId = "candidate:familiar";
-  const result = simulateReplacementSafety(safetyInput(values, [{
-    candidate_id: candidateId,
-    action: "replace",
-    prune_explicitly_confirmed: true,
-  }]));
+  const result = simulateReplacementSafety(
+    safetyInput(values, [
+      {
+        candidate_id: candidateId,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ]),
+  );
   const candidate = result.candidates.find((item) => item.candidate_id === candidateId)!;
   assert.equal(candidate.status, "blocked");
   assert.equal(candidate.error_code, "required-reply-uncovered");
@@ -364,22 +419,32 @@ test("novel complete subtree reports exact newly covered replies and weighted de
   const candidate = result.candidates[0]!;
   assert.equal(candidate.coverage_effects.newly_uncovered_replies.length, 0);
   assert.equal(candidate.coverage_effects.newly_covered_replies.length, 5);
-  assert.equal(candidate.coverage_effects.required_reply_count_after,
-    candidate.coverage_effects.required_reply_count_before + 5);
+  assert.equal(
+    candidate.coverage_effects.required_reply_count_after,
+    candidate.coverage_effects.required_reply_count_before + 5,
+  );
   assert.ok(candidate.coverage_effects.required_reply_count_before > 0);
   assert.ok(candidate.coverage_effects.popularity_weighted_before! > 0);
   assert.ok(candidate.coverage_effects.popularity_weighted_before! < 1);
   assert.equal(candidate.coverage_effects.popularity_weighted_after, 1);
-  assert.equal(candidate.coverage_effects.popularity_weighted_delta,
-    Math.round((1 - candidate.coverage_effects.popularity_weighted_before!) * 1_000_000) / 1_000_000);
-  assert.equal(candidate.coverage_effects.newly_covered_replies.some((reply) => reply.forcing), true);
+  assert.equal(
+    candidate.coverage_effects.popularity_weighted_delta,
+    Math.round((1 - candidate.coverage_effects.popularity_weighted_before!) * 1_000_000) /
+      1_000_000,
+  );
+  assert.equal(
+    candidate.coverage_effects.newly_covered_replies.some((reply) => reply.forcing),
+    true,
+  );
 });
 
 test("forcing reply evidence cannot disappear silently", () => {
   const base = completeFixture();
-  const oldReply = base.fixture.graph.decisions.find((decision) =>
-    decision.owner === "opponent" && decision.route_ids.includes(base.fixture.pivotRoute.route_id) &&
-    decision.plies.some((ply) => ply > base.fixture.pivot.ply)
+  const oldReply = base.fixture.graph.decisions.find(
+    (decision) =>
+      decision.owner === "opponent" &&
+      decision.route_ids.includes(base.fixture.pivotRoute.route_id) &&
+      decision.plies.some((ply) => ply > base.fixture.pivot.ply),
   )!;
   const omission: ReplacementExpansionOmission = {
     ...version,
@@ -397,11 +462,15 @@ test("forcing reply evidence cannot disappear silently", () => {
   };
   const candidate = { ...base.candidates[0]!, omissions: [omission] };
   const values = scoringFixture([candidate]);
-  const result = simulateReplacementSafety(safetyInput(values, [{
-    candidate_id: candidate.candidate_id,
-    action: "replace",
-    prune_explicitly_confirmed: true,
-  }]));
+  const result = simulateReplacementSafety(
+    safetyInput(values, [
+      {
+        candidate_id: candidate.candidate_id,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ]),
+  );
   const uncovered = result.candidates[0]!.coverage_effects.newly_uncovered_replies;
   assert.equal(result.candidates[0]!.status, "blocked");
   assert.ok(uncovered.some((reply) => reply.decision_id === oldReply.decision_id && reply.forcing));
@@ -410,12 +479,19 @@ test("forcing reply evidence cannot disappear silently", () => {
 test("duplicates, canonical transpositions, and false gaps remain separate", () => {
   const values = scoringFixture();
   const result = simulateReplacementSafety(safetyInput(values));
-  const familiar = result.candidates.find((candidate) => candidate.candidate_id === "candidate:familiar")!;
+  const familiar = result.candidates.find(
+    (candidate) => candidate.candidate_id === "candidate:familiar",
+  )!;
   assert.ok(familiar.coverage_effects.duplicate_branch_ids.length > 0);
   assert.equal(familiar.coverage_effects.newly_uncovered_replies.length, 0);
-  assert.equal(new Set(familiar.coverage_effects.new_transposition_position_ids).size,
-    familiar.coverage_effects.new_transposition_position_ids.length);
-  assert.equal(familiar.safety_checks.find((check) => check.kind === "duplicates")!.status, "warning");
+  assert.equal(
+    new Set(familiar.coverage_effects.new_transposition_position_ids).size,
+    familiar.coverage_effects.new_transposition_position_ids.length,
+  );
+  assert.equal(
+    familiar.safety_checks.find((check) => check.kind === "duplicates")!.status,
+    "warning",
+  );
 });
 
 test("navigation paths and transposition aliases do not multiply coverage", () => {
@@ -427,30 +503,37 @@ test("navigation paths and transposition aliases do not multiply coverage", () =
       nodes: base.candidates[0]!.subtree.nodes.map((node) => ({
         ...node,
         source_san_paths: [...node.source_san_paths, ...node.source_san_paths].reverse(),
-      })) as typeof base.candidates[0]["subtree"]["nodes"],
+      })) as (typeof base.candidates)[0]["subtree"]["nodes"],
       edges: base.candidates[0]!.subtree.edges.map((edge) => ({
         ...edge,
         source_san_paths: [...edge.source_san_paths, ...edge.source_san_paths].reverse(),
-      })) as typeof base.candidates[0]["subtree"]["edges"],
+      })) as (typeof base.candidates)[0]["subtree"]["edges"],
     },
   };
   const values = scoringFixture([duplicated]);
   const candidate = simulateReplacementSafety(safetyInput(values)).candidates[0]!;
-  const baseline = simulateReplacementSafety(safetyInput(scoringFixture([base.candidates[0]!]))).candidates[0]!;
-  assert.equal(candidate.coverage_effects.required_reply_count_before,
-    baseline.coverage_effects.required_reply_count_before);
-  assert.equal(candidate.coverage_effects.required_reply_count_after,
-    baseline.coverage_effects.required_reply_count_after);
-  assert.equal(candidate.coverage_effects.popularity_weighted_after,
-    baseline.coverage_effects.popularity_weighted_after);
+  const baseline = simulateReplacementSafety(safetyInput(scoringFixture([base.candidates[0]!])))
+    .candidates[0]!;
+  assert.equal(
+    candidate.coverage_effects.required_reply_count_before,
+    baseline.coverage_effects.required_reply_count_before,
+  );
+  assert.equal(
+    candidate.coverage_effects.required_reply_count_after,
+    baseline.coverage_effects.required_reply_count_after,
+  );
+  assert.equal(
+    candidate.coverage_effects.popularity_weighted_after,
+    baseline.coverage_effects.popularity_weighted_after,
+  );
 });
 
 test("affected Strategic Fit metric emits exact before, after, delta, state, and provenance", () => {
   const base = completeFixture();
   const values = scoringFixture([expandedNovelLine(base.candidates[0]!)]);
   const candidate = simulateReplacementSafety(safetyInput(values)).candidates[0]!;
-  const effect = candidate.coverage_effects.affected_metrics.find((item) =>
-    item.metric_id === "familiarity-adjusted-coverage"
+  const effect = candidate.coverage_effects.affected_metrics.find(
+    (item) => item.metric_id === "familiarity-adjusted-coverage",
   )!;
   assert.equal(effect.state, "partial");
   assert.equal(effect.before, 0.4);
@@ -463,15 +546,22 @@ test("affected Strategic Fit metric emits exact before, after, delta, state, and
 test("missing and partial popularity, coverage, and metric evidence stays explicit", () => {
   const base = completeFixture();
   const novel = expandedNovelLine(base.candidates[0]!);
-  const lastOpponentEdge = [...novel.subtree.edges].reverse().find((edge) => edge.owner === "opponent")!;
+  const lastOpponentEdge = [...novel.subtree.edges]
+    .reverse()
+    .find((edge) => edge.owner === "opponent")!;
   const partialCandidate = {
     ...novel,
     subtree: {
       ...novel.subtree,
-      edges: novel.subtree.edges.map((edge) => edge.edge_id === lastOpponentEdge.edge_id
-        ? { ...edge, expected_opponent_frequency: null }
-        : edge) as typeof novel.subtree.edges,
-      routes: novel.subtree.routes.map((route) => ({ ...route, expected_opponent_frequency: null })) as typeof novel.subtree.routes,
+      edges: novel.subtree.edges.map((edge) =>
+        edge.edge_id === lastOpponentEdge.edge_id
+          ? { ...edge, expected_opponent_frequency: null }
+          : edge,
+      ) as typeof novel.subtree.edges,
+      routes: novel.subtree.routes.map((route) => ({
+        ...route,
+        expected_opponent_frequency: null,
+      })) as typeof novel.subtree.routes,
     },
   };
   const unavailableMetrics = input(base.fixture, [partialCandidate]).metrics;
@@ -485,8 +575,13 @@ test("missing and partial popularity, coverage, and metric evidence stays explic
   assert.equal(candidate.coverage_effects.popularity_weighted_before, null);
   assert.equal(candidate.coverage_effects.popularity_weighted_after, null);
   assert.ok(candidate.coverage_effects.reason!.includes("not counted as zero"));
-  assert.ok(candidate.coverage_effects.affected_metrics.every((effect) => effect.state !== "available"));
-  assert.notEqual(candidate.safety_checks.find((check) => check.kind === "affected-cohort-preview")!.status, "passed");
+  assert.ok(
+    candidate.coverage_effects.affected_metrics.every((effect) => effect.state !== "available"),
+  );
+  assert.notEqual(
+    candidate.safety_checks.find((check) => check.kind === "affected-cohort-preview")!.status,
+    "passed",
+  );
 });
 
 test("partial, truncated, blocked, stale, and unscored Task 8.5-8.6 boundaries cannot masquerade", () => {
@@ -501,7 +596,9 @@ test("partial, truncated, blocked, stale, and unscored Task 8.5-8.6 boundaries c
       truncation_reasons: ["provider-unavailable"] as [string, ...string[]],
     },
   };
-  const values = scoringFixture([base.candidates[2]!, truncated, blocked], { expansionStatus: "partial" });
+  const values = scoringFixture([base.candidates[2]!, truncated, blocked], {
+    expansionStatus: "partial",
+  });
   const result = simulateReplacementSafety(safetyInput(values));
   for (const id of [truncated.candidate_id, blocked.candidate_id]) {
     const candidate = result.candidates.find((item) => item.candidate_id === id)!;
@@ -520,12 +617,18 @@ test("partial, truncated, blocked, stale, and unscored Task 8.5-8.6 boundaries c
 
 test("dominated candidates remain inspectable through safety simulation", () => {
   const values = scoringFixture();
-  const dominated = values.scoring.candidates.find((candidate) => candidate.pareto.status === "dominated")!;
+  const dominated = values.scoring.candidates.find(
+    (candidate) => candidate.pareto.status === "dominated",
+  )!;
   const result = simulateReplacementSafety(safetyInput(values));
-  const retained = result.candidates.find((candidate) => candidate.candidate_id === dominated.candidate_id)!;
+  const retained = result.candidates.find(
+    (candidate) => candidate.candidate_id === dominated.candidate_id,
+  )!;
   assert.equal(retained.scored_candidate.pareto.status, "dominated");
-  assert.deepEqual(retained.scored_candidate.pareto.dominated_by_candidate_ids,
-    dominated.pareto.dominated_by_candidate_ids);
+  assert.deepEqual(
+    retained.scored_candidate.pareto.dominated_by_candidate_ids,
+    dominated.pareto.dominated_by_candidate_ids,
+  );
 });
 
 test("ordering is deterministic across candidate, source, evidence, path, reply, metric, duplicate, and transposition order", () => {
@@ -544,19 +647,22 @@ test("ordering is deterministic across candidate, source, evidence, path, reply,
         source_san_paths: [...candidate.seed.source_san_paths].reverse(),
         provenance: [...candidate.seed.provenance].reverse(),
       },
-      subtree: candidate.subtree === null ? null : {
-        ...candidate.subtree,
-        nodes: [...candidate.subtree.nodes].reverse().map((node) => ({
-          ...node,
-          source_san_paths: [...node.source_san_paths].reverse(),
-        })),
-        edges: [...candidate.subtree.edges].reverse().map((edge) => ({
-          ...edge,
-          source_san_paths: [...edge.source_san_paths].reverse(),
-        })),
-        routes: [...candidate.subtree.routes].reverse(),
-        provenance: [...candidate.subtree.provenance].reverse(),
-      },
+      subtree:
+        candidate.subtree === null
+          ? null
+          : {
+              ...candidate.subtree,
+              nodes: [...candidate.subtree.nodes].reverse().map((node) => ({
+                ...node,
+                source_san_paths: [...node.source_san_paths].reverse(),
+              })),
+              edges: [...candidate.subtree.edges].reverse().map((edge) => ({
+                ...edge,
+                source_san_paths: [...edge.source_san_paths].reverse(),
+              })),
+              routes: [...candidate.subtree.routes].reverse(),
+              provenance: [...candidate.subtree.provenance].reverse(),
+            },
     })),
     source_results: [...values.scoringInput.expansion.source_results].reverse(),
     evidence_item_results: [...values.scoringInput.expansion.evidence_item_results].reverse(),
@@ -585,11 +691,13 @@ test("runtime pruning requires a known action and literal confirmation", () => {
   const candidateId = values.scoring.candidates[0]!.candidate_id;
   const unconfirmed = simulateReplacementSafety({
     ...safetyInput(values),
-    candidate_actions: [{
-      candidate_id: candidateId,
-      action: "replace",
-      prune_explicitly_confirmed: false,
-    } as unknown as { candidate_id: string; action: "replace"; prune_explicitly_confirmed: true }],
+    candidate_actions: [
+      {
+        candidate_id: candidateId,
+        action: "replace",
+        prune_explicitly_confirmed: false,
+      } as unknown as { candidate_id: string; action: "replace"; prune_explicitly_confirmed: true },
+    ],
   });
   assert.equal(unconfirmed.status, "invalid-request");
   assert.equal(unconfirmed.error_code, "prune-not-confirmed");
@@ -621,8 +729,10 @@ test("blocked objective evidence propagates to candidate and result status", () 
   assert.equal(result.status, "blocked");
   assert.equal(result.candidates[0]!.status, "blocked");
   assert.equal(result.candidates[0]!.error_code, "objective-safety-blocked");
-  assert.equal(result.candidates[0]!.safety_checks.find((check) => check.kind === "engine-sanity")!.status,
-    "blocked");
+  assert.equal(
+    result.candidates[0]!.safety_checks.find((check) => check.kind === "engine-sanity")!.status,
+    "blocked",
+  );
 });
 
 test("Black repertoire ownership stays distinct from White-POV engine transport", () => {
@@ -630,15 +740,28 @@ test("Black repertoire ownership stays distinct from White-POV engine transport"
   const candidate = completeCandidate(fixture, "Nf6", "candidate:black-safety", 20, 0.8);
   const first = scoreReplacementCandidates(input(fixture, [candidate]));
   const baseInput = input(fixture, [candidate], allCandidateConceptMastery(first));
-  const scoring = scoreReplacementCandidates({ ...baseInput, metrics: comparableMetrics(baseInput.metrics) });
+  const scoring = scoreReplacementCandidates({
+    ...baseInput,
+    metrics: comparableMetrics(baseInput.metrics),
+  });
   const tree = GameTree.fromPgn(PGN);
-  const result = simulateReplacementSafety({ source_tree: tree, request: fixture.request, scoring });
+  const result = simulateReplacementSafety({
+    source_tree: tree,
+    request: fixture.request,
+    scoring,
+  });
   const simulated = result.candidates[0]!;
   assert.equal(simulated.repertoire_color, "black");
   assert.equal(simulated.scored_candidate.expansion.seed.pivot.owner, "repertoire");
   assert.equal(simulated.scored_candidate.expansion.seed.mover_color, "black");
-  assert.equal(typeof simulated.scored_candidate.objective_quality.white_pov_evaluation_cp, "number");
-  assert.equal(typeof simulated.scored_candidate.objective_quality.repertoire_pov_evaluation_cp, "number");
+  assert.equal(
+    typeof simulated.scored_candidate.objective_quality.white_pov_evaluation_cp,
+    "number",
+  );
+  assert.equal(
+    typeof simulated.scored_candidate.objective_quality.repertoire_pov_evaluation_cp,
+    "number",
+  );
 });
 
 test("identity, provenance, versions, source evidence, and full inputs serialize unchanged", () => {
@@ -648,21 +771,40 @@ test("identity, provenance, versions, source evidence, and full inputs serialize
   const treeBefore = values.tree.toPgn();
   const inputValue = safetyInput(values);
   const result = simulateReplacementSafety(inputValue);
-  assert.equal(isDeepStrictEqual(JSON.parse(JSON.stringify(result)), result), true,
-    "safety result must remain JSON-serializable");
-  for (const key of ["request_id", "report_id", "finding_id", "semantic_finding_id", "cohort_id",
-    "repertoire_revision", "repertoire_color"] as const) {
+  assert.equal(
+    isDeepStrictEqual(JSON.parse(JSON.stringify(result)), result),
+    true,
+    "safety result must remain JSON-serializable",
+  );
+  for (const key of [
+    "request_id",
+    "report_id",
+    "finding_id",
+    "semantic_finding_id",
+    "cohort_id",
+    "repertoire_revision",
+    "repertoire_color",
+  ] as const) {
     assert.equal(result[key], values.fixture.request[key]);
   }
   assert.equal(result.schema_version, STRATEGIC_FIT_SCHEMA_VERSION);
   assert.equal(result.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);
   assert.equal(result.replacement_schema_version, STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION);
-  assert.equal(isDeepStrictEqual(result.scoring.expansion, values.scoring.expansion), true,
-    "Task 8.5 expansion changed");
-  assert.equal(isDeepStrictEqual(result.scoring.context.graph, values.scoring.context.graph), true,
-    "source graph changed");
-  assert.equal(isDeepStrictEqual(result.scoring.context.profile, values.scoring.context.profile), true,
-    "profile changed");
+  assert.equal(
+    isDeepStrictEqual(result.scoring.expansion, values.scoring.expansion),
+    true,
+    "Task 8.5 expansion changed",
+  );
+  assert.equal(
+    isDeepStrictEqual(result.scoring.context.graph, values.scoring.context.graph),
+    true,
+    "source graph changed",
+  );
+  assert.equal(
+    isDeepStrictEqual(result.scoring.context.profile, values.scoring.context.profile),
+    true,
+    "profile changed",
+  );
   assert.equal(JSON.stringify(values.fixture.request), requestBefore);
   assert.equal(JSON.stringify(values.scoring), scoringBefore);
   assert.equal(values.tree.toPgn(), treeBefore);
@@ -676,10 +818,12 @@ test("identity, provenance, versions, source evidence, and full inputs serialize
 test("invalid action sets and source graph mismatch fail before simulation", () => {
   const values = scoringFixture();
   const id = values.scoring.candidates[0]!.candidate_id;
-  const duplicate = simulateReplacementSafety(safetyInput(values, [
-    { candidate_id: id, action: "add-alternative" },
-    { candidate_id: id, action: "replace", prune_explicitly_confirmed: true },
-  ]));
+  const duplicate = simulateReplacementSafety(
+    safetyInput(values, [
+      { candidate_id: id, action: "add-alternative" },
+      { candidate_id: id, action: "replace", prune_explicitly_confirmed: true },
+    ]),
+  );
   assert.equal(duplicate.status, "invalid-request");
   assert.equal(duplicate.error_code, "duplicate-candidate-action");
   const mismatched = simulateReplacementSafety({
@@ -693,24 +837,59 @@ test("invalid action sets and source graph mismatch fail before simulation", () 
 test("coverage/safety actions, states, errors, checks, and statuses are exhaustive and duplicate-free", () => {
   assert.deepEqual(REPLACEMENT_SAFETY_ACTIONS, ["add-alternative", "replace"]);
   assert.equal(REPLACEMENT_SAFETY_ACTION_LABELS["add-alternative"], "Add alternative");
-  assert.deepEqual(REPLACEMENT_SAFETY_CANDIDATE_STATUSES, ["safe", "partial", "blocked", "unavailable"]);
-  assert.deepEqual(REPLACEMENT_SAFETY_RESULT_STATUSES,
-    ["complete", "partial", "blocked", "unavailable", "stale", "invalid-request"]);
+  assert.deepEqual(REPLACEMENT_SAFETY_CANDIDATE_STATUSES, [
+    "safe",
+    "partial",
+    "blocked",
+    "unavailable",
+  ]);
+  assert.deepEqual(REPLACEMENT_SAFETY_RESULT_STATUSES, [
+    "complete",
+    "partial",
+    "blocked",
+    "unavailable",
+    "stale",
+    "invalid-request",
+  ]);
   assert.deepEqual(REPLACEMENT_SAFETY_ERROR_CODES, [
-    "request-scoring-mismatch", "scoring-not-current", "source-graph-mismatch",
-    "duplicate-candidate-action", "unknown-candidate", "invalid-candidate-action",
-    "prune-not-confirmed", "candidate-unscored",
-    "candidate-expansion-incomplete", "candidate-identity-mismatch", "simulation-failed",
-    "required-reply-uncovered", "objective-safety-blocked",
+    "request-scoring-mismatch",
+    "scoring-not-current",
+    "source-graph-mismatch",
+    "duplicate-candidate-action",
+    "unknown-candidate",
+    "invalid-candidate-action",
+    "prune-not-confirmed",
+    "candidate-unscored",
+    "candidate-expansion-incomplete",
+    "candidate-identity-mismatch",
+    "simulation-failed",
+    "required-reply-uncovered",
+    "objective-safety-blocked",
   ]);
   assert.deepEqual(REPLACEMENT_SAFETY_CHECK_KINDS, [
-    "legality", "engine-sanity", "coverage", "gap-scan", "transpositions", "duplicates",
-    "stale-revision", "affected-cohort-preview",
+    "legality",
+    "engine-sanity",
+    "coverage",
+    "gap-scan",
+    "transpositions",
+    "duplicates",
+    "stale-revision",
+    "affected-cohort-preview",
   ]);
-  assert.deepEqual(REPLACEMENT_SAFETY_CHECK_STATUSES, ["passed", "warning", "blocked", "unavailable"]);
-  for (const values of [REPLACEMENT_SAFETY_ACTIONS, REPLACEMENT_SAFETY_CANDIDATE_STATUSES,
-    REPLACEMENT_SAFETY_RESULT_STATUSES, REPLACEMENT_SAFETY_ERROR_CODES,
-    REPLACEMENT_SAFETY_CHECK_KINDS, REPLACEMENT_SAFETY_CHECK_STATUSES]) {
+  assert.deepEqual(REPLACEMENT_SAFETY_CHECK_STATUSES, [
+    "passed",
+    "warning",
+    "blocked",
+    "unavailable",
+  ]);
+  for (const values of [
+    REPLACEMENT_SAFETY_ACTIONS,
+    REPLACEMENT_SAFETY_CANDIDATE_STATUSES,
+    REPLACEMENT_SAFETY_RESULT_STATUSES,
+    REPLACEMENT_SAFETY_ERROR_CODES,
+    REPLACEMENT_SAFETY_CHECK_KINDS,
+    REPLACEMENT_SAFETY_CHECK_STATUSES,
+  ]) {
     assert.equal(new Set(values).size, values.length);
   }
 });

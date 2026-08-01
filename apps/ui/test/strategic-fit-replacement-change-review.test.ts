@@ -16,23 +16,26 @@ import {
   blockedReviewCopy,
   buildChangeSetReviewEvidence,
 } from "../src/components/strategic-fit/ChangeSetPreview.tsx";
-import {
-  replacementLabChangeReviewStatus,
-} from "../src/store/strategic-fit-replacement.ts";
+import { replacementLabChangeReviewStatus } from "../src/store/strategic-fit-replacement.ts";
 import {
   strategicFitChangeConfirmation,
   type StrategicFitStagedChange,
 } from "../src/store/strategic-fit-changes.ts";
 
 function stagedFixture(action: "add" | "replace") {
-  const values = action === "add" ? addOnlyFixture("novel") : replacementFixture("keep exact annotation");
+  const values =
+    action === "add" ? addOnlyFixture("novel") : replacementFixture("keep exact annotation");
   const constructed = constructReplacementChangeSet({
     source_tree: values.tree,
     current_repertoire_revision: values.request.repertoire_revision,
     safety: values.safety,
     candidate_id: values.candidate.candidate_id,
   });
-  assert.equal(constructed.status, "constructed", `${constructed.error_code}: ${constructed.explanation}`);
+  assert.equal(
+    constructed.status,
+    "constructed",
+    `${constructed.error_code}: ${constructed.explanation}`,
+  );
   assert.ok(constructed.change_set);
   const applied = applyReplacementChangeSet({
     source_tree: values.tree,
@@ -42,7 +45,9 @@ function stagedFixture(action: "add" | "replace") {
   });
   assert.equal(applied.status, "success");
   if (applied.status !== "success") throw new Error(applied.output.failure?.explanation);
-  const candidate = values.safety.candidates.find((item) => item.candidate_id === values.candidate.candidate_id)!;
+  const candidate = values.safety.candidates.find(
+    (item) => item.candidate_id === values.candidate.candidate_id,
+  )!;
   const stage: StrategicFitStagedChange = {
     stage_id: `stage:${action}`,
     status: "staged",
@@ -74,16 +79,28 @@ test("add-only default exposes exact additions, descendants, coverage, metrics, 
   const impact = buildBeforeAfterImpact(stage.preview.result.preview);
   assert.equal(review.retention.prune, "retain");
   assert.equal(review.retention.archive, "keep-active");
-  assert.equal(review.operations.some(({ operation }) => operation.kind === "prune-subtree"), false);
-  assert.equal(review.operations.some(({ operation }) => operation.kind === "archive-subtree"), false);
+  assert.equal(
+    review.operations.some(({ operation }) => operation.kind === "prune-subtree"),
+    false,
+  );
+  assert.equal(
+    review.operations.some(({ operation }) => operation.kind === "archive-subtree"),
+    false,
+  );
   assert.ok(review.operations.some(({ operation }) => operation.kind === "add-subtree"));
   assert.ok(review.operations.flatMap(({ diff }) => diff?.added_paths ?? []).length > 0);
   assert.ok(review.affected_paths.length > 0);
   assert.equal(impact.coverage.state, candidate.coverage_effects.state);
   assert.deepEqual(impact.coverage.newly_covered, candidate.coverage_effects.newly_covered_replies);
   assert.equal(impact.affected_metrics.length, candidate.coverage_effects.affected_metrics.length);
-  assert.equal(impact.theory.added, stage.preview.result.preview.strategic_score_after.theory_nodes_added);
-  assert.equal(impact.training.after, stage.preview.result.preview.strategic_score_after.training_cost);
+  assert.equal(
+    impact.theory.added,
+    stage.preview.result.preview.strategic_score_after.theory_nodes_added,
+  );
+  assert.equal(
+    impact.training.after,
+    stage.preview.result.preview.strategic_score_after.training_cost,
+  );
   assert.equal(stage.preview.source_tree_unchanged, true);
 });
 
@@ -104,7 +121,10 @@ test("safe replacement displays archive-before-prune, annotations, exact links/r
   assert.equal(review.versions.replacement_schema_version, "1.0.0");
   assert.ok(review.provenance.length > 0);
   assert.equal(review.finding_changes_state, "not-reanalyzed");
-  const component = readFileSync(new URL("../src/components/strategic-fit/ChangeSetPreview.tsx", import.meta.url), "utf8");
+  const component = readFileSync(
+    new URL("../src/components/strategic-fit/ChangeSetPreview.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(component, /preserve-annotation/);
   assert.match(component, /Comments:/);
   assert.match(component, /semantic_equivalence_verified/);
@@ -120,30 +140,45 @@ test("blocked unsafe prune preserves exact coverage failure, partial/unavailable
       ...candidate.scored_candidate,
       expansion: {
         ...candidate.scored_candidate.expansion,
-        unresolved_risks: [{
-          analysis_version: "2.0.0",
-          risk_id: "risk:coverage-loss",
-          kind: "coverage-gap",
-          status: "blocking",
-          explanation: "Required reply e5 becomes uncovered.",
-          affected_position_ids: ["position:gap"],
-          affected_route_ids: ["route:gap"],
-          provenance: candidate.provenance,
-        }],
+        unresolved_risks: [
+          {
+            analysis_version: "2.0.0",
+            risk_id: "risk:coverage-loss",
+            kind: "coverage-gap",
+            status: "blocking",
+            explanation: "Required reply e5 becomes uncovered.",
+            affected_position_ids: ["position:gap"],
+            affected_route_ids: ["route:gap"],
+            provenance: candidate.provenance,
+          },
+        ],
       },
     },
-    safety_checks: candidate.safety_checks.map((check) => check.kind === "coverage" || check.kind === "gap-scan"
-      ? { ...check, status: "blocked" as const, explanation: "Exact required reply becomes uncovered." }
-      : check.kind === "affected-cohort-preview"
-        ? { ...check, status: "unavailable" as const, explanation: "Canonical metric evidence is partial." }
-        : check),
+    safety_checks: candidate.safety_checks.map((check) =>
+      check.kind === "coverage" || check.kind === "gap-scan"
+        ? {
+            ...check,
+            status: "blocked" as const,
+            explanation: "Exact required reply becomes uncovered.",
+          }
+        : check.kind === "affected-cohort-preview"
+          ? {
+              ...check,
+              status: "unavailable" as const,
+              explanation: "Canonical metric evidence is partial.",
+            }
+          : check,
+    ),
   } as ReplacementCandidateSafetySimulation;
   const review = buildChangeSetReviewEvidence(stage, blocked);
   assert.equal(review.safety_checks.filter((check) => check.status === "blocked").length, 2);
   assert.ok(review.safety_checks.some((check) => check.status === "unavailable"));
   assert.equal(review.unresolved_risks[0]?.status, "blocking");
   assert.equal(blocked.error_code, "required-reply-uncovered");
-  assert.match(blocked.safety_checks.find((check) => check.kind === "coverage")!.explanation, /Exact required reply/);
+  assert.match(
+    blocked.safety_checks.find((check) => check.kind === "coverage")!.explanation,
+    /Exact required reply/,
+  );
 });
 
 test("invalid, unavailable, and action-specific blocked review states stay explicit", () => {
@@ -173,14 +208,20 @@ test("final confirmation binds current revision and immutable evidence identity 
     archive_identity: "archive:immutable",
     provenance_identity: "provenance:immutable",
   });
-  const component = readFileSync(new URL("../src/components/strategic-fit/BeforeAfterImpact.tsx", import.meta.url), "utf8");
+  const component = readFileSync(
+    new URL("../src/components/strategic-fit/BeforeAfterImpact.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(component, /repertoire POV before/);
   assert.match(component, /White-POV engine transport before/);
   assert.doesNotMatch(component, /best candidate/i);
 });
 
 test("review UI supplies keyboard, screen-reader, no-color, reduced-motion, mobile, and long-diff contracts", () => {
-  const component = readFileSync(new URL("../src/components/strategic-fit/ChangeSetPreview.tsx", import.meta.url), "utf8");
+  const component = readFileSync(
+    new URL("../src/components/strategic-fit/ChangeSetPreview.tsx", import.meta.url),
+    "utf8",
+  );
   const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
   assert.match(component, /<fieldset class="replacement-retention-controls"/);
   assert.match(component, /<legend>Old-line retention<\/legend>/);

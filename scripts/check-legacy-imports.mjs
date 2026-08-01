@@ -6,11 +6,7 @@
 import { readFile, readdir } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
-const productionRoots = [
-  "packages/chess-tools/src/",
-  "apps/mcp-server/src/",
-  "apps/ui/src/",
-];
+const productionRoots = ["packages/chess-tools/src/", "apps/mcp-server/src/", "apps/ui/src/"];
 const bannedPatterns = [
   /\brepcongruence\b/,
   /strategic-fit\/legacy-projection\b/,
@@ -25,10 +21,14 @@ const bannedPatterns = [
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(entries.flatMap((entry) => {
-    if (entry.isDirectory()) return [sourceFiles(new URL(`${entry.name}/`, directory))];
-    return entry.isFile() && /\.(ts|tsx|mts)$/.test(entry.name) ? [[new URL(entry.name, directory)]] : [];
-  }));
+  const nested = await Promise.all(
+    entries.flatMap((entry) => {
+      if (entry.isDirectory()) return [sourceFiles(new URL(`${entry.name}/`, directory))];
+      return entry.isFile() && /\.(ts|tsx|mts)$/.test(entry.name)
+        ? [[new URL(entry.name, directory)]]
+        : [];
+    }),
+  );
   return nested.flat();
 }
 
@@ -40,10 +40,15 @@ for (const relativeRoot of productionRoots) {
     for (const pattern of bannedPatterns) {
       if (pattern.test(content)) {
         failed = true;
-        console.error(`${file.pathname.replace(root.pathname, "")}: matches removed legacy symbol ${pattern}`);
+        console.error(
+          `${file.pathname.replace(root.pathname, "")}: matches removed legacy symbol ${pattern}`,
+        );
       }
     }
   }
 }
 if (failed) process.exitCode = 1;
-else console.log("legacy import inventory: ok — no production consumer imports legacy congruence or pivot behavior");
+else
+  console.log(
+    "legacy import inventory: ok — no production consumer imports legacy congruence or pivot behavior",
+  );

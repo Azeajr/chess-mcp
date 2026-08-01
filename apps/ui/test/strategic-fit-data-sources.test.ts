@@ -72,8 +72,13 @@ test("source changes persist once, invalidate reports once, and produce canonica
   let invalidations = 0;
   const state = createStrategicFitDataSourceState({
     load: () => stored,
-    save: (settings) => { stored = structuredClone(settings); saves++; },
-    invalidateReports: () => { invalidations++; },
+    save: (settings) => {
+      stored = structuredClone(settings);
+      saves++;
+    },
+    invalidateReports: () => {
+      invalidations++;
+    },
   });
   const beforeIdentity = state.identity();
 

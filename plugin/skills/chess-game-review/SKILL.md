@@ -11,6 +11,7 @@ Use the `chess-analysis` MCP for one game's mainline. A branching preparation tr
 repertoire workflow.
 
 <!-- BEGIN GENERATED WORKFLOW GUIDANCE -->
+
 ## Shared grounding contract
 
 - Validate user-pasted FEN or PGN before analysis. Stop on invalid input; never repair it silently. An already parsed host document needs no redundant validation call.
@@ -35,6 +36,7 @@ Review one game's mainline, identify turning points, and explain only engine-gro
 
 - Lead with accuracy and one to three turning points.
 - For each mistake: played move, labeled swing, grounded best move, validated line, and one plain-language reason.
+
 <!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation

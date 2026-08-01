@@ -29,12 +29,19 @@ test("fixture statistics and transposition counts are deterministic", () => {
     assert.deepEqual(first.stats(), expectedStats, value.id);
     assert.deepEqual(second.stats(), expectedStats, `${value.id} repeated parse`);
     assert.equal(first.transpositions().length, value.expected.transpositionGroups, value.id);
-    assert.deepEqual(second.transpositions(), first.transpositions(), `${value.id} repeated transpositions`);
+    assert.deepEqual(
+      second.transpositions(),
+      first.transpositions(),
+      `${value.id} repeated transpositions`,
+    );
   }
 });
 
 test("fixture library covers both repertoire colors and every required scenario", () => {
-  assert.deepEqual(new Set(STRATEGIC_FIT_FIXTURES.map((value) => value.repertoireColor)), new Set(["white", "black"]));
+  assert.deepEqual(
+    new Set(STRATEGIC_FIT_FIXTURES.map((value) => value.repertoireColor)),
+    new Set(["white", "black"]),
+  );
 
   const coveredTags = new Set(STRATEGIC_FIT_FIXTURES.flatMap((value) => value.tags));
   for (const tag of STRATEGIC_FIT_FIXTURE_TAGS) assert.ok(coveredTags.has(tag), tag);

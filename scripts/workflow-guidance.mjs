@@ -1,6 +1,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { TOOL_CONTRACTS } from "../packages/chess-tools/dist/tool-contract.js";
-import { WORKFLOW_CONTRACTS, renderWorkflowGuidance } from "../packages/chess-tools/dist/workflow-contract.js";
+import {
+  WORKFLOW_CONTRACTS,
+  renderWorkflowGuidance,
+} from "../packages/chess-tools/dist/workflow-contract.js";
 
 const root = new URL("../", import.meta.url);
 const check = process.argv.includes("--check");
@@ -19,7 +22,8 @@ for (const [family, workflow] of Object.entries(WORKFLOW_CONTRACTS)) {
     for (const host of ["browser", "mcp"]) {
       for (const name of step[`${host}Tools`]) {
         const contract = TOOL_CONTRACTS.find((candidate) => candidate.name === name);
-        if (!contract?.hosts.includes(host)) throw new Error(`${family}/${step.title}: ${name} is not available on ${host}`);
+        if (!contract?.hosts.includes(host))
+          throw new Error(`${family}/${step.title}: ${name} is not available on ${host}`);
       }
     }
   }
@@ -33,7 +37,8 @@ for (const [directory, family] of Object.entries(skills)) {
   const next = source.replace(pattern, generated);
   if (next === source) continue;
   stale = true;
-  if (check) console.error(`${directory}: shared workflow guidance is stale (run pnpm sync:skills)`);
+  if (check)
+    console.error(`${directory}: shared workflow guidance is stale (run pnpm sync:skills)`);
   else await writeFile(url, next, "utf8");
 }
 if (check && stale) process.exitCode = 1;

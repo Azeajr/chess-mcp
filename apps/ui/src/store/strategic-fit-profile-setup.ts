@@ -1,8 +1,5 @@
 import { createSignal } from "solid-js";
-import type {
-  StrategicFitProfile,
-  StrategicFitProfileMode,
-} from "@chess-mcp/chess-tools";
+import type { StrategicFitProfile, StrategicFitProfileMode } from "@chess-mcp/chess-tools";
 import { documentId } from "./game";
 import {
   applyInferredStrategicFitProfile,
@@ -41,7 +38,9 @@ export interface StrategicFitProfileSetupState {
 export function createStrategicFitProfileSetupState(
   boundary: StrategicFitProfileSetupBoundary,
 ): StrategicFitProfileSetupState {
-  const [completedDocumentIds, setCompletedDocumentIds] = createSignal<ReadonlySet<string>>(new Set());
+  const [completedDocumentIds, setCompletedDocumentIds] = createSignal<ReadonlySet<string>>(
+    new Set(),
+  );
 
   const markComplete = () => {
     const id = boundary.currentDocumentId();
@@ -51,9 +50,11 @@ export function createStrategicFitProfileSetupState(
   return {
     required() {
       const profile = boundary.currentProfile();
-      return profile.source === "inferred"
-        && profile.provisional
-        && !completedDocumentIds().has(boundary.currentDocumentId());
+      return (
+        profile.source === "inferred" &&
+        profile.provisional &&
+        !completedDocumentIds().has(boundary.currentDocumentId())
+      );
     },
 
     skip() {

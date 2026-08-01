@@ -30,10 +30,7 @@ import {
   type StrategicFitReplacementVersioned,
 } from "./replacement-types.js";
 import type { JsonValue, StrategicFitSourceProvenance } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 
 export const REPLACEMENT_ENGINE_EVIDENCE_STATES = [
   "available",
@@ -44,8 +41,7 @@ export const REPLACEMENT_ENGINE_EVIDENCE_STATES = [
   "rejected",
   "unverified",
 ] as const;
-export type ReplacementEngineEvidenceState =
-  (typeof REPLACEMENT_ENGINE_EVIDENCE_STATES)[number];
+export type ReplacementEngineEvidenceState = (typeof REPLACEMENT_ENGINE_EVIDENCE_STATES)[number];
 
 /** Matches the bounded MultiPV capability of the current engine hosts. */
 export const REPLACEMENT_ENGINE_MAX_MULTIPV = 10;
@@ -86,8 +82,7 @@ export const REPLACEMENT_ENGINE_ITEM_ERROR_CODES = [
   "maximum-engine-positions-exceeded",
   "maximum-candidates-exceeded",
 ] as const;
-export type ReplacementEngineItemErrorCode =
-  (typeof REPLACEMENT_ENGINE_ITEM_ERROR_CODES)[number];
+export type ReplacementEngineItemErrorCode = (typeof REPLACEMENT_ENGINE_ITEM_ERROR_CODES)[number];
 
 export const REPLACEMENT_ENGINE_RESULT_STATUSES = [
   "complete",
@@ -100,8 +95,7 @@ export const REPLACEMENT_ENGINE_RESULT_STATUSES = [
   "non-actionable",
   "invalid-request",
 ] as const;
-export type ReplacementEngineResultStatus =
-  (typeof REPLACEMENT_ENGINE_RESULT_STATUSES)[number];
+export type ReplacementEngineResultStatus = (typeof REPLACEMENT_ENGINE_RESULT_STATUSES)[number];
 
 export const REPLACEMENT_ENGINE_RESULT_ERROR_CODES = [
   "pivot-not-selected",
@@ -125,8 +119,7 @@ export const REPLACEMENT_ENGINE_CACHE_STATUSES = [
   "not-configured",
   "bypassed",
 ] as const;
-export type ReplacementEngineCacheStatus =
-  (typeof REPLACEMENT_ENGINE_CACHE_STATUSES)[number];
+export type ReplacementEngineCacheStatus = (typeof REPLACEMENT_ENGINE_CACHE_STATUSES)[number];
 
 export interface ReplacementEngineIdentity {
   readonly engine_id: string;
@@ -273,8 +266,7 @@ export interface GenerateReplacementEngineCandidatesInput {
   readonly shouldCancel?: () => boolean;
 }
 
-export interface ReplacementEngineCandidateGenerationResult
-  extends StrategicFitReplacementVersioned {
+export interface ReplacementEngineCandidateGenerationResult extends StrategicFitReplacementVersioned {
   readonly status: ReplacementEngineResultStatus;
   readonly error_code: ReplacementEngineResultErrorCode | null;
   readonly explanation: string;
@@ -339,10 +331,9 @@ function semanticPositionId(key: string): string {
 }
 
 function candidateId(pivotPositionId: string, outcomePositionKey: string): string {
-  return `replacement-candidate-seed:${stableHash([
-    pivotPositionId,
-    outcomePositionKey,
-  ].join(SEPARATOR))}`;
+  return `replacement-candidate-seed:${stableHash(
+    [pivotPositionId, outcomePositionKey].join(SEPARATOR),
+  )}`;
 }
 
 function versioned(): StrategicFitReplacementVersioned {
@@ -357,9 +348,10 @@ function jsonKey(value: JsonValue): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(jsonKey).join(",")}]`;
   const record = value as Readonly<Record<string, JsonValue>>;
-  return `{${Object.keys(record).sort(compareStrings).map((key) =>
-    `${JSON.stringify(key)}:${jsonKey(record[key]!)}`
-  ).join(",")}}`;
+  return `{${Object.keys(record)
+    .sort(compareStrings)
+    .map((key) => `${JSON.stringify(key)}:${jsonKey(record[key]!)}`)
+    .join(",")}}`;
 }
 
 function cloneJson<T>(value: T): T {
@@ -373,8 +365,13 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 function safeStrategicProvenance(value: unknown): StrategicFitSourceProvenance[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((source) => {
-    if (!isRecord(source) || typeof source.source_id !== "string" ||
-      typeof source.kind !== "string" || typeof source.state !== "string") return [];
+    if (
+      !isRecord(source) ||
+      typeof source.source_id !== "string" ||
+      typeof source.kind !== "string" ||
+      typeof source.state !== "string"
+    )
+      return [];
     try {
       return [cloneJson(source) as unknown as StrategicFitSourceProvenance];
     } catch {
@@ -391,16 +388,25 @@ function isJsonValue(value: unknown, ancestors = new Set<object>()): value is Js
   try {
     if (Array.isArray(value)) {
       const keys = Reflect.ownKeys(value);
-      return keys.length === value.length + 1 && keys.every((key) =>
-        key === "length" || (typeof key === "string" && /^\d+$/.test(key) &&
-          String(Number(key)) === key && Number(key) < value.length &&
-          isJsonValue(value[Number(key)], ancestors))
+      return (
+        keys.length === value.length + 1 &&
+        keys.every(
+          (key) =>
+            key === "length" ||
+            (typeof key === "string" &&
+              /^\d+$/.test(key) &&
+              String(Number(key)) === key &&
+              Number(key) < value.length &&
+              isJsonValue(value[Number(key)], ancestors)),
+        )
       );
     }
     const prototype = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) return false;
-    return Reflect.ownKeys(value).every((key) =>
-      typeof key === "string" && isJsonValue((value as Readonly<Record<string, unknown>>)[key], ancestors)
+    return Reflect.ownKeys(value).every(
+      (key) =>
+        typeof key === "string" &&
+        isJsonValue((value as Readonly<Record<string, unknown>>)[key], ancestors),
     );
   } catch {
     return false;
@@ -410,15 +416,25 @@ function isJsonValue(value: unknown, ancestors = new Set<object>()): value is Js
 }
 
 function validEngineIdentity(value: unknown): value is ReplacementEngineIdentity {
-  return isRecord(value) && typeof value.engine_id === "string" &&
-    typeof value.name === "string" && typeof value.version === "string" &&
-    typeof value.configuration_id === "string" && isRecord(value.configuration) &&
-    typeof value.analysis_schema_version === "string" && isJsonValue(value.configuration);
+  return (
+    isRecord(value) &&
+    typeof value.engine_id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.version === "string" &&
+    typeof value.configuration_id === "string" &&
+    isRecord(value.configuration) &&
+    typeof value.analysis_schema_version === "string" &&
+    isJsonValue(value.configuration)
+  );
 }
 
 function validPositionEvidence(value: unknown): value is ReplacementEnginePositionEvidence {
-  return isRecord(value) && typeof value.position_id === "string" &&
-    typeof value.position_key === "string" && typeof value.fen === "string";
+  return (
+    isRecord(value) &&
+    typeof value.position_id === "string" &&
+    typeof value.position_key === "string" &&
+    typeof value.fen === "string"
+  );
 }
 
 function sortedUnique(values: readonly string[]): string[] {
@@ -426,7 +442,14 @@ function sortedUnique(values: readonly string[]): string[] {
 }
 
 function provenanceKey(source: StrategicFitSourceProvenance): string {
-  return [source.source_id, source.kind, source.state, source.version ?? "", source.snapshot ?? "", source.reason ?? ""].join(SEPARATOR);
+  return [
+    source.source_id,
+    source.kind,
+    source.state,
+    source.version ?? "",
+    source.snapshot ?? "",
+    source.reason ?? "",
+  ].join(SEPARATOR);
 }
 
 function mergeStrategicProvenance(
@@ -435,12 +458,20 @@ function mergeStrategicProvenance(
   const unique = new Map<string, StrategicFitSourceProvenance>();
   for (const source of sources) unique.set(provenanceKey(source), cloneJson(source));
   return [...unique.values()].sort((left, right) =>
-    compareStrings(provenanceKey(left), provenanceKey(right))
+    compareStrings(provenanceKey(left), provenanceKey(right)),
   );
 }
 
 function candidateSourceKey(source: ReplacementCandidateSourceProvenance): string {
-  return [source.source_id, source.kind, source.status, source.provider ?? "", source.version ?? "", source.snapshot ?? "", source.reason ?? ""].join(SEPARATOR);
+  return [
+    source.source_id,
+    source.kind,
+    source.status,
+    source.provider ?? "",
+    source.version ?? "",
+    source.snapshot ?? "",
+    source.reason ?? "",
+  ].join(SEPARATOR);
 }
 
 function mergeCandidateSources(
@@ -451,7 +482,8 @@ function mergeCandidateSources(
     const key = candidateSourceKey(source);
     groups.set(key, [...(groups.get(key) ?? []), source]);
   }
-  return [...groups.entries()].sort(([left], [right]) => compareStrings(left, right))
+  return [...groups.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
     .map(([, matches]) => {
       const first = matches[0]!;
       const details = new Map<string, Readonly<Record<string, JsonValue>>>();
@@ -469,9 +501,9 @@ function mergeCandidateSources(
         decision_ids: sortedUnique(matches.flatMap((source) => source.decision_ids)),
         route_ids: sortedUnique(matches.flatMap((source) => source.route_ids)),
         details: {
-          merged_evidence: [...details.entries()].sort(([left], [right]) =>
-            compareStrings(left, right)
-          ).map(([, value]) => value),
+          merged_evidence: [...details.entries()]
+            .sort(([left], [right]) => compareStrings(left, right))
+            .map(([, value]) => value),
         },
         provenance: mergeStrategicProvenance(matches.flatMap((source) => source.provenance)),
       };
@@ -532,26 +564,39 @@ function compatibleCacheEvidence(
   depth: number,
   multipv: number,
 ): ReplacementEngineAnalysisEvidence | null {
-  const compatible = entries.filter((entry) => {
-    if (!isRecord(entry) || !validPositionEvidence(entry.position) ||
-      !validEngineIdentity(entry.engine) || typeof entry.evidence_id !== "string") return false;
-    return entry.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
-      entry.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
-      entry.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION &&
-      entry.state === "available" &&
-      entry.position.position_id === position.position_id &&
-      entry.position.position_key === position.position_key &&
-      safePositionKey(entry.position.fen) === position.position_key &&
-      cachePositionIdentity(entry.position) === cachePositionIdentity(position) &&
-      sameIdentity(entry.engine, identity) &&
-      entry.reached_depth !== null && finiteInteger(entry.reached_depth) && entry.reached_depth >= depth &&
-      finiteInteger(entry.requested_multipv) && entry.requested_multipv >= multipv &&
-      cacheProvidesRequestedLines(entry, position, depth, multipv);
-  }).sort((left, right) =>
-    (left.reached_depth! - right.reached_depth!) ||
-    (left.requested_multipv - right.requested_multipv) ||
-    compareStrings(left.evidence_id, right.evidence_id)
-  );
+  const compatible = entries
+    .filter((entry) => {
+      if (
+        !isRecord(entry) ||
+        !validPositionEvidence(entry.position) ||
+        !validEngineIdentity(entry.engine) ||
+        typeof entry.evidence_id !== "string"
+      )
+        return false;
+      return (
+        entry.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
+        entry.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
+        entry.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION &&
+        entry.state === "available" &&
+        entry.position.position_id === position.position_id &&
+        entry.position.position_key === position.position_key &&
+        safePositionKey(entry.position.fen) === position.position_key &&
+        cachePositionIdentity(entry.position) === cachePositionIdentity(position) &&
+        sameIdentity(entry.engine, identity) &&
+        entry.reached_depth !== null &&
+        finiteInteger(entry.reached_depth) &&
+        entry.reached_depth >= depth &&
+        finiteInteger(entry.requested_multipv) &&
+        entry.requested_multipv >= multipv &&
+        cacheProvidesRequestedLines(entry, position, depth, multipv)
+      );
+    })
+    .sort(
+      (left, right) =>
+        left.reached_depth! - right.reached_depth! ||
+        left.requested_multipv - right.requested_multipv ||
+        compareStrings(left.evidence_id, right.evidence_id),
+    );
   for (const entry of compatible) {
     try {
       return cloneJson(entry);
@@ -573,10 +618,15 @@ function cacheProvidesRequestedLines(
   for (const rawLine of evidence.lines) {
     if (!isRecord(rawLine)) return false;
     const line = rawLine as unknown as ReplacementEngineLineEvidence;
-    if (!finiteInteger(line.multipv_rank) || line.multipv_rank < 1 ||
-      line.multipv_rank > multipv) continue;
-    if (byRank.has(line.multipv_rank) || !finiteInteger(line.depth) || line.depth < depth ||
-      !validEvaluation(line)) return false;
+    if (!finiteInteger(line.multipv_rank) || line.multipv_rank < 1 || line.multipv_rank > multipv)
+      continue;
+    if (
+      byRank.has(line.multipv_rank) ||
+      !finiteInteger(line.depth) ||
+      line.depth < depth ||
+      !validEvaluation(line)
+    )
+      return false;
     try {
       if (!validatePv(position.fen, line)) return false;
     } catch {
@@ -606,25 +656,64 @@ function compatibilityError(
   input: GenerateReplacementEngineCandidatesInput,
 ): readonly [ReplacementEngineResultStatus, ReplacementEngineResultErrorCode, string] | null {
   const { request, graph, pivot_result: pivotResult, candidate_generation: generation } = input;
-  if (!Number.isSafeInteger(request.budget.maximum_candidates) || request.budget.maximum_candidates < 0) {
-    return ["invalid-request", "invalid-maximum-candidates", "Maximum candidate budget must be a non-negative safe integer."];
+  if (
+    !Number.isSafeInteger(request.budget.maximum_candidates) ||
+    request.budget.maximum_candidates < 0
+  ) {
+    return [
+      "invalid-request",
+      "invalid-maximum-candidates",
+      "Maximum candidate budget must be a non-negative safe integer.",
+    ];
   }
-  if (!Number.isSafeInteger(request.budget.maximum_engine_positions) || request.budget.maximum_engine_positions < 0) {
-    return ["invalid-request", "invalid-engine-position-budget", "Maximum engine-position budget must be a non-negative safe integer."];
+  if (
+    !Number.isSafeInteger(request.budget.maximum_engine_positions) ||
+    request.budget.maximum_engine_positions < 0
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-position-budget",
+      "Maximum engine-position budget must be a non-negative safe integer.",
+    ];
   }
-  if (!Number.isSafeInteger(request.budget.engine_depth) || request.budget.engine_depth < 1 || request.budget.engine_depth > 30) {
-    return ["invalid-request", "invalid-engine-depth", "Engine depth must be a safe integer from 1 through 30."];
+  if (
+    !Number.isSafeInteger(request.budget.engine_depth) ||
+    request.budget.engine_depth < 1 ||
+    request.budget.engine_depth > 30
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-depth",
+      "Engine depth must be a safe integer from 1 through 30.",
+    ];
   }
-  if (!Number.isSafeInteger(request.budget.engine_multipv) || request.budget.engine_multipv < 1 ||
-    request.budget.engine_multipv > REPLACEMENT_ENGINE_MAX_MULTIPV) {
-    return ["invalid-request", "invalid-engine-multipv", `Engine MultiPV must be a safe integer from 1 through ${REPLACEMENT_ENGINE_MAX_MULTIPV}.`];
+  if (
+    !Number.isSafeInteger(request.budget.engine_multipv) ||
+    request.budget.engine_multipv < 1 ||
+    request.budget.engine_multipv > REPLACEMENT_ENGINE_MAX_MULTIPV
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-multipv",
+      `Engine MultiPV must be a safe integer from 1 through ${REPLACEMENT_ENGINE_MAX_MULTIPV}.`,
+    ];
   }
-  if (request.maximum_repertoire_pov_loss_from_best_cp !== null &&
-    !finiteNonNegative(request.maximum_repertoire_pov_loss_from_best_cp)) {
-    return ["invalid-request", "invalid-evaluation-tolerance", "Maximum repertoire-POV loss must be null or a finite non-negative number."];
+  if (
+    request.maximum_repertoire_pov_loss_from_best_cp !== null &&
+    !finiteNonNegative(request.maximum_repertoire_pov_loss_from_best_cp)
+  ) {
+    return [
+      "invalid-request",
+      "invalid-evaluation-tolerance",
+      "Maximum repertoire-POV loss must be null or a finite non-negative number.",
+    ];
   }
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
-    return ["non-actionable", "pivot-not-selected", "Engine generation requires one validated actionable Task 8.2 pivot."];
+    return [
+      "non-actionable",
+      "pivot-not-selected",
+      "Engine generation requires one validated actionable Task 8.2 pivot.",
+    ];
   }
   const pivot = pivotResult.pivot;
   if (
@@ -641,53 +730,80 @@ function compatibilityError(
     pivot.repertoire_color !== request.repertoire_color ||
     pivot.owner !== "repertoire"
   ) {
-    return ["stale", "request-pivot-mismatch", "Validated pivot result does not match the current replacement request identity."];
+    return [
+      "stale",
+      "request-pivot-mismatch",
+      "Validated pivot result does not match the current replacement request identity.",
+    ];
   }
   if (graph.repertoire_color !== request.repertoire_color) {
-    return ["stale", "repertoire-color-mismatch", "Current repertoire graph color does not match the request."];
+    return [
+      "stale",
+      "repertoire-color-mismatch",
+      "Current repertoire graph color does not match the request.",
+    ];
   }
   const position = pivotPosition(graph, pivot);
   let current = position !== null && position.turn === request.repertoire_color;
   if (current && position) {
     try {
       const parsed = Chess.fromSetup(parseFen(position.fen).unwrap()).unwrap();
-      current = parsed.turn === position.turn &&
+      current =
+        parsed.turn === position.turn &&
         positionKey(makeFen(parsed.toSetup())) === position.position_key;
     } catch {
       current = false;
     }
   }
   if (!current || !position) {
-    return ["stale", "pivot-position-stale", "Semantic pivot position is stale or no longer repertoire-owned."];
+    return [
+      "stale",
+      "pivot-position-stale",
+      "Semantic pivot position is stale or no longer repertoire-owned.",
+    ];
   }
   const decision = graph.decisions.find((candidate) => candidate.decision_id === pivot.decision_id);
   if (
-    !decision || decision.from_position_id !== pivot.position_id || decision.san !== pivot.san ||
-    decision.uci !== pivot.uci || decision.owner !== "repertoire" ||
+    !decision ||
+    decision.from_position_id !== pivot.position_id ||
+    decision.san !== pivot.san ||
+    decision.uci !== pivot.uci ||
+    decision.owner !== "repertoire" ||
     decision.mover_color !== request.repertoire_color
   ) {
-    return ["stale", "pivot-decision-stale", "Semantic pivot decision no longer matches the current graph."];
+    return [
+      "stale",
+      "pivot-decision-stale",
+      "Semantic pivot decision no longer matches the current graph.",
+    ];
   }
   if (
     generation.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     generation.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
     generation.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION ||
-    generation.request_id !== request.request_id || generation.report_id !== request.report_id ||
+    generation.request_id !== request.request_id ||
+    generation.report_id !== request.report_id ||
     generation.finding_id !== request.finding_id ||
     generation.semantic_finding_id !== request.semantic_finding_id ||
     generation.cohort_id !== request.cohort_id ||
     generation.repertoire_revision !== request.repertoire_revision ||
-    generation.repertoire_color !== request.repertoire_color || generation.pivot_id !== pivot.pivot_id ||
+    generation.repertoire_color !== request.repertoire_color ||
+    generation.pivot_id !== pivot.pivot_id ||
     (generation.status !== "complete" && generation.status !== "partial") ||
-    generation.candidates.some((candidate) =>
-      candidate.request_id !== request.request_id ||
-      candidate.repertoire_revision !== request.repertoire_revision ||
-      candidate.repertoire_color !== request.repertoire_color ||
-      candidate.pivot.pivot_id !== pivot.pivot_id ||
-      safePositionKey(candidate.outcome_fen) !== candidate.outcome_position_key
+    generation.candidates.some(
+      (candidate) =>
+        candidate.request_id !== request.request_id ||
+        candidate.repertoire_revision !== request.repertoire_revision ||
+        candidate.repertoire_color !== request.repertoire_color ||
+        candidate.pivot.pivot_id !== pivot.pivot_id ||
+        safePositionKey(candidate.outcome_fen) !== candidate.outcome_position_key,
     )
   ) {
-    return ["stale", "candidate-generation-mismatch", "Task 8.3 candidate generation is stale or incompatible with the current request and pivot."];
+    return [
+      "stale",
+      "candidate-generation-mismatch",
+      "Task 8.3 candidate generation is stale or incompatible with the current request and pivot.",
+    ];
   }
   return null;
 }
@@ -743,24 +859,27 @@ function finiteNonNegative(value: unknown): value is number {
 function validEvaluation(line: ReplacementEngineLineEvidence): boolean {
   const cp = line.white_pov_evaluation_cp;
   const mate = line.white_pov_mate_in;
-  return ((finiteInteger(cp) && mate === null) || (cp === null && finiteInteger(mate) && mate !== 0));
+  return (finiteInteger(cp) && mate === null) || (cp === null && finiteInteger(mate) && mate !== 0);
 }
 
-function normalizeObservations(
-  observations: unknown,
-): ReplacementEngineDynamicObservations {
+function normalizeObservations(observations: unknown): ReplacementEngineDynamicObservations {
   const values = isRecord(observations) ? observations : {};
   return {
     tactical_volatility: finiteNonNegative(values.tactical_volatility)
-      ? values.tactical_volatility : null,
+      ? values.tactical_volatility
+      : null,
     evaluation_sensitivity_cp: finiteNonNegative(values.evaluation_sensitivity_cp)
-      ? values.evaluation_sensitivity_cp : null,
-    forcing_move_count: finiteInteger(values.forcing_move_count) && values.forcing_move_count >= 0
-      ? values.forcing_move_count : null,
-    observed_move_count: finiteInteger(values.observed_move_count) && values.observed_move_count > 0
-      ? values.observed_move_count : null,
-    king_safety_risk: finiteNonNegative(values.king_safety_risk)
-      ? values.king_safety_risk : null,
+      ? values.evaluation_sensitivity_cp
+      : null,
+    forcing_move_count:
+      finiteInteger(values.forcing_move_count) && values.forcing_move_count >= 0
+        ? values.forcing_move_count
+        : null,
+    observed_move_count:
+      finiteInteger(values.observed_move_count) && values.observed_move_count > 0
+        ? values.observed_move_count
+        : null,
+    king_safety_risk: finiteNonNegative(values.king_safety_risk) ? values.king_safety_risk : null,
   };
 }
 
@@ -768,8 +887,13 @@ function validatePv(
   fen: string,
   line: ReplacementEngineLineEvidence,
 ): { san: string; uci: string; pvSan: string[]; outcomeFen: string } | null {
-  if (!Array.isArray(line.pv) || line.pv.length === 0 ||
-    line.pv.some((move) => typeof move !== "string") || line.pv[0] !== line.uci) return null;
+  if (
+    !Array.isArray(line.pv) ||
+    line.pv.length === 0 ||
+    line.pv.some((move) => typeof move !== "string") ||
+    line.pv[0] !== line.uci
+  )
+    return null;
   const position = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
   const pvSan: string[] = [];
   let firstSan = "";
@@ -858,7 +982,10 @@ function engineSource(
     version: evidence.engine.version,
     snapshot: evidence.evidence_id,
     reason,
-    position_ids: sortedUnique([position.position_id, ...(outcomePositionId ? [outcomePositionId] : [])]),
+    position_ids: sortedUnique([
+      position.position_id,
+      ...(outcomePositionId ? [outcomePositionId] : []),
+    ]),
     decision_ids: [],
     route_ids: [],
     details: {
@@ -869,16 +996,20 @@ function engineSource(
       requested_multipv: evidence.requested_multipv,
       reached_depth: evidence.reached_depth,
       position: cloneJson(evidence.position) as unknown as JsonValue,
-      move: line ? ({
-        line_id: line.line_id,
-        multipv_rank: line.multipv_rank,
-        uci: line.uci,
-        pv: Array.isArray(line.pv) ? line.pv.filter((move): move is string => typeof move === "string") : [],
-        white_pov_evaluation_cp: line.white_pov_evaluation_cp,
-        white_pov_mate_in: line.white_pov_mate_in,
-        depth: line.depth,
-        observations: normalizeObservations(line.observations),
-      } as unknown as JsonValue) : null,
+      move: line
+        ? ({
+            line_id: line.line_id,
+            multipv_rank: line.multipv_rank,
+            uci: line.uci,
+            pv: Array.isArray(line.pv)
+              ? line.pv.filter((move): move is string => typeof move === "string")
+              : [],
+            white_pov_evaluation_cp: line.white_pov_evaluation_cp,
+            white_pov_mate_in: line.white_pov_mate_in,
+            depth: line.depth,
+            observations: normalizeObservations(line.observations),
+          } as unknown as JsonValue)
+        : null,
       cache: cloneJson(trace) as unknown as JsonValue,
     },
     provenance: mergeStrategicProvenance([
@@ -902,25 +1033,41 @@ function qualityForLine(
   );
   const observations = normalizeObservations(line.line.observations);
   const cpValues = validLines.flatMap((candidate) =>
-    candidate.repertoireCp === null ? [] : [candidate.repertoireCp]
+    candidate.repertoireCp === null ? [] : [candidate.repertoireCp],
   );
   const uncertainty = cpValues.length >= 2 ? Math.max(...cpValues) - Math.min(...cpValues) : null;
-  const forcingDensity = observations.forcing_move_count !== null && observations.observed_move_count !== null
-    ? observations.forcing_move_count / observations.observed_move_count
-    : null;
+  const forcingDensity =
+    observations.forcing_move_count !== null && observations.observed_move_count !== null
+      ? observations.forcing_move_count / observations.observed_move_count
+      : null;
   const tolerance = request.maximum_repertoire_pov_loss_from_best_cp;
-  const viableOutcomes = tolerance === null ? null : new Set(validLines.filter((candidate) =>
-    verdict(
-      { cp: candidate.repertoireCp, mate: candidate.repertoireMate },
-      { cp: best.repertoireCp, mate: best.repertoireMate },
-      tolerance,
-    ).viable
-  ).map((candidate) => candidate.outcomePositionKey)).size;
-  const dynamicComplete = observations.tactical_volatility !== null &&
-    observations.evaluation_sensitivity_cp !== null && forcingDensity !== null &&
-    observations.king_safety_risk !== null && viableOutcomes !== null && uncertainty !== null;
-  const partial = evidence.state === "partial" || evidence.reached_depth === null ||
-    evidence.reached_depth < request.budget.engine_depth || line.line.depth < request.budget.engine_depth ||
+  const viableOutcomes =
+    tolerance === null
+      ? null
+      : new Set(
+          validLines
+            .filter(
+              (candidate) =>
+                verdict(
+                  { cp: candidate.repertoireCp, mate: candidate.repertoireMate },
+                  { cp: best.repertoireCp, mate: best.repertoireMate },
+                  tolerance,
+                ).viable,
+            )
+            .map((candidate) => candidate.outcomePositionKey),
+        ).size;
+  const dynamicComplete =
+    observations.tactical_volatility !== null &&
+    observations.evaluation_sensitivity_cp !== null &&
+    forcingDensity !== null &&
+    observations.king_safety_risk !== null &&
+    viableOutcomes !== null &&
+    uncertainty !== null;
+  const partial =
+    evidence.state === "partial" ||
+    evidence.reached_depth === null ||
+    evidence.reached_depth < request.budget.engine_depth ||
+    line.line.depth < request.budget.engine_depth ||
     !dynamicComplete;
   return {
     ...versioned(),
@@ -943,7 +1090,9 @@ function qualityForLine(
     viable_move_width: viableOutcomes,
     database_performance: null,
     theoretical_status: null,
-    reason: partial ? "Objective quality is based on partial or incomplete inspectable engine observations." : null,
+    reason: partial
+      ? "Objective quality is based on partial or incomplete inspectable engine observations."
+      : null,
     provenance: mergeStrategicProvenance([
       ...safeStrategicProvenance(evidence.provenance),
       ...safeStrategicProvenance(line.line.provenance),
@@ -991,9 +1140,9 @@ function syntheticItem(
     objective_quality: null,
     observations: null,
     cache: cloneJson(trace),
-    provenance: mergeStrategicProvenance(evidence
-      ? safeStrategicProvenance(evidence.provenance)
-      : request.provenance),
+    provenance: mergeStrategicProvenance(
+      evidence ? safeStrategicProvenance(evidence.provenance) : request.provenance,
+    ),
   };
 }
 
@@ -1036,7 +1185,9 @@ function cloneSeed(
     ...cloneJson(seed),
     objective_quality: cloneJson(quality),
     engine_evidence_ids: sortedUnique(engineEvidenceIds),
-    source_kinds: sortedUnique(provenance.map((source) => source.kind)) as ReplacementCandidateSourceKind[],
+    source_kinds: sortedUnique(
+      provenance.map((source) => source.kind),
+    ) as ReplacementCandidateSourceKind[],
     provenance,
   };
 }
@@ -1101,13 +1252,17 @@ function sourceResult(
 ): ReplacementEngineSourceResult {
   return {
     ...versioned(),
-    source_id: evidence ? `strategic-fit:engine-multipv:${evidence.evidence_id}` : "strategic-fit:engine-multipv",
+    source_id: evidence
+      ? `strategic-fit:engine-multipv:${evidence.evidence_id}`
+      : "strategic-fit:engine-multipv",
     kind: "engine-multipv",
     status: sourceStatus(state),
     evidence_state: state,
     accepted_item_count: items.filter((item) => item.status === "accepted").length,
     partial_item_count: items.filter((item) => item.status === "partial").length,
-    rejected_item_count: items.filter((item) => item.status !== "accepted" && item.status !== "partial").length,
+    rejected_item_count: items.filter(
+      (item) => item.status !== "accepted" && item.status !== "partial",
+    ).length,
     reason,
     engine: cloneJson(identity),
     position: cloneJson(position),
@@ -1138,15 +1293,33 @@ function nonEngineResult(
     ...input.candidate_generation.provenance,
     ...safeStrategicProvenance(evidence?.provenance),
   ]);
-  const item = syntheticItem(input.request, identity, position, trace, state, itemStatus, itemError, explanation, evidence);
-  const source = genericSource(input.request, identity, position, trace, state, explanation, evidence);
+  const item = syntheticItem(
+    input.request,
+    identity,
+    position,
+    trace,
+    state,
+    itemStatus,
+    itemError,
+    explanation,
+    evidence,
+  );
+  const source = genericSource(
+    input.request,
+    identity,
+    position,
+    trace,
+    state,
+    explanation,
+    evidence,
+  );
   const quality = unavailableQuality(
     input.request,
     explanation,
     safeStrategicProvenance(evidence?.provenance),
   );
   const candidates = input.candidate_generation.candidates.map((seed) =>
-    cloneSeed(seed, quality, evidence ? [evidence.evidence_id] : [], [source])
+    cloneSeed(seed, quality, evidence ? [evidence.evidence_id] : [], [source]),
   );
   return {
     ...resultBase(input, provenance),
@@ -1158,14 +1331,28 @@ function nonEngineResult(
     discovered_candidate_count: candidates.length,
     candidates,
     engine_item_results: [item],
-    source_results: [sourceResult(input.request, identity, position, trace, state, explanation, [item], [source], evidence)],
+    source_results: [
+      sourceResult(
+        input.request,
+        identity,
+        position,
+        trace,
+        state,
+        explanation,
+        [item],
+        [source],
+        evidence,
+      ),
+    ],
     cache_write: null,
   };
 }
 
 function aborted(error: unknown): boolean {
-  return (error instanceof DOMException && error.name === "AbortError") ||
-    (typeof error === "object" && error !== null && "name" in error && error.name === "AbortError");
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (typeof error === "object" && error !== null && "name" in error && error.name === "AbortError")
+  );
 }
 
 /** Generate and merge bounded engine candidates without constructing Task 8.5 subtrees. */
@@ -1179,7 +1366,13 @@ export async function generateReplacementEngineCandidates(
   ]);
   const compatibility = compatibilityError(input);
   if (compatibility) {
-    return failureResult(input, compatibility[0], compatibility[1], compatibility[2], initialProvenance);
+    return failureResult(
+      input,
+      compatibility[0],
+      compatibility[1],
+      compatibility[2],
+      initialProvenance,
+    );
   }
 
   const pivot = input.pivot_result.pivot as ReplacementActionablePivotEvidence;
@@ -1219,22 +1412,95 @@ export async function generateReplacementEngineCandidates(
   );
 
   if (!input.request.candidate_sources.includes("engine-multipv")) {
-    trace = cacheTrace("bypassed", position, fallbackIdentity, input.request.budget.engine_depth, input.request.budget.engine_multipv);
-    return nonEngineResult(input, fallbackIdentity, position, "unverified", "unverified", "unverified", "engine-source-not-requested", "Engine MultiPV was not requested; retained Task 8.3 candidates remain objectively unverified.", trace, 0);
+    trace = cacheTrace(
+      "bypassed",
+      position,
+      fallbackIdentity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+    );
+    return nonEngineResult(
+      input,
+      fallbackIdentity,
+      position,
+      "unverified",
+      "unverified",
+      "unverified",
+      "engine-source-not-requested",
+      "Engine MultiPV was not requested; retained Task 8.3 candidates remain objectively unverified.",
+      trace,
+      0,
+    );
   }
   if (input.request.budget.maximum_engine_positions === 0) {
-    trace = cacheTrace("bypassed", position, fallbackIdentity, input.request.budget.engine_depth, input.request.budget.engine_multipv);
-    return nonEngineResult(input, fallbackIdentity, position, "rejected", "partial", "budget-excluded", "maximum-engine-positions-exceeded", "Engine position budget is zero; retained Task 8.3 candidates remain objectively unverified.", trace, 0);
+    trace = cacheTrace(
+      "bypassed",
+      position,
+      fallbackIdentity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+    );
+    return nonEngineResult(
+      input,
+      fallbackIdentity,
+      position,
+      "rejected",
+      "partial",
+      "budget-excluded",
+      "maximum-engine-positions-exceeded",
+      "Engine position budget is zero; retained Task 8.3 candidates remain objectively unverified.",
+      trace,
+      0,
+    );
   }
   if (input.signal?.aborted || input.shouldCancel?.()) {
-    trace = cacheTrace("bypassed", position, fallbackIdentity, input.request.budget.engine_depth, input.request.budget.engine_multipv);
-    return nonEngineResult(input, fallbackIdentity, position, "cancelled", "cancelled", "cancelled", "engine-cancelled", "Engine candidate generation was cancelled before scheduling.", trace, 0);
+    trace = cacheTrace(
+      "bypassed",
+      position,
+      fallbackIdentity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+    );
+    return nonEngineResult(
+      input,
+      fallbackIdentity,
+      position,
+      "cancelled",
+      "cancelled",
+      "cancelled",
+      "engine-cancelled",
+      "Engine candidate generation was cancelled before scheduling.",
+      trace,
+      0,
+    );
   }
   if (!input.provider) {
-    return nonEngineResult(input, fallbackIdentity, position, "unavailable", "unavailable", "unavailable", "engine-unavailable", "Engine provider is unavailable; retained Task 8.3 candidates remain objectively unverified.", trace, 0);
+    return nonEngineResult(
+      input,
+      fallbackIdentity,
+      position,
+      "unavailable",
+      "unavailable",
+      "unavailable",
+      "engine-unavailable",
+      "Engine provider is unavailable; retained Task 8.3 candidates remain objectively unverified.",
+      trace,
+      0,
+    );
   }
   if (providerIdentityMalformed || !providerIdentity) {
-    return nonEngineResult(input, fallbackIdentity, position, "rejected", "rejected", "rejected", "engine-identity-mismatch", "Engine provider identity/configuration is malformed; retained Task 8.3 candidates remain objectively unverified.", trace, 0);
+    return nonEngineResult(
+      input,
+      fallbackIdentity,
+      position,
+      "rejected",
+      "rejected",
+      "rejected",
+      "engine-identity-mismatch",
+      "Engine provider identity/configuration is malformed; retained Task 8.3 candidates remain objectively unverified.",
+      trace,
+      0,
+    );
   }
 
   const identity = providerIdentity;
@@ -1248,40 +1514,110 @@ export async function generateReplacementEngineCandidates(
   let evidence: ReplacementEngineAnalysisEvidence | null = cached;
   let scheduled = 0;
   if (cached) {
-    trace = cacheTrace("hit", position, identity, input.request.budget.engine_depth, input.request.budget.engine_multipv, cached);
+    trace = cacheTrace(
+      "hit",
+      position,
+      identity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+      cached,
+    );
   } else {
-    trace = cacheTrace(cacheEntries.length > 0 ? "miss" : "not-configured", position, identity, input.request.budget.engine_depth, input.request.budget.engine_multipv);
+    trace = cacheTrace(
+      cacheEntries.length > 0 ? "miss" : "not-configured",
+      position,
+      identity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+    );
     if (input.signal?.aborted || input.shouldCancel?.()) {
-      return nonEngineResult(input, identity, position, "cancelled", "cancelled", "cancelled", "engine-cancelled", "Engine candidate generation was cancelled before scheduling.", trace, 0);
+      return nonEngineResult(
+        input,
+        identity,
+        position,
+        "cancelled",
+        "cancelled",
+        "cancelled",
+        "engine-cancelled",
+        "Engine candidate generation was cancelled before scheduling.",
+        trace,
+        0,
+      );
     }
     scheduled = 1;
     try {
-      evidence = await input.provider.analyse({
-        request_id: input.request.request_id,
-        repertoire_revision: input.request.repertoire_revision,
-        repertoire_color: input.request.repertoire_color,
-        position: cloneJson(position),
-        depth: input.request.budget.engine_depth,
-        multipv: input.request.budget.engine_multipv,
-      }, input.signal);
+      evidence = await input.provider.analyse(
+        {
+          request_id: input.request.request_id,
+          repertoire_revision: input.request.repertoire_revision,
+          repertoire_color: input.request.repertoire_color,
+          position: cloneJson(position),
+          depth: input.request.budget.engine_depth,
+          multipv: input.request.budget.engine_multipv,
+        },
+        input.signal,
+      );
     } catch (error) {
       const cancelled = input.signal?.aborted || input.shouldCancel?.() || aborted(error);
-      return nonEngineResult(input, identity, position, cancelled ? "cancelled" : "unavailable", cancelled ? "cancelled" : "unavailable", cancelled ? "cancelled" : "unavailable", cancelled ? "engine-cancelled" : "engine-unavailable", cancelled ? "Engine candidate generation was cancelled during analysis." : "Engine provider failed; retained Task 8.3 candidates remain objectively unverified.", trace, scheduled);
+      return nonEngineResult(
+        input,
+        identity,
+        position,
+        cancelled ? "cancelled" : "unavailable",
+        cancelled ? "cancelled" : "unavailable",
+        cancelled ? "cancelled" : "unavailable",
+        cancelled ? "engine-cancelled" : "engine-unavailable",
+        cancelled
+          ? "Engine candidate generation was cancelled during analysis."
+          : "Engine provider failed; retained Task 8.3 candidates remain objectively unverified.",
+        trace,
+        scheduled,
+      );
     }
   }
   if (input.signal?.aborted || input.shouldCancel?.()) {
-    return nonEngineResult(input, identity, position, "cancelled", "cancelled", "cancelled", "engine-cancelled", "Engine candidate generation was cancelled; no further work was scheduled.", trace, scheduled, evidence);
+    return nonEngineResult(
+      input,
+      identity,
+      position,
+      "cancelled",
+      "cancelled",
+      "cancelled",
+      "engine-cancelled",
+      "Engine candidate generation was cancelled; no further work was scheduled.",
+      trace,
+      scheduled,
+      evidence,
+    );
   }
   if (!evidence) {
-    return nonEngineResult(input, identity, position, "unavailable", "unavailable", "unavailable", "engine-unavailable", "Engine returned no analysis; retained Task 8.3 candidates remain objectively unverified.", trace, scheduled);
+    return nonEngineResult(
+      input,
+      identity,
+      position,
+      "unavailable",
+      "unavailable",
+      "unavailable",
+      "engine-unavailable",
+      "Engine returned no analysis; retained Task 8.3 candidates remain objectively unverified.",
+      trace,
+      scheduled,
+    );
   }
-  if (!isRecord(evidence) || !validPositionEvidence(evidence.position) ||
+  if (
+    !isRecord(evidence) ||
+    !validPositionEvidence(evidence.position) ||
     !validEngineIdentity(evidence.engine) ||
-    typeof evidence.evidence_id !== "string" || !Array.isArray(evidence.lines) ||
-    !REPLACEMENT_ENGINE_EVIDENCE_STATES.includes(evidence.state as ReplacementEngineEvidenceState) ||
+    typeof evidence.evidence_id !== "string" ||
+    !Array.isArray(evidence.lines) ||
+    !REPLACEMENT_ENGINE_EVIDENCE_STATES.includes(
+      evidence.state as ReplacementEngineEvidenceState,
+    ) ||
     (evidence.reason !== null && typeof evidence.reason !== "string") ||
-    !finiteInteger(evidence.requested_depth) || !finiteInteger(evidence.requested_multipv) ||
-    (evidence.reached_depth !== null && !finiteInteger(evidence.reached_depth))) {
+    !finiteInteger(evidence.requested_depth) ||
+    !finiteInteger(evidence.requested_multipv) ||
+    (evidence.reached_depth !== null && !finiteInteger(evidence.reached_depth))
+  ) {
     return nonEngineResult(
       input,
       identity,
@@ -1302,47 +1638,92 @@ export async function generateReplacementEngineCandidates(
   } catch {
     // Retain inspectable items, but never cache evidence that is not JSON-safe.
   }
-  const evidencePositionStale = evidence.position.position_id !== position.position_id ||
+  const evidencePositionStale =
+    evidence.position.position_id !== position.position_id ||
     evidence.position.position_key !== position.position_key ||
     cachePositionIdentity(evidence.position) !== cachePositionIdentity(position) ||
-    (() => { try { return positionKey(evidence.position.fen) !== position.position_key; } catch { return true; } })();
-  const requestStale = evidence.requested_depth < input.request.budget.engine_depth ||
+    (() => {
+      try {
+        return positionKey(evidence.position.fen) !== position.position_key;
+      } catch {
+        return true;
+      }
+    })();
+  const requestStale =
+    evidence.requested_depth < input.request.budget.engine_depth ||
     evidence.requested_multipv < input.request.budget.engine_multipv;
   const identityMismatch = !sameIdentity(evidence.engine, identity);
-  const versionMismatch = evidence.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
+  const versionMismatch =
+    evidence.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     evidence.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
     evidence.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION;
-  const terminalState = evidencePositionStale ? "stale" as const
-    : requestStale ? "stale" as const
-    : versionMismatch ? "rejected" as const
-    : identityMismatch ? "rejected" as const
-    : evidence.state;
+  const terminalState = evidencePositionStale
+    ? ("stale" as const)
+    : requestStale
+      ? ("stale" as const)
+      : versionMismatch
+        ? ("rejected" as const)
+        : identityMismatch
+          ? ("rejected" as const)
+          : evidence.state;
   if (terminalState !== "available" && terminalState !== "partial") {
-    const status: ReplacementEngineItemStatus = terminalState === "cancelled" ? "cancelled"
-      : terminalState === "stale" ? "stale"
-      : terminalState === "unavailable" ? "unavailable"
-      : terminalState === "unverified" ? "unverified" : "rejected";
-    const error: ReplacementEngineItemErrorCode = evidencePositionStale ? "stale-engine-position"
-      : requestStale ? "stale-engine-request"
-      : versionMismatch ? "engine-version-mismatch"
-      : identityMismatch ? "engine-identity-mismatch"
-      : terminalState === "cancelled" ? "engine-cancelled"
-      : terminalState === "unavailable" ? "engine-unavailable"
-      : terminalState === "unverified" ? "engine-unverified" : "engine-rejected";
-    const resultStatus: ReplacementEngineResultStatus = terminalState === "cancelled" ? "cancelled"
-      : terminalState === "stale" ? "stale"
-      : terminalState === "unavailable" ? "unavailable"
-      : terminalState === "unverified" ? "unverified" : "rejected";
+    const status: ReplacementEngineItemStatus =
+      terminalState === "cancelled"
+        ? "cancelled"
+        : terminalState === "stale"
+          ? "stale"
+          : terminalState === "unavailable"
+            ? "unavailable"
+            : terminalState === "unverified"
+              ? "unverified"
+              : "rejected";
+    const error: ReplacementEngineItemErrorCode = evidencePositionStale
+      ? "stale-engine-position"
+      : requestStale
+        ? "stale-engine-request"
+        : versionMismatch
+          ? "engine-version-mismatch"
+          : identityMismatch
+            ? "engine-identity-mismatch"
+            : terminalState === "cancelled"
+              ? "engine-cancelled"
+              : terminalState === "unavailable"
+                ? "engine-unavailable"
+                : terminalState === "unverified"
+                  ? "engine-unverified"
+                  : "engine-rejected";
+    const resultStatus: ReplacementEngineResultStatus =
+      terminalState === "cancelled"
+        ? "cancelled"
+        : terminalState === "stale"
+          ? "stale"
+          : terminalState === "unavailable"
+            ? "unavailable"
+            : terminalState === "unverified"
+              ? "unverified"
+              : "rejected";
     const explanation = evidencePositionStale
       ? "Engine evidence position is stale relative to the semantic pivot."
       : requestStale
         ? "Engine evidence does not satisfy requested depth and MultiPV identity."
         : versionMismatch
           ? "Engine evidence schema versions do not match the current Strategic Fit contracts."
-        : identityMismatch
-          ? "Engine evidence identity/configuration does not match the invoked provider."
-          : evidence.reason ?? `Engine evidence is ${terminalState}.`;
-    return nonEngineResult(input, identity, position, terminalState, resultStatus, status, error, explanation, trace, scheduled, evidence);
+          : identityMismatch
+            ? "Engine evidence identity/configuration does not match the invoked provider."
+            : (evidence.reason ?? `Engine evidence is ${terminalState}.`);
+    return nonEngineResult(
+      input,
+      identity,
+      position,
+      terminalState,
+      resultStatus,
+      status,
+      error,
+      explanation,
+      trace,
+      scheduled,
+      evidence,
+    );
   }
   if (!Array.isArray(evidence.lines) || evidence.lines.length === 0) {
     return nonEngineResult(
@@ -1365,8 +1746,13 @@ export async function generateReplacementEngineCandidates(
   const evidenceProvenance = safeStrategicProvenance(evidence.provenance);
   const rankCounts = new Map<number, number>();
   for (const rawLine of evidence.lines) {
-    if (!isRecord(rawLine) || !finiteInteger(rawLine.multipv_rank) ||
-      rawLine.multipv_rank < 1 || rawLine.multipv_rank > input.request.budget.engine_multipv) continue;
+    if (
+      !isRecord(rawLine) ||
+      !finiteInteger(rawLine.multipv_rank) ||
+      rawLine.multipv_rank < 1 ||
+      rawLine.multipv_rank > input.request.budget.engine_multipv
+    )
+      continue;
     rankCounts.set(rawLine.multipv_rank, (rankCounts.get(rawLine.multipv_rank) ?? 0) + 1);
   }
   for (const [itemIndex, rawLine] of evidence.lines.entries()) {
@@ -1408,7 +1794,9 @@ export async function generateReplacementEngineCandidates(
       multipv_rank: finiteInteger(line.multipv_rank) ? line.multipv_rank : null,
       input_uci: typeof line.uci === "string" ? line.uci : null,
       input_pv: rawPv,
-      white_pov_evaluation_cp: finiteInteger(line.white_pov_evaluation_cp) ? line.white_pov_evaluation_cp : null,
+      white_pov_evaluation_cp: finiteInteger(line.white_pov_evaluation_cp)
+        ? line.white_pov_evaluation_cp
+        : null,
       white_pov_mate_in: finiteInteger(line.white_pov_mate_in) ? line.white_pov_mate_in : null,
       observations: rawObservations,
       cache: cloneJson(trace),
@@ -1426,40 +1814,96 @@ export async function generateReplacementEngineCandidates(
       outcome_fen: null,
       objective_quality: null,
     };
-    if (!finiteInteger(line.multipv_rank) || line.multipv_rank < 1 || line.multipv_rank > input.request.budget.engine_multipv) {
-      if (trace.status === "hit" && finiteInteger(line.multipv_rank) && line.multipv_rank > input.request.budget.engine_multipv) {
+    if (
+      !finiteInteger(line.multipv_rank) ||
+      line.multipv_rank < 1 ||
+      line.multipv_rank > input.request.budget.engine_multipv
+    ) {
+      if (
+        trace.status === "hit" &&
+        finiteInteger(line.multipv_rank) &&
+        line.multipv_rank > input.request.budget.engine_multipv
+      ) {
         continue;
       }
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "budget-excluded", error_code: "multipv-budget-exceeded", explanation: "Engine line exceeds requested MultiPV budget." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "budget-excluded",
+        error_code: "multipv-budget-exceeded",
+        explanation: "Engine line exceeds requested MultiPV budget.",
+      });
       continue;
     }
     if ((rankCounts.get(line.multipv_rank) ?? 0) > 1) {
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "rejected", error_code: "duplicate-multipv-rank", explanation: "Engine evidence contains a duplicate requested MultiPV rank." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "rejected",
+        error_code: "duplicate-multipv-rank",
+        explanation: "Engine evidence contains a duplicate requested MultiPV rank.",
+      });
       continue;
     }
     if (typeof line.line_id !== "string" || typeof line.uci !== "string") {
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "rejected", error_code: "malformed-evaluation", explanation: "Engine line identity and root UCI must be strings." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "rejected",
+        error_code: "malformed-evaluation",
+        explanation: "Engine line identity and root UCI must be strings.",
+      });
       continue;
     }
     if (!parseUci(line.uci)) {
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "illegal", error_code: "illegal-uci", explanation: "Engine root UCI is malformed." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "illegal",
+        error_code: "illegal-uci",
+        explanation: "Engine root UCI is malformed.",
+      });
       continue;
     }
     if (!validEvaluation(line) || !finiteInteger(line.depth) || line.depth < 1) {
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "rejected", error_code: "malformed-evaluation", explanation: "Engine line must contain one valid White-POV cp or mate value and a positive depth." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "rejected",
+        error_code: "malformed-evaluation",
+        explanation:
+          "Engine line must contain one valid White-POV cp or mate value and a positive depth.",
+      });
       continue;
     }
     const pv = validatePv(position.fen, line);
     if (!pv) {
-      preliminaryItems.push({ ...common, ...emptyCanonical, status: "malformed-pv", error_code: "malformed-pv", explanation: "Engine PV is empty, mismatched, malformed, or illegal from the semantic pivot position." });
+      preliminaryItems.push({
+        ...common,
+        ...emptyCanonical,
+        status: "malformed-pv",
+        error_code: "malformed-pv",
+        explanation:
+          "Engine PV is empty, mismatched, malformed, or illegal from the semantic pivot position.",
+      });
       continue;
     }
     const outcomeKey = positionKey(pv.outcomeFen);
-    const outcomePositionId = input.graph.positions.find((candidate) =>
-      candidate.position_key === outcomeKey
-    )?.position_id ?? semanticPositionId(outcomeKey);
+    const outcomePositionId =
+      input.graph.positions.find((candidate) => candidate.position_key === outcomeKey)
+        ?.position_id ?? semanticPositionId(outcomeKey);
     const repertoire = scoreForColor(line, input.request.repertoire_color);
-    const source = engineSource(evidence, line, evidence.state === "partial" || line.depth < input.request.budget.engine_depth ? "partial" : "available", position, trace, evidence.reason, outcomePositionId);
+    const source = engineSource(
+      evidence,
+      line,
+      evidence.state === "partial" || line.depth < input.request.budget.engine_depth
+        ? "partial"
+        : "available",
+      position,
+      trace,
+      evidence.reason,
+      outcomePositionId,
+    );
     validated.push({
       line,
       itemIndex,
@@ -1478,74 +1922,108 @@ export async function generateReplacementEngineCandidates(
   const canonicalByOutcome = new Map<string, ValidatedLine>();
   for (const line of validated) {
     const current = canonicalByOutcome.get(line.outcomePositionKey);
-    if (!current || compareScores(
-      { cp: line.repertoireCp, mate: line.repertoireMate },
-      { cp: current.repertoireCp, mate: current.repertoireMate },
-    ) < 0 || (compareScores(
-      { cp: line.repertoireCp, mate: line.repertoireMate },
-      { cp: current.repertoireCp, mate: current.repertoireMate },
-    ) === 0 && (
-      line.line.depth > current.line.depth ||
-      (line.line.depth === current.line.depth && (
-        compareStrings(line.uci, current.uci) < 0 ||
-        (line.uci === current.uci && compareStrings(line.line.line_id, current.line.line_id) < 0)
-      ))
-    ))) canonicalByOutcome.set(line.outcomePositionKey, line);
+    if (
+      !current ||
+      compareScores(
+        { cp: line.repertoireCp, mate: line.repertoireMate },
+        { cp: current.repertoireCp, mate: current.repertoireMate },
+      ) < 0 ||
+      (compareScores(
+        { cp: line.repertoireCp, mate: line.repertoireMate },
+        { cp: current.repertoireCp, mate: current.repertoireMate },
+      ) === 0 &&
+        (line.line.depth > current.line.depth ||
+          (line.line.depth === current.line.depth &&
+            (compareStrings(line.uci, current.uci) < 0 ||
+              (line.uci === current.uci &&
+                compareStrings(line.line.line_id, current.line.line_id) < 0)))))
+    )
+      canonicalByOutcome.set(line.outcomePositionKey, line);
   }
   const canonicalLines = [...canonicalByOutcome.values()];
-  const best = canonicalLines.sort((left, right) =>
-    -compareScores(
-      { cp: left.repertoireCp, mate: left.repertoireMate },
-      { cp: right.repertoireCp, mate: right.repertoireMate },
-    ) || left.line.multipv_rank - right.line.multipv_rank ||
-    compareStrings(left.uci, right.uci) || compareStrings(left.line.line_id, right.line.line_id)
-  )[0] ?? null;
+  const best =
+    canonicalLines.sort(
+      (left, right) =>
+        -compareScores(
+          { cp: left.repertoireCp, mate: left.repertoireMate },
+          { cp: right.repertoireCp, mate: right.repertoireMate },
+        ) ||
+        left.line.multipv_rank - right.line.multipv_rank ||
+        compareStrings(left.uci, right.uci) ||
+        compareStrings(left.line.line_id, right.line.line_id),
+    )[0] ?? null;
   const qualities = new Map<string, ReplacementObjectiveQuality>();
   const sourcesByOutcome = new Map<string, ReplacementCandidateSourceProvenance[]>();
   const evidenceIdsByOutcome = new Map<string, string[]>();
   const acceptedByOutcome = new Map<string, ValidatedLine[]>();
   const validatedItems: ReplacementEngineItemResult[] = [];
 
-  for (const line of validated.sort((left, right) =>
-    compareStrings(left.outcomePositionKey, right.outcomePositionKey) ||
-    compareStrings(left.uci, right.uci) || left.line.multipv_rank - right.line.multipv_rank ||
-    compareStrings(left.line.line_id, right.line.line_id)
+  for (const line of validated.sort(
+    (left, right) =>
+      compareStrings(left.outcomePositionKey, right.outcomePositionKey) ||
+      compareStrings(left.uci, right.uci) ||
+      left.line.multipv_rank - right.line.multipv_rank ||
+      compareStrings(left.line.line_id, right.line.line_id),
   )) {
-    const quality = best ? qualityForLine(input.request, evidence, line, best, canonicalLines) : unavailableQuality(input.request, "No valid engine best line was available.", evidenceProvenance);
+    const quality = best
+      ? qualityForLine(input.request, evidence, line, best, canonicalLines)
+      : unavailableQuality(
+          input.request,
+          "No valid engine best line was available.",
+          evidenceProvenance,
+        );
     const canonical = canonicalByOutcome.get(line.outcomePositionKey)!;
-    const assessment = best ? verdict(
-      { cp: line.repertoireCp, mate: line.repertoireMate },
-      { cp: best.repertoireCp, mate: best.repertoireMate },
-      input.request.maximum_repertoire_pov_loss_from_best_cp,
-    ) : { verdict: "unverified" as const, loss: null, viable: false };
-    const canonicalAssessment = best ? verdict(
-      { cp: canonical.repertoireCp, mate: canonical.repertoireMate },
-      { cp: best.repertoireCp, mate: best.repertoireMate },
-      input.request.maximum_repertoire_pov_loss_from_best_cp,
-    ) : { verdict: "unverified" as const, loss: null, viable: false };
+    const assessment = best
+      ? verdict(
+          { cp: line.repertoireCp, mate: line.repertoireMate },
+          { cp: best.repertoireCp, mate: best.repertoireMate },
+          input.request.maximum_repertoire_pov_loss_from_best_cp,
+        )
+      : { verdict: "unverified" as const, loss: null, viable: false };
+    const canonicalAssessment = best
+      ? verdict(
+          { cp: canonical.repertoireCp, mate: canonical.repertoireMate },
+          { cp: best.repertoireCp, mate: best.repertoireMate },
+          input.request.maximum_repertoire_pov_loss_from_best_cp,
+        )
+      : { verdict: "unverified" as const, loss: null, viable: false };
     const original = line.uci === pivot.uci;
-    const matchingExisting = input.candidate_generation.candidates.some((candidate) =>
-      candidate.outcome_position_key === line.outcomePositionKey
+    const matchingExisting = input.candidate_generation.candidates.some(
+      (candidate) => candidate.outcome_position_key === line.outcomePositionKey,
     );
-    const status: ReplacementEngineItemStatus = original ? "rejected"
-      : !assessment.viable ? "rejected"
-      : !canonicalAssessment.viable && !matchingExisting ? "budget-excluded"
-      : quality.state === "partial" ? "partial" : "accepted";
-    const errorCode: ReplacementEngineItemErrorCode | null = original ? "original-pivot-move"
-      : assessment.verdict === "forced-mate-against-repertoire" ? "forced-mate-against-repertoire"
-      : !assessment.viable ? "outside-evaluation-tolerance"
-      : !canonicalAssessment.viable && !matchingExisting ? "canonical-outcome-rejected" : null;
+    const status: ReplacementEngineItemStatus = original
+      ? "rejected"
+      : !assessment.viable
+        ? "rejected"
+        : !canonicalAssessment.viable && !matchingExisting
+          ? "budget-excluded"
+          : quality.state === "partial"
+            ? "partial"
+            : "accepted";
+    const errorCode: ReplacementEngineItemErrorCode | null = original
+      ? "original-pivot-move"
+      : assessment.verdict === "forced-mate-against-repertoire"
+        ? "forced-mate-against-repertoire"
+        : !assessment.viable
+          ? "outside-evaluation-tolerance"
+          : !canonicalAssessment.viable && !matchingExisting
+            ? "canonical-outcome-rejected"
+            : null;
     const id = candidateId(pivot.position_id, line.outcomePositionKey);
-    const linkedCandidateId = !original && (canonicalAssessment.viable || matchingExisting) ? id : null;
-    const source = status === "accepted" || status === "partial"
-      ? line.source
-      : { ...line.source, status: "rejected" as const, reason: errorCode ?? evidence.reason };
+    const linkedCandidateId =
+      !original && (canonicalAssessment.viable || matchingExisting) ? id : null;
+    const source =
+      status === "accepted" || status === "partial"
+        ? line.source
+        : { ...line.source, status: "rejected" as const, reason: errorCode ?? evidence.reason };
     if (canonical === line) qualities.set(line.outcomePositionKey, quality);
     sourcesByOutcome.set(line.outcomePositionKey, [
-      ...(sourcesByOutcome.get(line.outcomePositionKey) ?? []), source,
+      ...(sourcesByOutcome.get(line.outcomePositionKey) ?? []),
+      source,
     ]);
     evidenceIdsByOutcome.set(line.outcomePositionKey, [
-      ...(evidenceIdsByOutcome.get(line.outcomePositionKey) ?? []), evidence.evidence_id,
+      ...(evidenceIdsByOutcome.get(line.outcomePositionKey) ?? []),
+      evidence.evidence_id,
     ]);
     validatedItems.push({
       ...versioned(),
@@ -1561,9 +2039,9 @@ export async function generateReplacementEngineCandidates(
           ? "Engine move is legal and objectively viable from repertoire POV."
           : assessment.viable
             ? "Engine line is individually viable, but conflicting evidence rejects its canonical outcome from engine-only candidates."
-          : assessment.verdict === "forced-mate-against-repertoire"
-            ? "Engine move permits forced mate against the repertoire."
-            : "Engine move exceeds configured repertoire-POV evaluation tolerance.",
+            : assessment.verdict === "forced-mate-against-repertoire"
+              ? "Engine move permits forced mate against the repertoire."
+              : "Engine move exceeds configured repertoire-POV evaluation tolerance.",
       candidate_id: linkedCandidateId,
       engine: cloneJson(evidence.engine),
       position: cloneJson(evidence.position),
@@ -1601,24 +2079,42 @@ export async function generateReplacementEngineCandidates(
     if (assessment.viable) acceptedByOutcome.set(outcomeKey, [canonical]);
   }
 
-  const generic = genericSource(input.request, identity, position, trace, evidence.state, evidence.reason ?? "Engine MultiPV analysis completed.", evidence);
-  const unavailable = unavailableQuality(input.request, "No matching usable engine line verifies this Task 8.3 candidate.", evidenceProvenance);
+  const generic = genericSource(
+    input.request,
+    identity,
+    position,
+    trace,
+    evidence.state,
+    evidence.reason ?? "Engine MultiPV analysis completed.",
+    evidence,
+  );
+  const unavailable = unavailableQuality(
+    input.request,
+    "No matching usable engine line verifies this Task 8.3 candidate.",
+    evidenceProvenance,
+  );
   const combined = new Map<string, ReplacementEngineCandidateSeed>();
   const existingOrder = new Map<string, number>();
   for (const seed of input.candidate_generation.candidates) {
     existingOrder.set(seed.candidate_id, seed.rank);
-    combined.set(seed.outcome_position_key, cloneSeed(
-      seed,
-      qualities.get(seed.outcome_position_key) ?? unavailable,
-      evidenceIdsByOutcome.get(seed.outcome_position_key) ?? [evidence.evidence_id],
-      sourcesByOutcome.get(seed.outcome_position_key) ?? [generic],
-    ));
+    combined.set(
+      seed.outcome_position_key,
+      cloneSeed(
+        seed,
+        qualities.get(seed.outcome_position_key) ?? unavailable,
+        evidenceIdsByOutcome.get(seed.outcome_position_key) ?? [evidence.evidence_id],
+        sourcesByOutcome.get(seed.outcome_position_key) ?? [generic],
+      ),
+    );
   }
   for (const [outcomeKey, lines] of acceptedByOutcome) {
     if (combined.has(outcomeKey)) continue;
-    const canonical = [...lines].sort((left, right) =>
-      compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san) ||
-      left.line.multipv_rank - right.line.multipv_rank || compareStrings(left.line.line_id, right.line.line_id)
+    const canonical = [...lines].sort(
+      (left, right) =>
+        compareStrings(left.uci, right.uci) ||
+        compareStrings(left.san, right.san) ||
+        left.line.multipv_rank - right.line.multipv_rank ||
+        compareStrings(left.line.line_id, right.line.line_id),
     )[0]!;
     combined.set(outcomeKey, {
       ...versioned(),
@@ -1652,10 +2148,13 @@ export async function generateReplacementEngineCandidates(
         status: "full-subtree-required",
         full_subtree_required: true,
         required_contract: "ReplacementCandidateSubtree",
-        reason: "Task 8.5 must expand this engine seed into bounded coverage-aware opponent replies before it can become a ReplacementCandidate.",
+        reason:
+          "Task 8.5 must expand this engine seed into bounded coverage-aware opponent replies before it can become a ReplacementCandidate.",
       },
       objective_quality: cloneJson(qualities.get(outcomeKey)!),
-      engine_evidence_ids: sortedUnique(evidenceIdsByOutcome.get(outcomeKey) ?? [evidence.evidence_id]),
+      engine_evidence_ids: sortedUnique(
+        evidenceIdsByOutcome.get(outcomeKey) ?? [evidence.evidence_id],
+      ),
     });
   }
 
@@ -1667,59 +2166,89 @@ export async function generateReplacementEngineCandidates(
       if (rightExisting === undefined) return -1;
       return leftExisting - rightExisting;
     }
-    return compareStrings(left.outcome_position_key, right.outcome_position_key) ||
-      compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san);
+    return (
+      compareStrings(left.outcome_position_key, right.outcome_position_key) ||
+      compareStrings(left.uci, right.uci) ||
+      compareStrings(left.san, right.san)
+    );
   });
-  const kept = ordered.slice(0, input.request.budget.maximum_candidates)
+  const kept = ordered
+    .slice(0, input.request.budget.maximum_candidates)
     .map((candidate, index) => ({ ...candidate, rank: index + 1 }));
   const keptIds = new Set(kept.map((candidate) => candidate.candidate_id));
-  const allItems = [...preliminaryItems, ...validatedItems].map((item): ReplacementEngineItemResult => {
-    if ((item.status !== "accepted" && item.status !== "partial") || item.candidate_id === null || keptIds.has(item.candidate_id)) return item;
-    return {
-      ...item,
-      status: "budget-excluded",
-      error_code: "maximum-candidates-exceeded",
-      explanation: "Legal engine candidate was excluded after canonical deduplication by the request maximum-candidate budget.",
-      candidate_id: null,
-    };
-  }).sort((left, right) =>
-    compareStrings(left.outcome_position_key ?? "", right.outcome_position_key ?? "") ||
-    compareStrings(left.canonical_uci ?? left.input_uci ?? "", right.canonical_uci ?? right.input_uci ?? "") ||
-    compareStrings(left.line_id ?? "", right.line_id ?? "") || left.item_index - right.item_index
-  );
-  const allSources = mergeCandidateSources([
-    generic,
-    ...[...sourcesByOutcome.values()].flat(),
-  ]);
-  const partial = evidence.state === "partial" || evidence.reached_depth === null ||
+  const allItems = [...preliminaryItems, ...validatedItems]
+    .map((item): ReplacementEngineItemResult => {
+      if (
+        (item.status !== "accepted" && item.status !== "partial") ||
+        item.candidate_id === null ||
+        keptIds.has(item.candidate_id)
+      )
+        return item;
+      return {
+        ...item,
+        status: "budget-excluded",
+        error_code: "maximum-candidates-exceeded",
+        explanation:
+          "Legal engine candidate was excluded after canonical deduplication by the request maximum-candidate budget.",
+        candidate_id: null,
+      };
+    })
+    .sort(
+      (left, right) =>
+        compareStrings(left.outcome_position_key ?? "", right.outcome_position_key ?? "") ||
+        compareStrings(
+          left.canonical_uci ?? left.input_uci ?? "",
+          right.canonical_uci ?? right.input_uci ?? "",
+        ) ||
+        compareStrings(left.line_id ?? "", right.line_id ?? "") ||
+        left.item_index - right.item_index,
+    );
+  const allSources = mergeCandidateSources([generic, ...[...sourcesByOutcome.values()].flat()]);
+  const partial =
+    evidence.state === "partial" ||
+    evidence.reached_depth === null ||
     evidence.reached_depth < input.request.budget.engine_depth ||
-    ordered.length > kept.length || allItems.some((item) => item.status !== "accepted");
+    ordered.length > kept.length ||
+    allItems.some((item) => item.status !== "accepted");
   const resultProvenance = mergeStrategicProvenance([
     ...initialProvenance,
     ...evidenceProvenance,
-    ...evidence.lines.flatMap((line) => isRecord(line)
-      ? safeStrategicProvenance((line as unknown as ReplacementEngineLineEvidence).provenance)
-      : []),
+    ...evidence.lines.flatMap((line) =>
+      isRecord(line)
+        ? safeStrategicProvenance((line as unknown as ReplacementEngineLineEvidence).provenance)
+        : [],
+    ),
     {
       source_id: "strategic-fit:replacement-engine",
       kind: "engine",
       state: partial ? "partial" : "available",
       version: evidence.engine.version,
       snapshot: evidence.evidence_id,
-      reason: partial ? "Engine candidates retained with explicit partial or rejected evidence." : null,
+      reason: partial
+        ? "Engine candidates retained with explicit partial or rejected evidence."
+        : null,
     },
   ]);
-  const cacheWrite = cached || !untouchedEvidence || preliminaryItems.length > 0 ||
-    evidence.state === "cancelled" || evidence.state === "unavailable" ||
-    evidence.state === "stale" || evidence.state === "rejected" ||
+  const cacheWrite =
+    cached ||
+    !untouchedEvidence ||
+    preliminaryItems.length > 0 ||
+    evidence.state === "cancelled" ||
+    evidence.state === "unavailable" ||
+    evidence.state === "stale" ||
+    evidence.state === "rejected" ||
     evidence.state === "unverified"
-    ? null
-    : {
-      ...cloneJson(untouchedEvidence),
-      lines: [...untouchedEvidence.lines].sort((left, right) =>
-        left.multipv_rank - right.multipv_rank || compareStrings(left.line_id, right.line_id)
-      ).map((line) => cloneJson(line)),
-    };
+      ? null
+      : {
+          ...cloneJson(untouchedEvidence),
+          lines: [...untouchedEvidence.lines]
+            .sort(
+              (left, right) =>
+                left.multipv_rank - right.multipv_rank ||
+                compareStrings(left.line_id, right.line_id),
+            )
+            .map((line) => cloneJson(line)),
+        };
   return {
     ...resultBase(input, resultProvenance),
     status: partial ? "partial" : "complete",
@@ -1732,7 +2261,19 @@ export async function generateReplacementEngineCandidates(
     discovered_candidate_count: ordered.length,
     candidates: kept,
     engine_item_results: allItems,
-    source_results: [sourceResult(input.request, identity, position, trace, evidence.state, evidence.reason, allItems, allSources, evidence)],
+    source_results: [
+      sourceResult(
+        input.request,
+        identity,
+        position,
+        trace,
+        evidence.state,
+        evidence.reason,
+        allItems,
+        allSources,
+        evidence,
+      ),
+    ],
     cache_write: cacheWrite,
   };
 }

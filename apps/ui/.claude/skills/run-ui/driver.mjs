@@ -29,7 +29,11 @@ const DEFAULT_PGN = [
   "1. d4 d5 2. Nf3 e6 3. Bf4 c5 *",
   "1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. g3 Bb7 5. Bg2 Be7 *",
 ].join("\n\n");
-const PGN = process.env.PGN ? (existsSync(process.env.PGN) ? readFileSync(process.env.PGN, "utf8") : process.env.PGN) : DEFAULT_PGN;
+const PGN = process.env.PGN
+  ? existsSync(process.env.PGN)
+    ? readFileSync(process.env.PGN, "utf8")
+    : process.env.PGN
+  : DEFAULT_PGN;
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
@@ -41,7 +45,13 @@ page.on("pageerror", (e) => errors.push("pageerror: " + String(e).slice(0, 200))
 await page.goto(URL, { waitUntil: "domcontentloaded" });
 // __chess exists only in dev builds (import.meta.env.DEV) — it's the headless load hook.
 await page.waitForFunction(() => !!window.__chess, null, { timeout: 20000 });
-await page.evaluate(([pgn, color]) => { window.__chess.loadPgn(pgn, "driver.pgn"); window.__chess.setColor(color); }, [PGN, COLOR]);
+await page.evaluate(
+  ([pgn, color]) => {
+    window.__chess.loadPgn(pgn, "driver.pgn");
+    window.__chess.setColor(color);
+  },
+  [PGN, COLOR],
+);
 await page.waitForTimeout(500);
 await page.screenshot({ path: `${OUT}/00-loaded.png`, fullPage: true });
 console.log(`loaded repertoire (${COLOR}); app screenshot → ${OUT}/00-loaded.png`);
@@ -50,7 +60,9 @@ if (PANEL) {
   // Each scan panel is a <details class="rep-section"> with a "Scan" button in its <summary>.
   // The button calls preventDefault, so clicking it does NOT toggle the <details> — open it first
   // or the suggestion rows (in the collapsed body) never appear.
-  const section = page.locator("details.rep-section", { has: page.getByText(PANEL, { exact: true }) });
+  const section = page.locator("details.rep-section", {
+    has: page.getByText(PANEL, { exact: true }),
+  });
   await section.evaluate((d) => (d.open = true));
   await section.getByRole("button", { name: "Scan" }).click();
   console.log(`scanning ${PANEL} (engine-backed; up to ~2 min)…`);
@@ -59,12 +71,26 @@ if (PANEL) {
 
   const inspects = section.locator("button.inspect-btn");
   const n = await inspects.count();
-  console.log(`${PANEL}: ${await section.locator(".rep-row .bridge-icon").count()} suggestion(s), ${n} inspectable`);
+  console.log(
+    `${PANEL}: ${await section.locator(".rep-row .bridge-icon").count()} suggestion(s), ${n} inspectable`,
+  );
   for (let i = 0; i < n; i++) {
     await inspects.nth(i).click();
-    await section.locator(".shortcut-detail .muted").first().waitFor({ timeout: 60000 }).catch(() => {});
+    await section
+      .locator(".shortcut-detail .muted")
+      .first()
+      .waitFor({ timeout: 60000 })
+      .catch(() => {});
     await page.waitForTimeout(1200);
-    const detail = (await section.locator(".shortcut-detail").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    const detail = (
+      await section
+        .locator(".shortcut-detail")
+        .first()
+        .innerText()
+        .catch(() => "")
+    )
+      .replace(/\s+/g, " ")
+      .trim();
     const warn = await section.locator(".shortcut-detail .warn").allInnerTexts();
     console.log(`  inspect[${i}]: ${detail}`);
     await page.screenshot({ path: `${OUT}/20-${PANEL}-inspect-${i}.png`, fullPage: true });

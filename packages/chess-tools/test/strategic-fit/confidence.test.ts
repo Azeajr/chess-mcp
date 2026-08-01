@@ -32,21 +32,29 @@ function completeConfidence(
 }
 
 test("a complete fixture produces high confidence with all expert components serialized", () => {
-  const result = calculateFindingConfidence(completeConfidence({
-    classifier_confidence: 0.96,
-    checkpoint_completeness: 0.94,
-    temporal_persistence: 0.98,
-    cohort_coherence: 0.92,
-    opening_data_quality: 0.97,
-    causal_attribution_quality: 0.9,
-  }));
+  const result = calculateFindingConfidence(
+    completeConfidence({
+      classifier_confidence: 0.96,
+      checkpoint_completeness: 0.94,
+      temporal_persistence: 0.98,
+      cohort_coherence: 0.92,
+      opening_data_quality: 0.97,
+      causal_attribution_quality: 0.9,
+    }),
+  );
   const serialized = JSON.parse(JSON.stringify(result)) as typeof result;
 
   assert.equal(result.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);
   assert.equal(result.label, "high");
   assert.equal(result.score, 95);
-  assert.deepEqual(result.components.map((component) => component.component), CONFIDENCE_COMPONENTS);
-  assert.equal(result.components.every((component) => component.weight === 1), true);
+  assert.deepEqual(
+    result.components.map((component) => component.component),
+    CONFIDENCE_COMPONENTS,
+  );
+  assert.equal(
+    result.components.every((component) => component.weight === 1),
+    true,
+  );
   assert.deepEqual(serialized.components, result.components);
   assert.deepEqual(result.applied_caps, []);
   assert.match(result.explanation, /seven evidence components/);
@@ -57,58 +65,73 @@ test("effective sample below four applies the frozen 39 cap", () => {
 
   assert.equal(result.score, 39);
   assert.equal(result.label, "low");
-  assert.deepEqual(result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]), [
-    ["effective-sample-below-four", 39],
-  ]);
+  assert.deepEqual(
+    result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]),
+    [["effective-sample-below-four", 39]],
+  );
 });
 
 test("substantial incomplete evidence applies the frozen 49 cap", () => {
-  const result = calculateFindingConfidence(completeConfidence({
-    substantial_incomplete_line_share: true,
-  }));
+  const result = calculateFindingConfidence(
+    completeConfidence({
+      substantial_incomplete_line_share: true,
+    }),
+  );
 
   assert.equal(result.score, 49);
   assert.equal(result.label, "low");
-  assert.deepEqual(result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]), [
-    ["substantial-incomplete-line-share", 49],
-  ]);
+  assert.deepEqual(
+    result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]),
+    [["substantial-incomplete-line-share", 49]],
+  );
 });
 
 test("an unresolved classifier conflict applies the frozen 59 cap", () => {
-  const result = calculateFindingConfidence(completeConfidence({
-    unresolved_classifier_conflict: true,
-  }));
+  const result = calculateFindingConfidence(
+    completeConfidence({
+      unresolved_classifier_conflict: true,
+    }),
+  );
 
   assert.equal(result.score, 59);
   assert.equal(result.label, "moderate");
-  assert.deepEqual(result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]), [
-    ["unresolved-classifier-conflict", 59],
-  ]);
+  assert.deepEqual(
+    result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]),
+    [["unresolved-classifier-conflict", 59]],
+  );
 });
 
 test("missing taxonomy falls back to strong structural evidence under the frozen 69 cap", () => {
-  const result = calculateFindingConfidence(completeConfidence({
-    opening_taxonomy_available: false,
-  }));
+  const result = calculateFindingConfidence(
+    completeConfidence({
+      opening_taxonomy_available: false,
+    }),
+  );
 
   assert.equal(result.score, 69);
   assert.equal(result.label, "moderate");
-  assert.deepEqual(result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]), [
-    ["missing-taxonomy-with-strong-structural-evidence", 69],
-  ]);
+  assert.deepEqual(
+    result.applied_caps.map((cap) => [cap.reason, cap.maximum_score]),
+    [["missing-taxonomy-with-strong-structural-evidence", 69]],
+  );
   assert.match(result.applied_caps[0]!.explanation, /strong structural evidence remains usable/);
 });
 
 test("all applicable hard caps remain explicit and the strictest cap controls", () => {
-  const result = calculateFindingConfidence(completeConfidence({
-    effective_sample_size: 3.9,
-    substantial_incomplete_line_share: true,
-    unresolved_classifier_conflict: true,
-    opening_taxonomy_available: false,
-  }));
+  const result = calculateFindingConfidence(
+    completeConfidence({
+      effective_sample_size: 3.9,
+      substantial_incomplete_line_share: true,
+      unresolved_classifier_conflict: true,
+      opening_taxonomy_available: false,
+    }),
+  );
 
   assert.equal(result.score, 39);
-  assert.deepEqual(result.applied_caps.map((cap) => cap.reason), CONFIDENCE_CAP_REASONS);
+  assert.deepEqual(
+    result.applied_caps.map((cap) => cap.reason),
+    CONFIDENCE_CAP_REASONS,
+  );
 });
 
 test("low classifier confidence limits the geometric confidence score", () => {
@@ -187,12 +210,13 @@ test("invalid confidence and magnitude evidence is rejected", () => {
     /strategic_fit_confidence_invalid_effective_sample_size/,
   );
   assert.throws(
-    () => calculateStrategicDifference({
-      distance: 0.5,
-      persistence: 0.5,
-      new_concept_count: -1,
-      stable_from_ply: 12,
-    }),
+    () =>
+      calculateStrategicDifference({
+        distance: 0.5,
+        persistence: 0.5,
+        new_concept_count: -1,
+        stable_from_ply: 12,
+      }),
     /strategic_fit_difference_invalid_concept_count/,
   );
 });

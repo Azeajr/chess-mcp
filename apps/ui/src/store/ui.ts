@@ -16,7 +16,10 @@ export interface StrategicFitWorkspaceRegionState {
   readonly message?: string;
 }
 
-const emptyStrategicFitWorkspaceRegions = (): Record<StrategicFitWorkspaceStage, StrategicFitWorkspaceRegionState> => ({
+const emptyStrategicFitWorkspaceRegions = (): Record<
+  StrategicFitWorkspaceStage,
+  StrategicFitWorkspaceRegionState
+> => ({
   overview: { status: "empty" },
   findings: { status: "empty" },
   evidence: { status: "empty" },
@@ -26,8 +29,9 @@ const emptyStrategicFitWorkspaceRegions = (): Record<StrategicFitWorkspaceStage,
 export const [strategicFitWorkspaceOpen, setStrategicFitWorkspaceOpen] = createSignal(false);
 export const [strategicFitWorkspaceStage, setStrategicFitWorkspaceStage] =
   createSignal<StrategicFitWorkspaceStage>("overview");
-export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] =
-  createSignal(emptyStrategicFitWorkspaceRegions());
+export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] = createSignal(
+  emptyStrategicFitWorkspaceRegions(),
+);
 
 /**
  * Task 10.4 print/export mode. Every table equivalent renders its complete list and every
@@ -38,7 +42,10 @@ export const [strategicFitPrintExportMode, setStrategicFitPrintExportMode] = cre
 
 export type StrategicFitFindingQueueFilter =
   | { readonly kind: "all" }
-  | { readonly kind: "classification"; readonly classification: "forced-diversity" | "intentional-diversity" }
+  | {
+      readonly kind: "classification";
+      readonly classification: "forced-diversity" | "intentional-diversity";
+    }
   | { readonly kind: "resolution"; readonly resolution: "unresolved" }
   | { readonly kind: "evidence"; readonly evidence: "insufficient" };
 

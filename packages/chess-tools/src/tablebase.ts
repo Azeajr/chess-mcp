@@ -29,7 +29,10 @@ interface RawTb {
   moves?: RawMove[];
 }
 
-export async function tablebaseLookup(fen: string, signal?: AbortSignal): Promise<TablebaseResult | null> {
+export async function tablebaseLookup(
+  fen: string,
+  signal?: AbortSignal,
+): Promise<TablebaseResult | null> {
   const url = `https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`;
   const data = await fetchJson<RawTb>(url, undefined, signal);
   if (!data) return null;
@@ -39,6 +42,11 @@ export async function tablebaseLookup(fen: string, signal?: AbortSignal): Promis
     dtm: data.dtm ?? null,
     checkmate: !!data.checkmate,
     stalemate: !!data.stalemate,
-    moves: (data.moves ?? []).map((m) => ({ uci: m.uci, san: m.san, category: m.category, dtz: m.dtz ?? null })),
+    moves: (data.moves ?? []).map((m) => ({
+      uci: m.uci,
+      san: m.san,
+      category: m.category,
+      dtz: m.dtz ?? null,
+    })),
   };
 }

@@ -20,7 +20,8 @@ function evalText(l: EngineLine): string {
 function cloudText(): string {
   const c = cloud();
   if (!c) return "—";
-  const score = c.mate !== null ? `M${Math.abs(c.mate)}` : (c.cp! >= 0 ? "+" : "") + (c.cp! / 100).toFixed(2);
+  const score =
+    c.mate !== null ? `M${Math.abs(c.mate)}` : (c.cp! >= 0 ? "+" : "") + (c.cp! / 100).toFixed(2);
   return `${score}  ·  depth ${c.depth}`;
 }
 
@@ -35,7 +36,13 @@ export default function AnalysisPanel() {
         </Show>
       </div>
       <Show when={analysing()}>
-        <div class="analysis-progress" role="progressbar" aria-label="Position analysis in progress"><span /></div>
+        <div
+          class="analysis-progress"
+          role="progressbar"
+          aria-label="Position analysis in progress"
+        >
+          <span />
+        </div>
       </Show>
       <Show
         when={!engineOffline()}

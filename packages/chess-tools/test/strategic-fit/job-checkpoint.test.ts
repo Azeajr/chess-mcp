@@ -19,14 +19,19 @@ import { BROAD_ECO_FIXTURE } from "./fixtures.ts";
 
 const PGN = BROAD_ECO_FIXTURE.pgn;
 
-const options = (overrides: Partial<AnalyzeStrategicFitOptions> = {}): AnalyzeStrategicFitOptions => ({
+const options = (
+  overrides: Partial<AnalyzeStrategicFitOptions> = {},
+): AnalyzeStrategicFitOptions => ({
   repertoireColor: "white",
   repertoireRevision: "rev-1",
   ...overrides,
 });
 
 /** Equivalence is exact: the same values in the same order, not a tolerance. */
-function assertIdentical(actual: StrategicFitAnalysisResult, expected: StrategicFitAnalysisResult): void {
+function assertIdentical(
+  actual: StrategicFitAnalysisResult,
+  expected: StrategicFitAnalysisResult,
+): void {
   assert.deepStrictEqual(actual, expected);
   assert.equal(JSON.stringify(actual), JSON.stringify(expected));
 }
@@ -67,7 +72,10 @@ function interruptAfterPhase(
     assert.ok(error instanceof StrategicFitAnalysisCancelledError);
     cancelledPhaseIndex = error.phase_index;
   }
-  assert.ok(cancelledPhaseIndex > interruptAfterPhaseIndex, "the job must stop before it completes");
+  assert.ok(
+    cancelledPhaseIndex > interruptAfterPhaseIndex,
+    "the job must stop before it completes",
+  );
   return { checkpoints, cancelledPhaseIndex };
 }
 
@@ -103,7 +111,10 @@ test("a job resumed from a checkpoint returns exactly what a cold full scan retu
 
   const resumed = analyzeStrategicFit(GameTree.fromPgn(PGN), { ...analysisOptions, index });
   assertIdentical(resumed, cold);
-  assert.ok(index.stats.hits >= 2, "the restored graph and trajectory report are reused, not rebuilt");
+  assert.ok(
+    index.stats.hits >= 2,
+    "the restored graph and trajectory report are reused, not rebuilt",
+  );
 });
 
 test("a checkpoint saved before the trajectory phase still resumes and still equals a cold scan", () => {
@@ -163,10 +174,22 @@ test("an incompatible checkpoint is discarded with a specific reason and restore
   const stored = structuredClone(interruptAfterPhase(analysisOptions).checkpoints.at(-1)!);
 
   const cases: readonly (readonly [AnalyzeStrategicFitOptions, string, string])[] = [
-    [options({ repertoireRevision: "rev-2" }), "strategic_fit_checkpoint_stale_revision", contentKey],
+    [
+      options({ repertoireRevision: "rev-2" }),
+      "strategic_fit_checkpoint_stale_revision",
+      contentKey,
+    ],
     [analysisOptions, "strategic_fit_checkpoint_stale_content", "1. d4 d5 *"],
-    [options({ weighting: { mode: "manual" } }), "strategic_fit_checkpoint_stale_settings", contentKey],
-    [options({ trajectory: { configuredPlies: [6, 10] } }), "strategic_fit_checkpoint_stale_settings", contentKey],
+    [
+      options({ weighting: { mode: "manual" } }),
+      "strategic_fit_checkpoint_stale_settings",
+      contentKey,
+    ],
+    [
+      options({ trajectory: { configuredPlies: [6, 10] } }),
+      "strategic_fit_checkpoint_stale_settings",
+      contentKey,
+    ],
     [options({ repertoireColor: "black" }), "strategic_fit_checkpoint_stale_settings", contentKey],
   ];
 
@@ -210,15 +233,30 @@ test("corrupted and foreign-format checkpoints are discarded rather than partial
   const corrupt: readonly (readonly [unknown, string])[] = [
     [null, "strategic_fit_checkpoint_corrupt"],
     ["not-a-record", "strategic_fit_checkpoint_corrupt"],
-    [{ ...stored, format_version: STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION + 1 }, "strategic_fit_checkpoint_format_version"],
+    [
+      { ...stored, format_version: STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION + 1 },
+      "strategic_fit_checkpoint_format_version",
+    ],
     [{ ...stored, provisional: false }, "strategic_fit_checkpoint_corrupt"],
     [{ ...stored, saved_at: "not-a-time" }, "strategic_fit_checkpoint_corrupt"],
     [{ ...stored, completed_phase: "ranking-findings" }, "strategic_fit_checkpoint_corrupt"],
     [{ ...stored, job_id: "strategic-fit-job:forged" }, "strategic_fit_checkpoint_corrupt"],
-    [{ ...stored, stages: { ...stored.stages, graph: { graph_id: "graph:truncated" } } }, "strategic_fit_checkpoint_corrupt"],
-    [{ ...stored, stages: { ...stored.stages, graph_content_key: "" } }, "strategic_fit_checkpoint_corrupt"],
-    [{ ...stored, stages: { ...stored.stages, trajectories: { graph_id: 7 } } }, "strategic_fit_checkpoint_corrupt"],
-    [{ ...stored, compatibility: { ...stored.compatibility, index_generation: "" } }, "strategic_fit_checkpoint_corrupt"],
+    [
+      { ...stored, stages: { ...stored.stages, graph: { graph_id: "graph:truncated" } } },
+      "strategic_fit_checkpoint_corrupt",
+    ],
+    [
+      { ...stored, stages: { ...stored.stages, graph_content_key: "" } },
+      "strategic_fit_checkpoint_corrupt",
+    ],
+    [
+      { ...stored, stages: { ...stored.stages, trajectories: { graph_id: 7 } } },
+      "strategic_fit_checkpoint_corrupt",
+    ],
+    [
+      { ...stored, compatibility: { ...stored.compatibility, index_generation: "" } },
+      "strategic_fit_checkpoint_corrupt",
+    ],
   ];
 
   for (const [candidate, code] of corrupt) {
@@ -296,7 +334,9 @@ test("an analysis without an index emits no checkpoint at all", () => {
   let emitted = 0;
   analyzeStrategicFit(GameTree.fromPgn(PGN), {
     ...options(),
-    onCheckpoint: () => { emitted++; },
+    onCheckpoint: () => {
+      emitted++;
+    },
   });
   assert.equal(emitted, 0, "checkpointing is expressed in index identities and requires an index");
 });

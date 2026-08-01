@@ -26,7 +26,9 @@ function issue(code: PreflightIssue["code"], paths = 0, details = 0): PreflightI
     message: `Canonical ${code} message.`,
     affected_route_ids: [],
     affected_source_paths: Array.from({ length: paths }, (_, index) => [`route-${index}`, "e4"]),
-    details: Object.fromEntries(Array.from({ length: details }, (_, index) => [`detail_${index}`, index])),
+    details: Object.fromEntries(
+      Array.from({ length: details }, (_, index) => [`detail_${index}`, index]),
+    ),
     provenance: [],
   };
 }
@@ -47,8 +49,16 @@ test("every canonical preflight code, kind, and severity has a plain distinct UI
   assert.deepEqual(Object.keys(PREFLIGHT_KIND_LABELS), [...PREFLIGHT_ISSUE_KINDS]);
   assert.deepEqual(Object.keys(PREFLIGHT_SEVERITY_LABELS), [...PREFLIGHT_ISSUE_SEVERITIES]);
   assert.equal(new Set(Object.values(PREFLIGHT_CODE_LABELS)).size, PREFLIGHT_ISSUE_CODES.length);
-  assert.deepEqual(Object.values(PREFLIGHT_KIND_LABELS), ["Input error", "Input warning", "Evidence limitation"]);
-  assert.deepEqual(Object.values(PREFLIGHT_SEVERITY_LABELS), ["Blocking", "Degraded evidence", "Informational"]);
+  assert.deepEqual(Object.values(PREFLIGHT_KIND_LABELS), [
+    "Input error",
+    "Input warning",
+    "Evidence limitation",
+  ]);
+  assert.deepEqual(Object.values(PREFLIGHT_SEVERITY_LABELS), [
+    "Blocking",
+    "Degraded evidence",
+    "Informational",
+  ]);
 });
 
 test("affected paths and details remain bounded while omitted evidence stays explicitly counted", () => {

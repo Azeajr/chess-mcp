@@ -7,13 +7,16 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 const HEATMAP_REPERTOIRE = `[Event "Heatmap: Queen's Gambit"]
 [Result "*"]
@@ -44,11 +47,15 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   await page.getByRole("button", { name: "Open workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   return dialog;
 }
 
-test("the concept heatmap shows textual cells, untrained mastery, and finding selection", async ({ page }) => {
+test("the concept heatmap shows textual cells, untrained mastery, and finding selection", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, HEATMAP_REPERTOIRE, "heatmap-complete.pgn");
   const before = await chess(page, (api) => api.toPgn());
   const heatmap = dialog.locator(".concept-heatmap");
@@ -58,7 +65,9 @@ test("the concept heatmap shows textual cells, untrained mastery, and finding se
   const columns = heatmap.locator("[data-heatmap-column]");
   const columnCount = await columns.count();
   expect(columnCount).toBeGreaterThan(0);
-  await expect(heatmap.locator("[data-heatmap-mastery-state='untrained']")).toHaveCount(columnCount);
+  await expect(heatmap.locator("[data-heatmap-mastery-state='untrained']")).toHaveCount(
+    columnCount,
+  );
   const masteryText = await columns.first().locator("[data-heatmap-mastery]").textContent();
   expect(masteryText).toBe("Untrained");
   expect(masteryText).not.toContain("0%");
@@ -78,28 +87,36 @@ test("the concept heatmap shows textual cells, untrained mastery, and finding se
   const openFinding = detail.locator("[data-heatmap-open-finding]").first();
   const findingId = await openFinding.getAttribute("data-heatmap-open-finding");
   await openFinding.click();
-  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute("data-stage", "findings");
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
   const findings = dialog.locator("#strategic-fit-pane-findings");
-  await expect(findings.getByRole("status")).toContainText("Findings for the selected heatmap cell");
-  await expect(
-    findings.locator(`[data-finding-id='${findingId}']`),
-  ).toHaveAttribute("data-finding-selected", "true");
+  await expect(findings.getByRole("status")).toContainText(
+    "Findings for the selected heatmap cell",
+  );
+  await expect(findings.locator(`[data-finding-id='${findingId}']`)).toHaveAttribute(
+    "data-finding-selected",
+    "true",
+  );
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("heatmap sorting reorders concepts deterministically and keeps the screen-reader summary", async ({ page }) => {
+test("heatmap sorting reorders concepts deterministically and keeps the screen-reader summary", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, HEATMAP_REPERTOIRE, "heatmap-sort.pgn");
   const heatmap = dialog.locator(".concept-heatmap");
   const columns = heatmap.locator("[data-heatmap-column]");
   const byConcept = await columns.evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("data-heatmap-column"))
+    nodes.map((node) => node.getAttribute("data-heatmap-column")),
   );
   expect(byConcept).toEqual([...byConcept].sort());
 
   await heatmap.locator("[data-heatmap-sort]").selectOption("frequency");
   const byFrequency = await columns.evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("data-heatmap-column"))
+    nodes.map((node) => node.getAttribute("data-heatmap-column")),
   );
   expect([...byFrequency].sort()).toEqual([...byConcept].sort());
 
@@ -118,8 +135,8 @@ test("the heatmap table stays contained and usable on a phone viewport", async (
   const scroll = heatmap.locator(".concept-heatmap-scroll");
   const overflow = await scroll.evaluate((element) => getComputedStyle(element).overflowX);
   expect(["auto", "scroll"]).toContain(overflow);
-  const contained = await scroll.evaluate((element) =>
-    element.clientWidth <= (element.closest(".concept-heatmap")?.clientWidth ?? 0) + 1
+  const contained = await scroll.evaluate(
+    (element) => element.clientWidth <= (element.closest(".concept-heatmap")?.clientWidth ?? 0) + 1,
   );
   expect(contained).toBe(true);
 
@@ -131,10 +148,14 @@ test("the heatmap table stays contained and usable on a phone viewport", async (
   await expect(heatmap.locator("[data-heatmap-detail]")).toBeVisible();
 });
 
-test("a repertoire without concept evidence shows an explicit unavailable heatmap", async ({ page }) => {
+test("a repertoire without concept evidence shows an explicit unavailable heatmap", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, "1. e4 *", "heatmap-unavailable.pgn");
   const heatmap = dialog.locator(".concept-heatmap");
   await expect(heatmap).toHaveAttribute("data-heatmap-state", "unavailable");
-  await expect(heatmap.locator("[data-heatmap-unavailable]")).toContainText("Concept heatmap unavailable");
+  await expect(heatmap.locator("[data-heatmap-unavailable]")).toContainText(
+    "Concept heatmap unavailable",
+  );
   await expect(heatmap.locator("[data-heatmap-table]")).toHaveCount(0);
 });

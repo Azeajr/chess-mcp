@@ -19,43 +19,52 @@ test("supported tags and phrases yield deterministic quoted path-bound suggestio
   const graph = buildRepertoireGraph(tree, "white");
   const suggestions = suggestStrategicFitIntentFromComments(tree, graph);
 
-  assert.deepEqual(suggestions.map((entry) => ({
-    kind: entry.kind,
-    value: entry.intent_value,
-    detection: entry.detection,
-    comment: entry.source_comment,
-    match: entry.source_match,
-    path: entry.source_san_path,
-  })), [
-    {
-      kind: "tournament-weapon",
-      value: "tournament-specific",
-      detection: "tag",
-      comment: "[%strategic-fit tournament-weapon]",
-      match: "[%strategic-fit tournament-weapon]",
-      path: [],
-    },
-    {
-      kind: "retain-line",
-      value: "keep-intentionally",
-      detection: "phrase",
-      comment: "must keep this line",
-      match: "must keep",
-      path: ["e4"],
-    },
-    {
-      kind: "avoid-concept",
-      value: "endgame-tendency.queenless",
-      detection: "phrase",
-      comment: "avoid queenless middlegame",
-      match: "avoid queenless middlegame",
-      path: ["e4", "e5"],
-    },
-  ]);
-  assert.deepEqual(suggestions[0]?.references.route_ids, graph.routes.map((route) => route.route_id));
+  assert.deepEqual(
+    suggestions.map((entry) => ({
+      kind: entry.kind,
+      value: entry.intent_value,
+      detection: entry.detection,
+      comment: entry.source_comment,
+      match: entry.source_match,
+      path: entry.source_san_path,
+    })),
+    [
+      {
+        kind: "tournament-weapon",
+        value: "tournament-specific",
+        detection: "tag",
+        comment: "[%strategic-fit tournament-weapon]",
+        match: "[%strategic-fit tournament-weapon]",
+        path: [],
+      },
+      {
+        kind: "retain-line",
+        value: "keep-intentionally",
+        detection: "phrase",
+        comment: "must keep this line",
+        match: "must keep",
+        path: ["e4"],
+      },
+      {
+        kind: "avoid-concept",
+        value: "endgame-tendency.queenless",
+        detection: "phrase",
+        comment: "avoid queenless middlegame",
+        match: "avoid queenless middlegame",
+        path: ["e4", "e5"],
+      },
+    ],
+  );
+  assert.deepEqual(
+    suggestions[0]?.references.route_ids,
+    graph.routes.map((route) => route.route_id),
+  );
   assert.equal(suggestions[1]?.references.decision_ids.length, 1);
   assert.deepEqual(suggestions[1]?.references.source_san_paths, [["e4"]]);
-  assert.equal(suggestions.every((entry) => entry.suggestion_id.startsWith("comment-intent:")), true);
+  assert.equal(
+    suggestions.every((entry) => entry.suggestion_id.startsWith("comment-intent:")),
+    true,
+  );
 });
 
 test("ambiguous commentary is ignored and scanning never mutates comments or PGN", () => {

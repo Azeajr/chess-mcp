@@ -26,40 +26,44 @@ function populatedMetadata(label: string): StrategicFitDocumentMetadata {
         preferred_concept_ids: [`concept:${label}`],
       },
     },
-    resolutions: [{
-      schema_version: defaults.profile.schema_version,
-      resolution_id: `resolution:${label}`,
-      finding_id: `finding:${label}`,
-      semantic_finding_id: `semantic-finding:${label}`,
-      repertoire_revision: "revision:7",
-      state: "defer",
-      intentional_reason: null,
-      note: `Review ${label} later`,
-      references: {
-        position_ids: [`position:${label}`],
-        decision_ids: [`decision:${label}`],
-        route_ids: [`route:${label}`],
-        source_san_paths: [["e4", "c5"]],
+    resolutions: [
+      {
+        schema_version: defaults.profile.schema_version,
+        resolution_id: `resolution:${label}`,
+        finding_id: `finding:${label}`,
+        semantic_finding_id: `semantic-finding:${label}`,
+        repertoire_revision: "revision:7",
+        state: "defer",
+        intentional_reason: null,
+        note: `Review ${label} later`,
+        references: {
+          position_ids: [`position:${label}`],
+          decision_ids: [`decision:${label}`],
+          route_ids: [`route:${label}`],
+          source_san_paths: [["e4", "c5"]],
+        },
+        invalidation_rules: ["referenced-position-changed"],
+        expires_at: null,
+        linked_training_ids: [],
+        linked_staged_edit_ids: [],
+        created_at: "2026-07-17T12:00:00.000Z",
+        profile_snapshot: null,
+        record_state: "active",
+        stale_reasons: [],
+        reason: null,
+        updated_at: "2026-07-17T12:00:00.000Z",
+        provenance: [
+          {
+            source_id: "fixture:user",
+            kind: "user-profile",
+            state: "available",
+            version: defaults.profile.schema_version,
+            snapshot: "revision:7",
+            reason: "Test fixture.",
+          },
+        ],
       },
-      invalidation_rules: ["referenced-position-changed"],
-      expires_at: null,
-      linked_training_ids: [],
-      linked_staged_edit_ids: [],
-      created_at: "2026-07-17T12:00:00.000Z",
-      profile_snapshot: null,
-      record_state: "active",
-      stale_reasons: [],
-      reason: null,
-      updated_at: "2026-07-17T12:00:00.000Z",
-      provenance: [{
-        source_id: "fixture:user",
-        kind: "user-profile",
-        state: "available",
-        version: defaults.profile.schema_version,
-        snapshot: "revision:7",
-        reason: "Test fixture.",
-      }],
-    }],
+    ],
   };
 }
 
@@ -92,7 +96,9 @@ interface Deferred<T> {
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -130,14 +136,19 @@ test("restore canonicalizes duplicate active resolution IDs for one semantic fin
   const controller = createStrategicFitMetadataPersistence({ storage, debounceMs: 5 });
   await controller.activateDocument(DOCUMENT_A);
   assert.equal(controller.snapshot().normalization_state, "valid");
-  assert.equal(controller.snapshot().issues.some((entry) => entry.code === "duplicate-id"), true);
+  assert.equal(
+    controller.snapshot().issues.some((entry) => entry.code === "duplicate-id"),
+    true,
+  );
   assert.deepEqual(
     controller.snapshot().metadata.resolutions.map((entry) => entry.resolution_id),
     ["resolution:replacement"],
   );
   await controller.flush();
   assert.deepEqual(
-    (storage.values.get(DOCUMENT_A) as StrategicFitDocumentMetadata).resolutions.map((entry) => entry.resolution_id),
+    (storage.values.get(DOCUMENT_A) as StrategicFitDocumentMetadata).resolutions.map(
+      (entry) => entry.resolution_id,
+    ),
     ["resolution:replacement"],
   );
   controller.dispose();
@@ -212,7 +223,10 @@ test("two documents isolate immediate reads and every debounced write by capture
 
   assert.deepEqual(storage.values.get(DOCUMENT_A), metadataA);
   assert.deepEqual(storage.values.get(DOCUMENT_B), metadataB);
-  assert.deepEqual(storage.writes.map((entry) => entry.documentId).sort(), [DOCUMENT_A, DOCUMENT_B].sort());
+  assert.deepEqual(
+    storage.writes.map((entry) => entry.documentId).sort(),
+    [DOCUMENT_A, DOCUMENT_B].sort(),
+  );
   await controller.activateDocument(DOCUMENT_A);
   assert.deepEqual(controller.snapshot().metadata, metadataA);
   controller.dispose();
@@ -220,7 +234,12 @@ test("two documents isolate immediate reads and every debounced write by capture
 
 test("corrupt and unsupported records publish defaults, structured warnings, then repair their key", async () => {
   for (const [label, input, warningCode, issueCode] of [
-    ["corrupt", { metadata_version: "1.3.0", metadata_kind: "wrong" }, "invalid-metadata", "invalid-field"],
+    [
+      "corrupt",
+      { metadata_version: "1.3.0", metadata_kind: "wrong" },
+      "invalid-metadata",
+      "invalid-field",
+    ],
     ["unsupported", { metadata_version: "99.0.0" }, "unsupported-metadata", "unsupported-version"],
   ] as const) {
     const storage = new MemoryStorage();
@@ -231,9 +250,17 @@ test("corrupt and unsupported records publish defaults, structured warnings, the
     assert.equal(snapshot.normalization_state, "fallback", label);
     assert.deepEqual(snapshot.metadata, createDefaultStrategicFitDocumentMetadata(), label);
     assert.equal(snapshot.warning?.code, warningCode, label);
-    assert.equal(snapshot.warning?.issues.some((entry) => entry.code === issueCode), true, label);
+    assert.equal(
+      snapshot.warning?.issues.some((entry) => entry.code === issueCode),
+      true,
+      label,
+    );
     await controller.flush();
-    assert.deepEqual(storage.values.get(DOCUMENT_A), createDefaultStrategicFitDocumentMetadata(), label);
+    assert.deepEqual(
+      storage.values.get(DOCUMENT_A),
+      createDefaultStrategicFitDocumentMetadata(),
+      label,
+    );
     controller.dispose();
   }
 });
@@ -252,7 +279,11 @@ test("targeted cleanup removes only the requested key and safely resets the acti
 
   await controller.deleteDocumentMetadata(DOCUMENT_A);
   await controller.flush();
-  assert.equal(storage.values.has(DOCUMENT_A), false, "a pending write must not resurrect a deleted record");
+  assert.equal(
+    storage.values.has(DOCUMENT_A),
+    false,
+    "a pending write must not resurrect a deleted record",
+  );
   assert.deepEqual(controller.snapshot().metadata, createDefaultStrategicFitDocumentMetadata());
   assert.equal(controller.snapshot().status, "ready");
   assert.deepEqual(storage.deletes, [DOCUMENT_B, DOCUMENT_A]);

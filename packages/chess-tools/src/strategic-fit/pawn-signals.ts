@@ -24,10 +24,7 @@ import type {
   StrategicFitSourceProvenance,
   StrategicSignal,
 } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 const FILE_NAMES = "abcdefgh";
 const CENTER_FILES = new Set([3, 4]);
@@ -369,7 +366,10 @@ function backwardPawnCandidates(board: Board, color: Color): BackwardPawnCandida
     const adjacent = squares.filter(
       (candidate) => Math.abs(squareFile(candidate) - squareFile(square)) === 1,
     );
-    if (!adjacent.length || adjacent.some((candidate) => squareRank(candidate) === squareRank(square))) {
+    if (
+      !adjacent.length ||
+      adjacent.some((candidate) => squareRank(candidate) === squareRank(square))
+    ) {
       return [];
     }
     const advance = advanceSquare(square, color);
@@ -377,12 +377,14 @@ function backwardPawnCandidates(board: Board, color: Color): BackwardPawnCandida
     const blocked = board.get(advance) !== undefined;
     const controlled = opponentPawnControls(board, advance, color);
     if (!blocked && !controlled) return [];
-    return [{
-      square: makeSquare(square),
-      advance_square: makeSquare(advance),
-      advance_blocked: blocked,
-      advance_controlled_by_opponent_pawn: controlled,
-    }];
+    return [
+      {
+        square: makeSquare(square),
+        advance_square: makeSquare(advance),
+        advance_blocked: blocked,
+        advance_controlled_by_opponent_pawn: controlled,
+      },
+    ];
   });
 }
 
@@ -397,10 +399,14 @@ function groupedByFile(board: Board, color: Color, names: readonly string[]): Pa
     groups.set(file, group);
   }
   return [...groups.values()]
-    .map((group): PawnGroup => ({
-      squares: squareNames(group),
-      mobility: group.some((square) => pawnCanAdvance(board, square, color)) ? "mobile" : "static",
-    }))
+    .map(
+      (group): PawnGroup => ({
+        squares: squareNames(group),
+        mobility: group.some((square) => pawnCanAdvance(board, square, color))
+          ? "mobile"
+          : "static",
+      }),
+    )
     .sort((left, right) => left.squares.join().localeCompare(right.squares.join()));
 }
 
@@ -414,7 +420,11 @@ function individualPawnGroups(board: Board, color: Color, names: readonly string
   });
 }
 
-function wingMajorityFor(board: Board, repertoireColor: Color, subject: PawnSignalSubject): WingMajorityObservation {
+function wingMajorityFor(
+  board: Board,
+  repertoireColor: Color,
+  subject: PawnSignalSubject,
+): WingMajorityObservation {
   const color = subjectColor(repertoireColor, subject);
   const enemy = other(color);
   const count = (target: Color, minFile: number, maxFile: number): number =>
@@ -426,18 +436,21 @@ function wingMajorityFor(board: Board, repertoireColor: Color, subject: PawnSign
   const enemyQueen = count(enemy, 0, 3);
   const ownKing = count(color, 4, 7);
   const enemyKing = count(enemy, 4, 7);
-  const wing = ownQueen > enemyQueen && ownKing <= enemyKing
-    ? "queenside"
-    : ownKing > enemyKing && ownQueen <= enemyQueen
-      ? "kingside"
-      : "none";
+  const wing =
+    ownQueen > enemyQueen && ownKing <= enemyKing
+      ? "queenside"
+      : ownKing > enemyKing && ownQueen <= enemyQueen
+        ? "kingside"
+        : "none";
   const queenside = wing === "queenside";
   return {
     subject,
     color,
     wing,
-    own_pawn_count: wing === "none" ? pawnSquares(board, color).length : queenside ? ownQueen : ownKing,
-    opposing_pawn_count: wing === "none" ? pawnSquares(board, enemy).length : queenside ? enemyQueen : enemyKing,
+    own_pawn_count:
+      wing === "none" ? pawnSquares(board, color).length : queenside ? ownQueen : ownKing,
+    opposing_pawn_count:
+      wing === "none" ? pawnSquares(board, enemy).length : queenside ? enemyQueen : enemyKing,
   };
 }
 
@@ -457,11 +470,22 @@ function fixedPawnPairs(board: Board): FixedPawnPair[] {
 function centerTensionPairs(board: Board, repertoireColor: Color): CenterTensionPair[] {
   const white = pawnSquares(board, "white");
   const black = new Set(pawnSquares(board, "black"));
-  const pairs = new Map<string, { white: number; black: number; whiteAttacks: boolean; blackAttacks: boolean }>();
+  const pairs = new Map<
+    string,
+    { white: number; black: number; whiteAttacks: boolean; blackAttacks: boolean }
+  >();
   const consider = (whitePawn: number, blackPawn: number, attacker: "white" | "black"): void => {
-    if (![squareFile(whitePawn), squareFile(blackPawn)].some((file) => BROAD_CENTER_FILES.has(file))) return;
+    if (
+      ![squareFile(whitePawn), squareFile(blackPawn)].some((file) => BROAD_CENTER_FILES.has(file))
+    )
+      return;
     const key = `${whitePawn}:${blackPawn}`;
-    const current = pairs.get(key) ?? { white: whitePawn, black: blackPawn, whiteAttacks: false, blackAttacks: false };
+    const current = pairs.get(key) ?? {
+      white: whitePawn,
+      black: blackPawn,
+      whiteAttacks: false,
+      blackAttacks: false,
+    };
     if (attacker === "white") current.whiteAttacks = true;
     else current.blackAttacks = true;
     pairs.set(key, current);
@@ -492,11 +516,12 @@ function centerTensionPairs(board: Board, repertoireColor: Color): CenterTension
       return {
         repertoire_pawn: makeSquare(repertoireColor === "white" ? pair.white : pair.black),
         opponent_pawn: makeSquare(repertoireColor === "white" ? pair.black : pair.white),
-        attacker: pair.whiteAttacks && pair.blackAttacks
-          ? "both"
-          : pair.whiteAttacks
-            ? whiteSubject
-            : blackSubject,
+        attacker:
+          pair.whiteAttacks && pair.blackAttacks
+            ? "both"
+            : pair.whiteAttacks
+              ? whiteSubject
+              : blackSubject,
       } as CenterTensionPair;
     })
     .sort((left, right) =>
@@ -530,8 +555,9 @@ function likelyPawnBreaks(board: Board, repertoireColor: Color): LikelyPawnBreak
           .filter((file) => file >= 0 && file <= 7)
           .map((file) => file + attackRank * 8)
           .filter((square) => enemyPawns.has(square))
-          .filter((square) =>
-            BROAD_CENTER_FILES.has(squareFile(square)) || BROAD_CENTER_FILES.has(squareFile(to)),
+          .filter(
+            (square) =>
+              BROAD_CENTER_FILES.has(squareFile(square)) || BROAD_CENTER_FILES.has(squareFile(to)),
           );
         if (!challenges.length) continue;
         result.push({
@@ -548,7 +574,9 @@ function likelyPawnBreaks(board: Board, repertoireColor: Color): LikelyPawnBreak
     }
   }
   return result.sort((left, right) =>
-    `${left.subject}:${left.from}:${left.to}`.localeCompare(`${right.subject}:${right.from}:${right.to}`),
+    `${left.subject}:${left.from}:${left.to}`.localeCompare(
+      `${right.subject}:${right.from}:${right.to}`,
+    ),
   );
 }
 
@@ -561,11 +589,12 @@ function centerOpenness(board: Board): CenterOpennessObservation {
   const semiOpenFiles = [...CENTER_FILES]
     .filter((file) => whiteFiles.has(file) !== blackFiles.has(file))
     .map((file) => FILE_NAMES[file]!);
-  const state: CenterOpenness = openFiles.length === 2
-    ? "open"
-    : openFiles.length > 0 || semiOpenFiles.length > 0
-      ? "semi-open"
-      : "closed";
+  const state: CenterOpenness =
+    openFiles.length === 2
+      ? "open"
+      : openFiles.length > 0 || semiOpenFiles.length > 0
+        ? "semi-open"
+        : "closed";
   const whitePattern = [...CENTER_FILES].map((file) => whiteFiles.has(file));
   const blackPattern = [...CENTER_FILES].map((file) => blackFiles.has(file));
   return {
@@ -597,46 +626,99 @@ function makeSignal<F extends PawnSignalFeatureId>(
   } as PawnStrategicSignal<F>;
 }
 
-function subjectSignals(board: Board, repertoireColor: Color, subject: PawnSignalSubject): PawnStrategicSignal[] {
+function subjectSignals(
+  board: Board,
+  repertoireColor: Color,
+  subject: PawnSignalSubject,
+): PawnStrategicSignal[] {
   const color = subjectColor(repertoireColor, subject);
   const doubled = doubledPawns(board, color);
   const isolated = isolatedPawns(board, color);
   return [
-    makeSignal("pawn-topology.islands", {
+    makeSignal(
+      "pawn-topology.islands",
+      {
+        subject,
+        color,
+        observations: pawnIslandsFor(board, color),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: pawnIslandsFor(board, color),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.connected-groups", {
+    ),
+    makeSignal(
+      "pawn-topology.connected-groups",
+      {
+        subject,
+        color,
+        observations: connectedPawnGroups(board, color),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: connectedPawnGroups(board, color),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.backward-candidates", {
+    ),
+    makeSignal(
+      "pawn-topology.backward-candidates",
+      {
+        subject,
+        color,
+        observations: backwardPawnCandidates(board, color),
+      },
+      0.7,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: backwardPawnCandidates(board, color),
-    }, 0.7, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.doubled-groups", {
+    ),
+    makeSignal(
+      "pawn-topology.doubled-groups",
+      {
+        subject,
+        color,
+        observations: groupedByFile(board, color, doubled),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: groupedByFile(board, color, doubled),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.isolated-pawns", {
+    ),
+    makeSignal(
+      "pawn-topology.isolated-pawns",
+      {
+        subject,
+        color,
+        observations: individualPawnGroups(board, color, isolated),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: individualPawnGroups(board, color, isolated),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.passed-pawns", {
+    ),
+    makeSignal(
+      "pawn-topology.passed-pawns",
+      {
+        subject,
+        color,
+        observations: passedPawns(board, color),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: passedPawns(board, color),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
-    makeSignal("pawn-topology.chains", {
+    ),
+    makeSignal(
+      "pawn-topology.chains",
+      {
+        subject,
+        color,
+        observations: pawnChains(board, color),
+      },
+      1,
+      CORE_PROVENANCE,
+      "unknown",
       subject,
-      color,
-      observations: pawnChains(board, color),
-    }, 1, CORE_PROVENANCE, "unknown", subject),
+    ),
     makeSignal(
       "pawn-topology.wing-majority",
       wingMajorityFor(board, repertoireColor, subject),
@@ -656,20 +738,24 @@ export function extractPawnSignals(board: Board, repertoireColor: Color): PawnSi
   const breaks = likelyPawnBreaks(board, repertoireColor);
   const openness = centerOpenness(board);
   const legacyCenter = centerState(board);
-  const fixity: CenterFixity = fixedPairs.length >= 2 || legacyCenter === "locked"
-    ? "fixed"
-    : fixedPairs.length === 1
-      ? "partially-fixed"
-      : "unfixed";
-  const centralPawnCount = [...board.pieces("white", "pawn"), ...board.pieces("black", "pawn")]
-    .filter((square) => CENTER_FILES.has(squareFile(square))).length;
-  const fluidity: CenterFluidity = openness.state === "open" && centralPawnCount <= 1
-    ? "resolved"
-    : tension.length > 0 || breaks.length >= 2
-      ? "fluid"
-      : fixity !== "unfixed" && breaks.length === 0
-        ? "fixed"
-        : "limited";
+  const fixity: CenterFixity =
+    fixedPairs.length >= 2 || legacyCenter === "locked"
+      ? "fixed"
+      : fixedPairs.length === 1
+        ? "partially-fixed"
+        : "unfixed";
+  const centralPawnCount = [
+    ...board.pieces("white", "pawn"),
+    ...board.pieces("black", "pawn"),
+  ].filter((square) => CENTER_FILES.has(squareFile(square))).length;
+  const fluidity: CenterFluidity =
+    openness.state === "open" && centralPawnCount <= 1
+      ? "resolved"
+      : tension.length > 0 || breaks.length >= 2
+        ? "fluid"
+        : fixity !== "unfixed" && breaks.length === 0
+          ? "fixed"
+          : "limited";
   const formationId = FORMATION_IDS[classification.structure_class] ?? "unknown";
 
   return {
@@ -678,17 +764,26 @@ export function extractPawnSignals(board: Board, repertoireColor: Color): PawnSi
     signals: [
       ...subjectSignals(board, repertoireColor, "repertoire"),
       ...subjectSignals(board, repertoireColor, "opponent"),
-      makeSignal("pawn-topology.named-formation", {
-        formation_id: formationId,
-        classifier_label: formationId === "unknown" ? null : classification.structure_class,
-      }, classification.confidence, CLASSIFIER_PROVENANCE),
+      makeSignal(
+        "pawn-topology.named-formation",
+        {
+          formation_id: formationId,
+          classifier_label: formationId === "unknown" ? null : classification.structure_class,
+        },
+        classification.confidence,
+        CLASSIFIER_PROVENANCE,
+      ),
       makeSignal("center-dynamics.openness", openness, 0.95),
       makeSignal("center-dynamics.fixity", { state: fixity, fixed_pairs: fixedPairs }, 1),
-      makeSignal("center-dynamics.fluidity", {
-        state: fluidity,
-        live_tension_count: tension.length,
-        likely_break_count: breaks.length,
-      }, 0.75),
+      makeSignal(
+        "center-dynamics.fluidity",
+        {
+          state: fluidity,
+          live_tension_count: tension.length,
+          likely_break_count: breaks.length,
+        },
+        0.75,
+      ),
       makeSignal("center-dynamics.tension", { pairs: tension }, 1),
       makeSignal("center-dynamics.likely-breaks", { breaks }, 0.7),
     ],

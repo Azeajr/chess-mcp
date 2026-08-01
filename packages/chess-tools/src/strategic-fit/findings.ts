@@ -18,10 +18,7 @@ import type {
   StrategicFitClassification,
   StrategicFitSourceProvenance,
 } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export const STRATEGIC_FINDINGS_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.findings;
 
@@ -188,9 +185,11 @@ function result(
 }
 
 function hasPersistentDifference(difference: StrategicDifference): boolean {
-  return difference.distance > EPSILON &&
+  return (
+    difference.distance > EPSILON &&
     difference.persistence > EPSILON &&
-    difference.stable_from_ply !== null;
+    difference.stable_from_ply !== null
+  );
 }
 
 /**
@@ -269,10 +268,7 @@ function priorityLabel(
   if (classification === "uncertain" || classification === "data-quality-issue") {
     return "insufficient-evidence";
   }
-  if (
-    kind === "replacement" &&
-    classification !== "genuine-inconsistency"
-  ) {
+  if (kind === "replacement" && classification !== "genuine-inconsistency") {
     return "informational";
   }
   if (
@@ -297,9 +293,7 @@ export interface CalculateFindingPriorityInput {
 }
 
 /** Calculate one replacement or training priority with the frozen five-component formula. */
-export function calculateFindingPriority(
-  input: CalculateFindingPriorityInput,
-): FindingPriority {
+export function calculateFindingPriority(input: CalculateFindingPriorityInput): FindingPriority {
   if (input.confidence.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION) {
     throw new Error("strategic_fit_findings_version_mismatch");
   }
@@ -309,13 +303,14 @@ export function calculateFindingPriority(
   const learningBurden = requireUnitInterval("learning-burden", input.learning_burden);
   const preferenceMismatch = requireUnitInterval("preference-mismatch", input.preference_mismatch);
   const actionability = requireUnitInterval("actionability", input.actionability);
-  const score = round(confidence * (
-    STRATEGIC_PRIORITY_WEIGHTS.difference * difference +
-    STRATEGIC_PRIORITY_WEIGHTS.expected_frequency * expectedFrequency +
-    STRATEGIC_PRIORITY_WEIGHTS.learning_burden * learningBurden +
-    STRATEGIC_PRIORITY_WEIGHTS.preference_mismatch * preferenceMismatch +
-    STRATEGIC_PRIORITY_WEIGHTS.actionability * actionability
-  ));
+  const score = round(
+    confidence *
+      (STRATEGIC_PRIORITY_WEIGHTS.difference * difference +
+        STRATEGIC_PRIORITY_WEIGHTS.expected_frequency * expectedFrequency +
+        STRATEGIC_PRIORITY_WEIGHTS.learning_burden * learningBurden +
+        STRATEGIC_PRIORITY_WEIGHTS.preference_mismatch * preferenceMismatch +
+        STRATEGIC_PRIORITY_WEIGHTS.actionability * actionability),
+  );
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     kind: input.kind,
@@ -336,9 +331,8 @@ export function assessStrategicFinding(
 ): StrategicFindingAssessment {
   const classification = classifyStrategicDiversity(input);
   const controllability = input.causality.controllability ?? 0;
-  const replacementActionability = input.alternative_state === "viable-more-congruent"
-    ? controllability
-    : 0;
+  const replacementActionability =
+    input.alternative_state === "viable-more-congruent" ? controllability : 0;
   const common = {
     classification: classification.classification,
     confidence: input.confidence,

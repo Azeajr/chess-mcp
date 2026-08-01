@@ -83,70 +83,82 @@ function supportedMetadata(): StrategicFitDocumentMetadata {
         ...LIFECYCLE,
       },
     ],
-    exclusions: [{
-      override_id: "override:exclude",
-      kind: "exclude",
-      route_ids: ["route:excluded"],
-      decision_ids: ["decision:excluded"],
-      ...LIFECYCLE,
-    }],
-    cohort_labels: [{
-      label_id: "cohort-label:semantic",
-      cohort_id: "cohort:semantic",
-      display_name: "My familiar Sicilian",
-      ...LIFECYCLE,
-    }],
-    resolutions: [{
-      schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
-      resolution_id: "resolution:semantic",
-      finding_id: "finding:semantic",
-      semantic_finding_id: "semantic-finding:semantic",
-      repertoire_revision: "revision:7",
-      state: "keep-intentionally",
-      intentional_reason: "strategically-desirable",
-      note: "Keep this structure.",
-      references: REFERENCES,
-      invalidation_rules: ["referenced-position-changed", "referenced-decision-changed"],
-      expires_at: null,
-      linked_training_ids: ["training:semantic"],
-      linked_staged_edit_ids: [],
-      created_at: "2026-07-17T12:00:00.000Z",
-      profile_snapshot: null,
-      ...LIFECYCLE,
-    }],
-    archive_references: [{
-      archive_id: "archive:semantic",
-      repertoire_revision: "revision:7",
-      references: REFERENCES,
-      linked_staged_edit_id: "edit:semantic",
-      created_at: "2026-07-17T12:01:00.000Z",
-      provenance: [SOURCE],
-    }],
-    training_references: [{
-      training_id: "training:semantic",
-      finding_id: "finding:semantic",
-      repertoire_revision: "revision:7",
-      references: REFERENCES,
-      created_at: "2026-07-17T12:02:00.000Z",
-      provenance: [SOURCE],
-    }],
-    comment_intents: [{
-      decision_id: "comment-intent-decision:semantic",
-      suggestion_id: "comment-intent:semantic",
-      disposition: "confirmed",
-      kind: "retain-line",
-      intent_value: "keep-intentionally",
-      detection: "phrase",
-      source_comment: "must keep this line",
-      source_match: "must keep",
-      source_comment_index: 0,
-      source_match_index: 0,
-      source_san_path: ["e4", "e5"],
-      references: REFERENCES,
-      created_at: "2026-07-17T12:03:00.000Z",
-      updated_at: "2026-07-17T12:03:00.000Z",
-      provenance: [SOURCE],
-    }],
+    exclusions: [
+      {
+        override_id: "override:exclude",
+        kind: "exclude",
+        route_ids: ["route:excluded"],
+        decision_ids: ["decision:excluded"],
+        ...LIFECYCLE,
+      },
+    ],
+    cohort_labels: [
+      {
+        label_id: "cohort-label:semantic",
+        cohort_id: "cohort:semantic",
+        display_name: "My familiar Sicilian",
+        ...LIFECYCLE,
+      },
+    ],
+    resolutions: [
+      {
+        schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+        resolution_id: "resolution:semantic",
+        finding_id: "finding:semantic",
+        semantic_finding_id: "semantic-finding:semantic",
+        repertoire_revision: "revision:7",
+        state: "keep-intentionally",
+        intentional_reason: "strategically-desirable",
+        note: "Keep this structure.",
+        references: REFERENCES,
+        invalidation_rules: ["referenced-position-changed", "referenced-decision-changed"],
+        expires_at: null,
+        linked_training_ids: ["training:semantic"],
+        linked_staged_edit_ids: [],
+        created_at: "2026-07-17T12:00:00.000Z",
+        profile_snapshot: null,
+        ...LIFECYCLE,
+      },
+    ],
+    archive_references: [
+      {
+        archive_id: "archive:semantic",
+        repertoire_revision: "revision:7",
+        references: REFERENCES,
+        linked_staged_edit_id: "edit:semantic",
+        created_at: "2026-07-17T12:01:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
+    training_references: [
+      {
+        training_id: "training:semantic",
+        finding_id: "finding:semantic",
+        repertoire_revision: "revision:7",
+        references: REFERENCES,
+        created_at: "2026-07-17T12:02:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
+    comment_intents: [
+      {
+        decision_id: "comment-intent-decision:semantic",
+        suggestion_id: "comment-intent:semantic",
+        disposition: "confirmed",
+        kind: "retain-line",
+        intent_value: "keep-intentionally",
+        detection: "phrase",
+        source_comment: "must keep this line",
+        source_match: "must keep",
+        source_comment_index: 0,
+        source_match_index: 0,
+        source_san_path: ["e4", "e5"],
+        references: REFERENCES,
+        created_at: "2026-07-17T12:03:00.000Z",
+        updated_at: "2026-07-17T12:03:00.000Z",
+        provenance: [SOURCE],
+      },
+    ],
     provenance: [SOURCE],
   };
 }
@@ -186,30 +198,36 @@ test("empty metadata defaults are complete, deterministic, and independently all
       },
     },
   });
-  assert.deepEqual({
-    manual_weights: first.manual_weights,
-    cohort_overrides: first.cohort_overrides,
-    exclusions: first.exclusions,
-    cohort_labels: first.cohort_labels,
-    resolutions: first.resolutions,
-    archive_references: first.archive_references,
-    training_references: first.training_references,
-    comment_intents: first.comment_intents,
-    provenance: first.provenance,
-  }, {
-    manual_weights: { route_weights: [], decision_weights: [] },
-    cohort_overrides: [],
-    exclusions: [],
-    cohort_labels: [],
-    resolutions: [],
-    archive_references: [],
-    training_references: [],
-    comment_intents: [],
-    provenance: [],
-  });
+  assert.deepEqual(
+    {
+      manual_weights: first.manual_weights,
+      cohort_overrides: first.cohort_overrides,
+      exclusions: first.exclusions,
+      cohort_labels: first.cohort_labels,
+      resolutions: first.resolutions,
+      archive_references: first.archive_references,
+      training_references: first.training_references,
+      comment_intents: first.comment_intents,
+      provenance: first.provenance,
+    },
+    {
+      manual_weights: { route_weights: [], decision_weights: [] },
+      cohort_overrides: [],
+      exclusions: [],
+      cohort_labels: [],
+      resolutions: [],
+      archive_references: [],
+      training_references: [],
+      comment_intents: [],
+      provenance: [],
+    },
+  );
   assert.equal(emptyInput.state, "fallback");
   assert.deepEqual(emptyInput.metadata, first);
-  assert.deepEqual(emptyInput.issues.map((entry) => entry.code), ["invalid-root"]);
+  assert.deepEqual(
+    emptyInput.issues.map((entry) => entry.code),
+    ["invalid-root"],
+  );
 });
 
 test("supported metadata round-trips without losing canonical semantic IDs", () => {
@@ -247,10 +265,14 @@ test("normalization deterministically keeps one active display label per canonic
 
   assert.equal(first.state, "valid");
   assert.deepEqual(first.metadata, reordered.metadata);
-  assert.deepEqual(first.metadata.cohort_labels.map((entry) => entry.label_id), [
-    "cohort-label:replacement",
-  ]);
-  assert.equal(first.issues.some((entry) => entry.code === "duplicate-id"), true);
+  assert.deepEqual(
+    first.metadata.cohort_labels.map((entry) => entry.label_id),
+    ["cohort-label:replacement"],
+  );
+  assert.equal(
+    first.issues.some((entry) => entry.code === "duplicate-id"),
+    true,
+  );
 });
 
 test("the explicit 0.1.0 migration maps draft flat collections deterministically", () => {
@@ -339,7 +361,10 @@ test("legacy metadata cannot smuggle comment intent decisions into the new colle
 
   assert.equal(result.state, "migrated");
   assert.deepEqual(result.metadata.comment_intents, []);
-  assert.equal(result.issues.some((entry) => entry.path === "$.comment_intents"), true);
+  assert.equal(
+    result.issues.some((entry) => entry.path === "$.comment_intents"),
+    true,
+  );
 });
 
 test("unknown and corrupt versions fall back wholesale with structured evidence", () => {
@@ -353,11 +378,17 @@ test("unknown and corrupt versions fall back wholesale with structured evidence"
   assert.equal(unknown.state, "fallback");
   assert.equal(unknown.source_version, "99.0.0");
   assert.deepEqual(unknown.metadata, createDefaultStrategicFitDocumentMetadata());
-  assert.deepEqual(unknown.issues.map((entry) => entry.code), ["unsupported-version"]);
+  assert.deepEqual(
+    unknown.issues.map((entry) => entry.code),
+    ["unsupported-version"],
+  );
   assert.equal(corrupt.state, "fallback");
   assert.equal(corrupt.source_version, null);
   assert.deepEqual(corrupt.metadata, createDefaultStrategicFitDocumentMetadata());
-  assert.deepEqual(corrupt.issues.map((entry) => entry.code), ["missing-version"]);
+  assert.deepEqual(
+    corrupt.issues.map((entry) => entry.code),
+    ["missing-version"],
+  );
 });
 
 test("corrupt current data falls back by section and never throws or trusts malformed entries", () => {
@@ -374,34 +405,51 @@ test("corrupt current data falls back by section and never throws or trusts malf
   assert.equal(result.state, "fallback");
   assert.deepEqual(result.metadata.profile, createDefaultStrategicFitDocumentMetadata().profile);
   assert.deepEqual(result.metadata.manual_weights.route_weights, []);
-  assert.equal(result.metadata.manual_weights.decision_weights[0]?.decision_id, "decision:semantic");
+  assert.equal(
+    result.metadata.manual_weights.decision_weights[0]?.decision_id,
+    "decision:semantic",
+  );
   assert.deepEqual(result.metadata.resolutions, []);
   assert.equal(result.metadata.training_references[0]?.training_id, "training:semantic");
-  assert.equal(result.issues.some((entry) => entry.code === "invalid-entry"), true);
-  assert.equal(result.issues.some((entry) => entry.path === "$.profile"), true);
+  assert.equal(
+    result.issues.some((entry) => entry.code === "invalid-entry"),
+    true,
+  );
+  assert.equal(
+    result.issues.some((entry) => entry.path === "$.profile"),
+    true,
+  );
 });
 
 test("cohort override identities stay unique across structural overrides and exclusions", () => {
   const input = createDefaultStrategicFitDocumentMetadata();
   const result = normalizeStrategicFitDocumentMetadata({
     ...input,
-    cohort_overrides: [{
-      override_id: "override:same",
-      kind: "split",
-      route_ids: ["route:a"],
-      ...LIFECYCLE,
-    }],
-    exclusions: [null, {
-      override_id: "override:same",
-      kind: "exclude",
-      route_ids: ["route:b"],
-      decision_ids: [],
-      ...LIFECYCLE,
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:same",
+        kind: "split",
+        route_ids: ["route:a"],
+        ...LIFECYCLE,
+      },
+    ],
+    exclusions: [
+      null,
+      {
+        override_id: "override:same",
+        kind: "exclude",
+        route_ids: ["route:b"],
+        decision_ids: [],
+        ...LIFECYCLE,
+      },
+    ],
   });
 
   assert.equal(result.state, "fallback");
-  assert.deepEqual(result.metadata.cohort_overrides.map((override) => override.override_id), ["override:same"]);
+  assert.deepEqual(
+    result.metadata.cohort_overrides.map((override) => override.override_id),
+    ["override:same"],
+  );
   assert.deepEqual(result.metadata.exclusions, []);
   assert.deepEqual(result.issues, [
     {
@@ -412,7 +460,8 @@ test("cohort override identities stay unique across structural overrides and exc
     {
       code: "duplicate-id",
       path: "$.exclusions[1]",
-      message: "Duplicate cohort override identity across cohort_overrides and exclusions: override:same",
+      message:
+        "Duplicate cohort override identity across cohort_overrides and exclusions: override:same",
     },
   ]);
 });
@@ -429,7 +478,10 @@ test("unknown future fields are ignored while every supported field survives", (
 
   const result = normalizeStrategicFitDocumentMetadata(input);
   assert.equal(result.state, "valid");
-  assert.equal(result.issues.every((entry) => entry.code === "unknown-field-ignored"), true);
+  assert.equal(
+    result.issues.every((entry) => entry.code === "unknown-field-ignored"),
+    true,
+  );
   assert.deepEqual(result.metadata, supported);
 });
 
@@ -465,6 +517,11 @@ test("explicit whitelists prevent credentials and secret-bearing fields from sur
   const serializedMetadata = JSON.stringify(result.metadata);
   assert.equal(result.state, "valid");
   assert.equal(serializedMetadata.includes(secret), false);
-  assert.equal(/api[_-]?key|access[_-]?token|authorization|credentials|password|bearer/i.test(serializedMetadata), false);
+  assert.equal(
+    /api[_-]?key|access[_-]?token|authorization|credentials|password|bearer/i.test(
+      serializedMetadata,
+    ),
+    false,
+  );
   assert.deepEqual(result.metadata, supportedMetadata());
 });

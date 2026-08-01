@@ -50,11 +50,7 @@ function finding(
       position_ids: [`position:${id}:a`, `position:${id}:b`],
       decision_ids: [`decision:${id}:a`, `decision:${id}:b`],
       route_ids: [`route:${id}:a`, `route:${id}:b`],
-      source_san_paths: [
-        ["e4", "c5", "c3", "Nf6"],
-        ["e4", "c5", "Nf3", "e6", "c3"],
-        [],
-      ],
+      source_san_paths: [["e4", "c5", "c3", "Nf6"], ["e4", "c5", "Nf3", "e6", "c3"], []],
     },
     weighted_baseline_percentage: 78,
     expected_frequency: patch.frequency === undefined ? 0.12 : patch.frequency,
@@ -202,11 +198,13 @@ const queueSnapshot = (
 
 test("card presentation gives every classification plain language and preserves every semantic source path", () => {
   assert.deepEqual(
-    STRATEGIC_FIT_CLASSIFICATIONS.map((classification) =>
-      buildFindingCardPresentation(finding(`finding:${classification}`, { classification })).classification
+    STRATEGIC_FIT_CLASSIFICATIONS.map(
+      (classification) =>
+        buildFindingCardPresentation(finding(`finding:${classification}`, { classification }))
+          .classification,
     ),
-    STRATEGIC_FIT_CLASSIFICATIONS.map((classification) =>
-      STRATEGIC_FIT_CLASSIFICATION_LABELS[classification]
+    STRATEGIC_FIT_CLASSIFICATIONS.map(
+      (classification) => STRATEGIC_FIT_CLASSIFICATION_LABELS[classification],
     ),
   );
 
@@ -223,11 +221,7 @@ test("card presentation gives every classification plain language and preserves 
     resolution: STRATEGIC_FIT_RESOLUTION_LABELS.unresolved,
     replacement_priority: "Replacement: Review now",
     training_priority: "Training: Review later",
-    source_paths: [
-      "e4 c5 c3 Nf6",
-      "e4 c5 Nf3 e6 c3",
-      "Start position",
-    ],
+    source_paths: ["e4 c5 c3 Nf6", "e4 c5 Nf3 e6 c3", "Start position"],
   });
 });
 
@@ -248,19 +242,31 @@ test("missing optional frequency and objective evidence are explicit rather than
 test("canonical sorts use deterministic identity tie-breaks and priority/opening filters compose", () => {
   const findings = [
     finding("finding:c", { opening: "French", replacementScore: 0.5, trainingLabel: "review-now" }),
-    finding("finding:b", { opening: "Sicilian", replacementScore: 0.8, trainingLabel: "informational" }),
-    finding("finding:a", { opening: "Sicilian", replacementScore: 0.8, trainingLabel: "review-now" }),
+    finding("finding:b", {
+      opening: "Sicilian",
+      replacementScore: 0.8,
+      trainingLabel: "informational",
+    }),
+    finding("finding:a", {
+      opening: "Sicilian",
+      replacementScore: 0.8,
+      trainingLabel: "review-now",
+    }),
   ];
   assert.deepEqual(
-    buildStrategicFitFindingQueueView(queueSnapshot(findings)).findings.map((item) => item.finding_id),
+    buildStrategicFitFindingQueueView(queueSnapshot(findings)).findings.map(
+      (item) => item.finding_id,
+    ),
     ["finding:a", "finding:b", "finding:c"],
   );
   assert.deepEqual(
-    buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-      priority_kind: "training",
-      priority_filter: "review-now",
-      opening_filter: "Sicilian",
-    })).findings.map((item) => item.finding_id),
+    buildStrategicFitFindingQueueView(
+      queueSnapshot(findings, {
+        priority_kind: "training",
+        priority_filter: "review-now",
+        opening_filter: "Sicilian",
+      }),
+    ).findings.map((item) => item.finding_id),
     ["finding:a"],
   );
 });
@@ -272,32 +278,48 @@ test("overview classification, resolution, and insufficient-evidence intents are
   const resolved = structuredClone(finding("finding:resolved"));
   Object.assign(resolved, { resolution_state: "keep-intentionally" });
   const findings = [forced, intentional, uncertain, resolved];
-  const intent = (filter: StrategicFitFindingQueueIntent["filter"]): StrategicFitFindingQueueIntent => ({
+  const intent = (
+    filter: StrategicFitFindingQueueIntent["filter"],
+  ): StrategicFitFindingQueueIntent => ({
     report_id: "report:queue",
     source: "test",
     label: "Test focus",
     filter,
   });
 
-  assert.deepEqual(buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    intent: intent({ kind: "classification", classification: "forced-diversity" }),
-  })).findings.map((item) => item.finding_id), ["finding:forced"]);
-  assert.deepEqual(buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    intent: intent({ kind: "resolution", resolution: "unresolved" }),
-  })).filtered_findings.map((item) => item.finding_id).sort(), [
-    "finding:forced", "finding:intentional", "finding:uncertain",
-  ]);
-  assert.deepEqual(buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    intent: intent({ kind: "evidence", evidence: "insufficient" }),
-  })).findings.map((item) => item.finding_id), ["finding:uncertain"]);
+  assert.deepEqual(
+    buildStrategicFitFindingQueueView(
+      queueSnapshot(findings, {
+        intent: intent({ kind: "classification", classification: "forced-diversity" }),
+      }),
+    ).findings.map((item) => item.finding_id),
+    ["finding:forced"],
+  );
+  assert.deepEqual(
+    buildStrategicFitFindingQueueView(
+      queueSnapshot(findings, {
+        intent: intent({ kind: "resolution", resolution: "unresolved" }),
+      }),
+    )
+      .filtered_findings.map((item) => item.finding_id)
+      .sort(),
+    ["finding:forced", "finding:intentional", "finding:uncertain"],
+  );
+  assert.deepEqual(
+    buildStrategicFitFindingQueueView(
+      queueSnapshot(findings, {
+        intent: intent({ kind: "evidence", evidence: "insufficient" }),
+      }),
+    ).findings.map((item) => item.finding_id),
+    ["finding:uncertain"],
+  );
 });
 
 test("resolution projections remove acknowledged findings only from the unresolved queue", () => {
   const acknowledged = finding("finding:acknowledged");
   const open = finding("finding:open");
-  const all = buildStrategicFitFindingQueueView(
-    queueSnapshot([acknowledged, open]),
-    (candidate) => candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
+  const all = buildStrategicFitFindingQueueView(queueSnapshot([acknowledged, open]), (candidate) =>
+    candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
   );
   assert.deepEqual(all.findings.map((item) => item.finding_id).sort(), [
     "finding:acknowledged",
@@ -313,19 +335,25 @@ test("resolution projections remove acknowledged findings only from the unresolv
         filter: { kind: "resolution", resolution: "unresolved" },
       },
     }),
-    (candidate) => candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
+    (candidate) =>
+      candidate.finding_id === acknowledged.finding_id ? "invalid-comparison" : "unresolved",
   );
-  assert.deepEqual(unresolved.findings.map((item) => item.finding_id), ["finding:open"]);
+  assert.deepEqual(
+    unresolved.findings.map((item) => item.finding_id),
+    ["finding:open"],
+  );
 });
 
 test("presentation paging reports exact filtered metadata and keeps an on-page selection", () => {
   const findings = Array.from({ length: 14 }, (_, index) =>
-    finding(`finding:${String(index).padStart(2, "0")}`, { replacementScore: 1 - index / 100 })
+    finding(`finding:${String(index).padStart(2, "0")}`, { replacementScore: 1 - index / 100 }),
   );
-  const view = buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    page_offset: STRATEGIC_FIT_QUEUE_PAGE_SIZE,
-    selected_finding_id: "finding:07",
-  }));
+  const view = buildStrategicFitFindingQueueView(
+    queueSnapshot(findings, {
+      page_offset: STRATEGIC_FIT_QUEUE_PAGE_SIZE,
+      selected_finding_id: "finding:07",
+    }),
+  );
   assert.deepEqual(view.page, {
     offset: 6,
     limit: 6,
@@ -333,9 +361,10 @@ test("presentation paging reports exact filtered metadata and keeps an on-page s
     returned_count: 6,
     has_more: true,
   });
-  assert.deepEqual(view.findings.map((item) => item.finding_id), [
-    "finding:06", "finding:07", "finding:08", "finding:09", "finding:10", "finding:11",
-  ]);
+  assert.deepEqual(
+    view.findings.map((item) => item.finding_id),
+    ["finding:06", "finding:07", "finding:08", "finding:09", "finding:10", "finding:11"],
+  );
   assert.equal(view.selected_finding_id, "finding:07");
   assert.equal(view.selected_on_page, true);
   assert.equal(view.selected_page_offset, 6);
@@ -345,12 +374,14 @@ test("presentation paging reports exact filtered metadata and keeps an on-page s
 
 test("a selection on another page stays selected, keeps its logical position, and is reachable", () => {
   const findings = Array.from({ length: 5_000 }, (_, index) =>
-    finding(`finding:${String(index).padStart(4, "0")}`, { replacementScore: 1 - index / 10_000 })
+    finding(`finding:${String(index).padStart(4, "0")}`, { replacementScore: 1 - index / 10_000 }),
   );
-  const offPage = buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    page_offset: 0,
-    selected_finding_id: "finding:4321",
-  }));
+  const offPage = buildStrategicFitFindingQueueView(
+    queueSnapshot(findings, {
+      page_offset: 0,
+      selected_finding_id: "finding:4321",
+    }),
+  );
   assert.equal(offPage.selected_finding_id, "finding:4321");
   assert.equal(offPage.selected_on_page, false);
   assert.equal(offPage.selected_filtered_out, false);
@@ -363,15 +394,14 @@ test("a selection on another page stays selected, keeps its logical position, an
     "thousands of findings still mount one page of rows",
   );
 
-  const revealed = buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    page_offset: offPage.selected_page_offset!,
-    selected_finding_id: "finding:4321",
-  }));
-  assert.equal(revealed.selected_on_page, true);
-  assert.deepEqual(
-    revealed.findings.map((item) => item.finding_id).includes("finding:4321"),
-    true,
+  const revealed = buildStrategicFitFindingQueueView(
+    queueSnapshot(findings, {
+      page_offset: offPage.selected_page_offset!,
+      selected_finding_id: "finding:4321",
+    }),
   );
+  assert.equal(revealed.selected_on_page, true);
+  assert.deepEqual(revealed.findings.map((item) => item.finding_id).includes("finding:4321"), true);
 });
 
 test("filters that exclude the selection disclose it instead of dropping it", () => {
@@ -379,34 +409,41 @@ test("filters that exclude the selection disclose it instead of dropping it", ()
     finding("finding:sicilian", { opening: "Sicilian" }),
     finding("finding:french", { opening: "French" }),
   ];
-  const filtered = buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    opening_filter: "Sicilian",
-    selected_finding_id: "finding:french",
-  }));
+  const filtered = buildStrategicFitFindingQueueView(
+    queueSnapshot(findings, {
+      opening_filter: "Sicilian",
+      selected_finding_id: "finding:french",
+    }),
+  );
   assert.equal(filtered.selected_finding_id, "finding:french");
   assert.equal(filtered.selected_filtered_out, true);
   assert.equal(filtered.selected_on_page, false);
   assert.equal(filtered.selected_page_offset, null);
   assert.equal(filtered.selected_position, null);
-  assert.deepEqual(filtered.findings.map((item) => item.finding_id), ["finding:sicilian"]);
+  assert.deepEqual(
+    filtered.findings.map((item) => item.finding_id),
+    ["finding:sicilian"],
+  );
 
-  const unfiltered = buildStrategicFitFindingQueueView(queueSnapshot(findings, {
-    selected_finding_id: "finding:french",
-  }));
+  const unfiltered = buildStrategicFitFindingQueueView(
+    queueSnapshot(findings, {
+      selected_finding_id: "finding:french",
+    }),
+  );
   assert.equal(unfiltered.selected_filtered_out, false);
   assert.equal(unfiltered.selected_on_page, true);
 });
 
 test("large current reports reload every canonical page by cursor through the registry boundary", async () => {
   const all = Array.from({ length: 155 }, (_, index) =>
-    finding(`finding:${String(index).padStart(3, "0")}`)
+    finding(`finding:${String(index).padStart(3, "0")}`),
   );
   const calls: Record<string, unknown>[] = [];
   const queue = createStrategicFitFindingQueueState({
     execute: async (_command, args) => {
       calls.push(args);
       const page = args.page as { offset?: number; limit: number; cursor?: string };
-      const offset = page.cursor === undefined ? page.offset ?? 0 : cursorOffset(page.cursor);
+      const offset = page.cursor === undefined ? (page.offset ?? 0) : cursorOffset(page.cursor);
       const items = all.slice(offset, offset + page.limit);
       return report("report:large", items, {
         offset,
@@ -416,12 +453,14 @@ test("large current reports reload every canonical page by cursor through the re
       });
     },
   });
-  await queue.synchronize(report("report:large", all.slice(0, 50), {
-    offset: 0,
-    limit: 50,
-    total_count: 155,
-    has_more: true,
-  }));
+  await queue.synchronize(
+    report("report:large", all.slice(0, 50), {
+      offset: 0,
+      limit: 50,
+      total_count: 155,
+      has_more: true,
+    }),
+  );
 
   assert.equal(queue.snapshot().status, "ready");
   assert.equal(queue.snapshot().findings.length, 155);
@@ -436,7 +475,7 @@ test("large current reports reload every canonical page by cursor through the re
 
 test("a page without a usable cursor stops the reload instead of presenting a partial report", async () => {
   const all = Array.from({ length: 60 }, (_, index) =>
-    finding(`finding:${String(index).padStart(2, "0")}`)
+    finding(`finding:${String(index).padStart(2, "0")}`),
   );
   const queue = createStrategicFitFindingQueueState({
     execute: async () => {
@@ -451,12 +490,14 @@ test("a page without a usable cursor stops the reload instead of presenting a pa
       return page;
     },
   });
-  await queue.synchronize(report("report:cursorless", all.slice(0, 50), {
-    offset: 0,
-    limit: 50,
-    total_count: all.length,
-    has_more: true,
-  }));
+  await queue.synchronize(
+    report("report:cursorless", all.slice(0, 50), {
+      offset: 0,
+      limit: 50,
+      total_count: all.length,
+      has_more: true,
+    }),
+  );
   assert.equal(queue.snapshot().status, "error");
   assert.match(queue.snapshot().error ?? "", /usable cursor/u);
   assert.deepEqual(queue.snapshot().findings, []);
@@ -467,22 +508,25 @@ test("paging, sorting, and filtering never discard the selected finding", async 
     finding(`finding:${String(index).padStart(2, "0")}`, {
       opening: index % 2 === 0 ? "Sicilian" : "French",
       replacementScore: 1 - index / 100,
-    })
+    }),
   );
   const queue = createStrategicFitFindingQueueState({
-    execute: async () => report("report:selection", all, {
+    execute: async () =>
+      report("report:selection", all, {
+        offset: 0,
+        limit: 50,
+        total_count: all.length,
+        has_more: false,
+      }),
+  });
+  await queue.synchronize(
+    report("report:selection", all, {
       offset: 0,
       limit: 50,
       total_count: all.length,
       has_more: false,
     }),
-  });
-  await queue.synchronize(report("report:selection", all, {
-    offset: 0,
-    limit: 50,
-    total_count: all.length,
-    has_more: false,
-  }));
+  );
 
   // A selection made from another view lands on the page that holds it.
   queue.selectFinding("finding:20");
@@ -517,20 +561,25 @@ test("paging, sorting, and filtering never discard the selected finding", async 
 
 test("a new report aborts and discards an older report page without leaking filters or selection", async () => {
   let resolveOld!: (value: unknown) => void;
-  const oldPage = new Promise<unknown>((resolve) => { resolveOld = resolve; });
+  const oldPage = new Promise<unknown>((resolve) => {
+    resolveOld = resolve;
+  });
   const queue = createStrategicFitFindingQueueState({ execute: async () => oldPage });
   const oldFinding = finding("finding:old", { classification: "forced-diversity" });
-  const oldRun = queue.synchronize(report("report:old", [oldFinding], {
-    offset: 0,
-    limit: 1,
-    total_count: 2,
-    has_more: true,
-  }), {
-    report_id: "report:old",
-    source: "test",
-    label: "Old forced focus",
-    filter: { kind: "classification", classification: "forced-diversity" },
-  });
+  const oldRun = queue.synchronize(
+    report("report:old", [oldFinding], {
+      offset: 0,
+      limit: 1,
+      total_count: 2,
+      has_more: true,
+    }),
+    {
+      report_id: "report:old",
+      source: "test",
+      label: "Old forced focus",
+      filter: { kind: "classification", classification: "forced-diversity" },
+    },
+  );
   assert.equal(queue.snapshot().status, "loading");
 
   const current = finding("finding:new", { opening: "French" });
@@ -539,15 +588,20 @@ test("a new report aborts and discards an older report page without leaking filt
   queue.setOpeningFilter("French");
   assert.equal(queue.snapshot().report_id, "report:new");
 
-  resolveOld(report("report:old", [oldFinding], {
-    offset: 0,
-    limit: 1,
-    total_count: 2,
-    has_more: true,
-  }));
+  resolveOld(
+    report("report:old", [oldFinding], {
+      offset: 0,
+      limit: 1,
+      total_count: 2,
+      has_more: true,
+    }),
+  );
   await oldRun;
   assert.equal(queue.snapshot().report_id, "report:new");
-  assert.deepEqual(queue.snapshot().findings.map((item) => item.finding_id), ["finding:new"]);
+  assert.deepEqual(
+    queue.snapshot().findings.map((item) => item.finding_id),
+    ["finding:new"],
+  );
 
   const newer = finding("finding:newer");
   await queue.synchronize(report("report:newer", [newer]));
@@ -559,7 +613,9 @@ test("a new report aborts and discards an older report page without leaking filt
 
 test("dispose aborts an unmounted page load, discards it, and lets the same report restart", async () => {
   let resolveFirstPage!: (value: unknown) => void;
-  const firstPage = new Promise<unknown>((resolve) => { resolveFirstPage = resolve; });
+  const firstPage = new Promise<unknown>((resolve) => {
+    resolveFirstPage = resolve;
+  });
   const all = [finding("finding:dispose-a"), finding("finding:dispose-b")];
   const calls: Array<{ options: { signal?: AbortSignal }; invocation: number }> = [];
   let invocation = 0;
@@ -606,12 +662,14 @@ test("dispose aborts an unmounted page load, discards it, and lets the same repo
     selected_finding_id: null,
   });
 
-  resolveFirstPage(report("report:dispose", all, {
-    offset: 0,
-    limit: 50,
-    total_count: all.length,
-    has_more: false,
-  }));
+  resolveFirstPage(
+    report("report:dispose", all, {
+      offset: 0,
+      limit: 50,
+      total_count: all.length,
+      has_more: false,
+    }),
+  );
   await abandoned;
   assert.equal(queue.snapshot().status, "empty");
   assert.equal(queue.snapshot().findings.length, 0);
@@ -620,7 +678,8 @@ test("dispose aborts an unmounted page load, discards it, and lets the same repo
   assert.equal(calls.length, 2);
   assert.equal(queue.snapshot().status, "ready");
   assert.equal(queue.snapshot().report_id, "report:dispose");
-  assert.deepEqual(queue.snapshot().findings.map((item) => item.finding_id), [
-    "finding:dispose-a", "finding:dispose-b",
-  ]);
+  assert.deepEqual(
+    queue.snapshot().findings.map((item) => item.finding_id),
+    ["finding:dispose-a", "finding:dispose-b"],
+  );
 });

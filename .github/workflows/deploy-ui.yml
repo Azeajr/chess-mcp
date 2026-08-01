@@ -5,15 +5,15 @@ on:
   push:
     branches: [main, feat/node-mcp-rewrite]
     paths:
-      - 'apps/ui/src/**'
-      - 'apps/ui/public/**'
-      - 'apps/ui/index.html'
-      - 'apps/ui/package.json'
-      - 'apps/ui/vite.config.*'
-      - 'apps/ui/tsconfig*'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
-      - '!**/*.test.*'
+      - "apps/ui/src/**"
+      - "apps/ui/public/**"
+      - "apps/ui/index.html"
+      - "apps/ui/package.json"
+      - "apps/ui/vite.config.*"
+      - "apps/ui/tsconfig*"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "!**/*.test.*"
 
 permissions:
   contents: read

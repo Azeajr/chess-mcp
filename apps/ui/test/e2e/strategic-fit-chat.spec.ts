@@ -5,10 +5,16 @@ type ChessHarness = {
   appendToolResultForTesting(operation: string, result: unknown): void;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)((window as unknown as { __chess: ChessHarness }).__chess, arg),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 const finding = (overrides: Record<string, unknown> = {}) => ({
   finding_id: "finding:iqp",
@@ -24,7 +30,10 @@ const finding = (overrides: Record<string, unknown> = {}) => ({
     position_ids: ["position:iqp"],
     decision_ids: ["decision:iqp"],
     route_ids: ["route:iqp"],
-    source_san_paths: [["e4", "c5"], ["e4", "e5", "Nf3"]],
+    source_san_paths: [
+      ["e4", "c5"],
+      ["e4", "e5", "Nf3"],
+    ],
   },
   confidence: { score: 39, label: "low" },
   difference: { magnitude: "major" },
@@ -61,9 +70,15 @@ test.beforeEach(async ({ page }) => {
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
 });
 
-test("typed Strategic Fit cards keep signals separate and navigate through a current safe SAN reference", async ({ page }) => {
+test("typed Strategic Fit cards keep signals separate and navigate through a current safe SAN reference", async ({
+  page,
+}) => {
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6", "fit.pgn"));
-  await chess(page, (api, result) => api.appendToolResultForTesting("analyze_repertoire_congruence", result), report());
+  await chess(
+    page,
+    (api, result) => api.appendToolResultForTesting("analyze_repertoire_congruence", result),
+    report(),
+  );
 
   const card = page.getByRole("region", { name: "Strategic Fit report" });
   await expect(card).toContainText("Strategic Fit · Analysis complete");
@@ -79,18 +94,26 @@ test("typed Strategic Fit cards keep signals separate and navigate through a cur
 });
 
 test("blocked and error results remain explicit without implying consistency", async ({ page }) => {
-  await chess(page, (api, result) => api.appendToolResultForTesting("analyze_repertoire_congruence", result), report({
-    preflight: {
-      state: "blocked",
-      issues: [{ severity: "blocking", message: "Custom starting positions are unsupported." }],
-      route_count: 0,
-      comparable_route_count: 0,
-      incomplete_route_count: 0,
-    },
-    summary: { workload: "unavailable", unresolved_finding_count: 0, insufficient_evidence_branch_count: 0 },
-    findings: [],
-    finding_page: { total_count: 0 },
-  }));
+  await chess(
+    page,
+    (api, result) => api.appendToolResultForTesting("analyze_repertoire_congruence", result),
+    report({
+      preflight: {
+        state: "blocked",
+        issues: [{ severity: "blocking", message: "Custom starting positions are unsupported." }],
+        route_count: 0,
+        comparable_route_count: 0,
+        incomplete_route_count: 0,
+      },
+      summary: {
+        workload: "unavailable",
+        unresolved_finding_count: 0,
+        insufficient_evidence_branch_count: 0,
+      },
+      findings: [],
+      finding_page: { total_count: 0 },
+    }),
+  );
 
   const card = page.getByRole("region", { name: "Strategic Fit report" });
   await expect(card).toContainText("Analysis blocked");
@@ -99,19 +122,25 @@ test("blocked and error results remain explicit without implying consistency", a
   await expect(card).toContainText("Review the preflight evidence before drawing a conclusion.");
   await expect(card).not.toContainText(/consistent/i);
 
-  await chess(page, (api) => api.appendToolResultForTesting("analyze_repertoire_congruence", {
-    error: "strategic_fit_stale_report",
-    reason: "The repertoire changed while analysis was running.",
-  }));
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("analyze_repertoire_congruence", {
+      error: "strategic_fit_stale_report",
+      reason: "The repertoire changed while analysis was running.",
+    }),
+  );
   await expect(page.getByRole("alert").last()).toContainText("Strategic Fit report is stale");
-  await expect(page.getByRole("alert").last()).toContainText("The repertoire changed while analysis was running.");
+  await expect(page.getByRole("alert").last()).toContainText(
+    "The repertoire changed while analysis was running.",
+  );
 });
 
 test("a fake model can follow up by the compacted Strategic Fit finding ID", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("chess.openrouter.key", "fake-key"));
   await page.reload();
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
-  await chess(page, (api) => api.loadPgn(`[Event "Ruy Lopez"]
+  await chess(page, (api) =>
+    api.loadPgn(
+      `[Event "Ruy Lopez"]
 [Result "*"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *
@@ -134,29 +163,58 @@ test("a fake model can follow up by the compacted Strategic Fit finding ID", asy
 [Event "English"]
 [Result "*"]
 
-1. c4 e5 2. Nc3 Nf6 3. g3 d5 *`, "broad.pgn"));
+1. c4 e5 2. Nc3 Nf6 3. g3 d5 *`,
+      "broad.pgn",
+    ),
+  );
 
   let compacted = false;
   let followedFindingId = "";
   let rounds = 0;
   await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
     rounds++;
-    const body = route.request().postDataJSON() as { messages: Array<{ role: string; content: string | null }> };
+    const body = route.request().postDataJSON() as {
+      messages: Array<{ role: string; content: string | null }>;
+    };
     const toolMessage = [...body.messages].reverse().find((message) => message.role === "tool");
     let frame: unknown;
     if (!toolMessage) {
       frame = {
-        choices: [{
-          delta: { tool_calls: [{ index: 0, id: "fit-call", function: { name: "analyze_repertoire_congruence", arguments: "{\"page\":{\"limit\":50}}" } }] },
-          finish_reason: "tool_calls",
-        }],
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "fit-call",
+                  function: {
+                    name: "analyze_repertoire_congruence",
+                    arguments: '{"page":{"limit":50}}',
+                  },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
       };
     } else {
-      const value = JSON.parse(toolMessage.content ?? "null") as { compacted?: boolean; references?: Record<string, unknown>[] };
+      const value = JSON.parse(toolMessage.content ?? "null") as {
+        compacted?: boolean;
+        references?: Record<string, unknown>[];
+      };
       compacted = value.compacted === true;
-      followedFindingId = String(value.references?.find((reference) => typeof reference.finding_id === "string")?.finding_id ?? "");
+      followedFindingId = String(
+        value.references?.find((reference) => typeof reference.finding_id === "string")
+          ?.finding_id ?? "",
+      );
       frame = {
-        choices: [{ delta: { content: `Follow-up grounded in finding ${followedFindingId}.` }, finish_reason: "stop" }],
+        choices: [
+          {
+            delta: { content: `Follow-up grounded in finding ${followedFindingId}.` },
+            finish_reason: "stop",
+          },
+        ],
       };
     }
     await route.fulfill({

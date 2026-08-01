@@ -43,55 +43,66 @@ type ChessHarness = {
   strategicFitLifecycle(): { status: string; current_result: { report_id: string } | null };
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
-const appSnapshot = (page: Page) => chess(page, (api) => ({
-  pgn: api.toPgn(),
-  document_id: api.documentId(),
-  revision: api.version(),
-  path: [...api.currentPath()],
-  color: api.color(),
-  dirty: api.dirty(),
-  file_name: api.fileName(),
-  preview: api.preview(),
-  commands: api.commandStates(),
-}));
+const appSnapshot = (page: Page) =>
+  chess(page, (api) => ({
+    pgn: api.toPgn(),
+    document_id: api.documentId(),
+    revision: api.version(),
+    path: [...api.currentPath()],
+    color: api.color(),
+    dirty: api.dirty(),
+    file_name: api.fileName(),
+    preview: api.preview(),
+    commands: api.commandStates(),
+  }));
 
-const workerStarts = (page: Page) => page.evaluate(() =>
-  [...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? [])],
-);
+const workerStarts = (page: Page) =>
+  page.evaluate(() => [
+    ...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? []),
+  ]);
 
-const indexedDbValue = (page: Page, key: string) => page.evaluate(
-  async (storageKey) => new Promise<unknown>((resolve, reject) => {
-    const open = indexedDB.open("chess-repertoire", 1);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const request = db.transaction("kv", "readonly").objectStore("kv").get(storageKey);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        db.close();
-        resolve(request.result);
-      };
-    };
-  }),
-  key,
-);
+const indexedDbValue = (page: Page, key: string) =>
+  page.evaluate(
+    async (storageKey) =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open("chess-repertoire", 1);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const request = db.transaction("kv", "readonly").objectStore("kv").get(storageKey);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            db.close();
+            resolve(request.result);
+          };
+        };
+      }),
+    key,
+  );
 
 const persistedStrategicFitMetadata = (page: Page, documentId: string) =>
   indexedDbValue(page, `strategicFitMetadata:${documentId}`);
 
 const waitForWorkingDocument = async (page: Page, documentId: string) => {
-  await expect.poll(async () => {
-    const saved = await indexedDbValue(page, "workingRepertoire") as { documentId?: string } | undefined;
-    return saved?.documentId;
-  }).toBe(documentId);
+  await expect
+    .poll(async () => {
+      const saved = (await indexedDbValue(page, "workingRepertoire")) as
+        | { documentId?: string }
+        | undefined;
+      return saved?.documentId;
+    })
+    .toBe(documentId);
 };
 
 const openWorkspace = async (page: Page) => {
@@ -119,7 +130,9 @@ test.beforeEach(async ({ page }) => {
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
 });
 
-test("first run defaults to Balanced and skip keeps visible inference only for this session", async ({ page }) => {
+test("first run defaults to Balanced and skip keeps visible inference only for this session", async ({
+  page,
+}) => {
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "skip-profile.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   const before = await appSnapshot(page);
@@ -128,22 +141,28 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
   const workersBefore = await workerStarts(page);
   const { opener, dialog } = await openWorkspace(page);
 
-  await expect(dialog.getByRole("heading", {
-    name: "How should Strategic Fit review your repertoire?",
-  })).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", {
+      name: "How should Strategic Fit review your repertoire?",
+    }),
+  ).toBeVisible();
   const choices = dialog.getByRole("radio");
   await expect(choices).toHaveCount(4);
-  expect(await choices.evaluateAll((elements) => elements.map((element) =>
-    (element as HTMLInputElement).value,
-  ))).toEqual(["familiar-plans", "balanced", "versatile", "custom"]);
+  expect(
+    await choices.evaluateAll((elements) =>
+      elements.map((element) => (element as HTMLInputElement).value),
+    ),
+  ).toEqual(["familiar-plans", "balanced", "versatile", "custom"]);
   await expect(dialog.getByRole("radio", { name: /Balanced/ })).toBeChecked();
   await expect(dialog.getByText("Recommended", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/base scan is engine-free/i)).toBeVisible();
 
   await dialog.getByRole("button", { name: "Skip for now" }).click();
-  await expect(dialog.getByRole("heading", {
-    name: "How should Strategic Fit review your repertoire?",
-  })).toHaveCount(0);
+  await expect(
+    dialog.getByRole("heading", {
+      name: "How should Strategic Fit review your repertoire?",
+    }),
+  ).toHaveCount(0);
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(3);
   await expect(dialog.getByText(/Balanced · Inferred · provisional/)).toBeVisible();
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
@@ -172,7 +191,9 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
 });
 
-test("an explicit familiar-plans choice persists and bypasses setup after reload", async ({ page }) => {
+test("an explicit familiar-plans choice persists and bypasses setup after reload", async ({
+  page,
+}) => {
   await chess(page, (api) => api.loadPgn("1. c4 e5 2. Nc3 Nf6 *", "explicit-profile.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   const before = await appSnapshot(page);
@@ -207,7 +228,9 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await expect(afterReload.dialog.getByText(/Familiar plans · Explicit/)).toBeVisible();
 });
 
-test("Custom saves every bounded preference without changing repertoire or staged state", async ({ page }) => {
+test("Custom saves every bounded preference without changing repertoire or staged state", async ({
+  page,
+}) => {
   await chess(page, (api) => {
     api.loadPgn("1. d4 d5 2. c4 e6 (2... c6) 3. Nc3 *", "custom-profile.pgn");
     api.goto([0, 0]);
@@ -270,7 +293,9 @@ test("Custom saves every bounded preference without changing repertoire or stage
   });
 });
 
-test("setup has a keyboard-safe phone layout and accessible advanced controls", async ({ page }) => {
+test("setup has a keyboard-safe phone layout and accessible advanced controls", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog } = await openWorkspace(page);
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
@@ -282,7 +307,10 @@ test("setup has a keyboard-safe phone layout and accessible advanced controls", 
   await dialog.getByRole("radio", { name: /Custom/ }).focus();
   await page.keyboard.press("Space");
   await expect(dialog.getByRole("radio", { name: /Custom/ })).toBeChecked();
-  await expect(dialog.locator("details.strategic-fit-profile-advanced")).toHaveAttribute("open", "");
+  await expect(dialog.locator("details.strategic-fit-profile-advanced")).toHaveAttribute(
+    "open",
+    "",
+  );
 
   for (const name of [
     /Maximum acceptable engine loss/,
@@ -302,12 +330,18 @@ test("setup has a keyboard-safe phone layout and accessible advanced controls", 
 
   for (let index = 0; index < 18; index++) {
     await page.keyboard.press("Tab");
-    expect(await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']")))).toBe(true);
+    expect(
+      await page.evaluate(() => Boolean(document.activeElement?.closest("[role='dialog']"))),
+    ).toBe(true);
   }
 });
 
-test("post-setup custom settings preview, clamp, persist, invalidate reports, and never edit the tree", async ({ page }) => {
-  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *", "custom-settings.pgn"));
+test("post-setup custom settings preview, clamp, persist, invalidate reports, and never edit the tree", async ({
+  page,
+}) => {
+  await chess(page, (api) =>
+    api.loadPgn("1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *", "custom-settings.pgn"),
+  );
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   const before = await appSnapshot(page);
   const { dialog } = await openWorkspace(page);
@@ -315,8 +349,13 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
 
   await expect(dialog.getByRole("heading", { name: "Profile and evidence" })).toBeVisible();
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 }).toBe("completed");
-  const reportBefore = await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id);
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 })
+    .toBe("completed");
+  const reportBefore = await chess(
+    page,
+    (api) => api.strategicFitLifecycle().current_result?.report_id,
+  );
 
   await dialog.getByRole("button", { name: "Versatile" }).click();
   await expect.poll(() => chess(page, (api) => api.strategicFitProfile().mode)).toBe("versatile");
@@ -332,19 +371,29 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
   await dialog.getByLabel("Avoided concepts").fill("isolated queen pawn");
 
   await dialog.getByText("Data sources and weighting", { exact: true }).click();
-  await expect(dialog.getByLabel("Data-source status").getByText("Opening popularity", { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByLabel("Data-source status").getByText("Opening popularity", { exact: true }),
+  ).toBeVisible();
   await dialog.getByLabel("Use opening-explorer popularity").check();
   await expect(dialog.getByLabel("Popularity time controls")).toBeVisible();
   await expect(dialog.getByLabel("Popularity rating buckets")).toBeVisible();
   await dialog.getByRole("combobox", { name: /Population/ }).selectOption("masters");
   await dialog.getByLabel("Maximum positions (1–120)").fill("500");
   await dialog.getByLabel("Use personal game history").check();
-  await expect(dialog.getByLabel("Data-source status").getByText("Unavailable", { exact: true })).toHaveCount(2);
-  await expect(dialog.getByText(/Expected frequency and every frequency-weighted metric/)).toBeVisible();
-  await expect(dialog.getByText(/engine-free base metrics do not fabricate an effect/)).toBeVisible();
+  await expect(
+    dialog.getByLabel("Data-source status").getByText("Unavailable", { exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    dialog.getByText(/Expected frequency and every frequency-weighted metric/),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText(/engine-free base metrics do not fabricate an effect/),
+  ).toBeVisible();
 
   await dialog.getByRole("button", { name: "Save custom settings" }).click();
-  await expect(dialog.locator(".strategic-fit-settings-announcement")).toContainText("repertoire tree was not edited");
+  await expect(dialog.locator(".strategic-fit-settings-announcement")).toContainText(
+    "repertoire tree was not edited",
+  );
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
     mode: "custom",
     preferences: {
@@ -360,8 +409,12 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
     popularity: { db: "masters", max_positions: 120 },
   });
   expect(await appSnapshot(page)).toEqual(before);
-  await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 }).toBe("completed");
-  expect(await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id)).not.toBe(reportBefore);
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 })
+    .toBe("completed");
+  expect(
+    await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id),
+  ).not.toBe(reportBefore);
 
   await chess(page, (api) => api.flushStrategicFitMetadata());
   await page.reload();

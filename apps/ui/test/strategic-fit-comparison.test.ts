@@ -13,9 +13,7 @@ import {
   buildComparisonBoardsPresentation,
   type ComparisonFindingInput,
 } from "../src/components/strategic-fit/ComparisonBoards.tsx";
-import {
-  buildCausalTimelinePresentation,
-} from "../src/components/strategic-fit/CausalTimeline.tsx";
+import { buildCausalTimelinePresentation } from "../src/components/strategic-fit/CausalTimeline.tsx";
 
 const FEN = "rnbqkbnr/pp1ppppp/5n2/2p5/4P3/2P5/PP1P1PPP/RNBQKBNR w KQkq - 1 3";
 
@@ -66,19 +64,29 @@ function trajectory(
 }
 
 const longPath = [
-  "e4", "c5", "c3", "Nf6", "e5", "Nd5", "d4", "cxd4", "Nf3", "Nc6", "cxd4", "d6",
-  "Bc4", "Nb6", "Bb5", "dxe5",
+  "e4",
+  "c5",
+  "c3",
+  "Nf6",
+  "e5",
+  "Nd5",
+  "d4",
+  "cxd4",
+  "Nf3",
+  "Nc6",
+  "cxd4",
+  "d6",
+  "Bc4",
+  "Nb6",
+  "Bb5",
+  "dxe5",
 ];
 
 const finding: ComparisonFindingInput = {
   finding_id: "finding:comparison",
   references: {
     route_ids: ["affected:a", "affected:b", "affected:missing"],
-    source_san_paths: [
-      ["e4", "c5", "c3", "Nf6"],
-      longPath,
-      [],
-    ],
+    source_san_paths: [["e4", "c5", "c3", "Nf6"], longPath, []],
   },
   evidence: {
     representative_route_ids: ["baseline:a", "baseline:missing"],
@@ -92,14 +100,21 @@ const trajectories = [
     snapshot("affected:a", "configured-ply", 12),
     snapshot("affected:a", "final-valid-position", 16, "not-comparable"),
   ]),
-  trajectory("affected:b", "incomplete", [
-    snapshot("affected:b", "opening-exit", 5),
-    snapshot("affected:b", "central-resolution", 9, "incomplete"),
-    snapshot("affected:b", "configured-ply", 14),
-  ], [{
-    kind: "irreversible-transformation",
-    reason: "The affected route ended before an irreversible checkpoint.",
-  }]),
+  trajectory(
+    "affected:b",
+    "incomplete",
+    [
+      snapshot("affected:b", "opening-exit", 5),
+      snapshot("affected:b", "central-resolution", 9, "incomplete"),
+      snapshot("affected:b", "configured-ply", 14),
+    ],
+    [
+      {
+        kind: "irreversible-transformation",
+        reason: "The affected route ended before an irreversible checkpoint.",
+      },
+    ],
+  ),
   trajectory("baseline:a", "complete", [
     snapshot("baseline:a", "opening-exit", 7),
     snapshot("baseline:a", "central-resolution", 11),
@@ -112,27 +127,35 @@ const trajectories = [
 test("comparison preserves every route and source path while preferring a genuinely matched milestone", () => {
   const presentation = buildComparisonBoardsPresentation(finding, trajectories, "black");
   assert.equal(presentation.orientation, "black");
-  assert.deepEqual(presentation.affected_routes.map((route) => [route.route_id, route.state]), [
-    ["affected:a", "complete"],
-    ["affected:b", "incomplete"],
-    ["affected:missing", "unavailable"],
-  ]);
-  assert.deepEqual(presentation.baseline_routes.map((route) => [route.route_id, route.state]), [
-    ["baseline:a", "complete"],
-    ["baseline:missing", "unavailable"],
-  ]);
-  assert.deepEqual(presentation.source_paths.map((source) => source.path), [
-    ["e4", "c5", "c3", "Nf6"],
-    longPath,
-    [],
-  ]);
+  assert.deepEqual(
+    presentation.affected_routes.map((route) => [route.route_id, route.state]),
+    [
+      ["affected:a", "complete"],
+      ["affected:b", "incomplete"],
+      ["affected:missing", "unavailable"],
+    ],
+  );
+  assert.deepEqual(
+    presentation.baseline_routes.map((route) => [route.route_id, route.state]),
+    [
+      ["baseline:a", "complete"],
+      ["baseline:missing", "unavailable"],
+    ],
+  );
+  assert.deepEqual(
+    presentation.source_paths.map((source) => source.path),
+    [["e4", "c5", "c3", "Nf6"], longPath, []],
+  );
   assert.equal(presentation.preferred_milestone_key, "opening-exit");
   assert.deepEqual(
-    presentation.milestones.filter((milestone) => milestone.state === "matched").map((milestone) => milestone.key),
+    presentation.milestones
+      .filter((milestone) => milestone.state === "matched")
+      .map((milestone) => milestone.key),
     ["opening-exit", "central-resolution", "configured-ply:12"],
   );
   assert.match(
-    presentation.milestones.find((milestone) => milestone.key === "opening-exit")?.explanation ?? "",
+    presentation.milestones.find((milestone) => milestone.key === "opening-exit")?.explanation ??
+      "",
     /Typical cohort ply 7.*affected branch ply 5/,
   );
   assert.equal(
@@ -149,21 +172,22 @@ test("incomplete and mismatched route checkpoints never masquerade as synchroniz
     "affected:b",
     "baseline:a",
   );
-  const incomplete = presentation.milestones.find((milestone) =>
-    milestone.key === "central-resolution"
+  const incomplete = presentation.milestones.find(
+    (milestone) => milestone.key === "central-resolution",
   );
   assert.equal(incomplete?.state, "incomplete");
   assert.equal(incomplete?.status_label, "Incomplete checkpoint evidence");
 
-  const missing = presentation.milestones.find((milestone) =>
-    milestone.key === "irreversible-transformation"
+  const missing = presentation.milestones.find(
+    (milestone) => milestone.key === "irreversible-transformation",
   );
   assert.equal(missing?.state, "incomplete");
   assert.match(missing?.status_label ?? "", /affected branch is missing/i);
   assert.match(missing?.explanation ?? "", /ended before an irreversible checkpoint/i);
 
   assert.deepEqual(
-    presentation.milestones.filter((milestone) => milestone.key.startsWith("configured-ply"))
+    presentation.milestones
+      .filter((milestone) => milestone.key.startsWith("configured-ply"))
       .map((milestone) => [milestone.key, milestone.state]),
     [
       ["configured-ply:12", "incomplete"],
@@ -198,15 +222,21 @@ test("causal timeline gives every event kind an explicit no-color label, icon, a
   } satisfies Pick<CausalAttribution, "label" | "explanation" | "timeline">;
   const presentation = buildCausalTimelinePresentation(attribution);
   assert.equal(presentation.ownership, "Shared or uncertain ownership");
-  assert.deepEqual(presentation.events.map((event) => event.kind), CAUSAL_EVENT_KINDS);
-  assert.deepEqual(presentation.events.map((event) => event.label), [
-    "Opponent divergence",
-    "Player decision",
-    "Irreversible event",
-    "First strategic difference",
-    "Difference becomes stable",
-    "Transposition",
-  ]);
+  assert.deepEqual(
+    presentation.events.map((event) => event.kind),
+    CAUSAL_EVENT_KINDS,
+  );
+  assert.deepEqual(
+    presentation.events.map((event) => event.label),
+    [
+      "Opponent divergence",
+      "Player decision",
+      "Irreversible event",
+      "First strategic difference",
+      "Difference becomes stable",
+      "Transposition",
+    ],
+  );
   assert.equal(new Set(presentation.events.map((event) => event.marker)).size, 6);
   assert.equal(new Set(presentation.events.map((event) => event.pattern)).size, 6);
   assert.equal(presentation.events.at(-1)?.move, "No SAN move recorded");

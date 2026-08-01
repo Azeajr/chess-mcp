@@ -1,6 +1,9 @@
 // MCP smoke client: spawn the Node server over stdio, list tools, exercise a representative set.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { mkdtemp, readFile, rm, unlink } from "node:fs/promises";
@@ -26,7 +29,8 @@ let pass = 0,
   skipped = 0;
 const ok = (c, m) => (c ? pass++ : (fail++, console.log("FAIL:", m)));
 const skip = (m) => (skipped++, console.log("SKIP (network):", m));
-const call = async (client, name, args) => JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
+const call = async (client, name, args) =>
+  JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
 
 // Launch exactly as .mcp.json does: the tsx executable from the repo root. `node --import tsx`
 // loses piped child stdio on Node 26.2 and exits cleanly before MCP initialize; the CLI path works
@@ -62,12 +66,19 @@ await client.connect(transport);
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
 // The canonical contract owns the inventory; this asserts completeness, not a fixed number.
-const canonicalMcpTools = TOOL_CONTRACTS.filter((contract) => contract.hosts.includes("mcp")).length;
-ok(tools.length === canonicalMcpTools, `every canonical MCP tool is registered (${canonicalMcpTools})`);
+const canonicalMcpTools = TOOL_CONTRACTS.filter((contract) =>
+  contract.hosts.includes("mcp"),
+).length;
+ok(
+  tools.length === canonicalMcpTools,
+  `every canonical MCP tool is registered (${canonicalMcpTools})`,
+);
 
 // MCP Zod output must recursively match the canonical application contract. Transport prose is
 // explicitly ignored by the shared comparer; nested array items and additionalProperties are not.
-for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.includes("mcp")).map((tool) => tool.name)) {
+for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.includes("mcp")).map(
+  (tool) => tool.name,
+)) {
   const live = tools.find((tool) => tool.name === name)?.inputSchema;
   const canonical = jsonSchemaForTool(name, "mcp");
   const differences = schemaSemanticDifferences(live, canonical);
@@ -76,7 +87,10 @@ for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.incl
 }
 
 ok((await call(client, "validate_fen", { fen: START })).valid, "validate_fen start valid");
-ok((await call(client, "get_legal_moves", { fen: START })).moves.length === 20, "20 legal from start");
+ok(
+  (await call(client, "get_legal_moves", { fen: START })).moves.length === 20,
+  "20 legal from start",
+);
 
 if (NET) {
   const cloud = await call(client, "cloud_eval", { fen: START });
@@ -92,55 +106,109 @@ if (NET) {
 // it), else the auth gate must answer — never a silent null.
 if (NET && process.env.LICHESS_TOKEN) {
   const pop = await call(client, "position_popularity", { fen: START, top_moves: 3 });
-  ok(pop.total_games > 0 && pop.moves?.length === 3 && typeof pop.moves[0].played_pct === "number", `position_popularity live (${pop.total_games} games, top ${pop.moves?.[0]?.san})`);
+  ok(
+    pop.total_games > 0 && pop.moves?.length === 3 && typeof pop.moves[0].played_pct === "number",
+    `position_popularity live (${pop.total_games} games, top ${pop.moves?.[0]?.san})`,
+  );
 } else if (!process.env.LICHESS_TOKEN) {
   const pop = await call(client, "position_popularity", { fen: START, top_moves: 3 });
-  ok(pop.error === "explorer_auth_required", `position_popularity without token → explorer_auth_required (${pop.error})`);
+  ok(
+    pop.error === "explorer_auth_required",
+    `position_popularity without token → explorer_auth_required (${pop.error})`,
+  );
 } else {
   skip("position_popularity live (token present but SMOKE_NETWORK=0)");
 }
-ok((await call(client, "position_popularity", { fen: "not a fen" })).error === "invalid_fen", "position_popularity gates FEN");
+ok(
+  (await call(client, "position_popularity", { fen: "not a fen" })).error === "invalid_fen",
+  "position_popularity gates FEN",
+);
 
 console.log("evaluate_position (Node Stockfish, depth 12)…");
 const ev = await call(client, "evaluate_position", { fen: START, depth: 12, lines: 3 });
 ok(Array.isArray(ev.lines) && ev.lines.length >= 1, "evaluate_position returns lines");
 console.log("  best:", ev.lines?.[0]);
 
-
 const rep = await call(client, "load_repertoire", { pgn: TRAP, color: "white" });
-ok(typeof rep.repertoire_id === "string" && rep.nodes > 0, `load_repertoire id + ${rep.nodes} nodes`);
+ok(
+  typeof rep.repertoire_id === "string" && rep.nodes > 0,
+  `load_repertoire id + ${rep.nodes} nodes`,
+);
 // An illegal-but-parseable move (no knight reaches f6) must be rejected as invalid_pgn, not loaded.
 const badLoad = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf6 *", color: "white" });
-ok(badLoad.error === "invalid_pgn", `load_repertoire rejects an illegal move as invalid_pgn (${badLoad.error})`);
+ok(
+  badLoad.error === "invalid_pgn",
+  `load_repertoire rejects an illegal move as invalid_pgn (${badLoad.error})`,
+);
 
 const cov = await call(client, "get_repertoire_coverage", { repertoire_id: rep.repertoire_id });
-ok(typeof cov.dangling_count === "number" && cov.leaves >= 1, `coverage: ${cov.dangling_count} dangling / ${cov.leaves} leaves`);
+ok(
+  typeof cov.dangling_count === "number" && cov.leaves >= 1,
+  `coverage: ${cov.dangling_count} dangling / ${cov.leaves} leaves`,
+);
 
 if (NET && process.env.LICHESS_TOKEN) {
   console.log("find_theory_depth (explorer, ~1 query/s)…");
   const td = await call(client, "find_theory_depth", { repertoire_id: rep.repertoire_id });
-  console.log("  lines:", JSON.stringify(td.lines?.map((l) => `${l.san_path.at(-1)}@${l.theory_exit_ply ?? "in-theory"}`)));
-  ok(td.lines?.length >= 1 && td.positions_queried > 0, `find_theory_depth walks (${td.positions_queried} queried)`);
+  console.log(
+    "  lines:",
+    JSON.stringify(
+      td.lines?.map((l) => `${l.san_path.at(-1)}@${l.theory_exit_ply ?? "in-theory"}`),
+    ),
+  );
+  ok(
+    td.lines?.length >= 1 && td.positions_queried > 0,
+    `find_theory_depth walks (${td.positions_queried} queried)`,
+  );
 } else if (!process.env.LICHESS_TOKEN) {
   const td = await call(client, "find_theory_depth", { repertoire_id: rep.repertoire_id });
-  ok(td.error === "explorer_auth_required", `find_theory_depth without token → explorer_auth_required (${td.error})`);
+  ok(
+    td.error === "explorer_auth_required",
+    `find_theory_depth without token → explorer_auth_required (${td.error})`,
+  );
 } else {
   skip("find_theory_depth live (token present but SMOKE_NETWORK=0)");
 }
 
-const transRep = await call(client, "load_repertoire", { pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *", color: "white" });
+const transRep = await call(client, "load_repertoire", {
+  pgn: "1. e4 ( 1. Nf3 e5 2. e4 ) 1... e5 2. Nf3 *",
+  color: "white",
+});
 const trans = await call(client, "get_transpositions", { repertoire_id: transRep.repertoire_id });
-ok(trans.total === 1 && trans.transpositions[0].paths.length === 2, "get_transpositions finds the converging position");
+ok(
+  trans.total === 1 && trans.transpositions[0].paths.length === 2,
+  "get_transpositions finds the converging position",
+);
 
 console.log("compare_moves (engine, depth 12)…");
-const cmp = await call(client, "compare_moves", { fen: START, moves: ["e4", "d4", "a3"], depth: 12 });
-console.log("  ranked:", JSON.stringify(cmp.candidates.map((c) => `${c.rank}.${c.san} ${c.mover_cp}`)));
-ok(cmp.candidates[0].rank === 1 && cmp.candidates.find((c) => c.san === "a3").rank === 3, "compare_moves ranks a3 last");
+const cmp = await call(client, "compare_moves", {
+  fen: START,
+  moves: ["e4", "d4", "a3"],
+  depth: 12,
+});
+console.log(
+  "  ranked:",
+  JSON.stringify(cmp.candidates.map((c) => `${c.rank}.${c.san} ${c.mover_cp}`)),
+);
+ok(
+  cmp.candidates[0].rank === 1 && cmp.candidates.find((c) => c.san === "a3").rank === 3,
+  "compare_moves ranks a3 last",
+);
 
 console.log("find_repertoire_gaps (engine scan)…");
-const gaps = await call(client, "find_repertoire_gaps", { repertoire_id: rep.repertoire_id, depth: 12, min_severity: "high" });
-console.log("  gaps:", JSON.stringify(gaps.gaps?.map((g) => `${g.severity} ${g.uncovered_move} ${g.eval}`)));
-ok(gaps.gaps?.some((g) => g.uncovered_move === "Qxg2" && g.severity === "high"), "gap scan finds Qxg2 HIGH");
+const gaps = await call(client, "find_repertoire_gaps", {
+  repertoire_id: rep.repertoire_id,
+  depth: 12,
+  min_severity: "high",
+});
+console.log(
+  "  gaps:",
+  JSON.stringify(gaps.gaps?.map((g) => `${g.severity} ${g.uncovered_move} ${g.eval}`)),
+);
+ok(
+  gaps.gaps?.some((g) => g.uncovered_move === "Qxg2" && g.severity === "high"),
+  "gap scan finds Qxg2 HIGH",
+);
 const firstGap = gaps.gaps?.[0];
 const gapFills = await call(client, "suggest_gap_fills", {
   repertoire_id: rep.repertoire_id,
@@ -150,7 +218,12 @@ const gapFills = await call(client, "suggest_gap_fills", {
   limit: 2,
   target_plies: firstGap.path.length + 2,
 });
-ok(Array.isArray(gapFills.options) && gapFills.options[0]?.kind === "best_eval" && gapFills.options[0]?.line[0] === firstGap.uncovered_move, "suggest_gap_fills returns an actionable line for a reported gap");
+ok(
+  Array.isArray(gapFills.options) &&
+    gapFills.options[0]?.kind === "best_eval" &&
+    gapFills.options[0]?.line[0] === firstGap.uncovered_move,
+  "suggest_gap_fills returns an actionable line for a reported gap",
+);
 
 console.log("find_only_moves (engine scan)…");
 // The trap line is sharp by construction: after 4...Qg5 white's 5.Nxf7 stands alone (anything else
@@ -159,11 +232,31 @@ console.log("find_only_moves (engine scan)…");
 // serves the request truncated (P4 cross-multipv), yielding a smaller ~50cp margin. Both are
 // deterministic given a fixed call order; the next-sharpest node is ~24cp. min_margin 30 splits
 // the sharp trap from the noise floor regardless of which serve path the trap node took.
-const om = await call(client, "find_only_moves", { repertoire_id: rep.repertoire_id, depth: 12, min_margin: 30 });
-console.log("  only-moves:", JSON.stringify(om.findings?.map((f) => `${f.path.at(-1) ?? "start"}→${f.prescribed} m=${f.margin}`)), "lines:", om.lines?.length);
-ok(!om.error && om.positions_scanned > 0 && om.only_moves_found >= 1 && Array.isArray(om.lines), "find_only_moves tags the sharp trap node");
-ok(typeof om.findings?.[0]?.prescribed_is_best === "boolean" && om.findings?.[0]?.margin >= 30, "find_only_moves finding carries margin + prescribed_is_best");
-const omBad = await call(client, "find_only_moves", { repertoire_id: rep.repertoire_id, export_path: "../escape.csv" });
+const om = await call(client, "find_only_moves", {
+  repertoire_id: rep.repertoire_id,
+  depth: 12,
+  min_margin: 30,
+});
+console.log(
+  "  only-moves:",
+  JSON.stringify(
+    om.findings?.map((f) => `${f.path.at(-1) ?? "start"}→${f.prescribed} m=${f.margin}`),
+  ),
+  "lines:",
+  om.lines?.length,
+);
+ok(
+  !om.error && om.positions_scanned > 0 && om.only_moves_found >= 1 && Array.isArray(om.lines),
+  "find_only_moves tags the sharp trap node",
+);
+ok(
+  typeof om.findings?.[0]?.prescribed_is_best === "boolean" && om.findings?.[0]?.margin >= 30,
+  "find_only_moves finding carries margin + prescribed_is_best",
+);
+const omBad = await call(client, "find_only_moves", {
+  repertoire_id: rep.repertoire_id,
+  export_path: "../escape.csv",
+});
 ok(omBad.error === "path_not_allowed", "find_only_moves export confined to REPERTOIRE_DIR");
 
 const t0 = Date.now();
@@ -171,9 +264,18 @@ const t0 = Date.now();
 const BLUNDER = "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 *";
 console.log("analyze_game / get_game_summary (engine, depth 8)…");
 const ag = await call(client, "analyze_game", { pgn: BLUNDER, depth: 8 });
-ok(ag.total_moves >= 8 && ag.moves.some((m) => m.classification !== "good"), `analyze_game ${ag.total_moves} moves, some flagged`);
+ok(
+  ag.total_moves >= 8 && ag.moves.some((m) => m.classification !== "good"),
+  `analyze_game ${ag.total_moves} moves, some flagged`,
+);
 const gs = await call(client, "get_game_summary", { pgn: BLUNDER, depth: 8 });
-console.log("  white:", JSON.stringify(gs.white), "worst:", gs.worst_moves?.[0]?.san, gs.worst_moves?.[0]?.cp_loss);
+console.log(
+  "  white:",
+  JSON.stringify(gs.white),
+  "worst:",
+  gs.worst_moves?.[0]?.san,
+  gs.worst_moves?.[0]?.cp_loss,
+);
 ok(gs.white.blunders + gs.white.mistakes >= 1, "get_game_summary flags white's Nxe5");
 const ann = await call(client, "export_annotated_pgn", { pgn: BLUNDER, depth: 8 });
 ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
@@ -181,7 +283,10 @@ ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
 // still complete (regression: [] was misread as engine_unavailable, aborting the whole review).
 const MATE = "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# *";
 const agMate = await call(client, "analyze_game", { pgn: MATE, depth: 8 });
-ok(agMate.total_moves === 7 && agMate.moves?.at(-1)?.san === "Qxf7#", `analyze_game reviews a mate-ending game (${agMate.total_moves ?? agMate.error} plies)`);
+ok(
+  agMate.total_moves === 7 && agMate.moves?.at(-1)?.san === "Qxf7#",
+  `analyze_game reviews a mate-ending game (${agMate.total_moves ?? agMate.error} plies)`,
+);
 
 if (NET) {
   const tb = await call(client, "tablebase_lookup", { fen: "4k3/8/8/8/8/8/8/4K2R w - - 0 1" });
@@ -193,25 +298,62 @@ if (NET) {
 
 // modify_repertoire_line (clone-on-write) + export round-trip
 const repE = await call(client, "load_repertoire", { pgn: "1. e4 *", color: "white" });
-const mod = await call(client, "modify_repertoire_line", { repertoire_id: repE.repertoire_id, action: "add", path: ["e4"], add_moves: ["e5", "Nf3"] });
-ok(typeof mod.new_repertoire_id === "string" && mod.nodes === 3, `modify_repertoire_line add → ${mod.nodes} nodes`);
+const mod = await call(client, "modify_repertoire_line", {
+  repertoire_id: repE.repertoire_id,
+  action: "add",
+  path: ["e4"],
+  add_moves: ["e5", "Nf3"],
+});
+ok(
+  typeof mod.new_repertoire_id === "string" && mod.nodes === 3,
+  `modify_repertoire_line add → ${mod.nodes} nodes`,
+);
 const modExport = await call(client, "export_repertoire", { repertoire_id: mod.new_repertoire_id });
-ok(modExport.pgn.includes("e5") && modExport.pgn.includes("Nf3"), "edited tree exports the new line");
+ok(
+  modExport.pgn.includes("e5") && modExport.pgn.includes("Nf3"),
+  "edited tree exports the new line",
+);
 const srcExport = await call(client, "export_repertoire", { repertoire_id: repE.repertoire_id });
 ok(!srcExport.pgn.includes("e5"), "source repertoire unchanged (clone-on-write)");
 
-const ill = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Bc4 Qh4 $4 *", color: "white" });
+const ill = await call(client, "load_repertoire", {
+  pgn: "1. e4 e5 2. Bc4 Qh4 $4 *",
+  color: "white",
+});
 const ilr = await call(client, "classify_illustrative_lines", { repertoire_id: ill.repertoire_id });
-ok(ilr.lines.length === 1 && ilr.illustrative_leaves === 1, "classify_illustrative_lines flags the NAG line");
+ok(
+  ilr.lines.length === 1 && ilr.illustrative_leaves === 1,
+  "classify_illustrative_lines flags the NAG line",
+);
 
-const fiRep = await call(client, "load_repertoire", { pgn: "1. g3 g6 2. Bg2 Bg7 *", color: "white" });
+const fiRep = await call(client, "load_repertoire", {
+  pgn: "1. g3 g6 2. Bg2 Bg7 *",
+  color: "white",
+});
 const spAgg = await call(client, "get_structural_profile", { repertoire_id: fiRep.repertoire_id });
-ok(spAgg.leaves_analyzed === 1 && spAgg.themes.fianchetto_white === 1, "get_structural_profile aggregate: fianchetto theme");
-const spNode = await call(client, "get_structural_profile", { repertoire_id: fiRep.repertoire_id, variation_path: ["g3", "g6", "Bg2", "Bg7"] });
-ok(spNode.themes?.fianchetto_white && spNode.themes?.fianchetto_black && Array.isArray(spNode.primitives?.chains), "get_structural_profile node: themes + primitives");
+ok(
+  spAgg.leaves_analyzed === 1 && spAgg.themes.fianchetto_white === 1,
+  "get_structural_profile aggregate: fianchetto theme",
+);
+const spNode = await call(client, "get_structural_profile", {
+  repertoire_id: fiRep.repertoire_id,
+  variation_path: ["g3", "g6", "Bg2", "Bg7"],
+});
+ok(
+  spNode.themes?.fianchetto_white &&
+    spNode.themes?.fianchetto_black &&
+    Array.isArray(spNode.primitives?.chains),
+  "get_structural_profile node: themes + primitives",
+);
 
-const swRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. e3 Nf6 3. Bd3 e6 4. f4 *", color: "white" });
-const sw = await call(client, "get_structural_profile", { repertoire_id: swRep.repertoire_id, variation_path: ["d4", "d5", "e3", "Nf6", "Bd3", "e6", "f4"] });
+const swRep = await call(client, "load_repertoire", {
+  pgn: "1. d4 d5 2. e3 Nf6 3. Bd3 e6 4. f4 *",
+  color: "white",
+});
+const sw = await call(client, "get_structural_profile", {
+  repertoire_id: swRep.repertoire_id,
+  variation_path: ["d4", "d5", "e3", "Nf6", "Bd3", "e6", "f4"],
+});
 console.log("  structure_class:", sw.structure_class, sw.confidence);
 ok(sw.structure_class === "Stonewall", `named-structure classifier → ${sw.structure_class}`);
 
@@ -252,7 +394,10 @@ try {
 } catch {
   invalidStrategicFitRejected = true;
 }
-ok(invalidStrategicFitRejected, "analyze_repertoire_congruence rejects malformed nested V2 arguments");
+ok(
+  invalidStrategicFitRejected,
+  "analyze_repertoire_congruence rejects malformed nested V2 arguments",
+);
 
 const invalidPersonalHistory = await call(client, "analyze_repertoire_congruence", {
   repertoire_id: congRep.repertoire_id,
@@ -267,10 +412,18 @@ ok(
 if (!process.env.LICHESS_TOKEN) {
   const unavailablePopularity = await call(client, "analyze_repertoire_congruence", {
     repertoire_id: congRep.repertoire_id,
-    popularity: { db: "lichess", speeds: ["rapid"], ratings: [1600, 1800], since: "2024-01", max_positions: 2 },
+    popularity: {
+      db: "lichess",
+      speeds: ["rapid"],
+      ratings: [1600, 1800],
+      since: "2024-01",
+      max_positions: 2,
+    },
     page: { limit: 1 },
   });
-  const popularitySource = unavailablePopularity.provenance?.sources?.find((source) => source.kind === "opening-explorer");
+  const popularitySource = unavailablePopularity.provenance?.sources?.find(
+    (source) => source.kind === "opening-explorer",
+  );
   ok(
     !unavailablePopularity.error &&
       popularitySource?.state === "unavailable" &&
@@ -351,7 +504,9 @@ ok(
     /status=uncertain-evidence-only/.test(annotatedFit.pgn ?? ""),
   "export_annotated_repertoire returns neutral native V2 evidence and the legacy congruence count",
 );
-const sourceAfterAnnotation = await call(client, "export_repertoire", { repertoire_id: congRep.repertoire_id });
+const sourceAfterAnnotation = await call(client, "export_repertoire", {
+  repertoire_id: congRep.repertoire_id,
+});
 ok(
   !/Strategic Fit evidence/.test(sourceAfterAnnotation.pgn ?? ""),
   "returned annotated repertoire leaves the MCP source handle unchanged",
@@ -379,12 +534,42 @@ ok(
 );
 
 console.log("suggest_complementary_lines (engine, depth 10)…");
-const sugRep = await call(client, "load_repertoire", { pgn: "1. d4 d5 2. c4 e6 3. Nc3 Nf6 *", color: "white" });
-const sug = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: START, mode: "low_memorization", depth: 10, limit: 4 });
-console.log("  suggestions:", JSON.stringify(sug.suggestions?.map((s) => `${s.move} ${s.resulting_structure} pm=${s.profile_match}`)));
-ok(Array.isArray(sug.suggestions) && sug.suggestions.length >= 1 && typeof sug.suggestions[0]?.move === "string" && "profile_match" in sug.suggestions[0] && typeof sug.suggestions[0]?.pv === "string", "suggest_complementary_lines returns ranked suggestions");
-const gap = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1", mode: "sharp", depth: 10, limit: 3 });
-ok(typeof gap.opponent_move === "string" && Array.isArray(gap.suggestions), "suggest auto-advances when opponent is to move");
+const sugRep = await call(client, "load_repertoire", {
+  pgn: "1. d4 d5 2. c4 e6 3. Nc3 Nf6 *",
+  color: "white",
+});
+const sug = await call(client, "suggest_complementary_lines", {
+  repertoire_id: sugRep.repertoire_id,
+  fen: START,
+  mode: "low_memorization",
+  depth: 10,
+  limit: 4,
+});
+console.log(
+  "  suggestions:",
+  JSON.stringify(
+    sug.suggestions?.map((s) => `${s.move} ${s.resulting_structure} pm=${s.profile_match}`),
+  ),
+);
+ok(
+  Array.isArray(sug.suggestions) &&
+    sug.suggestions.length >= 1 &&
+    typeof sug.suggestions[0]?.move === "string" &&
+    "profile_match" in sug.suggestions[0] &&
+    typeof sug.suggestions[0]?.pv === "string",
+  "suggest_complementary_lines returns ranked suggestions",
+);
+const gap = await call(client, "suggest_complementary_lines", {
+  repertoire_id: sugRep.repertoire_id,
+  fen: "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1",
+  mode: "sharp",
+  depth: 10,
+  limit: 3,
+});
+ok(
+  typeof gap.opponent_move === "string" && Array.isArray(gap.suggestions),
+  "suggest auto-advances when opponent is to move",
+);
 
 const replacementRequest = {
   schema_version: "2.0.0",
@@ -398,7 +583,13 @@ const replacementRequest = {
   repertoire_revision: `mcp:${congRep.repertoire_id}`,
   repertoire_color: "white",
   pivot_selection: { kind: "automatic", decision_id: null },
-  profile: { schema_version: "2.0.0", mode: "balanced", source: "explicit", provisional: false, preferences: {} },
+  profile: {
+    schema_version: "2.0.0",
+    mode: "balanced",
+    source: "explicit",
+    provisional: false,
+    preferences: {},
+  },
   candidate_sources: ["user-line"],
   user_candidate_san_lines: [["e4"]],
   maximum_repertoire_pov_loss_from_best_cp: 100,
@@ -450,12 +641,21 @@ const v2Repl = await call(client, "suggest_replacement_line", {
     provenance: [],
   },
 });
-ok(v2Repl.contract === "strategic-fit-replacement-v2" && v2Repl.status === "partial" &&
-  v2Repl.items?.[0]?.error_code === "candidate-not-found", "suggest_replacement_line preserves structured V2 per-item errors");
-ok(v2Repl.host?.preview_policy === "preview-only" && v2Repl.host?.source_handle_unchanged === true &&
-  v2Repl.host?.new_repertoire_id === null && v2Repl.host?.archive_storage === "unavailable" &&
-  v2Repl.host?.undo === "unavailable" && v2Repl.host?.explicit_edit_required_for_clone_handle === true,
-"suggest_replacement_line exposes MCP archive/undo limitations and returns no clone handle before explicit edit");
+ok(
+  v2Repl.contract === "strategic-fit-replacement-v2" &&
+    v2Repl.status === "partial" &&
+    v2Repl.items?.[0]?.error_code === "candidate-not-found",
+  "suggest_replacement_line preserves structured V2 per-item errors",
+);
+ok(
+  v2Repl.host?.preview_policy === "preview-only" &&
+    v2Repl.host?.source_handle_unchanged === true &&
+    v2Repl.host?.new_repertoire_id === null &&
+    v2Repl.host?.archive_storage === "unavailable" &&
+    v2Repl.host?.undo === "unavailable" &&
+    v2Repl.host?.explicit_edit_required_for_clone_handle === true,
+  "suggest_replacement_line exposes MCP archive/undo limitations and returns no clone handle before explicit edit",
+);
 const staleV2Repl = await call(client, "suggest_replacement_line", {
   repertoire_id: congRep.repertoire_id,
   contract: "strategic-fit-replacement-v2",
@@ -482,42 +682,94 @@ const staleV2Repl = await call(client, "suggest_replacement_line", {
     provenance: [],
   },
 });
-ok(staleV2Repl.status === "stale" && staleV2Repl.error_code === "safety-mismatch" &&
-  staleV2Repl.items?.length === 0, "suggest_replacement_line binds V2 evidence to the injected MCP handle revision");
+ok(
+  staleV2Repl.status === "stale" &&
+    staleV2Repl.error_code === "safety-mismatch" &&
+    staleV2Repl.items?.length === 0,
+  "suggest_replacement_line binds V2 evidence to the injected MCP handle revision",
+);
 
 const op = await call(client, "identify_opening", { pgn: "1. e4 c5 2. Nf3 d6 *" });
 ok(op.name?.includes("Sicilian"), `identify_opening → ${op.name} (${op.eco})`);
 
 console.log("batch_review (engine, depth 8, 2 games)…");
-const MULTI = '[Event "G1"]\n[Result "1-0"]\n\n1. e4 c5 2. Nf3 *\n\n[Event "G2"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 *';
+const MULTI =
+  '[Event "G1"]\n[Result "1-0"]\n\n1. e4 c5 2. Nf3 *\n\n[Event "G2"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 *';
 const br = await call(client, "batch_review", { pgn: MULTI, group_by: "eco", depth: 8 });
 console.log("  groups:", JSON.stringify(br.groups?.map((g) => `${g.name}(${g.games})`)));
-ok(br.total_games === 2 && br.groups.length === 2, "batch_review aggregates 2 games into 2 eco groups");
+ok(
+  br.total_games === 2 && br.groups.length === 2,
+  "batch_review aggregates 2 games into 2 eco groups",
+);
 
 if (NET) {
   console.log("lichess_games / chesscom_games (live network)…");
   const lg = await call(client, "lichess_games", { username: "german11", max_games: 3 });
-  console.log("  lichess:", lg.error ?? `${lg.total} games, e.g. ${lg.games?.[0]?.white} vs ${lg.games?.[0]?.black}`);
-  ok(!lg.error && lg.total >= 1 && typeof lg.games?.[0]?.white === "string", "lichess_games returns parsed games");
+  console.log(
+    "  lichess:",
+    lg.error ?? `${lg.total} games, e.g. ${lg.games?.[0]?.white} vs ${lg.games?.[0]?.black}`,
+  );
+  ok(
+    !lg.error && lg.total >= 1 && typeof lg.games?.[0]?.white === "string",
+    "lichess_games returns parsed games",
+  );
   const cg = await call(client, "chesscom_games", { username: "hikaru", year: 2024, month: 1 });
-  console.log("  chesscom:", cg.error ?? `${cg.total} games, e.g. ${cg.games?.[0]?.white} vs ${cg.games?.[0]?.black}`);
-  ok(!cg.error && cg.total >= 1 && typeof cg.games?.[0]?.white === "string", "chesscom_games returns parsed games");
+  console.log(
+    "  chesscom:",
+    cg.error ?? `${cg.total} games, e.g. ${cg.games?.[0]?.white} vs ${cg.games?.[0]?.black}`,
+  );
+  ok(
+    !cg.error && cg.total >= 1 && typeof cg.games?.[0]?.white === "string",
+    "chesscom_games returns parsed games",
+  );
 
   console.log("repertoire_vs_history (live)…");
-  const rvhRep = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 *", color: "white" });
-  const rvh = await call(client, "repertoire_vs_history", { repertoire_id: rvhRep.repertoire_id, username: "german11", platform: "lichess", max_games: 15 });
-  console.log("  rvh:", rvh.error ?? `total ${rvh.games_total}, matched ${rvh.games_matched_color}, coverage ${rvh.coverage_pct}%`);
-  ok(!rvh.error && typeof rvh.games_total === "number" && Array.isArray(rvh.player_deviations), "repertoire_vs_history runs over real games");
+  const rvhRep = await call(client, "load_repertoire", {
+    pgn: "1. e4 e5 2. Nf3 Nc6 3. Bb5 *",
+    color: "white",
+  });
+  const rvh = await call(client, "repertoire_vs_history", {
+    repertoire_id: rvhRep.repertoire_id,
+    username: "german11",
+    platform: "lichess",
+    max_games: 15,
+  });
+  console.log(
+    "  rvh:",
+    rvh.error ??
+      `total ${rvh.games_total}, matched ${rvh.games_matched_color}, coverage ${rvh.coverage_pct}%`,
+  );
+  ok(
+    !rvh.error && typeof rvh.games_total === "number" && Array.isArray(rvh.player_deviations),
+    "repertoire_vs_history runs over real games",
+  );
 
   console.log("prep_vs_opponent (live)…");
-  const pvo = await call(client, "prep_vs_opponent", { repertoire_id: rvhRep.repertoire_id, username: "german11", platform: "lichess", max_games: 15 });
-  console.log("  pvo:", pvo.error ?? `total ${pvo.games_total}, matched ${pvo.games_matched_color}, coverage ${pvo.coverage_pct}%, lines ${pvo.lines?.length}`);
-  ok(!pvo.error && pvo.opponent_color === "black" && Array.isArray(pvo.lines) && Array.isArray(pvo.uncovered_opponent_moves), "prep_vs_opponent runs over real games");
+  const pvo = await call(client, "prep_vs_opponent", {
+    repertoire_id: rvhRep.repertoire_id,
+    username: "german11",
+    platform: "lichess",
+    max_games: 15,
+  });
+  console.log(
+    "  pvo:",
+    pvo.error ??
+      `total ${pvo.games_total}, matched ${pvo.games_matched_color}, coverage ${pvo.coverage_pct}%, lines ${pvo.lines?.length}`,
+  );
+  ok(
+    !pvo.error &&
+      pvo.opponent_color === "black" &&
+      Array.isArray(pvo.lines) &&
+      Array.isArray(pvo.uncovered_opponent_moves),
+    "prep_vs_opponent runs over real games",
+  );
 } else {
   skip("lichess_games / chesscom_games / repertoire_vs_history / prep_vs_opponent");
 }
 
-console.log(`\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} network group(s) skipped` : ""}`);
+console.log(
+  `\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} network group(s) skipped` : ""}`,
+);
 await client.close();
 await rm(smokeRepertoireDir, { recursive: true, force: true });
 process.exit(fail ? 1 : 0);

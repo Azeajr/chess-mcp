@@ -5,11 +5,7 @@ import {
   createBrowserDocumentId,
   normalizeBrowserDocumentId,
 } from "../src/store/document-identity.ts";
-import {
-  actions,
-  documentId,
-  restoreDocument,
-} from "../src/store/game.ts";
+import { actions, documentId, restoreDocument } from "../src/store/game.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -18,7 +14,14 @@ test("document ID validation canonicalizes only RFC-compatible UUIDs", () => {
     normalizeBrowserDocumentId("550E8400-E29B-41D4-A716-446655440000"),
     "550e8400-e29b-41d4-a716-446655440000",
   );
-  for (const value of [undefined, null, 42, "", "not-a-uuid", "00000000-0000-0000-0000-000000000000"]) {
+  for (const value of [
+    undefined,
+    null,
+    42,
+    "",
+    "not-a-uuid",
+    "00000000-0000-0000-0000-000000000000",
+  ]) {
     assert.equal(normalizeBrowserDocumentId(value), undefined);
   }
 });

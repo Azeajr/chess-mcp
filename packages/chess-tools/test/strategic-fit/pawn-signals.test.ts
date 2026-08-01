@@ -121,10 +121,7 @@ test("temporary doubled pawns disappear without being mislabeled irreversible", 
 });
 
 test("locked and fluid centers remain separate observations", () => {
-  const locked = extractPawnSignalsFromFen(
-    "4k3/8/4p3/3pP3/3P4/8/8/4K3 w - - 0 1",
-    "white",
-  );
+  const locked = extractPawnSignalsFromFen("4k3/8/4p3/3pP3/3P4/8/8/4K3 w - - 0 1", "white");
   assert.equal(value(locked, "center-dynamics.openness").state, "closed");
   assert.deepEqual(value(locked, "center-dynamics.fixity"), {
     state: "fixed",
@@ -136,16 +133,15 @@ test("locked and fluid centers remain separate observations", () => {
   assert.equal(value(locked, "center-dynamics.fluidity").state, "fixed");
   assert.deepEqual(value(locked, "center-dynamics.tension").pairs, []);
 
-  const fluid = extractPawnSignalsFromFen(
-    "4k3/8/4p3/3p4/2PP4/8/8/4K3 w - - 0 1",
-    "white",
-  );
+  const fluid = extractPawnSignalsFromFen("4k3/8/4p3/3p4/2PP4/8/8/4K3 w - - 0 1", "white");
   assert.equal(value(fluid, "center-dynamics.fluidity").state, "fluid");
-  assert.deepEqual(value(fluid, "center-dynamics.tension").pairs, [{
-    repertoire_pawn: "c4",
-    opponent_pawn: "d5",
-    attacker: "both",
-  }]);
+  assert.deepEqual(value(fluid, "center-dynamics.tension").pairs, [
+    {
+      repertoire_pawn: "c4",
+      opponent_pawn: "d5",
+      attacker: "both",
+    },
+  ]);
 });
 
 test("likely breaks disclose geometric evidence without objective-quality claims", () => {
@@ -154,14 +150,14 @@ test("likely breaks disclose geometric evidence without objective-quality claims
     "white",
   );
   const signal = findSignal(report, "center-dynamics.likely-breaks");
-  const moves = signal.value.breaks.map((candidate) => `${candidate.subject}:${candidate.from}-${candidate.to}`);
+  const moves = signal.value.breaks.map(
+    (candidate) => `${candidate.subject}:${candidate.from}-${candidate.to}`,
+  );
 
-  assert.deepEqual(moves, [
-    "opponent:c7-c5",
-    "opponent:f7-f6",
-    "repertoire:c2-c4",
-  ]);
-  assert.ok(signal.value.breaks.every((candidate) => candidate.readiness === "geometrically-available"));
+  assert.deepEqual(moves, ["opponent:c7-c5", "opponent:f7-f6", "repertoire:c2-c4"]);
+  assert.ok(
+    signal.value.breaks.every((candidate) => candidate.readiness === "geometrically-available"),
+  );
   assert.ok(signal.value.breaks.every((candidate) => candidate.confidence < 1));
   assert.equal(JSON.stringify(signal).includes("evaluation"), false);
   assert.equal(JSON.stringify(signal).includes("good"), false);
@@ -182,20 +178,19 @@ test("mirrored Black analysis preserves repertoire-relative formation and breaks
   assert.equal(value(blackReport, "pawn-topology.named-formation").formation_id, "french");
   assert.equal(
     value(whiteReport, "center-dynamics.likely-breaks").breaks.some(
-      (candidate) => candidate.subject === "repertoire" && candidate.from === "c2" && candidate.to === "c4",
+      (candidate) =>
+        candidate.subject === "repertoire" && candidate.from === "c2" && candidate.to === "c4",
     ),
     true,
   );
   assert.equal(
     value(blackReport, "center-dynamics.likely-breaks").breaks.some(
-      (candidate) => candidate.subject === "repertoire" && candidate.from === "c7" && candidate.to === "c5",
+      (candidate) =>
+        candidate.subject === "repertoire" && candidate.from === "c7" && candidate.to === "c5",
     ),
     true,
   );
-  assert.equal(
-    findSignal(blackReport, "pawn-topology.islands", "repertoire").value.color,
-    "black",
-  );
+  assert.equal(findSignal(blackReport, "pawn-topology.islands", "repertoire").value.color, "black");
 });
 
 test("signal reports are deterministic, uniquely identified, and confidence-bearing", () => {
@@ -206,5 +201,8 @@ test("signal reports are deterministic, uniquely identified, and confidence-bear
   assert.ok(first.signals.every((signal) => signal.confidence >= 0 && signal.confidence <= 1));
   assert.ok(first.signals.every((signal) => signal.kind === "observation"));
   assert.ok(first.signals.every((signal) => signal.provenance.length > 0));
-  assert.equal(first.provenance.some((source) => source.kind === "structure-classifier"), true);
+  assert.equal(
+    first.provenance.some((source) => source.kind === "structure-classifier"),
+    true,
+  );
 });

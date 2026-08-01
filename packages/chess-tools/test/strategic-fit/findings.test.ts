@@ -98,49 +98,70 @@ test("classifies a supported actionable profile conflict as genuine inconsistenc
 });
 
 test("classifies opponent ownership and unavailable alternatives as forced diversity", () => {
-  assert.equal(classifyStrategicDiversity(input({
-    causality: causality("mostly-opponent-forced", 0.2),
-    alternative_state: "not-assessed",
-  })).classification, "forced-diversity");
-  assert.equal(classifyStrategicDiversity(input({
-    alternative_state: "no-acceptable-alternative",
-  })).classification, "forced-diversity");
+  assert.equal(
+    classifyStrategicDiversity(
+      input({
+        causality: causality("mostly-opponent-forced", 0.2),
+        alternative_state: "not-assessed",
+      }),
+    ).classification,
+    "forced-diversity",
+  );
+  assert.equal(
+    classifyStrategicDiversity(
+      input({
+        alternative_state: "no-acceptable-alternative",
+      }),
+    ).classification,
+    "forced-diversity",
+  );
 });
 
 test("confirmed explicit intent wins over an inferred majority and prior keep resolution is honored", () => {
-  const declared = classifyStrategicDiversity(input({
-    mode_selection_state: "mixed-profile",
-    intent: { matches_declared_objective: true, resolution_state: null },
-  }));
-  const resolved = classifyStrategicDiversity(input({
-    intent: { matches_declared_objective: false, resolution_state: "keep-intentionally" },
-  }));
+  const declared = classifyStrategicDiversity(
+    input({
+      mode_selection_state: "mixed-profile",
+      intent: { matches_declared_objective: true, resolution_state: null },
+    }),
+  );
+  const resolved = classifyStrategicDiversity(
+    input({
+      intent: { matches_declared_objective: false, resolution_state: "keep-intentionally" },
+    }),
+  );
 
   assert.equal(declared.classification, "intentional-diversity");
   assert.equal(resolved.classification, "intentional-diversity");
 });
 
 test("productive diversity requires and retains supported practical tradeoff metadata", () => {
-  const result = classifyStrategicDiversity(input({
-    productive_tradeoffs: [
-      tradeoff("surprise-value", false),
-      tradeoff("better-coverage"),
-      tradeoff("stronger-evaluation"),
-      tradeoff("better-coverage"),
-    ],
-  }));
+  const result = classifyStrategicDiversity(
+    input({
+      productive_tradeoffs: [
+        tradeoff("surprise-value", false),
+        tradeoff("better-coverage"),
+        tradeoff("stronger-evaluation"),
+        tradeoff("better-coverage"),
+      ],
+    }),
+  );
 
   assert.equal(result.classification, "productive-diversity");
-  assert.deepEqual(result.productive_tradeoffs.map((item) => item.benefit), [
-    "better-coverage",
-    "stronger-evaluation",
-  ]);
+  assert.deepEqual(
+    result.productive_tradeoffs.map((item) => item.benefit),
+    ["better-coverage", "stronger-evaluation"],
+  );
 });
 
 test("multiple supported cohort modes classify as a mixed strategic profile", () => {
-  assert.equal(classifyStrategicDiversity(input({
-    mode_selection_state: "mixed-profile",
-  })).classification, "mixed-strategic-profile");
+  assert.equal(
+    classifyStrategicDiversity(
+      input({
+        mode_selection_state: "mixed-profile",
+      }),
+    ).classification,
+    "mixed-strategic-profile",
+  );
 });
 
 test("low or incomplete evidence remains uncertain and makes no replacement recommendation", () => {
@@ -150,9 +171,11 @@ test("low or incomplete evidence remains uncertain and makes no replacement reco
     label: "low",
   };
   const low = assessStrategicFinding(input({ confidence: lowConfidence }));
-  const incomplete = assessStrategicFinding(input({
-    mode_selection_state: "insufficient-evidence",
-  }));
+  const incomplete = assessStrategicFinding(
+    input({
+      mode_selection_state: "insufficient-evidence",
+    }),
+  );
 
   assert.equal(low.classification, "uncertain");
   assert.equal(low.replacement_priority.label, "insufficient-evidence");
@@ -162,27 +185,43 @@ test("low or incomplete evidence remains uncertain and makes no replacement reco
 });
 
 test("blocking comparison evidence classifies as a data-quality issue", () => {
-  assert.equal(classifyStrategicDiversity(input({
-    blocking_data_quality_issue_ids: ["issue:unsupported-start"],
-  })).classification, "data-quality-issue");
+  assert.equal(
+    classifyStrategicDiversity(
+      input({
+        blocking_data_quality_issue_ids: ["issue:unsupported-start"],
+      }),
+    ).classification,
+    "data-quality-issue",
+  );
 });
 
 test("canonical convergence classifies as transpositional equivalence before diversity", () => {
-  assert.equal(classifyStrategicDiversity(input({
-    transpositionally_equivalent: true,
-  })).classification, "transpositional-equivalence");
+  assert.equal(
+    classifyStrategicDiversity(
+      input({
+        transpositionally_equivalent: true,
+      }),
+    ).classification,
+    "transpositional-equivalence",
+  );
 });
 
 test("different evidence alone never becomes genuine inconsistency", () => {
-  const noProfileConflict = classifyStrategicDiversity(input({
-    conflicts_with_selected_profile: false,
-  }));
-  const unknownAlternative = classifyStrategicDiversity(input({
-    alternative_state: "not-assessed",
-  }));
-  const sharedOwnership = classifyStrategicDiversity(input({
-    causality: causality("shared-or-uncertain", 0.5),
-  }));
+  const noProfileConflict = classifyStrategicDiversity(
+    input({
+      conflicts_with_selected_profile: false,
+    }),
+  );
+  const unknownAlternative = classifyStrategicDiversity(
+    input({
+      alternative_state: "not-assessed",
+    }),
+  );
+  const sharedOwnership = classifyStrategicDiversity(
+    input({
+      causality: causality("shared-or-uncertain", 0.5),
+    }),
+  );
 
   assert.equal(noProfileConflict.classification, "uncertain");
   assert.equal(unknownAlternative.classification, "uncertain");
@@ -218,18 +257,20 @@ test("the frozen priority formula keeps all normalized expert components", () =>
 });
 
 test("forced diversity can rank training highly while replacement remains informational", () => {
-  const result = assessStrategicFinding(input({
-    confidence: { ...confidence, score: 100 },
-    causality: causality("mostly-opponent-forced", 0),
-    alternative_state: "no-acceptable-alternative",
-    priority: {
-      difference: 1,
-      expected_frequency: 1,
-      learning_burden: 1,
-      preference_mismatch: 1,
-      training_actionability: 1,
-    },
-  }));
+  const result = assessStrategicFinding(
+    input({
+      confidence: { ...confidence, score: 100 },
+      causality: causality("mostly-opponent-forced", 0),
+      alternative_state: "no-acceptable-alternative",
+      priority: {
+        difference: 1,
+        expected_frequency: 1,
+        learning_burden: 1,
+        preference_mismatch: 1,
+        training_actionability: 1,
+      },
+    }),
+  );
 
   assert.equal(result.classification, "forced-diversity");
   assert.equal(result.replacement_priority.actionability, 0);
@@ -239,14 +280,18 @@ test("forced diversity can rank training highly while replacement remains inform
 });
 
 test("invalid normalized priority evidence is rejected", () => {
-  assert.throws(() => calculateFindingPriority({
-    kind: "training",
-    classification: "forced-diversity",
-    confidence,
-    difference: 0.5,
-    expected_frequency: 1.1,
-    learning_burden: 0.5,
-    preference_mismatch: 0.5,
-    actionability: 0.5,
-  }), /strategic_fit_findings_invalid_unit_value/);
+  assert.throws(
+    () =>
+      calculateFindingPriority({
+        kind: "training",
+        classification: "forced-diversity",
+        confidence,
+        difference: 0.5,
+        expected_frequency: 1.1,
+        learning_burden: 0.5,
+        preference_mismatch: 0.5,
+        actionability: 0.5,
+      }),
+    /strategic_fit_findings_invalid_unit_value/,
+  );
 });

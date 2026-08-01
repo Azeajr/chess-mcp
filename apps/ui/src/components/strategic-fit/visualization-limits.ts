@@ -119,7 +119,10 @@ export function virtualWindow<T>(
 ): VirtualWindow<T> {
   const total = items.length;
   const rowSize = Math.max(1, options.rowSize);
-  const maximumMounted = Math.max(1, Math.floor(options.maximumMounted ?? VISUALIZATION_RENDER_LIMITS.virtual_rows));
+  const maximumMounted = Math.max(
+    1,
+    Math.floor(options.maximumMounted ?? VISUALIZATION_RENDER_LIMITS.virtual_rows),
+  );
   const overscan = Math.max(0, Math.floor(options.overscan ?? VIRTUAL_WINDOW_OVERSCAN));
   const viewportSize = Math.max(0, options.viewportSize);
   const visible = viewportSize > 0 ? Math.ceil(viewportSize / rowSize) + 1 : maximumMounted;
@@ -201,7 +204,7 @@ export function clusterStrategicMapPoints(
     else bucket.push(point);
   }
   const ordered = [...buckets.entries()].sort((left, right) =>
-    left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0
+    left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0,
   );
   const largest = ordered.reduce((maximum, [, members]) => Math.max(maximum, members.length), 0);
   const cellSize = 100 / grid;
@@ -218,17 +221,27 @@ export function clusterStrategicMapPoints(
       maximumRadius,
       2 + 4 * Math.sqrt(largest > 0 ? members.length / largest : 1),
     );
-    const inCell = (value: number, index: number) => Math.min(
-      (index + 1) * cellSize - radius,
-      Math.max(index * cellSize + radius, value),
-    );
-    const unresolved = members.filter((member) => member.resolution === "unresolved-finding").length;
+    const inCell = (value: number, index: number) =>
+      Math.min((index + 1) * cellSize - radius, Math.max(index * cellSize + radius, value));
+    const unresolved = members.filter(
+      (member) => member.resolution === "unresolved-finding",
+    ).length;
     const resolved = members.filter((member) => member.resolution === "resolved-finding").length;
     const findingIds = [...new Set(members.flatMap((member) => member.finding_ids))];
     return {
       cluster_id: key,
-      cx: round(inCell(centroid((member) => member.cx), column)),
-      cy: round(inCell(centroid((member) => member.cy), row)),
+      cx: round(
+        inCell(
+          centroid((member) => member.cx),
+          column,
+        ),
+      ),
+      cy: round(
+        inCell(
+          centroid((member) => member.cy),
+          row,
+        ),
+      ),
       radius: round(radius),
       point_count: members.length,
       total_weight: round(totalWeight),
@@ -237,7 +250,8 @@ export function clusterStrategicMapPoints(
       no_finding_count: members.length - unresolved - resolved,
       route_ids: members.map((member) => member.id),
       finding_ids: findingIds,
-      aria_label: `Cluster of ${members.length} branches.` +
+      aria_label:
+        `Cluster of ${members.length} branches.` +
         ` ${unresolved} with unresolved findings, ${resolved} resolved,` +
         ` ${members.length - unresolved - resolved} without findings.` +
         ` Combined expected weight ${round(totalWeight)}.`,
@@ -286,12 +300,15 @@ export function clusterStrategicMapEdges(
   for (const cluster of clusters) {
     for (const routeId of cluster.route_ids) clusterByRoute.set(routeId, cluster);
   }
-  const merged = new Map<string, {
-    from: StrategicMapCluster;
-    to: StrategicMapCluster;
-    edge_count: number;
-    shared_position_count: number;
-  }>();
+  const merged = new Map<
+    string,
+    {
+      from: StrategicMapCluster;
+      to: StrategicMapCluster;
+      edge_count: number;
+      shared_position_count: number;
+    }
+  >();
   let withinCluster = 0;
   for (const edge of edges) {
     const from = clusterByRoute.get(edge.from_route_id);
@@ -318,16 +335,19 @@ export function clusterStrategicMapEdges(
   }
   const ordered = [...merged.entries()]
     .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0))
-    .map(([, value]) => ({
-      from_cluster_id: value.from.cluster_id,
-      to_cluster_id: value.to.cluster_id,
-      x1: value.from.cx,
-      y1: value.from.cy,
-      x2: value.to.cx,
-      y2: value.to.cy,
-      edge_count: value.edge_count,
-      shared_position_count: value.shared_position_count,
-    } satisfies ClusteredMapEdge));
+    .map(
+      ([, value]) =>
+        ({
+          from_cluster_id: value.from.cluster_id,
+          to_cluster_id: value.to.cluster_id,
+          x1: value.from.cx,
+          y1: value.from.cy,
+          x2: value.to.cx,
+          y2: value.to.cy,
+          edge_count: value.edge_count,
+          shared_position_count: value.shared_position_count,
+        }) satisfies ClusteredMapEdge,
+    );
   return { edges: ordered, within_cluster_count: withinCluster };
 }
 
@@ -349,9 +369,10 @@ export function splitDecisionFlowColumn<TNode>(
 ): DecisionFlowColumnSplit<TNode> {
   const safeLimit = Math.max(2, Math.floor(limit));
   if (column.length <= safeLimit) return { rendered: column, aggregated: [] };
-  const byWeight = [...column].sort((left, right) =>
-    weightOf(right) - weightOf(left) ||
-    (idOf(left) < idOf(right) ? -1 : idOf(left) > idOf(right) ? 1 : 0)
+  const byWeight = [...column].sort(
+    (left, right) =>
+      weightOf(right) - weightOf(left) ||
+      (idOf(left) < idOf(right) ? -1 : idOf(left) > idOf(right) ? 1 : 0),
   );
   const keep = new Set(byWeight.slice(0, safeLimit - 1).map(idOf));
   return {
@@ -388,15 +409,18 @@ export function mergeDecisionFlowLinks(
   links: readonly MergeableFlowLink[],
   replacementByNodeId: ReadonlyMap<string, string>,
 ): readonly MergedFlowLink[] {
-  const merged = new Map<string, {
-    from: string;
-    to: string;
-    weight: number;
-    route_ids: string[][];
-    finding_ids: string[][];
-    truncated: boolean;
-    link_ids: string[];
-  }>();
+  const merged = new Map<
+    string,
+    {
+      from: string;
+      to: string;
+      weight: number;
+      route_ids: string[][];
+      finding_ids: string[][];
+      truncated: boolean;
+      link_ids: string[];
+    }
+  >();
   for (const link of links) {
     const from = replacementByNodeId.get(link.from_node_id) ?? link.from_node_id;
     const to = replacementByNodeId.get(link.to_node_id) ?? link.to_node_id;
@@ -421,18 +445,22 @@ export function mergeDecisionFlowLinks(
       existing.link_ids.push(link.link_id);
     }
   }
-  return [...merged.values()].map((value) => ({
-    link_id: value.link_ids.length === 1
-      ? value.link_ids[0]!
-      : `aggregate-link:${value.from}|${value.to}`,
-    from_node_id: value.from,
-    to_node_id: value.to,
-    weight: value.weight,
-    route_ids: unionIds(value.route_ids),
-    finding_ids: unionIds(value.finding_ids),
-    truncated: value.truncated,
-    merged_link_ids: value.link_ids,
-  } satisfies MergedFlowLink));
+  return [...merged.values()].map(
+    (value) =>
+      ({
+        link_id:
+          value.link_ids.length === 1
+            ? value.link_ids[0]!
+            : `aggregate-link:${value.from}|${value.to}`,
+        from_node_id: value.from,
+        to_node_id: value.to,
+        weight: value.weight,
+        route_ids: unionIds(value.route_ids),
+        finding_ids: unionIds(value.finding_ids),
+        truncated: value.truncated,
+        merged_link_ids: value.link_ids,
+      }) satisfies MergedFlowLink,
+  );
 }
 
 /** Below this the diagram stops shrinking and the scroll container takes over. */
@@ -442,10 +470,7 @@ export const DECISION_FLOW_MINIMUM_SCALE = 0.6;
  * Fit a wide flow to the measured container down to a legibility floor. A chart that already fits
  * is never enlarged, and a chart that cannot fit at the floor keeps its horizontal scroll.
  */
-export function decisionFlowScale(
-  containerWidth: number | null,
-  chartWidth: number,
-): number {
+export function decisionFlowScale(containerWidth: number | null, chartWidth: number): number {
   if (containerWidth === null || containerWidth <= 0 || chartWidth <= 0) return 1;
   if (chartWidth <= containerWidth) return 1;
   return Math.max(

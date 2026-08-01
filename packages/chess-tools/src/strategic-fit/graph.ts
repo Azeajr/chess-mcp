@@ -187,7 +187,9 @@ function requireStandardStart(tree: GameTree): void {
     // Invalid setup data is rejected with the same graph-boundary error as a custom setup.
   }
   if (!standard) {
-    throw new Error("strategic_fit_graph_unsupported_start: expected the standard initial position");
+    throw new Error(
+      "strategic_fit_graph_unsupported_start: expected the standard initial position",
+    );
   }
 }
 
@@ -206,7 +208,10 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
   const routes = new Map<string, RouteAccumulator>();
   let sourceRouteCount = 0;
 
-  const ensurePosition = (position: Chess, sourceSanPath: readonly string[]): PositionAccumulator => {
+  const ensurePosition = (
+    position: Chess,
+    sourceSanPath: readonly string[],
+  ): PositionAccumulator => {
     const fen = makeFen(position.toSetup());
     const key = positionKey(fen);
     const positionId = semanticId("position", key);
@@ -248,7 +253,8 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
   ): void => {
     if (ancestors.has(node)) throw new Error("strategic_fit_graph_invalid_tree: cycle detected");
     const children = (node as { children?: unknown }).children;
-    if (!Array.isArray(children)) throw new Error("strategic_fit_graph_invalid_tree: malformed children");
+    if (!Array.isArray(children))
+      throw new Error("strategic_fit_graph_invalid_tree: malformed children");
 
     if (children.length === 0 && sourceSans.length > 0) {
       sourceRouteCount++;
@@ -280,7 +286,8 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
         throw new Error("strategic_fit_graph_invalid_tree: malformed child");
       }
       const data = (child as { data?: unknown }).data;
-      const sourceSan = data && typeof data === "object" ? (data as { san?: unknown }).san : undefined;
+      const sourceSan =
+        data && typeof data === "object" ? (data as { san?: unknown }).san : undefined;
       if (typeof sourceSan !== "string" || sourceSan.length === 0) {
         throw new Error("strategic_fit_graph_invalid_tree: missing SAN move");
       }
@@ -370,9 +377,12 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
   visit(tree.game.moves, rootPosition, [], [], [], [root.positionId], [], []);
 
   for (const route of routes.values()) {
-    for (const positionId of route.positionIds) positions.get(positionId)!.routeIds.add(route.routeId);
-    for (const decisionId of route.decisionIds) decisions.get(decisionId)!.routeIds.add(route.routeId);
-    for (const moveOrderId of route.moveOrderIds) moveOrders.get(moveOrderId)!.routeIds.add(route.routeId);
+    for (const positionId of route.positionIds)
+      positions.get(positionId)!.routeIds.add(route.routeId);
+    for (const decisionId of route.decisionIds)
+      decisions.get(decisionId)!.routeIds.add(route.routeId);
+    for (const moveOrderId of route.moveOrderIds)
+      moveOrders.get(moveOrderId)!.routeIds.add(route.routeId);
   }
 
   const graphPositions: RepertoireGraphPosition[] = [...positions.values()]

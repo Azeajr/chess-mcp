@@ -92,17 +92,17 @@ export interface ConstructReplacementChangeSetInput {
 
 export type ConstructReplacementChangeSetResult =
   | {
-    readonly status: "constructed";
-    readonly change_set: ReplacementChangeSet;
-    readonly error_code: null;
-    readonly explanation: string;
-  }
+      readonly status: "constructed";
+      readonly change_set: ReplacementChangeSet;
+      readonly error_code: null;
+      readonly explanation: string;
+    }
   | {
-    readonly status: "rejected" | "stale";
-    readonly change_set: null;
-    readonly error_code: ReplacementChangeSetErrorCode;
-    readonly explanation: string;
-  };
+      readonly status: "rejected" | "stale";
+      readonly change_set: null;
+      readonly error_code: ReplacementChangeSetErrorCode;
+      readonly explanation: string;
+    };
 
 export interface ApplyReplacementChangeSetInput {
   readonly source_tree: GameTree;
@@ -206,24 +206,34 @@ function stableJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   const record = value as Readonly<Record<string, unknown>>;
-  return `{${Object.keys(record).sort(compareStrings).map((key) =>
-    `${JSON.stringify(key)}:${stableJson(record[key])}`
-  ).join(",")}}`;
+  return `{${Object.keys(record)
+    .sort(compareStrings)
+    .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+    .join(",")}}`;
 }
 
 function canonicalBoundary<T>(value: T, field: string | null = null): T {
   if (Array.isArray(value)) {
     const items = value.map((item) => canonicalBoundary(item));
-    const setLike = field === "provenance" || field === "source_san_paths" ||
-      field === "annotation_text" || field === "source_kinds" ||
+    const setLike =
+      field === "provenance" ||
+      field === "source_san_paths" ||
+      field === "annotation_text" ||
+      field === "source_kinds" ||
       (field?.endsWith("_ids") === true && field !== "node_ids" && field !== "edge_ids");
-    return (setLike ? [...items].sort((left, right) => compareStrings(stableJson(left), stableJson(right))) : items) as T;
+    return (
+      setLike
+        ? [...items].sort((left, right) => compareStrings(stableJson(left), stableJson(right)))
+        : items
+    ) as T;
   }
   if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value as Readonly<Record<string, unknown>>).map(([key, item]) => [
-    key,
-    canonicalBoundary(item, key),
-  ])) as T;
+  return Object.fromEntries(
+    Object.entries(value as Readonly<Record<string, unknown>>).map(([key, item]) => [
+      key,
+      canonicalBoundary(item, key),
+    ]),
+  ) as T;
 }
 
 function stableHash(value: string): string {
@@ -235,7 +245,9 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function mergeProvenance(...groups: readonly (readonly StrategicFitSourceProvenance[])[]): StrategicFitSourceProvenance[] {
+function mergeProvenance(
+  ...groups: readonly (readonly StrategicFitSourceProvenance[])[]
+): StrategicFitSourceProvenance[] {
   const values = new Map<string, StrategicFitSourceProvenance>();
   for (const group of groups) {
     for (const source of group) {
@@ -243,8 +255,10 @@ function mergeProvenance(...groups: readonly (readonly StrategicFitSourceProvena
       values.set(stableJson(copy), copy);
     }
   }
-  return [...values.values()].sort((left, right) =>
-    compareStrings(left.source_id, right.source_id) || compareStrings(stableJson(left), stableJson(right))
+  return [...values.values()].sort(
+    (left, right) =>
+      compareStrings(left.source_id, right.source_id) ||
+      compareStrings(stableJson(left), stableJson(right)),
   );
 }
 
@@ -253,14 +267,22 @@ function samePath(left: readonly string[], right: readonly string[]): boolean {
 }
 
 function sameVersions(value: StrategicFitReplacementVersioned): boolean {
-  return value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
+  return (
+    value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
     value.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
-    value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION;
+    value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
+  );
 }
 
 function actionInput(candidate: ReplacementCandidateSafetySimulation) {
   return candidate.action === "replace"
-    ? [{ candidate_id: candidate.candidate_id, action: "replace" as const, prune_explicitly_confirmed: true as const }]
+    ? [
+        {
+          candidate_id: candidate.candidate_id,
+          action: "replace" as const,
+          prune_explicitly_confirmed: true as const,
+        },
+      ]
     : [{ candidate_id: candidate.candidate_id, action: "add-alternative" as const }];
 }
 
@@ -270,18 +292,37 @@ function currentSafety(
   safety: ReplacementSafetySimulationResult,
   candidateId: string,
 ): CurrentSafety | OperationFailure {
-  if (currentRevision !== safety.repertoire_revision || currentRevision !== safety.request.repertoire_revision) {
-    return { code: "stale-revision", explanation: "Current repertoire revision does not match Task 8.7 safety evidence." };
+  if (
+    currentRevision !== safety.repertoire_revision ||
+    currentRevision !== safety.request.repertoire_revision
+  ) {
+    return {
+      code: "stale-revision",
+      explanation: "Current repertoire revision does not match Task 8.7 safety evidence.",
+    };
   }
-  if (!sameVersions(safety) || !sameVersions(safety.request) ||
-    !safety.source_tree_unchanged || !safety.request_unchanged || !safety.scoring_unchanged ||
-    !safety.source_context_unchanged || !safety.expansion_unchanged || !safety.evidence_unchanged ||
-    !safety.inputs_unchanged) {
-    return { code: "safety-not-current", explanation: "Task 8.7 versions or immutable evidence flags are not current." };
+  if (
+    !sameVersions(safety) ||
+    !sameVersions(safety.request) ||
+    !safety.source_tree_unchanged ||
+    !safety.request_unchanged ||
+    !safety.scoring_unchanged ||
+    !safety.source_context_unchanged ||
+    !safety.expansion_unchanged ||
+    !safety.evidence_unchanged ||
+    !safety.inputs_unchanged
+  ) {
+    return {
+      code: "safety-not-current",
+      explanation: "Task 8.7 versions or immutable evidence flags are not current.",
+    };
   }
   const supplied = safety.candidates.find((candidate) => candidate.candidate_id === candidateId);
   if (!supplied) {
-    return { code: "safety-candidate-not-safe", explanation: `Task 8.7 contains no candidate ${candidateId}.` };
+    return {
+      code: "safety-candidate-not-safe",
+      explanation: `Task 8.7 contains no candidate ${candidateId}.`,
+    };
   }
   let graph: RepertoireGraph;
   let recomputed: ReplacementSafetySimulationResult;
@@ -298,9 +339,17 @@ function currentSafety(
       popularity: safety.scoring.context.popularity,
       expansion: safety.scoring.expansion,
     });
-    if ((rescored.status !== "complete" && rescored.status !== "partial") || rescored.error_code !== null ||
-      stableJson(canonicalBoundary(cloneJson(rescored))) !== stableJson(canonicalBoundary(cloneJson(safety.scoring)))) {
-      return { code: "safety-not-current", explanation: "Retained Task 8.6 evidence does not reproduce the supplied Task 8.7 scoring boundary." };
+    if (
+      (rescored.status !== "complete" && rescored.status !== "partial") ||
+      rescored.error_code !== null ||
+      stableJson(canonicalBoundary(cloneJson(rescored))) !==
+        stableJson(canonicalBoundary(cloneJson(safety.scoring)))
+    ) {
+      return {
+        code: "safety-not-current",
+        explanation:
+          "Retained Task 8.6 evidence does not reproduce the supplied Task 8.7 scoring boundary.",
+      };
     }
     recomputed = simulateReplacementSafety({
       source_tree: sourceTree,
@@ -309,20 +358,41 @@ function currentSafety(
       candidate_actions: actionInput(supplied),
     });
   } catch {
-    return { code: "safety-not-current", explanation: "Task 8.7 safety evidence could not be recomputed from the source tree." };
+    return {
+      code: "safety-not-current",
+      explanation: "Task 8.7 safety evidence could not be recomputed from the source tree.",
+    };
   }
   const current = recomputed.candidates.find((candidate) => candidate.candidate_id === candidateId);
   const currentApplicable = current?.status === "safe" || current?.status === "partial";
   const suppliedApplicable = supplied.status === "safe" || supplied.status === "partial";
-  if (!current || !currentApplicable || current.error_code !== null || !suppliedApplicable ||
-    supplied.error_code !== null || supplied.safety_checks.some((check) => check.status === "blocked") ||
-    !supplied.source_tree_unchanged || !supplied.scored_candidate_unchanged ||
-    !supplied.evidence_unchanged || !supplied.inputs_unchanged) {
-    return { code: "safety-candidate-not-safe", explanation: "Only current Task 8.7 evidence with no blocked safety check can enter an atomic change set." };
+  if (
+    !current ||
+    !currentApplicable ||
+    current.error_code !== null ||
+    !suppliedApplicable ||
+    supplied.error_code !== null ||
+    supplied.safety_checks.some((check) => check.status === "blocked") ||
+    !supplied.source_tree_unchanged ||
+    !supplied.scored_candidate_unchanged ||
+    !supplied.evidence_unchanged ||
+    !supplied.inputs_unchanged
+  ) {
+    return {
+      code: "safety-candidate-not-safe",
+      explanation:
+        "Only current Task 8.7 evidence with no blocked safety check can enter an atomic change set.",
+    };
   }
-  if (stableJson(canonicalBoundary(current)) !== stableJson(canonicalBoundary(supplied)) ||
-    graph.graph_id !== supplied.before_graph_id) {
-    return { code: "safety-not-current", explanation: "Supplied Task 8.7 candidate differs from deterministic current safety evidence." };
+  if (
+    stableJson(canonicalBoundary(current)) !== stableJson(canonicalBoundary(supplied)) ||
+    graph.graph_id !== supplied.before_graph_id
+  ) {
+    return {
+      code: "safety-not-current",
+      explanation:
+        "Supplied Task 8.7 candidate differs from deterministic current safety evidence.",
+    };
   }
   return { graph, candidate: current, scored: current.scored_candidate };
 }
@@ -348,9 +418,13 @@ function pivotDecisionPaths(current: CurrentSafety): string[][] {
 }
 
 function targetAt(graph: RepertoireGraph, path: readonly string[]): ReplacementChangeTarget | null {
-  const position = graph.positions.find((item) => item.source_san_paths.some((source) => samePath(source, path)));
+  const position = graph.positions.find((item) =>
+    item.source_san_paths.some((source) => samePath(source, path)),
+  );
   if (!position) return null;
-  const decision = graph.decisions.find((item) => item.source_san_paths.some((source) => samePath(source, path)));
+  const decision = graph.decisions.find((item) =>
+    item.source_san_paths.some((source) => samePath(source, path)),
+  );
   return {
     position_id: position.position_id,
     decision_id: decision?.decision_id ?? null,
@@ -365,14 +439,22 @@ function targetMatches(graph: RepertoireGraph, target: ReplacementChangeTarget):
 }
 
 function sameTarget(left: ReplacementChangeTarget, right: ReplacementChangeTarget): boolean {
-  return left.position_id === right.position_id && left.decision_id === right.decision_id &&
-    samePath(left.source_san_path, right.source_san_path);
+  return (
+    left.position_id === right.position_id &&
+    left.decision_id === right.decision_id &&
+    samePath(left.source_san_path, right.source_san_path)
+  );
 }
 
-function referencesFor(graph: RepertoireGraph, target: ReplacementChangeTarget): SemanticReferences {
+function referencesFor(
+  graph: RepertoireGraph,
+  target: ReplacementChangeTarget,
+): SemanticReferences {
   const position = graph.positions.find((item) => item.position_id === target.position_id);
-  const decision = target.decision_id === null ? null
-    : graph.decisions.find((item) => item.decision_id === target.decision_id);
+  const decision =
+    target.decision_id === null
+      ? null
+      : graph.decisions.find((item) => item.decision_id === target.decision_id);
   return {
     position_ids: [target.position_id],
     decision_ids: target.decision_id === null ? [] : [target.decision_id],
@@ -409,20 +491,34 @@ function subtreeOccurrences(
         const edge = edges.get(route.edge_ids[index]!);
         if (!edge) continue;
         path.push(edge.san);
-        occurrences.set(edge.to_node_id, sortedPaths([...(occurrences.get(edge.to_node_id) ?? []), path]));
-        occurrences.set(edge.edge_id, sortedPaths([...(occurrences.get(edge.edge_id) ?? []), path]));
+        occurrences.set(
+          edge.to_node_id,
+          sortedPaths([...(occurrences.get(edge.to_node_id) ?? []), path]),
+        );
+        occurrences.set(
+          edge.edge_id,
+          sortedPaths([...(occurrences.get(edge.edge_id) ?? []), path]),
+        );
       }
     }
   }
   return occurrences;
 }
 
-function operationId(changeSetId: string, kind: ReplacementChangeOperationKind, key: string): string {
+function operationId(
+  changeSetId: string,
+  kind: ReplacementChangeOperationKind,
+  key: string,
+): string {
   return `operation:${changeSetId}:${kind}:${stableHash(key)}`;
 }
 
-function withSequences(operations: readonly Omit<ReplacementChangeOperation, "sequence">[]): ReplacementChangeOperation[] {
-  return operations.map((operation, sequence) => ({ ...operation, sequence }) as ReplacementChangeOperation);
+function withSequences(
+  operations: readonly Omit<ReplacementChangeOperation, "sequence">[],
+): ReplacementChangeOperation[] {
+  return operations.map(
+    (operation, sequence) => ({ ...operation, sequence }) as ReplacementChangeOperation,
+  );
 }
 
 function changeSetId(
@@ -430,18 +526,20 @@ function changeSetId(
   candidateId: string,
   promoteCandidateToMainline: boolean,
 ): string {
-  return `change-set:${stableHash([
-    safety.request_id,
-    safety.report_id,
-    safety.finding_id,
-    safety.semantic_finding_id,
-    safety.cohort_id,
-    safety.pivot_id ?? "",
-    safety.repertoire_revision,
-    safety.repertoire_color,
-    candidateId,
-    promoteCandidateToMainline ? "promote-mainline" : "retain-editorial-order",
-  ].join(SEPARATOR))}`;
+  return `change-set:${stableHash(
+    [
+      safety.request_id,
+      safety.report_id,
+      safety.finding_id,
+      safety.semantic_finding_id,
+      safety.cohort_id,
+      safety.pivot_id ?? "",
+      safety.repertoire_revision,
+      safety.repertoire_color,
+      candidateId,
+      promoteCandidateToMainline ? "promote-mainline" : "retain-editorial-order",
+    ].join(SEPARATOR),
+  )}`;
 }
 
 function annotationOperations(
@@ -457,7 +555,9 @@ function annotationOperations(
   for (const edge of expansion.subtree.edges) {
     const targetNode = nodes.get(edge.to_node_id);
     if (!targetNode) continue;
-    const sourcePosition = sourceGraph.positions.find((position) => position.position_id === targetNode.position_id);
+    const sourcePosition = sourceGraph.positions.find(
+      (position) => position.position_id === targetNode.position_id,
+    );
     const compatibleSources = sourcePosition?.source_san_paths ?? [];
     const comments: string[] = [...edge.annotation_text];
     const nags: number[] = [];
@@ -467,8 +567,8 @@ function annotationOperations(
       if (index === null) continue;
       const data = (sourceTree.nodeAt(index) as unknown as { data: PgnNodeData }).data;
       if ((data.comments?.length ?? 0) > 0 || (data.nags?.length ?? 0) > 0) sourcePath ??= path;
-      comments.push(...data.comments ?? []);
-      nags.push(...data.nags ?? []);
+      comments.push(...(data.comments ?? []));
+      nags.push(...(data.nags ?? []));
     }
     const orderedComments = sortedUnique(comments);
     const orderedNags = [...new Set(nags)].sort((left, right) => left - right);
@@ -480,8 +580,16 @@ function annotationOperations(
         analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
         operation_id: operationId(changeId, "preserve-annotation", key),
         kind: "preserve-annotation",
-        source: { position_id: targetNode.position_id, decision_id: null, source_san_path: [...source] },
-        target: { position_id: targetNode.position_id, decision_id: null, source_san_path: [...targetPath] },
+        source: {
+          position_id: targetNode.position_id,
+          decision_id: null,
+          source_san_path: [...source],
+        },
+        target: {
+          position_id: targetNode.position_id,
+          decision_id: null,
+          source_san_path: [...targetPath],
+        },
         comments: orderedComments,
         nags: orderedNags,
         semantic_equivalence_verified: true,
@@ -489,7 +597,9 @@ function annotationOperations(
       });
     }
   }
-  return [...values.values()].sort((left, right) => comparePaths(left.target.source_san_path, right.target.source_san_path));
+  return [...values.values()].sort((left, right) =>
+    comparePaths(left.target.source_san_path, right.target.source_san_path),
+  );
 }
 
 function structuralClone(current: CurrentSafety, source: GameTree): GameTree | null {
@@ -505,7 +615,9 @@ function structuralClone(current: CurrentSafety, source: GameTree): GameTree | n
     }
   }
   if (current.candidate.action === "replace") {
-    for (const path of pivotDecisionPaths(current).sort((left, right) => right.length - left.length || comparePaths(right, left))) {
+    for (const path of pivotDecisionPaths(current).sort(
+      (left, right) => right.length - left.length || comparePaths(right, left),
+    )) {
       const index = clone.indexPathOfSan(path);
       if (index === null || index.length === 0) return null;
       const parent = clone.nodeAt(index.slice(0, -1));
@@ -519,14 +631,29 @@ function constructOperations(
   input: ConstructReplacementChangeSetInput,
   current: CurrentSafety,
 ): ReplacementChangeOperation[] | OperationFailure {
-  const changeId = changeSetId(input.safety, input.candidate_id, input.promote_candidate_to_mainline === true);
+  const changeId = changeSetId(
+    input.safety,
+    input.candidate_id,
+    input.promote_candidate_to_mainline === true,
+  );
   const expansion = current.scored.expansion as ReplacementCompleteCandidateExpansion;
   const decisionPaths = pivotDecisionPaths(current);
-  if (decisionPaths.length === 0 || expansion.status !== "complete" || expansion.subtree.status !== "complete") {
-    return { code: "candidate-subtree-mismatch", explanation: "Safe candidate lacks a complete subtree or current pivot path." };
+  if (
+    decisionPaths.length === 0 ||
+    expansion.status !== "complete" ||
+    expansion.subtree.status !== "complete"
+  ) {
+    return {
+      code: "candidate-subtree-mismatch",
+      explanation: "Safe candidate lacks a complete subtree or current pivot path.",
+    };
   }
   const parentPaths = sortedPaths(decisionPaths.map((path) => path.slice(0, -1)));
-  const provenance = mergeProvenance([CORE_PROVENANCE], current.candidate.provenance, input.safety.provenance);
+  const provenance = mergeProvenance(
+    [CORE_PROVENANCE],
+    current.candidate.provenance,
+    input.safety.provenance,
+  );
   const occurrences = subtreeOccurrences(parentPaths, expansion);
   const add: Omit<ReplacementAddSubtreeOperation, "sequence">[] = parentPaths.map((path) => {
     const parent = targetAt(current.graph, path);
@@ -546,7 +673,11 @@ function constructOperations(
     for (const path of occurrences.get(node.node_id) ?? []) {
       links.push({
         analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        operation_id: operationId(changeId, "link-transposition", `${path.join(SEPARATOR)}${SEPARATOR}${node.transposition_target_position_id}`),
+        operation_id: operationId(
+          changeId,
+          "link-transposition",
+          `${path.join(SEPARATOR)}${SEPARATOR}${node.transposition_target_position_id}`,
+        ),
         kind: "link-transposition",
         source: { position_id: node.position_id, decision_id: null, source_san_path: path },
         target_position_id: node.transposition_target_position_id,
@@ -554,16 +685,29 @@ function constructOperations(
       });
     }
   }
-  links.sort((left, right) => comparePaths(left.source.source_san_path, right.source.source_san_path) ||
-    compareStrings(left.target_position_id, right.target_position_id));
-  const annotations = annotationOperations(changeId, input.source_tree, current.graph, expansion, occurrences, provenance);
+  links.sort(
+    (left, right) =>
+      comparePaths(left.source.source_san_path, right.source.source_san_path) ||
+      compareStrings(left.target_position_id, right.target_position_id),
+  );
+  const annotations = annotationOperations(
+    changeId,
+    input.source_tree,
+    current.graph,
+    expansion,
+    occurrences,
+    provenance,
+  );
   const archives: Omit<ReplacementArchiveSubtreeOperation, "sequence">[] = [];
-  const prunes: Array<Omit<ReplacementPruneSubtreeOperation, "sequence"> & { archive_operation_id: string }> = [];
+  const prunes: Array<
+    Omit<ReplacementPruneSubtreeOperation, "sequence"> & { archive_operation_id: string }
+  > = [];
   if (current.candidate.action === "replace") {
     for (const path of decisionPaths) {
       const target = targetAt(current.graph, path);
       const pgn = archivePgn(input.source_tree, path);
-      if (!target || !pgn) return { code: "stale-semantic-path", explanation: "Archive target no longer resolves." };
+      if (!target || !pgn)
+        return { code: "stale-semantic-path", explanation: "Archive target no longer resolves." };
       const archiveId = `archive:${stableHash(`${input.current_repertoire_revision}${SEPARATOR}${target.decision_id ?? ""}${SEPARATOR}${path.join(SEPARATOR)}`)}`;
       const archiveOperationId = operationId(changeId, "archive-subtree", archiveId);
       archives.push({
@@ -587,31 +731,59 @@ function constructOperations(
       });
     }
   }
-  archives.sort((left, right) => comparePaths(left.target.source_san_path, right.target.source_san_path));
-  prunes.sort((left, right) => right.target.source_san_path.length - left.target.source_san_path.length ||
-    comparePaths(right.target.source_san_path, left.target.source_san_path));
+  archives.sort((left, right) =>
+    comparePaths(left.target.source_san_path, right.target.source_san_path),
+  );
+  prunes.sort(
+    (left, right) =>
+      right.target.source_san_path.length - left.target.source_san_path.length ||
+      comparePaths(right.target.source_san_path, left.target.source_san_path),
+  );
   const reorders: Omit<ReplacementReorderVariationsOperation, "sequence">[] = [];
   if (input.promote_candidate_to_mainline) {
     const simulated = structuralClone(current, input.source_tree);
-    if (!simulated) return { code: "transaction-failed", explanation: "Candidate structure could not be prepared for deterministic reordering." };
+    if (!simulated)
+      return {
+        code: "transaction-failed",
+        explanation: "Candidate structure could not be prepared for deterministic reordering.",
+      };
     const graph = buildRepertoireGraph(simulated, input.safety.repertoire_color);
-    const firstEdge = expansion.subtree.edges.find((edge) => edge.from_node_id === expansion.subtree.nodes[0]?.node_id);
-    if (!firstEdge) return { code: "candidate-subtree-mismatch", explanation: "Candidate subtree has no root decision." };
+    const firstEdge = expansion.subtree.edges.find(
+      (edge) => edge.from_node_id === expansion.subtree.nodes[0]?.node_id,
+    );
+    if (!firstEdge)
+      return {
+        code: "candidate-subtree-mismatch",
+        explanation: "Candidate subtree has no root decision.",
+      };
     const parents = new Map<string, { positionId: string; paths: string[][] }>();
     for (const path of parentPaths) {
       const parent = targetAt(graph, path);
-      if (!parent) return { code: "stale-semantic-path", explanation: "Reorder parent no longer resolves." };
-      const grouped = parents.get(parent.position_id) ?? { positionId: parent.position_id, paths: [] };
+      if (!parent)
+        return { code: "stale-semantic-path", explanation: "Reorder parent no longer resolves." };
+      const grouped = parents.get(parent.position_id) ?? {
+        positionId: parent.position_id,
+        paths: [],
+      };
       grouped.paths.push([...path]);
       parents.set(parent.position_id, grouped);
     }
-    for (const parent of [...parents.values()].sort((left, right) => compareStrings(left.positionId, right.positionId))) {
+    for (const parent of [...parents.values()].sort((left, right) =>
+      compareStrings(left.positionId, right.positionId),
+    )) {
       const position = graph.positions.find((item) => item.position_id === parent.positionId);
       if (!position || !position.outgoing_decision_ids.includes(firstEdge.decision_id)) {
-        return { code: "reorder-boundary-mismatch", explanation: "Candidate decision is absent from reorder parent." };
+        return {
+          code: "reorder-boundary-mismatch",
+          explanation: "Candidate decision is absent from reorder parent.",
+        };
       }
-      const ordered = [firstEdge.decision_id, ...sortedUnique(position.outgoing_decision_ids.filter((id) =>
-        id !== firstEdge.decision_id))];
+      const ordered = [
+        firstEdge.decision_id,
+        ...sortedUnique(
+          position.outgoing_decision_ids.filter((id) => id !== firstEdge.decision_id),
+        ),
+      ];
       reorders.push({
         analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
         operation_id: operationId(changeId, "reorder-variations", parent.positionId),
@@ -629,10 +801,18 @@ function constructOperations(
 export function constructReplacementChangeSet(
   input: ConstructReplacementChangeSetInput,
 ): ConstructReplacementChangeSetResult {
-  const current = currentSafety(input.source_tree, input.current_repertoire_revision, input.safety, input.candidate_id);
+  const current = currentSafety(
+    input.source_tree,
+    input.current_repertoire_revision,
+    input.safety,
+    input.candidate_id,
+  );
   if ("code" in current) {
     return {
-      status: current.code === "stale-revision" || current.code === "safety-not-current" ? "stale" : "rejected",
+      status:
+        current.code === "stale-revision" || current.code === "safety-not-current"
+          ? "stale"
+          : "rejected",
       change_set: null,
       error_code: current.code,
       explanation: current.explanation,
@@ -642,12 +822,24 @@ export function constructReplacementChangeSet(
   try {
     operations = constructOperations(input, current);
   } catch {
-    operations = { code: "transaction-failed", explanation: "Change-set operations could not be constructed from current semantic evidence." };
+    operations = {
+      code: "transaction-failed",
+      explanation: "Change-set operations could not be constructed from current semantic evidence.",
+    };
   }
   if ("code" in operations) {
-    return { status: "rejected", change_set: null, error_code: operations.code, explanation: operations.explanation };
+    return {
+      status: "rejected",
+      change_set: null,
+      error_code: operations.code,
+      explanation: operations.explanation,
+    };
   }
-  const changeId = changeSetId(input.safety, input.candidate_id, input.promote_candidate_to_mainline === true);
+  const changeId = changeSetId(
+    input.safety,
+    input.candidate_id,
+    input.promote_candidate_to_mainline === true,
+  );
   const replace = current.candidate.action === "replace";
   const changeSet: ReplacementChangeSet = {
     ...versioned(),
@@ -659,27 +851,36 @@ export function constructReplacementChangeSet(
     atomic: true,
     /** Inert domain proposal only; Task 8.9 owns host staging and persistence. */
     staged: true,
-    retention: replace ? {
-      archive: "archive",
-      prune: "prune",
-      prune_explicitly_confirmed: true,
-      archive_before_prune: true,
-    } : {
-      archive: "keep-active",
-      prune: "retain",
-      prune_explicitly_confirmed: false,
-      archive_before_prune: true,
-    },
+    retention: replace
+      ? {
+          archive: "archive",
+          prune: "prune",
+          prune_explicitly_confirmed: true,
+          archive_before_prune: true,
+        }
+      : {
+          archive: "keep-active",
+          prune: "retain",
+          prune_explicitly_confirmed: false,
+          archive_before_prune: true,
+        },
     operations,
     safety_checks: cloneJson(current.candidate.safety_checks),
-    unresolved_risk_ids: sortedUnique(current.scored.expansion.unresolved_risks.map((risk) => risk.risk_id)),
-    provenance: mergeProvenance([CORE_PROVENANCE], input.safety.provenance, current.candidate.provenance),
+    unresolved_risk_ids: sortedUnique(
+      current.scored.expansion.unresolved_risks.map((risk) => risk.risk_id),
+    ),
+    provenance: mergeProvenance(
+      [CORE_PROVENANCE],
+      input.safety.provenance,
+      current.candidate.provenance,
+    ),
   };
   return {
     status: "constructed",
     change_set: changeSet,
     error_code: null,
-    explanation: "Current Task 8.7 safety evidence produced a deterministic atomic domain change set.",
+    explanation:
+      "Current Task 8.7 safety evidence produced a deterministic atomic domain change set.",
   };
 }
 
@@ -693,16 +894,25 @@ function annotationOperationsMatchEvidence(
   operations: readonly ReplacementChangeOperation[],
   promotesCandidate: boolean,
 ): boolean {
-  const expected = constructOperations({
-    source_tree: input.source_tree,
-    current_repertoire_revision: input.current_repertoire_revision,
-    safety: input.safety,
-    candidate_id: input.change_set.candidate_id,
-    promote_candidate_to_mainline: promotesCandidate,
-  }, current);
+  const expected = constructOperations(
+    {
+      source_tree: input.source_tree,
+      current_repertoire_revision: input.current_repertoire_revision,
+      safety: input.safety,
+      candidate_id: input.change_set.candidate_id,
+      promote_candidate_to_mainline: promotesCandidate,
+    },
+    current,
+  );
   if ("code" in expected) return false;
-  return stableJson(canonicalBoundary(expected.filter((operation) => operation.kind === "preserve-annotation"))) ===
-    stableJson(canonicalBoundary(operations.filter((operation) => operation.kind === "preserve-annotation")));
+  return (
+    stableJson(
+      canonicalBoundary(expected.filter((operation) => operation.kind === "preserve-annotation")),
+    ) ===
+    stableJson(
+      canonicalBoundary(operations.filter((operation) => operation.kind === "preserve-annotation")),
+    )
+  );
 }
 
 function validateChangeSet(
@@ -710,70 +920,147 @@ function validateChangeSet(
   current: CurrentSafety,
 ): { operations: ReplacementChangeOperation[] } | OperationFailure {
   const changeSet = input.change_set;
-  if (!sameVersions(changeSet) || changeSet.operations.some((operation) =>
-    operation.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION)) {
-    return { code: "change-set-version-mismatch", explanation: "Change-set or operation schema versions are not current." };
+  if (
+    !sameVersions(changeSet) ||
+    changeSet.operations.some(
+      (operation) => operation.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION,
+    )
+  ) {
+    return {
+      code: "change-set-version-mismatch",
+      explanation: "Change-set or operation schema versions are not current.",
+    };
   }
-  const promotesCandidate = changeSet.operations.some((operation) => operation.kind === "reorder-variations");
-  if (changeSet.change_set_id !== changeSetId(input.safety, changeSet.candidate_id, promotesCandidate) ||
-    changeSet.request_id !== input.safety.request_id || changeSet.candidate_id !== current.candidate.candidate_id ||
-    changeSet.base_repertoire_revision !== input.current_repertoire_revision) {
-    return { code: "change-set-identity-mismatch", explanation: "Change-set request, candidate, revision, or deterministic identity is stale." };
+  const promotesCandidate = changeSet.operations.some(
+    (operation) => operation.kind === "reorder-variations",
+  );
+  if (
+    changeSet.change_set_id !==
+      changeSetId(input.safety, changeSet.candidate_id, promotesCandidate) ||
+    changeSet.request_id !== input.safety.request_id ||
+    changeSet.candidate_id !== current.candidate.candidate_id ||
+    changeSet.base_repertoire_revision !== input.current_repertoire_revision
+  ) {
+    return {
+      code: "change-set-identity-mismatch",
+      explanation: "Change-set request, candidate, revision, or deterministic identity is stale.",
+    };
   }
   if (changeSet.status !== "validated" || changeSet.atomic !== true || changeSet.staged !== true) {
-    return { code: "change-set-not-validated", explanation: "Only a validated atomic domain proposal can be applied to a clone." };
+    return {
+      code: "change-set-not-validated",
+      explanation: "Only a validated atomic domain proposal can be applied to a clone.",
+    };
   }
   const replace = current.candidate.action === "replace";
   const validRetention = replace
-    ? changeSet.retention.archive === "archive" && changeSet.retention.prune === "prune" &&
-      changeSet.retention.prune_explicitly_confirmed === true && changeSet.retention.archive_before_prune === true
-    : changeSet.retention.archive === "keep-active" && changeSet.retention.prune === "retain" &&
-      changeSet.retention.prune_explicitly_confirmed === false && changeSet.retention.archive_before_prune === true;
-  if (!validRetention) return { code: "invalid-retention", explanation: "Retention does not match explicit Task 8.7 action." };
+    ? changeSet.retention.archive === "archive" &&
+      changeSet.retention.prune === "prune" &&
+      changeSet.retention.prune_explicitly_confirmed === true &&
+      changeSet.retention.archive_before_prune === true
+    : changeSet.retention.archive === "keep-active" &&
+      changeSet.retention.prune === "retain" &&
+      changeSet.retention.prune_explicitly_confirmed === false &&
+      changeSet.retention.archive_before_prune === true;
+  if (!validRetention)
+    return {
+      code: "invalid-retention",
+      explanation: "Retention does not match explicit Task 8.7 action.",
+    };
   const ids = new Set<string>();
   const sequences = new Set<number>();
   for (const operation of changeSet.operations) {
     if (!TASK_8_8_CHANGE_OPERATION_KINDS.includes(operation.kind as Task88ChangeOperationKind)) {
-      return { code: "unsupported-operation", explanation: `Task 8.8 does not apply ${operation.kind}.` };
+      return {
+        code: "unsupported-operation",
+        explanation: `Task 8.8 does not apply ${operation.kind}.`,
+      };
     }
-    if (!operation.operation_id || ids.has(operation.operation_id) || sequences.has(operation.sequence)) {
-      return { code: "duplicate-operation", explanation: "Operation IDs and sequence numbers must be unique." };
+    if (
+      !operation.operation_id ||
+      ids.has(operation.operation_id) ||
+      sequences.has(operation.sequence)
+    ) {
+      return {
+        code: "duplicate-operation",
+        explanation: "Operation IDs and sequence numbers must be unique.",
+      };
     }
     if (!Number.isSafeInteger(operation.sequence) || operation.sequence < 0) {
-      return { code: "invalid-operation-order", explanation: "Operation sequences must be non-negative safe integers." };
+      return {
+        code: "invalid-operation-order",
+        explanation: "Operation sequences must be non-negative safe integers.",
+      };
     }
     ids.add(operation.operation_id);
     sequences.add(operation.sequence);
   }
-  const operations = [...changeSet.operations].sort((left, right) => left.sequence - right.sequence ||
-    compareStrings(left.operation_id, right.operation_id));
-  if (operations.some((operation, index) => operation.sequence !== index) || operations.some((operation, index) =>
-    index > 0 && kindRank(operation.kind) < kindRank(operations[index - 1]!.kind))) {
-    return { code: "invalid-operation-order", explanation: "Operations must use contiguous canonical add/link/annotate/archive/prune/reorder order." };
+  const operations = [...changeSet.operations].sort(
+    (left, right) =>
+      left.sequence - right.sequence || compareStrings(left.operation_id, right.operation_id),
+  );
+  if (
+    operations.some((operation, index) => operation.sequence !== index) ||
+    operations.some(
+      (operation, index) =>
+        index > 0 && kindRank(operation.kind) < kindRank(operations[index - 1]!.kind),
+    )
+  ) {
+    return {
+      code: "invalid-operation-order",
+      explanation:
+        "Operations must use contiguous canonical add/link/annotate/archive/prune/reorder order.",
+    };
   }
-  if (!operations.some((operation) => operation.kind === "add-subtree") ||
-    (replace && (!operations.some((operation) => operation.kind === "archive-subtree") ||
-      !operations.some((operation) => operation.kind === "prune-subtree"))) ||
-    (!replace && operations.some((operation) => operation.kind === "archive-subtree" || operation.kind === "prune-subtree"))) {
-    return { code: "invalid-retention", explanation: "Operation set does not match add-only or explicitly archived replacement retention." };
+  if (
+    !operations.some((operation) => operation.kind === "add-subtree") ||
+    (replace &&
+      (!operations.some((operation) => operation.kind === "archive-subtree") ||
+        !operations.some((operation) => operation.kind === "prune-subtree"))) ||
+    (!replace &&
+      operations.some(
+        (operation) => operation.kind === "archive-subtree" || operation.kind === "prune-subtree",
+      ))
+  ) {
+    return {
+      code: "invalid-retention",
+      explanation:
+        "Operation set does not match add-only or explicitly archived replacement retention.",
+    };
   }
   for (const operation of operations) {
     if (operation.kind !== "prune-subtree") continue;
-    const archiveIndex = operations.findIndex((candidate) => candidate.operation_id === operation.archive_operation_id);
+    const archiveIndex = operations.findIndex(
+      (candidate) => candidate.operation_id === operation.archive_operation_id,
+    );
     const archive = archiveIndex < 0 ? undefined : operations[archiveIndex];
     if (!archive || archiveIndex >= operation.sequence || archive.kind !== "archive-subtree") {
-      return { code: "archive-required", explanation: "Every prune must reference an earlier archive operation." };
+      return {
+        code: "archive-required",
+        explanation: "Every prune must reference an earlier archive operation.",
+      };
     }
     if (!sameTarget(archive.target, operation.target)) {
-      return { code: "archive-required", explanation: "Every prune must reference an earlier successful archive of the same semantic subtree." };
+      return {
+        code: "archive-required",
+        explanation:
+          "Every prune must reference an earlier successful archive of the same semantic subtree.",
+      };
     }
   }
   try {
     if (!annotationOperationsMatchEvidence(input, current, operations, promotesCandidate)) {
-      return { code: "annotation-not-equivalent", explanation: "Annotation operations must exactly match canonical current source-tree and candidate evidence." };
+      return {
+        code: "annotation-not-equivalent",
+        explanation:
+          "Annotation operations must exactly match canonical current source-tree and candidate evidence.",
+      };
     }
   } catch {
-    return { code: "annotation-not-equivalent", explanation: "Canonical annotation evidence could not be reconstructed." };
+    return {
+      code: "annotation-not-equivalent",
+      explanation: "Canonical annotation evidence could not be reconstructed.",
+    };
   }
   return { operations };
 }
@@ -825,9 +1112,16 @@ function verifyAddedSubtree(
       const edge = edges.get(edgeId);
       if (!edge) return false;
       path.push(edge.san);
-      const decision = graph.decisions.find((item) => item.decision_id === edge.decision_id &&
-        item.source_san_paths.some((source) => samePath(source, path)));
-      if (!decision || decision.to_position_id !== subtree.nodes.find((node) => node.node_id === edge.to_node_id)?.position_id) {
+      const decision = graph.decisions.find(
+        (item) =>
+          item.decision_id === edge.decision_id &&
+          item.source_san_paths.some((source) => samePath(source, path)),
+      );
+      if (
+        !decision ||
+        decision.to_position_id !==
+          subtree.nodes.find((node) => node.node_id === edge.to_node_id)?.position_id
+      ) {
         return false;
       }
     }
@@ -844,14 +1138,23 @@ function applyAdd(
   diff: MutableDiff,
 ): OperationFailure | null {
   if (!targetMatches(graph, operation.parent)) {
-    return { code: "stale-semantic-path", explanation: "Add parent SAN path no longer resolves to its semantic position." };
+    return {
+      code: "stale-semantic-path",
+      explanation: "Add parent SAN path no longer resolves to its semantic position.",
+    };
   }
   const expected = (selected.expansion as ReplacementCompleteCandidateExpansion).subtree;
-  if (stableJson(canonicalBoundary(operation.subtree)) !== stableJson(canonicalBoundary(expected))) {
-    return { code: "candidate-subtree-mismatch", explanation: "Add operation subtree differs from current safe Task 8.7 candidate." };
+  if (
+    stableJson(canonicalBoundary(operation.subtree)) !== stableJson(canonicalBoundary(expected))
+  ) {
+    return {
+      code: "candidate-subtree-mismatch",
+      explanation: "Add operation subtree differs from current safe Task 8.7 candidate.",
+    };
   }
   const parentIndex = tree.indexPathOfSan(operation.parent.source_san_path);
-  if (parentIndex === null) return { code: "stale-semantic-path", explanation: "Add parent path is unavailable." };
+  if (parentIndex === null)
+    return { code: "stale-semantic-path", explanation: "Add parent path is unavailable." };
   for (const route of routeSans(selected.expansion as ReplacementCompleteCandidateExpansion)) {
     let cursor = [...parentIndex];
     const path = [...operation.parent.source_san_path];
@@ -864,10 +1167,16 @@ function applyAdd(
   }
   try {
     if (!verifyAddedSubtree(tree, color, operation.parent.source_san_path, operation.subtree)) {
-      return { code: "semantic-identity-mismatch", explanation: "Added subtree does not reproduce canonical node and decision identities." };
+      return {
+        code: "semantic-identity-mismatch",
+        explanation: "Added subtree does not reproduce canonical node and decision identities.",
+      };
     }
   } catch {
-    return { code: "illegal-operation", explanation: "Added subtree did not produce a legal canonical graph." };
+    return {
+      code: "illegal-operation",
+      explanation: "Added subtree did not produce a legal canonical graph.",
+    };
   }
   return null;
 }
@@ -877,11 +1186,20 @@ function applyLink(
   operation: ReplacementLinkTranspositionOperation,
   diff: MutableDiff,
 ): OperationFailure | null {
-  if (!targetMatches(graph, operation.source) || operation.source.position_id !== operation.target_position_id) {
-    return { code: "transposition-link-mismatch", explanation: "Transposition source does not reach its canonical target position." };
+  if (
+    !targetMatches(graph, operation.source) ||
+    operation.source.position_id !== operation.target_position_id
+  ) {
+    return {
+      code: "transposition-link-mismatch",
+      explanation: "Transposition source does not reach its canonical target position.",
+    };
   }
   if (!graph.positions.some((position) => position.position_id === operation.target_position_id)) {
-    return { code: "transposition-link-mismatch", explanation: "Canonical graph contains no matching prepared target position." };
+    return {
+      code: "transposition-link-mismatch",
+      explanation: "Canonical graph contains no matching prepared target position.",
+    };
   }
   diff.linked_paths.push([...operation.source.source_san_path]);
   diff.linked_position_ids.push(operation.target_position_id);
@@ -894,23 +1212,36 @@ function applyAnnotation(
   operation: ReplacementPreserveAnnotationOperation,
   diff: MutableDiff,
 ): { failure: OperationFailure | null; count: number } {
-  if (operation.semantic_equivalence_verified !== true || !targetMatches(graph, operation.source) ||
-    !targetMatches(graph, operation.target) || operation.source.position_id !== operation.target.position_id) {
+  if (
+    operation.semantic_equivalence_verified !== true ||
+    !targetMatches(graph, operation.source) ||
+    !targetMatches(graph, operation.target) ||
+    operation.source.position_id !== operation.target.position_id
+  ) {
     return {
-      failure: { code: "annotation-not-equivalent", explanation: "Annotations move only between current semantically equivalent positions." },
+      failure: {
+        code: "annotation-not-equivalent",
+        explanation: "Annotations move only between current semantically equivalent positions.",
+      },
       count: 0,
     };
   }
   const index = tree.indexPathOfSan(operation.target.source_san_path);
-  if (index === null) return {
-    failure: { code: "stale-semantic-path", explanation: "Annotation target path is unavailable." },
-    count: 0,
-  };
+  if (index === null)
+    return {
+      failure: {
+        code: "stale-semantic-path",
+        explanation: "Annotation target path is unavailable.",
+      },
+      count: 0,
+    };
   const data = (tree.nodeAt(index) as unknown as { data: PgnNodeData }).data;
   const beforeComments = data.comments?.length ?? 0;
   const beforeNags = data.nags?.length ?? 0;
   data.comments = sortedUnique([...(data.comments ?? []), ...operation.comments]);
-  data.nags = [...new Set([...(data.nags ?? []), ...operation.nags])].sort((left, right) => left - right);
+  data.nags = [...new Set([...(data.nags ?? []), ...operation.nags])].sort(
+    (left, right) => left - right,
+  );
   const count = data.comments.length - beforeComments + data.nags.length - beforeNags;
   if (count > 0) diff.annotated_paths.push([...operation.target.source_san_path]);
   return { failure: null, count };
@@ -922,16 +1253,27 @@ function applyArchive(
   operation: ReplacementArchiveSubtreeOperation,
   diff: MutableDiff,
 ): { failure: OperationFailure | null; payload: ReplacementArchivePayload | null } {
-  if (!targetMatches(graph, operation.target)) return {
-    failure: { code: "stale-semantic-path", explanation: "Archive target no longer resolves semantically." },
-    payload: null,
-  };
+  if (!targetMatches(graph, operation.target))
+    return {
+      failure: {
+        code: "stale-semantic-path",
+        explanation: "Archive target no longer resolves semantically.",
+      },
+      payload: null,
+    };
   const expectedPgn = archivePgn(tree, operation.target.source_san_path);
   const expectedReferences = referencesFor(graph, operation.target);
-  if (expectedPgn === null || expectedPgn !== operation.archive_pgn ||
-    stableJson(canonicalBoundary(expectedReferences)) !== stableJson(canonicalBoundary(operation.references))) {
+  if (
+    expectedPgn === null ||
+    expectedPgn !== operation.archive_pgn ||
+    stableJson(canonicalBoundary(expectedReferences)) !==
+      stableJson(canonicalBoundary(operation.references))
+  ) {
     return {
-      failure: { code: "archive-payload-mismatch", explanation: "Archive payload is not the exact current subtree projection." },
+      failure: {
+        code: "archive-payload-mismatch",
+        explanation: "Archive payload is not the exact current subtree projection.",
+      },
       payload: null,
     };
   }
@@ -955,10 +1297,12 @@ function subtreeSanPaths(tree: GameTree, targetPath: readonly string[]): string[
   const targetIndex = tree.indexPathOfSan(targetPath);
   if (targetIndex === null) return null;
   const paths: string[][] = [];
-  const pending: Array<{ indexPath: number[]; sanPath: string[] }> = [{
-    indexPath: [...targetIndex],
-    sanPath: [...targetPath],
-  }];
+  const pending: Array<{ indexPath: number[]; sanPath: string[] }> = [
+    {
+      indexPath: [...targetIndex],
+      sanPath: [...targetPath],
+    },
+  ];
   while (pending.length > 0) {
     const current = pending.pop()!;
     paths.push(current.sanPath);
@@ -981,16 +1325,29 @@ function applyPrune(
   archivedTargets: ReadonlyMap<string, ReplacementChangeTarget>,
   diff: MutableDiff,
 ): OperationFailure | null {
-  if (operation.explicitly_confirmed !== true) return { code: "prune-not-confirmed", explanation: "Pruning requires literal confirmation." };
+  if (operation.explicitly_confirmed !== true)
+    return { code: "prune-not-confirmed", explanation: "Pruning requires literal confirmation." };
   const archivedTarget = archivedTargets.get(operation.archive_operation_id);
   if (!archivedTarget || !sameTarget(archivedTarget, operation.target)) {
-    return { code: "archive-required", explanation: "Referenced archive of this exact subtree did not succeed before pruning." };
+    return {
+      code: "archive-required",
+      explanation: "Referenced archive of this exact subtree did not succeed before pruning.",
+    };
   }
-  if (!targetMatches(graph, operation.target)) return { code: "stale-semantic-path", explanation: "Prune target no longer resolves semantically." };
+  if (!targetMatches(graph, operation.target))
+    return {
+      code: "stale-semantic-path",
+      explanation: "Prune target no longer resolves semantically.",
+    };
   const index = tree.indexPathOfSan(operation.target.source_san_path);
-  if (index === null || index.length === 0) return { code: "illegal-operation", explanation: "Prune target must be a non-root current branch." };
+  if (index === null || index.length === 0)
+    return {
+      code: "illegal-operation",
+      explanation: "Prune target must be a non-root current branch.",
+    };
   const removedPaths = subtreeSanPaths(tree, operation.target.source_san_path);
-  if (removedPaths === null) return { code: "stale-semantic-path", explanation: "Prune subtree paths are unavailable." };
+  if (removedPaths === null)
+    return { code: "stale-semantic-path", explanation: "Prune subtree paths are unavailable." };
   const parent = tree.nodeAt(index.slice(0, -1));
   parent.children.splice(index.at(-1)!, 1);
   diff.removed_paths.push(...removedPaths);
@@ -1003,24 +1360,44 @@ function applyReorder(
   operation: ReplacementReorderVariationsOperation,
   diff: MutableDiff,
 ): OperationFailure | null {
-  const parent = graph.positions.find((position) => position.position_id === operation.parent_position_id);
+  const parent = graph.positions.find(
+    (position) => position.position_id === operation.parent_position_id,
+  );
   if (!parent || parent.source_san_paths.length === 0) {
-    return { code: "stale-semantic-path", explanation: "Reorder parent semantic position is unavailable." };
+    return {
+      code: "stale-semantic-path",
+      explanation: "Reorder parent semantic position is unavailable.",
+    };
   }
-  if (new Set(operation.ordered_decision_ids).size !== operation.ordered_decision_ids.length ||
+  if (
+    new Set(operation.ordered_decision_ids).size !== operation.ordered_decision_ids.length ||
     stableJson([...operation.ordered_decision_ids].sort(compareStrings)) !==
-      stableJson([...parent.outgoing_decision_ids].sort(compareStrings))) {
-    return { code: "reorder-boundary-mismatch", explanation: "Reorder IDs must uniquely and exactly cover semantic children." };
+      stableJson([...parent.outgoing_decision_ids].sort(compareStrings))
+  ) {
+    return {
+      code: "reorder-boundary-mismatch",
+      explanation: "Reorder IDs must uniquely and exactly cover semantic children.",
+    };
   }
   for (const path of parent.source_san_paths) {
     const index = tree.indexPathOfSan(path);
-    if (index === null) return { code: "stale-semantic-path", explanation: "Reorder parent SAN path is unavailable." };
+    if (index === null)
+      return {
+        code: "stale-semantic-path",
+        explanation: "Reorder parent SAN path is unavailable.",
+      };
     const node = tree.nodeAt(index);
-    const childByDecision = new Map<string, typeof node.children[number]>();
+    const childByDecision = new Map<string, (typeof node.children)[number]>();
     for (const child of node.children) {
       const childPath = [...path, (child as unknown as { data: PgnNodeData }).data.san];
-      const decision = graph.decisions.find((item) => item.source_san_paths.some((source) => samePath(source, childPath)));
-      if (!decision) return { code: "reorder-boundary-mismatch", explanation: "Reorder child lacks canonical decision identity." };
+      const decision = graph.decisions.find((item) =>
+        item.source_san_paths.some((source) => samePath(source, childPath)),
+      );
+      if (!decision)
+        return {
+          code: "reorder-boundary-mismatch",
+          explanation: "Reorder child lacks canonical decision identity.",
+        };
       childByDecision.set(decision.decision_id, child);
     }
     const reordered = operation.ordered_decision_ids.flatMap((id) => {
@@ -1028,7 +1405,10 @@ function applyReorder(
       return child ? [child] : [];
     });
     if (reordered.length !== node.children.length) {
-      return { code: "reorder-boundary-mismatch", explanation: "Editorial reorder children are outside semantic parent boundary." };
+      return {
+        code: "reorder-boundary-mismatch",
+        explanation: "Editorial reorder children are outside semantic parent boundary.",
+      };
     }
     if (reordered.some((child, childIndex) => child !== node.children[childIndex])) {
       node.children.splice(0, node.children.length, ...reordered);
@@ -1071,7 +1451,8 @@ function unavailableObjective(after: ReplacementObjectiveQuality): ReplacementOb
     viable_move_width: null,
     database_performance: null,
     theoretical_status: null,
-    reason: "Task 8.7 retains candidate objective evidence but no comparable old-line objective object; Task 8.8 does not fabricate one.",
+    reason:
+      "Task 8.7 retains candidate objective evidence but no comparable old-line objective object; Task 8.8 does not fabricate one.",
     provenance: mergeProvenance(after.provenance, [CORE_PROVENANCE]),
   };
 }
@@ -1112,9 +1493,10 @@ function failureOutput(
     operation_id: operation.operation_id,
     status: operation.operation_id === operationIdValue ? "failed" : "skipped",
     error_code: operation.operation_id === operationIdValue ? code : null,
-    explanation: operation.operation_id === operationIdValue
-      ? explanation
-      : "Atomic transaction returned no clone; this operation has no committed partial result.",
+    explanation:
+      operation.operation_id === operationIdValue
+        ? explanation
+        : "Atomic transaction returned no clone; this operation has no committed partial result.",
   }));
   const output: ReplacementChangeSetFailure = {
     ...versioned(),
@@ -1124,8 +1506,12 @@ function failureOutput(
     source_tree_unchanged: true,
     operation_results: operationResults,
     provenance: mergeProvenance(changeSet.provenance, [CORE_PROVENANCE]),
-    status: code === "stale-revision" || code === "safety-not-current" ? "stale"
-      : operationIdValue === null ? "rejected" : "failed",
+    status:
+      code === "stale-revision" || code === "safety-not-current"
+        ? "stale"
+        : operationIdValue === null
+          ? "rejected"
+          : "failed",
     result: null,
     failure: { code, operation_id: operationIdValue, explanation },
   };
@@ -1145,10 +1531,17 @@ function failureOutput(
 export function applyReplacementChangeSet(
   input: ApplyReplacementChangeSetInput,
 ): ReplacementAtomicChangeSetResult {
-  const current = currentSafety(input.source_tree, input.current_repertoire_revision, input.safety, input.change_set.candidate_id);
-  if ("code" in current) return failureOutput(input.change_set, current.code, null, current.explanation);
+  const current = currentSafety(
+    input.source_tree,
+    input.current_repertoire_revision,
+    input.safety,
+    input.change_set.candidate_id,
+  );
+  if ("code" in current)
+    return failureOutput(input.change_set, current.code, null, current.explanation);
   const validated = validateChangeSet(input, current);
-  if ("code" in validated) return failureOutput(input.change_set, validated.code, null, validated.explanation);
+  if ("code" in validated)
+    return failureOutput(input.change_set, validated.code, null, validated.explanation);
   const operations = validated.operations;
   const clone = input.source_tree.clone();
   const before = current.graph;
@@ -1162,13 +1555,25 @@ export function applyReplacementChangeSet(
     try {
       graph = buildRepertoireGraph(clone, input.safety.repertoire_color);
     } catch {
-      return failureOutput(input.change_set, "transaction-failed", operation.operation_id,
-        "Transaction clone stopped producing a legal canonical graph.", operations);
+      return failureOutput(
+        input.change_set,
+        "transaction-failed",
+        operation.operation_id,
+        "Transaction clone stopped producing a legal canonical graph.",
+        operations,
+      );
     }
     let failure: OperationFailure | null = null;
     try {
       if (operation.kind === "add-subtree") {
-        failure = applyAdd(clone, graph, operation, current.scored, input.safety.repertoire_color, diff);
+        failure = applyAdd(
+          clone,
+          graph,
+          operation,
+          current.scored,
+          input.safety.repertoire_color,
+          diff,
+        );
       } else if (operation.kind === "link-transposition") {
         failure = applyLink(graph, operation, diff);
       } else if (operation.kind === "preserve-annotation") {
@@ -1187,41 +1592,71 @@ export function applyReplacementChangeSet(
       } else if (operation.kind === "reorder-variations") {
         failure = applyReorder(clone, graph, operation, diff);
       } else {
-        failure = { code: "unsupported-operation", explanation: `Task 8.8 does not apply ${operation.kind}.` };
+        failure = {
+          code: "unsupported-operation",
+          explanation: `Task 8.8 does not apply ${operation.kind}.`,
+        };
       }
     } catch {
-      failure = { code: "illegal-operation", explanation: `Operation ${operation.operation_id} failed deterministic tree validation.` };
+      failure = {
+        code: "illegal-operation",
+        explanation: `Operation ${operation.operation_id} failed deterministic tree validation.`,
+      };
     }
-    if (failure) return failureOutput(input.change_set, failure.code, operation.operation_id, failure.explanation, operations);
+    if (failure)
+      return failureOutput(
+        input.change_set,
+        failure.code,
+        operation.operation_id,
+        failure.explanation,
+        operations,
+      );
     diffs.push(diff);
   }
   let after: RepertoireGraph;
   try {
     after = buildRepertoireGraph(clone, input.safety.repertoire_color);
   } catch {
-    return failureOutput(input.change_set, "transaction-failed", operations.at(-1)?.operation_id ?? null,
-      "Completed operations did not produce a legal canonical graph.", operations);
+    return failureOutput(
+      input.change_set,
+      "transaction-failed",
+      operations.at(-1)?.operation_id ?? null,
+      "Completed operations did not produce a legal canonical graph.",
+      operations,
+    );
   }
   if (after.graph_id !== current.candidate.simulated_graph_id) {
-    return failureOutput(input.change_set, "result-graph-mismatch", operations.at(-1)?.operation_id ?? null,
-      "Atomic result graph differs from the current Task 8.7 safety simulation.", operations);
+    return failureOutput(
+      input.change_set,
+      "result-graph-mismatch",
+      operations.at(-1)?.operation_id ?? null,
+      "Atomic result graph differs from the current Task 8.7 safety simulation.",
+      operations,
+    );
   }
   let resultPgn: string;
   try {
     resultPgn = clone.toPgn();
   } catch {
-    return failureOutput(input.change_set, "transaction-failed", operations.at(-1)?.operation_id ?? null,
-      "Atomic result could not be serialized deterministically.", operations);
+    return failureOutput(
+      input.change_set,
+      "transaction-failed",
+      operations.at(-1)?.operation_id ?? null,
+      "Atomic result could not be serialized deterministically.",
+      operations,
+    );
   }
   const immutableDiffs = diffs.map(immutableDiff);
-  const affectedPaths = sortedPaths(immutableDiffs.flatMap((diff) => [
-    ...diff.added_paths,
-    ...diff.removed_paths,
-    ...diff.annotated_paths,
-    ...diff.linked_paths,
-    ...diff.archived_paths,
-    ...diff.reordered_parent_paths,
-  ]));
+  const affectedPaths = sortedPaths(
+    immutableDiffs.flatMap((diff) => [
+      ...diff.added_paths,
+      ...diff.removed_paths,
+      ...diff.annotated_paths,
+      ...diff.linked_paths,
+      ...diff.archived_paths,
+      ...diff.reordered_parent_paths,
+    ]),
+  );
   const preview: ReplacementChangeSetPreview = {
     ...versioned(),
     before: treeStatistics(before),
@@ -1235,7 +1670,9 @@ export function applyReplacementChangeSet(
     preserved_annotation_count: preservedAnnotationCount,
     archive_ids: sortedUnique(archivePayloads.map((payload) => payload.archive_id)),
     operation_diffs: immutableDiffs,
-    archive_payloads: [...archivePayloads].sort((left, right) => compareStrings(left.archive_id, right.archive_id)),
+    archive_payloads: [...archivePayloads].sort((left, right) =>
+      compareStrings(left.archive_id, right.archive_id),
+    ),
     finding_changes_state: "not-reanalyzed",
     changed_finding_ids: [],
     new_finding_ids: [],
@@ -1255,7 +1692,9 @@ export function applyReplacementChangeSet(
     atomic: true,
     source_tree_unchanged: true,
     operation_results: operationResults,
-    provenance: mergeProvenance(input.change_set.provenance, input.safety.provenance, [CORE_PROVENANCE]),
+    provenance: mergeProvenance(input.change_set.provenance, input.safety.provenance, [
+      CORE_PROVENANCE,
+    ]),
     status: "previewed",
     result: {
       repertoire_revision: null,
@@ -1284,7 +1723,11 @@ export function constructAndApplyReplacementChangeSet(
   if (constructed.change_set === null) {
     const placeholder: ReplacementChangeSet = {
       ...versioned(),
-      change_set_id: changeSetId(input.safety, input.candidate_id, input.promote_candidate_to_mainline === true),
+      change_set_id: changeSetId(
+        input.safety,
+        input.candidate_id,
+        input.promote_candidate_to_mainline === true,
+      ),
       request_id: input.safety.request_id,
       candidate_id: input.candidate_id,
       base_repertoire_revision: input.current_repertoire_revision,

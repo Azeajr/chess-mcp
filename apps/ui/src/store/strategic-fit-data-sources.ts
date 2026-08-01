@@ -72,11 +72,16 @@ const DEFAULT_SETTINGS: StrategicFitDataSourceSettings = Object.freeze({
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }
 
-function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.round(Math.min(maximum, Math.max(minimum, value)))
     : fallback;
@@ -107,35 +112,45 @@ export function normalizeStrategicFitDataSourceSettings(
   const root = record(input);
   const popularity = record(root.popularity);
   const history = record(root.personal_history);
-  const db = popularity.db === "masters" || popularity.db === "lichess"
-    ? popularity.db
-    : base.popularity.db;
-  const platform = history.platform === "chesscom" || history.platform === "lichess"
-    ? history.platform
-    : base.personal_history.platform;
-  const since = popularity.since === undefined
-    ? recencyString(base.popularity.since, db)
-    : recencyString(popularity.since, db);
-  const candidateUntil = popularity.until === undefined
-    ? recencyString(base.popularity.until, db)
-    : recencyString(popularity.until, db);
+  const db =
+    popularity.db === "masters" || popularity.db === "lichess" ? popularity.db : base.popularity.db;
+  const platform =
+    history.platform === "chesscom" || history.platform === "lichess"
+      ? history.platform
+      : base.personal_history.platform;
+  const since =
+    popularity.since === undefined
+      ? recencyString(base.popularity.since, db)
+      : recencyString(popularity.since, db);
+  const candidateUntil =
+    popularity.until === undefined
+      ? recencyString(base.popularity.until, db)
+      : recencyString(popularity.until, db);
   const until = since && candidateUntil && since > candidateUntil ? "" : candidateUntil;
   return {
     popularity: {
-      enabled: typeof popularity.enabled === "boolean" ? popularity.enabled : base.popularity.enabled,
+      enabled:
+        typeof popularity.enabled === "boolean" ? popularity.enabled : base.popularity.enabled,
       db,
       speeds: selectedValues(popularity.speeds, EXPLORER_SPEEDS, base.popularity.speeds),
       ratings: selectedValues(popularity.ratings, EXPLORER_RATING_BUCKETS, base.popularity.ratings),
       since,
       until,
-      max_positions: boundedInteger(popularity.max_positions, base.popularity.max_positions, 1, 120),
+      max_positions: boundedInteger(
+        popularity.max_positions,
+        base.popularity.max_positions,
+        1,
+        120,
+      ),
     },
     personal_history: {
-      enabled: typeof history.enabled === "boolean" ? history.enabled : base.personal_history.enabled,
+      enabled:
+        typeof history.enabled === "boolean" ? history.enabled : base.personal_history.enabled,
       platform,
-      username: typeof history.username === "string"
-        ? history.username.trim().slice(0, 64)
-        : base.personal_history.username,
+      username:
+        typeof history.username === "string"
+          ? history.username.trim().slice(0, 64)
+          : base.personal_history.username,
       max_games: boundedInteger(history.max_games, base.personal_history.max_games, 1, 100),
       year: boundedInteger(history.year, base.personal_history.year, 2007, 2100),
       month: boundedInteger(history.month, base.personal_history.month, 1, 12),
@@ -145,12 +160,18 @@ export function normalizeStrategicFitDataSourceSettings(
 
 function clone(settings: StrategicFitDataSourceSettings): StrategicFitDataSourceSettings {
   return {
-    popularity: { ...settings.popularity, speeds: [...settings.popularity.speeds], ratings: [...settings.popularity.ratings] },
+    popularity: {
+      ...settings.popularity,
+      speeds: [...settings.popularity.speeds],
+      ratings: [...settings.popularity.ratings],
+    },
     personal_history: { ...settings.personal_history },
   };
 }
 
-export function strategicFitDataSourceArguments(settings: StrategicFitDataSourceSettings): Record<string, unknown> {
+export function strategicFitDataSourceArguments(
+  settings: StrategicFitDataSourceSettings,
+): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   if (settings.popularity.enabled) {
     args.popularity = {
@@ -164,18 +185,19 @@ export function strategicFitDataSourceArguments(settings: StrategicFitDataSource
     };
   }
   if (settings.personal_history.enabled && settings.personal_history.username) {
-    args.personal_history = settings.personal_history.platform === "chesscom"
-      ? {
-          platform: "chesscom",
-          username: settings.personal_history.username,
-          year: settings.personal_history.year,
-          month: settings.personal_history.month,
-        }
-      : {
-          platform: "lichess",
-          username: settings.personal_history.username,
-          max_games: settings.personal_history.max_games,
-        };
+    args.personal_history =
+      settings.personal_history.platform === "chesscom"
+        ? {
+            platform: "chesscom",
+            username: settings.personal_history.username,
+            year: settings.personal_history.year,
+            month: settings.personal_history.month,
+          }
+        : {
+            platform: "lichess",
+            username: settings.personal_history.username,
+            max_games: settings.personal_history.max_games,
+          };
   }
   return args;
 }
@@ -183,7 +205,9 @@ export function strategicFitDataSourceArguments(settings: StrategicFitDataSource
 export function createStrategicFitDataSourceState(
   boundary: StrategicFitDataSourceStateBoundary,
 ): StrategicFitDataSourceState {
-  const [settings, setSettings] = createSignal(normalizeStrategicFitDataSourceSettings(boundary.load()));
+  const [settings, setSettings] = createSignal(
+    normalizeStrategicFitDataSourceSettings(boundary.load()),
+  );
   return {
     settings: () => clone(settings()),
     update(input) {
@@ -209,10 +233,15 @@ const browserState = createStrategicFitDataSourceState({
     if (typeof localStorage === "undefined") return null;
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === null) return null;
-    try { return JSON.parse(stored) as unknown; } catch { return null; }
+    try {
+      return JSON.parse(stored) as unknown;
+    } catch {
+      return null;
+    }
   },
   save(settings) {
-    if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    if (typeof localStorage !== "undefined")
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   },
   invalidateReports: invalidateCachedStrategicFitReports,
 });

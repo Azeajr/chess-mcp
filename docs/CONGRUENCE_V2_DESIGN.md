@@ -237,13 +237,13 @@ Every finding card should contain enough information to understand it without op
 Example:
 
 > **Different center plan**  
-> Sicilian · Alapin, 6…Nf6 branch  
->  
-> This branch produces a closed center, while 78% of comparable expected games produce an open IQP position. The difference becomes stable after your 8.e5.  
->  
+> Sicilian · Alapin, 6…Nf6 branch
+>
+> This branch produces a closed center, while 78% of comparable expected games produce an open IQP position. The difference becomes stable after your 8.e5.
+>
 > **12% expected frequency** · **Major difference** · **High confidence**  
-> Likely user-controlled · Objectively sound  
->  
+> Likely user-controlled · Objectively sound
+>
 > `Review alternatives` `Keep intentionally` `Train`
 
 Required fields:
@@ -268,13 +268,13 @@ The expanded view includes:
 
 A direct comparison:
 
-| Dimension | Typical cohort | This branch |
-|---|---|---|
-| Center | Open/IQP | Closed |
-| Primary break | d4–d5 | f2–f4 |
-| King setup | Short castling | Long castling |
-| Tactical level | Moderate | High |
-| Unique concepts | 2 familiar | 5 new |
+| Dimension       | Typical cohort | This branch   |
+| --------------- | -------------- | ------------- |
+| Center          | Open/IQP       | Closed        |
+| Primary break   | d4–d5          | f2–f4         |
+| King setup      | Short castling | Long castling |
+| Tactical level  | Moderate       | High          |
+| Unique concepts | 2 familiar     | 5 new         |
 
 #### Comparison basis
 

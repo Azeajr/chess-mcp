@@ -92,10 +92,12 @@ test("the flow is deterministic, versioned, and its weights reconcile at every n
   assert.ok(projection.nodes.length > 0);
   assert.ok(projection.links.length > 0);
 
-  const weightsByCohort = new Map(report.cohorts.map((cohort) => [
-    cohort.cohort_id,
-    new Map(cohort.route_weights.map((weight) => [weight.route_id, weight.normalized_weight])),
-  ]));
+  const weightsByCohort = new Map(
+    report.cohorts.map((cohort) => [
+      cohort.cohort_id,
+      new Map(cohort.route_weights.map((weight) => [weight.route_id, weight.normalized_weight])),
+    ]),
+  );
   const nodesById = new Map(projection.nodes.map((node) => [node.node_id, node]));
 
   for (const node of projection.nodes) {
@@ -104,7 +106,10 @@ test("the flow is deterministic, versioned, and its weights reconcile at every n
       (sum, routeId) => sum + (cohortWeights.get(routeId) ?? 0),
       0,
     );
-    assert.ok(Math.abs(node.weight - expected) < 1e-6, `${node.node_id} weight must equal its routes`);
+    assert.ok(
+      Math.abs(node.weight - expected) < 1e-6,
+      `${node.node_id} weight must equal its routes`,
+    );
     assert.ok(node.route_ids.length > 0);
     assert.deepEqual([...node.route_ids], [...node.route_ids].sort());
   }
@@ -178,9 +183,11 @@ test("player and opponent decisions are labelled from canonical graph ownership"
   for (const source of branchingSources) {
     const successors = projection.links.filter((link) => link.from_node_id === source.node_id);
     assert.ok(successors.length > 1);
-    const actors = new Set(successors.map((link) =>
-      projection.nodes.find((node) => node.node_id === link.to_node_id)!.actor
-    ));
+    const actors = new Set(
+      successors.map(
+        (link) => projection.nodes.find((node) => node.node_id === link.to_node_id)!.actor,
+      ),
+    );
     assert.equal(actors.size, 1, "a split offers one side's alternatives, never a mixed layer");
   }
 });
@@ -207,11 +214,13 @@ test("a real transposition is marked only with canonical graph evidence and conv
   for (const node of projection.nodes) {
     if (node.transposition !== null) continue;
     const incoming = new Set(
-      projection.links.filter((link) => link.to_node_id === node.node_id)
+      projection.links
+        .filter((link) => link.to_node_id === node.node_id)
         .map((link) => link.from_node_id),
     );
     assert.ok(
-      node.kind !== "decision" || incoming.size <= 1 ||
+      node.kind !== "decision" ||
+        incoming.size <= 1 ||
         !linkPositions.has(node.from_position_id ?? ""),
       "a decision with converging predecessors and canonical evidence must be marked",
     );
@@ -262,8 +271,13 @@ test("uncertain, conflicting, and low-confidence causal evidence stays visibly q
     parseStrategicFitFixture(BROAD_ECO_FIXTURE),
     BROAD_ECO_FIXTURE.repertoireColor,
   );
-  const seed = buildDecisionFlowProjection(base, { graph, graph_revision: base.repertoire_revision });
-  const decisionNode = seed.nodes.find((node) => node.kind === "decision" && node.route_ids.length > 0)!;
+  const seed = buildDecisionFlowProjection(base, {
+    graph,
+    graph_revision: base.repertoire_revision,
+  });
+  const decisionNode = seed.nodes.find(
+    (node) => node.kind === "decision" && node.route_ids.length > 0,
+  )!;
   const routeId = decisionNode.route_ids[0]!;
   const template = base.findings[0]!;
   const findingFor = (
@@ -373,7 +387,7 @@ test("routes are assigned to exactly one strategic mode without splitting their 
   for (const assignment of projection.mode_assignments) {
     const modes = modesByCohort.get(assignment.cohort_id) ?? [];
     const supporting = modes.filter((mode) =>
-      mode.supporting_route_ids.includes(assignment.route_id)
+      mode.supporting_route_ids.includes(assignment.route_id),
     );
     if (assignment.mode_id === null) {
       assert.equal(supporting.length, 0);
@@ -387,9 +401,11 @@ test("routes are assigned to exactly one strategic mode without splitting their 
       assert.equal(assignment.alternative_mode_ids.length, supporting.length - 1);
     }
     assert.ok(assignment.explanation.length > 0);
-    const modeNode = projection.nodes.find((node) =>
-      node.cohort_id === assignment.cohort_id && node.kind === "mode" &&
-      node.mode_id === assignment.mode_id
+    const modeNode = projection.nodes.find(
+      (node) =>
+        node.cohort_id === assignment.cohort_id &&
+        node.kind === "mode" &&
+        node.mode_id === assignment.mode_id,
     )!;
     assert.ok(modeNode.route_ids.includes(assignment.route_id));
   }
@@ -408,27 +424,29 @@ test("routes are assigned to exactly one strategic mode without splitting their 
     source: "inferred-medoid" as const,
     provenance: [],
   });
-  const withModes = buildDecisionFlowProjection({
-    ...report,
-    cohorts: report.cohorts.map((candidate) =>
-      candidate.cohort_id === cohort.cohort_id
-        ? {
-          ...candidate,
-          modes: [
-            mode("mode:light", 0.3, [firstRoute!, secondRoute!]),
-            mode("mode:heavy", 0.7, [secondRoute!]),
-          ],
-        }
-        : candidate
-    ),
-  }, {
-    graph: graphFor(FORCED_DIVERSITY_PGN),
-    graph_revision: report.repertoire_revision,
-  });
-  const byRoute = new Map(withModes.mode_assignments.map((assignment) => [
-    assignment.route_id,
-    assignment,
-  ]));
+  const withModes = buildDecisionFlowProjection(
+    {
+      ...report,
+      cohorts: report.cohorts.map((candidate) =>
+        candidate.cohort_id === cohort.cohort_id
+          ? {
+              ...candidate,
+              modes: [
+                mode("mode:light", 0.3, [firstRoute!, secondRoute!]),
+                mode("mode:heavy", 0.7, [secondRoute!]),
+              ],
+            }
+          : candidate,
+      ),
+    },
+    {
+      graph: graphFor(FORCED_DIVERSITY_PGN),
+      graph_revision: report.repertoire_revision,
+    },
+  );
+  const byRoute = new Map(
+    withModes.mode_assignments.map((assignment) => [assignment.route_id, assignment]),
+  );
   assert.equal(byRoute.get(firstRoute!)!.mode_id, "mode:light");
   assert.equal(byRoute.get(firstRoute!)!.rule, "single-supporting-mode");
   assert.equal(byRoute.get(secondRoute!)!.mode_id, "mode:heavy");
@@ -439,10 +457,9 @@ test("routes are assigned to exactly one strategic mode without splitting their 
   assert.deepEqual([...heavyNode.concept_ids], ["concept:mode:heavy"]);
   assert.ok(heavyNode.route_ids.includes(secondRoute!));
   assert.ok(!heavyNode.route_ids.includes(firstRoute!));
-  const weights = new Map(cohort.route_weights.map((weight) => [
-    weight.route_id,
-    weight.normalized_weight,
-  ]));
+  const weights = new Map(
+    cohort.route_weights.map((weight) => [weight.route_id, weight.normalized_weight]),
+  );
   assert.ok(Math.abs(heavyNode.weight - (weights.get(secondRoute!) ?? 0)) < 1e-6);
 });
 
@@ -462,8 +479,8 @@ test("the depth limit truncates the diagram, never the expected weight", () => {
   assert.ok(!full.links.some((link) => link.truncated));
 
   for (const cohort of limited.cohorts) {
-    const start = limited.nodes.find((node) =>
-      node.cohort_id === cohort.cohort_id && node.kind === "start"
+    const start = limited.nodes.find(
+      (node) => node.cohort_id === cohort.cohort_id && node.kind === "start",
     )!;
     const modeWeight = limited.nodes
       .filter((node) => node.cohort_id === cohort.cohort_id && node.kind === "mode")
@@ -485,9 +502,11 @@ test("a missing or stale graph and an empty report yield explicit unavailable pr
   assert.ok(missing.reason?.includes("repertoire graph"));
   assert.equal(missing.nodes.length, 0);
   assert.equal(missing.links.length, 0);
-  assert.ok(missing.provenance.some((source) =>
-    source.kind === "repertoire" && source.state === "unavailable"
-  ));
+  assert.ok(
+    missing.provenance.some(
+      (source) => source.kind === "repertoire" && source.state === "unavailable",
+    ),
+  );
 
   const stale = buildDecisionFlowProjection(report, {
     graph,
@@ -501,16 +520,20 @@ test("a missing or stale graph and an empty report yield explicit unavailable pr
   assert.equal(staleGraphSource.snapshot, graph.graph_id);
   assert.ok(staleGraphSource.reason?.includes("revision:something-else"));
 
-  const empty = buildDecisionFlowProjection({ ...report, cohorts: [], findings: [] }, {
-    graph,
-    graph_revision: report.repertoire_revision,
-  });
+  const empty = buildDecisionFlowProjection(
+    { ...report, cohorts: [], findings: [] },
+    {
+      graph,
+      graph_revision: report.repertoire_revision,
+    },
+  );
   assert.equal(empty.state, "unavailable");
   assert.ok(empty.reason !== null);
   assert.equal(empty.cohorts.length, 0);
-  assert.ok(empty.provenance.some((source) =>
-    source.kind === "repertoire" && source.state === "available"
-  ), "an accepted graph stays available even when the report has nothing to distribute");
+  assert.ok(
+    empty.provenance.some((source) => source.kind === "repertoire" && source.state === "available"),
+    "an accepted graph stays available even when the report has nothing to distribute",
+  );
 });
 
 test("excluded cohorts, excluded routes, and unknown graph routes become structured exclusions", () => {
@@ -522,25 +545,34 @@ test("excluded cohorts, excluded routes, and unknown graph routes become structu
   const excludedCohortId = report.cohorts[0]!.cohort_id;
   const lastCohort = report.cohorts.at(-1)!;
   const excludedRouteId = lastCohort.route_ids[0]!;
-  const projection = buildDecisionFlowProjection({
-    ...report,
-    cohorts: report.cohorts.map((cohort) => {
-      if (cohort.cohort_id === excludedCohortId) return { ...cohort, state: "excluded" as const };
-      if (cohort.cohort_id === lastCohort.cohort_id) {
-        return { ...cohort, excluded_route_ids: [excludedRouteId] };
-      }
-      return cohort;
-    }),
-  }, { graph, graph_revision: report.repertoire_revision });
+  const projection = buildDecisionFlowProjection(
+    {
+      ...report,
+      cohorts: report.cohorts.map((cohort) => {
+        if (cohort.cohort_id === excludedCohortId) return { ...cohort, state: "excluded" as const };
+        if (cohort.cohort_id === lastCohort.cohort_id) {
+          return { ...cohort, excluded_route_ids: [excludedRouteId] };
+        }
+        return cohort;
+      }),
+    },
+    { graph, graph_revision: report.repertoire_revision },
+  );
 
   assert.ok(!projection.nodes.some((node) => node.cohort_id === excludedCohortId));
   assert.ok(!projection.nodes.some((node) => node.route_ids.includes(excludedRouteId)));
-  assert.ok(projection.exclusions.some((exclusion) =>
-    exclusion.cohort_id === excludedCohortId && exclusion.reason === "excluded-from-cohort"
-  ));
-  assert.ok(projection.exclusions.some((exclusion) =>
-    exclusion.route_id === excludedRouteId && exclusion.reason === "excluded-from-cohort"
-  ));
+  assert.ok(
+    projection.exclusions.some(
+      (exclusion) =>
+        exclusion.cohort_id === excludedCohortId && exclusion.reason === "excluded-from-cohort",
+    ),
+  );
+  assert.ok(
+    projection.exclusions.some(
+      (exclusion) =>
+        exclusion.route_id === excludedRouteId && exclusion.reason === "excluded-from-cohort",
+    ),
+  );
   for (const exclusion of projection.exclusions) assert.ok(exclusion.explanation.length > 0);
 
   const missingRoutes = buildDecisionFlowProjection(report, {
@@ -548,10 +580,13 @@ test("excluded cohorts, excluded routes, and unknown graph routes become structu
     graph_revision: report.repertoire_revision,
   });
   assert.equal(missingRoutes.state, "unavailable");
-  assert.ok(missingRoutes.exclusions.every((exclusion) =>
-    exclusion.reason === "missing-graph-route" || exclusion.reason === "excluded-from-cohort"
-  ));
-  assert.ok(missingRoutes.exclusions.some((exclusion) =>
-    exclusion.reason === "missing-graph-route"
-  ));
+  assert.ok(
+    missingRoutes.exclusions.every(
+      (exclusion) =>
+        exclusion.reason === "missing-graph-route" || exclusion.reason === "excluded-from-cohort",
+    ),
+  );
+  assert.ok(
+    missingRoutes.exclusions.some((exclusion) => exclusion.reason === "missing-graph-route"),
+  );
 });

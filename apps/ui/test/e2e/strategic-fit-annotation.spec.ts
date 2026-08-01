@@ -7,13 +7,16 @@ type ChessHarness = {
   saveArtifact(id: string): boolean;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -37,9 +40,8 @@ test("browser V2 annotation remains a clone-only downloadable artifact", async (
 1. c4 *`;
   await chess(page, (api, value) => api.loadPgn(value, "strategic-fit.pgn"), pgn);
   const before = await chess(page, (api) => api.toPgn());
-  const result = await chess(page, (api) => api.runTool(
-    "export_annotated_repertoire",
-    { include: ["congruence"] },
+  const result = (await chess(page, (api) =>
+    api.runTool("export_annotated_repertoire", { include: ["congruence"] }),
   )) as { artifact_id?: string; annotated?: { congruence?: number } };
 
   expect(result.artifact_id).toBeTruthy();

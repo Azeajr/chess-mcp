@@ -40,10 +40,7 @@ test("the strategic-map projection is deterministic, versioned, and identity-bou
   assert.equal(first.projection_version, STRATEGIC_MAP_PROJECTION_VERSION);
   assert.equal(first.distance_version, STRATEGIC_FIT_ANALYSIS_MANIFEST.components.distance);
   assert.equal(first.repertoire_revision, "revision:broad-eco-families");
-  assert.deepEqual(
-    { ...first, report_id: null },
-    { ...second, report_id: null },
-  );
+  assert.deepEqual({ ...first, report_id: null }, { ...second, report_id: null });
   assert.ok(first.points.length > 0);
   const sortedIds = [...first.points].map((point) => `${point.cohort_id}|${point.route_id}`);
   assert.deepEqual(sortedIds, [...sortedIds].sort());
@@ -78,9 +75,11 @@ test("learning-concepts and zero-weight families are excluded explicitly, never 
   assert.ok(excluded.includes("learning-concepts"));
   for (const point of projection.points) {
     for (const breakdown of point.axis_breakdowns) {
-      assert.ok(breakdown.family_contributions.every(
-        (contribution) => contribution.family !== "learning-concepts",
-      ));
+      assert.ok(
+        breakdown.family_contributions.every(
+          (contribution) => contribution.family !== "learning-concepts",
+        ),
+      );
     }
   }
 });
@@ -139,8 +138,9 @@ test("routes without comparable anchor evidence become structured exclusions, no
   assert.ok(totalRoutes >= 3);
   for (const exclusion of projection.exclusions) {
     assert.ok(
-      ["excluded-from-cohort", "missing-trajectory", "no-comparable-anchor-evidence"]
-        .includes(exclusion.reason),
+      ["excluded-from-cohort", "missing-trajectory", "no-comparable-anchor-evidence"].includes(
+        exclusion.reason,
+      ),
     );
     assert.ok(exclusion.explanation.length > 0);
     assert.ok(!projection.points.some((point) => point.route_id === exclusion.route_id));

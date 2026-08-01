@@ -52,16 +52,33 @@ const explorer = (): ExplorerPosition => ({
   black_pct: 20,
   opening: null,
   moves: [
-    { san: "e5", uci: "e7e5", games: 90, played_pct: 90, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
-    { san: "c5", uci: "c7c5", games: 10, played_pct: 10, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
+    {
+      san: "e5",
+      uci: "e7e5",
+      games: 90,
+      played_pct: 90,
+      white_pct: 50,
+      draw_pct: 30,
+      black_pct: 20,
+      average_rating: null,
+    },
+    {
+      san: "c5",
+      uci: "c7c5",
+      games: 10,
+      played_pct: 10,
+      white_pct: 50,
+      draw_pct: 30,
+      black_pct: 20,
+      average_rating: null,
+    },
   ],
 });
 
 const report = (pgn: string, options: AnalyzeStrategicFitOptions) =>
-  completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(pgn),
-    strategicFitCompleteAnalysisOptions(options),
-  ));
+  completeStrategicFitReport(
+    analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+  );
 
 function dependencies(overrides: Partial<typeof defaultBrowserCommandDependencies> = {}) {
   return {
@@ -71,7 +88,8 @@ function dependencies(overrides: Partial<typeof defaultBrowserCommandDependencie
     currentColor: () => "white" as const,
     currentRevision: () => 72,
     openings: async () => new Map(),
-    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) => report(pgn, options),
+    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) =>
+      report(pgn, options),
     ...overrides,
   };
 }
@@ -81,7 +99,7 @@ test("browser blends fetched Lichess PGNs with population weights before the Wor
   let fetchArgs: unknown;
   const progress: Array<{ done: number; total?: number; detail?: string }> = [];
   const personalGames = Array.from({ length: 5 }, () => game("1. e4 c5 2. Nf3 *"));
-  const result = await executeBrowserCommand(
+  const result = (await executeBrowserCommand(
     "analyze_repertoire_congruence",
     {
       popularity: { db: "lichess" },
@@ -100,21 +118,31 @@ test("browser blends fetched Lichess PGNs with population weights before the Wor
         return report(pgn, options);
       },
     }),
-  ) as { provenance: { sources: Array<{ kind: string; state: string }> } };
+  )) as { provenance: { sources: Array<{ kind: string; state: string }> } };
 
   assert.deepEqual(fetchArgs, ["SampleUser", 5, undefined, true]);
-  const weights = calculateStrategicRouteWeights(buildRepertoireGraph(tree, "white"), received?.weighting);
-  const byReply = (reply: string) => weights.routes.find((weighted) =>
-    buildRepertoireGraph(tree, "white").routes.find((route) =>
-      route.route_id === weighted.route_id && route.san_moves[1] === reply
-    )
-  )!.normalized_weight;
+  const weights = calculateStrategicRouteWeights(
+    buildRepertoireGraph(tree, "white"),
+    received?.weighting,
+  );
+  const byReply = (reply: string) =>
+    weights.routes.find((weighted) =>
+      buildRepertoireGraph(tree, "white").routes.find(
+        (route) => route.route_id === weighted.route_id && route.san_moves[1] === reply,
+      ),
+    )!.normalized_weight;
   // The all-zero default preference vector means no source preference, so the independently
   // normalized 90/10 market and 72/28 shrunk-personal estimates receive equal coefficients.
   assert.equal(byReply("e5"), 0.81);
   assert.equal(byReply("c5"), 0.19);
-  assert.equal(result.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "available");
-  assert.equal(result.provenance.sources.find((source) => source.kind === "personal-history")?.state, "available");
+  assert.equal(
+    result.provenance.sources.find((source) => source.kind === "opening-explorer")?.state,
+    "available",
+  );
+  assert.equal(
+    result.provenance.sources.find((source) => source.kind === "personal-history")?.state,
+    "available",
+  );
   assert.deepEqual(progress.slice(0, 4), [
     { done: 0, total: 8, detail: "Collecting opening popularity" },
     { done: 1, total: 8, detail: "Collecting opening popularity" },
@@ -125,7 +153,7 @@ test("browser blends fetched Lichess PGNs with population weights before the Wor
 
 test("browser selects Chess.com month fetches and reports no-PGN evidence as insufficient", async () => {
   let fetchArgs: unknown;
-  const result = await executeBrowserCommand(
+  const result = (await executeBrowserCommand(
     "analyze_repertoire_congruence",
     {
       personal_history: {
@@ -142,7 +170,10 @@ test("browser selects Chess.com month fetches and reports no-PGN evidence as ins
         return [game(undefined)];
       },
     }),
-  ) as { error?: string; provenance: { sources: Array<{ kind: string; state: string; reason: string }> } };
+  )) as {
+    error?: string;
+    provenance: { sources: Array<{ kind: string; state: string; reason: string }> };
+  };
 
   assert.deepEqual(fetchArgs, ["SampleUser", 2026, 7, undefined, true]);
   assert.equal(result.error, undefined);

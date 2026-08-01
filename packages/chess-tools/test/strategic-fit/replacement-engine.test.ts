@@ -95,15 +95,24 @@ function routeBeginning(graph: RepertoireGraph, prefix: string): RepertoireGraph
   return route;
 }
 
-function decisionAt(graph: RepertoireGraph, route: RepertoireGraphRoute, san: string): RepertoireGraphDecision {
+function decisionAt(
+  graph: RepertoireGraph,
+  route: RepertoireGraphRoute,
+  san: string,
+): RepertoireGraphDecision {
   const index = route.san_moves.indexOf(san);
   assert.notEqual(index, -1);
-  const decision = graph.decisions.find((candidate) => candidate.decision_id === route.decision_ids[index]);
+  const decision = graph.decisions.find(
+    (candidate) => candidate.decision_id === route.decision_ids[index],
+  );
   assert.ok(decision);
   return decision;
 }
 
-function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecision): CausalAttribution {
+function attribution(
+  route: RepertoireGraphRoute,
+  decision: RepertoireGraphDecision,
+): CausalAttribution {
   const ply = route.decision_ids.indexOf(decision.decision_id) + 1;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -112,15 +121,17 @@ function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecis
     player_contribution: 0.9,
     opponent_contribution: 0.1,
     likely_causal_decision_ids: [decision.decision_id],
-    timeline: [{
-      event_id: `event:${decision.decision_id}`,
-      kind: "player-decision",
-      ply,
-      position_id: route.position_ids[ply - 1]!,
-      decision_id: decision.decision_id,
-      san: decision.san,
-      explanation: "Engine fixture pivot.",
-    }],
+    timeline: [
+      {
+        event_id: `event:${decision.decision_id}`,
+        kind: "player-decision",
+        ply,
+        position_id: route.position_ids[ply - 1]!,
+        decision_id: decision.decision_id,
+        san: decision.san,
+        explanation: "Engine fixture pivot.",
+      },
+    ],
     explanation: "Engine fixture causality.",
   };
 }
@@ -137,7 +148,11 @@ function setup(
     "move-order-shortcut",
     "engine-multipv",
   ],
-  databaseMoves: readonly { readonly id: string; readonly san: string; readonly uci: string }[] = [],
+  databaseMoves: readonly {
+    readonly id: string;
+    readonly san: string;
+    readonly uci: string;
+  }[] = [],
 ): GenerateReplacementEngineCandidatesInput {
   const graph = buildRepertoireGraph(GameTree.fromPgn(games.join("\n\n")), color);
   const route = routeBeginning(graph, routePrefix);
@@ -191,61 +206,72 @@ function setup(
   };
   const pivotResult = selectReplacementPivot({ request, graph, finding, cohort });
   assert.equal(pivotResult.status, "selected");
-  const pivotPosition = graph.positions.find((position) => position.position_id === pivotResult.pivot.position_id);
+  const pivotPosition = graph.positions.find(
+    (position) => position.position_id === pivotResult.pivot.position_id,
+  );
   assert.ok(pivotPosition);
-  const databaseEvidence: ReplacementOpeningDatabaseEvidence[] = databaseMoves.length === 0 ? [] : [{
-    ...version,
-    evidence_id: "database-evidence:engine-test",
-    state: "available",
-    database: "lichess",
-    provider: "fixture-opening-explorer",
-    version: "database-v1",
-    snapshot: "snapshot:engine-test",
-    filter_key: "db=lichess|speeds=rapid|ratings=1800|since=|until=|moves=12",
-    filters: {
-      db: "lichess",
-      speeds: ["rapid"],
-      ratings: [1800],
-      since: null,
-      until: null,
-      movesLimit: 12,
-    },
-    position: {
-      position_id: pivotPosition.position_id,
-      position_key: pivotPosition.position_key,
-      fen: pivotPosition.fen,
-    },
-    moves: databaseMoves.map((move) => ({
-      move_id: move.id,
-      san: move.san,
-      uci: move.uci,
-      popularity: {
-        games: 100,
-        played_pct: 50,
-        white_pct: 40,
-        draw_pct: 30,
-        black_pct: 30,
-        average_rating: 1900,
-      },
-      provenance: [{
-        source_id: `opening-explorer:${move.id}`,
-        kind: "opening-explorer",
-        state: "available",
-        version: "database-v1",
-        snapshot: "snapshot:engine-test",
-        reason: null,
-      }],
-    })),
-    reason: null,
-    provenance: [{
-      source_id: "opening-explorer:engine-test",
-      kind: "opening-explorer",
-      state: "available",
-      version: "database-v1",
-      snapshot: "snapshot:engine-test",
-      reason: null,
-    }],
-  }];
+  const databaseEvidence: ReplacementOpeningDatabaseEvidence[] =
+    databaseMoves.length === 0
+      ? []
+      : [
+          {
+            ...version,
+            evidence_id: "database-evidence:engine-test",
+            state: "available",
+            database: "lichess",
+            provider: "fixture-opening-explorer",
+            version: "database-v1",
+            snapshot: "snapshot:engine-test",
+            filter_key: "db=lichess|speeds=rapid|ratings=1800|since=|until=|moves=12",
+            filters: {
+              db: "lichess",
+              speeds: ["rapid"],
+              ratings: [1800],
+              since: null,
+              until: null,
+              movesLimit: 12,
+            },
+            position: {
+              position_id: pivotPosition.position_id,
+              position_key: pivotPosition.position_key,
+              fen: pivotPosition.fen,
+            },
+            moves: databaseMoves.map((move) => ({
+              move_id: move.id,
+              san: move.san,
+              uci: move.uci,
+              popularity: {
+                games: 100,
+                played_pct: 50,
+                white_pct: 40,
+                draw_pct: 30,
+                black_pct: 30,
+                average_rating: 1900,
+              },
+              provenance: [
+                {
+                  source_id: `opening-explorer:${move.id}`,
+                  kind: "opening-explorer",
+                  state: "available",
+                  version: "database-v1",
+                  snapshot: "snapshot:engine-test",
+                  reason: null,
+                },
+              ],
+            })),
+            reason: null,
+            provenance: [
+              {
+                source_id: "opening-explorer:engine-test",
+                kind: "opening-explorer",
+                state: "available",
+                version: "database-v1",
+                snapshot: "snapshot:engine-test",
+                reason: null,
+              },
+            ],
+          },
+        ];
   const candidateGeneration = generateReplacementCandidates({
     request,
     graph,
@@ -276,14 +302,16 @@ function line(
     white_pov_mate_in: mate,
     depth,
     observations: { ...dynamic },
-    provenance: [{
-      source_id: provenanceId,
-      kind: "engine",
-      state: "available",
-      version: identity.version,
-      snapshot: "engine-search:test",
-      reason: null,
-    }],
+    provenance: [
+      {
+        source_id: provenanceId,
+        kind: "engine",
+        state: "available",
+        version: identity.version,
+        snapshot: "engine-search:test",
+        reason: null,
+      },
+    ],
   };
 }
 
@@ -294,8 +322,8 @@ function evidence(
   overrides: Partial<ReplacementEngineAnalysisEvidence> = {},
 ): ReplacementEngineAnalysisEvidence {
   assert.equal(input.pivot_result.status, "selected");
-  const graphPosition = input.graph.positions.find((position) =>
-    position.position_id === input.pivot_result.pivot.position_id
+  const graphPosition = input.graph.positions.find(
+    (position) => position.position_id === input.pivot_result.pivot.position_id,
   );
   assert.ok(graphPosition);
   return {
@@ -318,14 +346,23 @@ function evidence(
       provenance: item.provenance.map((itemSource) => ({ ...itemSource })),
     })),
     reason: state === "available" ? null : `Fixture ${state} evidence.`,
-    provenance: [{
-      source_id: "engine-search:test",
-      kind: "engine",
-      state: state === "available" ? "available" : state === "partial" ? "partial" : state === "stale" ? "stale" : "unavailable",
-      version: identity.version,
-      snapshot: "engine-search:test",
-      reason: null,
-    }],
+    provenance: [
+      {
+        source_id: "engine-search:test",
+        kind: "engine",
+        state:
+          state === "available"
+            ? "available"
+            : state === "partial"
+              ? "partial"
+              : state === "stale"
+                ? "stale"
+                : "unavailable",
+        version: identity.version,
+        snapshot: "engine-search:test",
+        reason: null,
+      },
+    ],
     ...overrides,
   };
 }
@@ -371,7 +408,12 @@ test("stubbed MultiPV validates legal UCI/PVs, merges canonical local/database o
     "Bc4",
     {},
     35,
-    ["existing-repertoire-transposition", "move-order-shortcut", "opening-database", "engine-multipv"],
+    [
+      "existing-repertoire-transposition",
+      "move-order-shortcut",
+      "opening-database",
+      "engine-multipv",
+    ],
     [{ id: "database-nf3", san: "Nf3", uci: "g1f3" }],
   );
   const engineEvidence = evidence(input, [
@@ -380,12 +422,18 @@ test("stubbed MultiPV validates legal UCI/PVs, merges canonical local/database o
     line("nf3-b", 1, "g1f3", ["g1f3", "b8c6"], 15, null, 20, observations, "engine-line:nf3-b"),
   ]);
   const calls: ReplacementEngineProviderRequest[] = [];
-  const result = await generateReplacementEngineCandidates({ ...input, provider: provider(engineEvidence, calls) });
+  const result = await generateReplacementEngineCandidates({
+    ...input,
+    provider: provider(engineEvidence, calls),
+  });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.depth, 20);
   assert.equal(calls[0]?.multipv, 4);
-  assert.equal(calls[0]?.position.position_id, input.pivot_result.status === "selected" ? input.pivot_result.pivot.position_id : "");
+  assert.equal(
+    calls[0]?.position.position_id,
+    input.pivot_result.status === "selected" ? input.pivot_result.pivot.position_id : "",
+  );
   const nf3 = result.candidates.find((candidate) => candidate.san === "Nf3");
   assert.ok(nf3);
   assert.equal(result.candidates.filter((candidate) => candidate.san === "Nf3").length, 1);
@@ -396,10 +444,15 @@ test("stubbed MultiPV validates legal UCI/PVs, merges canonical local/database o
   assert.ok(engineSource);
   assert.equal((engineSource.details.merged_evidence as readonly unknown[]).length, 2);
   assert.deepEqual(
-    engineSource.provenance.map((item) => item.source_id).filter((id) => id.startsWith("engine-line")),
+    engineSource.provenance
+      .map((item) => item.source_id)
+      .filter((id) => id.startsWith("engine-line")),
     ["engine-line:nf3-a", "engine-line:nf3-b"],
   );
-  assert.equal(result.engine_item_results.find((item) => item.line_id === "d3")?.canonical_pv_san[0], "d3");
+  assert.equal(
+    result.engine_item_results.find((item) => item.line_id === "d3")?.canonical_pv_san[0],
+    "d3",
+  );
   assert.equal(nf3.expansion.status, "full-subtree-required");
 });
 
@@ -411,17 +464,36 @@ test("ordering and identities ignore engine line order", async () => {
     line("h3-conflict", 4, "h2h3", ["h2h3", "b8c6"], -100),
     line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 20),
   ];
-  const first = await generateReplacementEngineCandidates({ ...input, provider: provider(evidence(input, lines)) });
-  const second = await generateReplacementEngineCandidates({ ...input, provider: provider(evidence(input, [...lines].reverse())) });
+  const first = await generateReplacementEngineCandidates({
+    ...input,
+    provider: provider(evidence(input, lines)),
+  });
+  const second = await generateReplacementEngineCandidates({
+    ...input,
+    provider: provider(evidence(input, [...lines].reverse())),
+  });
   assert.deepEqual(projection(first), projection(second));
-  assert.equal(first.candidates.some((candidate) => candidate.san === "h3"), false);
+  assert.equal(
+    first.candidates.some((candidate) => candidate.san === "h3"),
+    false,
+  );
   const conflicting = first.engine_item_results.filter((item) => item.canonical_san === "h3");
-  assert.deepEqual(conflicting.map((item) => [item.objective_quality?.repertoire_pov_verdict, item.status, item.error_code]), [
-    ["outside-tolerance", "rejected", "outside-evaluation-tolerance"],
-    ["within-tolerance", "budget-excluded", "canonical-outcome-rejected"],
-  ]);
-  assert.equal(first.engine_item_results.find((item) => item.line_id === "nf3")
-    ?.objective_quality?.repertoire_pov_verdict, "within-tolerance");
+  assert.deepEqual(
+    conflicting.map((item) => [
+      item.objective_quality?.repertoire_pov_verdict,
+      item.status,
+      item.error_code,
+    ]),
+    [
+      ["outside-tolerance", "rejected", "outside-evaluation-tolerance"],
+      ["within-tolerance", "budget-excluded", "canonical-outcome-rejected"],
+    ],
+  );
+  assert.equal(
+    first.engine_item_results.find((item) => item.line_id === "nf3")?.objective_quality
+      ?.repertoire_pov_verdict,
+    "within-tolerance",
+  );
 });
 
 test("illegal UCI and malformed or illegal PVs return independent per-item results", async () => {
@@ -451,9 +523,12 @@ test("illegal UCI and malformed or illegal PVs return independent per-item resul
     }),
   });
   assert.deepEqual(
-    Object.fromEntries(result.engine_item_results.filter((item) => item.line_id !== null)
-      .filter((item) => item.line_id !== "malformed-nested")
-      .map((item) => [item.line_id, [item.status, item.error_code]])),
+    Object.fromEntries(
+      result.engine_item_results
+        .filter((item) => item.line_id !== null)
+        .filter((item) => item.line_id !== "malformed-nested")
+        .map((item) => [item.line_id, [item.status, item.error_code]]),
+    ),
     {
       "bad-uci": ["illegal", "illegal-uci"],
       "empty-pv": ["malformed-pv", "malformed-pv"],
@@ -463,8 +538,13 @@ test("illegal UCI and malformed or illegal PVs return independent per-item resul
   );
   const anonymous = result.engine_item_results.filter((item) => item.line_id === null);
   assert.ok(anonymous.length >= 2);
-  assert.ok(anonymous.every((item) => item.input_uci === null &&
-    (item.multipv_rank === null || typeof item.multipv_rank === "number")));
+  assert.ok(
+    anonymous.every(
+      (item) =>
+        item.input_uci === null &&
+        (item.multipv_rank === null || typeof item.multipv_rank === "number"),
+    ),
+  );
   const nested = result.engine_item_results.find((item) => item.line_id === "malformed-nested");
   assert.ok(nested);
   assert.equal(nested.observations?.tactical_volatility, null);
@@ -486,7 +566,10 @@ test("stale pivot and stale engine position return structurally without engine e
   const staleEvidence = evidence(input, [line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 10)]);
   const result = await generateReplacementEngineCandidates({
     ...input,
-    provider: provider({ ...staleEvidence, position: { ...staleEvidence.position, position_key: "stale" } }),
+    provider: provider({
+      ...staleEvidence,
+      position: { ...staleEvidence.position, position_key: "stale" },
+    }),
   });
   assert.equal(result.status, "stale");
   assert.equal(result.engine_item_results[0]?.status, "stale");
@@ -495,7 +578,10 @@ test("stale pivot and stale engine position return structurally without engine e
 
   const versionMismatch = await generateReplacementEngineCandidates({
     ...input,
-    provider: provider({ ...staleEvidence, replacement_schema_version: "strategic-fit-replacement:old" }),
+    provider: provider({
+      ...staleEvidence,
+      replacement_schema_version: "strategic-fit-replacement:old",
+    }),
   });
   assert.equal(versionMismatch.status, "rejected");
   assert.equal(versionMismatch.engine_item_results[0]?.error_code, "engine-version-mismatch");
@@ -506,9 +592,18 @@ test("stale pivot and stale engine position return structurally without engine e
     { ...staleEvidence, state: "unknown" },
     { ...staleEvidence, reason: 1n },
     { ...staleEvidence, engine: { ...staleEvidence.engine, configuration: cyclicConfiguration } },
-    { ...staleEvidence, engine: { ...staleEvidence.engine, configuration: { Threads: undefined } } },
-    { ...staleEvidence, engine: { ...staleEvidence.engine, configuration: { Contempt: Number.NaN } } },
-    { ...staleEvidence, engine: { ...staleEvidence.engine, configuration: { [Symbol("hidden")]: 1 } } },
+    {
+      ...staleEvidence,
+      engine: { ...staleEvidence.engine, configuration: { Threads: undefined } },
+    },
+    {
+      ...staleEvidence,
+      engine: { ...staleEvidence.engine, configuration: { Contempt: Number.NaN } },
+    },
+    {
+      ...staleEvidence,
+      engine: { ...staleEvidence.engine, configuration: { [Symbol("hidden")]: 1 } },
+    },
   ] as unknown as ReplacementEngineAnalysisEvidence[]) {
     const malformed = await generateReplacementEngineCandidates({
       ...input,
@@ -523,12 +618,16 @@ test("stale pivot and stale engine position return structurally without engine e
   const pivotPositionId = input.pivot_result.pivot.position_id;
   const highClockGraph = {
     ...input.graph,
-    positions: input.graph.positions.map((position) => position.position_id === pivotPositionId
-      ? { ...position, fen: `${position.fen.split(" ").slice(0, 4).join(" ")} 60 40` }
-      : position),
+    positions: input.graph.positions.map((position) =>
+      position.position_id === pivotPositionId
+        ? { ...position, fen: `${position.fen.split(" ").slice(0, 4).join(" ")} 60 40` }
+        : position,
+    ),
   };
   const highClockInput = { ...input, graph: highClockGraph };
-  const highClockEvidence = evidence(highClockInput, [line("clock", 1, "g1f3", ["g1f3", "b8c6"], 10)]);
+  const highClockEvidence = evidence(highClockInput, [
+    line("clock", 1, "g1f3", ["g1f3", "b8c6"], 10),
+  ]);
   const staleClock = await generateReplacementEngineCandidates({
     ...highClockInput,
     provider: provider({
@@ -554,9 +653,14 @@ test("unavailable, rejected, unverified, and partial engine states preserve Task
     ["existing-repertoire-transposition", "opening-database", "engine-multipv"],
     [{ id: "database-d3", san: "d3", uci: "d2d3" }],
   );
-  const noProvider = await generateReplacementEngineCandidates({ ...databaseInput, provider: null });
+  const noProvider = await generateReplacementEngineCandidates({
+    ...databaseInput,
+    provider: null,
+  });
   assert.equal(noProvider.status, "unavailable");
-  assert.ok(noProvider.candidates.some((candidate) => candidate.source_kinds.includes("opening-database")));
+  assert.ok(
+    noProvider.candidates.some((candidate) => candidate.source_kinds.includes("opening-database")),
+  );
 
   for (const state of ["unavailable", "rejected", "unverified"] as const) {
     const input = setup();
@@ -566,18 +670,29 @@ test("unavailable, rejected, unverified, and partial engine states preserve Task
     });
     assert.equal(result.status, state);
     assert.ok(result.candidates.length > 0);
-    assert.ok(result.candidates.every((candidate) => candidate.objective_quality.state === "unavailable"));
+    assert.ok(
+      result.candidates.every((candidate) => candidate.objective_quality.state === "unavailable"),
+    );
     assert.equal(result.source_results[0]?.evidence_state, state);
   }
 
   const input = setup();
-  const partialEvidence = evidence(input, [
-    line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 12),
-  ], "partial", { reached_depth: 12 });
-  const partial = await generateReplacementEngineCandidates({ ...input, provider: provider(partialEvidence) });
+  const partialEvidence = evidence(
+    input,
+    [line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 12)],
+    "partial",
+    { reached_depth: 12 },
+  );
+  const partial = await generateReplacementEngineCandidates({
+    ...input,
+    provider: provider(partialEvidence),
+  });
   assert.equal(partial.status, "partial");
   assert.equal(partial.engine_item_results[0]?.status, "partial");
-  assert.equal(partial.candidates.find((candidate) => candidate.san === "Nf3")?.objective_quality.state, "partial");
+  assert.equal(
+    partial.candidates.find((candidate) => candidate.san === "Nf3")?.objective_quality.state,
+    "partial",
+  );
 });
 
 test("cancellation signal reaches provider and no extra engine position is scheduled", async () => {
@@ -594,7 +709,11 @@ test("cancellation signal reaches provider and no extra engine position is sched
       throw new DOMException("cancelled", "AbortError");
     },
   };
-  const result = await generateReplacementEngineCandidates({ ...input, provider: cancellingProvider, signal: controller.signal });
+  const result = await generateReplacementEngineCandidates({
+    ...input,
+    provider: cancellingProvider,
+    signal: controller.signal,
+  });
   assert.equal(received, controller.signal);
   assert.equal(calls, 1);
   assert.equal(result.engine_positions_scheduled, 1);
@@ -603,25 +722,42 @@ test("cancellation signal reaches provider and no extra engine position is sched
 });
 
 test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate budget are exact", async () => {
-  const depthInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { engine_depth: 30, engine_multipv: 2 });
+  const depthInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", {
+    engine_depth: 30,
+    engine_multipv: 2,
+  });
   const calls: ReplacementEngineProviderRequest[] = [];
   const depthResult = await generateReplacementEngineCandidates({
     ...depthInput,
-    provider: provider(evidence(depthInput, [
-      line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 30),
-      line("d3", 2, "d2d3", ["d2d3", "b8c6"], 0, null, 30),
-      line("h3-extra", 3, "h2h3", ["h2h3", "b8c6"], -10, null, 30),
-    ]), calls),
+    provider: provider(
+      evidence(depthInput, [
+        line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 30),
+        line("d3", 2, "d2d3", ["d2d3", "b8c6"], 0, null, 30),
+        line("h3-extra", 3, "h2h3", ["h2h3", "b8c6"], -10, null, 30),
+      ]),
+      calls,
+    ),
   });
   assert.equal(calls[0]?.depth, 30);
   assert.equal(calls[0]?.multipv, 2);
-  assert.equal(depthResult.engine_item_results.find((item) => item.line_id === "h3-extra")?.error_code, "multipv-budget-exceeded");
+  assert.equal(
+    depthResult.engine_item_results.find((item) => item.line_id === "h3-extra")?.error_code,
+    "multipv-budget-exceeded",
+  );
 
-  const noBudgetInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { maximum_engine_positions: 0 });
+  const noBudgetInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", {
+    maximum_engine_positions: 0,
+  });
   let noBudgetCalls = 0;
   const noBudget = await generateReplacementEngineCandidates({
     ...noBudgetInput,
-    provider: { identity, async analyse() { noBudgetCalls++; return null; } },
+    provider: {
+      identity,
+      async analyse() {
+        noBudgetCalls++;
+        return null;
+      },
+    },
   });
   assert.equal(noBudgetCalls, 0);
   assert.equal(noBudget.engine_item_results[0]?.error_code, "maximum-engine-positions-exceeded");
@@ -629,20 +765,30 @@ test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate
   const limitedInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { maximum_candidates: 1 });
   const limited = await generateReplacementEngineCandidates({
     ...limitedInput,
-    provider: provider(evidence(limitedInput, [
-      line("d3", 1, "d2d3", ["d2d3", "b8c6"], 20),
-      line("h3", 2, "h2h3", ["h2h3", "b8c6"], 10),
-    ])),
+    provider: provider(
+      evidence(limitedInput, [
+        line("d3", 1, "d2d3", ["d2d3", "b8c6"], 20),
+        line("h3", 2, "h2h3", ["h2h3", "b8c6"], 10),
+      ]),
+    ),
   });
   assert.equal(limited.candidates.length, 1);
   assert.ok(limited.discovered_candidate_count > limited.candidates.length);
   assert.ok(limited.engine_item_results.every((item) => item.status === "budget-excluded"));
 
   let invalidCalls = 0;
-  const invalidMultipvInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { engine_multipv: 11 });
+  const invalidMultipvInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", {
+    engine_multipv: 11,
+  });
   const invalidMultipv = await generateReplacementEngineCandidates({
     ...invalidMultipvInput,
-    provider: { identity, async analyse() { invalidCalls++; return null; } },
+    provider: {
+      identity,
+      async analyse() {
+        invalidCalls++;
+        return null;
+      },
+    },
   });
   assert.equal(invalidMultipv.status, "invalid-request");
   assert.equal(invalidMultipv.error_code, "invalid-engine-multipv");
@@ -650,7 +796,13 @@ test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate
   const invalidToleranceInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", {}, Number.NaN);
   const invalidTolerance = await generateReplacementEngineCandidates({
     ...invalidToleranceInput,
-    provider: { identity, async analyse() { invalidCalls++; return null; } },
+    provider: {
+      identity,
+      async analyse() {
+        invalidCalls++;
+        return null;
+      },
+    },
   });
   assert.equal(invalidTolerance.status, "invalid-request");
   assert.equal(invalidTolerance.error_code, "invalid-evaluation-tolerance");
@@ -659,13 +811,18 @@ test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate
   const duplicateRankInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { engine_multipv: 2 });
   const duplicateRank = await generateReplacementEngineCandidates({
     ...duplicateRankInput,
-    provider: provider(evidence(duplicateRankInput, [
-      line("duplicate-a", 1, "g1f3", ["g1f3", "b8c6"], 20),
-      line("duplicate-b", 1, "d2d3", ["d2d3", "b8c6"], 10),
-    ])),
+    provider: provider(
+      evidence(duplicateRankInput, [
+        line("duplicate-a", 1, "g1f3", ["g1f3", "b8c6"], 20),
+        line("duplicate-b", 1, "d2d3", ["d2d3", "b8c6"], 10),
+      ]),
+    ),
   });
-  assert.ok(duplicateRank.engine_item_results.every((item) =>
-    item.status === "rejected" && item.error_code === "duplicate-multipv-rank"));
+  assert.ok(
+    duplicateRank.engine_item_results.every(
+      (item) => item.status === "rejected" && item.error_code === "duplicate-multipv-rank",
+    ),
+  );
 
   const malformedConfiguration: Record<string, unknown> = {};
   malformedConfiguration.self = malformedConfiguration;
@@ -673,8 +830,14 @@ test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate
   const malformedProvider = await generateReplacementEngineCandidates({
     ...depthInput,
     provider: {
-      identity: { ...identity, configuration: malformedConfiguration } as unknown as ReplacementEngineIdentity,
-      async analyse() { malformedProviderCalls++; return null; },
+      identity: {
+        ...identity,
+        configuration: malformedConfiguration,
+      } as unknown as ReplacementEngineIdentity,
+      async analyse() {
+        malformedProviderCalls++;
+        return null;
+      },
     },
   });
   assert.equal(malformedProvider.status, "rejected");
@@ -684,7 +847,10 @@ test("depth 30, requested MultiPV, engine-position budget, and maximum-candidate
 });
 
 test("cache reuses only compatible semantic position, engine identity, depth, and MultiPV evidence", async () => {
-  const deepInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", { engine_depth: 30, engine_multipv: 4 });
+  const deepInput = setup("white", WHITE_GAMES, "e4 e5 Bc4", "Bc4", {
+    engine_depth: 30,
+    engine_multipv: 4,
+  });
   const deepEvidence = evidence(deepInput, [
     line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 20, null, 30),
     line("d3", 2, "d2d3", ["d2d3", "b8c6"], 10, null, 30),
@@ -694,14 +860,32 @@ test("cache reuses only compatible semantic position, engine identity, depth, an
   let calls = 0;
   const first = await generateReplacementEngineCandidates({
     ...deepInput,
-    provider: { identity, async analyse() { calls++; return deepEvidence; } },
+    provider: {
+      identity,
+      async analyse() {
+        calls++;
+        return deepEvidence;
+      },
+    },
   });
   assert.ok(first.cache_write);
 
-  const shallowInput = { ...deepInput, request: { ...deepInput.request, budget: { ...deepInput.request.budget, engine_depth: 20, engine_multipv: 2 } } };
+  const shallowInput = {
+    ...deepInput,
+    request: {
+      ...deepInput.request,
+      budget: { ...deepInput.request.budget, engine_depth: 20, engine_multipv: 2 },
+    },
+  };
   const hit = await generateReplacementEngineCandidates({
     ...shallowInput,
-    provider: { identity, async analyse() { calls++; return null; } },
+    provider: {
+      identity,
+      async analyse() {
+        calls++;
+        return null;
+      },
+    },
     cache_evidence: [first.cache_write!],
   });
   assert.equal(calls, 1);
@@ -716,11 +900,17 @@ test("cache reuses only compatible semantic position, engine identity, depth, an
   cyclicConfiguration.self = cyclicConfiguration;
   const incompleteCaches: ReplacementEngineAnalysisEvidence[] = [
     { ...first.cache_write!, evidence_id: "cache:partial", state: "partial" },
-    { ...first.cache_write!, evidence_id: "cache:missing-rank", lines: first.cache_write!.lines.slice(0, 1) },
+    {
+      ...first.cache_write!,
+      evidence_id: "cache:missing-rank",
+      lines: first.cache_write!.lines.slice(0, 1),
+    },
     {
       ...first.cache_write!,
       evidence_id: "cache:shallow-line",
-      lines: first.cache_write!.lines.map((item, index) => index === 0 ? { ...item, depth: 12 } : item),
+      lines: first.cache_write!.lines.map((item, index) =>
+        index === 0 ? { ...item, depth: 12 } : item,
+      ),
     },
     { ...first.cache_write!, evidence_id: "cache:malformed-position", position: null },
     {
@@ -733,17 +923,39 @@ test("cache reuses only compatible semantic position, engine identity, depth, an
   for (const cacheEntry of incompleteCaches) {
     const miss = await generateReplacementEngineCandidates({
       ...shallowInput,
-      provider: { identity, async analyse() { unsafeCalls++; return freshShallowEvidence; } },
+      provider: {
+        identity,
+        async analyse() {
+          unsafeCalls++;
+          return freshShallowEvidence;
+        },
+      },
       cache_evidence: [cacheEntry],
     });
     assert.equal(miss.source_results[0]?.cache.status, "miss");
   }
-  assert.equal(unsafeCalls, incompleteCaches.length, "partial, incomplete, or shallow line evidence cannot satisfy cache reuse");
+  assert.equal(
+    unsafeCalls,
+    incompleteCaches.length,
+    "partial, incomplete, or shallow line evidence cannot satisfy cache reuse",
+  );
 
-  const deeperInput = { ...deepInput, request: { ...deepInput.request, budget: { ...deepInput.request.budget, engine_depth: 30, engine_multipv: 5 } } };
+  const deeperInput = {
+    ...deepInput,
+    request: {
+      ...deepInput.request,
+      budget: { ...deepInput.request.budget, engine_depth: 30, engine_multipv: 5 },
+    },
+  };
   await generateReplacementEngineCandidates({
     ...deeperInput,
-    provider: { identity, async analyse() { calls++; return evidence(deeperInput, [], "unavailable"); } },
+    provider: {
+      identity,
+      async analyse() {
+        calls++;
+        return evidence(deeperInput, [], "unavailable");
+      },
+    },
     cache_evidence: [first.cache_write!],
   });
   assert.equal(calls, 2, "narrower cache cannot serve a wider request");
@@ -752,9 +964,11 @@ test("cache reuses only compatible semantic position, engine identity, depth, an
   const pivotPositionId = deepInput.pivot_result.pivot.position_id;
   const highClockGraph = {
     ...deepInput.graph,
-    positions: deepInput.graph.positions.map((position) => position.position_id === pivotPositionId
-      ? { ...position, fen: `${position.fen.split(" ").slice(0, 4).join(" ")} 60 40` }
-      : position),
+    positions: deepInput.graph.positions.map((position) =>
+      position.position_id === pivotPositionId
+        ? { ...position, fen: `${position.fen.split(" ").slice(0, 4).join(" ")} 60 40` }
+        : position,
+    ),
   };
   const highClockInput = { ...deepInput, graph: highClockGraph };
   const highClockEvidence = evidence(highClockInput, [
@@ -771,10 +985,20 @@ test("cache reuses only compatible semantic position, engine identity, depth, an
   let highClockCalls = 0;
   const highClock = await generateReplacementEngineCandidates({
     ...highClockInput,
-    provider: { identity, async analyse() { highClockCalls++; return highClockEvidence; } },
+    provider: {
+      identity,
+      async analyse() {
+        highClockCalls++;
+        return highClockEvidence;
+      },
+    },
     cache_evidence: [differentClockCache],
   });
-  assert.equal(highClockCalls, 1, "different FEN clocks at the 50-move boundary cannot reuse cache evidence");
+  assert.equal(
+    highClockCalls,
+    1,
+    "different FEN clocks at the 50-move boundary cannot reuse cache evidence",
+  );
   assert.equal(highClock.source_results[0]?.cache.status, "miss");
 });
 
@@ -782,11 +1006,13 @@ test("centipawn loss and tolerance use repertoire POV without reversing Black co
   const whiteInput = setup();
   const white = await generateReplacementEngineCandidates({
     ...whiteInput,
-    provider: provider(evidence(whiteInput, [
-      line("best", 1, "d2d3", ["d2d3", "b8c6"], 40),
-      line("within", 2, "h2h3", ["h2h3", "b8c6"], 10),
-      line("outside", 3, "g1f3", ["g1f3", "b8c6"], 0),
-    ])),
+    provider: provider(
+      evidence(whiteInput, [
+        line("best", 1, "d2d3", ["d2d3", "b8c6"], 40),
+        line("within", 2, "h2h3", ["h2h3", "b8c6"], 10),
+        line("outside", 3, "g1f3", ["g1f3", "b8c6"], 0),
+      ]),
+    ),
   });
   const within = white.engine_item_results.find((item) => item.line_id === "within")!;
   const outside = white.engine_item_results.find((item) => item.line_id === "outside")!;
@@ -796,16 +1022,26 @@ test("centipawn loss and tolerance use repertoire POV without reversing Black co
   assert.equal(outside.error_code, "outside-evaluation-tolerance");
   const retainedOutside = white.candidates.find((candidate) => candidate.san === "Nf3");
   assert.ok(retainedOutside);
-  assert.ok(retainedOutside.provenance.some((item) => item.kind === "engine-multipv" && item.status === "rejected"));
-  assert.ok(retainedOutside.provenance.some((item) => item.kind !== "engine-multipv" && item.status === "available"));
+  assert.ok(
+    retainedOutside.provenance.some(
+      (item) => item.kind === "engine-multipv" && item.status === "rejected",
+    ),
+  );
+  assert.ok(
+    retainedOutside.provenance.some(
+      (item) => item.kind !== "engine-multipv" && item.status === "available",
+    ),
+  );
 
   const blackInput = setup("black", BLACK_GAMES, "e4 c5", "c5");
   const black = await generateReplacementEngineCandidates({
     ...blackInput,
-    provider: provider(evidence(blackInput, [
-      line("black-best", 1, "e7e5", ["e7e5", "g1f3"], -50),
-      line("black-second", 2, "d7d5", ["d7d5", "e4d5"], -20),
-    ])),
+    provider: provider(
+      evidence(blackInput, [
+        line("black-best", 1, "e7e5", ["e7e5", "g1f3"], -50),
+        line("black-second", 2, "d7d5", ["d7d5", "e4d5"], -20),
+      ]),
+    ),
   });
   const second = black.engine_item_results.find((item) => item.line_id === "black-second")!;
   assert.equal(second.objective_quality?.white_pov_evaluation_cp, -20);
@@ -819,11 +1055,13 @@ test("mate ordering preserves forced-mate verdicts without centipawn sentinels",
   const input = setup("black", BLACK_GAMES, "e4 c5", "c5");
   const result = await generateReplacementEngineCandidates({
     ...input,
-    provider: provider(evidence(input, [
-      line("mate-for-fast", 2, "e7e5", ["e7e5", "g1f3"], null, -3),
-      line("mate-for-slow", 1, "d7d5", ["d7d5", "e4d5"], null, -7),
-      line("mate-against", 3, "g7g6", ["g7g6", "d2d4"], null, 4),
-    ])),
+    provider: provider(
+      evidence(input, [
+        line("mate-for-fast", 2, "e7e5", ["e7e5", "g1f3"], null, -3),
+        line("mate-for-slow", 1, "d7d5", ["d7d5", "e4d5"], null, -7),
+        line("mate-against", 3, "g7g6", ["g7g6", "d2d4"], null, 4),
+      ]),
+    ),
   });
   const fast = result.engine_item_results.find((item) => item.line_id === "mate-for-fast")!;
   const slow = result.engine_item_results.find((item) => item.line_id === "mate-for-slow")!;
@@ -847,19 +1085,25 @@ test("dynamic quality uses inspectable observations and leaves missing values un
   };
   const result = await generateReplacementEngineCandidates({
     ...input,
-    provider: provider(evidence(input, [
-      line("observed", 1, "g1f3", ["g1f3", "b8c6"], 30),
-      line("missing", 2, "d2d3", ["d2d3", "b8c6"], 10, null, 20, missing),
-    ])),
+    provider: provider(
+      evidence(input, [
+        line("observed", 1, "g1f3", ["g1f3", "b8c6"], 30),
+        line("missing", 2, "d2d3", ["d2d3", "b8c6"], 10, null, 20, missing),
+      ]),
+    ),
   });
-  const observed = result.engine_item_results.find((item) => item.line_id === "observed")!.objective_quality!;
+  const observed = result.engine_item_results.find(
+    (item) => item.line_id === "observed",
+  )!.objective_quality!;
   assert.equal(observed.tactical_volatility, 0.3);
   assert.equal(observed.evaluation_sensitivity_cp, 12);
   assert.equal(observed.forcing_density, 0.5);
   assert.equal(observed.king_safety_risk, 0.2);
   assert.equal(observed.viable_move_width, 2);
   assert.equal(observed.evaluation_uncertainty_cp, 20);
-  const unavailable = result.engine_item_results.find((item) => item.line_id === "missing")!.objective_quality!;
+  const unavailable = result.engine_item_results.find(
+    (item) => item.line_id === "missing",
+  )!.objective_quality!;
   assert.equal(unavailable.tactical_volatility, null);
   assert.equal(unavailable.evaluation_sensitivity_cp, null);
   assert.equal(unavailable.forcing_density, null);
@@ -873,7 +1117,12 @@ test("engine configuration, cache, versions, source states, evidence, and every 
     line("nf3", 1, "g1f3", ["g1f3", "b8c6"], 20),
     line("d3", 2, "d2d3", ["d2d3", "b8c6"], 0),
   ]);
-  const cacheInput = evidence(input, [line("shallow", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 12)], "partial", { evidence_id: "cache:shallow", reached_depth: 12 });
+  const cacheInput = evidence(
+    input,
+    [line("shallow", 1, "g1f3", ["g1f3", "b8c6"], 10, null, 12)],
+    "partial",
+    { evidence_id: "cache:shallow", reached_depth: 12 },
+  );
   const before = {
     graph: JSON.stringify(input.graph),
     pivot: JSON.stringify(input.pivot_result),
@@ -907,8 +1156,11 @@ test("engine configuration, cache, versions, source states, evidence, and every 
   assert.equal(item.requested_depth, input.request.budget.engine_depth);
   assert.equal(item.requested_multipv, input.request.budget.engine_multipv);
   assert.equal(item.cache.status, "miss");
-  assert.ok(result.candidates.some((candidate) =>
-    candidate.provenance.some((candidateSource) => candidateSource.kind !== "engine-multipv") &&
-    candidate.provenance.some((candidateSource) => candidateSource.kind === "engine-multipv")
-  ));
+  assert.ok(
+    result.candidates.some(
+      (candidate) =>
+        candidate.provenance.some((candidateSource) => candidateSource.kind !== "engine-multipv") &&
+        candidate.provenance.some((candidateSource) => candidateSource.kind === "engine-multipv"),
+    ),
+  );
 });

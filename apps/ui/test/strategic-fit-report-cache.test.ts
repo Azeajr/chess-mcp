@@ -25,7 +25,10 @@ const PGN = `
 
 1. c4 e5 2. Nc3 Nf6 3. g3 d5 *`;
 
-const options = (revision: string, extra: Partial<AnalyzeStrategicFitOptions> = {}): AnalyzeStrategicFitOptions => ({
+const options = (
+  revision: string,
+  extra: Partial<AnalyzeStrategicFitOptions> = {},
+): AnalyzeStrategicFitOptions => ({
   repertoireColor: "white",
   repertoireRevision: revision,
   ...extra,
@@ -41,10 +44,13 @@ test("browser report cache reuses one Worker result across pages and sorting", a
   });
 
   const first = await cache.getReport(PGN, options("browser:1", { page: { offset: 0, limit: 1 } }));
-  const second = await cache.getReport(PGN, options("browser:1", {
-    page: { offset: 2, limit: 2 },
-    sort: "opening-scope",
-  }));
+  const second = await cache.getReport(
+    PGN,
+    options("browser:1", {
+      page: { offset: 2, limit: 2 },
+      sort: "opening-scope",
+    }),
+  );
 
   assert.equal(analyses, 1);
   assert.equal(first, second);
@@ -83,9 +89,12 @@ test("browser report cache misses on edits, reused revisions with changed conten
   await cache.getReport(`${PGN}\n`, options("browser:2"));
   await cache.getReport(PGN, options("browser:2", { repertoireColor: "black" }));
   await cache.getReport(PGN, options("browser:2", { weighting: { mode: "manual" } }));
-  await cache.getReport(PGN, options("browser:2", {
-    training: { concept_mastery: [{ concept_id: "concept:center-control", mastery: 0.75 }] },
-  }));
+  await cache.getReport(
+    PGN,
+    options("browser:2", {
+      training: { concept_mastery: [{ concept_id: "concept:center-control", mastery: 0.75 }] },
+    }),
+  );
   assert.equal(analyses, 6);
 });
 

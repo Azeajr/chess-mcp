@@ -146,7 +146,9 @@ export function normalizeExplorerFilters(filters: ExplorerFilters = {}): Normali
   }
 
   if (db === "masters" && (filters.speeds !== undefined || filters.ratings !== undefined)) {
-    throw new Error("explorer_unsupported_masters_population_filter: speeds and ratings apply only to the lichess database");
+    throw new Error(
+      "explorer_unsupported_masters_population_filter: speeds and ratings apply only to the lichess database",
+    );
   }
 
   const speeds = uniqueSorted(filters.speeds ?? DEFAULT_EXPLORER_SPEEDS, (speed) => {
@@ -157,13 +159,17 @@ export function normalizeExplorerFilters(filters: ExplorerFilters = {}): Normali
   if (db === "lichess" && speeds.length === 0) throw new Error("explorer_empty_speeds");
 
   const ratings = uniqueSorted(filters.ratings ?? DEFAULT_EXPLORER_RATINGS, (rating) => {
-    if (!RATING_BUCKETS.has(rating)) throw new Error(`explorer_invalid_rating_bucket: ${String(rating)}`);
+    if (!RATING_BUCKETS.has(rating))
+      throw new Error(`explorer_invalid_rating_bucket: ${String(rating)}`);
     return rating;
   });
   if (db === "lichess" && ratings.length === 0) throw new Error("explorer_empty_ratings");
 
   const recencyPattern = db === "masters" ? MASTERS_YEAR : LICHESS_MONTH;
-  for (const [name, value] of [["since", filters.since], ["until", filters.until]] as const) {
+  for (const [name, value] of [
+    ["since", filters.since],
+    ["until", filters.until],
+  ] as const) {
     if (value !== undefined && !recencyPattern.test(value)) {
       throw new Error(`explorer_invalid_${name}: ${value}`);
     }
@@ -208,9 +214,10 @@ export function explorerRequest(fen: string, filters: ExplorerFilters = {}): Exp
     normalized.since === null ? "" : `&since=${encodeURIComponent(normalized.since)}`,
     normalized.until === null ? "" : `&until=${encodeURIComponent(normalized.until)}`,
   ].join("");
-  const url = normalized.db === "masters"
-    ? `https://explorer.lichess.org/masters?fen=${f}&moves=${normalized.movesLimit}&topGames=0${recency}`
-    : `https://explorer.lichess.org/lichess?variant=standard&fen=${f}&speeds=${normalized.speeds.join(",")}&ratings=${normalized.ratings.join(",")}&moves=${normalized.movesLimit}&topGames=0&recentGames=0${recency}`;
+  const url =
+    normalized.db === "masters"
+      ? `https://explorer.lichess.org/masters?fen=${f}&moves=${normalized.movesLimit}&topGames=0${recency}`
+      : `https://explorer.lichess.org/lichess?variant=standard&fen=${f}&speeds=${normalized.speeds.join(",")}&ratings=${normalized.ratings.join(",")}&moves=${normalized.movesLimit}&topGames=0&recentGames=0${recency}`;
   return { url, cache_key: cacheKey, filter_key: filterKey, filters: normalized };
 }
 
@@ -219,13 +226,21 @@ export function explorerRequest(fen: string, filters: ExplorerFilters = {}): Exp
  * positions — valid data) are cached; failures are not, so a transient blip doesn't poison
  * the process.
  */
-export async function explorerPosition(fen: string, filters: ExplorerFilters = {}, signal?: AbortSignal): Promise<ExplorerPosition | null> {
+export async function explorerPosition(
+  fen: string,
+  filters: ExplorerFilters = {},
+  signal?: AbortSignal,
+): Promise<ExplorerPosition | null> {
   if (signal?.aborted) return null;
   const request = explorerRequest(fen, filters);
   const hit = cache.get(request.cache_key);
   if (hit) return hit;
 
-  const raw = await fetchJson<RawExplorer>(request.url, explorerToken ? { Authorization: `Bearer ${explorerToken}` } : undefined, signal);
+  const raw = await fetchJson<RawExplorer>(
+    request.url,
+    explorerToken ? { Authorization: `Bearer ${explorerToken}` } : undefined,
+    signal,
+  );
   if (!raw || !Array.isArray(raw.moves)) return null;
 
   const total = raw.white + raw.draws + raw.black;
@@ -298,7 +313,11 @@ export type TheoryDepthResult =
  * positions, not tree size. One transient lookup failure is retried once; a second failure aborts
  * (offline aborts on the first query, so a long walk can't half-complete silently).
  */
-export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, lookup: ExplorerLookup): Promise<TheoryDepthResult> {
+export async function theoryDepth(
+  tree: GameTree,
+  opts: TheoryDepthOptions,
+  lookup: ExplorerLookup,
+): Promise<TheoryDepthResult> {
   const minGames = opts.minGames ?? 100;
   const maxPositions = opts.maxPositions ?? 60;
 
@@ -349,7 +368,12 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
   let skipped = 0;
 
   // DFS carrying the position; `lastTheoryGames` = games at the deepest in-theory node so far.
-  const walk = async (node: Node<PgnNodeData>, pos: Chess, sanPath: string[], lastTheoryGames: number): Promise<void> => {
+  const walk = async (
+    node: Node<PgnNodeData>,
+    pos: Chess,
+    sanPath: string[],
+    lastTheoryGames: number,
+  ): Promise<void> => {
     if (offline || cancelled || opts.shouldCancel?.()) {
       cancelled ||= opts.shouldCancel?.() ?? false;
       return;
@@ -368,11 +392,21 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
       const acc: string[][] = [];
       leavesUnder(node, sanPath, acc);
       for (const p of acc)
-        lines.push({ san_path: p, theory_exit_ply: sanPath.length, games_at_exit: res.total_games, games_at_last_theory: lastTheoryGames });
+        lines.push({
+          san_path: p,
+          theory_exit_ply: sanPath.length,
+          games_at_exit: res.total_games,
+          games_at_last_theory: lastTheoryGames,
+        });
       return;
     }
     if (!node.children.length) {
-      lines.push({ san_path: sanPath, theory_exit_ply: null, games_at_exit: null, games_at_last_theory: res.total_games });
+      lines.push({
+        san_path: sanPath,
+        theory_exit_ply: null,
+        games_at_exit: null,
+        games_at_last_theory: res.total_games,
+      });
       return;
     }
     for (const child of node.children) {
@@ -389,7 +423,15 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
   };
 
   await walk(tree.game.moves, Chess.default(), [], 0);
-  if (cancelled) return { positions_queried: queried, truncated: true, lines_skipped: skipped, lines, median_exit_ply: null, cancelled: true };
+  if (cancelled)
+    return {
+      positions_queried: queried,
+      truncated: true,
+      lines_skipped: skipped,
+      lines,
+      median_exit_ply: null,
+      cancelled: true,
+    };
   if (offline) return { error: "explorer_unavailable" };
 
   lines.sort((a, b) => (a.theory_exit_ply ?? Infinity) - (b.theory_exit_ply ?? Infinity));
@@ -398,6 +440,16 @@ export async function theoryDepth(tree: GameTree, opts: TheoryDepthOptions, look
     .filter((p): p is number => p !== null)
     .sort((a, b) => a - b);
   const mid = Math.floor(exits.length / 2);
-  const median = !exits.length ? null : exits.length % 2 ? exits[mid]! : Math.round((exits[mid - 1]! + exits[mid]!) / 2);
-  return { positions_queried: queried, truncated: budgetOut, lines_skipped: skipped, lines, median_exit_ply: median };
+  const median = !exits.length
+    ? null
+    : exits.length % 2
+      ? exits[mid]!
+      : Math.round((exits[mid - 1]! + exits[mid]!) / 2);
+  return {
+    positions_queried: queried,
+    truncated: budgetOut,
+    lines_skipped: skipped,
+    lines,
+    median_exit_ply: median,
+  };
 }

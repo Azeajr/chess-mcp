@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  GameTree,
-  buildRepertoireGraph,
-  type RepertoireGraph,
-} from "../../src/index.ts";
+import { GameTree, buildRepertoireGraph, type RepertoireGraph } from "../../src/index.ts";
 import {
   BLACK_REPERTOIRE_FIXTURE,
   WHITE_TRANSPOSITION_FIXTURE,
@@ -40,7 +36,9 @@ test("cross-branch move orders share canonical positions and retain navigation p
 
   for (const link of graph.transposition_links) {
     assert.equal(link.incoming_move_order_ids.length, 2);
-    const position = graph.positions.find((candidate) => candidate.position_id === link.position_id)!;
+    const position = graph.positions.find(
+      (candidate) => candidate.position_id === link.position_id,
+    )!;
     assert.equal(position.incoming_move_order_ids.length, 2);
     assert.equal(position.source_san_paths.length, 2);
   }
@@ -86,7 +84,10 @@ test("semantic graph and IDs do not depend on PGN game or variation order", () =
 
 1. Nf3 d5 2. d4 Nf6 3. c4 e6 4. Nc3 Be7 *`;
   const first = buildRepertoireGraph(GameTree.fromPgn(`${moveOrderA}\n\n${moveOrderB}`), "white");
-  const reordered = buildRepertoireGraph(GameTree.fromPgn(`${moveOrderB}\n\n${moveOrderA}`), "white");
+  const reordered = buildRepertoireGraph(
+    GameTree.fromPgn(`${moveOrderB}\n\n${moveOrderA}`),
+    "white",
+  );
 
   assert.deepEqual(ids(reordered), ids(first));
   assert.deepEqual(reordered, first);
@@ -102,7 +103,10 @@ test("Black repertoire ownership follows the side making each decision", () => {
   assert.equal(graph.transposition_links.length, 0);
   for (const decision of graph.decisions) {
     assert.equal(decision.owner, decision.mover_color === "black" ? "repertoire" : "opponent");
-    assert.equal(decision.plies.every((ply) => ply % 2 === (decision.owner === "repertoire" ? 0 : 1)), true);
+    assert.equal(
+      decision.plies.every((ply) => ply % 2 === (decision.owner === "repertoire" ? 0 : 1)),
+      true,
+    );
   }
 });
 

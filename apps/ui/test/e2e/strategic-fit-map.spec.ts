@@ -7,13 +7,16 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 const MAP_REPERTOIRE = `[Event "Map: Queen's Gambit"]
 [Result "*"]
@@ -44,11 +47,15 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   await page.getByRole("button", { name: "Open workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   return dialog;
 }
 
-test("the strategic map plots explainable points and selection syncs with the finding queue", async ({ page }) => {
+test("the strategic map plots explainable points and selection syncs with the finding queue", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, MAP_REPERTOIRE, "map-complete.pgn");
   const before = await chess(page, (api) => api.toPgn());
   const map = dialog.locator(".strategic-map");
@@ -64,7 +71,9 @@ test("the strategic map plots explainable points and selection syncs with the fi
   await expect(map.locator("[data-map-axis='x']")).toContainText("strategic distance");
   await expect(map.locator("[data-map-excluded-family='learning-concepts']")).toBeVisible();
 
-  const unresolvedPoint = map.locator("[data-map-point][data-map-resolution='unresolved-finding']").first();
+  const unresolvedPoint = map
+    .locator("[data-map-point][data-map-resolution='unresolved-finding']")
+    .first();
   await expect(unresolvedPoint).toBeVisible();
   await unresolvedPoint.click();
   const detail = map.locator("[data-map-detail]");
@@ -75,17 +84,23 @@ test("the strategic map plots explainable points and selection syncs with the fi
   const openFinding = detail.locator("[data-map-open-finding]").first();
   const findingId = await openFinding.getAttribute("data-map-open-finding");
   await openFinding.click();
-  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute("data-stage", "findings");
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
   const findings = dialog.locator("#strategic-fit-pane-findings");
   await expect(findings.getByRole("status")).toContainText("Findings for the selected map branch");
-  await expect(
-    findings.locator(`[data-finding-id='${findingId}']`),
-  ).toHaveAttribute("data-finding-selected", "true");
+  await expect(findings.locator(`[data-finding-id='${findingId}']`)).toHaveAttribute(
+    "data-finding-selected",
+    "true",
+  );
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("map filters, zoom, and keyboard selection work through the list equivalent", async ({ page }) => {
+test("map filters, zoom, and keyboard selection work through the list equivalent", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, MAP_REPERTOIRE, "map-filters.pgn");
   const map = dialog.locator(".strategic-map");
   const points = map.locator("[data-map-point]");
@@ -112,11 +127,16 @@ test("map filters, zoom, and keyboard selection work through the list equivalent
   await svgPoint.focus();
   await page.keyboard.press("Enter");
   const focusedRoute = await svgPoint.getAttribute("data-map-point");
-  await expect(map.locator(`[data-map-row='${focusedRoute}']`)).toHaveAttribute("data-selected", "true");
+  await expect(map.locator(`[data-map-row='${focusedRoute}']`)).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await expect(map.locator("[data-map-detail]")).toHaveAttribute("data-map-detail", focusedRoute!);
 });
 
-test("a repertoire without comparable evidence shows an explicit unavailable map", async ({ page }) => {
+test("a repertoire without comparable evidence shows an explicit unavailable map", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, "1. e4 *", "map-unavailable.pgn");
   const map = dialog.locator(".strategic-map");
   await expect(map).toHaveAttribute("data-map-state", "unavailable");

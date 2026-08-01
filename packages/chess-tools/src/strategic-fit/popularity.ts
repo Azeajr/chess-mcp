@@ -70,7 +70,11 @@ const compareStrings = (left: string, right: string): number =>
 
 function queryBudget(value: number | undefined): number {
   const budget = value ?? STRATEGIC_POPULARITY_DEFAULT_QUERY_BUDGET;
-  if (!Number.isSafeInteger(budget) || budget < 1 || budget > STRATEGIC_POPULARITY_MAX_QUERY_BUDGET) {
+  if (
+    !Number.isSafeInteger(budget) ||
+    budget < 1 ||
+    budget > STRATEGIC_POPULARITY_MAX_QUERY_BUDGET
+  ) {
     throw new Error(`strategic_popularity_invalid_query_budget: ${String(budget)}`);
   }
   return budget;
@@ -89,11 +93,16 @@ function relevantOpponentDecisions(graph: RepertoireGraph): OpponentDecisionGrou
     .filter(([, decisions]) => decisions.length > 1)
     .map(([positionId, decisions]) => ({
       position: positionById.get(positionId)!,
-      decisions: decisions.sort((left, right) => compareStrings(left.decision_id, right.decision_id)),
+      decisions: decisions.sort((left, right) =>
+        compareStrings(left.decision_id, right.decision_id),
+      ),
       firstPly: Math.min(...decisions.flatMap((decision) => decision.plies)) - 1,
     }))
-    .sort((left, right) => left.firstPly - right.firstPly ||
-      compareStrings(left.position.position_id, right.position.position_id));
+    .sort(
+      (left, right) =>
+        left.firstPly - right.firstPly ||
+        compareStrings(left.position.position_id, right.position.position_id),
+    );
 }
 
 function collectionSource(
@@ -105,11 +114,8 @@ function collectionSource(
   budgetExhausted: boolean,
   failure: "authentication-required" | "offline" | null,
 ): StrategicFitSourceProvenance {
-  const sourceState = state === "complete"
-    ? "available"
-    : state === "unavailable"
-      ? "unavailable"
-      : "partial";
+  const sourceState =
+    state === "complete" ? "available" : state === "unavailable" ? "unavailable" : "partial";
   const population = explorerFilterKey({
     db: filters.db,
     speeds: filters.db === "lichess" ? filters.speeds : undefined,
@@ -122,9 +128,10 @@ function collectionSource(
   if (failure === "authentication-required") {
     reason = `Opening popularity is unavailable because the configured Lichess explorer requires authentication. Population: ${population}.`;
   } else if (failure === "offline") {
-    reason = weighted === 0
-      ? `Opening popularity is unavailable because the authenticated explorer was offline or returned no response. Population: ${population}.`
-      : `${reason} The authenticated explorer became unavailable after ${queried} queries, so remaining positions use explicit equal fallbacks.`;
+    reason =
+      weighted === 0
+        ? `Opening popularity is unavailable because the authenticated explorer was offline or returned no response. Population: ${population}.`
+        : `${reason} The authenticated explorer became unavailable after ${queried} queries, so remaining positions use explicit equal fallbacks.`;
   } else if (budgetExhausted) {
     reason = `${reason} The bounded query budget was exhausted, so remaining positions use explicit equal fallbacks.`;
   } else if (state === "cancelled") {
@@ -150,15 +157,9 @@ function result(
   collected: readonly CollectedDecisionWeight[],
   failure: "authentication-required" | "offline" | null,
 ): StrategicPopularityCollection {
-  const provenance = [collectionSource(
-    state,
-    filters,
-    relevant,
-    queried,
-    weighted,
-    budgetExhausted,
-    failure,
-  )];
+  const provenance = [
+    collectionSource(state, filters, relevant, queried, weighted, budgetExhausted, failure),
+  ];
   const decisionWeights = collected
     .map((weight): StrategicDecisionWeightInput => ({ ...weight, provenance }))
     .sort((left, right) => compareStrings(left.decision_id, right.decision_id));
@@ -200,7 +201,16 @@ export async function collectStrategicPopularityWeights(
 
   if ((options.availability ?? "available") === "authentication-required" || lookup === undefined) {
     options.onProgress?.(0, 0);
-    return result("unavailable", filters, groups.length, 0, 0, false, [], "authentication-required");
+    return result(
+      "unavailable",
+      filters,
+      groups.length,
+      0,
+      0,
+      false,
+      [],
+      "authentication-required",
+    );
   }
   options.onProgress?.(0, planned);
 
@@ -232,7 +242,10 @@ export async function collectStrategicPopularityWeights(
 
     const gamesByUci = new Map(position.moves.map((move) => [move.uci, move.games]));
     for (const decision of group.decisions) {
-      collected.push({ decision_id: decision.decision_id, weight: gamesByUci.get(decision.uci) ?? 0 });
+      collected.push({
+        decision_id: decision.decision_id,
+        weight: gamesByUci.get(decision.uci) ?? 0,
+      });
     }
     weighted++;
   }

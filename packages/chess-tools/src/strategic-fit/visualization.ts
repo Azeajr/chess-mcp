@@ -201,9 +201,13 @@ interface AnchorCandidate {
 
 /** An anchor must carry comparable non-final evidence or every distance to it would be null. */
 function canAnchor(trajectory: StrategicTrajectory | undefined): boolean {
-  return trajectory !== undefined && trajectory.snapshots.some((snapshot) =>
-    snapshot.checkpoint.comparability === "comparable" &&
-    snapshot.checkpoint.kind !== "final-valid-position"
+  return (
+    trajectory !== undefined &&
+    trajectory.snapshots.some(
+      (snapshot) =>
+        snapshot.checkpoint.comparability === "comparable" &&
+        snapshot.checkpoint.kind !== "final-valid-position",
+    )
   );
 }
 
@@ -218,39 +222,45 @@ function anchorCandidates(
   trajectoriesByRoute: ReadonlyMap<string, StrategicTrajectory>,
 ): AnchorCandidate[] {
   const modeCandidates: AnchorCandidate[] = cohorts
-    .flatMap((cohort) => cohort.modes.map((mode) => ({
-      source: "mode-representative" as const,
-      mode_id: mode.mode_id,
-      cohort_id: cohort.cohort_id,
-      route_id: mode.representative_route_id,
-      normalized_weight: mode.normalized_weight,
-      score: mode.normalized_weight * Math.max(cohort.effective_sample_size, 0),
-    })))
+    .flatMap((cohort) =>
+      cohort.modes.map((mode) => ({
+        source: "mode-representative" as const,
+        mode_id: mode.mode_id,
+        cohort_id: cohort.cohort_id,
+        route_id: mode.representative_route_id,
+        normalized_weight: mode.normalized_weight,
+        score: mode.normalized_weight * Math.max(cohort.effective_sample_size, 0),
+      })),
+    )
     .filter((candidate) => canAnchor(trajectoriesByRoute.get(candidate.route_id)))
-    .sort((left, right) =>
-      right.score - left.score || compareStrings(left.mode_id ?? "", right.mode_id ?? "")
+    .sort(
+      (left, right) =>
+        right.score - left.score || compareStrings(left.mode_id ?? "", right.mode_id ?? ""),
     );
   if (modeCandidates.length > 0) return modeCandidates;
   return cohorts
     .filter((cohort) => cohort.state !== "excluded")
-    .flatMap((cohort) => cohort.route_weights.map((weight) => ({
-      source: "heaviest-route" as const,
-      mode_id: null,
-      cohort_id: cohort.cohort_id,
-      route_id: weight.route_id,
-      normalized_weight: weight.normalized_weight,
-      score: weight.normalized_weight * Math.max(cohort.effective_sample_size, 0),
-    })))
+    .flatMap((cohort) =>
+      cohort.route_weights.map((weight) => ({
+        source: "heaviest-route" as const,
+        mode_id: null,
+        cohort_id: cohort.cohort_id,
+        route_id: weight.route_id,
+        normalized_weight: weight.normalized_weight,
+        score: weight.normalized_weight * Math.max(cohort.effective_sample_size, 0),
+      })),
+    )
     .filter((candidate) => canAnchor(trajectoriesByRoute.get(candidate.route_id)))
-    .sort((left, right) =>
-      right.score - left.score || compareStrings(left.route_id, right.route_id)
+    .sort(
+      (left, right) => right.score - left.score || compareStrings(left.route_id, right.route_id),
     );
 }
 
 function axisAnchor(axis: StrategicMapAxisId, candidate: AnchorCandidate): StrategicMapAxisAnchor {
-  const anchorNoun = candidate.source === "mode-representative"
-    ? "strategic mode's representative route"
-    : "weighted repertoire route (no cohort produced a strategic mode)";
+  const anchorNoun =
+    candidate.source === "mode-representative"
+      ? "strategic mode's representative route"
+      : "weighted repertoire route (no cohort produced a strategic mode)";
   return {
     axis,
     source: candidate.source,
@@ -258,23 +268,28 @@ function axisAnchor(axis: StrategicMapAxisId, candidate: AnchorCandidate): Strat
     cohort_id: candidate.cohort_id,
     representative_route_id: candidate.route_id,
     normalized_weight: candidate.normalized_weight,
-    explanation: axis === "x"
-      ? `Horizontal position is the explainable strategic distance from the heaviest ${anchorNoun}.`
-      : `Vertical position is the explainable strategic distance from the second anchor ${anchorNoun}.`,
+    explanation:
+      axis === "x"
+        ? `Horizontal position is the explainable strategic distance from the heaviest ${anchorNoun}.`
+        : `Vertical position is the explainable strategic distance from the second anchor ${anchorNoun}.`,
   };
 }
 
 function excludedFamilies(profile: StrategicFitProfile): StrategicMapExcludedFamily[] {
-  const excluded: StrategicMapExcludedFamily[] = [{
-    family: "learning-concepts",
-    reason: "Route concepts are not retained inside the report, so supported-concept overlap cannot contribute to map coordinates.",
-  }];
+  const excluded: StrategicMapExcludedFamily[] = [
+    {
+      family: "learning-concepts",
+      reason:
+        "Route concepts are not retained inside the report, so supported-concept overlap cannot contribute to map coordinates.",
+    },
+  ];
   for (const family of STRATEGIC_SIGNAL_FAMILIES) {
     if (family === "learning-concepts") continue;
     if ((profile.preferences.feature_family_weights[family] ?? 0) <= 0) {
       excluded.push({
         family,
-        reason: "The active profile assigns this feature family zero weight, so it does not contribute to map coordinates.",
+        reason:
+          "The active profile assigns this feature family zero weight, so it does not contribute to map coordinates.",
       });
     }
   }
@@ -292,9 +307,10 @@ function axisBreakdown(
     matched_checkpoint_keys: distance.matched_checkpoint_keys,
     family_contributions: distance.family_contributions,
     top_feature_contributions: [...distance.feature_contributions]
-      .sort((left, right) =>
-        Math.abs(right.contribution) - Math.abs(left.contribution) ||
-        compareStrings(left.feature_id, right.feature_id)
+      .sort(
+        (left, right) =>
+          Math.abs(right.contribution) - Math.abs(left.contribution) ||
+          compareStrings(left.feature_id, right.feature_id),
       )
       .slice(0, topFeatureCount),
   };
@@ -354,14 +370,16 @@ function transpositionEdges(
       for (const leftSnapshot of left.snapshots) {
         for (const rightSnapshot of right.snapshots) {
           if (leftSnapshot.position_id !== rightSnapshot.position_id) continue;
-          const divergedBefore = left.snapshots.some((earlierLeft) =>
-            earlierLeft.ply < leftSnapshot.ply &&
-            right.snapshots.some((earlierRight) =>
-              earlierRight.ply < rightSnapshot.ply &&
-              earlierRight.position_id !== earlierLeft.position_id &&
-              !left.snapshots.some((probe) => probe.position_id === earlierRight.position_id) &&
-              !right.snapshots.some((probe) => probe.position_id === earlierLeft.position_id)
-            )
+          const divergedBefore = left.snapshots.some(
+            (earlierLeft) =>
+              earlierLeft.ply < leftSnapshot.ply &&
+              right.snapshots.some(
+                (earlierRight) =>
+                  earlierRight.ply < rightSnapshot.ply &&
+                  earlierRight.position_id !== earlierLeft.position_id &&
+                  !left.snapshots.some((probe) => probe.position_id === earlierRight.position_id) &&
+                  !right.snapshots.some((probe) => probe.position_id === earlierLeft.position_id),
+              ),
           );
           if (divergedBefore && !shared.includes(leftSnapshot.position_id)) {
             shared.push(leftSnapshot.position_id);
@@ -378,9 +396,10 @@ function transpositionEdges(
       }
     }
   }
-  return edges.sort((first, second) =>
-    compareStrings(first.from_route_id, second.from_route_id) ||
-    compareStrings(first.to_route_id, second.to_route_id)
+  return edges.sort(
+    (first, second) =>
+      compareStrings(first.from_route_id, second.from_route_id) ||
+      compareStrings(first.to_route_id, second.to_route_id),
   );
 }
 
@@ -395,9 +414,11 @@ export function buildStrategicMapProjection(
     input.trajectories.map((trajectory) => [trajectory.route_id, trajectory]),
   );
   const sortedCohorts = [...input.cohorts].sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id)
+    compareStrings(left.cohort_id, right.cohort_id),
   );
-  const colorIndexByCohort = new Map(sortedCohorts.map((cohort, index) => [cohort.cohort_id, index]));
+  const colorIndexByCohort = new Map(
+    sortedCohorts.map((cohort, index) => [cohort.cohort_id, index]),
+  );
   const distanceOptions = {
     feature_family_weights: input.profile.preferences.feature_family_weights,
   };
@@ -410,7 +431,8 @@ export function buildStrategicMapProjection(
         route_id: routeId,
         cohort_id: cohort.cohort_id,
         reason: "excluded-from-cohort",
-        explanation: "This route is excluded from its cohort's analysis, so it receives no map position.",
+        explanation:
+          "This route is excluded from its cohort's analysis, so it receives no map position.",
       });
     }
   }
@@ -425,12 +447,15 @@ export function buildStrategicMapProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "no-comparable-anchor-evidence",
-          explanation: "No route in this report carries comparable strategic evidence, so no anchor axis and no honest position exist.",
+          explanation:
+            "No route in this report carries comparable strategic evidence, so no anchor axis and no honest position exist.",
         });
       }
     }
-    exclusions.sort((left, right) =>
-      compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+    exclusions.sort(
+      (left, right) =>
+        compareStrings(left.cohort_id, right.cohort_id) ||
+        compareStrings(left.route_id, right.route_id),
     );
     return unavailableProjection(
       input,
@@ -459,9 +484,8 @@ export function buildStrategicMapProjection(
       break;
     }
   }
-  const anchorYTrajectory = secondary === null
-    ? null
-    : trajectoriesByRoute.get(secondary.route_id)!;
+  const anchorYTrajectory =
+    secondary === null ? null : trajectoriesByRoute.get(secondary.route_id)!;
   const anchorYConcepts = anchorYTrajectory === null ? null : emptyConcepts(anchorYTrajectory);
 
   const axes: StrategicMapAxes = {
@@ -487,7 +511,8 @@ export function buildStrategicMapProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "excluded-from-cohort",
-          explanation: "This route's cohort is excluded from analysis, so it receives no map position.",
+          explanation:
+            "This route's cohort is excluded from analysis, so it receives no map position.",
         });
       }
       continue;
@@ -502,38 +527,44 @@ export function buildStrategicMapProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "missing-trajectory",
-          explanation: "The report retains no trajectory for this route, so no coordinates can be calculated.",
+          explanation:
+            "The report retains no trajectory for this route, so no coordinates can be calculated.",
         });
         continue;
       }
       const xDistance = distanceToX(trajectory);
-      const yDistance = anchorYTrajectory === null || anchorYConcepts === null
-        ? null
-        : computeStrategicTrajectoryDistance(
-          trajectory,
-          anchorYTrajectory,
-          emptyConcepts(trajectory),
-          anchorYConcepts,
-          distanceOptions,
-        );
+      const yDistance =
+        anchorYTrajectory === null || anchorYConcepts === null
+          ? null
+          : computeStrategicTrajectoryDistance(
+              trajectory,
+              anchorYTrajectory,
+              emptyConcepts(trajectory),
+              anchorYConcepts,
+              distanceOptions,
+            );
       const xUsable = xDistance.distance !== null;
-      const yUsable = anchorYTrajectory === null || (yDistance !== null && yDistance.distance !== null);
+      const yUsable =
+        anchorYTrajectory === null || (yDistance !== null && yDistance.distance !== null);
       if (!xUsable || !yUsable) {
         exclusions.push({
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "no-comparable-anchor-evidence",
-          explanation: "This route shares no supported comparable evidence with an anchor route, so a position would be fabricated rather than measured.",
+          explanation:
+            "This route shares no supported comparable evidence with an anchor route, so a position would be fabricated rather than measured.",
         });
         continue;
       }
-      const routeFindings = (findingsByRoute.get(routeId) ?? [])
-        .sort((left, right) => compareStrings(left.finding_id, right.finding_id));
-      const resolution: StrategicMapResolutionState = routeFindings.length === 0
-        ? "no-finding"
-        : routeFindings.some((finding) => finding.resolution_state === "unresolved")
-          ? "unresolved-finding"
-          : "resolved-finding";
+      const routeFindings = (findingsByRoute.get(routeId) ?? []).sort((left, right) =>
+        compareStrings(left.finding_id, right.finding_id),
+      );
+      const resolution: StrategicMapResolutionState =
+        routeFindings.length === 0
+          ? "no-finding"
+          : routeFindings.some((finding) => finding.resolution_state === "unresolved")
+            ? "unresolved-finding"
+            : "resolved-finding";
       const breakdowns: StrategicMapAxisBreakdown[] = [
         axisBreakdown("x", xDistance, topFeatureCount),
       ];
@@ -549,20 +580,21 @@ export function buildStrategicMapProjection(
         color_index: colorIndexByCohort.get(cohort.cohort_id)!,
         resolution,
         finding_ids: routeFindings.map((finding) => finding.finding_id),
-        is_anchor: routeId === primary.route_id
-          ? "x"
-          : routeId === secondary?.route_id
-            ? "y"
-            : null,
+        is_anchor:
+          routeId === primary.route_id ? "x" : routeId === secondary?.route_id ? "y" : null,
         axis_breakdowns: breakdowns,
       });
     }
   }
-  points.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  points.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
-  exclusions.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  exclusions.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
 
   const edges = transpositionEdges(points, trajectoriesByRoute);
@@ -591,9 +623,10 @@ export function buildStrategicMapProjection(
     report_id: input.report_id,
     repertoire_revision: input.repertoire_revision,
     state: secondary === null ? "single-axis" : "available",
-    reason: secondary === null
-      ? "Only one usable strategic mode anchor exists, so every point sits on the horizontal axis."
-      : null,
+    reason:
+      secondary === null
+        ? "Only one usable strategic mode anchor exists, so every point sits on the horizontal axis."
+        : null,
     axes,
     points,
     edges,

@@ -40,15 +40,15 @@ const tree = GameTree.fromPgn(PGN);
 const REVISION = 12;
 
 const analyze = (pgn: string, options: AnalyzeStrategicFitOptions): StrategicFitReport =>
-  completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(pgn),
-    strategicFitCompleteAnalysisOptions(options),
-  ));
+  completeStrategicFitReport(
+    analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+  );
 
-const cachedReport = () => analyze(PGN, {
-  repertoireColor: "white",
-  repertoireRevision: `browser:${REVISION}`,
-});
+const cachedReport = () =>
+  analyze(PGN, {
+    repertoireColor: "white",
+    repertoireRevision: `browser:${REVISION}`,
+  });
 
 function dependencies(report: StrategicFitReport | null) {
   return {
@@ -58,7 +58,8 @@ function dependencies(report: StrategicFitReport | null) {
     currentColor: () => "white" as const,
     currentRevision: () => REVISION,
     openings: async () => new Map(),
-    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) => analyze(pgn, options),
+    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) =>
+      analyze(pgn, options),
     strategicFitReportById: (reportId: string) =>
       report && report.report_id === reportId ? report : null,
   };
@@ -80,17 +81,28 @@ test("browser guidance carries the explanation contract in both the preset and p
     const prompt = workflowPrompt(mode);
     assert.match(prompt, /Explanation and exploration contract/);
     for (const level of STRATEGIC_FIT_EXPLANATIONS.levels) {
-      assert.equal(prompt.includes(level.instruction), true, `${mode || "auto"} carries ${level.id}`);
+      assert.equal(
+        prompt.includes(level.instruction),
+        true,
+        `${mode || "auto"} carries ${level.id}`,
+      );
     }
     for (const query of STRATEGIC_FIT_EXPLANATIONS.queries) {
       assert.equal(prompt.includes(query.question), true, `${mode || "auto"} carries ${query.id}`);
-      assert.equal(prompt.includes(query.missing), true, `${mode || "auto"} keeps ${query.id} honest`);
+      assert.equal(
+        prompt.includes(query.missing),
+        true,
+        `${mode || "auto"} keeps ${query.id} honest`,
+      );
     }
     assert.match(prompt, /mean evidence was withheld from you/);
     assert.match(prompt, /Never present one as zero/);
     assert.match(prompt, /carry no legality, engine evaluation, coverage, or popularity evidence/);
     assert.match(prompt, /never selects a command by itself/);
-    assert.match(prompt, /The workspace charts and panels the user is looking at were never given to you/);
+    assert.match(
+      prompt,
+      /The workspace charts and panels the user is looking at were never given to you/,
+    );
   }
 });
 
@@ -106,7 +118,7 @@ test("every grounded question's retrieval runs against a cached report and retur
   let executed = 0;
   for (const query of STRATEGIC_FIT_EXPLANATIONS.queries) {
     if (query.view === null) continue;
-    const result = await executeBrowserCommand(
+    const result = (await executeBrowserCommand(
       "get_strategic_fit_report",
       {
         report_id: report.report_id,
@@ -116,16 +128,18 @@ test("every grounded question's retrieval runs against a cached report and retur
       },
       {},
       deps,
-    ) as { retrieval?: string; error?: string };
+    )) as { retrieval?: string; error?: string };
     assert.equal(result.error, undefined, `${query.id} must not fail: ${result.error ?? ""}`);
     assert.equal(result.retrieval, expected[query.view], `${query.id} returns its declared view`);
     for (const path of query.cite) {
-      const container = result.retrieval === "strategic-fit-finding"
-        ? (result as unknown as StrategicFitConversationFinding).finding
-        : result;
-      const rows = result.retrieval === "strategic-fit-findings"
-        ? (result as unknown as StrategicFitConversationFindings).findings
-        : [];
+      const container =
+        result.retrieval === "strategic-fit-finding"
+          ? (result as unknown as StrategicFitConversationFinding).finding
+          : result;
+      const rows =
+        result.retrieval === "strategic-fit-findings"
+          ? (result as unknown as StrategicFitConversationFindings).findings
+          : [];
       assert.equal(
         resolves(container, path) || (rows.length > 0 && rows.every((row) => resolves(row, path))),
         true,
@@ -142,40 +156,64 @@ test("a fake model's retrieval reaches the command and returns exactly the field
   const findingId = report.findings[0]!.finding_id;
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
-  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://test" } }, configurable: true });
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { origin: "http://test" } },
+    configurable: true,
+  });
   const callArguments = JSON.stringify({
     report_id: report.report_id,
     view: "finding",
     finding_id: findingId,
   });
-  globalThis.fetch = async () => new Response(
-    new ReadableStream({
-      start(controller) {
-        const encoder = new TextEncoder();
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-          choices: [{
-            delta: { tool_calls: [{ index: 0, id: "r1", function: { name: "get_strategic_fit_report", arguments: callArguments } }] },
-            finish_reason: "tool_calls",
-          }],
-        })}\n\n`));
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      },
-    }),
-    { status: 200 },
-  );
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: "r1",
+                          function: { name: "get_strategic_fit_report", arguments: callArguments },
+                        },
+                      ],
+                    },
+                    finish_reason: "tool_calls",
+                  },
+                ],
+              })}\n\n`,
+            ),
+          );
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      }),
+      { status: 200 },
+    );
   t.after(() => {
     globalThis.fetch = originalFetch;
     Object.defineProperty(globalThis, "window", { value: originalWindow, configurable: true });
   });
 
-  const stream = await streamChat({ apiKey: "x", model: "fake", messages: [], tools: [], onText() {} });
+  const stream = await streamChat({
+    apiKey: "x",
+    model: "fake",
+    messages: [],
+    tools: [],
+    onText() {},
+  });
   const call = stream.toolCalls[0]!;
   assert.equal(call.function.name, "get_strategic_fit_report");
 
   const pgnBefore = defaultBrowserCommandDependencies.currentPgn();
   const revisionBefore = defaultBrowserCommandDependencies.currentRevision();
-  const result = await executeBrowserCommand(
+  const result = (await executeBrowserCommand(
     call.function.name,
     JSON.parse(call.function.arguments) as Record<string, unknown>,
     {},
@@ -184,7 +222,7 @@ test("a fake model's retrieval reaches the command and returns exactly the field
       stageEdit: () => assert.fail("retrieving a report must never stage a repertoire edit"),
       proposeLine: () => assert.fail("retrieving a report must never propose a line"),
     },
-  ) as StrategicFitConversationFinding;
+  )) as StrategicFitConversationFinding;
   assert.equal(result.retrieval, "strategic-fit-finding");
   assert.equal(result.report_id, report.report_id);
   assert.equal(result.finding.finding_id, findingId);
@@ -201,12 +239,12 @@ test("a fake model's retrieval reaches the command and returns exactly the field
 test("missing and withheld evidence reaches the model as explicit nulls, states, and disclosures", async () => {
   const report = cachedReport();
   const selected = report.findings[0]!;
-  const summary = await executeBrowserCommand(
+  const summary = (await executeBrowserCommand(
     "get_strategic_fit_report",
     { report_id: report.report_id },
     {},
     dependencies(report),
-  ) as StrategicFitConversationSummary;
+  )) as StrategicFitConversationSummary;
   const unavailable = summary.metrics.filter((metric) => metric.state !== "available");
   assert.ok(unavailable.length > 0, "this report genuinely lacks some metric evidence");
   for (const metric of unavailable) {
@@ -218,21 +256,23 @@ test("missing and withheld evidence reaches the model as explicit nulls, states,
   // A report whose evidence exceeds the transport bounds must arrive flagged, not silently short.
   const stretched: StrategicFitReport = {
     ...report,
-    findings: [{
-      ...selected,
-      explanation: "x".repeat(STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 50),
-      references: {
-        ...selected.references,
-        source_san_paths: [Array.from({ length: 40 }, (_, index) => `move${index}`)],
+    findings: [
+      {
+        ...selected,
+        explanation: "x".repeat(STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 50),
+        references: {
+          ...selected.references,
+          source_san_paths: [Array.from({ length: 40 }, (_, index) => `move${index}`)],
+        },
       },
-    }],
+    ],
   };
-  const finding = await executeBrowserCommand(
+  const finding = (await executeBrowserCommand(
     "get_strategic_fit_report",
     { report_id: report.report_id, view: "finding", finding_id: selected.finding_id },
     {},
     dependencies(stretched),
-  ) as StrategicFitConversationFinding;
+  )) as StrategicFitConversationFinding;
   assert.equal(finding.finding.explanation.truncated, true);
   assert.equal(finding.finding.source_san_paths[0]!.truncated, true);
   assert.equal(

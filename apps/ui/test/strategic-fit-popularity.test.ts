@@ -34,16 +34,33 @@ const explorer = (): ExplorerPosition => ({
   black_pct: 20,
   opening: null,
   moves: [
-    { san: "e5", uci: "e7e5", games: 800, played_pct: 80, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
-    { san: "c5", uci: "c7c5", games: 200, played_pct: 20, white_pct: 50, draw_pct: 30, black_pct: 20, average_rating: null },
+    {
+      san: "e5",
+      uci: "e7e5",
+      games: 800,
+      played_pct: 80,
+      white_pct: 50,
+      draw_pct: 30,
+      black_pct: 20,
+      average_rating: null,
+    },
+    {
+      san: "c5",
+      uci: "c7c5",
+      games: 200,
+      played_pct: 20,
+      white_pct: 50,
+      draw_pct: 30,
+      black_pct: 20,
+      average_rating: null,
+    },
   ],
 });
 
 const report = (pgn: string, options: AnalyzeStrategicFitOptions) =>
-  completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(pgn),
-    strategicFitCompleteAnalysisOptions(options),
-  ));
+  completeStrategicFitReport(
+    analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+  );
 
 function dependencies(overrides: Partial<typeof defaultBrowserCommandDependencies> = {}) {
   return {
@@ -53,7 +70,8 @@ function dependencies(overrides: Partial<typeof defaultBrowserCommandDependencie
     currentColor: () => "white" as const,
     currentRevision: () => 71,
     openings: async () => new Map(),
-    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) => report(pgn, options),
+    strategicFitReport: async (pgn: string, options: AnalyzeStrategicFitOptions) =>
+      report(pgn, options),
     ...overrides,
   };
 }
@@ -62,7 +80,7 @@ test("browser adapter injects configured mocked popularity weights and combined 
   let received: AnalyzeStrategicFitOptions | undefined;
   let receivedFilters: unknown;
   const progress: Array<{ done: number; total?: number; detail?: string }> = [];
-  const result = await executeBrowserCommand(
+  const result = (await executeBrowserCommand(
     "analyze_repertoire_congruence",
     {
       popularity: {
@@ -86,7 +104,7 @@ test("browser adapter injects configured mocked popularity weights and combined 
         return report(pgn, options);
       },
     }),
-  ) as { provenance: { sources: Array<{ kind: string; state: string }> } };
+  )) as { provenance: { sources: Array<{ kind: string; state: string }> } };
 
   assert.deepEqual(receivedFilters, {
     db: "lichess",
@@ -103,7 +121,10 @@ test("browser adapter injects configured mocked popularity weights and combined 
     received?.weighting,
   );
   assert.deepEqual(weights.routes.map((route) => route.normalized_weight).sort(), [0.2, 0.8]);
-  assert.equal(result.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "available");
+  assert.equal(
+    result.provenance.sources.find((source) => source.kind === "opening-explorer")?.state,
+    "available",
+  );
   assert.deepEqual(progress.slice(0, 2), [
     { done: 0, total: 7, detail: "Collecting opening popularity" },
     { done: 1, total: 7, detail: "Collecting opening popularity" },
@@ -112,7 +133,7 @@ test("browser adapter injects configured mocked popularity weights and combined 
 
 test("missing browser authentication and authenticated offline lookup preserve the base report", async () => {
   let unauthenticatedCalls = 0;
-  const unauthenticated = await executeBrowserCommand(
+  const unauthenticated = (await executeBrowserCommand(
     "analyze_repertoire_congruence",
     { popularity: { db: "masters", since: "2020", max_positions: 3 } },
     {},
@@ -123,16 +144,23 @@ test("missing browser authentication and authenticated offline lookup preserve t
         return explorer();
       },
     }),
-  ) as { error?: string; provenance: { sources: Array<{ kind: string; state: string; reason: string }> } };
+  )) as {
+    error?: string;
+    provenance: { sources: Array<{ kind: string; state: string; reason: string }> };
+  };
   assert.equal(unauthenticated.error, undefined);
   assert.equal(unauthenticatedCalls, 0);
-  assert.equal(unauthenticated.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "unavailable");
+  assert.equal(
+    unauthenticated.provenance.sources.find((source) => source.kind === "opening-explorer")?.state,
+    "unavailable",
+  );
   assert.match(
-    unauthenticated.provenance.sources.find((source) => source.kind === "opening-explorer")?.reason ?? "",
+    unauthenticated.provenance.sources.find((source) => source.kind === "opening-explorer")
+      ?.reason ?? "",
     /requires authentication/,
   );
 
-  const offline = await executeBrowserCommand(
+  const offline = (await executeBrowserCommand(
     "analyze_repertoire_congruence",
     { popularity: { db: "lichess", max_positions: 3 } },
     {},
@@ -140,9 +168,15 @@ test("missing browser authentication and authenticated offline lookup preserve t
       hasExplorerToken: () => true,
       explorerPosition: async () => null,
     }),
-  ) as { error?: string; provenance: { sources: Array<{ kind: string; state: string; reason: string }> } };
+  )) as {
+    error?: string;
+    provenance: { sources: Array<{ kind: string; state: string; reason: string }> };
+  };
   assert.equal(offline.error, undefined);
-  assert.equal(offline.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "unavailable");
+  assert.equal(
+    offline.provenance.sources.find((source) => source.kind === "opening-explorer")?.state,
+    "unavailable",
+  );
   assert.match(
     offline.provenance.sources.find((source) => source.kind === "opening-explorer")?.reason ?? "",
     /offline or returned no response/,
@@ -158,11 +192,12 @@ test("browser abort during popularity collection never starts the report Worker"
     { signal: controller.signal },
     dependencies({
       hasExplorerToken: () => true,
-      explorerPosition: async (_fen, _filters, signal) => new Promise<never>((_resolve, reject) => {
-        const abort = () => reject(new DOMException("Cancelled", "AbortError"));
-        if (signal?.aborted) abort();
-        else signal?.addEventListener("abort", abort, { once: true });
-      }),
+      explorerPosition: async (_fen, _filters, signal) =>
+        new Promise<never>((_resolve, reject) => {
+          const abort = () => reject(new DOMException("Cancelled", "AbortError"));
+          if (signal?.aborted) abort();
+          else signal?.addEventListener("abort", abort, { once: true });
+        }),
       strategicFitReport: async (pgn, options) => {
         reports++;
         return report(pgn, options);

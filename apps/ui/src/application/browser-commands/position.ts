@@ -17,7 +17,8 @@ import { commandAnalyse, requestedDepth, throwIfAborted } from "./types";
 
 const explorerAuthRequired = () => ({
   error: "explorer_auth_required",
-  reason: "the Lichess opening explorer requires authentication; ask the user to add a personal API token (no scopes needed, lichess.org/account/oauth/token) in Settings",
+  reason:
+    "the Lichess opening explorer requires authentication; ask the user to add a personal API token (no scopes needed, lichess.org/account/oauth/token) in Settings",
 });
 
 const validateFenCommand: BrowserCommandHandler = (args) => validateFen(args.fen as string);
@@ -29,7 +30,9 @@ export const positionCommands = {
   validate_line: (args, context) => {
     const atFen = (args.fen as string | undefined) || context.currentFen();
     const checked = validateFen(atFen);
-    return checked.valid ? validateLine(checked.fen!, args.moves as string[]) : { error: "invalid_fen", reason: checked.reason };
+    return checked.valid
+      ? validateLine(checked.fen!, args.moves as string[])
+      : { error: "invalid_fen", reason: checked.reason };
   },
   get_legal_moves: (args, context) => {
     const grounded = groundPosition((args.fen as string | undefined) || context.currentFen());
@@ -43,11 +46,14 @@ export const positionCommands = {
     const atFen = (args.fen as string | undefined) || context.currentFen();
     const checked = validateFen(atFen);
     if (!checked.valid) return { error: "invalid_fen", reason: checked.reason };
-    const lines = (args.lines as number | undefined) ?? toolDefault("evaluate_position", "lines", 3);
+    const lines =
+      (args.lines as number | undefined) ?? toolDefault("evaluate_position", "lines", 3);
     const depth = requestedDepth(args, context);
     const result = await context.analyse(checked.fen!, lines, depth, undefined, context.signal);
     throwIfAborted(context.signal);
-    return result ? shapeEvaluation(checked.fen!, result, moveSan) : { error: "engine_unavailable" };
+    return result
+      ? shapeEvaluation(checked.fen!, result, moveSan)
+      : { error: "engine_unavailable" };
   },
   compare_moves: async (args, context) => {
     const atFen = (args.fen as string | undefined) || context.currentFen();
@@ -73,7 +79,10 @@ export const positionCommands = {
     return result ? { fen: atFen, ...result } : { fen: atFen, available: false };
   },
   tablebase_lookup: async (args, context) => {
-    const result = await context.tablebaseLookup((args.fen as string | undefined) || context.currentFen(), context.signal);
+    const result = await context.tablebaseLookup(
+      (args.fen as string | undefined) || context.currentFen(),
+      context.signal,
+    );
     throwIfAborted(context.signal);
     return result ?? { available: false };
   },
@@ -82,7 +91,8 @@ export const positionCommands = {
     const checked = validateFen(atFen);
     if (!checked.valid) return { error: "invalid_fen", reason: checked.reason };
     if (!context.hasExplorerToken()) return explorerAuthRequired();
-    const db = (args.db as ExplorerDb | undefined) ?? toolDefault("position_popularity", "db", "lichess");
+    const db =
+      (args.db as ExplorerDb | undefined) ?? toolDefault("position_popularity", "db", "lichess");
     const filters: ExplorerFilters = {
       db,
       speeds: args.speeds as ExplorerSpeed[] | undefined,

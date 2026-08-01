@@ -16,7 +16,12 @@ test("Strategic Fit V2 types and versions are exported from the package root", (
   assert.equal(STRATEGIC_FIT_SCHEMA_VERSION, "2.0.0");
   assert.equal(STRATEGIC_FIT_ANALYSIS_VERSION, "2.0.0");
   assert.equal(STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION, "1.0.0");
-  assert.deepEqual(STRATEGIC_FIT_PROFILE_MODES, ["familiar-plans", "balanced", "versatile", "custom"]);
+  assert.deepEqual(STRATEGIC_FIT_PROFILE_MODES, [
+    "familiar-plans",
+    "balanced",
+    "versatile",
+    "custom",
+  ]);
 });
 
 test("frozen classification, resolution, and progress enums are exhaustive and unique", () => {
@@ -50,7 +55,11 @@ test("frozen classification, resolution, and progress enums are exhaustive and u
     "ranking-findings",
   ]);
 
-  for (const values of [STRATEGIC_FIT_CLASSIFICATIONS, FINDING_RESOLUTION_STATES, STRATEGIC_FIT_PROGRESS_PHASES]) {
+  for (const values of [
+    STRATEGIC_FIT_CLASSIFICATIONS,
+    FINDING_RESOLUTION_STATES,
+    STRATEGIC_FIT_PROGRESS_PHASES,
+  ]) {
     assert.equal(new Set(values).size, values.length);
   }
 });

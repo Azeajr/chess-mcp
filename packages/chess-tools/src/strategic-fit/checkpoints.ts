@@ -18,11 +18,7 @@ import type {
   StrategicCheckpoint,
   StrategicCheckpointKind,
 } from "./types.js";
-import type {
-  RepertoireGraph,
-  RepertoireGraphPosition,
-  RepertoireGraphRoute,
-} from "./graph.js";
+import type { RepertoireGraph, RepertoireGraphPosition, RepertoireGraphRoute } from "./graph.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export const DEFAULT_STRATEGIC_FIT_CHECKPOINT_PLIES = Object.freeze([12, 16, 20, 24] as const);
@@ -138,14 +134,20 @@ function positionAfterRepertoireMove(ply: number, repertoireColor: "white" | "bl
   return repertoireColor === "white" ? ply % 2 === 1 : ply % 2 === 0;
 }
 
-function firstPlayerCheckpointAtOrAfter(route: RepertoireGraphRoute, eventPly: number): number | null {
+function firstPlayerCheckpointAtOrAfter(
+  route: RepertoireGraphRoute,
+  eventPly: number,
+): number | null {
   for (let ply = Math.max(eventPly, 1); ply < route.position_ids.length; ply++) {
     if (positionAfterRepertoireMove(ply, route.repertoire_color)) return ply;
   }
   return null;
 }
 
-function configuredPlayerCheckpoint(route: RepertoireGraphRoute, requestedPly: number): number | null {
+function configuredPlayerCheckpoint(
+  route: RepertoireGraphRoute,
+  requestedPly: number,
+): number | null {
   const finalPly = route.position_ids.length - 1;
   if (finalPly < requestedPly) return null;
   for (let ply = requestedPly; ply >= 1; ply--) {
@@ -168,7 +170,9 @@ function selected(
   const moveOrderId = route.move_order_ids[selectedPly - 1];
   const decisionId = route.decision_ids[selectedPly - 1];
   if (!positionId || !moveOrderId || !decisionId) {
-    throw new Error(`strategic_fit_checkpoints_invalid_route: ${route.route_id} at ply ${selectedPly}`);
+    throw new Error(
+      `strategic_fit_checkpoints_invalid_route: ${route.route_id} at ply ${selectedPly}`,
+    );
   }
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -213,12 +217,17 @@ function chessAt(context: RouteContext, ply: number): Chess {
   const positionId = context.route.position_ids[ply];
   const fen = positionId ? context.positions.get(positionId)?.fen : undefined;
   if (!fen) {
-    throw new Error(`strategic_fit_checkpoints_missing_position: ${context.route.route_id} at ply ${ply}`);
+    throw new Error(
+      `strategic_fit_checkpoints_missing_position: ${context.route.route_id} at ply ${ply}`,
+    );
   }
   return Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
 }
 
-function moveFacts(context: RouteContext, ply: number): {
+function moveFacts(
+  context: RouteContext,
+  ply: number,
+): {
   readonly movingPawn: boolean;
   readonly capturedPawn: boolean;
   readonly capture: boolean;
@@ -238,11 +247,13 @@ function moveFacts(context: RouteContext, ply: number): {
   const movingPiece = before.board.get(from);
   const destinationPiece = before.board.get(to);
   const movingPawn = movingPiece?.role === "pawn";
-  const enPassantCapture = movingPawn && squareFile(from) !== squareFile(to) && destinationPiece === undefined;
+  const enPassantCapture =
+    movingPawn && squareFile(from) !== squareFile(to) && destinationPiece === undefined;
   const capture = destinationPiece !== undefined || enPassantCapture;
   const capturedPawn =
     destinationPiece?.role === "pawn" ||
-    (enPassantCapture && before.board.get(to + (movingPiece!.color === "white" ? -8 : 8))?.role === "pawn");
+    (enPassantCapture &&
+      before.board.get(to + (movingPiece!.color === "white" ? -8 : 8))?.role === "pawn");
   const centralPawnCapture =
     capture &&
     (movingPawn || capturedPawn) &&
@@ -282,7 +293,12 @@ function firstIrreversibleTransformation(context: RouteContext): EventObservatio
   for (let ply = 1; ply < context.route.position_ids.length; ply++) {
     const facts = moveFacts(context, ply);
     const centerLocked = facts.beforeCenter === "tense" && facts.afterCenter === "locked";
-    if ((facts.movingPawn && facts.capture) || facts.capturedPawn || facts.promotion || centerLocked) {
+    if (
+      (facts.movingPawn && facts.capture) ||
+      facts.capturedPawn ||
+      facts.promotion ||
+      centerLocked
+    ) {
       const san = context.route.san_moves[ply - 1]!;
       return {
         ply,
@@ -362,7 +378,10 @@ function selectEvent(
   return selected(context, kind, selectedPly, event.ply, event.reason, "comparable");
 }
 
-function selectConfiguredPly(context: RouteContext, requestedPly: number): StrategicCheckpointMilestone {
+function selectConfiguredPly(
+  context: RouteContext,
+  requestedPly: number,
+): StrategicCheckpointMilestone {
   const selectedPly = configuredPlayerCheckpoint(context.route, requestedPly);
   if (selectedPly === null) {
     return missing(

@@ -60,13 +60,19 @@ export function createStrategicFitIntentCommentState(
     },
 
     decide(suggestionId, disposition) {
-      const suggestion = currentSuggestions(boundary).find((entry) => entry.suggestion_id === suggestionId);
+      const suggestion = currentSuggestions(boundary).find(
+        (entry) => entry.suggestion_id === suggestionId,
+      );
       if (!suggestion) throw new Error("strategic_fit_intent_suggestion_stale");
       const metadata = boundary.currentMetadata();
-      const existing = metadata.comment_intents.find((entry) => entry.suggestion_id === suggestionId);
+      const existing = metadata.comment_intents.find(
+        (entry) => entry.suggestion_id === suggestionId,
+      );
       const timestamp = boundary.now();
       const decision: StrategicFitCommentIntentDecision = {
-        decision_id: existing?.decision_id ?? `comment-intent-decision:${suggestionId.slice("comment-intent:".length)}`,
+        decision_id:
+          existing?.decision_id ??
+          `comment-intent-decision:${suggestionId.slice("comment-intent:".length)}`,
         suggestion_id: suggestion.suggestion_id,
         disposition,
         kind: suggestion.kind,
@@ -85,16 +91,19 @@ export function createStrategicFitIntentCommentState(
         },
         created_at: existing?.created_at ?? timestamp,
         updated_at: timestamp,
-        provenance: [{
-          source_id: `strategic-fit:pgn-comment:${suggestion.suggestion_id}`,
-          kind: "user-profile",
-          state: "available",
-          version: "1",
-          snapshot: suggestion.suggestion_id,
-          reason: disposition === "confirmed"
-            ? "The user confirmed this exact PGN comment suggestion."
-            : "The user rejected this exact PGN comment suggestion.",
-        }],
+        provenance: [
+          {
+            source_id: `strategic-fit:pgn-comment:${suggestion.suggestion_id}`,
+            kind: "user-profile",
+            state: "available",
+            version: "1",
+            snapshot: suggestion.suggestion_id,
+            reason:
+              disposition === "confirmed"
+                ? "The user confirmed this exact PGN comment suggestion."
+                : "The user rejected this exact PGN comment suggestion.",
+          },
+        ],
       };
       const result = boundary.replaceMetadata({
         ...metadata,
@@ -103,7 +112,9 @@ export function createStrategicFitIntentCommentState(
           decision,
         ],
       });
-      const saved = result.metadata.comment_intents.find((entry) => entry.suggestion_id === suggestionId);
+      const saved = result.metadata.comment_intents.find(
+        (entry) => entry.suggestion_id === suggestionId,
+      );
       if (!saved) throw new Error("strategic_fit_intent_decision_not_persisted");
       return saved;
     },

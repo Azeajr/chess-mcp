@@ -91,7 +91,11 @@ export interface GameWalk {
  * the prep should learn from. `in_book_plies` stays the consecutive-from-the-start count.
  * `repColor` is the side the repertoire is for.
  */
-export function walkGameVsRepertoire(map: RepertoireMoveMap, repColor: Color, pgn: string): GameWalk {
+export function walkGameVsRepertoire(
+  map: RepertoireMoveMap,
+  repColor: Color,
+  pgn: string,
+): GameWalk {
   const moves = mainline(pgn);
   let inBook = 0;
   let stillInBook = true;
@@ -105,7 +109,13 @@ export function walkGameVsRepertoire(map: RepertoireMoveMap, repColor: Color, pg
     }
     const covered = entry.sans.includes(m.san);
     if (!covered) {
-      if (m.color === repColor) player_deviations.push({ ply: m.ply, fen: m.fenBefore, prescribed: entry.sans, played: m.san });
+      if (m.color === repColor)
+        player_deviations.push({
+          ply: m.ply,
+          fen: m.fenBefore,
+          prescribed: entry.sans,
+          played: m.san,
+        });
       else uncovered_opponents.push({ ply: m.ply, fen: m.fenBefore, played: m.san });
       stillInBook = false;
     }
@@ -143,7 +153,16 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
   for (const r of records) {
     let g = groups.get(r.group_key);
     if (!g) {
-      g = { key: r.group_key, name: r.group_name, games: 0, cplSum: 0, wins: 0, draws: 0, losses: 0, bc: new Map() };
+      g = {
+        key: r.group_key,
+        name: r.group_name,
+        games: 0,
+        cplSum: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        bc: new Map(),
+      };
       groups.set(r.group_key, g);
     }
     g.games++;
@@ -156,9 +175,24 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
 
   const out = [...groups.values()]
     .map((g) => {
-      const top_blunders = [...g.bc.entries()].sort((a, b) => b[1] - a[1]).map(([move, frequency]) => ({ move, frequency }));
-      const base = { key: g.key, name: g.name, games: g.games, avg_cpl: Math.round((g.cplSum / g.games) * 10) / 10, top_blunders };
-      return decided ? { ...base, win_rate: g.wins / g.games, draw_rate: g.draws / g.games, loss_rate: g.losses / g.games } : base;
+      const top_blunders = [...g.bc.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([move, frequency]) => ({ move, frequency }));
+      const base = {
+        key: g.key,
+        name: g.name,
+        games: g.games,
+        avg_cpl: Math.round((g.cplSum / g.games) * 10) / 10,
+        top_blunders,
+      };
+      return decided
+        ? {
+            ...base,
+            win_rate: g.wins / g.games,
+            draw_rate: g.draws / g.games,
+            loss_rate: g.losses / g.games,
+          }
+        : base;
     })
     .sort((a, b) => b.games - a.games);
 
@@ -168,7 +202,9 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
   let worst_group = null;
   let best_group = null;
   if (decided) {
-    const byWin = ([...out] as Array<{ key: string; name: string; games: number; win_rate: number }>)
+    const byWin = (
+      [...out] as Array<{ key: string; name: string; games: number; win_rate: number }>
+    )
       .filter((g) => g.games >= MIN_HEADLINE_GAMES)
       .sort((a, b) => a.win_rate - b.win_rate);
     const lo = byWin[0];

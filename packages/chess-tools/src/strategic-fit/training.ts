@@ -6,17 +6,9 @@
  * project mastery for targets that still exist in the current repertoire graph.
  */
 import type { RepertoireGraph } from "./graph.js";
-import type {
-  StrategicFitSourceProvenance,
-} from "./types.js";
-import {
-  STRATEGIC_FIT_SOURCE_KINDS,
-  STRATEGIC_FIT_SOURCE_STATES,
-} from "./types.js";
-import type {
-  StrategicConceptMasteryInput,
-  StrategicTrainingMetricEvidence,
-} from "./metrics.js";
+import type { StrategicFitSourceProvenance } from "./types.js";
+import { STRATEGIC_FIT_SOURCE_KINDS, STRATEGIC_FIT_SOURCE_STATES } from "./types.js";
+import type { StrategicConceptMasteryInput, StrategicTrainingMetricEvidence } from "./metrics.js";
 
 export const STRATEGIC_FIT_TRAINING_PERFORMANCE_KIND =
   "chess-mcp/strategic-fit-training-performance";
@@ -177,9 +169,7 @@ function unitInterval(value: unknown): number | null {
 
 function responseTime(value: unknown): number | null | undefined {
   if (value === null) return null;
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
-    ? value
-    : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
 function error(
@@ -198,18 +188,25 @@ function provenance(
   const result: StrategicFitSourceProvenance[] = [];
   for (let index = 0; index < value.length; index++) {
     const entry = value[index];
-    if (!isRecord(entry)) return error("invalid-field", `${path}[${index}]`, "Expected a provenance object.");
+    if (!isRecord(entry))
+      return error("invalid-field", `${path}[${index}]`, "Expected a provenance object.");
     const allowed = new Set(["source_id", "kind", "state", "version", "snapshot", "reason"]);
     const unknown = Object.keys(entry).find((key) => !allowed.has(key));
     const sourceId = nonEmpty(entry.source_id);
     if (
-      unknown !== undefined || sourceId === null || !SOURCE_KINDS.has(String(entry.kind)) ||
+      unknown !== undefined ||
+      sourceId === null ||
+      !SOURCE_KINDS.has(String(entry.kind)) ||
       !SOURCE_STATES.has(String(entry.state)) ||
       !(entry.version === null || typeof entry.version === "string") ||
       !(entry.snapshot === null || typeof entry.snapshot === "string") ||
       !(entry.reason === null || typeof entry.reason === "string")
     ) {
-      return error("invalid-field", `${path}[${index}]`, "Provenance fields do not match the current contract.");
+      return error(
+        "invalid-field",
+        `${path}[${index}]`,
+        "Provenance fields do not match the current contract.",
+      );
     }
     result.push({
       source_id: sourceId,
@@ -220,20 +217,23 @@ function provenance(
       reason: entry.reason as string | null,
     });
   }
-  return result.sort((left, right) =>
-    compareStrings(left.source_id, right.source_id) ||
-    compareStrings(left.snapshot ?? "", right.snapshot ?? "")
+  return result.sort(
+    (left, right) =>
+      compareStrings(left.source_id, right.source_id) ||
+      compareStrings(left.snapshot ?? "", right.snapshot ?? ""),
   );
 }
 
-const DEFAULT_PROVENANCE: readonly StrategicFitSourceProvenance[] = Object.freeze([{
-  source_id: "strategic-fit:training-performance",
-  kind: "training-metadata",
-  state: "available",
-  version: STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
-  snapshot: null,
-  reason: "Deterministic training-performance evidence recorded by the user or trainer.",
-}]);
+const DEFAULT_PROVENANCE: readonly StrategicFitSourceProvenance[] = Object.freeze([
+  {
+    source_id: "strategic-fit:training-performance",
+    kind: "training-metadata",
+    state: "available",
+    version: STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
+    snapshot: null,
+    reason: "Deterministic training-performance evidence recorded by the user or trainer.",
+  },
+]);
 
 export function createStrategicFitTrainingPerformanceData(
   documentId: string,
@@ -261,17 +261,26 @@ export function parseStrategicFitTrainingPerformance(
       return error("invalid-json", "$", "Training performance is not valid JSON.");
     }
   }
-  if (!isRecord(value)) return error("invalid-root", "$", "Training performance must be an object.");
+  if (!isRecord(value))
+    return error("invalid-root", "$", "Training performance must be an object.");
   const allowedRoot = new Set([
-    "training_performance_kind", "training_performance_version", "document_id",
-    "targets", "attempts", "provenance",
+    "training_performance_kind",
+    "training_performance_version",
+    "document_id",
+    "targets",
+    "attempts",
+    "provenance",
   ]);
   const unknownRoot = Object.keys(value).find((key) => !allowedRoot.has(key));
   if (unknownRoot !== undefined) {
     return error("invalid-field", `$.${unknownRoot}`, "Unknown training-performance field.");
   }
   if (value.training_performance_kind !== STRATEGIC_FIT_TRAINING_PERFORMANCE_KIND) {
-    return error("invalid-field", "$.training_performance_kind", "Training-performance kind is incompatible.");
+    return error(
+      "invalid-field",
+      "$.training_performance_kind",
+      "Training-performance kind is incompatible.",
+    );
   }
   if (value.training_performance_version !== STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION) {
     return error(
@@ -281,9 +290,12 @@ export function parseStrategicFitTrainingPerformance(
     );
   }
   const documentId = nonEmpty(value.document_id);
-  if (documentId === null) return error("invalid-field", "$.document_id", "Document ID is required.");
-  if (!Array.isArray(value.targets)) return error("invalid-field", "$.targets", "Expected a target array.");
-  if (!Array.isArray(value.attempts)) return error("invalid-field", "$.attempts", "Expected an attempt array.");
+  if (documentId === null)
+    return error("invalid-field", "$.document_id", "Document ID is required.");
+  if (!Array.isArray(value.targets))
+    return error("invalid-field", "$.targets", "Expected a target array.");
+  if (!Array.isArray(value.attempts))
+    return error("invalid-field", "$.attempts", "Expected an attempt array.");
   const rootProvenance = provenance(value.provenance, "$.provenance");
   if ("error" in rootProvenance) return rootProvenance;
 
@@ -294,8 +306,13 @@ export function parseStrategicFitTrainingPerformance(
     const path = `$.targets[${index}]`;
     if (!isRecord(entry)) return error("invalid-field", path, "Expected a training target object.");
     const allowed = new Set([
-      "target_id", "training_id", "position_id", "decision_id", "concept_ids",
-      "created_at", "provenance",
+      "target_id",
+      "training_id",
+      "position_id",
+      "decision_id",
+      "concept_ids",
+      "created_at",
+      "provenance",
     ]);
     const unknown = Object.keys(entry).find((key) => !allowed.has(key));
     const targetId = nonEmpty(entry.target_id);
@@ -304,16 +321,31 @@ export function parseStrategicFitTrainingPerformance(
     const decisionId = nonEmpty(entry.decision_id);
     const createdAt = timestamp(entry.created_at);
     if (
-      unknown !== undefined || targetId === null || trainingId === null || positionId === null ||
-      decisionId === null || createdAt === null || !Array.isArray(entry.concept_ids) ||
+      unknown !== undefined ||
+      targetId === null ||
+      trainingId === null ||
+      positionId === null ||
+      decisionId === null ||
+      createdAt === null ||
+      !Array.isArray(entry.concept_ids) ||
       entry.concept_ids.some((concept) => nonEmpty(concept) === null)
-    ) return error("invalid-field", path, "Training target fields do not match the current contract.");
-    if (targetIds.has(targetId)) return error("duplicate-id", `${path}.target_id`, `Duplicate target ID: ${targetId}`);
+    )
+      return error(
+        "invalid-field",
+        path,
+        "Training target fields do not match the current contract.",
+      );
+    if (targetIds.has(targetId))
+      return error("duplicate-id", `${path}.target_id`, `Duplicate target ID: ${targetId}`);
     const targetProvenance = provenance(entry.provenance, `${path}.provenance`);
     if ("error" in targetProvenance) return targetProvenance;
     const expectedTargetId = `strategic-fit-training-target:${stableHash(`${trainingId}\u001f${positionId}\u001f${decisionId}`)}`;
     if (targetId !== expectedTargetId) {
-      return error("invalid-field", `${path}.target_id`, "Training target ID does not match its semantic identity.");
+      return error(
+        "invalid-field",
+        `${path}.target_id`,
+        "Training target ID does not match its semantic identity.",
+      );
     }
     targetIds.add(targetId);
     targets.push({
@@ -332,10 +364,19 @@ export function parseStrategicFitTrainingPerformance(
   for (let index = 0; index < value.attempts.length; index++) {
     const entry = value.attempts[index];
     const path = `$.attempts[${index}]`;
-    if (!isRecord(entry)) return error("invalid-field", path, "Expected a training attempt object.");
+    if (!isRecord(entry))
+      return error("invalid-field", path, "Expected a training attempt object.");
     const allowed = new Set([
-      "attempt_id", "target_id", "attempted_at", "recalled", "response_time_ms", "lapse",
-      "confidence", "scheduled_at", "next_due_at", "provenance",
+      "attempt_id",
+      "target_id",
+      "attempted_at",
+      "recalled",
+      "response_time_ms",
+      "lapse",
+      "confidence",
+      "scheduled_at",
+      "next_due_at",
+      "provenance",
     ]);
     const unknown = Object.keys(entry).find((key) => !allowed.has(key));
     const attemptId = nonEmpty(entry.attempt_id);
@@ -346,28 +387,46 @@ export function parseStrategicFitTrainingPerformance(
     const scheduledAt = entry.scheduled_at === null ? null : timestamp(entry.scheduled_at);
     const nextDueAt = entry.next_due_at === null ? null : timestamp(entry.next_due_at);
     if (
-      unknown !== undefined || attemptId === null || targetId === null || attemptedAt === null ||
-      typeof entry.recalled !== "boolean" || measuredResponse === undefined ||
-      typeof entry.lapse !== "boolean" || confidence === null && entry.confidence !== null ||
-      scheduledAt === null && entry.scheduled_at !== null ||
-      nextDueAt === null && entry.next_due_at !== null
-    ) return error("invalid-field", path, "Training attempt fields do not match the current contract.");
-    if (!targetIds.has(targetId)) return error("unknown-target", `${path}.target_id`, `Unknown target ID: ${targetId}`);
-    if (attemptIds.has(attemptId)) return error("duplicate-id", `${path}.attempt_id`, `Duplicate attempt ID: ${attemptId}`);
+      unknown !== undefined ||
+      attemptId === null ||
+      targetId === null ||
+      attemptedAt === null ||
+      typeof entry.recalled !== "boolean" ||
+      measuredResponse === undefined ||
+      typeof entry.lapse !== "boolean" ||
+      (confidence === null && entry.confidence !== null) ||
+      (scheduledAt === null && entry.scheduled_at !== null) ||
+      (nextDueAt === null && entry.next_due_at !== null)
+    )
+      return error(
+        "invalid-field",
+        path,
+        "Training attempt fields do not match the current contract.",
+      );
+    if (!targetIds.has(targetId))
+      return error("unknown-target", `${path}.target_id`, `Unknown target ID: ${targetId}`);
+    if (attemptIds.has(attemptId))
+      return error("duplicate-id", `${path}.attempt_id`, `Duplicate attempt ID: ${attemptId}`);
     const attemptProvenance = provenance(entry.provenance, `${path}.provenance`);
     if ("error" in attemptProvenance) return attemptProvenance;
-    const expectedAttemptId = `strategic-fit-training-attempt:${stableHash(JSON.stringify({
-      target_id: targetId,
-      attempted_at: attemptedAt,
-      recalled: entry.recalled,
-      response_time_ms: measuredResponse,
-      lapse: entry.lapse,
-      confidence,
-      scheduled_at: scheduledAt,
-      next_due_at: nextDueAt,
-    }))}`;
+    const expectedAttemptId = `strategic-fit-training-attempt:${stableHash(
+      JSON.stringify({
+        target_id: targetId,
+        attempted_at: attemptedAt,
+        recalled: entry.recalled,
+        response_time_ms: measuredResponse,
+        lapse: entry.lapse,
+        confidence,
+        scheduled_at: scheduledAt,
+        next_due_at: nextDueAt,
+      }),
+    )}`;
     if (attemptId !== expectedAttemptId) {
-      return error("invalid-field", `${path}.attempt_id`, "Training attempt ID does not match its recorded evidence.");
+      return error(
+        "invalid-field",
+        `${path}.attempt_id`,
+        "Training attempt ID does not match its recorded evidence.",
+      );
     }
     attemptIds.add(attemptId);
     attempts.push({
@@ -384,8 +443,10 @@ export function parseStrategicFitTrainingPerformance(
     });
   }
   targets.sort((left, right) => compareStrings(left.target_id, right.target_id));
-  attempts.sort((left, right) =>
-    compareStrings(left.attempted_at, right.attempted_at) || compareStrings(left.attempt_id, right.attempt_id)
+  attempts.sort(
+    (left, right) =>
+      compareStrings(left.attempted_at, right.attempted_at) ||
+      compareStrings(left.attempt_id, right.attempt_id),
   );
   return {
     ok: true,
@@ -457,21 +518,26 @@ export function recordStrategicFitTrainingAttempt(
   }
   const attemptedAt = timestamp(input.attempted_at);
   const measuredResponse = responseTime(input.response_time_ms ?? null);
-  const confidence = input.confidence === undefined || input.confidence === null
-    ? null
-    : unitInterval(input.confidence);
-  const scheduledAt = input.scheduled_at === undefined || input.scheduled_at === null
-    ? null
-    : timestamp(input.scheduled_at);
-  const nextDueAt = input.next_due_at === undefined || input.next_due_at === null
-    ? null
-    : timestamp(input.next_due_at);
+  const confidence =
+    input.confidence === undefined || input.confidence === null
+      ? null
+      : unitInterval(input.confidence);
+  const scheduledAt =
+    input.scheduled_at === undefined || input.scheduled_at === null
+      ? null
+      : timestamp(input.scheduled_at);
+  const nextDueAt =
+    input.next_due_at === undefined || input.next_due_at === null
+      ? null
+      : timestamp(input.next_due_at);
   if (
-    attemptedAt === null || measuredResponse === undefined ||
-    input.confidence !== undefined && input.confidence !== null && confidence === null ||
-    input.scheduled_at !== undefined && input.scheduled_at !== null && scheduledAt === null ||
-    input.next_due_at !== undefined && input.next_due_at !== null && nextDueAt === null
-  ) throw new Error("strategic_fit_training_invalid_attempt");
+    attemptedAt === null ||
+    measuredResponse === undefined ||
+    (input.confidence !== undefined && input.confidence !== null && confidence === null) ||
+    (input.scheduled_at !== undefined && input.scheduled_at !== null && scheduledAt === null) ||
+    (input.next_due_at !== undefined && input.next_due_at !== null && nextDueAt === null)
+  )
+    throw new Error("strategic_fit_training_invalid_attempt");
   const identity = JSON.stringify({
     target_id: input.target_id,
     attempted_at: attemptedAt,
@@ -486,18 +552,21 @@ export function recordStrategicFitTrainingAttempt(
   if (data.attempts.some((attempt) => attempt.attempt_id === attemptId)) return data;
   return canonical({
     ...data,
-    attempts: [...data.attempts, {
-      attempt_id: attemptId,
-      target_id: input.target_id,
-      attempted_at: attemptedAt,
-      recalled: input.recalled,
-      response_time_ms: measuredResponse,
-      lapse: input.lapse ?? false,
-      confidence,
-      scheduled_at: scheduledAt,
-      next_due_at: nextDueAt,
-      provenance: input.provenance ?? DEFAULT_PROVENANCE,
-    }],
+    attempts: [
+      ...data.attempts,
+      {
+        attempt_id: attemptId,
+        target_id: input.target_id,
+        attempted_at: attemptedAt,
+        recalled: input.recalled,
+        response_time_ms: measuredResponse,
+        lapse: input.lapse ?? false,
+        confidence,
+        scheduled_at: scheduledAt,
+        next_due_at: nextDueAt,
+        provenance: input.provenance ?? DEFAULT_PROVENANCE,
+      },
+    ],
   });
 }
 
@@ -509,8 +578,10 @@ function mergedProvenance(
     const key = JSON.stringify(value);
     entries.set(key, value);
   }
-  return [...entries.values()].sort((left, right) =>
-    compareStrings(left.source_id, right.source_id) || compareStrings(left.snapshot ?? "", right.snapshot ?? "")
+  return [...entries.values()].sort(
+    (left, right) =>
+      compareStrings(left.source_id, right.source_id) ||
+      compareStrings(left.snapshot ?? "", right.snapshot ?? ""),
   );
 }
 
@@ -521,16 +592,18 @@ function masteryStatistic(
   attempts: readonly StrategicFitTrainingAttempt[],
   stale: boolean,
 ): StrategicFitTrainingMasteryStatistic {
-  const sortedAttempts = [...attempts].sort((left, right) =>
-    compareStrings(left.attempted_at, right.attempted_at) || compareStrings(left.attempt_id, right.attempt_id)
+  const sortedAttempts = [...attempts].sort(
+    (left, right) =>
+      compareStrings(left.attempted_at, right.attempted_at) ||
+      compareStrings(left.attempt_id, right.attempt_id),
   );
   const successful = sortedAttempts.filter((attempt) => attempt.recalled).length;
   const lapses = sortedAttempts.filter((attempt) => attempt.lapse).length;
   const responseTimes = sortedAttempts.flatMap((attempt) =>
-    attempt.response_time_ms === null ? [] : [attempt.response_time_ms]
+    attempt.response_time_ms === null ? [] : [attempt.response_time_ms],
   );
   const confidences = sortedAttempts.flatMap((attempt) =>
-    attempt.confidence === null ? [] : [attempt.confidence]
+    attempt.confidence === null ? [] : [attempt.confidence],
   );
   const count = sortedAttempts.length;
   let mastery: number | null = null;
@@ -542,32 +615,42 @@ function masteryStatistic(
     let weightedScore = posteriorRecall * 0.75;
     let suppliedWeight = 0.75;
     if (responseTimes.length > 0) {
-      const responseQuality = responseTimes.reduce((sum, ms) => sum + 1 / (1 + ms / 15_000), 0) /
-        responseTimes.length;
+      const responseQuality =
+        responseTimes.reduce((sum, ms) => sum + 1 / (1 + ms / 15_000), 0) / responseTimes.length;
       weightedScore += responseQuality * 0.15;
       suppliedWeight += 0.15;
     }
     if (confidences.length > 0) {
-      const attemptsWithConfidence = sortedAttempts.filter((attempt) => attempt.confidence !== null);
-      const calibratedConfidence = attemptsWithConfidence.reduce((sum, attempt) =>
-        sum + (attempt.recalled ? attempt.confidence! : 1 - attempt.confidence!), 0) /
-        attemptsWithConfidence.length;
-      weightedScore += calibratedConfidence * 0.10;
-      suppliedWeight += 0.10;
+      const attemptsWithConfidence = sortedAttempts.filter(
+        (attempt) => attempt.confidence !== null,
+      );
+      const calibratedConfidence =
+        attemptsWithConfidence.reduce(
+          (sum, attempt) =>
+            sum + (attempt.recalled ? attempt.confidence! : 1 - attempt.confidence!),
+          0,
+        ) / attemptsWithConfidence.length;
+      weightedScore += calibratedConfidence * 0.1;
+      suppliedWeight += 0.1;
     }
     const lapseRate = lapses / count;
     mastery = round((weightedScore / suppliedWeight) * (1 - 0.5 * lapseRate));
   }
-  const nextDueAt = [...sortedAttempts].reverse()
-    .find((attempt) => attempt.next_due_at !== null)?.next_due_at ?? null;
-  const staleProvenance: readonly StrategicFitSourceProvenance[] = stale ? [{
-    source_id: `strategic-fit:training-stale:${identityKind}:${identityId}`,
-    kind: "training-metadata",
-    state: "stale",
-    version: STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
-    snapshot: sortedAttempts.at(-1)?.attempted_at ?? null,
-    reason: "The semantic training target no longer exists in the current repertoire graph.",
-  }] : [];
+  const nextDueAt =
+    [...sortedAttempts].reverse().find((attempt) => attempt.next_due_at !== null)?.next_due_at ??
+    null;
+  const staleProvenance: readonly StrategicFitSourceProvenance[] = stale
+    ? [
+        {
+          source_id: `strategic-fit:training-stale:${identityKind}:${identityId}`,
+          kind: "training-metadata",
+          state: "stale",
+          version: STRATEGIC_FIT_TRAINING_PERFORMANCE_VERSION,
+          snapshot: sortedAttempts.at(-1)?.attempted_at ?? null,
+          reason: "The semantic training target no longer exists in the current repertoire graph.",
+        },
+      ]
+    : [];
   return {
     identity_kind: identityKind,
     identity_id: identityId,
@@ -576,14 +659,16 @@ function masteryStatistic(
     attempt_count: count,
     successful_recall_count: successful,
     recall_rate: count === 0 ? null : round(successful / count),
-    average_response_time_ms: responseTimes.length === 0
-      ? null
-      : Math.round(responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length),
+    average_response_time_ms:
+      responseTimes.length === 0
+        ? null
+        : Math.round(responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length),
     lapse_count: lapses,
     lapse_rate: count === 0 ? null : round(lapses / count),
-    average_confidence: confidences.length === 0
-      ? null
-      : round(confidences.reduce((sum, value) => sum + value, 0) / confidences.length),
+    average_confidence:
+      confidences.length === 0
+        ? null
+        : round(confidences.reduce((sum, value) => sum + value, 0) / confidences.length),
     first_attempt_at: sortedAttempts[0]?.attempted_at ?? null,
     last_attempt_at: sortedAttempts.at(-1)?.attempted_at ?? null,
     next_due_at: nextDueAt,
@@ -603,9 +688,12 @@ export function deriveStrategicFitTrainingMastery(
 ): StrategicFitTrainingMasteryReport {
   const canonicalData = canonical(data);
   const normalizedGeneratedAt = timestamp(generatedAt);
-  if (normalizedGeneratedAt === null) throw new Error("strategic_fit_training_invalid_generated_at");
+  if (normalizedGeneratedAt === null)
+    throw new Error("strategic_fit_training_invalid_generated_at");
   const currentPositions = new Set(graph.positions.map((position) => position.position_id));
-  const currentDecisions = new Map(graph.decisions.map((decision) => [decision.decision_id, decision]));
+  const currentDecisions = new Map(
+    graph.decisions.map((decision) => [decision.decision_id, decision]),
+  );
   const attemptsByTarget = new Map<string, StrategicFitTrainingAttempt[]>();
   for (const attempt of canonicalData.attempts) {
     if (Date.parse(attempt.attempted_at) > Date.parse(normalizedGeneratedAt)) continue;
@@ -613,12 +701,15 @@ export function deriveStrategicFitTrainingMastery(
     current.push(attempt);
     attemptsByTarget.set(attempt.target_id, current);
   }
-  const staleTargets = new Set(canonicalData.targets
-    .filter((target) =>
-      !currentPositions.has(target.position_id) ||
-      currentDecisions.get(target.decision_id)?.from_position_id !== target.position_id
-    )
-    .map((target) => target.target_id));
+  const staleTargets = new Set(
+    canonicalData.targets
+      .filter(
+        (target) =>
+          !currentPositions.has(target.position_id) ||
+          currentDecisions.get(target.decision_id)?.from_position_id !== target.position_id,
+      )
+      .map((target) => target.target_id),
+  );
 
   const decisionTargets = new Map<string, StrategicFitTrainingTarget[]>();
   for (const target of canonicalData.targets) {
@@ -626,14 +717,18 @@ export function deriveStrategicFitTrainingMastery(
     current.push(target);
     decisionTargets.set(target.decision_id, current);
   }
-  const decisionMastery = [...decisionTargets.entries()].map(([decisionId, targets]) => {
-    const allStale = targets.every((target) => staleTargets.has(target.target_id));
-    const contributingTargets = allStale
-      ? targets
-      : targets.filter((target) => !staleTargets.has(target.target_id));
-    const attempts = contributingTargets.flatMap((target) => attemptsByTarget.get(target.target_id) ?? []);
-    return masteryStatistic("decision", decisionId, contributingTargets, attempts, allStale);
-  }).sort((left, right) => compareStrings(left.identity_id, right.identity_id));
+  const decisionMastery = [...decisionTargets.entries()]
+    .map(([decisionId, targets]) => {
+      const allStale = targets.every((target) => staleTargets.has(target.target_id));
+      const contributingTargets = allStale
+        ? targets
+        : targets.filter((target) => !staleTargets.has(target.target_id));
+      const attempts = contributingTargets.flatMap(
+        (target) => attemptsByTarget.get(target.target_id) ?? [],
+      );
+      return masteryStatistic("decision", decisionId, contributingTargets, attempts, allStale);
+    })
+    .sort((left, right) => compareStrings(left.identity_id, right.identity_id));
 
   const conceptTargets = new Map<string, StrategicFitTrainingTarget[]>();
   for (const target of canonicalData.targets) {
@@ -643,23 +738,29 @@ export function deriveStrategicFitTrainingMastery(
       conceptTargets.set(conceptId, current);
     }
   }
-  const conceptMastery = [...conceptTargets.entries()].map(([conceptId, targets]) => {
-    const allStale = targets.every((target) => staleTargets.has(target.target_id));
-    const contributingTargets = allStale
-      ? targets
-      : targets.filter((target) => !staleTargets.has(target.target_id));
-    const attempts = contributingTargets.flatMap((target) => attemptsByTarget.get(target.target_id) ?? []);
-    return masteryStatistic("concept", conceptId, contributingTargets, attempts, allStale);
-  }).sort((left, right) => compareStrings(left.identity_id, right.identity_id));
+  const conceptMastery = [...conceptTargets.entries()]
+    .map(([conceptId, targets]) => {
+      const allStale = targets.every((target) => staleTargets.has(target.target_id));
+      const contributingTargets = allStale
+        ? targets
+        : targets.filter((target) => !staleTargets.has(target.target_id));
+      const attempts = contributingTargets.flatMap(
+        (target) => attemptsByTarget.get(target.target_id) ?? [],
+      );
+      return masteryStatistic("concept", conceptId, contributingTargets, attempts, allStale);
+    })
+    .sort((left, right) => compareStrings(left.identity_id, right.identity_id));
 
   const metricConcepts: StrategicConceptMasteryInput[] = conceptMastery.flatMap((statistic) =>
     statistic.state === "observed" && statistic.mastery !== null
-      ? [{
-          concept_id: statistic.identity_id,
-          mastery: statistic.mastery,
-          provenance: statistic.provenance,
-        }]
-      : []
+      ? [
+          {
+            concept_id: statistic.identity_id,
+            mastery: statistic.mastery,
+            provenance: statistic.provenance,
+          },
+        ]
+      : [],
   );
   const reportProvenance = mergedProvenance([
     canonicalData.provenance,

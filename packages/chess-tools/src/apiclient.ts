@@ -18,28 +18,45 @@ let lastRequest = 0;
 let gate: Promise<void> = Promise.resolve();
 
 const cancelled = () => new DOMException("Cancelled", "AbortError");
-const waitFor = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
-  if (signal?.aborted) { reject(cancelled()); return; }
-  const timer = setTimeout(done, ms);
-  function done() { signal?.removeEventListener("abort", abort); resolve(); }
-  function abort() { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(cancelled()); }
-  signal?.addEventListener("abort", abort, { once: true });
-});
+const waitFor = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(cancelled());
+      return;
+    }
+    const timer = setTimeout(done, ms);
+    function done() {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }
+    function abort() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(cancelled());
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
 /** Serialise requests and space them ≥ MIN_INTERVAL_MS apart. */
 function rateLimit(signal?: AbortSignal): Promise<void> {
-  const next = gate.catch(() => undefined).then(async () => {
-    if (signal?.aborted) throw cancelled();
-    const wait = lastRequest + MIN_INTERVAL_MS - Date.now();
-    if (wait > 0) await waitFor(wait, signal);
-    if (signal?.aborted) throw cancelled();
-    lastRequest = Date.now();
-  });
+  const next = gate
+    .catch(() => undefined)
+    .then(async () => {
+      if (signal?.aborted) throw cancelled();
+      const wait = lastRequest + MIN_INTERVAL_MS - Date.now();
+      if (wait > 0) await waitFor(wait, signal);
+      if (signal?.aborted) throw cancelled();
+      lastRequest = Date.now();
+    });
   gate = next.catch(() => undefined);
   return next;
 }
 
-async function fetchRaw(url: string, headers?: Record<string, string>, signal?: AbortSignal): Promise<Response | null> {
+async function fetchRaw(
+  url: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<Response | null> {
   await rateLimit(signal);
   const ctrl = new AbortController();
   // Bounds time-to-headers only: the timer is cleared once the Response resolves, so a slow body
@@ -60,7 +77,11 @@ async function fetchRaw(url: string, headers?: Record<string, string>, signal?: 
 }
 
 /** GET `url` as JSON, or `null` on any failure (offline-safe). */
-export async function fetchJson<T>(url: string, headers?: Record<string, string>, signal?: AbortSignal): Promise<T | null> {
+export async function fetchJson<T>(
+  url: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<T | null> {
   try {
     const res = await fetchRaw(url, headers, signal);
     return res ? ((await res.json()) as T) : null;
@@ -70,7 +91,11 @@ export async function fetchJson<T>(url: string, headers?: Record<string, string>
 }
 
 /** GET `url` as text, or `null` on any failure (offline-safe). */
-export async function fetchText(url: string, headers?: Record<string, string>, signal?: AbortSignal): Promise<string | null> {
+export async function fetchText(
+  url: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<string | null> {
   try {
     const res = await fetchRaw(url, headers, signal);
     return res ? await res.text() : null;

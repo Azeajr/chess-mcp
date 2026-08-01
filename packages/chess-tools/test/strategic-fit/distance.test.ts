@@ -40,7 +40,10 @@ interface CheckpointFixture {
   readonly signals: readonly SignalFixture[];
 }
 
-function trajectory(routeId: string, checkpoints: readonly CheckpointFixture[]): StrategicTrajectory {
+function trajectory(
+  routeId: string,
+  checkpoints: readonly CheckpointFixture[],
+): StrategicTrajectory {
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     trajectory_id: `trajectory:${routeId}`,
@@ -60,24 +63,26 @@ function trajectory(routeId: string, checkpoints: readonly CheckpointFixture[]):
         reason: `Matched test checkpoint at ply ${checkpoint.ply}.`,
         comparability: "comparable",
       },
-      signals: checkpoint.signals.map((fixture, index): StrategicSignal => ({
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        signal_id: `signal:${routeId}:${checkpoint.ply}:${index}`,
-        family: fixture.family,
-        feature_id: fixture.featureId,
-        kind: "observation",
-        value: fixture.value,
-        confidence: 1,
-        persistence: "stable",
-        provenance: [SOURCE],
-      })),
+      signals: checkpoint.signals.map(
+        (fixture, index): StrategicSignal => ({
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          signal_id: `signal:${routeId}:${checkpoint.ply}:${index}`,
+          family: fixture.family,
+          feature_id: fixture.featureId,
+          kind: "observation",
+          value: fixture.value,
+          confidence: 1,
+          persistence: "stable",
+          provenance: [SOURCE],
+        }),
+      ),
       classifier_confidence: 1,
       provenance: [SOURCE],
     })),
     missing_checkpoints: [],
     evidence_coverage: 1,
     stable_signal_ids: checkpoints.flatMap((checkpoint) =>
-      checkpoint.signals.map((_, index) => `signal:${routeId}:${checkpoint.ply}:${index}`)
+      checkpoint.signals.map((_, index) => `signal:${routeId}:${checkpoint.ply}:${index}`),
     ),
     transient_signal_ids: [],
     provenance: [SOURCE],
@@ -98,14 +103,16 @@ function concept(
     confidence: 1,
     persistence: "stable",
     first_observed_ply: 12,
-    evidence: [{
-      signal_id: `signal:${routeId}:concept`,
-      feature_id: "space.wing-expansion",
-      snapshot_id: `snapshot:${routeId}:12`,
-      position_id: `position:${routeId}:12`,
-      ply: 12,
-      persistence: "stable",
-    }],
+    evidence: [
+      {
+        signal_id: `signal:${routeId}:concept`,
+        feature_id: "space.wing-expansion",
+        snapshot_id: `snapshot:${routeId}:12`,
+        position_id: `position:${routeId}:12`,
+        ply: 12,
+        persistence: "stable",
+      },
+    ],
     provenance: [SOURCE],
   };
 }
@@ -174,37 +181,49 @@ test("identical and transposed routes have bounded symmetric zero distance", () 
   assert.equal(forward.distance, 0);
   assert.equal(reverse.distance, forward.distance);
   assert.ok(forward.feature_contributions.length > 0);
-  assert.ok(forward.feature_contributions.every((item) => item.distance >= 0 && item.distance <= 1));
+  assert.ok(
+    forward.feature_contributions.every((item) => item.distance >= 0 && item.distance <= 1),
+  );
 });
 
 test("a single-family difference remains normalized and explainable", () => {
-  const left = trajectory("route:left", [{
-    ply: 12,
-    signals: [{
-      family: "center-dynamics",
-      featureId: "center-dynamics.openness",
-      value: "open",
-    }],
-  }]);
-  const right = trajectory("route:right", [{
-    ply: 12,
-    signals: [{
-      family: "center-dynamics",
-      featureId: "center-dynamics.openness",
-      value: "closed",
-    }],
-  }]);
+  const left = trajectory("route:left", [
+    {
+      ply: 12,
+      signals: [
+        {
+          family: "center-dynamics",
+          featureId: "center-dynamics.openness",
+          value: "open",
+        },
+      ],
+    },
+  ]);
+  const right = trajectory("route:right", [
+    {
+      ply: 12,
+      signals: [
+        {
+          family: "center-dynamics",
+          featureId: "center-dynamics.openness",
+          value: "closed",
+        },
+      ],
+    },
+  ]);
   const result = compare(left, right);
 
   assert.equal(result.distance, 1);
-  assert.deepEqual(result.family_contributions, [{
-    family: "center-dynamics",
-    distance: 1,
-    feature_count: 1,
-    configured_weight: 1,
-    normalized_weight: 1,
-    contribution: 1,
-  }]);
+  assert.deepEqual(result.family_contributions, [
+    {
+      family: "center-dynamics",
+      distance: 1,
+      feature_count: 1,
+      configured_weight: 1,
+      normalized_weight: 1,
+      contribution: 1,
+    },
+  ]);
   assert.deepEqual(result.feature_contributions[0], {
     family: "center-dynamics",
     feature_id: "center-dynamics.openness",
@@ -220,17 +239,25 @@ test("a missing checkpoint is disclosed but never counted as difference", () => 
   const left = trajectory("route:left", [
     {
       ply: 12,
-      signals: [{ family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" }],
+      signals: [
+        { family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" },
+      ],
     },
     {
       ply: 16,
-      signals: [{ family: "center-dynamics", featureId: "center-dynamics.openness", value: "closed" }],
+      signals: [
+        { family: "center-dynamics", featureId: "center-dynamics.openness", value: "closed" },
+      ],
     },
   ]);
-  const right = trajectory("route:right", [{
-    ply: 12,
-    signals: [{ family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" }],
-  }]);
+  const right = trajectory("route:right", [
+    {
+      ply: 12,
+      signals: [
+        { family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" },
+      ],
+    },
+  ]);
   const result = compare(left, right);
 
   assert.equal(result.distance, 0);
@@ -241,28 +268,38 @@ test("a missing checkpoint is disclosed but never counted as difference", () => 
 });
 
 test("user family weights change distance deterministically", () => {
-  const left = trajectory("route:left", [{
-    ply: 12,
-    signals: [
-      { family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" },
-      { family: "space-and-files", featureId: "space.test", value: 0 },
-    ],
-  }]);
-  const right = trajectory("route:right", [{
-    ply: 12,
-    signals: [
-      { family: "center-dynamics", featureId: "center-dynamics.openness", value: "closed" },
-      { family: "space-and-files", featureId: "space.test", value: 0 },
-    ],
-  }]);
+  const left = trajectory("route:left", [
+    {
+      ply: 12,
+      signals: [
+        { family: "center-dynamics", featureId: "center-dynamics.openness", value: "open" },
+        { family: "space-and-files", featureId: "space.test", value: 0 },
+      ],
+    },
+  ]);
+  const right = trajectory("route:right", [
+    {
+      ply: 12,
+      signals: [
+        { family: "center-dynamics", featureId: "center-dynamics.openness", value: "closed" },
+        { family: "space-and-files", featureId: "space.test", value: 0 },
+      ],
+    },
+  ]);
 
   assert.equal(compare(left, right).distance, 0.5);
-  assert.equal(compare(left, right, {
-    feature_family_weights: { "center-dynamics": 3, "space-and-files": 1 },
-  }).distance, 0.75);
-  assert.equal(compare(left, right, {
-    feature_family_weights: { "center-dynamics": 1, "space-and-files": 3 },
-  }).distance, 0.25);
+  assert.equal(
+    compare(left, right, {
+      feature_family_weights: { "center-dynamics": 3, "space-and-files": 1 },
+    }).distance,
+    0.75,
+  );
+  assert.equal(
+    compare(left, right, {
+      feature_family_weights: { "center-dynamics": 1, "space-and-files": 3 },
+    }).distance,
+    0.25,
+  );
   assert.deepEqual(
     compare(left, right, { feature_family_weights: { "center-dynamics": 3 } }),
     compare(left, right, { feature_family_weights: { "center-dynamics": 3 } }),
@@ -270,11 +307,13 @@ test("user family weights change distance deterministically", () => {
 });
 
 test("stable concept IDs participate without display labels", () => {
-  const signals = [{
-    family: "space-and-files" as const,
-    featureId: "space.test",
-    value: 0,
-  }];
+  const signals = [
+    {
+      family: "space-and-files" as const,
+      featureId: "space.test",
+      value: 0,
+    },
+  ];
   const left = trajectory("route:left", [{ ply: 12, signals }]);
   const right = trajectory("route:right", [{ ply: 12, signals }]);
   const result = compare(
@@ -296,22 +335,26 @@ test("stable concept IDs participate without display labels", () => {
 });
 
 test("feature and family contributions reconcile with route-to-mode report scores", () => {
-  const left = trajectory("route:left", [{
-    ply: 12,
-    signals: [
-      { family: "pawn-topology", featureId: "pawn.test", value: ["a"] },
-      { family: "center-dynamics", featureId: "center.test", value: 0 },
-      { family: "space-and-files", featureId: "space.test", value: 0 },
-    ],
-  }]);
-  const modeRoute = trajectory("route:mode", [{
-    ply: 12,
-    signals: [
-      { family: "pawn-topology", featureId: "pawn.test", value: ["b"] },
-      { family: "center-dynamics", featureId: "center.test", value: 0.5 },
-      { family: "space-and-files", featureId: "space.test", value: 0.25 },
-    ],
-  }]);
+  const left = trajectory("route:left", [
+    {
+      ply: 12,
+      signals: [
+        { family: "pawn-topology", featureId: "pawn.test", value: ["a"] },
+        { family: "center-dynamics", featureId: "center.test", value: 0 },
+        { family: "space-and-files", featureId: "space.test", value: 0 },
+      ],
+    },
+  ]);
+  const modeRoute = trajectory("route:mode", [
+    {
+      ply: 12,
+      signals: [
+        { family: "pawn-topology", featureId: "pawn.test", value: ["b"] },
+        { family: "center-dynamics", featureId: "center.test", value: 0.5 },
+        { family: "space-and-files", featureId: "space.test", value: 0.25 },
+      ],
+    },
+  ]);
   const trajectories: StrategicTrajectoryReport = {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     graph_id: "graph:distance",
@@ -340,40 +383,44 @@ test("feature and family contributions reconcile with route-to-mode report score
     weighting_version: "1.0.0",
     cohort_version: "1.0.0",
     containers: [],
-    cohorts: [{
-      analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-      cohort_id: cohortId,
-      state: "actionable",
-      opening_scope_ids: ["opening:test"],
-      decision_scope_ids: ["decision:test"],
-      route_ids: [left.route_id, modeRoute.route_id],
-      excluded_route_ids: [],
-      route_weights: [
-        { route_id: left.route_id, normalized_weight: 0.5 },
-        { route_id: modeRoute.route_id, normalized_weight: 0.5 },
-      ],
-      effective_sample_size: 2,
-      modes: [{
+    cohorts: [
+      {
         analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        mode_id: modeId,
         cohort_id: cohortId,
-        representative_route_id: modeRoute.route_id,
-        supporting_route_ids: [modeRoute.route_id],
-        concept_ids: [],
-        normalized_weight: 0.5,
-        effective_sample_size: 1,
-        source: "inferred-medoid",
+        state: "actionable",
+        opening_scope_ids: ["opening:test"],
+        decision_scope_ids: ["decision:test"],
+        route_ids: [left.route_id, modeRoute.route_id],
+        excluded_route_ids: [],
+        route_weights: [
+          { route_id: left.route_id, normalized_weight: 0.5 },
+          { route_id: modeRoute.route_id, normalized_weight: 0.5 },
+        ],
+        effective_sample_size: 2,
+        modes: [
+          {
+            analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+            mode_id: modeId,
+            cohort_id: cohortId,
+            representative_route_id: modeRoute.route_id,
+            supporting_route_ids: [modeRoute.route_id],
+            concept_ids: [],
+            normalized_weight: 0.5,
+            effective_sample_size: 1,
+            source: "inferred-medoid",
+            provenance: [SOURCE],
+          },
+        ],
+        override_ids: [],
         provenance: [SOURCE],
-      }],
-      override_ids: [],
-      provenance: [SOURCE],
-      opening_container_ids: [],
-      shared_strategic_ancestor_position_ids: ["position:ancestor"],
-      transposition_position_ids: [],
-      comparable_checkpoint_kinds: ["configured-ply"],
-      common_stable_signal_families: ["pawn-topology", "center-dynamics", "space-and-files"],
-      insufficiency_reasons: [],
-    }],
+        opening_container_ids: [],
+        shared_strategic_ancestor_position_ids: ["position:ancestor"],
+        transposition_position_ids: [],
+        comparable_checkpoint_kinds: ["configured-ply"],
+        common_stable_signal_families: ["pawn-topology", "center-dynamics", "space-and-files"],
+        insufficiency_reasons: [],
+      },
+    ],
     data_quality: {
       total_route_count: 2,
       included_route_count: 2,
@@ -383,15 +430,17 @@ test("feature and family contributions reconcile with route-to-mode report score
       insufficient_evidence_route_count: 0,
     },
     applied_override_ids: [],
-    selections: [{
-      cohort_id: cohortId,
-      state: "single-mode",
-      selected_mode_ids: [modeId],
-      candidates: [],
-      unassigned_route_ids: [left.route_id],
-      effective_sample_size: 2,
-      reasons: ["single-supported-mode"],
-    }],
+    selections: [
+      {
+        cohort_id: cohortId,
+        state: "single-mode",
+        selected_mode_ids: [modeId],
+        candidates: [],
+        unassigned_route_ids: [left.route_id],
+        effective_sample_size: 2,
+        reasons: ["single-supported-mode"],
+      },
+    ],
     provenance: [SOURCE],
   };
   const report = calculateStrategicDistances(modes, trajectories, concepts, {
@@ -402,8 +451,14 @@ test("feature and family contributions reconcile with route-to-mode report score
     },
   });
   const comparison = report.comparisons.find((item) => item.left_route_id === left.route_id)!;
-  const featureTotal = comparison.feature_contributions.reduce((sum, item) => sum + item.contribution, 0);
-  const familyTotal = comparison.family_contributions.reduce((sum, item) => sum + item.contribution, 0);
+  const featureTotal = comparison.feature_contributions.reduce(
+    (sum, item) => sum + item.contribution,
+    0,
+  );
+  const familyTotal = comparison.family_contributions.reduce(
+    (sum, item) => sum + item.contribution,
+    0,
+  );
 
   assert.equal(report.comparisons.length, 2);
   assert.equal(comparison.mode_id, modeId);
@@ -414,25 +469,28 @@ test("feature and family contributions reconcile with route-to-mode report score
 });
 
 test("invalid or entirely disabled weights are rejected", () => {
-  const value = trajectory("route:test", [{
-    ply: 12,
-    signals: [{ family: "center-dynamics", featureId: "center.test", value: 0 }],
-  }]);
+  const value = trajectory("route:test", [
+    {
+      ply: 12,
+      signals: [{ family: "center-dynamics", featureId: "center.test", value: 0 }],
+    },
+  ]);
   assert.throws(
     () => compare(value, value, { feature_family_weights: { "center-dynamics": -1 } }),
     /strategic_fit_distance_invalid_weight/,
   );
   assert.throws(
-    () => compare(value, value, {
-      feature_family_weights: {
-        "pawn-topology": 0,
-        "center-dynamics": 0,
-        "king-and-piece-setup": 0,
-        "space-and-files": 0,
-        "dynamic-character": 0,
-        "learning-concepts": 0,
-      },
-    }),
+    () =>
+      compare(value, value, {
+        feature_family_weights: {
+          "pawn-topology": 0,
+          "center-dynamics": 0,
+          "king-and-piece-setup": 0,
+          "space-and-files": 0,
+          "dynamic-character": 0,
+          "learning-concepts": 0,
+        },
+      }),
     /strategic_fit_distance_all_weights_zero/,
   );
 });

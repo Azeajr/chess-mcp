@@ -89,20 +89,64 @@ test("explorer URLs and cache keys include every supported population filter", (
     until: "2026-06",
     movesLimit: 30,
   });
-  assert.equal(reordered.cache_key, configured.cache_key, "set-like filters canonicalize before caching");
+  assert.equal(
+    reordered.cache_key,
+    configured.cache_key,
+    "set-like filters canonicalize before caching",
+  );
 
   const variations = [
-    { db: "lichess" as const, speeds: ["blitz"] as const, ratings: [1600, 2000] as const, since: "2024-01", until: "2026-06", movesLimit: 30 },
-    { db: "lichess" as const, speeds: ["blitz", "rapid"] as const, ratings: [1800] as const, since: "2024-01", until: "2026-06", movesLimit: 30 },
-    { db: "lichess" as const, speeds: ["blitz", "rapid"] as const, ratings: [1600, 2000] as const, since: "2025-01", until: "2026-06", movesLimit: 30 },
-    { db: "lichess" as const, speeds: ["blitz", "rapid"] as const, ratings: [1600, 2000] as const, since: "2024-01", until: "2025-06", movesLimit: 30 },
-    { db: "lichess" as const, speeds: ["blitz", "rapid"] as const, ratings: [1600, 2000] as const, since: "2024-01", until: "2026-06", movesLimit: 12 },
+    {
+      db: "lichess" as const,
+      speeds: ["blitz"] as const,
+      ratings: [1600, 2000] as const,
+      since: "2024-01",
+      until: "2026-06",
+      movesLimit: 30,
+    },
+    {
+      db: "lichess" as const,
+      speeds: ["blitz", "rapid"] as const,
+      ratings: [1800] as const,
+      since: "2024-01",
+      until: "2026-06",
+      movesLimit: 30,
+    },
+    {
+      db: "lichess" as const,
+      speeds: ["blitz", "rapid"] as const,
+      ratings: [1600, 2000] as const,
+      since: "2025-01",
+      until: "2026-06",
+      movesLimit: 30,
+    },
+    {
+      db: "lichess" as const,
+      speeds: ["blitz", "rapid"] as const,
+      ratings: [1600, 2000] as const,
+      since: "2024-01",
+      until: "2025-06",
+      movesLimit: 30,
+    },
+    {
+      db: "lichess" as const,
+      speeds: ["blitz", "rapid"] as const,
+      ratings: [1600, 2000] as const,
+      since: "2024-01",
+      until: "2026-06",
+      movesLimit: 12,
+    },
   ];
   for (const filters of variations) {
     assert.notEqual(explorerRequest(START, filters).cache_key, configured.cache_key);
   }
 
-  const masters = explorerRequest(START, { db: "masters", since: "2018", until: "2025", movesLimit: 8 });
+  const masters = explorerRequest(START, {
+    db: "masters",
+    since: "2018",
+    until: "2025",
+    movesLimit: 8,
+  });
   assert.match(masters.url, /\/masters\?/);
   assert.match(masters.url, /since=2018/);
   assert.match(masters.url, /until=2025/);
@@ -120,14 +164,13 @@ test("explorer URLs and cache keys include every supported population filter", (
 test("canonical transpositions query one opponent-decision position once", async () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(TRANSPOSED_DECISION), "white");
   let calls = 0;
-  const collection = await collectStrategicPopularityWeights(
-    graph,
-    {},
-    async () => {
-      calls++;
-      return position([{ uci: "g8f6", games: 80 }, { uci: "e7e6", games: 20 }]);
-    },
-  );
+  const collection = await collectStrategicPopularityWeights(graph, {}, async () => {
+    calls++;
+    return position([
+      { uci: "g8f6", games: 80 },
+      { uci: "e7e6", games: 20 },
+    ]);
+  });
 
   assert.equal(collection.state, "complete");
   assert.equal(collection.relevant_positions, 1);
@@ -161,7 +204,10 @@ test("query budgets are hard bounds with monotonic progress and explicit partial
   assert.equal(collection.positions_queried, 1);
   assert.ok(collection.positions_skipped > 0);
   assert.equal(calls, 1);
-  assert.deepEqual(progress, [[0, 1], [1, 1]]);
+  assert.deepEqual(progress, [
+    [0, 1],
+    [1, 1],
+  ]);
   assert.equal(collection.provenance[0]?.state, "partial");
   assert.match(collection.provenance[0]?.reason ?? "", /bounded query budget was exhausted/);
 
@@ -178,10 +224,11 @@ test("cancellation stops scheduling after the in-flight canonical query", async 
   const pending = collectStrategicPopularityWeights(
     graph,
     { shouldCancel: () => cancelled },
-    async () => new Promise<ExplorerPosition>((resolve) => {
-      calls++;
-      release = resolve;
-    }),
+    async () =>
+      new Promise<ExplorerPosition>((resolve) => {
+        calls++;
+        release = resolve;
+      }),
   );
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(calls, 1);
@@ -219,8 +266,14 @@ test("authentication and offline failures remain unavailable evidence with usabl
 
   const fallback = calculateStrategicRouteWeights(graph, offline.weighting);
   assert.equal(fallback.state, "fallback");
-  assert.deepEqual(fallback.routes.map((route) => route.normalized_weight), [0.5, 0.5]);
-  assert.equal(fallback.provenance.find((source) => source.kind === "opening-explorer")?.state, "unavailable");
+  assert.deepEqual(
+    fallback.routes.map((route) => route.normalized_weight),
+    [0.5, 0.5],
+  );
+  assert.equal(
+    fallback.provenance.find((source) => source.kind === "opening-explorer")?.state,
+    "unavailable",
+  );
 
   const report = analyzeStrategicFit(tree, {
     repertoireColor: "white",
@@ -228,7 +281,10 @@ test("authentication and offline failures remain unavailable evidence with usabl
     weighting: unauthenticated.weighting,
   });
   assert.ok(report.summary);
-  assert.equal(report.provenance.sources.find((source) => source.kind === "opening-explorer")?.state, "unavailable");
+  assert.equal(
+    report.provenance.sources.find((source) => source.kind === "opening-explorer")?.state,
+    "unavailable",
+  );
 });
 
 test("a later explorer failure retains successful weights with partial provenance", async () => {
@@ -237,7 +293,10 @@ test("a later explorer failure retains successful weights with partial provenanc
   const collection = await collectStrategicPopularityWeights(graph, {}, async () => {
     calls++;
     return calls === 1
-      ? position([{ uci: "e7e5", games: 75 }, { uci: "c7c5", games: 25 }])
+      ? position([
+          { uci: "e7e5", games: 75 },
+          { uci: "c7c5", games: 25 },
+        ])
       : null;
   });
 
@@ -245,16 +304,20 @@ test("a later explorer failure retains successful weights with partial provenanc
   assert.equal(collection.positions_weighted, 1);
   assert.equal(collection.positions_queried, 2);
   assert.equal(collection.provenance[0]?.state, "partial");
-  assert.match(collection.provenance[0]?.reason ?? "", /remaining positions use explicit equal fallbacks/);
+  assert.match(
+    collection.provenance[0]?.reason ?? "",
+    /remaining positions use explicit equal fallbacks/,
+  );
   assert.ok(collection.decision_weights.some((weight) => weight.weight === 75));
 });
 
 test("mocked population counts produce weighted routes and filter-specific report cache identities", async () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(ROOT_BRANCHES), "white");
-  const lookup = async () => position([
-    { uci: "e7e5", games: 900 },
-    { uci: "c7c5", games: 100 },
-  ]);
+  const lookup = async () =>
+    position([
+      { uci: "e7e5", games: 900 },
+      { uci: "c7c5", games: 100 },
+    ]);
   const practical = await collectStrategicPopularityWeights(
     graph,
     { filters: { db: "lichess", speeds: ["rapid"], ratings: [1600], since: "2024-01" } },
@@ -266,13 +329,18 @@ test("mocked population counts produce weighted routes and filter-specific repor
     lookup,
   );
   const weights = calculateStrategicRouteWeights(graph, practical.weighting);
-  const routeWeight = (reply: string) => weights.routes.find((weighted) =>
-    graph.routes.find((route) => route.route_id === weighted.route_id)?.san_moves[1] === reply
-  )!.normalized_weight;
+  const routeWeight = (reply: string) =>
+    weights.routes.find(
+      (weighted) =>
+        graph.routes.find((route) => route.route_id === weighted.route_id)?.san_moves[1] === reply,
+    )!.normalized_weight;
   assert.equal(routeWeight("e5"), 0.9);
   assert.equal(routeWeight("c5"), 0.1);
   assert.equal(weights.state, "complete");
-  assert.equal(weights.provenance.find((source) => source.kind === "opening-explorer")?.state, "available");
+  assert.equal(
+    weights.provenance.find((source) => source.kind === "opening-explorer")?.state,
+    "available",
+  );
 
   const baseOptions = { repertoireColor: "white" as const, repertoireRevision: "revision:popular" };
   assert.notEqual(

@@ -115,7 +115,8 @@ export function affectedCohortReanalysisRequest(
         scope: {
           kind: "full-scan",
           cohort_ids: [],
-          reason: "Affected cohort identity was unavailable, so reconciliation requires a full scan.",
+          reason:
+            "Affected cohort identity was unavailable, so reconciliation requires a full scan.",
         },
       }
     : { trigger, scope: { kind: "affected-cohorts", cohort_ids: ids, reason } };
@@ -146,7 +147,8 @@ export function planStrategicFitReanalysis(
       scope: {
         kind: "full-scan",
         cohort_ids: [],
-        reason: "Document identity or repertoire color changed, so affected cohort scope is unknown.",
+        reason:
+          "Document identity or repertoire color changed, so affected cohort scope is unknown.",
       },
     };
   }
@@ -180,7 +182,8 @@ export function planStrategicFitReanalysis(
         scope: {
           kind: "full-scan",
           cohort_ids: [],
-          reason: "New routes have no prior cohort identity, so affected scope requires a full scan.",
+          reason:
+            "New routes have no prior cohort identity, so affected scope requires a full scan.",
         },
       };
     }
@@ -194,7 +197,8 @@ export function planStrategicFitReanalysis(
         scope: {
           kind: "full-scan",
           cohort_ids: [],
-          reason: "Changed routes could not be mapped to a prior cohort, so reconciliation requires a full scan.",
+          reason:
+            "Changed routes could not be mapped to a prior cohort, so reconciliation requires a full scan.",
         },
       };
     }
@@ -203,9 +207,10 @@ export function planStrategicFitReanalysis(
       scope: {
         kind: "affected-cohorts",
         cohort_ids: sortedUnique(affected),
-        reason: removed.length === 0
-          ? "The repertoire graph is semantically unchanged; no prior cohort requires resolution reconciliation."
-          : "Changed semantic routes map to these prior cohorts.",
+        reason:
+          removed.length === 0
+            ? "The repertoire graph is semantically unchanged; no prior cohort requires resolution reconciliation."
+            : "Changed semantic routes map to these prior cohorts.",
       },
     };
   } catch {
@@ -214,7 +219,8 @@ export function planStrategicFitReanalysis(
       scope: {
         kind: "full-scan",
         cohort_ids: [],
-        reason: "Canonical graph comparison was unavailable, so reconciliation requires a full scan.",
+        reason:
+          "Canonical graph comparison was unavailable, so reconciliation requires a full scan.",
       },
     };
   }
@@ -223,11 +229,14 @@ export function planStrategicFitReanalysis(
 function activeResolutionBySemanticId(
   metadata: StrategicFitDocumentMetadata,
 ): Map<string, StrategicFitPersistedResolution> {
-  return new Map(metadata.resolutions
-    .filter((resolution) =>
-      resolution.record_state === "active" && resolution.semantic_finding_id !== null
-    )
-    .map((resolution) => [resolution.semantic_finding_id!, resolution]));
+  return new Map(
+    metadata.resolutions
+      .filter(
+        (resolution) =>
+          resolution.record_state === "active" && resolution.semantic_finding_id !== null,
+      )
+      .map((resolution) => [resolution.semantic_finding_id!, resolution]),
+  );
 }
 
 function findingInScope(
@@ -237,8 +246,10 @@ function findingInScope(
 ): boolean {
   if (scope.kind === "full-scan") return true;
   const cohortIds = new Set(scope.cohort_ids);
-  return previous !== undefined && cohortIds.has(previous.evidence.cohort_id) ||
-    current !== undefined && cohortIds.has(current.evidence.cohort_id);
+  return (
+    (previous !== undefined && cohortIds.has(previous.evidence.cohort_id)) ||
+    (current !== undefined && cohortIds.has(current.evidence.cohort_id))
+  );
 }
 
 export function reconcileStrategicFitReanalysis(
@@ -249,7 +260,9 @@ export function reconcileStrategicFitReanalysis(
   metadata: StrategicFitDocumentMetadata,
   request: StrategicFitReanalysisRequest,
 ): StrategicFitReconciliationResult {
-  const previousById = new Map(previousFindings.map((finding) => [finding.semantic_finding_id, finding]));
+  const previousById = new Map(
+    previousFindings.map((finding) => [finding.semantic_finding_id, finding]),
+  );
   const nextById = new Map(nextFindings.map((finding) => [finding.semantic_finding_id, finding]));
   const activeResolutions = activeResolutionBySemanticId(metadata);
   const allIds = sortedUnique([...previousById.keys(), ...nextById.keys()]);
@@ -271,24 +284,34 @@ export function reconcileStrategicFitReanalysis(
     }
     if (previous === undefined && current !== undefined) {
       created.push(semanticId);
-      if (resolution?.state === "automatically-resolved-by-another-edit") reappeared.push(semanticId);
+      if (resolution?.state === "automatically-resolved-by-another-edit")
+        reappeared.push(semanticId);
       continue;
     }
-    if (previous !== undefined && current !== undefined && evidenceIdentity(previous) !== evidenceIdentity(current)) {
+    if (
+      previous !== undefined &&
+      current !== undefined &&
+      evidenceIdentity(previous) !== evidenceIdentity(current)
+    ) {
       changed.push(semanticId);
     }
   }
 
-  const reopenIds = sortedUnique([...reappeared, ...changed.filter((id) => activeResolutions.has(id))]);
+  const reopenIds = sortedUnique([
+    ...reappeared,
+    ...changed.filter((id) => activeResolutions.has(id)),
+  ]);
   const autoIds = autoResolved.map((finding) => finding.semantic_finding_id).sort(compareStrings);
   const preservedResolutionIds = [...activeResolutions.entries()]
     .filter(([semanticId]) => !reopenIds.includes(semanticId) && !autoIds.includes(semanticId))
     .map(([, resolution]) => resolution.resolution_id)
     .sort(compareStrings);
   const reopenSet = new Set(reopenIds);
-  const findings = nextFindings.map((finding) => reopenSet.has(finding.semantic_finding_id)
-    ? { ...finding, resolution_state: "unresolved" as const }
-    : finding);
+  const findings = nextFindings.map((finding) =>
+    reopenSet.has(finding.semantic_finding_id)
+      ? { ...finding, resolution_state: "unresolved" as const }
+      : finding,
+  );
   return {
     summary: {
       trigger: request.trigger,
@@ -305,7 +328,7 @@ export function reconcileStrategicFitReanalysis(
     },
     actions: {
       automatically_resolve: autoResolved.sort((left, right) =>
-        compareStrings(left.semantic_finding_id, right.semantic_finding_id)
+        compareStrings(left.semantic_finding_id, right.semantic_finding_id),
       ),
       reopen_semantic_finding_ids: reopenIds,
     },

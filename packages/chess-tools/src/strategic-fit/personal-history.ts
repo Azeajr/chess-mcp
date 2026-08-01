@@ -9,17 +9,10 @@
 import { positionKey } from "../congruence.js";
 import { mainline } from "../game.js";
 import type { GameMeta } from "../games.js";
-import type {
-  RepertoireGraph,
-  RepertoireGraphDecision,
-  RepertoireMoveOwner,
-} from "./graph.js";
+import type { RepertoireGraph, RepertoireGraphDecision, RepertoireMoveOwner } from "./graph.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
-import type {
-  StrategicDecisionWeightInput,
-  StrategicRouteWeightingOptions,
-} from "./weights.js";
+import type { StrategicDecisionWeightInput, StrategicRouteWeightingOptions } from "./weights.js";
 
 /** Population-equivalent observations in the empirical-Bayes prior at each opponent decision. */
 export const STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES = 20;
@@ -120,14 +113,17 @@ function mergeProvenance(
   const result: StrategicFitSourceProvenance[] = [];
   const seen = new Set<string>();
   for (const source of groups.flat()) {
-    const identity = [source.source_id, source.version, source.snapshot, source.state].join(ID_SEPARATOR);
+    const identity = [source.source_id, source.version, source.snapshot, source.state].join(
+      ID_SEPARATOR,
+    );
     if (seen.has(identity)) continue;
     seen.add(identity);
     result.push(source);
   }
-  return result.sort((left, right) =>
-    compareStrings(left.source_id, right.source_id) ||
-    compareStrings(left.snapshot ?? "", right.snapshot ?? "")
+  return result.sort(
+    (left, right) =>
+      compareStrings(left.source_id, right.source_id) ||
+      compareStrings(left.snapshot ?? "", right.snapshot ?? ""),
   );
 }
 
@@ -168,9 +164,10 @@ function sourceReason(
   if (totals.mapped === 0) {
     return `Personal game history is insufficient: no valid matching-color PGN reached a canonical repertoire decision (${totals.invalidPgn} invalid PGN).`;
   }
-  const qualifier = state === "partial"
-    ? ` Mapping is partial because ${totals.invalidPgn} matching-color PGN could not be parsed or some fetched metadata omitted PGN.`
-    : "";
+  const qualifier =
+    state === "partial"
+      ? ` Mapping is partial because ${totals.invalidPgn} matching-color PGN could not be parsed or some fetched metadata omitted PGN.`
+      : "";
   return `${totals.mapped}/${totals.matchingColor} matching-color games mapped to canonical repertoire decisions with ${totals.deviations} player departures. Personal opponent-choice counts are shrunk toward the population baseline using a ${STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES}-game prior.${qualifier}`;
 }
 
@@ -182,9 +179,12 @@ function provenanceFor(
   return {
     source_id: `strategic-fit:personal-history:${source.platform}`,
     kind: "personal-history",
-    state: state === "complete" ? "available" : state === "partial" || state === "cancelled"
-      ? "partial"
-      : "unavailable",
+    state:
+      state === "complete"
+        ? "available"
+        : state === "partial" || state === "cancelled"
+          ? "partial"
+          : "unavailable",
     version: STRATEGIC_FIT_ANALYSIS_MANIFEST.components["personal-history"],
     snapshot: sourceSnapshot(source),
     reason: sourceReason(state, totals),
@@ -201,7 +201,9 @@ function opponentGroups(graph: RepertoireGraph): RepertoireGraphDecision[][] {
   }
   return [...groups.values()]
     .filter((siblings) => siblings.length > 1)
-    .map((siblings) => siblings.sort((left, right) => compareStrings(left.decision_id, right.decision_id)))
+    .map((siblings) =>
+      siblings.sort((left, right) => compareStrings(left.decision_id, right.decision_id)),
+    )
     .sort((left, right) => compareStrings(left[0]!.from_position_id, right[0]!.from_position_id));
 }
 
@@ -238,16 +240,20 @@ function blendedDecisionWeights(
       continue;
     }
 
-    const populationValues = siblings.map((decision) => populationById.get(decision.decision_id)?.weight ?? 0);
+    const populationValues = siblings.map(
+      (decision) => populationById.get(decision.decision_id)?.weight ?? 0,
+    );
     const populationTotal = populationValues.reduce((sum, weight) => sum + weight, 0);
-    const priorProbabilities = populationTotal > 0
-      ? populationValues.map((weight) => weight / populationTotal)
-      : siblings.map(() => 1 / siblings.length);
+    const priorProbabilities =
+      populationTotal > 0
+        ? populationValues.map((weight) => weight / populationTotal)
+        : siblings.map(() => 1 / siblings.length);
     for (const [index, decision] of siblings.entries()) {
       const populationWeight = supplied[index];
       result.push({
         decision_id: decision.decision_id,
-        weight: priorProbabilities[index]! * STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES +
+        weight:
+          priorProbabilities[index]! * STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES +
           (counts.get(decision.decision_id) ?? 0),
         provenance: mergeProvenance(populationWeight?.provenance ?? [], [personalSource]),
       });
@@ -271,7 +277,12 @@ function emptyResult(
     deviations: 0,
   };
   const personalSource = provenanceFor(state, options.source, totals);
-  const decisionWeights = blendedDecisionWeights(graph, new Map(), options.population, personalSource);
+  const decisionWeights = blendedDecisionWeights(
+    graph,
+    new Map(),
+    options.population,
+    personalSource,
+  );
   const provenance = mergeProvenance(options.population?.provenance ?? [], [personalSource]);
   return {
     state,
@@ -314,7 +325,9 @@ export function collectStrategicPersonalHistoryWeights(
   if (games === null) return emptyResult(graph, games, options, "unavailable");
   if (options.shouldCancel?.()) return emptyResult(graph, games, options, "cancelled");
 
-  const positionByKey = new Map(graph.positions.map((position) => [position.position_key, position]));
+  const positionByKey = new Map(
+    graph.positions.map((position) => [position.position_key, position]),
+  );
   const decisionsByPosition = new Map<string, Map<string, RepertoireGraphDecision>>();
   for (const decision of graph.decisions) {
     const byUci = decisionsByPosition.get(decision.from_position_id) ?? new Map();
@@ -363,9 +376,8 @@ export function collectStrategicPersonalHistoryWeights(
       }
       if (!decisions || decisions.size === 0) continue;
 
-      const owner: RepertoireMoveOwner = move.color === graph.repertoire_color
-        ? "repertoire"
-        : "opponent";
+      const owner: RepertoireMoveOwner =
+        move.color === graph.repertoire_color ? "repertoire" : "opponent";
       const expectedDecisionIds = [...decisions.values()]
         .map((decision) => decision.decision_id)
         .sort(compareStrings);
@@ -393,11 +405,8 @@ export function collectStrategicPersonalHistoryWeights(
   const missingMatchingPgn = games.some(
     (game) => game.user_color === graph.repertoire_color && !game.pgn,
   );
-  const state: StrategicPersonalHistoryCollectionState = mapped === 0
-    ? "insufficient"
-    : invalidPgn > 0 || missingMatchingPgn
-      ? "partial"
-      : "complete";
+  const state: StrategicPersonalHistoryCollectionState =
+    mapped === 0 ? "insufficient" : invalidPgn > 0 || missingMatchingPgn ? "partial" : "complete";
   const playerDeviationCount = [...departures.values()]
     .filter((departure) => departure.owner === "repertoire")
     .reduce((sum, departure) => sum + departure.count, 0);
@@ -410,22 +419,34 @@ export function collectStrategicPersonalHistoryWeights(
     deviations: playerDeviationCount,
   };
   const personalSource = provenanceFor(state, options.source, totals);
-  const decisionWeights = blendedDecisionWeights(graph, decisionCounts, options.population, personalSource);
+  const decisionWeights = blendedDecisionWeights(
+    graph,
+    decisionCounts,
+    options.population,
+    personalSource,
+  );
   const provenance = mergeProvenance(options.population?.provenance ?? [], [personalSource]);
-  const frequencyByDecision = new Map(graph.decisions.map((decision) => [decision.decision_id, decision]));
+  const frequencyByDecision = new Map(
+    graph.decisions.map((decision) => [decision.decision_id, decision]),
+  );
   const formattedDepartures = [...departures.values()]
-    .map((departure): StrategicPersonalDeparture => ({
-      from_position_id: departure.fromPositionId,
-      owner: departure.owner,
-      played_san: departure.playedSan,
-      played_uci: departure.playedUci,
-      count: departure.count,
-      plies: [...departure.plies].sort((left, right) => left - right),
-      expected_decision_ids: [...departure.expectedDecisionIds],
-    }))
-    .sort((left, right) => right.count - left.count ||
-      compareStrings(left.from_position_id, right.from_position_id) ||
-      compareStrings(left.played_uci, right.played_uci));
+    .map(
+      (departure): StrategicPersonalDeparture => ({
+        from_position_id: departure.fromPositionId,
+        owner: departure.owner,
+        played_san: departure.playedSan,
+        played_uci: departure.playedUci,
+        count: departure.count,
+        plies: [...departure.plies].sort((left, right) => left - right),
+        expected_decision_ids: [...departure.expectedDecisionIds],
+      }),
+    )
+    .sort(
+      (left, right) =>
+        right.count - left.count ||
+        compareStrings(left.from_position_id, right.from_position_id) ||
+        compareStrings(left.played_uci, right.played_uci),
+    );
 
   return {
     state,

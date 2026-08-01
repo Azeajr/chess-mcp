@@ -1,13 +1,9 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import ProfileSetup, {
-  STRATEGIC_FIT_PROFILE_LABELS,
-} from "./strategic-fit/ProfileSetup";
+import ProfileSetup, { STRATEGIC_FIT_PROFILE_LABELS } from "./strategic-fit/ProfileSetup";
 import AnalysisLifecycle, {
   STRATEGIC_FIT_LIFECYCLE_LABELS,
 } from "./strategic-fit/AnalysisLifecycle";
-import StrategicOverview, {
-  type StrategicOverviewItemId,
-} from "./strategic-fit/StrategicOverview";
+import StrategicOverview, { type StrategicOverviewItemId } from "./strategic-fit/StrategicOverview";
 import StrategicMap from "./strategic-fit/StrategicMap";
 import ConceptHeatmap from "./strategic-fit/ConceptHeatmap";
 import DecisionFlow from "./strategic-fit/DecisionFlow";
@@ -100,7 +96,13 @@ function RegionState(props: {
     <div
       class={`strategic-fit-region-state strategic-fit-region-${props.state.status}`}
       data-region-state={props.state.status}
-      role={props.state.status === "error" ? "alert" : props.state.status === "loading" ? "status" : undefined}
+      role={
+        props.state.status === "error"
+          ? "alert"
+          : props.state.status === "loading"
+            ? "status"
+            : undefined
+      }
     >
       <Show when={props.state.status === "empty"}>
         <strong>{copy().title}</strong>
@@ -135,14 +137,14 @@ export default function StrategicFitWorkspace() {
   const setupRequired = () => profileReady() && strategicFitProfileSetupRequired();
   const profileSummary = () => {
     const profile = strategicFitProfile();
-    const intent = profile.source === "inferred" && profile.provisional
-      ? "Inferred · provisional"
-      : "Explicit";
+    const intent =
+      profile.source === "inferred" && profile.provisional ? "Inferred · provisional" : "Explicit";
     return `${STRATEGIC_FIT_PROFILE_LABELS[profile.mode]} · ${intent}`;
   };
   const currentOverview = () => {
     const lifecycle = strategicFitLifecycle();
-    return lifecycle.status === "completed" && lifecycle.current_result &&
+    return lifecycle.status === "completed" &&
+      lifecycle.current_result &&
       strategicFitWorkspaceRegions().overview.status === "empty"
       ? lifecycle.current_result
       : null;
@@ -150,15 +152,16 @@ export default function StrategicFitWorkspace() {
   createEffect(() => {
     const lifecycle = strategicFitLifecycle();
     synchronizeStrategicFitFindingResolutionReview(
-      lifecycle.status === "completed" ? lifecycle.current_result?.report_id ?? null : null,
+      lifecycle.status === "completed" ? (lifecycle.current_result?.report_id ?? null) : null,
     );
     synchronizeStrategicFitCohortAdjustment(
-      lifecycle.status === "completed" ? lifecycle.current_result?.report_id ?? null : null,
+      lifecycle.status === "completed" ? (lifecycle.current_result?.report_id ?? null) : null,
     );
   });
   const currentFindings = () => {
     const lifecycle = strategicFitLifecycle();
-    return lifecycle.status === "completed" && lifecycle.current_result &&
+    return lifecycle.status === "completed" &&
+      lifecycle.current_result &&
       strategicFitWorkspaceRegions().findings.status === "empty"
       ? lifecycle.current_result.result
       : null;
@@ -180,21 +183,24 @@ export default function StrategicFitWorkspace() {
       strategicFitWorkspaceRegions().evidence.status !== "empty" ||
       queue.report_id !== current.report_id ||
       queue.selected_finding_id === null
-    ) return null;
-    const finding = queue.findings.find((candidate) =>
-      candidate.finding_id === queue.selected_finding_id
+    )
+      return null;
+    const finding = queue.findings.find(
+      (candidate) => candidate.finding_id === queue.selected_finding_id,
     );
-    return finding === undefined ? null : {
-      reportId: current.report_id,
-      finding,
-      trajectories: current.result.trajectories,
-      preflightIssues: current.result.preflight.issues,
-      repertoireColor: current.request_snapshot.repertoire_color,
-      cohortName: strategicFitCohortDisplayName(
-        finding.evidence.cohort_id,
-        finding.evidence.cohort_id,
-      ),
-    };
+    return finding === undefined
+      ? null
+      : {
+          reportId: current.report_id,
+          finding,
+          trajectories: current.result.trajectories,
+          preflightIssues: current.result.preflight.issues,
+          repertoireColor: current.request_snapshot.repertoire_color,
+          cohortName: strategicFitCohortDisplayName(
+            finding.evidence.cohort_id,
+            finding.evidence.cohort_id,
+          ),
+        };
   };
   const currentResolution = () => {
     const lifecycle = strategicFitLifecycle();
@@ -205,28 +211,31 @@ export default function StrategicFitWorkspace() {
       current === null ||
       strategicFitWorkspaceRegions().resolution.status !== "empty" ||
       queue.report_id !== current.report_id
-    ) return null;
-    const findingId = queue.selected_finding_id ??
+    )
+      return null;
+    const findingId =
+      queue.selected_finding_id ??
       (strategicFitFindingResolutionReview().report_id === current.report_id
         ? strategicFitFindingResolutionReview().finding_id
         : null);
     if (findingId === null) return null;
-    const finding = queue.findings.find((candidate) =>
-      candidate.finding_id === findingId
-    );
-    return finding === undefined ? null : {
-      completed: current,
-      reportId: current.report_id,
-      report: current.result,
-      finding,
-    };
+    const finding = queue.findings.find((candidate) => candidate.finding_id === findingId);
+    return finding === undefined
+      ? null
+      : {
+          completed: current,
+          reportId: current.report_id,
+          report: current.result,
+          finding,
+        };
   };
   const resolutionFallbackState = (): StrategicFitWorkspaceRegionState => {
     const lifecycle = strategicFitLifecycle();
     if (lifecycle.status === "stale") {
       return {
         status: "error",
-        message: "Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.",
+        message:
+          "Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.",
       };
     }
     return strategicFitWorkspaceRegions().resolution;
@@ -249,7 +258,8 @@ export default function StrategicFitWorkspace() {
       current.request_snapshot.repertoire_color !== color() ||
       queue.report_id !== reportId ||
       queue.selected_finding_id !== findingId
-    ) return null;
+    )
+      return null;
     try {
       return currentTree().indexPathOfSan([...path]) ?? null;
     } catch {
@@ -269,7 +279,9 @@ export default function StrategicFitWorkspace() {
       label,
       filter,
     });
-    queueMicrotask(() => dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus());
+    queueMicrotask(() =>
+      dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus(),
+    );
   };
   const openMapFinding = (reportId: string, findingId: string) => {
     openStrategicFitFindingQueue({
@@ -320,8 +332,11 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
     });
   };
-  const focusable = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)]
-    .filter((element) => element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true");
+  const focusable = () =>
+    [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+      (element) =>
+        element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true",
+    );
   const selectStageFromKeyboard = (
     event: KeyboardEvent,
     currentStage: StrategicFitWorkspaceStage,
@@ -329,20 +344,24 @@ export default function StrategicFitWorkspace() {
     if (!usesStageTabs() || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     const currentIndex = STAGES.findIndex((stage) => stage.id === currentStage);
-    const nextIndex = event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? STAGES.length - 1
-        : event.key === "ArrowRight"
-          ? (currentIndex + 1) % STAGES.length
-          : (currentIndex - 1 + STAGES.length) % STAGES.length;
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? STAGES.length - 1
+          : event.key === "ArrowRight"
+            ? (currentIndex + 1) % STAGES.length
+            : (currentIndex - 1 + STAGES.length) % STAGES.length;
     const nextStage = STAGES[nextIndex]!;
     setStrategicFitWorkspaceStage(nextStage.id);
-    queueMicrotask(() => dialog.querySelector<HTMLElement>(`#strategic-fit-stage-${nextStage.id}`)?.focus());
+    queueMicrotask(() =>
+      dialog.querySelector<HTMLElement>(`#strategic-fit-stage-${nextStage.id}`)?.focus(),
+    );
   };
-  const focusAnalysisAction = () => queueMicrotask(() =>
-    dialog.querySelector<HTMLElement>("[data-strategic-fit-analysis-action]")?.focus()
-  );
+  const focusAnalysisAction = () =>
+    queueMicrotask(() =>
+      dialog.querySelector<HTMLElement>("[data-strategic-fit-analysis-action]")?.focus(),
+    );
 
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -435,267 +454,344 @@ export default function StrategicFitWorkspace() {
             <span class="strategic-fit-workspace-status">
               {STRATEGIC_FIT_LIFECYCLE_LABELS[strategicFitLifecycle().status]}
             </span>
-            <button ref={closeButton} type="button" onClick={close}>Return to repertoire</button>
+            <button ref={closeButton} type="button" onClick={close}>
+              Return to repertoire
+            </button>
           </div>
         </header>
 
-        <Show when={profileReady()} fallback={(
-          <main class="strategic-fit-profile-loading" role="status">
-            <span class="strategic-fit-region-spinner" aria-hidden="true" />
-            <div>
-              <strong>Loading profile settings</strong>
-              <p>Waiting for this repertoire's saved Strategic Fit preferences.</p>
-            </div>
-          </main>
-        )}>
-          <Show when={setupRequired()} fallback={(
-            <>
-              <AnalysisLifecycle />
-              <nav
-                class="strategic-fit-stage-nav"
-                aria-label="Strategic Fit stages"
-                role={usesStageTabs() ? "tablist" : undefined}
-              >
-                <For each={STAGES}>{(stage) => (
-                  <button
-                    id={`strategic-fit-stage-${stage.id}`}
-                    type="button"
-                    role={usesStageTabs() ? "tab" : undefined}
-                    aria-controls={`strategic-fit-pane-${stage.id}`}
-                    aria-selected={usesStageTabs()
-                      ? strategicFitWorkspaceStage() === stage.id
-                      : undefined}
-                    tabIndex={usesStageTabs()
-                      ? strategicFitWorkspaceStage() === stage.id ? 0 : -1
-                      : 0}
-                    class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
-                    onClick={() => setStrategicFitWorkspaceStage(stage.id)}
-                    onKeyDown={(event) => selectStageFromKeyboard(event, stage.id)}
-                  >{stage.label}</button>
-                )}</For>
-              </nav>
-
-              <main class="strategic-fit-workspace-body" data-stage={strategicFitWorkspaceStage()}>
-          <section
-            id="strategic-fit-pane-overview"
-            class="strategic-fit-workspace-pane strategic-fit-overview-pane"
-            role={usesStageTabs() ? "tabpanel" : "region"}
-            aria-labelledby={usesStageTabs()
-              ? "strategic-fit-stage-overview"
-              : "strategic-fit-pane-overview-title"}
-            tabIndex={0}
-          >
-            <div class="strategic-fit-pane-heading">
-              <span>Overview</span>
-              <h2 id="strategic-fit-pane-overview-title">Strategic map</h2>
-            </div>
-            <Show
-              when={currentOverview()}
-              fallback={<RegionState region="overview" state={strategicFitWorkspaceRegions().overview} />}
-            >
-              {(report) => (
-                <>
-                  <div class="strategic-fit-print-controls">
-                    <button
-                      type="button"
-                      aria-pressed={strategicFitPrintExportMode()}
-                      onClick={() => setStrategicFitPrintExportMode((current) => !current)}
-                      data-strategic-fit-print-export-toggle
-                    >
-                      {strategicFitPrintExportMode()
-                        ? "Leave print and export view"
-                        : "Prepare for print or export"}
-                    </button>
-                    <Show when={strategicFitPrintExportMode()}>
-                      <p class="strategic-fit-print-note" role="status" data-strategic-fit-print-note>
-                        Every table equivalent lists its complete contents and every disclosure is
-                        open. Charts still group large sets, and each one says how many branches it
-                        grouped.
-                      </p>
-                    </Show>
-                  </div>
-                  <StrategicMap
-                    report={report().result}
-                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
-                    completeFindings={report().findings_snapshot ?? report().result.findings}
-                    onOpenFinding={(findingId) => openMapFinding(report().report_id, findingId)}
-                  />
-                  <ConceptHeatmap
-                    report={report().result}
-                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
-                    completeFindings={report().findings_snapshot ?? report().result.findings}
-                    mastery={strategicFitTrainingMastery()}
-                    onOpenFinding={(findingId) => openHeatmapFinding(report().report_id, findingId)}
-                  />
-                  <DecisionFlow
-                    report={report().result}
-                    graph={decisionFlowGraph()}
-                    graphRevision={`browser:${version()}`}
-                    cohortName={(cohortId) => strategicFitCohortDisplayName(cohortId, cohortId)}
-                    completeFindings={report().findings_snapshot ?? report().result.findings}
-                    onOpenFinding={(findingId) => openFlowFinding(report().report_id, findingId)}
-                  />
-                  <StrategicOverview
-                    report={report().result}
-                    unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(report().result)}
-                    onReview={reviewOverviewItem}
-                  />
-                </>
-              )}
-            </Show>
-            <IntentSuggestions />
-            <ReviewSummary />
-            <ProfileSettings />
-          </section>
-
-          <section
-            id="strategic-fit-pane-findings"
-            class="strategic-fit-workspace-pane strategic-fit-findings-pane"
-            role={usesStageTabs() ? "tabpanel" : "region"}
-            aria-labelledby={usesStageTabs()
-              ? "strategic-fit-stage-findings"
-              : "strategic-fit-pane-findings-title"}
-            data-queue-filter={currentQueueIntent()
-              ? strategicFitFindingQueueFilterKey(currentQueueIntent()!.filter)
-              : "none"}
-            tabIndex={0}
-          >
-            <div class="strategic-fit-pane-heading">
-              <span>Review queue</span>
-              <h2 id="strategic-fit-pane-findings-title">Findings</h2>
-            </div>
-            <Show
-              when={currentFindings()}
-              fallback={<RegionState region="findings" state={strategicFitWorkspaceRegions().findings} />}
-            >
-              {(report) => (
-                <FindingQueue
-                  report={report()}
-                  intent={currentQueueIntent()}
-                  resolutionState={displayStrategicFitFindingResolution}
-                  changedEvidenceSemanticIds={strategicFitLifecycle().current_result?.reanalysis
-                    ?.changed_evidence_semantic_finding_ids ?? []}
-                  cohortName={(finding) => strategicFitCohortDisplayName(
-                    finding.evidence.cohort_id,
-                    finding.evidence.cohort_id,
-                  )}
-                />
-              )}
-            </Show>
-          </section>
-
-          <section
-            id="strategic-fit-pane-evidence"
-            class="strategic-fit-workspace-pane strategic-fit-evidence-pane"
-            role={usesStageTabs() ? "tabpanel" : "region"}
-            aria-labelledby={usesStageTabs()
-              ? "strategic-fit-stage-evidence"
-              : "strategic-fit-pane-evidence-title"}
-            tabIndex={0}
-          >
-            <div class="strategic-fit-pane-heading">
-              <span>Branch review</span>
-              <h2 id="strategic-fit-pane-evidence-title">Evidence / comparison</h2>
-            </div>
-            <Show
-              when={currentEvidence()}
-              fallback={<RegionState region="evidence" state={strategicFitWorkspaceRegions().evidence} />}
-            >
-              {(evidence) => (
-                <EvidencePanel
-                  reportId={evidence().reportId}
-                  finding={evidence().finding}
-                  cohortName={evidence().cohortName}
-                  trajectories={evidence().trajectories}
-                  preflightIssues={evidence().preflightIssues}
-                  repertoireColor={evidence().repertoireColor}
-                  canNavigateToLine={(path) => resolveCurrentEvidenceLine(
-                    evidence().reportId,
-                    evidence().finding.finding_id,
-                    path,
-                  ) !== null}
-                  onGoToLine={(path) => {
-                    const target = resolveCurrentEvidenceLine(
-                      evidence().reportId,
-                      evidence().finding.finding_id,
-                      path,
-                    );
-                    if (target === null) return false;
-                    actions.goto(target);
-                    return true;
-                  }}
-                />
-              )}
-            </Show>
-            <Show when={!usesStageTabs() && currentResolution()}>
-              {(resolution) => (
-                <div class="strategic-fit-review-actions">
-                  <ResolutionActions
-                    completed={resolution().completed}
-                    reportId={resolution().reportId}
-                    finding={resolution().finding}
-                  />
-                  <TrainException
-                    reportId={resolution().reportId}
-                    report={resolution().report}
-                    finding={resolution().finding}
-                  />
-                  <CohortEditor
-                    reportId={resolution().reportId}
-                    report={resolution().report}
-                    finding={resolution().finding}
-                  />
-                </div>
-              )}
-            </Show>
-            <Show when={!usesStageTabs() && strategicFitLifecycle().status === "stale"}>
-              <div class="strategic-fit-resolution-blocked" role="alert" data-resolution-blocked>
-                Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.
+        <Show
+          when={profileReady()}
+          fallback={
+            <main class="strategic-fit-profile-loading" role="status">
+              <span class="strategic-fit-region-spinner" aria-hidden="true" />
+              <div>
+                <strong>Loading profile settings</strong>
+                <p>Waiting for this repertoire's saved Strategic Fit preferences.</p>
               </div>
-            </Show>
-          </section>
+            </main>
+          }
+        >
+          <Show
+            when={setupRequired()}
+            fallback={
+              <>
+                <AnalysisLifecycle />
+                <nav
+                  class="strategic-fit-stage-nav"
+                  aria-label="Strategic Fit stages"
+                  role={usesStageTabs() ? "tablist" : undefined}
+                >
+                  <For each={STAGES}>
+                    {(stage) => (
+                      <button
+                        id={`strategic-fit-stage-${stage.id}`}
+                        type="button"
+                        role={usesStageTabs() ? "tab" : undefined}
+                        aria-controls={`strategic-fit-pane-${stage.id}`}
+                        aria-selected={
+                          usesStageTabs() ? strategicFitWorkspaceStage() === stage.id : undefined
+                        }
+                        tabIndex={
+                          usesStageTabs() ? (strategicFitWorkspaceStage() === stage.id ? 0 : -1) : 0
+                        }
+                        class={strategicFitWorkspaceStage() === stage.id ? "active" : ""}
+                        onClick={() => setStrategicFitWorkspaceStage(stage.id)}
+                        onKeyDown={(event) => selectStageFromKeyboard(event, stage.id)}
+                      >
+                        {stage.label}
+                      </button>
+                    )}
+                  </For>
+                </nav>
 
-          <section
-            id="strategic-fit-pane-resolution"
-            class="strategic-fit-workspace-pane strategic-fit-resolution-pane"
-            role={usesStageTabs() ? "tabpanel" : "region"}
-            aria-labelledby={usesStageTabs()
-              ? "strategic-fit-stage-resolution"
-              : "strategic-fit-pane-resolution-title"}
-            tabIndex={0}
+                <main
+                  class="strategic-fit-workspace-body"
+                  data-stage={strategicFitWorkspaceStage()}
+                >
+                  <section
+                    id="strategic-fit-pane-overview"
+                    class="strategic-fit-workspace-pane strategic-fit-overview-pane"
+                    role={usesStageTabs() ? "tabpanel" : "region"}
+                    aria-labelledby={
+                      usesStageTabs()
+                        ? "strategic-fit-stage-overview"
+                        : "strategic-fit-pane-overview-title"
+                    }
+                    tabIndex={0}
+                  >
+                    <div class="strategic-fit-pane-heading">
+                      <span>Overview</span>
+                      <h2 id="strategic-fit-pane-overview-title">Strategic map</h2>
+                    </div>
+                    <Show
+                      when={currentOverview()}
+                      fallback={
+                        <RegionState
+                          region="overview"
+                          state={strategicFitWorkspaceRegions().overview}
+                        />
+                      }
+                    >
+                      {(report) => (
+                        <>
+                          <div class="strategic-fit-print-controls">
+                            <button
+                              type="button"
+                              aria-pressed={strategicFitPrintExportMode()}
+                              onClick={() => setStrategicFitPrintExportMode((current) => !current)}
+                              data-strategic-fit-print-export-toggle
+                            >
+                              {strategicFitPrintExportMode()
+                                ? "Leave print and export view"
+                                : "Prepare for print or export"}
+                            </button>
+                            <Show when={strategicFitPrintExportMode()}>
+                              <p
+                                class="strategic-fit-print-note"
+                                role="status"
+                                data-strategic-fit-print-note
+                              >
+                                Every table equivalent lists its complete contents and every
+                                disclosure is open. Charts still group large sets, and each one says
+                                how many branches it grouped.
+                              </p>
+                            </Show>
+                          </div>
+                          <StrategicMap
+                            report={report().result}
+                            cohortName={(cohortId) =>
+                              strategicFitCohortDisplayName(cohortId, cohortId)
+                            }
+                            completeFindings={
+                              report().findings_snapshot ?? report().result.findings
+                            }
+                            onOpenFinding={(findingId) =>
+                              openMapFinding(report().report_id, findingId)
+                            }
+                          />
+                          <ConceptHeatmap
+                            report={report().result}
+                            cohortName={(cohortId) =>
+                              strategicFitCohortDisplayName(cohortId, cohortId)
+                            }
+                            completeFindings={
+                              report().findings_snapshot ?? report().result.findings
+                            }
+                            mastery={strategicFitTrainingMastery()}
+                            onOpenFinding={(findingId) =>
+                              openHeatmapFinding(report().report_id, findingId)
+                            }
+                          />
+                          <DecisionFlow
+                            report={report().result}
+                            graph={decisionFlowGraph()}
+                            graphRevision={`browser:${version()}`}
+                            cohortName={(cohortId) =>
+                              strategicFitCohortDisplayName(cohortId, cohortId)
+                            }
+                            completeFindings={
+                              report().findings_snapshot ?? report().result.findings
+                            }
+                            onOpenFinding={(findingId) =>
+                              openFlowFinding(report().report_id, findingId)
+                            }
+                          />
+                          <StrategicOverview
+                            report={report().result}
+                            unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(
+                              report().result,
+                            )}
+                            onReview={reviewOverviewItem}
+                          />
+                        </>
+                      )}
+                    </Show>
+                    <IntentSuggestions />
+                    <ReviewSummary />
+                    <ProfileSettings />
+                  </section>
+
+                  <section
+                    id="strategic-fit-pane-findings"
+                    class="strategic-fit-workspace-pane strategic-fit-findings-pane"
+                    role={usesStageTabs() ? "tabpanel" : "region"}
+                    aria-labelledby={
+                      usesStageTabs()
+                        ? "strategic-fit-stage-findings"
+                        : "strategic-fit-pane-findings-title"
+                    }
+                    data-queue-filter={
+                      currentQueueIntent()
+                        ? strategicFitFindingQueueFilterKey(currentQueueIntent()!.filter)
+                        : "none"
+                    }
+                    tabIndex={0}
+                  >
+                    <div class="strategic-fit-pane-heading">
+                      <span>Review queue</span>
+                      <h2 id="strategic-fit-pane-findings-title">Findings</h2>
+                    </div>
+                    <Show
+                      when={currentFindings()}
+                      fallback={
+                        <RegionState
+                          region="findings"
+                          state={strategicFitWorkspaceRegions().findings}
+                        />
+                      }
+                    >
+                      {(report) => (
+                        <FindingQueue
+                          report={report()}
+                          intent={currentQueueIntent()}
+                          resolutionState={displayStrategicFitFindingResolution}
+                          changedEvidenceSemanticIds={
+                            strategicFitLifecycle().current_result?.reanalysis
+                              ?.changed_evidence_semantic_finding_ids ?? []
+                          }
+                          cohortName={(finding) =>
+                            strategicFitCohortDisplayName(
+                              finding.evidence.cohort_id,
+                              finding.evidence.cohort_id,
+                            )
+                          }
+                        />
+                      )}
+                    </Show>
+                  </section>
+
+                  <section
+                    id="strategic-fit-pane-evidence"
+                    class="strategic-fit-workspace-pane strategic-fit-evidence-pane"
+                    role={usesStageTabs() ? "tabpanel" : "region"}
+                    aria-labelledby={
+                      usesStageTabs()
+                        ? "strategic-fit-stage-evidence"
+                        : "strategic-fit-pane-evidence-title"
+                    }
+                    tabIndex={0}
+                  >
+                    <div class="strategic-fit-pane-heading">
+                      <span>Branch review</span>
+                      <h2 id="strategic-fit-pane-evidence-title">Evidence / comparison</h2>
+                    </div>
+                    <Show
+                      when={currentEvidence()}
+                      fallback={
+                        <RegionState
+                          region="evidence"
+                          state={strategicFitWorkspaceRegions().evidence}
+                        />
+                      }
+                    >
+                      {(evidence) => (
+                        <EvidencePanel
+                          reportId={evidence().reportId}
+                          finding={evidence().finding}
+                          cohortName={evidence().cohortName}
+                          trajectories={evidence().trajectories}
+                          preflightIssues={evidence().preflightIssues}
+                          repertoireColor={evidence().repertoireColor}
+                          canNavigateToLine={(path) =>
+                            resolveCurrentEvidenceLine(
+                              evidence().reportId,
+                              evidence().finding.finding_id,
+                              path,
+                            ) !== null
+                          }
+                          onGoToLine={(path) => {
+                            const target = resolveCurrentEvidenceLine(
+                              evidence().reportId,
+                              evidence().finding.finding_id,
+                              path,
+                            );
+                            if (target === null) return false;
+                            actions.goto(target);
+                            return true;
+                          }}
+                        />
+                      )}
+                    </Show>
+                    <Show when={!usesStageTabs() && currentResolution()}>
+                      {(resolution) => (
+                        <div class="strategic-fit-review-actions">
+                          <ResolutionActions
+                            completed={resolution().completed}
+                            reportId={resolution().reportId}
+                            finding={resolution().finding}
+                          />
+                          <TrainException
+                            reportId={resolution().reportId}
+                            report={resolution().report}
+                            finding={resolution().finding}
+                          />
+                          <CohortEditor
+                            reportId={resolution().reportId}
+                            report={resolution().report}
+                            finding={resolution().finding}
+                          />
+                        </div>
+                      )}
+                    </Show>
+                    <Show when={!usesStageTabs() && strategicFitLifecycle().status === "stale"}>
+                      <div
+                        class="strategic-fit-resolution-blocked"
+                        role="alert"
+                        data-resolution-blocked
+                      >
+                        Resolution actions are blocked while this report is stale. Cohort adjustment
+                        actions are also blocked. Analyze again before recording a decision.
+                      </div>
+                    </Show>
+                  </section>
+
+                  <section
+                    id="strategic-fit-pane-resolution"
+                    class="strategic-fit-workspace-pane strategic-fit-resolution-pane"
+                    role={usesStageTabs() ? "tabpanel" : "region"}
+                    aria-labelledby={
+                      usesStageTabs()
+                        ? "strategic-fit-stage-resolution"
+                        : "strategic-fit-pane-resolution-title"
+                    }
+                    tabIndex={0}
+                  >
+                    <div class="strategic-fit-pane-heading">
+                      <span>Next step</span>
+                      <h2 id="strategic-fit-pane-resolution-title">Resolution</h2>
+                    </div>
+                    <Show
+                      when={usesStageTabs() && currentResolution()}
+                      fallback={
+                        <RegionState region="resolution" state={resolutionFallbackState()} />
+                      }
+                    >
+                      {(resolution) => (
+                        <div class="strategic-fit-review-actions">
+                          <ResolutionActions
+                            completed={resolution().completed}
+                            reportId={resolution().reportId}
+                            finding={resolution().finding}
+                          />
+                          <TrainException
+                            reportId={resolution().reportId}
+                            report={resolution().report}
+                            finding={resolution().finding}
+                          />
+                          <CohortEditor
+                            reportId={resolution().reportId}
+                            report={resolution().report}
+                            finding={resolution().finding}
+                          />
+                        </div>
+                      )}
+                    </Show>
+                  </section>
+                </main>
+              </>
+            }
           >
-            <div class="strategic-fit-pane-heading">
-              <span>Next step</span>
-              <h2 id="strategic-fit-pane-resolution-title">Resolution</h2>
-            </div>
-            <Show
-              when={usesStageTabs() && currentResolution()}
-              fallback={<RegionState region="resolution" state={resolutionFallbackState()} />}
-            >
-              {(resolution) => (
-                <div class="strategic-fit-review-actions">
-                  <ResolutionActions
-                    completed={resolution().completed}
-                    reportId={resolution().reportId}
-                    finding={resolution().finding}
-                  />
-                  <TrainException
-                    reportId={resolution().reportId}
-                    report={resolution().report}
-                    finding={resolution().finding}
-                  />
-                  <CohortEditor
-                    reportId={resolution().reportId}
-                    report={resolution().report}
-                    finding={resolution().finding}
-                  />
-                </div>
-              )}
-            </Show>
-          </section>
-              </main>
-            </>
-          )}>
             <ProfileSetup onComplete={focusAnalysisAction} />
           </Show>
         </Show>

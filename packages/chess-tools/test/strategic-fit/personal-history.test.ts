@@ -63,21 +63,28 @@ function population(graph: RepertoireGraph): StrategicRouteWeightingOptions {
       { decision_id: decisionBySan(graph, "e5").decision_id, weight: 90 },
       { decision_id: decisionBySan(graph, "c5").decision_id, weight: 10 },
     ],
-    provenance: [{
-      source_id: "test:population",
-      kind: "opening-explorer",
-      state: "available",
-      version: "test",
-      snapshot: "population:90-10",
-      reason: null,
-    }],
+    provenance: [
+      {
+        source_id: "test:population",
+        kind: "opening-explorer",
+        state: "available",
+        version: "test",
+        snapshot: "population:90-10",
+        reason: null,
+      },
+    ],
   };
 }
 
-function routeWeight(graph: RepertoireGraph, weighting: StrategicRouteWeightingOptions, reply: string) {
+function routeWeight(
+  graph: RepertoireGraph,
+  weighting: StrategicRouteWeightingOptions,
+  reply: string,
+) {
   const report = calculateStrategicRouteWeights(graph, weighting);
-  return report.routes.find((weighted) =>
-    graph.routes.find((route) => route.route_id === weighted.route_id)?.san_moves[1] === reply
+  return report.routes.find(
+    (weighted) =>
+      graph.routes.find((route) => route.route_id === weighted.route_id)?.san_moves[1] === reply,
   )!.normalized_weight;
 }
 
@@ -94,8 +101,14 @@ test("five personal games are shrunk toward population frequency", () => {
   assert.equal(collection.games_mapped, 5);
   assert.equal(routeWeight(graph, collection.weighting, "e5"), 0.72);
   assert.equal(routeWeight(graph, collection.weighting, "c5"), 0.28);
-  assert.equal(collection.provenance.some((source) => source.kind === "personal-history"), true);
-  assert.equal(collection.provenance.some((source) => source.kind === "opening-explorer"), true);
+  assert.equal(
+    collection.provenance.some((source) => source.kind === "personal-history"),
+    true,
+  );
+  assert.equal(
+    collection.provenance.some((source) => source.kind === "opening-explorer"),
+    true,
+  );
 });
 
 test("a large personal sample can outweigh the population prior", () => {
@@ -127,27 +140,38 @@ test("wrong-color games are excluded rather than counted as repertoire frequency
   assert.equal(collection.decisions_mapped, 0);
   assert.equal(routeWeight(graph, collection.weighting, "e5"), 0.9);
   assert.equal(routeWeight(graph, collection.weighting, "c5"), 0.1);
-  assert.match(collection.provenance.find((source) => source.kind === "personal-history")?.reason ?? "", /wrong-color games are excluded/);
+  assert.match(
+    collection.provenance.find((source) => source.kind === "personal-history")?.reason ?? "",
+    /wrong-color games are excluded/,
+  );
 });
 
 test("transposed move orders aggregate at one canonical semantic decision", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(TRANSPOSED_DECISION), "white");
-  const target = graph.positions.find((position) =>
-    position.outgoing_decision_ids.length === 2 && position.incoming_move_order_ids.length === 2
+  const target = graph.positions.find(
+    (position) =>
+      position.outgoing_decision_ids.length === 2 && position.incoming_move_order_ids.length === 2,
   )!;
   const collection = collectStrategicPersonalHistoryWeights(
     graph,
-    [
-      game("1. Nf3 d5 2. d4 Nf6 *"),
-      game("1. d4 d5 2. Nf3 e6 *"),
-    ],
+    [game("1. Nf3 d5 2. d4 Nf6 *"), game("1. d4 d5 2. Nf3 e6 *")],
     { source: { platform: "lichess", username: "SampleUser", max_games: 30 } },
   );
 
-  assert.equal(collection.position_frequencies.find((item) => item.position_id === target.position_id)?.visits, 2);
-  const frequencies = collection.decision_frequencies.filter((item) => item.from_position_id === target.position_id);
+  assert.equal(
+    collection.position_frequencies.find((item) => item.position_id === target.position_id)?.visits,
+    2,
+  );
+  const frequencies = collection.decision_frequencies.filter(
+    (item) => item.from_position_id === target.position_id,
+  );
   assert.deepEqual(frequencies.map((item) => item.count).sort(), [1, 1]);
-  assert.equal(collection.decision_weights.filter((item) => target.outgoing_decision_ids.includes(item.decision_id)).length, 2);
+  assert.equal(
+    collection.decision_weights.filter((item) =>
+      target.outgoing_decision_ids.includes(item.decision_id),
+    ).length,
+    2,
+  );
 });
 
 test("player departures map to their canonical repertoire decision position", () => {
@@ -178,20 +202,24 @@ test("metadata without PGN is explicitly insufficient and preserves equal fallba
   assert.equal(collection.provenance[0]?.state, "unavailable");
   assert.match(collection.provenance[0]?.reason ?? "", /metadata records contain no PGN/);
   assert.deepEqual(
-    calculateStrategicRouteWeights(graph, collection.weighting).routes.map((route) => route.normalized_weight),
+    calculateStrategicRouteWeights(graph, collection.weighting).routes.map(
+      (route) => route.normalized_weight,
+    ),
     [0.5, 0.5],
   );
 });
 
 test("Lichess and Chess.com PGN fixtures map through the same deterministic boundary", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(ROOT_BRANCHES), "white");
-  const lichess = game(`[Event "rated rapid game"]\n[Site "https://lichess.org/example"]\n[White "SampleUser"]\n[Black "Opponent"]\n\n1. e4 e5 2. Nf3 *`);
-  const chesscom = game(`[Event "Live Chess"]\n[Site "Chess.com"]\n[White "SampleUser"]\n[Black "Opponent"]\n\n1. e4 c5 2. Nf3 *`);
-  const collection = collectStrategicPersonalHistoryWeights(
-    graph,
-    [lichess, chesscom],
-    { source: { platform: "chesscom", username: "SampleUser", year: 2026, month: 7 } },
+  const lichess = game(
+    `[Event "rated rapid game"]\n[Site "https://lichess.org/example"]\n[White "SampleUser"]\n[Black "Opponent"]\n\n1. e4 e5 2. Nf3 *`,
   );
+  const chesscom = game(
+    `[Event "Live Chess"]\n[Site "Chess.com"]\n[White "SampleUser"]\n[Black "Opponent"]\n\n1. e4 c5 2. Nf3 *`,
+  );
+  const collection = collectStrategicPersonalHistoryWeights(graph, [lichess, chesscom], {
+    source: { platform: "chesscom", username: "SampleUser", year: 2026, month: 7 },
+  });
 
   assert.equal(collection.games_mapped, 2);
   assert.deepEqual(
@@ -201,15 +229,19 @@ test("Lichess and Chess.com PGN fixtures map through the same deterministic boun
       .sort(),
     [1, 1],
   );
-  const lichessCollection = collectStrategicPersonalHistoryWeights(
-    graph,
-    [lichess, chesscom],
-    { source: { platform: "lichess", username: "SampleUser", max_games: 30 } },
-  );
-  const baseOptions = { repertoireColor: "white" as const, repertoireRevision: "revision:personal" };
+  const lichessCollection = collectStrategicPersonalHistoryWeights(graph, [lichess, chesscom], {
+    source: { platform: "lichess", username: "SampleUser", max_games: 30 },
+  });
+  const baseOptions = {
+    repertoireColor: "white" as const,
+    repertoireRevision: "revision:personal",
+  };
   assert.notEqual(
     strategicFitReportCacheKey(ROOT_BRANCHES, { ...baseOptions, weighting: collection.weighting }),
-    strategicFitReportCacheKey(ROOT_BRANCHES, { ...baseOptions, weighting: lichessCollection.weighting }),
+    strategicFitReportCacheKey(ROOT_BRANCHES, {
+      ...baseOptions,
+      weighting: lichessCollection.weighting,
+    }),
     "identical frequencies from different platform snapshots cannot share a report cache entry",
   );
 });

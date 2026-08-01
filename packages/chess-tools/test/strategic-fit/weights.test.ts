@@ -78,17 +78,30 @@ test("equal weights normalize at opponent decisions instead of counting annotate
   assert.equal(result.requested_mode, "equal");
   assert.equal(result.state, "complete");
   assert.deepEqual(result.fallbacks, []);
-  close(result.routes.reduce((sum, route) => sum + route.normalized_weight, 0), 1);
+  close(
+    result.routes.reduce((sum, route) => sum + route.normalized_weight, 0),
+    1,
+  );
 
-  const e5 = result.routes.find((route) =>
-    graph.routes.find((candidate) => candidate.route_id === route.route_id)!.san_moves[1] === "e5"
+  const e5 = result.routes.find(
+    (route) =>
+      graph.routes.find((candidate) => candidate.route_id === route.route_id)!.san_moves[1] ===
+      "e5",
   )!;
-  const c5 = result.routes.filter((route) =>
-    graph.routes.find((candidate) => candidate.route_id === route.route_id)!.san_moves[1] === "c5"
+  const c5 = result.routes.filter(
+    (route) =>
+      graph.routes.find((candidate) => candidate.route_id === route.route_id)!.san_moves[1] ===
+      "c5",
   );
   close(e5.normalized_weight, 0.5);
-  close(c5.reduce((sum, route) => sum + route.normalized_weight, 0), 0.5);
-  assert.deepEqual(c5.map((route) => route.normalized_weight), [0.25, 0.25]);
+  close(
+    c5.reduce((sum, route) => sum + route.normalized_weight, 0),
+    0.5,
+  );
+  assert.deepEqual(
+    c5.map((route) => route.normalized_weight),
+    [0.25, 0.25],
+  );
 });
 
 test("a dominant manually supplied route weight remains deterministic and normalized", () => {
@@ -105,7 +118,10 @@ test("a dominant manually supplied route weight remains deterministic and normal
 
   assert.equal(result.state, "complete");
   assert.deepEqual(result.fallbacks, []);
-  close(result.routes.find((route) => route.route_id === dominant.route_id)!.normalized_weight, 0.9);
+  close(
+    result.routes.find((route) => route.route_id === dominant.route_id)!.normalized_weight,
+    0.9,
+  );
   for (const route of result.routes.filter((route) => route.route_id !== dominant.route_id)) {
     close(route.normalized_weight, 0.05);
   }
@@ -114,35 +130,44 @@ test("a dominant manually supplied route weight remains deterministic and normal
 test("external opponent-decision weights retain provenance and disclose missing siblings", () => {
   const graph = blackGraph();
   const e4 = routeByFirstSan(graph, "e4");
-  const rootDecision = graph.decisions.find((decision) =>
-    decision.owner === "opponent" &&
-    decision.from_position_id === graph.root_position_id &&
-    decision.uci === e4.uci_moves[0]
+  const rootDecision = graph.decisions.find(
+    (decision) =>
+      decision.owner === "opponent" &&
+      decision.from_position_id === graph.root_position_id &&
+      decision.uci === e4.uci_moves[0],
   )!;
   const result = calculateStrategicRouteWeights(graph, {
     mode: "external",
-    decision_weights: [{
-      decision_id: rootDecision.decision_id,
-      weight: 8,
-      provenance: [EXTERNAL_PROVENANCE],
-    }],
+    decision_weights: [
+      {
+        decision_id: rootDecision.decision_id,
+        weight: 8,
+        provenance: [EXTERNAL_PROVENANCE],
+      },
+    ],
   });
 
   assert.equal(result.state, "partial");
-  assert.deepEqual(result.fallbacks, [{
-    scope: "opponent-decision",
-    reason: "missing-decision-weight",
-    affected_ids: graph.decisions
-      .filter((decision) => decision.owner === "opponent" && decision.from_position_id === graph.root_position_id)
-      .filter((decision) => decision.decision_id !== rootDecision.decision_id)
-      .map((decision) => decision.decision_id)
-      .sort(),
-    resolution: "equal",
-  }]);
+  assert.deepEqual(result.fallbacks, [
+    {
+      scope: "opponent-decision",
+      reason: "missing-decision-weight",
+      affected_ids: graph.decisions
+        .filter(
+          (decision) =>
+            decision.owner === "opponent" && decision.from_position_id === graph.root_position_id,
+        )
+        .filter((decision) => decision.decision_id !== rootDecision.decision_id)
+        .map((decision) => decision.decision_id)
+        .sort(),
+      resolution: "equal",
+    },
+  ]);
   close(result.routes.find((route) => route.route_id === e4.route_id)!.normalized_weight, 0.8);
   assert.ok(result.provenance.some((source) => source.source_id === EXTERNAL_PROVENANCE.source_id));
   assert.ok(
-    result.opponent_decisions.find((decision) => decision.decision_id === rootDecision.decision_id)!
+    result.opponent_decisions
+      .find((decision) => decision.decision_id === rootDecision.decision_id)!
       .provenance.some((source) => source.source_id === EXTERNAL_PROVENANCE.source_id),
   );
 });
@@ -154,8 +179,9 @@ test("missing and all-zero external weights fall back explicitly to equal eviden
     mode: "external",
     route_weights: graph.routes.map((route) => ({ route_id: route.route_id, weight: 0 })),
   });
-  const rootOpponentDecisions = graph.decisions.filter((decision) =>
-    decision.owner === "opponent" && decision.from_position_id === graph.root_position_id
+  const rootOpponentDecisions = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" && decision.from_position_id === graph.root_position_id,
   );
   const zeroDecisions = calculateStrategicRouteWeights(graph, {
     mode: "external",
@@ -175,16 +201,25 @@ test("missing and all-zero external weights fall back explicitly to equal eviden
     allZero.routes.map((route) => route.normalized_weight),
     missing.routes.map((route) => route.normalized_weight),
   );
-  close(allZero.routes.reduce((sum, route) => sum + route.normalized_weight, 0), 1);
+  close(
+    allZero.routes.reduce((sum, route) => sum + route.normalized_weight, 0),
+    1,
+  );
 });
 
 test("transposed and duplicate source routes do not create independent weight", () => {
-  const transposedGraph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
+  const transposedGraph = buildRepertoireGraph(
+    parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE),
+    "white",
+  );
   const transposed = calculateStrategicRouteWeights(transposedGraph);
 
   assert.equal(transposed.routes.length, 2);
   assert.equal(transposed.weighting_units.length, 1);
-  assert.deepEqual(transposed.routes.map((route) => route.normalized_weight), [0.5, 0.5]);
+  assert.deepEqual(
+    transposed.routes.map((route) => route.normalized_weight),
+    [0.5, 0.5],
+  );
   assert.equal(transposed.effective_sample_size, 1);
 
   const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *");
@@ -211,9 +246,12 @@ test("effective sample size follows the frozen sum-squared formula", () => {
 test("profile coefficients compose market, personal, and manual estimates after independent normalization", () => {
   const graph = blackGraph();
   const routes = ["e4", "d4", "c4"].map((san) => routeByFirstSan(graph, san));
-  const rootDecisions = routes.map((route) => graph.decisions.find((decision) =>
-    decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0]
-  )!);
+  const rootDecisions = routes.map((route) =>
+    graph.decisions.find(
+      (decision) =>
+        decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0],
+    )!,
+  );
   const report = calculateStrategicRouteWeights(graph, {
     mode: "external",
     source_coefficients: { market: 0.5, personal: 0.3, manual: 0.2 },
@@ -246,54 +284,64 @@ test("profile coefficients compose market, personal, and manual estimates after 
   close(byRoute.get(routes[0]!.route_id)!, 0.48);
   close(byRoute.get(routes[1]!.route_id)!, 0.25);
   close(byRoute.get(routes[2]!.route_id)!, 0.27);
-  assert.deepEqual(report.evidence_sources.map((source) => [
-    source.kind,
-    source.resolution,
-    source.normalized_coefficient,
-  ]), [
-    ["market", "used", 0.5],
-    ["personal", "used", 0.3],
-    ["manual", "used", 0.2],
-  ]);
+  assert.deepEqual(
+    report.evidence_sources.map((source) => [
+      source.kind,
+      source.resolution,
+      source.normalized_coefficient,
+    ]),
+    [
+      ["market", "used", 0.5],
+      ["personal", "used", 0.3],
+      ["manual", "used", 0.2],
+    ],
+  );
   assert.match(
-    report.provenance.find((source) => source.source_id === "strategic-fit:weight-composition")!.reason!,
+    report.provenance.find((source) => source.source_id === "strategic-fit:weight-composition")!
+      .reason!,
     /unavailable sources contribute zero/,
   );
-  assert.deepEqual(calculateStrategicRouteWeights(graph, {
-    mode: "external",
-    source_coefficients: { market: 0.5, personal: 0.3, manual: 0.2 },
-    market: {
-      state: "available",
-      decision_weights: rootDecisions.map((decision, index) => ({
-        decision_id: decision.decision_id,
-        weight: [8, 1, 1][index]!,
+  assert.deepEqual(
+    calculateStrategicRouteWeights(graph, {
+      mode: "external",
+      source_coefficients: { market: 0.5, personal: 0.3, manual: 0.2 },
+      market: {
+        state: "available",
+        decision_weights: rootDecisions.map((decision, index) => ({
+          decision_id: decision.decision_id,
+          weight: [8, 1, 1][index]!,
+          provenance: [EXTERNAL_PROVENANCE],
+        })),
         provenance: [EXTERNAL_PROVENANCE],
-      })),
-      provenance: [EXTERNAL_PROVENANCE],
-    },
-    personal: {
-      state: "available",
-      decision_weights: rootDecisions.map((decision, index) => ({
-        decision_id: decision.decision_id,
-        weight: [2, 6, 2][index]!,
+      },
+      personal: {
+        state: "available",
+        decision_weights: rootDecisions.map((decision, index) => ({
+          decision_id: decision.decision_id,
+          weight: [2, 6, 2][index]!,
+          provenance: [PERSONAL_PROVENANCE],
+        })),
         provenance: [PERSONAL_PROVENANCE],
+      },
+      route_weights: routes.map((route, index) => ({
+        route_id: route.route_id,
+        weight: [1, 1, 8][index]!,
+        provenance: [MANUAL_PROVENANCE],
       })),
-      provenance: [PERSONAL_PROVENANCE],
-    },
-    route_weights: routes.map((route, index) => ({
-      route_id: route.route_id,
-      weight: [1, 1, 8][index]!,
-      provenance: [MANUAL_PROVENANCE],
-    })),
-  }), report);
+    }),
+    report,
+  );
 });
 
 test("every source subset normalizes usable coefficients and unavailable evidence cannot dilute", () => {
   const graph = blackGraph();
   const routes = ["e4", "d4", "c4"].map((san) => routeByFirstSan(graph, san));
-  const rootDecisions = routes.map((route) => graph.decisions.find((decision) =>
-    decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0]
-  )!);
+  const rootDecisions = routes.map((route) =>
+    graph.decisions.find(
+      (decision) =>
+        decision.from_position_id === graph.root_position_id && decision.uci === route.uci_moves[0],
+    )!,
+  );
   const decisionWeights = rootDecisions.map((decision, index) => ({
     decision_id: decision.decision_id,
     weight: [7, 2, 1][index]!,
@@ -303,17 +351,29 @@ test("every source subset normalizes usable coefficients and unavailable evidenc
     const report = calculateStrategicRouteWeights(graph, {
       mode: "external",
       source_coefficients: { market: 0, personal: 0, manual: 0 },
-      ...(mask & 1 ? { market: { state: "available" as const, decision_weights: decisionWeights } } : {}),
-      ...(mask & 2 ? { personal: { state: "available" as const, decision_weights: decisionWeights } } : {}),
-      ...(mask & 4 ? {
-        route_weights: routes.map((route, index) => ({ route_id: route.route_id, weight: [7, 2, 1][index]! })),
-      } : {}),
+      ...(mask & 1
+        ? { market: { state: "available" as const, decision_weights: decisionWeights } }
+        : {}),
+      ...(mask & 2
+        ? { personal: { state: "available" as const, decision_weights: decisionWeights } }
+        : {}),
+      ...(mask & 4
+        ? {
+            route_weights: routes.map((route, index) => ({
+              route_id: route.route_id,
+              weight: [7, 2, 1][index]!,
+            })),
+          }
+        : {}),
     });
-    close(report.evidence_sources.reduce(
-      (sum, source) => sum + source.normalized_coefficient,
-      0,
-    ), 1);
-    close(report.routes.reduce((sum, route) => sum + route.normalized_weight, 0), 1);
+    close(
+      report.evidence_sources.reduce((sum, source) => sum + source.normalized_coefficient, 0),
+      1,
+    );
+    close(
+      report.routes.reduce((sum, route) => sum + route.normalized_weight, 0),
+      1,
+    );
   }
 
   const unavailable = calculateStrategicRouteWeights(graph, {
@@ -325,21 +385,25 @@ test("every source subset normalizes usable coefficients and unavailable evidenc
     },
     personal: { state: "available", decision_weights: decisionWeights },
   });
-  assert.deepEqual(unavailable.evidence_sources.map((source) => [
-    source.kind,
-    source.resolution,
-    source.normalized_coefficient,
-  ]), [
-    ["market", "unavailable", 0],
-    ["personal", "used", 1],
-    ["manual", "unavailable", 0],
-  ]);
+  assert.deepEqual(
+    unavailable.evidence_sources.map((source) => [
+      source.kind,
+      source.resolution,
+      source.normalized_coefficient,
+    ]),
+    [
+      ["market", "unavailable", 0],
+      ["personal", "used", 1],
+      ["manual", "unavailable", 0],
+    ],
+  );
 });
 
 test("equal mode reports and ignores every enrichment", () => {
   const graph = blackGraph();
-  const decisions = graph.decisions.filter((decision) =>
-    decision.owner === "opponent" && decision.from_position_id === graph.root_position_id
+  const decisions = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" && decision.from_position_id === graph.root_position_id,
   );
   const enriched = calculateStrategicRouteWeights(graph, {
     mode: "equal",
@@ -368,7 +432,9 @@ test("equal mode reports and ignores every enrichment", () => {
     enriched.routes.map((route) => route.normalized_weight),
     equal.routes.map((route) => route.normalized_weight),
   );
-  assert.ok(enriched.evidence_sources.every((source) =>
-    source.resolution === "ignored-equal" && source.normalized_coefficient === 0
-  ));
+  assert.ok(
+    enriched.evidence_sources.every(
+      (source) => source.resolution === "ignored-equal" && source.normalized_coefficient === 0,
+    ),
+  );
 });

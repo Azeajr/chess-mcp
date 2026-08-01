@@ -112,18 +112,28 @@ export interface StrategicFitResolutionState {
   upsertResolution(input: StrategicFitResolutionMutationInput): StrategicFitSettingsMutationResult;
   removeResolution(resolutionId: string): StrategicFitSettingsMutationResult;
   reopenResolution(resolutionId: string): StrategicFitSettingsMutationResult;
-  upsertCohortOverride(input: StrategicFitCohortOverrideMutationInput): StrategicFitSettingsMutationResult;
+  upsertCohortOverride(
+    input: StrategicFitCohortOverrideMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeCohortOverride(overrideId: string): StrategicFitSettingsMutationResult;
-  upsertCohortLabel(input: StrategicFitCohortLabelMutationInput): StrategicFitSettingsMutationResult;
+  upsertCohortLabel(
+    input: StrategicFitCohortLabelMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeCohortLabel(labelId: string): StrategicFitSettingsMutationResult;
-  upsertTrainingReference(input: StrategicFitTrainingReferenceMutationInput): StrategicFitSettingsMutationResult;
+  upsertTrainingReference(
+    input: StrategicFitTrainingReferenceMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeTrainingReference(trainingId: string): StrategicFitSettingsMutationResult;
   reconcileReportFindings(
     input: StrategicFitReportReconciliationMutationInput,
   ): StrategicFitSettingsMutationResult;
-  upsertRouteWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
+  upsertRouteWeight(
+    input: StrategicFitManualWeightMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeRouteWeight(routeId: string): StrategicFitSettingsMutationResult;
-  upsertDecisionWeight(input: StrategicFitManualWeightMutationInput): StrategicFitSettingsMutationResult;
+  upsertDecisionWeight(
+    input: StrategicFitManualWeightMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeDecisionWeight(decisionId: string): StrategicFitSettingsMutationResult;
   reconcile(): StrategicFitSettingsMutationResult;
   analysisSettings(): StrategicFitAnalysisSettingsSnapshot;
@@ -166,7 +176,9 @@ function paths(values: readonly (readonly string[])[]): string[][] {
     const normalized = path.map((move) => move.trim()).filter(Boolean);
     unique.set(JSON.stringify(normalized), normalized);
   }
-  return [...unique.values()].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  return [...unique.values()].sort((left, right) =>
+    JSON.stringify(left).localeCompare(JSON.stringify(right)),
+  );
 }
 
 function references(value: SemanticReferences): SemanticReferences {
@@ -183,18 +195,25 @@ function defaultProvenance(
   supplied: readonly StrategicFitSourceProvenance[] | undefined,
 ): readonly StrategicFitSourceProvenance[] {
   if (supplied && supplied.length > 0) return supplied.map((entry) => ({ ...entry }));
-  return [{
-    source_id: "strategic-fit:browser-user-metadata",
-    kind: "user-profile",
-    state: "available",
-    version: STRATEGIC_FIT_SCHEMA_VERSION,
-    snapshot: boundary.currentRepertoireRevision(),
-    reason: "Explicit user-authored Strategic Fit resolution or analysis override.",
-  }];
+  return [
+    {
+      source_id: "strategic-fit:browser-user-metadata",
+      kind: "user-profile",
+      state: "available",
+      version: STRATEGIC_FIT_SCHEMA_VERSION,
+      snapshot: boundary.currentRepertoireRevision(),
+      reason: "Explicit user-authored Strategic Fit resolution or analysis override.",
+    },
+  ];
 }
 
 function meaningfulRecord(record: Record<string, unknown>): string {
-  const { updated_at: _updatedAt, record_state: _recordState, stale_reasons: _staleReasons, ...meaningful } = record;
+  const {
+    updated_at: _updatedAt,
+    record_state: _recordState,
+    stale_reasons: _staleReasons,
+    ...meaningful
+  } = record;
   return JSON.stringify(meaningful);
 }
 
@@ -206,14 +225,19 @@ function resolutionRules(
     normalizedReferences.position_ids.length === 0 &&
     normalizedReferences.decision_ids.length === 0 &&
     normalizedReferences.route_ids.length === 0
-  ) throw new Error("strategic_fit_resolution_requires_semantic_reference");
+  )
+    throw new Error("strategic_fit_resolution_requires_semantic_reference");
   const explicit = input.invalidation_rules?.map((rule) => {
     if (!INVALIDATION_RULES.has(rule)) throw new Error("strategic_fit_invalid_resolution_rule");
     return rule;
   });
   const result = explicit ?? [
-    ...(normalizedReferences.position_ids.length > 0 ? ["referenced-position-changed" as const] : []),
-    ...(normalizedReferences.decision_ids.length > 0 ? ["referenced-decision-changed" as const] : []),
+    ...(normalizedReferences.position_ids.length > 0
+      ? ["referenced-position-changed" as const]
+      : []),
+    ...(normalizedReferences.decision_ids.length > 0
+      ? ["referenced-decision-changed" as const]
+      : []),
     ...(normalizedReferences.route_ids.length > 0 ? ["referenced-route-changed" as const] : []),
   ];
   const unique = [...new Set(result)];
@@ -230,15 +254,20 @@ function settingsIdentity(inputs: StrategicFitMetadataAnalysisInputs): string {
     if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
     return `{${Object.entries(value as Record<string, unknown>)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${stable(entry)}`).join(",")}}`;
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stable(entry)}`)
+      .join(",")}}`;
   };
   return stable(inputs);
 }
 
 function hasAnalysisRecords(metadata: StrategicFitDocumentMetadata): boolean {
-  return metadata.resolutions.length > 0 || metadata.cohort_overrides.length > 0 ||
-    metadata.exclusions.length > 0 || metadata.manual_weights.route_weights.length > 0 ||
-    metadata.manual_weights.decision_weights.length > 0;
+  return (
+    metadata.resolutions.length > 0 ||
+    metadata.cohort_overrides.length > 0 ||
+    metadata.exclusions.length > 0 ||
+    metadata.manual_weights.route_weights.length > 0 ||
+    metadata.manual_weights.decision_weights.length > 0
+  );
 }
 
 export function createStrategicFitResolutionState(
@@ -250,7 +279,8 @@ export function createStrategicFitResolutionState(
     invalidateReports = true,
   ): StrategicFitSettingsMutationResult => {
     const current = boundary.currentMetadata();
-    if (JSON.stringify(current) === JSON.stringify(next)) return { state: unchanged, metadata: current };
+    if (JSON.stringify(current) === JSON.stringify(next))
+      return { state: unchanged, metadata: current };
     const result = boundary.replaceMetadata(next);
     if (invalidateReports) boundary.invalidateReports();
     return { state: "updated", metadata: result.metadata };
@@ -270,7 +300,9 @@ export function createStrategicFitResolutionState(
     return { ...result, state: result.state === "updated" ? "removed" : result.state };
   };
 
-  const analysisSettingsSnapshot = (persistReconciliation: boolean): StrategicFitAnalysisSettingsSnapshot => {
+  const analysisSettingsSnapshot = (
+    persistReconciliation: boolean,
+  ): StrategicFitAnalysisSettingsSnapshot => {
     const before = boundary.currentMetadata();
     if (!hasAnalysisRecords(before)) return { identity: settingsIdentity({}), inputs: {} };
     let graph: RepertoireGraph;
@@ -299,7 +331,8 @@ export function createStrategicFitResolutionState(
 
   return {
     upsertResolution(input) {
-      if (!PERSISTED_RESOLUTION_STATES.has(input.state)) throw new Error("strategic_fit_invalid_resolution_state");
+      if (!PERSISTED_RESOLUTION_STATES.has(input.state))
+        throw new Error("strategic_fit_invalid_resolution_state");
       const metadata = boundary.currentMetadata();
       const resolutionId = nonEmpty(input.resolution_id, "strategic_fit_invalid_resolution_id");
       const findingId = nonEmpty(input.finding_id, "strategic_fit_invalid_finding_id");
@@ -310,9 +343,8 @@ export function createStrategicFitResolutionState(
       const normalizedReferences = references(input.references);
       const rules = resolutionRules(input, normalizedReferences);
       const existing = metadata.resolutions.find((entry) => entry.resolution_id === resolutionId);
-      const intentionalReason = input.state === "keep-intentionally"
-        ? input.intentional_reason ?? null
-        : null;
+      const intentionalReason =
+        input.state === "keep-intentionally" ? (input.intentional_reason ?? null) : null;
       if (intentionalReason !== null && !INTENTIONAL_REASONS.has(intentionalReason)) {
         throw new Error("strategic_fit_invalid_intentional_reason");
       }
@@ -341,19 +373,27 @@ export function createStrategicFitResolutionState(
         updated_at: existing?.updated_at ?? now,
         provenance: defaultProvenance(boundary, input.provenance),
       };
-      if (existing && existing.record_state === "active" &&
-        metadata.resolutions.filter((entry) => entry.semantic_finding_id === semanticFindingId).length === 1 &&
+      if (
+        existing &&
+        existing.record_state === "active" &&
+        metadata.resolutions.filter((entry) => entry.semantic_finding_id === semanticFindingId)
+          .length === 1 &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)) {
+          meaningfulRecord(next as unknown as Record<string, unknown>)
+      ) {
         return { state: "unchanged", metadata };
       }
       const updated = { ...next, updated_at: now };
       return commit({
         ...metadata,
-        resolutions: [...metadata.resolutions.filter((entry) =>
-          entry.resolution_id !== resolutionId && entry.semantic_finding_id !== semanticFindingId
-        ), updated]
-          .sort((left, right) => left.resolution_id.localeCompare(right.resolution_id)),
+        resolutions: [
+          ...metadata.resolutions.filter(
+            (entry) =>
+              entry.resolution_id !== resolutionId &&
+              entry.semantic_finding_id !== semanticFindingId,
+          ),
+          updated,
+        ].sort((left, right) => left.resolution_id.localeCompare(right.resolution_id)),
       });
     },
 
@@ -385,8 +425,9 @@ export function createStrategicFitResolutionState(
         throw new Error("strategic_fit_exclusion_requires_reference");
       }
       const now = boundary.now();
-      const existing = [...metadata.cohort_overrides, ...metadata.exclusions]
-        .find((entry) => entry.override_id === overrideId);
+      const existing = [...metadata.cohort_overrides, ...metadata.exclusions].find(
+        (entry) => entry.override_id === overrideId,
+      );
       const lifecycle = {
         record_state: "active" as const,
         stale_reasons: [],
@@ -394,25 +435,42 @@ export function createStrategicFitResolutionState(
         updated_at: existing?.updated_at ?? now,
         provenance: defaultProvenance(boundary, input.provenance),
       };
-      const next = input.kind === "exclude"
-        ? { override_id: overrideId, kind: input.kind, route_ids: routeIds, decision_ids: decisionIds, ...lifecycle }
-        : { override_id: overrideId, kind: input.kind, route_ids: routeIds, ...lifecycle };
-      if (existing && existing.record_state === "active" &&
+      const next =
+        input.kind === "exclude"
+          ? {
+              override_id: overrideId,
+              kind: input.kind,
+              route_ids: routeIds,
+              decision_ids: decisionIds,
+              ...lifecycle,
+            }
+          : { override_id: overrideId, kind: input.kind, route_ids: routeIds, ...lifecycle };
+      if (
+        existing &&
+        existing.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)) {
+          meaningfulRecord(next as unknown as Record<string, unknown>)
+      ) {
         return { state: "unchanged", metadata };
       }
       if (input.kind === "exclude") {
         const updated = { ...next, kind: "exclude" as const, updated_at: now };
         return commit({
           ...metadata,
-          cohort_overrides: metadata.cohort_overrides.filter((entry) => entry.override_id !== overrideId),
-          exclusions: [...metadata.exclusions.filter((entry) => entry.override_id !== overrideId), updated]
-            .sort((left, right) => left.override_id.localeCompare(right.override_id)),
+          cohort_overrides: metadata.cohort_overrides.filter(
+            (entry) => entry.override_id !== overrideId,
+          ),
+          exclusions: [
+            ...metadata.exclusions.filter((entry) => entry.override_id !== overrideId),
+            updated,
+          ].sort((left, right) => left.override_id.localeCompare(right.override_id)),
         });
       }
-      const updated = { ...next, kind: input.kind, updated_at: now } as
-        StrategicFitDocumentMetadata["cohort_overrides"][number];
+      const updated = {
+        ...next,
+        kind: input.kind,
+        updated_at: now,
+      } as StrategicFitDocumentMetadata["cohort_overrides"][number];
       return commit({
         ...metadata,
         cohort_overrides: [
@@ -425,12 +483,15 @@ export function createStrategicFitResolutionState(
 
     removeCohortOverride(overrideId) {
       const metadata = boundary.currentMetadata();
-      const cohortOverrides = metadata.cohort_overrides.filter((entry) => entry.override_id !== overrideId);
+      const cohortOverrides = metadata.cohort_overrides.filter(
+        (entry) => entry.override_id !== overrideId,
+      );
       const exclusions = metadata.exclusions.filter((entry) => entry.override_id !== overrideId);
       if (
         cohortOverrides.length === metadata.cohort_overrides.length &&
         exclusions.length === metadata.exclusions.length
-      ) return { state: "missing", metadata };
+      )
+        return { state: "missing", metadata };
       const result = commit({ ...metadata, cohort_overrides: cohortOverrides, exclusions });
       return { ...result, state: result.state === "updated" ? "removed" : result.state };
     },
@@ -441,8 +502,8 @@ export function createStrategicFitResolutionState(
       const cohortId = nonEmpty(input.cohort_id, "strategic_fit_invalid_cohort_id");
       const displayName = nonEmpty(input.display_name, "strategic_fit_invalid_cohort_display_name");
       if (displayName.length > 120) throw new Error("strategic_fit_cohort_display_name_too_long");
-      const existing = metadata.cohort_labels.find((entry) =>
-        entry.label_id === labelId || entry.cohort_id === cohortId
+      const existing = metadata.cohort_labels.find(
+        (entry) => entry.label_id === labelId || entry.cohort_id === cohortId,
       );
       const now = boundary.now();
       const next: StrategicFitPersistedCohortLabel = {
@@ -460,12 +521,13 @@ export function createStrategicFitResolutionState(
         metadata.cohort_labels.filter((entry) => entry.cohort_id === cohortId).length === 1 &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
           meaningfulRecord(next as unknown as Record<string, unknown>)
-      ) return { state: "unchanged", metadata };
+      )
+        return { state: "unchanged", metadata };
       return commit({
         ...metadata,
         cohort_labels: [
-          ...metadata.cohort_labels.filter((entry) =>
-            entry.label_id !== labelId && entry.cohort_id !== cohortId
+          ...metadata.cohort_labels.filter(
+            (entry) => entry.label_id !== labelId && entry.cohort_id !== cohortId,
           ),
           { ...next, updated_at: now },
         ].sort((left, right) => left.label_id.localeCompare(right.label_id)),
@@ -484,9 +546,10 @@ export function createStrategicFitResolutionState(
     upsertTrainingReference(input) {
       const metadata = boundary.currentMetadata();
       const trainingId = nonEmpty(input.training_id, "strategic_fit_invalid_training_id");
-      const findingId = input.finding_id === null
-        ? null
-        : nonEmpty(input.finding_id, "strategic_fit_invalid_finding_id");
+      const findingId =
+        input.finding_id === null
+          ? null
+          : nonEmpty(input.finding_id, "strategic_fit_invalid_finding_id");
       const repertoireRevision = nonEmpty(
         input.repertoire_revision,
         "strategic_fit_invalid_repertoire_revision",
@@ -495,7 +558,9 @@ export function createStrategicFitResolutionState(
       if (normalizedReferences.position_ids.length === 0) {
         throw new Error("strategic_fit_training_requires_semantic_position");
       }
-      const existing = metadata.training_references.find((entry) => entry.training_id === trainingId);
+      const existing = metadata.training_references.find(
+        (entry) => entry.training_id === trainingId,
+      );
       const createdAt = existing?.created_at ?? input.created_at ?? boundary.now();
       const next: StrategicFitTrainingReference = {
         training_id: trainingId,
@@ -508,13 +573,17 @@ export function createStrategicFitResolutionState(
       if (existing && JSON.stringify(existing) === JSON.stringify(next)) {
         return { state: "unchanged", metadata };
       }
-      return commit({
-        ...metadata,
-        training_references: [
-          ...metadata.training_references.filter((entry) => entry.training_id !== trainingId),
-          next,
-        ].sort((left, right) => left.training_id.localeCompare(right.training_id)),
-      }, "unchanged", false);
+      return commit(
+        {
+          ...metadata,
+          training_references: [
+            ...metadata.training_references.filter((entry) => entry.training_id !== trainingId),
+            next,
+          ].sort((left, right) => left.training_id.localeCompare(right.training_id)),
+        },
+        "unchanged",
+        false,
+      );
     },
 
     removeTrainingReference(trainingId) {
@@ -530,14 +599,17 @@ export function createStrategicFitResolutionState(
     reconcileReportFindings(input) {
       const metadata = boundary.currentMetadata();
       const reopenIds = new Set(stringList(input.reopen_semantic_finding_ids));
-      const retained = metadata.resolutions.filter((resolution) =>
-        resolution.semantic_finding_id === null || !reopenIds.has(resolution.semantic_finding_id)
+      const retained = metadata.resolutions.filter(
+        (resolution) =>
+          resolution.semantic_finding_id === null || !reopenIds.has(resolution.semantic_finding_id),
       );
-      const retainedSemanticIds = new Set(retained
-        .filter((resolution) => resolution.record_state === "active")
-        .flatMap((resolution) => resolution.semantic_finding_id === null
-          ? []
-          : [resolution.semantic_finding_id]));
+      const retainedSemanticIds = new Set(
+        retained
+          .filter((resolution) => resolution.record_state === "active")
+          .flatMap((resolution) =>
+            resolution.semantic_finding_id === null ? [] : [resolution.semantic_finding_id],
+          ),
+      );
       const now = boundary.now();
       const automaticallyResolved = [...input.automatically_resolve]
         .sort((left, right) => left.semantic_finding_id.localeCompare(right.semantic_finding_id))
@@ -548,43 +620,50 @@ export function createStrategicFitResolutionState(
             normalizedReferences.position_ids.length === 0 &&
             normalizedReferences.decision_ids.length === 0 &&
             normalizedReferences.route_ids.length === 0
-          ) return [];
+          )
+            return [];
           retainedSemanticIds.add(finding.semantic_finding_id);
-          return [{
-            schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
-            resolution_id: `strategic-fit-resolution:${finding.semantic_finding_id}`,
-            finding_id: finding.finding_id,
-            semantic_finding_id: finding.semantic_finding_id,
-            repertoire_revision: boundary.currentRepertoireRevision(),
-            state: "automatically-resolved-by-another-edit",
-            intentional_reason: null,
-            note: null,
-            references: normalizedReferences,
-            invalidation_rules: ["never"],
-            expires_at: null,
-            linked_training_ids: [],
-            linked_staged_edit_ids: [],
-            created_at: now,
-            profile_snapshot: null,
-            record_state: "active",
-            stale_reasons: [],
-            reason: "A fresh Strategic Fit report no longer contains this semantic finding.",
-            updated_at: now,
-            provenance: defaultProvenance(boundary, undefined),
-          }];
+          return [
+            {
+              schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+              resolution_id: `strategic-fit-resolution:${finding.semantic_finding_id}`,
+              finding_id: finding.finding_id,
+              semantic_finding_id: finding.semantic_finding_id,
+              repertoire_revision: boundary.currentRepertoireRevision(),
+              state: "automatically-resolved-by-another-edit",
+              intentional_reason: null,
+              note: null,
+              references: normalizedReferences,
+              invalidation_rules: ["never"],
+              expires_at: null,
+              linked_training_ids: [],
+              linked_staged_edit_ids: [],
+              created_at: now,
+              profile_snapshot: null,
+              record_state: "active",
+              stale_reasons: [],
+              reason: "A fresh Strategic Fit report no longer contains this semantic finding.",
+              updated_at: now,
+              provenance: defaultProvenance(boundary, undefined),
+            },
+          ];
         });
       return commit({
         ...metadata,
-        resolutions: [...retained, ...automaticallyResolved]
-          .sort((left, right) => left.resolution_id.localeCompare(right.resolution_id)),
+        resolutions: [...retained, ...automaticallyResolved].sort((left, right) =>
+          left.resolution_id.localeCompare(right.resolution_id),
+        ),
       });
     },
 
     upsertRouteWeight(input) {
       const metadata = boundary.currentMetadata();
       const routeId = nonEmpty(input.target_id, "strategic_fit_invalid_route_id");
-      if (!Number.isFinite(input.weight) || input.weight < 0) throw new Error("strategic_fit_invalid_weight");
-      const existing = metadata.manual_weights.route_weights.find((entry) => entry.route_id === routeId);
+      if (!Number.isFinite(input.weight) || input.weight < 0)
+        throw new Error("strategic_fit_invalid_weight");
+      const existing = metadata.manual_weights.route_weights.find(
+        (entry) => entry.route_id === routeId,
+      );
       const now = boundary.now();
       const next = {
         route_id: routeId,
@@ -595,9 +674,12 @@ export function createStrategicFitResolutionState(
         updated_at: existing?.updated_at ?? now,
         provenance: defaultProvenance(boundary, input.provenance),
       };
-      if (existing && existing.record_state === "active" &&
+      if (
+        existing &&
+        existing.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)) {
+          meaningfulRecord(next as unknown as Record<string, unknown>)
+      ) {
         return { state: "unchanged", metadata };
       }
       return commit({
@@ -627,8 +709,11 @@ export function createStrategicFitResolutionState(
     upsertDecisionWeight(input) {
       const metadata = boundary.currentMetadata();
       const decisionId = nonEmpty(input.target_id, "strategic_fit_invalid_decision_id");
-      if (!Number.isFinite(input.weight) || input.weight < 0) throw new Error("strategic_fit_invalid_weight");
-      const existing = metadata.manual_weights.decision_weights.find((entry) => entry.decision_id === decisionId);
+      if (!Number.isFinite(input.weight) || input.weight < 0)
+        throw new Error("strategic_fit_invalid_weight");
+      const existing = metadata.manual_weights.decision_weights.find(
+        (entry) => entry.decision_id === decisionId,
+      );
       const now = boundary.now();
       const next = {
         decision_id: decisionId,
@@ -639,9 +724,12 @@ export function createStrategicFitResolutionState(
         updated_at: existing?.updated_at ?? now,
         provenance: defaultProvenance(boundary, input.provenance),
       };
-      if (existing && existing.record_state === "active" &&
+      if (
+        existing &&
+        existing.record_state === "active" &&
         meaningfulRecord(existing as unknown as Record<string, unknown>) ===
-          meaningfulRecord(next as unknown as Record<string, unknown>)) {
+          meaningfulRecord(next as unknown as Record<string, unknown>)
+      ) {
         return { state: "unchanged", metadata };
       }
       return commit({
@@ -649,7 +737,9 @@ export function createStrategicFitResolutionState(
         manual_weights: {
           ...metadata.manual_weights,
           decision_weights: [
-            ...metadata.manual_weights.decision_weights.filter((entry) => entry.decision_id !== decisionId),
+            ...metadata.manual_weights.decision_weights.filter(
+              (entry) => entry.decision_id !== decisionId,
+            ),
             { ...next, updated_at: now },
           ].sort((left, right) => left.decision_id.localeCompare(right.decision_id)),
         },
@@ -722,8 +812,9 @@ export const upsertStrategicFitCohortLabel = (input: StrategicFitCohortLabelMuta
   browserResolutionState.upsertCohortLabel(input);
 export const removeStrategicFitCohortLabel = (labelId: string) =>
   browserResolutionState.removeCohortLabel(labelId);
-export const upsertStrategicFitTrainingReference = (input: StrategicFitTrainingReferenceMutationInput) =>
-  browserResolutionState.upsertTrainingReference(input);
+export const upsertStrategicFitTrainingReference = (
+  input: StrategicFitTrainingReferenceMutationInput,
+) => browserResolutionState.upsertTrainingReference(input);
 export const removeStrategicFitTrainingReference = (trainingId: string) =>
   browserResolutionState.removeTrainingReference(trainingId);
 export const reconcileStrategicFitReportFindings = (
@@ -748,7 +839,8 @@ export const strategicFitAnalysisSettings = (): StrategicFitAnalysisSettingsSnap
     }),
   };
 };
-export const strategicFitAnalysisSettingsIdentity = () => JSON.stringify({
-  analysis: browserResolutionState.analysisSettingsIdentity(),
-  data_sources: strategicFitDataSourceIdentity(),
-});
+export const strategicFitAnalysisSettingsIdentity = () =>
+  JSON.stringify({
+    analysis: browserResolutionState.analysisSettingsIdentity(),
+    data_sources: strategicFitDataSourceIdentity(),
+  });

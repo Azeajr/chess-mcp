@@ -1,9 +1,10 @@
 import { For, Show } from "solid-js";
 import type { JsonValue, StrategicFinding } from "@chess-mcp/chess-tools";
 
-const formatPercent = (value: number): string => new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 1,
-}).format(value * 100) + "%";
+const formatPercent = (value: number): string =>
+  new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+  }).format(value * 100) + "%";
 
 const humanize = (value: string): string => {
   const words = value.replaceAll("_", "-").split("-").filter(Boolean).join(" ");
@@ -13,9 +14,10 @@ const humanize = (value: string): string => {
 function readableJson(value: JsonValue): string {
   if (value === null) return "Unavailable";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 3,
-  }).format(value);
+  if (typeof value === "number")
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 3,
+    }).format(value);
   if (typeof value === "string") {
     return /^[a-z][a-z-]*$/.test(value) ? humanize(value) : value;
   }
@@ -82,7 +84,8 @@ export function buildConceptComparisonPresentation(
         listed_total: null,
         report_distance: finding.difference.distance,
         unlisted_difference: null,
-        summary: "Contribution breakdown is unavailable because this finding has no comparable dimensions.",
+        summary:
+          "Contribution breakdown is unavailable because this finding has no comparable dimensions.",
       },
     };
   }
@@ -106,16 +109,24 @@ export function buildConceptComparisonPresentation(
 export default function ConceptComparison(props: { finding: StrategicFinding }) {
   const presentation = () => buildConceptComparisonPresentation(props.finding);
   return (
-    <section class="strategic-fit-concept-comparison" aria-labelledby="strategic-fit-comparison-title">
+    <section
+      class="strategic-fit-concept-comparison"
+      aria-labelledby="strategic-fit-comparison-title"
+    >
       <h4 id="strategic-fit-comparison-title">Why this branch stands apart</h4>
-      <Show when={presentation().dimensions.length > 0} fallback={(
-        <p class="strategic-fit-evidence-unavailable">
-          No typical-versus-branch dimensions are available for this finding.
-        </p>
-      )}>
+      <Show
+        when={presentation().dimensions.length > 0}
+        fallback={
+          <p class="strategic-fit-evidence-unavailable">
+            No typical-versus-branch dimensions are available for this finding.
+          </p>
+        }
+      >
         <div class="strategic-fit-comparison-table-wrap">
           <table>
-            <caption class="sr-only">Typical cohort compared with the affected repertoire branch</caption>
+            <caption class="sr-only">
+              Typical cohort compared with the affected repertoire branch
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Strategic dimension</th>
@@ -124,20 +135,26 @@ export default function ConceptComparison(props: { finding: StrategicFinding }) 
               </tr>
             </thead>
             <tbody>
-              <For each={presentation().dimensions}>{(dimension) => (
-                <tr data-dimension-id={dimension.dimension_id}>
-                  <th scope="row">
-                    {dimension.label}
-                    <span>{dimension.contribution_label}</span>
-                  </th>
-                  <td data-value-state={dimension.typical_available ? "available" : "unavailable"}>
-                    {dimension.typical}
-                  </td>
-                  <td data-value-state={dimension.affected_available ? "available" : "unavailable"}>
-                    {dimension.affected}
-                  </td>
-                </tr>
-              )}</For>
+              <For each={presentation().dimensions}>
+                {(dimension) => (
+                  <tr data-dimension-id={dimension.dimension_id}>
+                    <th scope="row">
+                      {dimension.label}
+                      <span>{dimension.contribution_label}</span>
+                    </th>
+                    <td
+                      data-value-state={dimension.typical_available ? "available" : "unavailable"}
+                    >
+                      {dimension.typical}
+                    </td>
+                    <td
+                      data-value-state={dimension.affected_available ? "available" : "unavailable"}
+                    >
+                      {dimension.affected}
+                    </td>
+                  </tr>
+                )}
+              </For>
             </tbody>
           </table>
         </div>

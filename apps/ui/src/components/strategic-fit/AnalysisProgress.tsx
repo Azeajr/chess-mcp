@@ -99,15 +99,21 @@ export default function AnalysisProgress(props: { state: StrategicFitLifecycleSn
         {analysisProgressAnnouncement(props.state)}
       </p>
       <ol class="strategic-fit-analysis-phase-list">
-        <For each={props.state.phase_history}>{(entry, index) => (
-          <li data-phase={entry.phase} data-phase-state={entry.state}>
-            <span class="strategic-fit-analysis-phase-marker" aria-hidden="true">{index() + 1}</span>
-            <span class="strategic-fit-analysis-phase-name">{STRATEGIC_FIT_PHASE_LABELS[entry.phase]}</span>
-            <span class="strategic-fit-analysis-phase-status">
-              {phaseStatusLabel(entry.state, props.state.status, isBlocked())}
-            </span>
-          </li>
-        )}</For>
+        <For each={props.state.phase_history}>
+          {(entry, index) => (
+            <li data-phase={entry.phase} data-phase-state={entry.state}>
+              <span class="strategic-fit-analysis-phase-marker" aria-hidden="true">
+                {index() + 1}
+              </span>
+              <span class="strategic-fit-analysis-phase-name">
+                {STRATEGIC_FIT_PHASE_LABELS[entry.phase]}
+              </span>
+              <span class="strategic-fit-analysis-phase-status">
+                {phaseStatusLabel(entry.state, props.state.status, isBlocked())}
+              </span>
+            </li>
+          )}
+        </For>
       </ol>
     </section>
   );

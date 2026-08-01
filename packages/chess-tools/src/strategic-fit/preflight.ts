@@ -92,7 +92,10 @@ function stableHash(value: string): string {
 
 function issueId(code: PreflightIssueCode, paths: readonly (readonly string[])[]): string {
   if (paths.length === 0) return `preflight:${code}`;
-  const canonicalPaths = paths.map((path) => path.join("\u001f")).sort().join("\u001e");
+  const canonicalPaths = paths
+    .map((path) => path.join("\u001f"))
+    .sort()
+    .join("\u001e");
   return `preflight:${code}:${stableHash(canonicalPaths)}`;
 }
 
@@ -123,12 +126,15 @@ function makeIssue(
 
 function customStartProblem(tree: GameTree): { unsupported: boolean; reason: string } | null {
   const headers = tree.game?.headers;
-  if (!(headers instanceof Map)) return { unsupported: false, reason: "Repertoire headers are malformed." };
+  if (!(headers instanceof Map))
+    return { unsupported: false, reason: "Repertoire headers are malformed." };
 
   const fen = headers.get("FEN");
   const setup = headers.get("SetUp");
   if (fen === undefined) {
-    return setup === "1" ? { unsupported: false, reason: "SetUp is 1 but the FEN header is missing." } : null;
+    return setup === "1"
+      ? { unsupported: false, reason: "SetUp is 1 but the FEN header is missing." }
+      : null;
   }
 
   try {
@@ -147,7 +153,11 @@ function replayTree(tree: GameTree): ReplayResult {
   const positions = new Map<string, string[][]>();
 
   const root = tree.game?.moves as unknown;
-  if (!root || typeof root !== "object" || !Array.isArray((root as { children?: unknown }).children)) {
+  if (
+    !root ||
+    typeof root !== "object" ||
+    !Array.isArray((root as { children?: unknown }).children)
+  ) {
     return {
       routes,
       malformed: [{ path: [], reason: "The repertoire move tree is missing or malformed." }],
@@ -261,9 +271,16 @@ export function preflightStrategicFit(
     );
   } else if (customStart) {
     issues.push(
-      makeIssue("malformed-data", "error", "blocking", "The repertoire setup headers are malformed.", [], {
-        reason: customStart.reason,
-      }),
+      makeIssue(
+        "malformed-data",
+        "error",
+        "blocking",
+        "The repertoire setup headers are malformed.",
+        [],
+        {
+          reason: customStart.reason,
+        },
+      ),
     );
   }
 
@@ -362,7 +379,9 @@ export function preflightStrategicFit(
     );
   }
 
-  const shallowRoutes = replay.routes.filter((route) => route.path.length < STRATEGIC_FIT_MIN_COMPARABLE_PLY);
+  const shallowRoutes = replay.routes.filter(
+    (route) => route.path.length < STRATEGIC_FIT_MIN_COMPARABLE_PLY,
+  );
   if (shallowRoutes.length > 0) {
     issues.push(
       makeIssue(
@@ -399,9 +418,13 @@ export function preflightStrategicFit(
   }
 
   const openingTableAvailable =
-    options.openingTable !== null && options.openingTable !== undefined && options.openingTable.size > 0;
+    options.openingTable !== null &&
+    options.openingTable !== undefined &&
+    options.openingTable.size > 0;
   const routesMissingOpening = openingTableAvailable
-    ? replay.routes.filter((route) => !route.positionKeys.some((key) => options.openingTable!.has(key)))
+    ? replay.routes.filter(
+        (route) => !route.positionKeys.some((key) => options.openingTable!.has(key)),
+      )
     : replay.routes;
   if (!openingTableAvailable || routesMissingOpening.length > 0) {
     const paths = routesMissingOpening.map((route) => route.path);
@@ -454,10 +477,14 @@ export function preflightStrategicFit(
   }
 
   const excludedPaths = new Set(
-    [...incompleteRoutes, ...tacticalTerminalRoutes, ...terminalEndgameRoutes].map((route) => route.path.join("\u001f")),
+    [...incompleteRoutes, ...tacticalTerminalRoutes, ...terminalEndgameRoutes].map((route) =>
+      route.path.join("\u001f"),
+    ),
   );
   const comparableRouteCount = replay.routes.filter(
-    (route) => route.path.length >= STRATEGIC_FIT_MIN_COMPARABLE_PLY && !excludedPaths.has(route.path.join("\u001f")),
+    (route) =>
+      route.path.length >= STRATEGIC_FIT_MIN_COMPARABLE_PLY &&
+      !excludedPaths.has(route.path.join("\u001f")),
   ).length;
   const incompleteRouteCount = routeCount - comparableRouteCount;
 

@@ -3,11 +3,7 @@ import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Color } from "@chess-mcp/chess-tools";
 
-export default function ReadOnlyBoard(props: {
-  fen: string;
-  orientation: Color;
-  label: string;
-}) {
+export default function ReadOnlyBoard(props: { fen: string; orientation: Color; label: string }) {
   let element!: HTMLDivElement;
   let board: Api | undefined;
 

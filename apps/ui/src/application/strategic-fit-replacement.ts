@@ -35,7 +35,10 @@ import {
   type StrategicFitSourceProvenance,
   type StrategicTrajectoryReport,
 } from "@chess-mcp/chess-tools";
-import type { StrategicFitCompletedResult, StrategicFitRequestSnapshot } from "../store/strategic-fit";
+import type {
+  StrategicFitCompletedResult,
+  StrategicFitRequestSnapshot,
+} from "../store/strategic-fit";
 import { executeBrowserCommand } from "./browser-commands/client";
 import type {
   BrowserCommandDependencies,
@@ -128,7 +131,9 @@ export interface ReplacementLabGenerationResult {
   readonly scoring: ReplacementCandidateScoringResult;
   readonly safety: ReplacementSafetySimulationResult;
   readonly preview: Omit<ReplacementToolV2Result, "items"> & {
-    readonly items: readonly (ReplacementToolV2Result["items"][number] & { readonly stage?: unknown })[];
+    readonly items: readonly (ReplacementToolV2Result["items"][number] & {
+      readonly stage?: unknown;
+    })[];
     readonly host?: Readonly<Record<string, unknown>>;
   };
 }
@@ -147,11 +152,12 @@ export interface ReplacementLabApplicationBoundary {
   currentCompletedReport(): StrategicFitCompletedResult | null;
 }
 
-const versioned = () => ({
-  schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
-  analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-  replacement_schema_version: STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
-} as const);
+const versioned = () =>
+  ({
+    schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
+    analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+    replacement_schema_version: STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
+  }) as const;
 
 function stableHash(value: string): string {
   let hash = 0xcbf29ce484222325n;
@@ -162,16 +168,24 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function sameSnapshot(left: StrategicFitRequestSnapshot, right: StrategicFitRequestSnapshot): boolean {
-  return left.document_id === right.document_id &&
+function sameSnapshot(
+  left: StrategicFitRequestSnapshot,
+  right: StrategicFitRequestSnapshot,
+): boolean {
+  return (
+    left.document_id === right.document_id &&
     left.repertoire_revision === right.repertoire_revision &&
     left.repertoire_pgn === right.repertoire_pgn &&
     left.repertoire_color === right.repertoire_color &&
     left.profile_identity === right.profile_identity &&
-    left.settings_identity === right.settings_identity;
+    left.settings_identity === right.settings_identity
+  );
 }
 
-function unavailable(code: Exclude<ReplacementLabActionabilityCode, "actionable">, message: string): ReplacementLabActionability {
+function unavailable(
+  code: Exclude<ReplacementLabActionabilityCode, "actionable">,
+  message: string,
+): ReplacementLabActionability {
   return { actionable: false, code, message };
 }
 
@@ -182,10 +196,16 @@ export function replacementLabActionability(
 ): ReplacementLabActionability {
   const { completed, report, finding } = context;
   if (currentCompleted === null || currentCompleted.report_id !== completed.report_id) {
-    return unavailable("stale-report", "This finding no longer belongs to the current completed report.");
+    return unavailable(
+      "stale-report",
+      "This finding no longer belongs to the current completed report.",
+    );
   }
   if (!sameSnapshot(context.request_snapshot, currentSnapshot)) {
-    return unavailable("stale-document", "Document, revision, profile, or analysis settings changed. Analyze again before opening Replacement Lab.");
+    return unavailable(
+      "stale-document",
+      "Document, revision, profile, or analysis settings changed. Analyze again before opening Replacement Lab.",
+    );
   }
   if (
     currentCompleted.result.repertoire_revision !== report.repertoire_revision ||
@@ -193,49 +213,89 @@ export function replacementLabActionability(
     currentCompleted.result.analysis_version !== report.analysis_version ||
     finding.repertoire_revision !== report.repertoire_revision ||
     completed.result.report_id !== report.report_id
-  ) return unavailable("stale-finding", "Finding, report, and repertoire identities no longer match.");
-  const currentFinding = currentCompleted.result.findings.find((candidate) =>
-    candidate.finding_id === finding.finding_id
+  )
+    return unavailable(
+      "stale-finding",
+      "Finding, report, and repertoire identities no longer match.",
+    );
+  const currentFinding = currentCompleted.result.findings.find(
+    (candidate) => candidate.finding_id === finding.finding_id,
   );
   if (
     currentFinding === undefined ||
     currentFinding.semantic_finding_id !== finding.semantic_finding_id ||
     currentFinding.repertoire_revision !== finding.repertoire_revision
-  ) return unavailable("stale-finding", "Finding, report, and repertoire identities no longer match.");
+  )
+    return unavailable(
+      "stale-finding",
+      "Finding, report, and repertoire identities no longer match.",
+    );
   if (finding.provisional) {
-    return unavailable("provisional-finding", "Provisional findings cannot propose repertoire changes.");
+    return unavailable(
+      "provisional-finding",
+      "Provisional findings cannot propose repertoire changes.",
+    );
   }
   if (finding.resolution_state !== "unresolved") {
-    return unavailable("resolved-finding", "Only an unresolved current finding can open Replacement Lab.");
+    return unavailable(
+      "resolved-finding",
+      "Only an unresolved current finding can open Replacement Lab.",
+    );
   }
   if (report.preflight.issues.some((issue) => issue.code === "unsupported-custom-start")) {
-    return unavailable("unsupported-document", "Replacement generation is unavailable for custom starting positions.");
+    return unavailable(
+      "unsupported-document",
+      "Replacement generation is unavailable for custom starting positions.",
+    );
   }
   const cohort = report.cohorts.find((entry) => entry.cohort_id === finding.evidence.cohort_id);
   if (cohort === undefined || cohort.state !== "actionable") {
-    return unavailable("unsupported-cohort", "This finding has no current actionable comparison cohort.");
+    return unavailable(
+      "unsupported-cohort",
+      "This finding has no current actionable comparison cohort.",
+    );
   }
   if (finding.classification === "uncertain" || finding.classification === "data-quality-issue") {
-    return unavailable("uncertain-finding", "Evidence is uncertain or incomplete, so no replacement is implied.");
+    return unavailable(
+      "uncertain-finding",
+      "Evidence is uncertain or incomplete, so no replacement is implied.",
+    );
   }
   if (finding.classification === "forced-diversity") {
-    return unavailable("forced-finding", "This difference is forced; train or retain it instead of implying a replacement.");
+    return unavailable(
+      "forced-finding",
+      "This difference is forced; train or retain it instead of implying a replacement.",
+    );
   }
   if (finding.evidence.causality.label === "mostly-opponent-forced") {
-    return unavailable("opponent-owned-finding", "Opponent-owned divergence cannot be replaced at a repertoire decision.");
+    return unavailable(
+      "opponent-owned-finding",
+      "Opponent-owned divergence cannot be replaced at a repertoire decision.",
+    );
   }
   if (
     finding.evidence.causality.label === "unknown" ||
     finding.evidence.causality.controllability === null ||
     finding.evidence.causality.likely_causal_decision_ids.length === 0
-  ) return unavailable("non-causal-finding", "No supported repertoire-owned causal decision is available.");
+  )
+    return unavailable(
+      "non-causal-finding",
+      "No supported repertoire-owned causal decision is available.",
+    );
   if (
     finding.classification !== "genuine-inconsistency" ||
     finding.replacement_priority.actionability <= 0
   ) {
-    return unavailable("non-replacement-classification", "This finding is informative, intentional, productive, mixed, or equivalent; it does not imply replacement.");
+    return unavailable(
+      "non-replacement-classification",
+      "This finding is informative, intentional, productive, mixed, or equivalent; it does not imply replacement.",
+    );
   }
-  return { actionable: true, code: "actionable", message: "Current finding supports replacement candidate generation." };
+  return {
+    actionable: true,
+    code: "actionable",
+    message: "Current finding supports replacement candidate generation.",
+  };
 }
 
 function requestFor(
@@ -274,9 +334,10 @@ function requestFor(
     cohort_id: finding.evidence.cohort_id,
     repertoire_revision: report.repertoire_revision,
     repertoire_color: snapshot.repertoire_color,
-    pivot_selection: pivotDecisionId === null
-      ? { kind: "automatic", decision_id: null }
-      : { kind: "user-selected", decision_id: pivotDecisionId },
+    pivot_selection:
+      pivotDecisionId === null
+        ? { kind: "automatic", decision_id: null }
+        : { kind: "user-selected", decision_id: pivotDecisionId },
     profile: report.profile,
     candidate_sources: [...new Set(controls.sources)].sort(),
     user_candidate_san_lines: [],
@@ -297,7 +358,8 @@ export function prepareReplacementLab(
     boundary.currentSnapshot(),
     boundary.currentCompletedReport(),
   );
-  if (!actionability.actionable) return { context, actionability, request: null, pivot_result: null };
+  if (!actionability.actionable)
+    return { context, actionability, request: null, pivot_result: null };
   const request = requestFor(context, controls, null, 0);
   const graph = buildRepertoireGraph(boundary.dependencies.currentTree(), request.repertoire_color);
   const cohort = context.report.cohorts.find((entry) => entry.cohort_id === context.cohort_id)!;
@@ -333,9 +395,13 @@ function pivotCohortEvidence(
   const routes = new Set(cohort.route_ids);
   return {
     ...cohort,
-    transposition_position_ids: [...new Set(graph.transposition_links
-      .filter((link) => link.route_ids.some((routeId) => routes.has(routeId)))
-      .map((link) => link.position_id))].sort(),
+    transposition_position_ids: [
+      ...new Set(
+        graph.transposition_links
+          .filter((link) => link.route_ids.some((routeId) => routes.has(routeId)))
+          .map((link) => link.position_id),
+      ),
+    ].sort(),
   };
 }
 
@@ -359,22 +425,31 @@ function engineProvider(dependencies: BrowserCommandDependencies): ReplacementEn
         signal,
       );
       const reached = lines?.reduce((maximum, line) => Math.max(maximum, line.depth), 0) ?? null;
-      const state = lines === null ? "unavailable" : reached !== null && reached < request.depth ? "partial" : "available";
-      const evidenceSnapshot = `stockfish:${stableHash(JSON.stringify({
-        engine: identity,
-        position: request.position.position_key,
-        depth: request.depth,
-        multipv: request.multipv,
-        lines,
-      }))}`;
-      const provenance = [source(
-        `replacement-engine:${request.position.position_id}`,
-        "engine",
-        state === "available" ? "available" : state === "partial" ? "partial" : "unavailable",
-        evidenceSnapshot,
-        lines === null ? "Browser Stockfish worker is unavailable." : null,
-        identity.version,
-      )];
+      const state =
+        lines === null
+          ? "unavailable"
+          : reached !== null && reached < request.depth
+            ? "partial"
+            : "available";
+      const evidenceSnapshot = `stockfish:${stableHash(
+        JSON.stringify({
+          engine: identity,
+          position: request.position.position_key,
+          depth: request.depth,
+          multipv: request.multipv,
+          lines,
+        }),
+      )}`;
+      const provenance = [
+        source(
+          `replacement-engine:${request.position.position_id}`,
+          "engine",
+          state === "available" ? "available" : state === "partial" ? "partial" : "unavailable",
+          evidenceSnapshot,
+          lines === null ? "Browser Stockfish worker is unavailable." : null,
+          identity.version,
+        ),
+      ];
       return {
         ...versioned(),
         evidence_id: `replacement-engine-evidence:${stableHash(`${request.request_id}\u001f${request.position.position_id}\u001f${request.depth}\u001f${request.multipv}`)}`,
@@ -408,7 +483,9 @@ function engineProvider(dependencies: BrowserCommandDependencies): ReplacementEn
   };
 }
 
-function explorerProvider(dependencies: BrowserCommandDependencies): ReplacementExplorerExpansionProvider {
+function explorerProvider(
+  dependencies: BrowserCommandDependencies,
+): ReplacementExplorerExpansionProvider {
   return {
     provider: "lichess-opening-explorer",
     version: "live",
@@ -421,18 +498,22 @@ function explorerProvider(dependencies: BrowserCommandDependencies): Replacement
         signal,
       );
       if (value === null) return null;
-      const evidenceSnapshot = `lichess:${stableHash(JSON.stringify({
-        position: request.position.position_key,
-        moves: value.moves,
-      }))}`;
-      const provenance = [source(
-        `replacement-explorer:${request.position.position_id}`,
-        "opening-explorer",
-        "available",
-        evidenceSnapshot,
-        null,
-        "live",
-      )];
+      const evidenceSnapshot = `lichess:${stableHash(
+        JSON.stringify({
+          position: request.position.position_key,
+          moves: value.moves,
+        }),
+      )}`;
+      const provenance = [
+        source(
+          `replacement-explorer:${request.position.position_id}`,
+          "opening-explorer",
+          "available",
+          evidenceSnapshot,
+          null,
+          "live",
+        ),
+      ];
       return {
         ...versioned(),
         evidence_id: `replacement-explorer-evidence:${stableHash(`${request.request_id}\u001f${request.position.position_id}`)}`,
@@ -480,50 +561,57 @@ async function openingDatabaseEvidence(
   const state = !hasToken ? "missing" : value === null ? "offline" : "available";
   const reason = !hasToken
     ? "Lichess token is unavailable; local and engine candidates remain usable."
-    : value === null ? "Opening explorer is offline; local and engine candidates remain usable." : null;
-  const evidenceSnapshot = value === null
-    ? "lichess:unavailable"
-    : `lichess:${stableHash(JSON.stringify({ filters, moves: value.moves }))}`;
-  const provenance = [source(
-    `replacement-opening-database:${position.position_id}`,
-    "opening-explorer",
-    state === "available" ? "available" : "unavailable",
-    evidenceSnapshot,
-    reason,
-    "live",
-  )];
-  return [{
-    ...versioned(),
-    evidence_id: `replacement-opening-database-evidence:${stableHash(`${request.request_id}\u001f${position.position_id}`)}`,
-    state,
-    database: "lichess",
-    provider: "lichess-opening-explorer",
-    version: "live",
-    snapshot: evidenceSnapshot,
-    filter_key: explorerFilterKey(requestedFilters),
-    filters,
-    position: {
-      position_id: position.position_id,
-      position_key: position.position_key,
-      fen: position.fen,
-    },
-    moves: (value?.moves ?? []).map((move, index) => ({
-      move_id: `replacement-opening-database-move:${position.position_id}:${index + 1}`,
-      san: move.san,
-      uci: move.uci,
-      popularity: {
-        games: move.games,
-        played_pct: move.played_pct,
-        white_pct: move.white_pct,
-        draw_pct: move.draw_pct,
-        black_pct: move.black_pct,
-        average_rating: move.average_rating,
+    : value === null
+      ? "Opening explorer is offline; local and engine candidates remain usable."
+      : null;
+  const evidenceSnapshot =
+    value === null
+      ? "lichess:unavailable"
+      : `lichess:${stableHash(JSON.stringify({ filters, moves: value.moves }))}`;
+  const provenance = [
+    source(
+      `replacement-opening-database:${position.position_id}`,
+      "opening-explorer",
+      state === "available" ? "available" : "unavailable",
+      evidenceSnapshot,
+      reason,
+      "live",
+    ),
+  ];
+  return [
+    {
+      ...versioned(),
+      evidence_id: `replacement-opening-database-evidence:${stableHash(`${request.request_id}\u001f${position.position_id}`)}`,
+      state,
+      database: "lichess",
+      provider: "lichess-opening-explorer",
+      version: "live",
+      snapshot: evidenceSnapshot,
+      filter_key: explorerFilterKey(requestedFilters),
+      filters,
+      position: {
+        position_id: position.position_id,
+        position_key: position.position_key,
+        fen: position.fen,
       },
+      moves: (value?.moves ?? []).map((move, index) => ({
+        move_id: `replacement-opening-database-move:${position.position_id}:${index + 1}`,
+        san: move.san,
+        uci: move.uci,
+        popularity: {
+          games: move.games,
+          played_pct: move.played_pct,
+          white_pct: move.white_pct,
+          draw_pct: move.draw_pct,
+          black_pct: move.black_pct,
+          average_rating: move.average_rating,
+        },
+        provenance,
+      })),
+      reason,
       provenance,
-    })),
-    reason,
-    provenance,
-  }];
+    },
+  ];
 }
 
 function trajectoryContext(
@@ -534,7 +622,7 @@ function trajectoryContext(
   const reportRouteIds = [...report.trajectories.map((item) => item.route_id)].sort();
   const graphRouteIds = [...graph.routes.map((item) => item.route_id)].sort();
   return reportRouteIds.length === graphRouteIds.length &&
-      reportRouteIds.every((id, index) => id === graphRouteIds[index])
+    reportRouteIds.every((id, index) => id === graphRouteIds[index])
     ? { ...rebuilt, trajectories: report.trajectories, provenance: report.provenance.sources }
     : rebuilt;
 }
@@ -580,25 +668,40 @@ export async function runReplacementLabGeneration(
   confirmedPivotDecisionId: string,
   attempt: number,
   boundary: ReplacementLabApplicationBoundary,
-  options: BrowserCommandExecutionOptions & { readonly onLabProgress?: (progress: ReplacementLabProgress) => void } = {},
+  options: BrowserCommandExecutionOptions & {
+    readonly onLabProgress?: (progress: ReplacementLabProgress) => void;
+  } = {},
 ): Promise<ReplacementLabGenerationResult> {
-  const emit = (phase: ReplacementLabProgressPhase, completed: number, total: number, detail: string) =>
-    options.onLabProgress?.({ phase, completed, total, detail });
+  const emit = (
+    phase: ReplacementLabProgressPhase,
+    completed: number,
+    total: number,
+    detail: string,
+  ) => options.onLabProgress?.({ phase, completed, total, detail });
   emit("validating", 0, 7, "Revalidating report, finding, document, and semantic pivot identities");
   const currentActionability = replacementLabActionability(
     prepared.context,
     boundary.currentSnapshot(),
     boundary.currentCompletedReport(),
   );
-  if (!currentActionability.actionable) throw Object.assign(new Error(currentActionability.message), { code: currentActionability.code });
+  if (!currentActionability.actionable)
+    throw Object.assign(new Error(currentActionability.message), {
+      code: currentActionability.code,
+    });
   throwIfAborted(options.signal);
-  const automaticDecision = prepared.pivot_result?.status === "selected"
-    ? prepared.pivot_result.pivot.decision_id
-    : null;
+  const automaticDecision =
+    prepared.pivot_result?.status === "selected" ? prepared.pivot_result.pivot.decision_id : null;
   const useAutomatic = automaticDecision === confirmedPivotDecisionId;
-  const request = requestFor(prepared.context, controls, useAutomatic ? null : confirmedPivotDecisionId, attempt);
+  const request = requestFor(
+    prepared.context,
+    controls,
+    useAutomatic ? null : confirmedPivotDecisionId,
+    attempt,
+  );
   const graph = buildRepertoireGraph(boundary.dependencies.currentTree(), request.repertoire_color);
-  const cohort = prepared.context.report.cohorts.find((entry) => entry.cohort_id === request.cohort_id)!;
+  const cohort = prepared.context.report.cohorts.find(
+    (entry) => entry.cohort_id === request.cohort_id,
+  )!;
   const pivot = selectReplacementPivot({
     request,
     graph,
@@ -606,11 +709,19 @@ export async function runReplacementLabGeneration(
     cohort: pivotCohortEvidence(cohort, graph),
   });
   if (pivot.status !== "selected" || pivot.pivot.decision_id !== confirmedPivotDecisionId) {
-    throw Object.assign(new Error("Confirmed semantic pivot is no longer current or selected."), { code: "stale-pivot" });
+    throw Object.assign(new Error("Confirmed semantic pivot is no longer current or selected."), {
+      code: "stale-pivot",
+    });
   }
 
   emit("candidates", 1, 7, "Generating local and opening-database candidate seeds");
-  const databaseEvidence = await openingDatabaseEvidence(request, pivot, graph, boundary.dependencies, options.signal);
+  const databaseEvidence = await openingDatabaseEvidence(
+    request,
+    pivot,
+    graph,
+    boundary.dependencies,
+    options.signal,
+  );
   throwIfAborted(options.signal);
   const candidateGeneration = generateReplacementCandidates({
     request,
@@ -619,7 +730,12 @@ export async function runReplacementLabGeneration(
     database_evidence: databaseEvidence,
   });
 
-  emit("engine", 2, 7, `Generating bounded engine candidates at depth ${request.budget.engine_depth}`);
+  emit(
+    "engine",
+    2,
+    7,
+    `Generating bounded engine candidates at depth ${request.budget.engine_depth}`,
+  );
   const engineGeneration = await generateReplacementEngineCandidates({
     request,
     graph,
@@ -646,12 +762,13 @@ export async function runReplacementLabGeneration(
       ? engineProvider(boundary.dependencies)
       : null,
     signal: options.signal,
-    onProgress: (progress) => options.onLabProgress?.({
-      phase: "expansion",
-      completed: progress.completed_units,
-      total: Math.max(1, progress.total_units),
-      detail: `Expanded ${progress.completed_candidates}/${progress.total_candidates} candidates; visited ${progress.visited_positions} positions`,
-    }),
+    onProgress: (progress) =>
+      options.onLabProgress?.({
+        phase: "expansion",
+        completed: progress.completed_units,
+        total: Math.max(1, progress.total_units),
+        detail: `Expanded ${progress.completed_candidates}/${progress.total_candidates} candidates; visited ${progress.visited_positions} positions`,
+      }),
   });
   throwIfAborted(options.signal);
 
@@ -680,35 +797,44 @@ export async function runReplacementLabGeneration(
 
   emit("staging", 6, 7, "Staging immutable previews; no repertoire edit is applied");
   const candidateIds = safety.candidates.map((candidate) => candidate.candidate_id);
-  const preview = candidateIds.length === 0
-    ? emptyReplacementPreview(request, safety)
-    : await executeBrowserCommand("suggest_replacement_line", {
-    contract: REPLACEMENT_TOOL_V2_CONTRACT,
-    replacement_request: request,
-    finding: {
-      report_id: request.report_id,
-      finding_id: request.finding_id,
-      semantic_finding_id: request.semantic_finding_id,
-      cohort_id: request.cohort_id,
-      repertoire_revision: request.repertoire_revision,
-    },
-    pivot: request.pivot_selection,
-    profile: request.profile,
-    sources: request.candidate_sources,
-    budget: request.budget,
-    engine: {
-      depth: request.budget.engine_depth,
-      multipv: request.budget.engine_multipv,
-      allow_unavailable_evidence: true,
-    },
-    coverage: {
-      minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
-      require_all_forcing_replies: request.budget.include_all_forcing_replies,
-    },
-    retention: candidateIds.map((candidate_id) => ({ candidate_id, action: "add-alternative" })),
-    candidate_ids: candidateIds,
-    safety,
-    }, { signal: options.signal }, boundary.dependencies) as ReplacementLabGenerationResult["preview"];
+  const preview =
+    candidateIds.length === 0
+      ? emptyReplacementPreview(request, safety)
+      : ((await executeBrowserCommand(
+          "suggest_replacement_line",
+          {
+            contract: REPLACEMENT_TOOL_V2_CONTRACT,
+            replacement_request: request,
+            finding: {
+              report_id: request.report_id,
+              finding_id: request.finding_id,
+              semantic_finding_id: request.semantic_finding_id,
+              cohort_id: request.cohort_id,
+              repertoire_revision: request.repertoire_revision,
+            },
+            pivot: request.pivot_selection,
+            profile: request.profile,
+            sources: request.candidate_sources,
+            budget: request.budget,
+            engine: {
+              depth: request.budget.engine_depth,
+              multipv: request.budget.engine_multipv,
+              allow_unavailable_evidence: true,
+            },
+            coverage: {
+              minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
+              require_all_forcing_replies: request.budget.include_all_forcing_replies,
+            },
+            retention: candidateIds.map((candidate_id) => ({
+              candidate_id,
+              action: "add-alternative",
+            })),
+            candidate_ids: candidateIds,
+            safety,
+          },
+          { signal: options.signal },
+          boundary.dependencies,
+        )) as ReplacementLabGenerationResult["preview"]);
   throwIfAborted(options.signal);
   emit("staging", 7, 7, "Candidate preview staging finished");
   return {
@@ -736,20 +862,28 @@ export async function stageReplacementLabChangeReview(
 ): Promise<ReplacementLabChangeReviewResult> {
   throwIfAborted(options.signal);
   const current = boundary.currentSnapshot();
-  if (`browser:${current.repertoire_revision}` !== result.request.repertoire_revision ||
-      current.repertoire_color !== result.request.repertoire_color) {
-    throw Object.assign(new Error("Replacement review evidence no longer belongs to current document revision or repertoire color."), {
-      code: "stale-revision",
-    });
+  if (
+    `browser:${current.repertoire_revision}` !== result.request.repertoire_revision ||
+    current.repertoire_color !== result.request.repertoire_color
+  ) {
+    throw Object.assign(
+      new Error(
+        "Replacement review evidence no longer belongs to current document revision or repertoire color.",
+      ),
+      {
+        code: "stale-revision",
+      },
+    );
   }
   if (!result.scoring.candidates.some((candidate) => candidate.candidate_id === candidateId)) {
     throw Object.assign(new Error("Selected candidate is absent from retained scoring evidence."), {
       code: "candidate-not-found",
     });
   }
-  const candidateActions: readonly ReplacementSafetyCandidateAction[] = action === "replace"
-    ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
-    : [];
+  const candidateActions: readonly ReplacementSafetyCandidateAction[] =
+    action === "replace"
+      ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
+      : [];
   const safety = simulateReplacementSafety({
     source_tree: boundary.dependencies.currentTree(),
     request: result.request,
@@ -757,35 +891,41 @@ export async function stageReplacementLabChangeReview(
     candidate_actions: candidateActions,
   });
   throwIfAborted(options.signal);
-  const preview = await executeBrowserCommand("suggest_replacement_line", {
-    contract: REPLACEMENT_TOOL_V2_CONTRACT,
-    replacement_request: result.request,
-    finding: {
-      report_id: result.request.report_id,
-      finding_id: result.request.finding_id,
-      semantic_finding_id: result.request.semantic_finding_id,
-      cohort_id: result.request.cohort_id,
-      repertoire_revision: result.request.repertoire_revision,
+  const preview = (await executeBrowserCommand(
+    "suggest_replacement_line",
+    {
+      contract: REPLACEMENT_TOOL_V2_CONTRACT,
+      replacement_request: result.request,
+      finding: {
+        report_id: result.request.report_id,
+        finding_id: result.request.finding_id,
+        semantic_finding_id: result.request.semantic_finding_id,
+        cohort_id: result.request.cohort_id,
+        repertoire_revision: result.request.repertoire_revision,
+      },
+      pivot: result.request.pivot_selection,
+      profile: result.request.profile,
+      sources: result.request.candidate_sources,
+      budget: result.request.budget,
+      engine: {
+        depth: result.request.budget.engine_depth,
+        multipv: result.request.budget.engine_multipv,
+        allow_unavailable_evidence: true,
+      },
+      coverage: {
+        minimum_expected_opponent_coverage: result.request.minimum_expected_opponent_coverage,
+        require_all_forcing_replies: result.request.budget.include_all_forcing_replies,
+      },
+      retention:
+        action === "replace"
+          ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
+          : [{ candidate_id: candidateId, action: "add-alternative" }],
+      candidate_ids: [candidateId],
+      safety,
     },
-    pivot: result.request.pivot_selection,
-    profile: result.request.profile,
-    sources: result.request.candidate_sources,
-    budget: result.request.budget,
-    engine: {
-      depth: result.request.budget.engine_depth,
-      multipv: result.request.budget.engine_multipv,
-      allow_unavailable_evidence: true,
-    },
-    coverage: {
-      minimum_expected_opponent_coverage: result.request.minimum_expected_opponent_coverage,
-      require_all_forcing_replies: result.request.budget.include_all_forcing_replies,
-    },
-    retention: action === "replace"
-      ? [{ candidate_id: candidateId, action: "replace", prune_explicitly_confirmed: true }]
-      : [{ candidate_id: candidateId, action: "add-alternative" }],
-    candidate_ids: [candidateId],
-    safety,
-  }, options, boundary.dependencies) as ReplacementLabGenerationResult["preview"];
+    options,
+    boundary.dependencies,
+  )) as ReplacementLabGenerationResult["preview"];
   throwIfAborted(options.signal);
   const item = preview.items.find((candidate) => candidate.candidate_id === candidateId);
   if (!item) {

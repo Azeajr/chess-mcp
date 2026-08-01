@@ -10,6 +10,7 @@ description: >-
 Use the `chess-analysis` MCP for one position, not a whole game.
 
 <!-- BEGIN GENERATED WORKFLOW GUIDANCE -->
+
 ## Shared grounding contract
 
 - Validate user-pasted FEN or PGN before analysis. Stop on invalid input; never repair it silently. An already parsed host document needs no redundant validation call.
@@ -35,6 +36,7 @@ Evaluate one position and compare legal candidate moves without drifting into wh
 - Lead with the position verdict and favored side.
 - Compare the top candidates with labeled scores.
 - State only validated continuations.
+
 <!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation

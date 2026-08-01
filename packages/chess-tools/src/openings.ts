@@ -55,7 +55,10 @@ export function identifyAt(table: OpeningTable, fen: string): { eco: string; nam
  * The deepest named opening the PGN mainline passes through (standard "walk forward, last match
  * wins"), with the ply it is reached at, or null.
  */
-export function identifyDeepest(table: OpeningTable, pgn: string): { eco: string; name: string; ply: number } | null {
+export function identifyDeepest(
+  table: OpeningTable,
+  pgn: string,
+): { eco: string; name: string; ply: number } | null {
   const game = parsePgn(pgn)[0];
   if (!game) return null;
   const pos = Chess.default();

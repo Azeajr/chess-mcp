@@ -320,7 +320,11 @@ const preflight = {
   incomplete_route_count: 0,
 } satisfies StrategicFitPreflight;
 
-function metric<T>(metric_id: StrategicFitMetricId, value: T, unit: StrategicFitMetric<T>["unit"]): StrategicFitMetric<T> {
+function metric<T>(
+  metric_id: StrategicFitMetricId,
+  value: T,
+  unit: StrategicFitMetric<T>["unit"],
+): StrategicFitMetric<T> {
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     metric_id,
@@ -336,7 +340,11 @@ const metrics = {
   analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
   strategic_entropy: metric("strategic-entropy", 0.4, "entropy"),
   concept_reuse: metric("concept-reuse", 0.8, "fraction"),
-  exception_burden: metric("exception-burden", { expected_frequency: 0.2, training_cost: null }, "composite"),
+  exception_burden: metric(
+    "exception-burden",
+    { expected_frequency: 0.2, training_cost: null },
+    "composite",
+  ),
   forced_diversity_floor: metric("forced-diversity-floor", 0.1, "fraction"),
   homogenization_cost: metric(
     "homogenization-cost",

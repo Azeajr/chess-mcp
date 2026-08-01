@@ -67,9 +67,10 @@ function model(
   return {
     report,
     view: buildDecisionFlowViewModel(report, {
-      graph: options.graph === undefined
-        ? buildRepertoireGraph(GameTree.fromPgn(pgn), "white")
-        : options.graph,
+      graph:
+        options.graph === undefined
+          ? buildRepertoireGraph(GameTree.fromPgn(pgn), "white")
+          : options.graph,
       graphRevision: options.graphRevision === undefined ? revision : options.graphRevision,
       cohortName: (cohortId) => `Cohort ${cohortId.slice(-4)}`,
       findings: options.findings,
@@ -84,8 +85,12 @@ test("the flow view model lays out deterministic columns whose shares reconcile"
   assert.equal(first.projection.state, "available");
   assert.ok(first.cohorts.length > 0);
   assert.deepEqual(
-    first.cohorts.map((view) => view.nodes.map((node) => [node.node.node_id, node.x, node.share_percent])),
-    second.cohorts.map((view) => view.nodes.map((node) => [node.node.node_id, node.x, node.share_percent])),
+    first.cohorts.map((view) =>
+      view.nodes.map((node) => [node.node.node_id, node.x, node.share_percent]),
+    ),
+    second.cohorts.map((view) =>
+      view.nodes.map((node) => [node.node.node_id, node.x, node.share_percent]),
+    ),
   );
 
   for (const cohort of first.cohorts) {
@@ -182,8 +187,8 @@ test("causal text always states its qualification and never invents a controllab
     },
   });
   const nodeWith = (findings: readonly StrategicFinding[]) =>
-    model(FLOW_PGN, { findings }).view.cohorts
-      .flatMap((entry) => entry.nodes)
+    model(FLOW_PGN, { findings })
+      .view.cohorts.flatMap((entry) => entry.nodes)
       .find((candidate) => candidate.node.decision_id === decision.node.decision_id)!;
 
   const confident = nodeWith([findingFor("plain", "mostly-player-controlled", 0.82, "high")]);
@@ -209,8 +214,8 @@ test("the default cohort is the heaviest and every cohort keeps its own total", 
   const view = model().view;
   const chosen = defaultDecisionFlowCohortId(view);
   assert.ok(chosen !== null);
-  const heaviest = [...view.cohorts].sort((left, right) =>
-    right.cohort.total_weight - left.cohort.total_weight
+  const heaviest = [...view.cohorts].sort(
+    (left, right) => right.cohort.total_weight - left.cohort.total_weight,
   )[0]!;
   assert.equal(chosen, heaviest.cohort.cohort_id);
   for (const cohort of view.cohorts) {

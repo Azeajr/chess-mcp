@@ -36,7 +36,10 @@ const DEPTH = 20;
 // Worker budget: one slot is reserved for the live board worker, the rest form the scan pool.
 // hardwareConcurrency caps it (low-end mobile: 2 → pool of 1 + live); absolute cap keeps the
 // wasm heaps (~64MB+ each) bounded on big desktops.
-const POOL_BUDGET = Math.min((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2, 5);
+const POOL_BUDGET = Math.min(
+  (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2,
+  5,
+);
 const POOL_SIZE = Math.max(1, POOL_BUDGET - 1);
 // Consecutive failed (re)spawns before the pool stops trying (prevents a spawn storm).
 const MAX_BOOT_FAILURES = 2;
@@ -89,7 +92,8 @@ void (async () => {
     const saved = await idbGet<[string, { depth: number; lines: MultiLine[] }][]>(PERSIST_KEY);
     if (!Array.isArray(saved)) return;
     for (const [k, v] of saved) {
-      if (typeof k !== "string" || typeof v?.depth !== "number" || !Array.isArray(v?.lines)) continue;
+      if (typeof k !== "string" || typeof v?.depth !== "number" || !Array.isArray(v?.lines))
+        continue;
       // Don't clobber a result computed while the load was in flight.
       if (!multiCache.has(k)) multiCache.set(k, v);
     }
@@ -171,7 +175,14 @@ function spawnWorker(): WorkerEndpoint | null {
  */
 type SearchOutcome = { lines: MultiLine[]; stopped: boolean } | null;
 
-function runSearch(ep: WorkerEndpoint, fen: string, multipv: number, depth: number, movetime?: number, signal?: AbortSignal): Promise<SearchOutcome> {
+function runSearch(
+  ep: WorkerEndpoint,
+  fen: string,
+  multipv: number,
+  depth: number,
+  movetime?: number,
+  signal?: AbortSignal,
+): Promise<SearchOutcome> {
   const sign = fen.split(" ")[1] === "b" ? -1 : 1;
   return new Promise<SearchOutcome>((resolve) => {
     const lines = new Map<number, MultiLine>();
@@ -193,9 +204,12 @@ function runSearch(ep: WorkerEndpoint, fen: string, multipv: number, depth: numb
       ep.post("stop");
       graceTimer = setTimeout(() => finish(null), GRACE_MS);
     };
-    const wd = setTimeout(() => {
-      stop();
-    }, movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS);
+    const wd = setTimeout(
+      () => {
+        stop();
+      },
+      movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS,
+    );
     signal?.addEventListener("abort", stop, { once: true });
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
@@ -214,10 +228,16 @@ function runSearch(ep: WorkerEndpoint, fen: string, multipv: number, depth: numb
           mate: mate ? sign * Number(mate[1]) : null,
         });
       } else if (line.startsWith("bestmove")) {
-        finish({ lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v), stopped });
+        finish({
+          lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v),
+          stopped,
+        });
       }
     });
-    if (signal?.aborted) { finish({ lines: [], stopped: true }); return; }
+    if (signal?.aborted) {
+      finish({ lines: [], stopped: true });
+      return;
+    }
     ep.post(`setoption name MultiPV value ${multipv}`);
     ep.post(`position fen ${fen}`);
     ep.post(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);
@@ -248,7 +268,10 @@ let nextJobId = 1;
 const abortError = () => new DOMException("Cancelled", "AbortError");
 
 function queueJob(job: Job, front = false): void {
-  if (job.signal?.aborted) { job.reject(abortError()); return; }
+  if (job.signal?.aborted) {
+    job.reject(abortError());
+    return;
+  }
   const cancelQueued = () => {
     const index = queue.indexOf(job);
     if (index < 0) return;
@@ -280,7 +303,11 @@ function addPoolWorker(ep: WorkerEndpoint): void {
       bootFailures++;
     }
     // Pool gone for good — fail pending jobs instead of leaving them queued forever.
-    if (livePool === 0) for (const job of queue.splice(0)) { job.cleanup?.(); job.resolve(null); }
+    if (livePool === 0)
+      for (const job of queue.splice(0)) {
+        job.cleanup?.();
+        job.resolve(null);
+      }
   });
   idle.push(ep);
   pump();
@@ -337,10 +364,29 @@ function ensurePool(): boolean {
   return livePool > 0;
 }
 
-function poolSearch(fen: string, multipv: number, depth: number, movetime?: number, signal?: AbortSignal): Promise<SearchOutcome> {
+function poolSearch(
+  fen: string,
+  multipv: number,
+  depth: number,
+  movetime?: number,
+  signal?: AbortSignal,
+): Promise<SearchOutcome> {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) { reject(abortError()); return; }
-    const job: Job = { id: nextJobId++, fen, multipv, depth, movetime, retried: false, resolve, reject, signal };
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    const job: Job = {
+      id: nextJobId++,
+      fen,
+      multipv,
+      depth,
+      movetime,
+      retried: false,
+      resolve,
+      reject,
+      signal,
+    };
     queueJob(job);
     pump();
   });
@@ -370,12 +416,26 @@ function subscribe(entry: InFlight, signal?: AbortSignal): Promise<MultiLine[] |
       entry.subscribers--;
       if (cancelUnderlying && !entry.settled && entry.subscribers === 0) entry.controller.abort();
     };
-    const abort = () => { detach(true); reject(abortError()); };
-    if (signal?.aborted) { abort(); return; }
+    const abort = () => {
+      detach(true);
+      reject(abortError());
+    };
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
     signal?.addEventListener("abort", abort, { once: true });
     entry.promise.then(
-      (value) => { if (!active) return; detach(false); resolve(value); },
-      (error) => { if (!active) return; detach(false); reject(error); },
+      (value) => {
+        if (!active) return;
+        detach(false);
+        resolve(value);
+      },
+      (error) => {
+        if (!active) return;
+        detach(false);
+        reject(error);
+      },
     );
   });
 }
@@ -391,12 +451,24 @@ function withDedupe(
   const pending = inFlight.get(key);
   if (pending && pending.depth >= wanted) return subscribe(pending, signal);
   const controller = new AbortController();
-  const entry: InFlight = { depth: wanted, controller, promise: Promise.resolve(null), subscribers: 0, settled: false };
+  const entry: InFlight = {
+    depth: wanted,
+    controller,
+    promise: Promise.resolve(null),
+    subscribers: 0,
+    settled: false,
+  };
   entry.promise = run(controller.signal);
   inFlight.set(key, entry);
   void entry.promise.then(
-    () => { entry.settled = true; if (inFlight.get(key) === entry) inFlight.delete(key); },
-    () => { entry.settled = true; if (inFlight.get(key) === entry) inFlight.delete(key); },
+    () => {
+      entry.settled = true;
+      if (inFlight.get(key) === entry) inFlight.delete(key);
+    },
+    () => {
+      entry.settled = true;
+      if (inFlight.get(key) === entry) inFlight.delete(key);
+    },
   );
   // The underlying promise may outlive all cancelled subscribers; keep its rejection observed.
   void entry.promise.catch(() => undefined);
@@ -409,7 +481,13 @@ function withDedupe(
  * Top-`multipv` lines for `fen` to `depth`. White-POV scores. Resolves null if the engine is
  * unavailable. Runs on the scan pool — concurrent calls run in parallel up to POOL_SIZE.
  */
-export function analyseMulti(fen: string, multipv: number, depth = DEPTH, movetime?: number, signal?: AbortSignal): Promise<MultiLine[] | null> {
+export function analyseMulti(
+  fen: string,
+  multipv: number,
+  depth = DEPTH,
+  movetime?: number,
+  signal?: AbortSignal,
+): Promise<MultiLine[] | null> {
   if (signal?.aborted) return Promise.reject(abortError());
   const wanted = movetime != null ? 0 : depth;
   const hit = cacheGet(fen, multipv, wanted);
@@ -421,7 +499,8 @@ export function analyseMulti(fen: string, multipv: number, depth = DEPTH, moveti
     if (outcome.lines.length && !outcome.stopped) {
       // Store the depth actually reached (like the Node engine cache) so a movetime result can
       // still serve later depth requests it satisfies.
-      const reached = movetime != null ? outcome.lines.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
+      const reached =
+        movetime != null ? outcome.lines.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
       cachePut(fen, multipv, reached, outcome.lines);
     }
     return outcome.lines;
@@ -440,7 +519,11 @@ function liveSerial<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /** analyseMulti semantics on the dedicated live worker (board arrows / eval bar). */
-export function analyseLive(fen: string, multipv: number, depth = DEPTH): Promise<MultiLine[] | null> {
+export function analyseLive(
+  fen: string,
+  multipv: number,
+  depth = DEPTH,
+): Promise<MultiLine[] | null> {
   const hit = cacheGet(fen, multipv, depth);
   if (hit) return Promise.resolve(hit);
   return withDedupe(fen, multipv, depth, undefined, () =>

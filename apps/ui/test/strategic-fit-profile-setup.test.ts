@@ -17,9 +17,17 @@ import type {
 
 function setupFixture(initial = createDefaultStrategicFitDocumentMetadata().profile) {
   let currentDocumentId = "document:a";
-  const profiles = new Map<string, StrategicFitProfile>([[currentDocumentId, structuredClone(initial)]]);
-  const inferredCalls: Array<{ mode: StrategicFitProfileMode; preferences?: StrategicFitProfilePreferencesInput }> = [];
-  const selectCalls: Array<{ mode: StrategicFitProfileMode; preferences?: StrategicFitProfilePreferencesInput }> = [];
+  const profiles = new Map<string, StrategicFitProfile>([
+    [currentDocumentId, structuredClone(initial)],
+  ]);
+  const inferredCalls: Array<{
+    mode: StrategicFitProfileMode;
+    preferences?: StrategicFitProfilePreferencesInput;
+  }> = [];
+  const selectCalls: Array<{
+    mode: StrategicFitProfileMode;
+    preferences?: StrategicFitProfilePreferencesInput;
+  }> = [];
 
   const result = (profile: StrategicFitProfile): StrategicFitProfileMutationResult => ({
     state: "updated",
@@ -27,9 +35,10 @@ function setupFixture(initial = createDefaultStrategicFitDocumentMetadata().prof
   });
   const boundary: StrategicFitProfileSetupBoundary = {
     currentDocumentId: () => currentDocumentId,
-    currentProfile: () => structuredClone(
-      profiles.get(currentDocumentId) ?? createDefaultStrategicFitDocumentMetadata().profile,
-    ),
+    currentProfile: () =>
+      structuredClone(
+        profiles.get(currentDocumentId) ?? createDefaultStrategicFitDocumentMetadata().profile,
+      ),
     applyInferred: (mode, preferences) => {
       inferredCalls.push({ mode, preferences });
       const current = boundary.currentProfile();
@@ -38,7 +47,7 @@ function setupFixture(initial = createDefaultStrategicFitDocumentMetadata().prof
         mode,
         source: "inferred",
         provisional: true,
-        preferences: preferences as StrategicFitProfile["preferences"] ?? current.preferences,
+        preferences: (preferences as StrategicFitProfile["preferences"]) ?? current.preferences,
       };
       profiles.set(currentDocumentId, structuredClone(profile));
       return result(profile);
@@ -51,7 +60,7 @@ function setupFixture(initial = createDefaultStrategicFitDocumentMetadata().prof
         mode,
         source: "explicit",
         provisional: false,
-        preferences: preferences as StrategicFitProfile["preferences"] ?? current.preferences,
+        preferences: (preferences as StrategicFitProfile["preferences"]) ?? current.preferences,
       };
       profiles.set(currentDocumentId, structuredClone(profile));
       return result(profile);
@@ -84,7 +93,11 @@ test("Balanced is initially required and skip advances only the current session"
   assert.equal(fixture.selectCalls.length, 0, "skip must not persist explicit intent");
   assert.equal(fixture.state.required(), false);
 
-  assert.equal(fixture.newSession().required(), true, "a skipped inference must return next session");
+  assert.equal(
+    fixture.newSession().required(),
+    true,
+    "a skipped inference must return next session",
+  );
 });
 
 test("session completion is document-scoped and never hides another provisional profile", () => {

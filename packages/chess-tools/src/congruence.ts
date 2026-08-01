@@ -50,7 +50,11 @@ export function classifyUciMove(
   const san = makeSan(pos, move);
   pos.play(move);
   const key = positionKey(makeFen(pos.toSetup()));
-  const fit: Fit = childSans.includes(san) ? "in-book" : repertoireKeys.has(key) ? "adjacent" : "out";
+  const fit: Fit = childSans.includes(san)
+    ? "in-book"
+    : repertoireKeys.has(key)
+      ? "adjacent"
+      : "out";
   return { san, fit, key };
 }
 

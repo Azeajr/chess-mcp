@@ -57,11 +57,13 @@ function evidence(): {
       minimum_expected_opponent_coverage: request.minimum_expected_opponent_coverage,
       require_all_forcing_replies: request.budget.include_all_forcing_replies,
     },
-    retention: [{
-      candidate_id: fixture.candidate.candidate_id,
-      action: "replace",
-      prune_explicitly_confirmed: true,
-    }],
+    retention: [
+      {
+        candidate_id: fixture.candidate.candidate_id,
+        action: "replace",
+        prune_explicitly_confirmed: true,
+      },
+    ],
     candidate_ids: [fixture.candidate.candidate_id],
     safety: fixture.safety,
   };
@@ -72,19 +74,27 @@ function evidence(): {
 
 /** Clone one candidate and its preview under a new identity so multi-candidate cases stay real. */
 function withClone(
-  base: { readonly safety: ReplacementSafetySimulationResult; readonly previews: readonly ReplacementToolV2Item[] },
+  base: {
+    readonly safety: ReplacementSafetySimulationResult;
+    readonly previews: readonly ReplacementToolV2Item[];
+  },
   candidateId: string,
   mutate: (candidate: ReplacementCandidateSafetySimulation, item: ReplacementToolV2Item) => void,
 ) {
   const source = base.safety.candidates[0]!;
   const sourceItem = base.previews.find((item) => item.candidate_id === source.candidate_id)!;
-  const candidate = structuredClone(source) as { candidate_id: string } & ReplacementCandidateSafetySimulation;
+  const candidate = structuredClone(source) as {
+    candidate_id: string;
+  } & ReplacementCandidateSafetySimulation;
   const item = structuredClone(sourceItem) as { candidate_id: string } & ReplacementToolV2Item;
   candidate.candidate_id = candidateId;
   item.candidate_id = candidateId;
   mutate(candidate as ReplacementCandidateSafetySimulation, item as ReplacementToolV2Item);
   return {
-    safety: { ...base.safety, candidates: [...base.safety.candidates, candidate] } as ReplacementSafetySimulationResult,
+    safety: {
+      ...base.safety,
+      candidates: [...base.safety.candidates, candidate],
+    } as ReplacementSafetySimulationResult,
     previews: [...base.previews, item] as readonly ReplacementToolV2Item[],
   };
 }
@@ -107,7 +117,9 @@ const set = (constraints: Record<string, unknown>, rationale?: unknown) =>
 const profileBase = replacementFixture("profile").request.profile;
 
 /** Declared preferences default to unset so each conflict case states exactly what it declared. */
-const profile = (overrides: Partial<StrategicFitProfile["preferences"]> = {}): StrategicFitProfile => ({
+const profile = (
+  overrides: Partial<StrategicFitProfile["preferences"]> = {},
+): StrategicFitProfile => ({
   ...profileBase,
   preferences: {
     ...profileBase.preferences,
@@ -121,39 +133,70 @@ const code = (error: unknown): string | undefined =>
   error instanceof StrategicFitPortfolioError ? error.code : undefined;
 
 test("constraint parsing rejects model-authored bounds it cannot check instead of repairing them", () => {
-  assert.throws(() => set({}), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_empty_constraints");
-  assert.throws(() => resolveStrategicFitPortfolioConstraints({}), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_empty_constraints");
-  assert.throws(() => resolveStrategicFitPortfolioConstraints({ constraints: [] }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_empty_constraints");
-
-  assert.throws(() => set({ maximum_practical_danger: 3 }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_unknown_constraint",
-    "a bound with no deterministic measurement behind it is refused, not approximated");
-  assert.throws(() => set({ maximum_engine_loss_cp: "30" }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: Number.NaN }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: Number.POSITIVE_INFINITY }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: 5000 }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: -1 }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: 12.5 }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value",
-    "an integral bound cannot be given a fractional value");
-  assert.throws(() => set({ minimum_expected_opponent_coverage: 2 }), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
-  assert.throws(() => set({ maximum_engine_loss_cp: 30 }, 41), (error: unknown) =>
-    code(error) === "strategic_fit_portfolio_invalid_value");
   assert.throws(
-    () => set({ maximum_engine_loss_cp: 30 }, "x".repeat(STRATEGIC_FIT_PORTFOLIO_LIMITS.rationale_characters + 1)),
+    () => set({}),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_empty_constraints",
+  );
+  assert.throws(
+    () => resolveStrategicFitPortfolioConstraints({}),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_empty_constraints",
+  );
+  assert.throws(
+    () => resolveStrategicFitPortfolioConstraints({ constraints: [] }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_empty_constraints",
+  );
+
+  assert.throws(
+    () => set({ maximum_practical_danger: 3 }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_unknown_constraint",
+    "a bound with no deterministic measurement behind it is refused, not approximated",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: "30" }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: Number.NaN }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: Number.POSITIVE_INFINITY }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: 5000 }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: -1 }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: 12.5 }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+    "an integral bound cannot be given a fractional value",
+  );
+  assert.throws(
+    () => set({ minimum_expected_opponent_coverage: 2 }),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () => set({ maximum_engine_loss_cp: 30 }, 41),
+    (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
+  );
+  assert.throws(
+    () =>
+      set(
+        { maximum_engine_loss_cp: 30 },
+        "x".repeat(STRATEGIC_FIT_PORTFOLIO_LIMITS.rationale_characters + 1),
+      ),
     (error: unknown) => code(error) === "strategic_fit_portfolio_invalid_value",
   );
 
-  const parsed = set({ maximum_engine_loss_cp: 30, minimum_expected_opponent_coverage: 0.8 }, "  keep it tight  ");
+  const parsed = set(
+    { maximum_engine_loss_cp: 30, minimum_expected_opponent_coverage: 0.8 },
+    "  keep it tight  ",
+  );
   assert.equal(parsed.constraints.length, 2);
   assert.equal(parsed.rationale, "keep it tight");
   assert.deepEqual(
@@ -186,7 +229,9 @@ test("more bounds than the limit are refused rather than truncated", () => {
     STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length,
     "every canonical bound may be requested at once",
   );
-  assert.ok(STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length <= STRATEGIC_FIT_PORTFOLIO_LIMITS.constraints);
+  assert.ok(
+    STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length <= STRATEGIC_FIT_PORTFOLIO_LIMITS.constraints,
+  );
 });
 
 test("a contradiction is reported as the user's decision and never resolved by relaxing a bound", () => {
@@ -198,20 +243,28 @@ test("a contradiction is reported as the user's decision and never resolved by r
   assert.equal(lossConflicts[0]!.source, "declared-preference");
   assert.deepEqual(lossConflicts[0]!.constraint_kinds, ["maximum_engine_loss_cp"]);
   assert.ok(lossConflicts[0]!.question.endsWith("?"), "a contradiction is put as a question");
-  assert.deepEqual(wider.constraints.map((constraint) => constraint.value), [60],
-    "detection reports; it does not rewrite the requested bound");
+  assert.deepEqual(
+    wider.constraints.map((constraint) => constraint.value),
+    [60],
+    "detection reports; it does not rewrite the requested bound",
+  );
 
   const lower = set({ minimum_expected_opponent_coverage: 0.4 });
   const coverageConflicts = detectStrategicFitPortfolioConflicts(lower, { profile: declared });
   assert.equal(coverageConflicts.length, 1);
   assert.equal(coverageConflicts[0]!.source, "declared-preference");
 
-  const selfContradictory = set({ maximum_added_theory_nodes: 0, minimum_expected_opponent_coverage: 0.9 });
+  const selfContradictory = set({
+    maximum_added_theory_nodes: 0,
+    minimum_expected_opponent_coverage: 0.9,
+  });
   const requested = detectStrategicFitPortfolioConflicts(selfContradictory, { profile: profile() });
   assert.equal(requested.length, 1);
   assert.equal(requested[0]!.source, "requested-constraints");
-  assert.deepEqual(requested[0]!.constraint_kinds,
-    ["maximum_added_theory_nodes", "minimum_expected_opponent_coverage"]);
+  assert.deepEqual(requested[0]!.constraint_kinds, [
+    "maximum_added_theory_nodes",
+    "minimum_expected_opponent_coverage",
+  ]);
 
   const conceptContradiction = detectStrategicFitPortfolioConflicts(
     set({ maximum_new_concept_count: 0, minimum_strategic_fit_delta: 0.2 }),
@@ -221,7 +274,9 @@ test("a contradiction is reported as the user's decision and never resolved by r
   assert.equal(conceptContradiction[0]!.source, "requested-constraints");
 
   assert.deepEqual(
-    detectStrategicFitPortfolioConflicts(set({ maximum_engine_loss_cp: 10 }), { profile: declared }),
+    detectStrategicFitPortfolioConflicts(set({ maximum_engine_loss_cp: 10 }), {
+      profile: declared,
+    }),
     [],
     "a bound stricter than the declared preference is not a contradiction",
   );
@@ -230,7 +285,11 @@ test("a contradiction is reported as the user's decision and never resolved by r
 test("a feasible portfolio returns options bound to retained evidence and selects nothing", () => {
   const base = evidence();
   const before = structuredClone({ safety: base.safety, previews: base.previews });
-  const result = buildStrategicFitPortfolio({ constraint_set: set(LOOSE), safety: base.safety, previews: base.previews });
+  const result = buildStrategicFitPortfolio({
+    constraint_set: set(LOOSE),
+    safety: base.safety,
+    previews: base.previews,
+  });
 
   assert.equal(result.portfolio_version, STRATEGIC_FIT_PORTFOLIO_VERSION);
   assert.equal(result.status, "available");
@@ -245,32 +304,53 @@ test("a feasible portfolio returns options bound to retained evidence and select
   const candidate = base.safety.candidates[0]!;
   const item = base.previews.find((entry) => entry.candidate_id === candidate.candidate_id)!;
   assert.equal(option.candidate_id, candidate.candidate_id);
-  assert.equal(option.change_set_id, item.change_set!.change_set_id,
-    "an option stages the change set the preview already validated");
-  assert.equal(option.pareto_status, candidate.scored_candidate.pareto.status,
-    "Task 8.6 status is carried through, not recomputed over the constrained subset");
+  assert.equal(
+    option.change_set_id,
+    item.change_set!.change_set_id,
+    "an option stages the change set the preview already validated",
+  );
+  assert.equal(
+    option.pareto_status,
+    candidate.scored_candidate.pareto.status,
+    "Task 8.6 status is carried through, not recomputed over the constrained subset",
+  );
   assert.ok(option.evidence_identity.startsWith("strategic-fit-portfolio-evidence:"));
   assert.equal(option.measurements.length, STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.length);
-  const loss = option.measurements.find((measurement) => measurement.kind === "maximum_engine_loss_cp")!;
-  assert.equal(loss.value, candidate.scored_candidate.objective_quality.repertoire_pov_loss_from_best_cp,
-    "the reported value is read out of the retained score, never supplied");
+  const loss = option.measurements.find(
+    (measurement) => measurement.kind === "maximum_engine_loss_cp",
+  )!;
+  assert.equal(
+    loss.value,
+    candidate.scored_candidate.objective_quality.repertoire_pov_loss_from_best_cp,
+    "the reported value is read out of the retained score, never supplied",
+  );
   assert.equal(loss.constraint_value, LOOSE.maximum_engine_loss_cp);
   assert.equal(loss.satisfies_constraint, true);
   const unconstrained = buildStrategicFitPortfolio({
     constraint_set: set({ maximum_engine_loss_cp: LOOSE.maximum_engine_loss_cp! }),
     safety: base.safety,
     previews: base.previews,
-  }).options[0]!.measurements.find((measurement) => measurement.kind === "maximum_added_theory_nodes")!;
+  }).options[0]!.measurements.find(
+    (measurement) => measurement.kind === "maximum_added_theory_nodes",
+  )!;
   assert.equal(unconstrained.constraint_value, null);
-  assert.equal(unconstrained.satisfies_constraint, null, "an unconstrained metric is neither passed nor failed");
+  assert.equal(
+    unconstrained.satisfies_constraint,
+    null,
+    "an unconstrained metric is neither passed nor failed",
+  );
 
-  assert.deepEqual({ safety: base.safety, previews: base.previews }, before,
-    "building a portfolio mutates no retained evidence");
+  assert.deepEqual(
+    { safety: base.safety, previews: base.previews },
+    before,
+    "building a portfolio mutates no retained evidence",
+  );
 });
 
 test("an infeasible bound set names the binding bound instead of relaxing it", () => {
   const base = evidence();
-  const measured = base.safety.candidates[0]!.scored_candidate.objective_quality.repertoire_pov_loss_from_best_cp!;
+  const measured =
+    base.safety.candidates[0]!.scored_candidate.objective_quality.repertoire_pov_loss_from_best_cp!;
   const result = buildStrategicFitPortfolio({
     constraint_set: set({ ...LOOSE, maximum_engine_loss_cp: Math.max(0, measured - 1) }),
     safety: base.safety,
@@ -291,13 +371,16 @@ test("an infeasible bound set names the binding bound instead of relaxing it", (
 test("a coverage floor above the measured coverage excludes the candidate rather than rounding to it", () => {
   const base = evidence();
   const thin = withClone(base, "candidate:thin-coverage", (candidate) => {
-    (candidate.scored_candidate.strategic_score as { expected_opponent_coverage: number | null })
-      .expected_opponent_coverage = 0.4;
+    (
+      candidate.scored_candidate.strategic_score as { expected_opponent_coverage: number | null }
+    ).expected_opponent_coverage = 0.4;
   });
   const onlyThin = {
     safety: {
       ...thin.safety,
-      candidates: thin.safety.candidates.filter((candidate) => candidate.candidate_id === "candidate:thin-coverage"),
+      candidates: thin.safety.candidates.filter(
+        (candidate) => candidate.candidate_id === "candidate:thin-coverage",
+      ),
     } as ReplacementSafetySimulationResult,
     previews: thin.previews,
   };
@@ -308,7 +391,10 @@ test("a coverage floor above the measured coverage excludes the candidate rather
   });
   assert.equal(result.status, "infeasible");
   assert.deepEqual(result.binding_constraint_kinds, ["minimum_expected_opponent_coverage"]);
-  assert.match(result.eliminations[0]!.explanation, /0\.4 share of expected opponent replies, outside the requested 0\.9/);
+  assert.match(
+    result.eliminations[0]!.explanation,
+    /0\.4 share of expected opponent replies, outside the requested 0\.9/,
+  );
 
   const met = buildStrategicFitPortfolio({
     constraint_set: set({ minimum_expected_opponent_coverage: 0.4 }),
@@ -323,7 +409,10 @@ test("two bounds missed at once leave no single binding bound to blame", () => {
   const scored = base.safety.candidates[0]!.scored_candidate;
   const result = buildStrategicFitPortfolio({
     constraint_set: set({
-      maximum_engine_loss_cp: Math.max(0, scored.objective_quality.repertoire_pov_loss_from_best_cp! - 1),
+      maximum_engine_loss_cp: Math.max(
+        0,
+        scored.objective_quality.repertoire_pov_loss_from_best_cp! - 1,
+      ),
       maximum_added_theory_nodes: Math.max(0, scored.strategic_score.theory_nodes_added! - 1),
     }),
     safety: base.safety,
@@ -332,23 +421,31 @@ test("two bounds missed at once leave no single binding bound to blame", () => {
   assert.equal(result.status, "infeasible");
   assert.deepEqual(result.binding_constraint_kinds, []);
   assert.match(result.explanation, /no single bound is responsible/);
-  assert.deepEqual(result.eliminations[0]!.constraint_kinds,
-    ["maximum_engine_loss_cp", "maximum_added_theory_nodes"]);
+  assert.deepEqual(result.eliminations[0]!.constraint_kinds, [
+    "maximum_engine_loss_cp",
+    "maximum_added_theory_nodes",
+  ]);
 });
 
 test("unmeasurable evidence never satisfies a bound", () => {
   const base = evidence();
   const withUnavailable = withClone(base, "candidate:unmeasured", (candidate) => {
-    (candidate.scored_candidate.strategic_score as { memorization_burden: number | null })
-      .memorization_burden = null;
+    (
+      candidate.scored_candidate.strategic_score as { memorization_burden: number | null }
+    ).memorization_burden = null;
   });
   const constrained = buildStrategicFitPortfolio({
     constraint_set: set({ maximum_memorization_burden: 10_000 }),
     safety: withUnavailable.safety,
     previews: withUnavailable.previews,
   });
-  assert.deepEqual(constrained.options.map((option) => option.candidate_id), ["candidate:safe-replacement"]);
-  const elimination = constrained.eliminations.find((entry) => entry.candidate_id === "candidate:unmeasured")!;
+  assert.deepEqual(
+    constrained.options.map((option) => option.candidate_id),
+    ["candidate:safe-replacement"],
+  );
+  const elimination = constrained.eliminations.find(
+    (entry) => entry.candidate_id === "candidate:unmeasured",
+  )!;
   assert.equal(elimination.reason, "unavailable-evidence");
   assert.deepEqual(elimination.constraint_kinds, ["maximum_memorization_burden"]);
   assert.match(elimination.explanation, /could not be measured/);
@@ -358,8 +455,12 @@ test("unmeasurable evidence never satisfies a bound", () => {
     safety: withUnavailable.safety,
     previews: withUnavailable.previews,
   });
-  const option = unconstrained.options.find((entry) => entry.candidate_id === "candidate:unmeasured")!;
-  const measurement = option.measurements.find((entry) => entry.kind === "maximum_memorization_burden")!;
+  const option = unconstrained.options.find(
+    (entry) => entry.candidate_id === "candidate:unmeasured",
+  )!;
+  const measurement = option.measurements.find(
+    (entry) => entry.kind === "maximum_memorization_burden",
+  )!;
   assert.equal(measurement.state, "unavailable");
   assert.equal(measurement.value, null);
   assert.equal(measurement.satisfies_constraint, null);
@@ -383,15 +484,21 @@ test("blocked, unscored, and unpreviewed candidates cannot become options", () =
     safety: combined.safety,
     previews: combined.previews,
   });
-  assert.deepEqual(result.options.map((option) => option.candidate_id), ["candidate:safe-replacement"]);
+  assert.deepEqual(
+    result.options.map((option) => option.candidate_id),
+    ["candidate:safe-replacement"],
+  );
   const reason = (candidateId: string) =>
     result.eliminations.find((entry) => entry.candidate_id === candidateId)!.reason;
   assert.equal(reason("candidate:blocked"), "blocked-safety-check");
   assert.equal(reason("candidate:unscored"), "unscored-candidate");
   assert.equal(reason("candidate:unpreviewed"), "no-validated-change-set");
   for (const elimination of result.eliminations) {
-    assert.deepEqual(elimination.constraint_kinds, [],
-      "a candidate the evidence itself excluded is never blamed on a bound the user chose");
+    assert.deepEqual(
+      elimination.constraint_kinds,
+      [],
+      "a candidate the evidence itself excluded is never blamed on a bound the user chose",
+    );
   }
   assert.deepEqual(result.binding_constraint_kinds, []);
 });
@@ -442,30 +549,39 @@ test("Pareto-optimal options are listed before dominated ones without re-racing 
   const base = evidence();
   const withDominated = withClone(base, "candidate:aaa-dominated", (candidate) => {
     (candidate.scored_candidate.pareto as { status: string }).status = "dominated";
-    (candidate.scored_candidate.pareto as { dominated_by_candidate_ids: string[] })
-      .dominated_by_candidate_ids = ["candidate:safe-replacement"];
+    (
+      candidate.scored_candidate.pareto as { dominated_by_candidate_ids: string[] }
+    ).dominated_by_candidate_ids = ["candidate:safe-replacement"];
   });
   const result = buildStrategicFitPortfolio({
     constraint_set: set(LOOSE),
     safety: withDominated.safety,
     previews: withDominated.previews,
   });
-  assert.deepEqual(result.options.map((option) => option.option_id), [
-    "strategic-fit-portfolio-option:candidate:safe-replacement",
-    "strategic-fit-portfolio-option:candidate:aaa-dominated",
-  ], "candidate order is deterministic and Pareto status ranks ahead of the identifier");
+  assert.deepEqual(
+    result.options.map((option) => option.option_id),
+    [
+      "strategic-fit-portfolio-option:candidate:safe-replacement",
+      "strategic-fit-portfolio-option:candidate:aaa-dominated",
+    ],
+    "candidate order is deterministic and Pareto status ranks ahead of the identifier",
+  );
   assert.equal(result.options[1]!.pareto_status, "dominated");
-  assert.deepEqual(result.options[1]!.dominated_by_candidate_ids, ["candidate:safe-replacement"],
-    "domination is reported against the full generated set, not the constrained one");
+  assert.deepEqual(
+    result.options[1]!.dominated_by_candidate_ids,
+    ["candidate:safe-replacement"],
+    "domination is reported against the full generated set, not the constrained one",
+  );
 });
 
 test("the same bounds over the same evidence produce the same portfolio", () => {
   const base = evidence();
-  const build = () => buildStrategicFitPortfolio({
-    constraint_set: set(LOOSE),
-    safety: base.safety,
-    previews: base.previews,
-  });
+  const build = () =>
+    buildStrategicFitPortfolio({
+      constraint_set: set(LOOSE),
+      safety: base.safety,
+      previews: base.previews,
+    });
   assert.deepEqual(build(), build());
 });
 
@@ -480,7 +596,10 @@ test("an option's change set stays atomic: a stale application changes nothing a
   const item = base.previews.find((entry) => entry.candidate_id === option.candidate_id)!;
   const changeSet = item.change_set!;
   assert.equal(changeSet.change_set_id, option.change_set_id);
-  assert.ok(changeSet.operations.length > 1, "this option carries more than one change to roll back");
+  assert.ok(
+    changeSet.operations.length > 1,
+    "this option carries more than one change to roll back",
+  );
 
   const pgnBefore = fixture.tree.toPgn();
   const stale = applyReplacementChangeSet({
@@ -490,8 +609,11 @@ test("an option's change set stays atomic: a stale application changes nothing a
     change_set: changeSet,
   });
   assert.notEqual(stale.status, "success");
-  assert.equal(fixture.tree.toPgn(), pgnBefore,
-    "a rejected multi-operation change set leaves no partial edit behind");
+  assert.equal(
+    fixture.tree.toPgn(),
+    pgnBefore,
+    "a rejected multi-operation change set leaves no partial edit behind",
+  );
 
   const applied = applyReplacementChangeSet({
     source_tree: fixture.tree,
@@ -500,17 +622,26 @@ test("an option's change set stays atomic: a stale application changes nothing a
     change_set: changeSet,
   });
   assert.equal(applied.status, "success");
-  assert.equal(fixture.tree.toPgn(), pgnBefore,
-    "even a successful application produces a new tree rather than mutating the source");
+  assert.equal(
+    fixture.tree.toPgn(),
+    pgnBefore,
+    "even a successful application produces a new tree rather than mutating the source",
+  );
 });
 
 test("validation failures map to one structured, code-bearing result", () => {
   const mapped = strategicFitPortfolioErrorResult(
     new StrategicFitPortfolioError("strategic_fit_portfolio_unknown_option", "no such option"),
   );
-  assert.deepEqual(mapped, { error: "strategic_fit_portfolio_unknown_option", reason: "no such option" });
-  assert.throws(() => strategicFitPortfolioErrorResult(new TypeError("unrelated")), TypeError,
-    "an unrelated failure is not disguised as a portfolio error");
+  assert.deepEqual(mapped, {
+    error: "strategic_fit_portfolio_unknown_option",
+    reason: "no such option",
+  });
+  assert.throws(
+    () => strategicFitPortfolioErrorResult(new TypeError("unrelated")),
+    TypeError,
+    "an unrelated failure is not disguised as a portfolio error",
+  );
 });
 
 test("every constraint kind measures a metric the retained evidence actually reports", () => {
@@ -521,9 +652,11 @@ test("every constraint kind measures a metric the retained evidence actually rep
     previews: base.previews,
   });
   const option = result.options[0]!;
-  const measured = new Set(option.measurements
-    .filter((measurement) => measurement.state === "available")
-    .map((measurement) => measurement.kind as StrategicFitPortfolioConstraintKind));
+  const measured = new Set(
+    option.measurements
+      .filter((measurement) => measurement.state === "available")
+      .map((measurement) => measurement.kind as StrategicFitPortfolioConstraintKind),
+  );
   for (const kind of STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS) {
     assert.ok(measured.has(kind), `${kind} has no measurement in complete retained evidence`);
   }

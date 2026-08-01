@@ -35,9 +35,15 @@ function fixture(options: { staleRoute?: boolean } = {}) {
   const tree = GameTree.fromPgn(PGN);
   const graph = buildRepertoireGraph(tree, "white");
   const route = graph.routes[0]!;
-  const opening = graph.positions.find((position) => position.position_id === route.position_ids[0])!;
-  const second = graph.positions.find((position) => position.position_id === route.position_ids[2])!;
-  const causalDecision = graph.decisions.find((decision) => decision.decision_id === route.decision_ids[2])!;
+  const opening = graph.positions.find(
+    (position) => position.position_id === route.position_ids[0],
+  )!;
+  const second = graph.positions.find(
+    (position) => position.position_id === route.position_ids[2],
+  )!;
+  const causalDecision = graph.decisions.find(
+    (decision) => decision.decision_id === route.decision_ids[2],
+  )!;
   const finding = {
     schema_version: "1.0.0",
     analysis_version: "2.0.0",
@@ -54,15 +60,17 @@ function fixture(options: { staleRoute?: boolean } = {}) {
       cohort_id: "cohort:training",
       causality: {
         likely_causal_decision_ids: [causalDecision.decision_id],
-        timeline: [{
-          event_id: "event:causal",
-          kind: "player-decision",
-          ply: 2,
-          position_id: second.position_id,
-          decision_id: causalDecision.decision_id,
-          san: causalDecision.san,
-          explanation: "The player decision creates the exception.",
-        }],
+        timeline: [
+          {
+            event_id: "event:causal",
+            kind: "player-decision",
+            ply: 2,
+            position_id: second.position_id,
+            decision_id: causalDecision.decision_id,
+            san: causalDecision.san,
+            explanation: "The player decision creates the exception.",
+          },
+        ],
       },
     },
     resolution_state: "unresolved",
@@ -72,69 +80,80 @@ function fixture(options: { staleRoute?: boolean } = {}) {
     analysis_version: "2.0.0",
     report_id: "report:training",
     repertoire_revision: "browser:4",
-    trajectories: [{
-      analysis_version: "2.0.0",
-      trajectory_id: `trajectory:${route.route_id}`,
-      route_id: route.route_id,
-      state: "complete",
-      snapshots: [{
+    trajectories: [
+      {
         analysis_version: "2.0.0",
-        snapshot_id: "snapshot:opening",
+        trajectory_id: `trajectory:${route.route_id}`,
         route_id: route.route_id,
-        position_id: opening.position_id,
-        fen: opening.fen,
-        checkpoint: {
-          analysis_version: "2.0.0",
-          checkpoint_id: "checkpoint:opening",
-          kind: "opening-exit",
-          ply: 0,
-          reason: "Start with the first legal repertoire decision.",
-          comparability: "comparable",
-        },
-        signals: [{
-          analysis_version: "2.0.0",
-          signal_id: "signal:concept",
-          family: "learning-concepts",
-          feature_id: "concept:center-control",
-          kind: "derived-concept",
-          value: true,
-          confidence: 1,
-          persistence: "stable",
-          provenance: [],
-        }],
-        classifier_confidence: 1,
+        state: "complete",
+        snapshots: [
+          {
+            analysis_version: "2.0.0",
+            snapshot_id: "snapshot:opening",
+            route_id: route.route_id,
+            position_id: opening.position_id,
+            fen: opening.fen,
+            checkpoint: {
+              analysis_version: "2.0.0",
+              checkpoint_id: "checkpoint:opening",
+              kind: "opening-exit",
+              ply: 0,
+              reason: "Start with the first legal repertoire decision.",
+              comparability: "comparable",
+            },
+            signals: [
+              {
+                analysis_version: "2.0.0",
+                signal_id: "signal:concept",
+                family: "learning-concepts",
+                feature_id: "concept:center-control",
+                kind: "derived-concept",
+                value: true,
+                confidence: 1,
+                persistence: "stable",
+                provenance: [],
+              },
+            ],
+            classifier_confidence: 1,
+            provenance: [],
+          },
+          {
+            analysis_version: "2.0.0",
+            snapshot_id: "snapshot:second",
+            route_id: route.route_id,
+            position_id: second.position_id,
+            fen: second.fen,
+            checkpoint: {
+              analysis_version: "2.0.0",
+              checkpoint_id: "checkpoint:second",
+              kind: "configured-ply",
+              ply: 2,
+              reason: "Practice the causal player decision.",
+              comparability: "comparable",
+            },
+            signals: [],
+            classifier_confidence: 1,
+            provenance: [],
+          },
+        ],
+        missing_checkpoints: [],
+        evidence_coverage: 1,
+        stable_signal_ids: ["signal:concept"],
+        transient_signal_ids: [],
         provenance: [],
-      }, {
-        analysis_version: "2.0.0",
-        snapshot_id: "snapshot:second",
-        route_id: route.route_id,
-        position_id: second.position_id,
-        fen: second.fen,
-        checkpoint: {
-          analysis_version: "2.0.0",
-          checkpoint_id: "checkpoint:second",
-          kind: "configured-ply",
-          ply: 2,
-          reason: "Practice the causal player decision.",
-          comparability: "comparable",
-        },
-        signals: [],
-        classifier_confidence: 1,
-        provenance: [],
-      }],
-      missing_checkpoints: [],
-      evidence_coverage: 1,
-      stable_signal_ids: ["signal:concept"],
-      transient_signal_ids: [],
-      provenance: [],
-    }],
-    cohorts: [{
-      cohort_id: "cohort:training",
-      modes: [{
-        supporting_route_ids: [route.route_id],
-        concept_ids: ["concept:causal-plan"],
-      }],
-    }],
+      },
+    ],
+    cohorts: [
+      {
+        cohort_id: "cohort:training",
+        modes: [
+          {
+            supporting_route_ids: [route.route_id],
+            concept_ids: ["concept:causal-plan"],
+          },
+        ],
+      },
+    ],
     findings: [finding],
   } as unknown as StrategicFitAnalysisResult;
   const completed = {
@@ -165,7 +184,9 @@ function fixture(options: { staleRoute?: boolean } = {}) {
       metadata = normalized.metadata;
       return normalized;
     },
-    invalidateReports: () => { invalidations++; },
+    invalidateReports: () => {
+      invalidations++;
+    },
     now: () => `2026-07-21T14:00:${String(tick++).padStart(2, "0")}.000Z`,
   };
   const low = createStrategicFitResolutionState(lowBoundary);
@@ -176,13 +197,17 @@ function fixture(options: { staleRoute?: boolean } = {}) {
     currentDocumentId: () => "document:training",
     currentData: () => performance,
     currentGraph: () => graph,
-    replaceData: (next) => { performance = next; },
+    replaceData: (next) => {
+      performance = next;
+    },
     createArtifact: (_format, content, name) => {
       artifacts.push({ content, name });
       return { artifact_id: `artifact:${artifacts.length}` };
     },
     now: () => "2026-07-23T14:00:00.000Z",
-    onMetricEvidenceChanged: () => { metricInvalidations++; },
+    onMetricEvidenceChanged: () => {
+      metricInvalidations++;
+    },
   });
   const boundary: StrategicFitTrainingBoundary = {
     currentReport: () => completed,
@@ -215,7 +240,9 @@ function fixture(options: { staleRoute?: boolean } = {}) {
         resolution: "train-as-exception",
       };
     },
-    upsertPerformanceTargets: (record) => { performanceState.register(record); },
+    upsertPerformanceTargets: (record) => {
+      performanceState.register(record);
+    },
     createArtifact: (_format, content, name) => {
       artifacts.push({ content, name });
       return { artifact_id: `artifact:${artifacts.length}` };
@@ -253,24 +280,36 @@ test("training creation deterministically links checkpoints, concepts, causal mo
   assert.deepEqual(created.record?.concept_ids, ["concept:causal-plan", "concept:center-control"]);
   assert.equal(created.record?.causal_move?.san, "Nf3");
   assert.ok(created.record?.drills.every((drill) => drill.decision_id.length > 0));
-  assert.deepEqual(created.record?.checkpoints.map((checkpoint) => checkpoint.position_id), [
-    subject.route.position_ids[0],
-    subject.route.position_ids[2],
-  ]);
+  assert.deepEqual(
+    created.record?.checkpoints.map((checkpoint) => checkpoint.position_id),
+    [subject.route.position_ids[0], subject.route.position_ids[2]],
+  );
   assert.equal(created.record?.user_notes, "Review the central break before each session.");
-  assert.deepEqual(subject.metadata().training_references[0]?.references.position_ids, [
-    subject.route.position_ids[0],
-    subject.route.position_ids[2],
-  ].sort());
+  assert.deepEqual(
+    subject.metadata().training_references[0]?.references.position_ids,
+    [subject.route.position_ids[0], subject.route.position_ids[2]].sort(),
+  );
   assert.equal(subject.metadata().resolutions[0]?.state, "train-as-exception");
-  assert.deepEqual(subject.metadata().resolutions[0]?.linked_training_ids, [created.record?.training_id]);
-  assert.equal(subject.report.findings.length, 1, "accepted training keeps the immutable finding visible");
+  assert.deepEqual(subject.metadata().resolutions[0]?.linked_training_ids, [
+    created.record?.training_id,
+  ]);
+  assert.equal(
+    subject.report.findings.length,
+    1,
+    "accepted training keeps the immutable finding visible",
+  );
   assert.equal(subject.tree.toPgn(), before, "training must not edit repertoire lines");
-  assert.equal(subject.invalidations(), 1, "the training reference alone is not an analysis setting");
+  assert.equal(
+    subject.invalidations(),
+    1,
+    "the training reference alone is not an analysis setting",
+  );
   assert.ok(subject.performance().targets.length >= 2);
-  assert.ok(subject.performanceState.mastery().decision_mastery.every((entry) =>
-    entry.state === "untrained" && entry.mastery === null
-  ));
+  assert.ok(
+    subject.performanceState
+      .mastery()
+      .decision_mastery.every((entry) => entry.state === "untrained" && entry.mastery === null),
+  );
 });
 
 test("repeated creation deduplicates one durable training identity and survives metadata reload", () => {
@@ -287,7 +326,9 @@ test("repeated creation deduplicates one durable training identity and survives 
   assert.equal(subject.metadata().training_references.length, 1);
   assert.equal(subject.metadata().resolutions.length, 1);
   assert.equal(subject.metadata().resolutions[0]?.note, "Updated note");
-  assert.deepEqual(subject.metadata().resolutions[0]?.linked_training_ids, [first.record?.training_id]);
+  assert.deepEqual(subject.metadata().resolutions[0]?.linked_training_ids, [
+    first.record?.training_id,
+  ]);
 
   const restored = normalizeStrategicFitDocumentMetadata(
     JSON.parse(JSON.stringify(subject.metadata())),
@@ -359,10 +400,16 @@ test("browser training state invalidates metrics only when observed mastery chan
   });
 
   assert.equal(attempt.state, "updated");
-  assert.equal(attempt.mastery?.decision_mastery.find((entry) =>
-    entry.identity_id === target.decision_id
-  )?.state, "observed");
-  assert.equal(subject.invalidations(), beforeInvalidations, "training attempts do not mutate document metadata");
+  assert.equal(
+    attempt.mastery?.decision_mastery.find((entry) => entry.identity_id === target.decision_id)
+      ?.state,
+    "observed",
+  );
+  assert.equal(
+    subject.invalidations(),
+    beforeInvalidations,
+    "training attempts do not mutate document metadata",
+  );
   assert.equal(subject.metricInvalidations(), 1);
 
   const exported = subject.performanceState.export();
@@ -370,7 +417,11 @@ test("browser training state invalidates metrics only when observed mastery chan
   const bytes = serializeStrategicFitTrainingPerformance(subject.performance());
   const imported = subject.performanceState.import(bytes);
   assert.equal(imported.state, "unchanged");
-  assert.equal(subject.metricInvalidations(), 1, "an identical import does not invalidate metrics again");
+  assert.equal(
+    subject.metricInvalidations(),
+    1,
+    "an identical import does not invalidate metrics again",
+  );
   assert.equal(imported.data.attempts[0]?.attempted_at, "2026-07-22T16:00:00.000Z");
 
   const incompatible = JSON.parse(bytes) as Record<string, unknown>;

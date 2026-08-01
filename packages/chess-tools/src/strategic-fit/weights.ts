@@ -218,9 +218,10 @@ function suppliedWeights<T extends { readonly weight: number }>(
     if (!knownIds.has(id)) throw new Error(`strategic_fit_weights_unknown_${kind}: ${id}`);
     if (result.has(id)) throw new Error(`strategic_fit_weights_duplicate_${kind}: ${id}`);
     validateWeight(value.weight, `${kind}:${id}`);
-    const provenance = "provenance" in value && Array.isArray(value.provenance)
-      ? value.provenance as readonly StrategicFitSourceProvenance[]
-      : [];
+    const provenance =
+      "provenance" in value && Array.isArray(value.provenance)
+        ? (value.provenance as readonly StrategicFitSourceProvenance[])
+        : [];
     result.set(id, { weight: value.weight, provenance });
   }
   return result;
@@ -283,10 +284,10 @@ function conditionalDecisionWeights(
         input,
         raw: input?.weight ?? 1,
         resolution: input
-          ? "supplied" as const
+          ? ("supplied" as const)
           : inputConfigured && mode !== "equal" && siblings.length > 1
-            ? "equal-fallback" as const
-            : "equal" as const,
+            ? ("equal-fallback" as const)
+            : ("equal" as const),
       };
     });
 
@@ -314,14 +315,16 @@ function conditionalDecisionWeights(
     }
 
     const siblingTotal = total(values.map((value) => value.raw));
-    result.push(...values.map((value) => ({
-      decision_id: value.decision.decision_id,
-      from_position_id: positionId,
-      raw_weight: value.raw,
-      normalized_weight: value.raw / siblingTotal,
-      resolution: value.resolution,
-      provenance: mergeProvenance([CORE_PROVENANCE], value.input?.provenance ?? []),
-    })));
+    result.push(
+      ...values.map((value) => ({
+        decision_id: value.decision.decision_id,
+        from_position_id: positionId,
+        raw_weight: value.raw,
+        normalized_weight: value.raw / siblingTotal,
+        resolution: value.resolution,
+        provenance: mergeProvenance([CORE_PROVENANCE], value.input?.provenance ?? []),
+      })),
+    );
   }
   return result.sort((left, right) => compareStrings(left.decision_id, right.decision_id));
 }
@@ -332,12 +335,22 @@ function routeFactors(
   supplied: ReadonlyMap<string, SuppliedWeight>,
   inputConfigured: boolean,
   fallbacks: StrategicWeightFallback[],
-): Map<string, { factor: number; resolution: StrategicWeightResolution; provenance: readonly StrategicFitSourceProvenance[] }> {
-  const factors = new Map<string, {
+): Map<
+  string,
+  {
     factor: number;
     resolution: StrategicWeightResolution;
     provenance: readonly StrategicFitSourceProvenance[];
-  }>();
+  }
+> {
+  const factors = new Map<
+    string,
+    {
+      factor: number;
+      resolution: StrategicWeightResolution;
+      provenance: readonly StrategicFitSourceProvenance[];
+    }
+  >();
   for (const route of graph.routes) {
     const input = mode === "equal" ? undefined : supplied.get(route.route_id);
     const resolution = input
@@ -412,7 +425,9 @@ function calculateBaseStrategicRouteWeights(
   const routeIds = new Set(graph.routes.map((route) => route.route_id));
   const decisions = new Map(graph.decisions.map((decision) => [decision.decision_id, decision]));
   const opponentDecisionIds = new Set(
-    graph.decisions.filter((decision) => decision.owner === "opponent").map((decision) => decision.decision_id),
+    graph.decisions
+      .filter((decision) => decision.owner === "opponent")
+      .map((decision) => decision.decision_id),
   );
   const suppliedRoutes = suppliedWeights(routeInputs, (value) => value.route_id, routeIds, "route");
   const suppliedDecisions = suppliedWeights(
@@ -446,7 +461,9 @@ function calculateBaseStrategicRouteWeights(
     decisionInputs.length > 0,
     fallbacks,
   );
-  const decisionById = new Map(normalizedDecisions.map((decision) => [decision.decision_id, decision]));
+  const decisionById = new Map(
+    normalizedDecisions.map((decision) => [decision.decision_id, decision]),
+  );
   const factors = routeFactors(graph, mode, suppliedRoutes, routeInputs.length > 0, fallbacks);
 
   const routeScores: MutableRouteWeight[] = graph.routes.map((route) => {
@@ -463,15 +480,14 @@ function calculateBaseStrategicRouteWeights(
       terminalPositionId: route.terminal_position_id,
       opponentProbability,
       routeFactor: factor.factor,
-      resolution: factor.resolution === "equal-fallback" || opponentDecisions.some((decision) =>
-        decision.resolution === "equal-fallback"
-      )
-        ? "equal-fallback"
-        : factor.resolution === "supplied" || opponentDecisions.some((decision) =>
-          decision.resolution === "supplied"
-        )
-          ? "supplied"
-          : "equal",
+      resolution:
+        factor.resolution === "equal-fallback" ||
+        opponentDecisions.some((decision) => decision.resolution === "equal-fallback")
+          ? "equal-fallback"
+          : factor.resolution === "supplied" ||
+              opponentDecisions.some((decision) => decision.resolution === "supplied")
+            ? "supplied"
+            : "equal",
       score: opponentProbability * factor.factor,
       provenance: mergeProvenance(
         [CORE_PROVENANCE],
@@ -510,16 +526,18 @@ function calculateBaseStrategicRouteWeights(
       route_ids: unit.members.map((member) => member.routeId),
       normalized_weight: unitWeight,
     });
-    routeResults.push(...unit.members.map((member) => ({
-      route_id: member.routeId,
-      terminal_position_id: member.terminalPositionId,
-      weighting_unit_id: unit.terminalPositionId,
-      opponent_probability: member.opponentProbability,
-      route_factor: member.routeFactor,
-      normalized_weight: unitWeight * ((memberTotal > 0 ? member.score : 1) / memberDenominator),
-      resolution: member.resolution,
-      provenance: member.provenance,
-    })));
+    routeResults.push(
+      ...unit.members.map((member) => ({
+        route_id: member.routeId,
+        terminal_position_id: member.terminalPositionId,
+        weighting_unit_id: unit.terminalPositionId,
+        opponent_probability: member.opponentProbability,
+        route_factor: member.routeFactor,
+        normalized_weight: unitWeight * ((memberTotal > 0 ? member.score : 1) / memberDenominator),
+        resolution: member.resolution,
+        provenance: member.provenance,
+      })),
+    );
   }
 
   const inputProvenance = [
@@ -554,8 +572,9 @@ interface PreparedEvidence {
 }
 
 function hasPositiveEvidence(input: StrategicWeightEvidenceInput): boolean {
-  return [...(input.route_weights ?? []), ...(input.decision_weights ?? [])]
-    .some((weight) => weight.weight > 0);
+  return [...(input.route_weights ?? []), ...(input.decision_weights ?? [])].some(
+    (weight) => weight.weight > 0,
+  );
 }
 
 function manualEvidence(options: StrategicRouteWeightingOptions): StrategicWeightEvidenceInput {
@@ -596,14 +615,16 @@ function normalizedCoefficients(
 ): ReadonlyMap<StrategicWeightEvidenceKind, number> {
   const usable = prepared.filter((source) => source.usable);
   const requestedTotal = total(usable.map((source) => source.requestedCoefficient));
-  return new Map(prepared.map((source) => [
-    source.kind,
-    !source.usable
-      ? 0
-      : requestedTotal > 0
-        ? source.requestedCoefficient / requestedTotal
-        : 1 / usable.length,
-  ]));
+  return new Map(
+    prepared.map((source) => [
+      source.kind,
+      !source.usable
+        ? 0
+        : requestedTotal > 0
+          ? source.requestedCoefficient / requestedTotal
+          : 1 / usable.length,
+    ]),
+  );
 }
 
 function evidenceCoverage(
@@ -612,7 +633,7 @@ function evidenceCoverage(
   equal: boolean,
 ): StrategicWeightEvidenceCoverage[] {
   return prepared.map((source) => {
-    const normalized = equal ? 0 : coefficients.get(source.kind) ?? 0;
+    const normalized = equal ? 0 : (coefficients.get(source.kind) ?? 0);
     return {
       kind: source.kind,
       state: source.input.state,
@@ -635,16 +656,17 @@ function evidenceCoverage(
 function compositionProvenance(
   coverage: readonly StrategicWeightEvidenceCoverage[],
 ): StrategicFitSourceProvenance {
-  const snapshot = coverage.map((source) =>
-    `${source.kind}=${source.normalized_coefficient}:${source.resolution}`
-  ).join(",");
+  const snapshot = coverage
+    .map((source) => `${source.kind}=${source.normalized_coefficient}:${source.resolution}`)
+    .join(",");
   return {
     source_id: "strategic-fit:weight-composition",
     kind: "user-profile",
     state: "available",
     version: STRATEGIC_FIT_ANALYSIS_MANIFEST.components.weights,
     snapshot,
-    reason: "Usable profile coefficients are normalized to one; unavailable sources contribute zero weight.",
+    reason:
+      "Usable profile coefficients are normalized to one; unavailable sources contribute zero weight.",
   };
 }
 
@@ -652,12 +674,14 @@ function uniqueFallbacks(
   reports: readonly StrategicRouteWeightingReport[],
 ): StrategicWeightFallback[] {
   const seen = new Set<string>();
-  return reports.flatMap((report) => report.fallbacks).filter((fallback) => {
-    const identity = JSON.stringify(fallback);
-    if (seen.has(identity)) return false;
-    seen.add(identity);
-    return true;
-  });
+  return reports
+    .flatMap((report) => report.fallbacks)
+    .filter((fallback) => {
+      const identity = JSON.stringify(fallback);
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
 }
 
 function calculateComposedStrategicRouteWeights(
@@ -698,53 +722,69 @@ function calculateComposedStrategicRouteWeights(
       provenance: source.input.provenance,
     }),
   }));
-  const routeBySource = reports.map(({ report }) =>
-    new Map(report.routes.map((route) => [route.route_id, route]))
+  const routeBySource = reports.map(
+    ({ report }) => new Map(report.routes.map((route) => [route.route_id, route])),
   );
-  const decisionBySource = reports.map(({ report }) =>
-    new Map(report.opponent_decisions.map((decision) => [decision.decision_id, decision]))
+  const decisionBySource = reports.map(
+    ({ report }) =>
+      new Map(report.opponent_decisions.map((decision) => [decision.decision_id, decision])),
   );
 
-  const opponentDecisions = graphOpponentDecisionResults(graph, reports, decisionBySource, composition);
-  const opponentById = new Map(opponentDecisions.map((decision) => [decision.decision_id, decision]));
-  const routes: StrategicNormalizedRouteWeight[] = graph.routes.map((route): StrategicNormalizedRouteWeight => {
-    const normalizedWeight = reports.reduce((sum, entry, index) =>
-      sum + entry.coefficient * routeBySource[index]!.get(route.route_id)!.normalized_weight, 0
-    );
-    const opponentProbability = route.decision_ids.reduce((probability, decisionId) =>
-      probability * (opponentById.get(decisionId)?.normalized_weight ?? 1), 1
-    );
-    return {
-      route_id: route.route_id,
-      terminal_position_id: route.terminal_position_id,
-      weighting_unit_id: route.terminal_position_id,
-      opponent_probability: round(opponentProbability),
-      route_factor: round(opponentProbability > 0 ? normalizedWeight / opponentProbability : normalizedWeight),
-      normalized_weight: normalizedWeight,
-      resolution: "supplied",
-      provenance: mergeProvenance(
-        [CORE_PROVENANCE, composition],
-        ...reports.map((entry, index) =>
-          routeBySource[index]!.get(route.route_id)!.provenance
+  const opponentDecisions = graphOpponentDecisionResults(
+    graph,
+    reports,
+    decisionBySource,
+    composition,
+  );
+  const opponentById = new Map(
+    opponentDecisions.map((decision) => [decision.decision_id, decision]),
+  );
+  const routes: StrategicNormalizedRouteWeight[] = graph.routes
+    .map((route): StrategicNormalizedRouteWeight => {
+      const normalizedWeight = reports.reduce(
+        (sum, entry, index) =>
+          sum + entry.coefficient * routeBySource[index]!.get(route.route_id)!.normalized_weight,
+        0,
+      );
+      const opponentProbability = route.decision_ids.reduce(
+        (probability, decisionId) =>
+          probability * (opponentById.get(decisionId)?.normalized_weight ?? 1),
+        1,
+      );
+      return {
+        route_id: route.route_id,
+        terminal_position_id: route.terminal_position_id,
+        weighting_unit_id: route.terminal_position_id,
+        opponent_probability: round(opponentProbability),
+        route_factor: round(
+          opponentProbability > 0 ? normalizedWeight / opponentProbability : normalizedWeight,
         ),
-      ),
-    };
-  }).sort((left, right) => compareStrings(left.route_id, right.route_id));
+        normalized_weight: normalizedWeight,
+        resolution: "supplied",
+        provenance: mergeProvenance(
+          [CORE_PROVENANCE, composition],
+          ...reports.map((entry, index) => routeBySource[index]!.get(route.route_id)!.provenance),
+        ),
+      };
+    })
+    .sort((left, right) => compareStrings(left.route_id, right.route_id));
   const unitMembers = new Map<string, StrategicNormalizedRouteWeight[]>();
   for (const route of routes) {
     const members = unitMembers.get(route.weighting_unit_id) ?? [];
     members.push(route);
     unitMembers.set(route.weighting_unit_id, members);
   }
-  const weightingUnits = [...unitMembers.entries()].map(([unitId, members]) => ({
-    weighting_unit_id: unitId,
-    terminal_position_id: unitId,
-    route_ids: members.map((route) => route.route_id).sort(compareStrings),
-    normalized_weight: total(members.map((route) => route.normalized_weight)),
-  })).sort((left, right) => compareStrings(left.weighting_unit_id, right.weighting_unit_id));
+  const weightingUnits = [...unitMembers.entries()]
+    .map(([unitId, members]) => ({
+      weighting_unit_id: unitId,
+      terminal_position_id: unitId,
+      route_ids: members.map((route) => route.route_id).sort(compareStrings),
+      normalized_weight: total(members.map((route) => route.normalized_weight)),
+    }))
+    .sort((left, right) => compareStrings(left.weighting_unit_id, right.weighting_unit_id));
   const fallbacks = uniqueFallbacks(reports.map((entry) => entry.report));
-  const partial = reports.some((entry) =>
-    entry.source.input.state === "partial" || entry.report.state !== "complete"
+  const partial = reports.some(
+    (entry) => entry.source.input.state === "partial" || entry.report.state !== "complete",
   );
   const provenance = mergeProvenance(
     [CORE_PROVENANCE, composition],
@@ -780,26 +820,32 @@ function graphOpponentDecisionResults(
   decisionBySource: readonly ReadonlyMap<string, StrategicNormalizedDecisionWeight>[],
   composition: StrategicFitSourceProvenance,
 ): StrategicNormalizedDecisionWeight[] {
-  return groupOpponentDecisions(graph.decisions).flatMap(([positionId, siblings]) =>
-    siblings.map((decision): StrategicNormalizedDecisionWeight => {
-      const normalizedWeight = reports.reduce((sum, entry, index) =>
-        sum + entry.coefficient * decisionBySource[index]!.get(decision.decision_id)!.normalized_weight, 0
-      );
-      return {
-        decision_id: decision.decision_id,
-        from_position_id: positionId,
-        raw_weight: round(normalizedWeight),
-        normalized_weight: normalizedWeight,
-        resolution: "supplied",
-        provenance: mergeProvenance(
-          [CORE_PROVENANCE, composition],
-          ...reports.map((entry, index) =>
-            decisionBySource[index]!.get(decision.decision_id)!.provenance
+  return groupOpponentDecisions(graph.decisions)
+    .flatMap(([positionId, siblings]) =>
+      siblings.map((decision): StrategicNormalizedDecisionWeight => {
+        const normalizedWeight = reports.reduce(
+          (sum, entry, index) =>
+            sum +
+            entry.coefficient *
+              decisionBySource[index]!.get(decision.decision_id)!.normalized_weight,
+          0,
+        );
+        return {
+          decision_id: decision.decision_id,
+          from_position_id: positionId,
+          raw_weight: round(normalizedWeight),
+          normalized_weight: normalizedWeight,
+          resolution: "supplied",
+          provenance: mergeProvenance(
+            [CORE_PROVENANCE, composition],
+            ...reports.map(
+              (entry, index) => decisionBySource[index]!.get(decision.decision_id)!.provenance,
+            ),
           ),
-        ),
-      };
-    })
-  ).sort((left, right) => compareStrings(left.decision_id, right.decision_id));
+        };
+      }),
+    )
+    .sort((left, right) => compareStrings(left.decision_id, right.decision_id));
 }
 
 /**

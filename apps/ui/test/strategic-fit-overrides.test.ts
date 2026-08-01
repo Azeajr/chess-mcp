@@ -30,23 +30,27 @@ function harness() {
       route_weights: [{ route_id: route.route_id, weight: 3 }],
       decision_weights: [],
     },
-    cohort_overrides: [{
-      override_id: "override:document",
-      kind: "split",
-      route_ids: [route.route_id],
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:document",
+        kind: "split",
+        route_ids: [route.route_id],
+      },
+    ],
     route_assessments: [{ route_id: route.route_id, resolution_state: "defer" }],
   };
   let currentInputs = documentInputs;
   let captured: AnalyzeStrategicFitOptions | undefined;
   let artifacts = 0;
-  const report = completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(PGN),
-    strategicFitCompleteAnalysisOptions({
-      repertoireColor: "white",
-      repertoireRevision: "browser:7",
-    }),
-  ));
+  const report = completeStrategicFitReport(
+    analyzeStrategicFit(
+      GameTree.fromPgn(PGN),
+      strategicFitCompleteAnalysisOptions({
+        repertoireColor: "white",
+        repertoireRevision: "browser:7",
+      }),
+    ),
+  );
   const dependencies = {
     ...defaultBrowserCommandDependencies,
     currentTree: () => tree,
@@ -60,7 +64,9 @@ function harness() {
       inputs: currentInputs,
     }),
     openings: async () => new Map(),
-    analyse: async () => { throw new Error("Strategic Fit base analysis must remain engine-free"); },
+    analyse: async () => {
+      throw new Error("Strategic Fit base analysis must remain engine-free");
+    },
     strategicFitReport: async (_pgn: string, options: AnalyzeStrategicFitOptions) => {
       captured = options;
       return report;
@@ -72,7 +78,9 @@ function harness() {
     route,
     documentInputs,
     captured: () => captured,
-    setInputs: (inputs: StrategicFitMetadataAnalysisInputs) => { currentInputs = inputs; },
+    setInputs: (inputs: StrategicFitMetadataAnalysisInputs) => {
+      currentInputs = inputs;
+    },
   };
 }
 
@@ -89,15 +97,19 @@ test("one-off command settings replace the corresponding persisted setting witho
   const h = harness();
   const oneOff = {
     weighting: { mode: "equal" as const },
-    cohort_overrides: [{
-      override_id: "override:one-off",
-      kind: "exclude" as const,
-      route_ids: [h.route.route_id],
-    }],
-    route_assessments: [{
-      route_id: h.route.route_id,
-      resolution_state: "train-as-exception" as const,
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:one-off",
+        kind: "exclude" as const,
+        route_ids: [h.route.route_id],
+      },
+    ],
+    route_assessments: [
+      {
+        route_id: h.route.route_id,
+        resolution_state: "train-as-exception" as const,
+      },
+    ],
   };
   await repertoireCommands.analyze_repertoire_congruence(oneOff, h.dependencies);
 
@@ -130,7 +142,8 @@ test("late reports are rejected only when their effective settings change", asyn
 
   assert.deepEqual(await repertoireCommands.analyze_repertoire_congruence({}, h.dependencies), {
     error: "strategic_fit_stale_report",
-    reason: "Document Strategic Fit resolutions or analysis overrides changed while analysis was running; request a fresh report.",
+    reason:
+      "Document Strategic Fit resolutions or analysis overrides changed while analysis was running; request a fresh report.",
   });
 
   const oneOffHarness = harness();
@@ -140,10 +153,17 @@ test("late reports are rejected only when their effective settings change", asyn
     oneOffHarness.setInputs({});
     return report;
   };
-  const result = await repertoireCommands.analyze_repertoire_congruence({
-    weighting: { mode: "equal" },
-    cohort_overrides: [],
-    route_assessments: [],
-  }, oneOffHarness.dependencies) as { error?: string };
-  assert.equal(result.error, undefined, "request-local replacements are unaffected by document setting edits");
+  const result = (await repertoireCommands.analyze_repertoire_congruence(
+    {
+      weighting: { mode: "equal" },
+      cohort_overrides: [],
+      route_assessments: [],
+    },
+    oneOffHarness.dependencies,
+  )) as { error?: string };
+  assert.equal(
+    result.error,
+    undefined,
+    "request-local replacements are unaffected by document setting edits",
+  );
 });

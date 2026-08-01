@@ -35,17 +35,21 @@ ok(get("nope") === null, "unknown id → null");
 // page/sort changes reuse the report, while analysis settings miss and the per-handle LRU is bounded.
 const aEntry = get(a);
 let analyses = 0;
-const report = (options) => getOrCreateStrategicFitReport(aEntry, options, (completeOptions) => {
-  analyses++;
-  return analyzeStrategicFit(aEntry.tree, completeOptions);
-});
+const report = (options) =>
+  getOrCreateStrategicFitReport(aEntry, options, (completeOptions) => {
+    analyses++;
+    return analyzeStrategicFit(aEntry.tree, completeOptions);
+  });
 const baseOptions = { repertoireColor: "white", repertoireRevision: aEntry.revision };
 report({ ...baseOptions, page: { offset: 0, limit: 1 } });
 report({ ...baseOptions, page: { offset: 20, limit: 2 }, sort: "opening-scope" });
 ok(analyses === 1, "paging and sorting reuse one complete handle report");
 report({ ...baseOptions, repertoireColor: "black" });
 report({ ...baseOptions, weighting: { mode: "manual" } });
-ok(analyses === 3 && strategicFitReportCacheSize(aEntry) === 2, "color/settings miss and report cache stays bounded");
+ok(
+  analyses === 3 && strategicFitReportCacheSize(aEntry) === 2,
+  "color/settings miss and report cache stays bounded",
+);
 
 // LRU cap holds EXACTLY MAX_REPERTOIRES — not MAX+1. With evict-before-insert the map grew to MAX+1
 // (the new entry was added after the size check), leaking one repertoire past the configured cap.
@@ -61,8 +65,11 @@ ok(get(b) !== null && get(c) !== null, "the most-recent MAX handles stay live");
 // an expired repertoire was served indefinitely if no load_* call happened to trigger evict().
 const d = store(tree(), "white");
 const dEntry = get(d);
-getOrCreateStrategicFitReport(dEntry, { repertoireColor: "white", repertoireRevision: dEntry.revision }, (completeOptions) =>
-  analyzeStrategicFit(dEntry.tree, completeOptions));
+getOrCreateStrategicFitReport(
+  dEntry,
+  { repertoireColor: "white", repertoireRevision: dEntry.revision },
+  (completeOptions) => analyzeStrategicFit(dEntry.tree, completeOptions),
+);
 await new Promise((r) => setTimeout(r, 250));
 ok(get(d) === null, "expired handle → null on get (TTL enforced on read)");
 ok(strategicFitReportCacheSize(dEntry) === 0, "handle expiry drops its Strategic Fit reports");
@@ -85,7 +92,8 @@ const runInterrupted = (entry, options) => {
           if (stage.completed_phase_index >= 1) interrupted = true;
         },
         shouldCancel: () => interrupted,
-      }));
+      }),
+    );
     return false;
   } catch (error) {
     return error instanceof StrategicFitAnalysisCancelledError;
@@ -100,7 +108,8 @@ ok(hasStrategicFitJobCheckpoint(scanEntry), "the interrupted job stays on its ha
 ok(strategicFitJobRecovery(scanEntry)?.state === "cold", "the interrupted run itself started cold");
 
 const resumed = getOrCreateStrategicFitReport(scanEntry, scanOptions, (completeOptions) =>
-  analyzeStrategicFit(scanEntry.tree, completeOptions));
+  analyzeStrategicFit(scanEntry.tree, completeOptions),
+);
 const resumedRecovery = strategicFitJobRecovery(scanEntry);
 ok(resumedRecovery?.state === "resumed", "the next call continues the interrupted job");
 ok(
@@ -119,7 +128,10 @@ ok(
 );
 
 // Settings that move retire the job rather than continuing it against changed inputs.
-ok(runInterrupted(scanEntry, { ...scanOptions, weighting: { mode: "manual" } }), "second interruption");
+ok(
+  runInterrupted(scanEntry, { ...scanOptions, weighting: { mode: "manual" } }),
+  "second interruption",
+);
 getOrCreateStrategicFitReport(
   scanEntry,
   { ...scanOptions, trajectory: { configuredPlies: [6, 10] } },

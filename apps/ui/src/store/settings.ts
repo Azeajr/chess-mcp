@@ -69,7 +69,11 @@ export function setCloudEvalEnabled(v: boolean) {
 }
 
 const savedMode = read(KEY_MODE, "") as ChatMode;
-const [chatMode, setChatModeRaw] = createSignal<ChatMode>(["", "general", "repertoire", "review", "position", "annotate"].includes(savedMode) ? savedMode : "");
+const [chatMode, setChatModeRaw] = createSignal<ChatMode>(
+  ["", "general", "repertoire", "review", "position", "annotate"].includes(savedMode)
+    ? savedMode
+    : "",
+);
 export { chatMode };
 export function setChatMode(m: ChatMode) {
   setChatModeRaw(m);

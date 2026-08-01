@@ -14,11 +14,7 @@ import { makeUci, parseUci } from "chessops/util";
 import { positionKey, type Color } from "../congruence.js";
 import type { ExplorerDb, NormalizedExplorerFilters } from "../explorer.js";
 import { enumerateLegal } from "../pgn.js";
-import type {
-  RepertoireGraph,
-  RepertoireGraphDecision,
-  RepertoireGraphPosition,
-} from "./graph.js";
+import type { RepertoireGraph, RepertoireGraphDecision, RepertoireGraphPosition } from "./graph.js";
 import type { ReplacementPivotSelectionResult } from "./replacement-pivot.js";
 import {
   STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
@@ -30,10 +26,7 @@ import {
   type StrategicFitReplacementVersioned,
 } from "./replacement-types.js";
 import type { JsonValue, StrategicFitSourceProvenance } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 
 export const REPLACEMENT_DATABASE_EVIDENCE_STATES = [
   "available",
@@ -51,12 +44,10 @@ export const REPLACEMENT_CANDIDATE_SEED_STATUSES = [
   "ready-for-expansion",
   "partial-generation",
 ] as const;
-export type ReplacementCandidateSeedStatus =
-  (typeof REPLACEMENT_CANDIDATE_SEED_STATUSES)[number];
+export type ReplacementCandidateSeedStatus = (typeof REPLACEMENT_CANDIDATE_SEED_STATUSES)[number];
 
 export const REPLACEMENT_CANDIDATE_MEMORY_CLASSES = ["low", "unknown"] as const;
-export type ReplacementCandidateMemoryClass =
-  (typeof REPLACEMENT_CANDIDATE_MEMORY_CLASSES)[number];
+export type ReplacementCandidateMemoryClass = (typeof REPLACEMENT_CANDIDATE_MEMORY_CLASSES)[number];
 
 export const REPLACEMENT_DATABASE_ITEM_RESULT_STATUSES = [
   "accepted",
@@ -212,8 +203,7 @@ export interface ReplacementOpeningDatabaseItemResult extends StrategicFitReplac
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export interface ReplacementCandidateGenerationSourceResult
-  extends StrategicFitReplacementVersioned {
+export interface ReplacementCandidateGenerationSourceResult extends StrategicFitReplacementVersioned {
   readonly source_id: string;
   readonly kind: "existing-repertoire-transposition" | "move-order-shortcut" | "opening-database";
   readonly status: ReplacementCandidateSourceStatus;
@@ -303,8 +293,9 @@ function sortedUnique(values: readonly string[]): string[] {
 function sortedPaths(paths: readonly (readonly string[])[]): string[][] {
   const unique = new Map<string, string[]>();
   for (const path of paths) unique.set(path.join(SEPARATOR), [...path]);
-  return [...unique.values()].sort((left, right) =>
-    compareStrings(left.join(SEPARATOR), right.join(SEPARATOR)) || left.length - right.length
+  return [...unique.values()].sort(
+    (left, right) =>
+      compareStrings(left.join(SEPARATOR), right.join(SEPARATOR)) || left.length - right.length,
   );
 }
 
@@ -348,7 +339,7 @@ function mergeStrategicProvenance(
   const unique = new Map<string, StrategicFitSourceProvenance>();
   for (const source of sources) unique.set(provenanceKey(source), { ...source });
   return [...unique.values()].sort((left, right) =>
-    compareStrings(provenanceKey(left), provenanceKey(right))
+    compareStrings(provenanceKey(left), provenanceKey(right)),
   );
 }
 
@@ -356,9 +347,10 @@ function jsonKey(value: JsonValue): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(jsonKey).join(",")}]`;
   const record = value as Readonly<Record<string, JsonValue>>;
-  return `{${Object.keys(record).sort(compareStrings).map((key) =>
-    `${JSON.stringify(key)}:${jsonKey(record[key]!)}`
-  ).join(",")}}`;
+  return `{${Object.keys(record)
+    .sort(compareStrings)
+    .map((key) => `${JSON.stringify(key)}:${jsonKey(record[key]!)}`)
+    .join(",")}}`;
 }
 
 function candidateSourceKey(source: ReplacementCandidateSourceProvenance): string {
@@ -381,7 +373,8 @@ function mergeCandidateSources(
     const key = candidateSourceKey(source);
     grouped.set(key, [...(grouped.get(key) ?? []), source]);
   }
-  return [...grouped.entries()].sort(([left], [right]) => compareStrings(left, right))
+  return [...grouped.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
     .map(([, matches]) => {
       const first = matches[0]!;
       const detailValues = new Map<string, Readonly<Record<string, JsonValue>>>();
@@ -399,9 +392,9 @@ function mergeCandidateSources(
         decision_ids: sortedUnique(matches.flatMap((source) => source.decision_ids)),
         route_ids: sortedUnique(matches.flatMap((source) => source.route_ids)),
         details: {
-          merged_evidence: [...detailValues.entries()].sort(([left], [right]) =>
-            compareStrings(left, right)
-          ).map(([, details]) => details),
+          merged_evidence: [...detailValues.entries()]
+            .sort(([left], [right]) => compareStrings(left, right))
+            .map(([, details]) => details),
         },
         provenance: mergeStrategicProvenance(matches.flatMap((source) => source.provenance)),
       };
@@ -416,7 +409,9 @@ function sourceStatus(state: ReplacementDatabaseEvidenceState): ReplacementCandi
   return "unavailable";
 }
 
-function generationProvenance(input: GenerateReplacementCandidatesInput): StrategicFitSourceProvenance[] {
+function generationProvenance(
+  input: GenerateReplacementCandidatesInput,
+): StrategicFitSourceProvenance[] {
   return mergeStrategicProvenance([
     ...input.request.provenance,
     ...input.pivot_result.provenance,
@@ -480,13 +475,30 @@ function failureResult(
 
 function pivotCompatibilityError(
   input: GenerateReplacementCandidatesInput,
-): readonly ["non-actionable" | "stale" | "invalid-request", ReplacementCandidateGenerationErrorCode, string] | null {
+):
+  | readonly [
+      "non-actionable" | "stale" | "invalid-request",
+      ReplacementCandidateGenerationErrorCode,
+      string,
+    ]
+  | null {
   const { request, graph, pivot_result: result } = input;
-  if (!Number.isSafeInteger(request.budget.maximum_candidates) || request.budget.maximum_candidates < 0) {
-    return ["invalid-request", "invalid-maximum-candidates", "Maximum candidate budget must be a non-negative safe integer."];
+  if (
+    !Number.isSafeInteger(request.budget.maximum_candidates) ||
+    request.budget.maximum_candidates < 0
+  ) {
+    return [
+      "invalid-request",
+      "invalid-maximum-candidates",
+      "Maximum candidate budget must be a non-negative safe integer.",
+    ];
   }
   if (result.status !== "selected" || result.pivot.status !== "actionable") {
-    return ["non-actionable", "pivot-not-selected", "Candidate generation requires one validated actionable Task 8.2 pivot."];
+    return [
+      "non-actionable",
+      "pivot-not-selected",
+      "Candidate generation requires one validated actionable Task 8.2 pivot.",
+    ];
   }
   if (
     result.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
@@ -506,19 +518,28 @@ function pivotCompatibilityError(
     result.pivot.repertoire_color !== request.repertoire_color ||
     result.pivot.owner !== "repertoire"
   ) {
-    return ["stale", "request-pivot-mismatch", "Validated pivot result does not match the current replacement request identity."];
+    return [
+      "stale",
+      "request-pivot-mismatch",
+      "Validated pivot result does not match the current replacement request identity.",
+    ];
   }
   if (graph.repertoire_color !== request.repertoire_color) {
-    return ["stale", "repertoire-color-mismatch", "Current repertoire graph color does not match the replacement request."];
+    return [
+      "stale",
+      "repertoire-color-mismatch",
+      "Current repertoire graph color does not match the replacement request.",
+    ];
   }
-  const position = graph.positions.find((candidate) =>
-    candidate.position_id === result.pivot.position_id
+  const position = graph.positions.find(
+    (candidate) => candidate.position_id === result.pivot.position_id,
   );
   let positionIsCurrent = position !== undefined && position.turn === request.repertoire_color;
   if (positionIsCurrent && position) {
     try {
       const parsed = Chess.fromSetup(parseFen(position.fen).unwrap()).unwrap();
-      positionIsCurrent = parsed.turn === position.turn &&
+      positionIsCurrent =
+        parsed.turn === position.turn &&
         positionKey(makeFen(parsed.toSetup())) === position.position_key &&
         semanticPositionId(position.position_key) === position.position_id;
     } catch {
@@ -526,10 +547,14 @@ function pivotCompatibilityError(
     }
   }
   if (!positionIsCurrent) {
-    return ["stale", "pivot-position-stale", "Validated pivot position is unavailable or no longer owned by the repertoire player."];
+    return [
+      "stale",
+      "pivot-position-stale",
+      "Validated pivot position is unavailable or no longer owned by the repertoire player.",
+    ];
   }
-  const decision = graph.decisions.find((candidate) =>
-    candidate.decision_id === result.pivot.decision_id
+  const decision = graph.decisions.find(
+    (candidate) => candidate.decision_id === result.pivot.decision_id,
   );
   if (
     !decision ||
@@ -540,7 +565,11 @@ function pivotCompatibilityError(
     decision.owner !== "repertoire" ||
     decision.mover_color !== request.repertoire_color
   ) {
-    return ["stale", "pivot-decision-stale", "Validated pivot decision no longer matches the current semantic graph."];
+    return [
+      "stale",
+      "pivot-decision-stale",
+      "Validated pivot decision no longer matches the current semantic graph.",
+    ];
   }
   return null;
 }
@@ -561,9 +590,10 @@ function localSource(
     provider: "local-repertoire-graph",
     version: STRATEGIC_FIT_ANALYSIS_VERSION,
     snapshot: request.repertoire_revision,
-    reason: kind === "move-order-shortcut"
-      ? "Legal move reaches a prepared semantic position through a new move order."
-      : "Legal alternative is already represented in current repertoire preparation.",
+    reason:
+      kind === "move-order-shortcut"
+        ? "Legal move reaches a prepared semantic position through a new move order."
+        : "Legal alternative is already represented in current repertoire preparation.",
     position_ids: sortedUnique([pivot.position_id, target.position_id]),
     decision_ids: sortedUnique([
       ...(decision ? [decision.decision_id] : []),
@@ -588,13 +618,14 @@ function discoverLocalCandidates(
   provenance: readonly StrategicFitSourceProvenance[],
 ): RawCandidate[] {
   const enabled = new Set(request.candidate_sources);
-  if (
-    !enabled.has("existing-repertoire-transposition") &&
-    !enabled.has("move-order-shortcut")
-  ) return [];
-  const graphPositions = new Map(graph.positions.map((candidate) => [candidate.position_key, candidate]));
-  const decisions = graph.decisions.filter((decision) =>
-    decision.from_position_id === pivot.position_id && decision.owner === "repertoire"
+  if (!enabled.has("existing-repertoire-transposition") && !enabled.has("move-order-shortcut"))
+    return [];
+  const graphPositions = new Map(
+    graph.positions.map((candidate) => [candidate.position_key, candidate]),
+  );
+  const decisions = graph.decisions.filter(
+    (decision) =>
+      decision.from_position_id === pivot.position_id && decision.owner === "repertoire",
   );
   const decisionsByUci = new Map(decisions.map((decision) => [decision.uci, decision]));
   const chess = Chess.fromSetup(parseFen(position.fen).unwrap()).unwrap();
@@ -609,8 +640,8 @@ function discoverLocalCandidates(
     if (!target) continue;
     const preparedDecision = decisionsByUci.get(uci);
     const kind = preparedDecision
-      ? "existing-repertoire-transposition" as const
-      : "move-order-shortcut" as const;
+      ? ("existing-repertoire-transposition" as const)
+      : ("move-order-shortcut" as const);
     if (!enabled.has(kind)) continue;
     candidates.push({
       san,
@@ -662,14 +693,11 @@ function databaseSource(
       filter_key: evidence.filter_key,
       filters: cloneFilters(evidence.filters) as unknown as JsonValue,
       evidence_state: evidence.state,
-      popularity: move ? clonePopularity(move.popularity) as unknown as JsonValue : null,
+      popularity: move ? (clonePopularity(move.popularity) as unknown as JsonValue) : null,
       position: clonePosition(evidence.position) as unknown as JsonValue,
       input_move: move ? { san: move.san, uci: move.uci } : null,
     },
-    provenance: mergeStrategicProvenance([
-      ...evidence.provenance,
-      ...(move?.provenance ?? []),
-    ]),
+    provenance: mergeStrategicProvenance([...evidence.provenance, ...(move?.provenance ?? [])]),
   };
 }
 
@@ -721,8 +749,14 @@ function itemResult(
 function unavailableItemError(
   state: ReplacementDatabaseEvidenceState,
 ): readonly [ReplacementDatabaseItemResultStatus, ReplacementDatabaseItemErrorCode, string] | null {
-  if (state === "stale") return ["stale", "stale-source", "Opening-database evidence is explicitly stale."];
-  if (state === "rejected") return ["rejected", "source-rejected", "Opening-database evidence was rejected by its source boundary."];
+  if (state === "stale")
+    return ["stale", "stale-source", "Opening-database evidence is explicitly stale."];
+  if (state === "rejected")
+    return [
+      "rejected",
+      "source-rejected",
+      "Opening-database evidence was rejected by its source boundary.",
+    ];
   if (state === "missing" || state === "offline" || state === "unavailable") {
     return ["rejected", "source-unavailable", `Opening-database evidence is ${state}.`];
   }
@@ -742,7 +776,8 @@ function validateDatabaseEvidence(
   const requested = request.candidate_sources.includes("opening-database");
   let stalePosition = false;
   try {
-    stalePosition = evidence.position.position_id !== pivot.position_id ||
+    stalePosition =
+      evidence.position.position_id !== pivot.position_id ||
       evidence.position.position_key !== pivotPosition.position_key ||
       positionKey(evidence.position.fen) !== pivotPosition.position_key;
   } catch {
@@ -758,7 +793,18 @@ function validateDatabaseEvidence(
 
   for (const [itemIndex, moveEvidence] of evidence.moves.entries()) {
     if (!requested) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "rejected", "source-not-requested", "Opening-database source is not enabled by this request.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "rejected",
+          "source-not-requested",
+          "Opening-database source is not enabled by this request.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     if (unavailable) {
@@ -766,31 +812,97 @@ function validateDatabaseEvidence(
       continue;
     }
     if (stalePosition || !chess) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "stale", "stale-pivot-position", "Evidence position does not match the current semantic pivot position.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "stale",
+          "stale-pivot-position",
+          "Evidence position does not match the current semantic pivot position.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     if (filterMismatch) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "rejected", "database-filter-mismatch", "Evidence database and normalized filter database do not match.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "rejected",
+          "database-filter-mismatch",
+          "Evidence database and normalized filter database do not match.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     const sanMove = parseSan(chess, moveEvidence.san);
     if (!sanMove) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "illegal", "illegal-san", "Injected SAN is illegal from the semantic pivot position.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "illegal",
+          "illegal-san",
+          "Injected SAN is illegal from the semantic pivot position.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     const uciMove = parseUci(moveEvidence.uci);
     if (!uciMove) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "illegal", "illegal-uci", "Injected UCI is malformed.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "illegal",
+          "illegal-uci",
+          "Injected UCI is malformed.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     const canonicalSan = makeSan(chess, sanMove);
     const canonicalUci = makeUci(sanMove);
     if (canonicalUci !== makeUci(uciMove)) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "illegal", "san-uci-mismatch", "Injected SAN and UCI describe different moves.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "illegal",
+          "san-uci-mismatch",
+          "Injected SAN and UCI describe different moves.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     if (canonicalUci === pivot.uci) {
-      items.push(itemResult(evidence, moveEvidence, itemIndex, "rejected", "original-pivot-move", "Injected move repeats the current causal pivot instead of proposing an alternative.", null, null));
+      items.push(
+        itemResult(
+          evidence,
+          moveEvidence,
+          itemIndex,
+          "rejected",
+          "original-pivot-move",
+          "Injected move repeats the current causal pivot instead of proposing an alternative.",
+          null,
+          null,
+        ),
+      );
       continue;
     }
     const after = chess.clone();
@@ -799,10 +911,9 @@ function validateDatabaseEvidence(
     const outcomeKey = positionKey(outcomeFen);
     const existing = graph.positions.find((position) => position.position_key === outcomeKey);
     const outcomePositionId = existing?.position_id ?? semanticPositionId(outcomeKey);
-    const candidateId = `replacement-candidate-seed:${stableHash([
-      pivot.position_id,
-      outcomeKey,
-    ].join(SEPARATOR))}`;
+    const candidateId = `replacement-candidate-seed:${stableHash(
+      [pivot.position_id, outcomeKey].join(SEPARATOR),
+    )}`;
     const canonical = {
       san: canonicalSan,
       uci: canonicalUci,
@@ -810,7 +921,18 @@ function validateDatabaseEvidence(
       outcomePositionKey: outcomeKey,
       outcomeFen,
     };
-    items.push(itemResult(evidence, moveEvidence, itemIndex, "accepted", null, "Injected database move is legal from the semantic pivot position.", canonical, candidateId));
+    items.push(
+      itemResult(
+        evidence,
+        moveEvidence,
+        itemIndex,
+        "accepted",
+        null,
+        "Injected database move is legal from the semantic pivot position.",
+        canonical,
+        candidateId,
+      ),
+    );
     candidates.push({
       san: canonicalSan,
       uci: canonicalUci,
@@ -820,7 +942,9 @@ function validateDatabaseEvidence(
       existingPreparation: existing !== undefined,
       memoryClass: existing ? "low" : "unknown",
       sourcePaths: existing?.source_san_paths ?? [],
-      sources: [databaseSource(evidence, moveEvidence, sourceStatus(evidence.state), outcomePositionId)],
+      sources: [
+        databaseSource(evidence, moveEvidence, sourceStatus(evidence.state), outcomePositionId),
+      ],
       databaseEvidenceIds: [evidence.evidence_id],
       popularity: moveEvidence.popularity.played_pct,
     });
@@ -836,31 +960,36 @@ function mergeRawCandidates(raw: readonly RawCandidate[]): RawCandidate[] {
       candidate,
     ]);
   }
-  return [...byOutcome.values()].map((matches) => {
-    const canonical = [...matches].sort((left, right) =>
-      compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san)
-    )[0]!;
-    const popularity = matches.flatMap((candidate) =>
-      candidate.popularity === null ? [] : [candidate.popularity]
+  return [...byOutcome.values()]
+    .map((matches) => {
+      const canonical = [...matches].sort(
+        (left, right) => compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san),
+      )[0]!;
+      const popularity = matches.flatMap((candidate) =>
+        candidate.popularity === null ? [] : [candidate.popularity],
+      );
+      return {
+        ...canonical,
+        existingPreparation: matches.some((candidate) => candidate.existingPreparation),
+        memoryClass: (matches.some((candidate) => candidate.memoryClass === "low")
+          ? "low"
+          : "unknown") as ReplacementCandidateMemoryClass,
+        sourcePaths: sortedPaths(matches.flatMap((candidate) => candidate.sourcePaths)),
+        sources: mergeCandidateSources(matches.flatMap((candidate) => candidate.sources)),
+        databaseEvidenceIds: sortedUnique(
+          matches.flatMap((candidate) => candidate.databaseEvidenceIds),
+        ),
+        popularity: popularity.length > 0 ? Math.max(...popularity) : null,
+      };
+    })
+    .sort(
+      (left, right) =>
+        (left.memoryClass === "low" ? 0 : 1) - (right.memoryClass === "low" ? 0 : 1) ||
+        (right.popularity ?? -1) - (left.popularity ?? -1) ||
+        compareStrings(left.san, right.san) ||
+        compareStrings(left.uci, right.uci) ||
+        compareStrings(left.outcomePositionKey, right.outcomePositionKey),
     );
-    return {
-      ...canonical,
-      existingPreparation: matches.some((candidate) => candidate.existingPreparation),
-      memoryClass: (matches.some((candidate) => candidate.memoryClass === "low")
-        ? "low"
-        : "unknown") as ReplacementCandidateMemoryClass,
-      sourcePaths: sortedPaths(matches.flatMap((candidate) => candidate.sourcePaths)),
-      sources: mergeCandidateSources(matches.flatMap((candidate) => candidate.sources)),
-      databaseEvidenceIds: sortedUnique(matches.flatMap((candidate) => candidate.databaseEvidenceIds)),
-      popularity: popularity.length > 0 ? Math.max(...popularity) : null,
-    };
-  }).sort((left, right) =>
-    (left.memoryClass === "low" ? 0 : 1) - (right.memoryClass === "low" ? 0 : 1) ||
-    (right.popularity ?? -1) - (left.popularity ?? -1) ||
-    compareStrings(left.san, right.san) ||
-    compareStrings(left.uci, right.uci) ||
-    compareStrings(left.outcomePositionKey, right.outcomePositionKey)
-  );
 }
 
 function toSeed(
@@ -869,13 +998,14 @@ function toSeed(
   request: ReplacementRequest,
   pivot: ReplacementActionablePivotEvidence,
 ): ReplacementCandidateSeed {
-  const sourceKinds = sortedUnique(raw.sources.map((source) => source.kind)) as ReplacementCandidateSourceKind[];
+  const sourceKinds = sortedUnique(
+    raw.sources.map((source) => source.kind),
+  ) as ReplacementCandidateSourceKind[];
   return {
     ...versioned(),
-    candidate_id: `replacement-candidate-seed:${stableHash([
-      pivot.position_id,
-      raw.outcomePositionKey,
-    ].join(SEPARATOR))}`,
+    candidate_id: `replacement-candidate-seed:${stableHash(
+      [pivot.position_id, raw.outcomePositionKey].join(SEPARATOR),
+    )}`,
     rank,
     status: raw.existingPreparation ? "ready-for-expansion" : "partial-generation",
     request_id: request.request_id,
@@ -894,9 +1024,7 @@ function toSeed(
     outcome_fen: raw.outcomeFen,
     existing_preparation: raw.existingPreparation,
     memory_class: raw.memoryClass,
-    rank_hint: raw.existingPreparation
-      ? "low-memory-existing-preparation"
-      : "database-popularity",
+    rank_hint: raw.existingPreparation ? "low-memory-existing-preparation" : "database-popularity",
     maximum_database_popularity: raw.popularity,
     source_kinds: sourceKinds,
     source_san_paths: sortedPaths(raw.sourcePaths),
@@ -913,7 +1041,8 @@ function toSeed(
       status: "full-subtree-required",
       full_subtree_required: true,
       required_contract: "ReplacementCandidateSubtree",
-      reason: "Task 8.5 must expand this seed into bounded coverage-aware opponent replies before it can become a ReplacementCandidate.",
+      reason:
+        "Task 8.5 must expand this seed into bounded coverage-aware opponent replies before it can become a ReplacementCandidate.",
     },
   };
 }
@@ -930,14 +1059,15 @@ function sourceResults(
   for (const kind of ["existing-repertoire-transposition", "move-order-shortcut"] as const) {
     if (!request.candidate_sources.includes(kind)) continue;
     const discovered = discoveredLocal.filter((candidate) =>
-      candidate.sources.some((source) => source.kind === kind)
+      candidate.sources.some((source) => source.kind === kind),
     );
     const matching = keptCandidates.filter((candidate) =>
-      candidate.sources.some((source) => source.kind === kind)
+      candidate.sources.some((source) => source.kind === kind),
     );
     const excluded = discovered.length - matching.length;
-    const sources = mergeCandidateSources(discovered.flatMap((candidate) => candidate.sources)
-      .filter((source) => source.kind === kind));
+    const sources = mergeCandidateSources(
+      discovered.flatMap((candidate) => candidate.sources).filter((source) => source.kind === kind),
+    );
     results.push({
       ...versioned(),
       source_id: `strategic-fit:local-preparation:${kind}`,
@@ -946,26 +1076,32 @@ function sourceResults(
       evidence_state: null,
       accepted_item_count: matching.length,
       rejected_item_count: excluded,
-      reason: excluded > 0
-        ? `${excluded} legal local candidate${excluded === 1 ? " was" : "s were"} excluded by the request maximum-candidate budget.`
-        : discovered.length > 0
-          ? null
-          : "No legal alternative reaches matching local preparation.",
-      provenance: sources.length > 0 ? sources : [{
-        ...versioned(),
-        source_id: `strategic-fit:local-preparation:${kind}`,
-        kind,
-        status: "available",
-        provider: "local-repertoire-graph",
-        version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        snapshot: request.repertoire_revision,
-        reason: "Local graph was searched deterministically.",
-        position_ids: [],
-        decision_ids: [],
-        route_ids: [],
-        details: { candidate_count: 0 },
-        provenance: mergeStrategicProvenance(provenance),
-      }],
+      reason:
+        excluded > 0
+          ? `${excluded} legal local candidate${excluded === 1 ? " was" : "s were"} excluded by the request maximum-candidate budget.`
+          : discovered.length > 0
+            ? null
+            : "No legal alternative reaches matching local preparation.",
+      provenance:
+        sources.length > 0
+          ? sources
+          : [
+              {
+                ...versioned(),
+                source_id: `strategic-fit:local-preparation:${kind}`,
+                kind,
+                status: "available",
+                provider: "local-repertoire-graph",
+                version: STRATEGIC_FIT_ANALYSIS_VERSION,
+                snapshot: request.repertoire_revision,
+                reason: "Local graph was searched deterministically.",
+                position_ids: [],
+                decision_ids: [],
+                route_ids: [],
+                details: { candidate_count: 0 },
+                provenance: mergeStrategicProvenance(provenance),
+              },
+            ],
     });
   }
   if (request.candidate_sources.includes("opening-database") && evidence.length === 0) {
@@ -982,7 +1118,7 @@ function sourceResults(
     });
   }
   for (const itemEvidence of [...evidence].sort((left, right) =>
-    compareStrings(left.evidence_id, right.evidence_id)
+    compareStrings(left.evidence_id, right.evidence_id),
   )) {
     const matching = items.filter((item) => item.evidence_id === itemEvidence.evidence_id);
     const accepted = matching.filter((item) => item.status === "accepted").length;
@@ -998,8 +1134,9 @@ function sourceResults(
       provenance: [databaseSource(itemEvidence, null, sourceStatus(itemEvidence.state), null)],
     });
   }
-  return results.sort((left, right) =>
-    compareStrings(left.kind, right.kind) || compareStrings(left.source_id, right.source_id)
+  return results.sort(
+    (left, right) =>
+      compareStrings(left.kind, right.kind) || compareStrings(left.source_id, right.source_id),
   );
 }
 
@@ -1014,8 +1151,8 @@ export function generateReplacementCandidates(
   }
 
   const pivot = input.pivot_result.pivot as ReplacementActionablePivotEvidence;
-  const pivotPosition = input.graph.positions.find((position) =>
-    position.position_id === pivot.position_id
+  const pivotPosition = input.graph.positions.find(
+    (position) => position.position_id === pivot.position_id,
   )!;
   const localProvenance = mergeStrategicProvenance([
     ...input.request.provenance,
@@ -1054,22 +1191,29 @@ export function generateReplacementCandidates(
   const kept = merged.slice(0, input.request.budget.maximum_candidates);
   const seeds = kept.map((candidate, index) => toSeed(candidate, index + 1, input.request, pivot));
   const keptIds = new Set(seeds.map((candidate) => candidate.candidate_id));
-  const finalItems = databaseItems.map((item): ReplacementOpeningDatabaseItemResult => {
-    if (item.status !== "accepted" || item.candidate_id === null || keptIds.has(item.candidate_id)) {
-      return item;
-    }
-    return {
-      ...item,
-      status: "budget-excluded",
-      error_code: "maximum-candidates-exceeded",
-      explanation: "Legal candidate was excluded by the request maximum-candidate budget.",
-      candidate_id: null,
-    };
-  }).sort((left, right) =>
-    compareStrings(left.evidence_id, right.evidence_id) ||
-    compareStrings(left.move_id, right.move_id) ||
-    left.item_index - right.item_index
-  );
+  const finalItems = databaseItems
+    .map((item): ReplacementOpeningDatabaseItemResult => {
+      if (
+        item.status !== "accepted" ||
+        item.candidate_id === null ||
+        keptIds.has(item.candidate_id)
+      ) {
+        return item;
+      }
+      return {
+        ...item,
+        status: "budget-excluded",
+        error_code: "maximum-candidates-exceeded",
+        explanation: "Legal candidate was excluded by the request maximum-candidate budget.",
+        candidate_id: null,
+      };
+    })
+    .sort(
+      (left, right) =>
+        compareStrings(left.evidence_id, right.evidence_id) ||
+        compareStrings(left.move_id, right.move_id) ||
+        left.item_index - right.item_index,
+    );
   const sources = sourceResults(
     input.request,
     local,
@@ -1078,8 +1222,11 @@ export function generateReplacementCandidates(
     finalItems,
     localProvenance,
   );
-  const degraded = merged.length > kept.length ||
-    sources.some((source) => source.evidence_state !== null && source.evidence_state !== "available") ||
+  const degraded =
+    merged.length > kept.length ||
+    sources.some(
+      (source) => source.evidence_state !== null && source.evidence_state !== "available",
+    ) ||
     finalItems.some((item) => item.status !== "accepted");
   return {
     ...resultBase(input, provenance),

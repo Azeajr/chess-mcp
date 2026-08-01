@@ -79,19 +79,21 @@ export function buildFindingCardPresentation(
   let objectiveSoundness = "Objective soundness unavailable";
   if (objective.state !== "unavailable") {
     const verification = objective.state === "available" ? "Verified" : "Partly verified";
-    const verdict = objective.verdict === "sound"
-      ? "objectively sound"
-      : objective.verdict === "dubious"
-        ? "objectively dubious"
-        : "objective verdict unknown";
+    const verdict =
+      objective.verdict === "sound"
+        ? "objectively sound"
+        : objective.verdict === "dubious"
+          ? "objectively dubious"
+          : "objective verdict unknown";
     objectiveSoundness = `${verification}: ${verdict}`;
   }
   return {
     classification: STRATEGIC_FIT_CLASSIFICATION_LABELS[finding.classification],
     baseline: `${formatNumber(finding.weighted_baseline_percentage)}% weighted baseline`,
-    expected_frequency: finding.expected_frequency === null
-      ? "Expected frequency unavailable"
-      : `${formatNumber(finding.expected_frequency * 100)}% expected frequency`,
+    expected_frequency:
+      finding.expected_frequency === null
+        ? "Expected frequency unavailable"
+        : `${formatNumber(finding.expected_frequency * 100)}% expected frequency`,
     difference: `${finding.difference.magnitude[0]!.toUpperCase()}${finding.difference.magnitude.slice(1)} difference`,
     confidence: `${finding.confidence.label[0]!.toUpperCase()}${finding.confidence.label.slice(1)} confidence · ${formatNumber(finding.confidence.score, 0)}/100`,
     causal_ownership: STRATEGIC_FIT_CAUSAL_LABELS[finding.evidence.causality.label],
@@ -101,7 +103,7 @@ export function buildFindingCardPresentation(
     replacement_priority: `Replacement: ${PRIORITY_LABELS[finding.replacement_priority.label]}`,
     training_priority: `Training: ${PRIORITY_LABELS[finding.training_priority.label]}`,
     source_paths: finding.references.source_san_paths.map((path) =>
-      path.length === 0 ? "Start position" : path.join(" ")
+      path.length === 0 ? "Start position" : path.join(" "),
     ),
   };
 }
@@ -111,21 +113,23 @@ function selectWithKeyboard(
   onSelect: (id: string, focusEvidence: boolean) => void,
 ) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-  const queue = event.currentTarget instanceof HTMLElement
-    ? event.currentTarget.closest("[data-finding-list]")
-    : null;
+  const queue =
+    event.currentTarget instanceof HTMLElement
+      ? event.currentTarget.closest("[data-finding-list]")
+      : null;
   if (!queue) return;
   const buttons = [...queue.querySelectorAll<HTMLButtonElement>("[data-finding-select]")];
   const currentIndex = buttons.indexOf(event.currentTarget as HTMLButtonElement);
   if (currentIndex < 0 || buttons.length === 0) return;
   event.preventDefault();
-  const nextIndex = event.key === "Home"
-    ? 0
-    : event.key === "End"
-      ? buttons.length - 1
-      : event.key === "ArrowDown"
-        ? Math.min(buttons.length - 1, currentIndex + 1)
-        : Math.max(0, currentIndex - 1);
+  const nextIndex =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? buttons.length - 1
+        : event.key === "ArrowDown"
+          ? Math.min(buttons.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1);
   const target = buttons[nextIndex]!;
   target.focus();
   const targetId = target.dataset.findingSelect;
@@ -186,7 +190,11 @@ export default function FindingCard(props: {
 
       <ul class="strategic-fit-finding-facts" aria-label="Finding summary">
         <li>{presentation().baseline}</li>
-        <li data-expected-frequency={props.finding.expected_frequency === null ? "unavailable" : "available"}>
+        <li
+          data-expected-frequency={
+            props.finding.expected_frequency === null ? "unavailable" : "available"
+          }
+        >
           {presentation().expected_frequency}
         </li>
         <li>{presentation().difference}</li>
@@ -213,7 +221,13 @@ export default function FindingCard(props: {
         </summary>
         <Show when={presentation().source_paths.length > 0}>
           <ol>
-            <For each={presentation().source_paths}>{(path) => <li><code>{path}</code></li>}</For>
+            <For each={presentation().source_paths}>
+              {(path) => (
+                <li>
+                  <code>{path}</code>
+                </li>
+              )}
+            </For>
           </ol>
         </Show>
       </details>

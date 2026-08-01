@@ -7,18 +7,50 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
-const FIRST = ["a6", "b6", "c6", "d5", "d6", "h6", "h5", "g6", "a5", "b5", "c5", "f5", "Na6", "Nc6"];
+const FIRST = [
+  "a6",
+  "b6",
+  "c6",
+  "d5",
+  "d6",
+  "h6",
+  "h5",
+  "g6",
+  "a5",
+  "b5",
+  "c5",
+  "f5",
+  "Na6",
+  "Nc6",
+];
 const FIFTH = [
-  "Bg5", "Bf4", "Qc2", "a3", "Nd2", "g3", "h3", "Rb1",
-  "Bd2", "Qb3", "h4", "a4", "Qd3", "Rg1", "Ne5", "Qd2",
+  "Bg5",
+  "Bf4",
+  "Qc2",
+  "a3",
+  "Nd2",
+  "g3",
+  "h3",
+  "Rb1",
+  "Bd2",
+  "Qb3",
+  "h4",
+  "a4",
+  "Qd3",
+  "Rg1",
+  "Ne5",
+  "Qd2",
 ];
 
 /** The same 416-branch fixture the Task 10.4 hardening suite uses, well past every render bound. */
@@ -30,8 +62,8 @@ function largeRepertoire(): string {
         if (black === "h6" && (first === "h6" || first === "h5")) continue;
         games.push(
           `[Event "Large ${first} ${fifth} ${black}"]\n[Result "*"]\n\n` +
-          `1. d4 ${first} 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. ${fifth} ${black} ` +
-          `6. e3 Ne4 7. Be2 Nxc3 8. bxc3 *`,
+            `1. d4 ${first} 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. ${fifth} ${black} ` +
+            `6. e3 Ne4 7. Be2 Nxc3 8. bxc3 *`,
         );
       }
     }
@@ -54,7 +86,9 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 25_000
   return dialog;
 }
 
-test("a large report bounds mounted finding rows while the queue reports its logical totals", async ({ page }) => {
+test("a large report bounds mounted finding rows while the queue reports its logical totals", async ({
+  page,
+}) => {
   test.slow();
   const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-queue.pgn");
   const before = await chess(page, (api) => api.toPgn());
@@ -77,7 +111,9 @@ test("a large report bounds mounted finding rows while the queue reports its log
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("a selected finding that pages off screen stays selected and stays reachable", async ({ page }) => {
+test("a selected finding that pages off screen stays selected and stays reachable", async ({
+  page,
+}) => {
   test.slow();
   const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-selection.pgn");
   const before = await chess(page, (api) => api.toPgn());
@@ -91,26 +127,33 @@ test("a selected finding that pages off screen stays selected and stays reachabl
   const firstCard = list.locator("[data-finding-id]").first();
   const selectedId = await firstCard.getAttribute("data-finding-id");
   await firstCard.getByRole("button").first().click();
-  await expect(queue.locator(`[data-finding-id='${selectedId}']`))
-    .toHaveAttribute("data-finding-selected", "true");
+  await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
+    "data-finding-selected",
+    "true",
+  );
 
   await queue.getByRole("button", { name: "Next findings" }).click();
   // The selection survives the page change and is disclosed rather than silently dropped.
   const note = queue.locator("[data-queue-selection-note]");
   await expect(note).toBeVisible();
-  await expect(queue.locator("[data-queue-selection-announcement]"))
-    .toContainText(`of ${total} matching findings`);
+  await expect(queue.locator("[data-queue-selection-announcement]")).toContainText(
+    `of ${total} matching findings`,
+  );
   await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveCount(0);
 
   await note.locator("[data-queue-reveal-selected]").click();
-  await expect(queue.locator(`[data-finding-id='${selectedId}']`))
-    .toHaveAttribute("data-finding-selected", "true");
+  await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
+    "data-finding-selected",
+    "true",
+  );
   await expect(note).toHaveCount(0);
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("expanded map and heatmap windows keep the complete list reachable inside a bounded DOM", async ({ page }) => {
+test("expanded map and heatmap windows keep the complete list reachable inside a bounded DOM", async ({
+  page,
+}) => {
   test.slow();
   const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-visuals.pgn");
   const before = await chess(page, (api) => api.toPgn());
@@ -126,21 +169,28 @@ test("expanded map and heatmap windows keep the complete list reachable inside a
   await expect(listTable.locator("tbody tr[data-map-row]")).toHaveCount(mountedRows);
 
   // Scrolling reaches rows that were never mounted at the top of the list.
-  const firstRoute = await listTable.locator("tbody tr[data-map-row]").first()
+  const firstRoute = await listTable
+    .locator("tbody tr[data-map-row]")
+    .first()
     .getAttribute("data-map-row");
   await listTable.evaluate((table) => {
     const scroller = table.closest(".strategic-fit-virtual-scroll");
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
   });
-  await expect.poll(async () => await listTable.locator("tbody tr[data-map-row]").first()
-    .getAttribute("data-map-row")).not.toBe(firstRoute);
-  await expect(listTable.locator("tbody tr[data-map-row]").count())
-    .resolves.toBeLessThanOrEqual(60);
+  await expect
+    .poll(
+      async () =>
+        await listTable.locator("tbody tr[data-map-row]").first().getAttribute("data-map-row"),
+    )
+    .not.toBe(firstRoute);
+  await expect(listTable.locator("tbody tr[data-map-row]").count()).resolves.toBeLessThanOrEqual(
+    60,
+  );
 
   const heatmap = dialog.locator(".concept-heatmap");
   const table = heatmap.locator("[data-heatmap-table]");
   const showAll = heatmap.locator("[data-heatmap-show-all]");
-  if (await showAll.count() > 0) {
+  if ((await showAll.count()) > 0) {
     await showAll.click();
     await expect(heatmap).toHaveAttribute("data-heatmap-complete", "true");
   }

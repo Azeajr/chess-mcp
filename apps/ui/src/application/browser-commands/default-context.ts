@@ -9,7 +9,16 @@ import {
   type OpeningTable,
 } from "@chess-mcp/chess-tools";
 import { analyseMulti } from "../../engine/stockfish";
-import { actions, color, currentPath, currentTree, documentId, fen, fileName, version } from "../../store/game";
+import {
+  actions,
+  color,
+  currentPath,
+  currentTree,
+  documentId,
+  fen,
+  fileName,
+  version,
+} from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
 import {
@@ -55,7 +64,8 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   currentStrategicFitAnalysisSettings: strategicFitAnalysisSettings,
   currentStrategicFitTrainingEvidence,
   analysisDepth,
-  analyse: (atFen, multipv, depth, movetime, signal) => analyseMulti(atFen, multipv, depth, movetime, signal),
+  analyse: (atFen, multipv, depth, movetime, signal) =>
+    analyseMulti(atFen, multipv, depth, movetime, signal),
   cloudEval,
   tablebaseLookup,
   explorerPosition,

@@ -10,10 +10,7 @@ import {
   type OpeningTaxonomy,
   type RepertoireGraph,
 } from "../../src/index.ts";
-import {
-  WHITE_TRANSPOSITION_FIXTURE,
-  parseStrategicFitFixture,
-} from "./fixtures.ts";
+import { WHITE_TRANSPOSITION_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
 function samePath(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((san, index) => san === right[index]);
@@ -72,7 +69,13 @@ test("Sicilian family retains distinct Open, Closed, Alapin, and gambit systems"
     "white",
   );
   const table: OpeningTable = new Map();
-  addHit(table, graph, ["e4", "c5", "Nf3", "Nc6", "d4", "cxd4", "Nxd4"], "B32", "Sicilian Defense: Open");
+  addHit(
+    table,
+    graph,
+    ["e4", "c5", "Nf3", "Nc6", "d4", "cxd4", "Nxd4"],
+    "B32",
+    "Sicilian Defense: Open",
+  );
   addHit(table, graph, ["e4", "c5", "Nc3", "Nc6", "g3"], "B23", "Sicilian Defense: Closed");
   addHit(table, graph, ["e4", "c5", "c3", "Nf6"], "B22", "Sicilian Defense: Alapin Variation");
   addHit(table, graph, ["e4", "c5", "b4", "cxb4"], "B20", "Sicilian Defense: Wing Gambit");
@@ -132,29 +135,36 @@ test("Queen's Gambit hierarchy promotes Accepted and Declined to systems and pre
   assert.equal(declined.family?.taxonomy_id, accepted.family?.taxonomy_id);
   assert.deepEqual(declined.family?.eco_range, { from: "D20", to: "D63" });
   assert.notEqual(declined.system?.taxonomy_id, accepted.system?.taxonomy_id);
-  assert.deepEqual(declined.path.map((node) => node.label), [
-    "Queen's Gambit",
-    "Declined",
-    "Orthodox Defense",
-    "Rubinstein Attack",
-  ]);
-  assert.deepEqual(declined.variation_path.map((node) => node.label), [
-    "Orthodox Defense",
-    "Rubinstein Attack",
-  ]);
+  assert.deepEqual(
+    declined.path.map((node) => node.label),
+    ["Queen's Gambit", "Declined", "Orthodox Defense", "Rubinstein Attack"],
+  );
+  assert.deepEqual(
+    declined.variation_path.map((node) => node.label),
+    ["Orthodox Defense", "Rubinstein Attack"],
+  );
   assert.equal(declined.variation?.label, "Rubinstein Attack");
   assert.equal(declined.provenance.exact_source_names[0], declinedName);
 });
 
 test("an exact ECO hit classifies a transposed canonical position consistently", () => {
-  const graph = buildRepertoireGraph(parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE), "white");
+  const graph = buildRepertoireGraph(
+    parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE),
+    "white",
+  );
   const terminal = graph.positions.find(
     (position) => position.position_id === graph.routes[0]!.terminal_position_id,
   )!;
-  assert.equal(graph.routes.every((route) => route.terminal_position_id === terminal.position_id), true);
+  assert.equal(
+    graph.routes.every((route) => route.terminal_position_id === terminal.position_id),
+    true,
+  );
 
   const table: OpeningTable = new Map([
-    [terminal.position_key, { eco: "D37", name: "Queen's Gambit Declined: Three Knights Variation" }],
+    [
+      terminal.position_key,
+      { eco: "D37", name: "Queen's Gambit Declined: Three Knights Variation" },
+    ],
   ]);
   const report = buildOpeningTaxonomy(graph, table);
   const positionTaxonomy = report.positions.find(
@@ -168,7 +178,10 @@ test("an exact ECO hit classifies a transposed canonical position consistently",
     new Set(report.routes.map((route) => route.taxonomy.path.at(-1)?.taxonomy_id)).size,
     1,
   );
-  assert.deepEqual(report.routes.map((route) => route.taxonomy), [positionTaxonomy, positionTaxonomy]);
+  assert.deepEqual(
+    report.routes.map((route) => route.taxonomy),
+    [positionTaxonomy, positionTaxonomy],
+  );
 });
 
 test("a missing opening table produces an explicit unknown taxonomy", () => {
@@ -176,12 +189,18 @@ test("a missing opening table produces an explicit unknown taxonomy", () => {
   const report = buildOpeningTaxonomy(graph, null);
 
   assert.equal(report.positions.length, graph.positions.length);
-  assert.equal(report.positions.every((position) => position.taxonomy.state === "unknown"), true);
+  assert.equal(
+    report.positions.every((position) => position.taxonomy.state === "unknown"),
+    true,
+  );
   assert.equal(
     report.positions.every((position) => position.taxonomy.provenance.kind === "missing-table"),
     true,
   );
-  assert.equal(report.positions.every((position) => position.taxonomy.path.length === 0), true);
+  assert.equal(
+    report.positions.every((position) => position.taxonomy.path.length === 0),
+    true,
+  );
   assert.equal(report.routes[0]!.taxonomy.family, null);
 });
 
@@ -211,6 +230,9 @@ test("fallback labels disclose inheritance and incompatible move orders stay unk
     )!.taxonomy;
     assert.equal(taxonomy.state, "unknown");
     assert.equal(taxonomy.provenance.kind, "ambiguous-inheritance");
-    assert.deepEqual(taxonomy.provenance.exact_source_names, ["Queen's Pawn Game", "Zukertort Opening"]);
+    assert.deepEqual(taxonomy.provenance.exact_source_names, [
+      "Queen's Pawn Game",
+      "Zukertort Opening",
+    ]);
   }
 });

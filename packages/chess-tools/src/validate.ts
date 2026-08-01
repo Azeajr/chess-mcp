@@ -78,7 +78,9 @@ export function legalMoves(fen: string): string[] {
       const piece = pos.board.get(from);
       const toRank = to >> 3;
       const move: NormalMove =
-        piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
+        piece?.role === "pawn" && (toRank === 0 || toRank === 7)
+          ? { from, to, promotion: "queen" }
+          : { from, to };
       out.push(makeSan(pos, move));
     }
   }

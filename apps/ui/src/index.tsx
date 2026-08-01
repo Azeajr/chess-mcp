@@ -2,7 +2,20 @@
 import { render } from "solid-js/web";
 import App from "./App";
 import { actions, color, currentPath, dirty, documentId, fileName, version } from "./store/game";
-import { addSuggestion, acceptSuggestion, suggestions, preview, stagePreview, stagePreviewLine, acceptPreview, clearPreview, stageEdit, stagedEdit, acceptStagedEdit, rejectStagedEdit } from "./store/suggestions";
+import {
+  addSuggestion,
+  acceptSuggestion,
+  suggestions,
+  preview,
+  stagePreview,
+  stagePreviewLine,
+  acceptPreview,
+  clearPreview,
+  stageEdit,
+  stagedEdit,
+  acceptStagedEdit,
+  rejectStagedEdit,
+} from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting } from "./store/chat";

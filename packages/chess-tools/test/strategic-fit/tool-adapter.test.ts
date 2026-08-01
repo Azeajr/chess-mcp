@@ -26,20 +26,26 @@ test("public Strategic Fit arguments map deterministically to shared analyzer op
     },
     page: { offset: 4, limit: 8 },
     sort: "expected-frequency",
-    cohort_overrides: [{
-      override_id: "override:one",
-      kind: "exclude",
-      route_ids: ["route:one"],
-    }],
-    explicit_targets: [{
-      target_id: "target:one",
-      cohort_id: "cohort:one",
-      representative_route_id: "route:one",
-    }],
-    route_assessments: [{
-      route_id: "route:one",
-      matches_declared_objective: true,
-    }],
+    cohort_overrides: [
+      {
+        override_id: "override:one",
+        kind: "exclude",
+        route_ids: ["route:one"],
+      },
+    ],
+    explicit_targets: [
+      {
+        target_id: "target:one",
+        cohort_id: "cohort:one",
+        representative_route_id: "route:one",
+      },
+    ],
+    route_assessments: [
+      {
+        route_id: "route:one",
+        matches_declared_objective: true,
+      },
+    ],
   };
   const before = structuredClone(args);
   const options = strategicFitOptionsFromToolArguments(args, {
@@ -79,14 +85,22 @@ test("public Strategic Fit arguments map deterministically to shared analyzer op
       },
     },
   });
-  assert.equal(options.weighting?.route_weights?.[0]?.provenance?.[0]?.source_id, "strategic-fit:tool-input");
+  assert.equal(
+    options.weighting?.route_weights?.[0]?.provenance?.[0]?.source_id,
+    "strategic-fit:tool-input",
+  );
   assert.equal(options.weighting?.decision_weights?.[0]?.provenance?.[0]?.kind, "user-profile");
   assert.equal(options.cohorts?.overrides?.[0]?.provenance?.[0]?.state, "available");
-  assert.equal(options.modes?.explicit_targets?.[0]?.provenance?.[0]?.version, STRATEGIC_FIT_SCHEMA_VERSION);
-  assert.deepEqual(options.routeAssessments, [{
-    route_id: "route:one",
-    matches_declared_objective: true,
-  }]);
+  assert.equal(
+    options.modes?.explicit_targets?.[0]?.provenance?.[0]?.version,
+    STRATEGIC_FIT_SCHEMA_VERSION,
+  );
+  assert.deepEqual(options.routeAssessments, [
+    {
+      route_id: "route:one",
+      matches_declared_objective: true,
+    },
+  ]);
 });
 
 test("omitted public profile and weighting preserve analyzer inference defaults", () => {
@@ -126,29 +140,39 @@ test("public popularity arguments map to bounded host collection options without
     repertoireColor: "white",
     repertoireRevision: "revision:popularity",
   });
-  assert.equal(options.weighting, undefined, "hosts inject collected evidence after argument adaptation");
+  assert.equal(
+    options.weighting,
+    undefined,
+    "hosts inject collected evidence after argument adaptation",
+  );
 });
 
 test("public personal-history arguments resolve platform-specific host fetch identities", () => {
-  assert.deepEqual(strategicPersonalHistorySourceFromToolArguments({
-    personal_history: { username: "  SampleUser  ", max_games: 45 },
-  }), {
-    platform: "lichess",
-    username: "SampleUser",
-    max_games: 45,
-  });
-  assert.deepEqual(strategicPersonalHistorySourceFromToolArguments({
-    personal_history: {
+  assert.deepEqual(
+    strategicPersonalHistorySourceFromToolArguments({
+      personal_history: { username: "  SampleUser  ", max_games: 45 },
+    }),
+    {
+      platform: "lichess",
       username: "SampleUser",
+      max_games: 45,
+    },
+  );
+  assert.deepEqual(
+    strategicPersonalHistorySourceFromToolArguments({
+      personal_history: {
+        username: "SampleUser",
+        platform: "chesscom",
+        year: 2026,
+        month: 7,
+      },
+    }),
+    {
       platform: "chesscom",
+      username: "SampleUser",
       year: 2026,
       month: 7,
     },
-  }), {
-    platform: "chesscom",
-    username: "SampleUser",
-    year: 2026,
-    month: 7,
-  });
+  );
   assert.equal(strategicPersonalHistorySourceFromToolArguments({}), null);
 });

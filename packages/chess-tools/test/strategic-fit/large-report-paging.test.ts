@@ -29,10 +29,12 @@ const LARGE_FINDING_COUNT = 5_000;
  * spread priorities, so every canonical sort has a total order and every page boundary is walked.
  */
 function largeReport(): StrategicFitReport {
-  const report = completeStrategicFitReport(analyzeStrategicFit(
-    parseStrategicFitFixture(BROAD_ECO_FIXTURE),
-    strategicFitCompleteAnalysisOptions(OPTIONS),
-  ));
+  const report = completeStrategicFitReport(
+    analyzeStrategicFit(
+      parseStrategicFitFixture(BROAD_ECO_FIXTURE),
+      strategicFitCompleteAnalysisOptions(OPTIONS),
+    ),
+  );
   const template = report.findings;
   assert.ok(template.length > 0, "the fixture produces at least one finding to replicate");
   const findings = Array.from({ length: LARGE_FINDING_COUNT }, (_, index) => {
@@ -148,10 +150,11 @@ test("a large report never widens a page or a full projection", () => {
   assert.equal(widest.report.finding_page.has_more, true);
 
   assert.throws(
-    () => projectStrategicFitReport(report, {
-      kind: "full",
-      expected_repertoire_revision: report.repertoire_revision,
-    }),
+    () =>
+      projectStrategicFitReport(report, {
+        kind: "full",
+        expected_repertoire_revision: report.repertoire_revision,
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_full_projection_too_large",
@@ -167,10 +170,7 @@ test("the conversation projection of a large report stays a bounded message", ()
   const defaulted = projectStrategicFitConversation(report, { view: "findings", ...identity });
   assert.equal(defaulted.retrieval, "strategic-fit-findings");
   if (defaulted.retrieval !== "strategic-fit-findings") return;
-  assert.equal(
-    defaulted.findings.length,
-    STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_default,
-  );
+  assert.equal(defaulted.findings.length, STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_default);
   assert.equal(defaulted.page.total_count, LARGE_FINDING_COUNT);
   assert.ok(defaulted.next_cursor);
   assert.ok(
@@ -185,17 +185,15 @@ test("the conversation projection of a large report stays a bounded message", ()
   });
   assert.equal(widest.retrieval, "strategic-fit-findings");
   if (widest.retrieval !== "strategic-fit-findings") return;
-  assert.equal(
-    widest.findings.length,
-    STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum,
-  );
+  assert.equal(widest.findings.length, STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum);
 
   assert.throws(
-    () => projectStrategicFitConversation(report, {
-      view: "findings",
-      ...identity,
-      page: { limit: LARGE_FINDING_COUNT },
-    }),
+    () =>
+      projectStrategicFitConversation(report, {
+        view: "findings",
+        ...identity,
+        page: { limit: LARGE_FINDING_COUNT },
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_invalid_page_limit",
@@ -237,12 +235,13 @@ test("a conversation cursor walks the large report without crossing sorts", () =
   );
 
   assert.throws(
-    () => projectStrategicFitConversation(report, {
-      view: "findings",
-      ...identity,
-      sort: "replacement-priority",
-      page: { cursor: first.next_cursor! },
-    }),
+    () =>
+      projectStrategicFitConversation(report, {
+        view: "findings",
+        ...identity,
+        sort: "replacement-priority",
+        page: { cursor: first.next_cursor! },
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_stale_page_cursor",

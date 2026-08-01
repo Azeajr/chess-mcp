@@ -67,10 +67,10 @@ function runThroughHandler(
 }
 
 const checkpointsOf = (responses: readonly StrategicFitWorkerResponse[]) =>
-  responses.flatMap((response) => response.type === "checkpoint" ? [response.checkpoint] : []);
+  responses.flatMap((response) => (response.type === "checkpoint" ? [response.checkpoint] : []));
 
 const recoveryOf = (responses: readonly StrategicFitWorkerResponse[]) =>
-  responses.flatMap((response) => response.type === "recovery" ? [response.recovery] : [])[0];
+  responses.flatMap((response) => (response.type === "recovery" ? [response.recovery] : []))[0];
 
 /** A checkpoint as a reload leaves it: written by a worker that is gone, read as untrusted data. */
 function storedCheckpoint(
@@ -97,9 +97,13 @@ function storedCheckpoint(
 function memoryPersistence(seed?: readonly (readonly [string, unknown])[]) {
   const records = new Map<string, unknown>(seed ?? []);
   const persistence: StrategicFitCheckpointPersistence = {
-    read: async (key) => records.has(key) ? structuredClone(records.get(key)) : null,
-    write: async (key, value) => { records.set(key, structuredClone(value)); },
-    remove: async (key) => { records.delete(key); },
+    read: async (key) => (records.has(key) ? structuredClone(records.get(key)) : null),
+    write: async (key, value) => {
+      records.set(key, structuredClone(value));
+    },
+    remove: async (key) => {
+      records.delete(key);
+    },
   };
   return { records, persistence };
 }
@@ -141,8 +145,9 @@ test("a fresh worker resumes a compatible checkpoint and returns the cold result
 });
 
 test("a resumed job still reports the six phases in order", () => {
-  const progress = runThroughHandler(storedCheckpoint(), "request:resumed-progress")
-    .flatMap((response) => response.type === "progress" ? [response.progress] : []);
+  const progress = runThroughHandler(storedCheckpoint(), "request:resumed-progress").flatMap(
+    (response) => (response.type === "progress" ? [response.progress] : []),
+  );
 
   assert.deepEqual(
     progress.filter((event) => event.state === "running").map((event) => event.phase),
@@ -157,10 +162,19 @@ test("a resumed job still reports the six phases in order", () => {
 
 test("the worker refuses a checkpoint from another revision, document, or settings", () => {
   const cases: readonly (readonly [StrategicFitJobCheckpoint, string])[] = [
-    [storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:other" }), "strategic_fit_checkpoint_stale_revision"],
+    [
+      storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:other" }),
+      "strategic_fit_checkpoint_stale_revision",
+    ],
     [storedCheckpoint(OPTIONS, `${PGN}\n`), "strategic_fit_checkpoint_stale_content"],
-    [storedCheckpoint({ ...OPTIONS, weighting: { mode: "manual" } }), "strategic_fit_checkpoint_stale_settings"],
-    [{ ...storedCheckpoint(), provisional: false } as unknown as StrategicFitJobCheckpoint, "strategic_fit_checkpoint_corrupt"],
+    [
+      storedCheckpoint({ ...OPTIONS, weighting: { mode: "manual" } }),
+      "strategic_fit_checkpoint_stale_settings",
+    ],
+    [
+      { ...storedCheckpoint(), provisional: false } as unknown as StrategicFitJobCheckpoint,
+      "strategic_fit_checkpoint_corrupt",
+    ],
   ];
 
   const cold = runThroughHandler().find((response) => response.type === "result");
@@ -249,14 +263,22 @@ test("an aborted request ignores late checkpoint and recovery messages", async (
   let bookkeeping = 0;
   const pending = client.analyze(PGN, OPTIONS, {
     signal: controller.signal,
-    onCheckpoint: () => { bookkeeping++; },
-    onRecovery: () => { bookkeeping++; },
+    onCheckpoint: () => {
+      bookkeeping++;
+    },
+    onRecovery: () => {
+      bookkeeping++;
+    },
   });
   const request = worker.posted[0]!;
 
   controller.abort();
   await assert.rejects(pending, { name: "AbortError" });
-  worker.emit({ type: "checkpoint", request_id: request.request_id, checkpoint: storedCheckpoint() });
+  worker.emit({
+    type: "checkpoint",
+    request_id: request.request_id,
+    checkpoint: storedCheckpoint(),
+  });
   assert.equal(bookkeeping, 0);
 });
 
@@ -289,8 +311,14 @@ test("a stored record from another format, job, or shape is deleted rather than 
     strategicFitCompleteAnalysisOptions(OPTIONS),
   );
   const cases: readonly (readonly [unknown, string])[] = [
-    [{ ...storedCheckpoint(), format_version: STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION + 1 }, "strategic_fit_checkpoint_format_version"],
-    [storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:other" }), "strategic_fit_checkpoint_stale_revision"],
+    [
+      { ...storedCheckpoint(), format_version: STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION + 1 },
+      "strategic_fit_checkpoint_format_version",
+    ],
+    [
+      storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:other" }),
+      "strategic_fit_checkpoint_stale_revision",
+    ],
     [{ nonsense: true }, "strategic_fit_checkpoint_corrupt"],
   ];
 
@@ -314,33 +342,37 @@ function checkpointingCache(
 ) {
   const calls: AnalyzerCall[] = [];
   const port = createStrategicFitCheckpointPort(persistence);
-  const cache = new StrategicFitReportCache(async (pgn, options, execution = {}) => {
-    calls.push({ resume: execution.resume });
-    execution.onRecovery?.({
-      state: execution.resume === undefined ? "cold" : "resumed",
-      job_id: execution.resume?.job_id ?? null,
-      saved_at: execution.resume?.saved_at ?? null,
-      completed_phase: execution.resume?.completed_phase ?? null,
-      completed_phase_index: execution.resume?.completed_phase_index ?? null,
-      restored_stages: execution.resume === undefined ? [] : ["graph", "trajectories"],
-      code: null,
-      reason: execution.resume === undefined ? "Cold start." : "Resumed.",
-    });
-    const record = createStrategicFitJobRecorder({
-      compatibility: strategicFitJobCompatibility(pgn, options),
-      save: (checkpoint) => execution.onCheckpoint?.(checkpoint),
-      now: () => "2026-07-31T09:45:00.000Z",
-    });
-    const result = analyzeStrategicFit(GameTree.fromPgn(pgn), {
-      ...options,
-      index: new StrategicFitIndexCache(),
-      onCheckpoint: (stage) => {
-        record(stage);
-        if (behavior.fail === true) throw new Error("fixture interruption");
-      },
-    });
-    return result;
-  }, 4, port);
+  const cache = new StrategicFitReportCache(
+    async (pgn, options, execution = {}) => {
+      calls.push({ resume: execution.resume });
+      execution.onRecovery?.({
+        state: execution.resume === undefined ? "cold" : "resumed",
+        job_id: execution.resume?.job_id ?? null,
+        saved_at: execution.resume?.saved_at ?? null,
+        completed_phase: execution.resume?.completed_phase ?? null,
+        completed_phase_index: execution.resume?.completed_phase_index ?? null,
+        restored_stages: execution.resume === undefined ? [] : ["graph", "trajectories"],
+        code: null,
+        reason: execution.resume === undefined ? "Cold start." : "Resumed.",
+      });
+      const record = createStrategicFitJobRecorder({
+        compatibility: strategicFitJobCompatibility(pgn, options),
+        save: (checkpoint) => execution.onCheckpoint?.(checkpoint),
+        now: () => "2026-07-31T09:45:00.000Z",
+      });
+      const result = analyzeStrategicFit(GameTree.fromPgn(pgn), {
+        ...options,
+        index: new StrategicFitIndexCache(),
+        onCheckpoint: (stage) => {
+          record(stage);
+          if (behavior.fail === true) throw new Error("fixture interruption");
+        },
+      });
+      return result;
+    },
+    4,
+    port,
+  );
   return { cache, calls, port };
 }
 
@@ -377,7 +409,10 @@ test("a reload resumes the interrupted job from its stored checkpoint", async ()
   assert.equal(reloaded.cache.lastRecovery()?.saved_at, "2026-07-31T09:30:00.000Z");
   assert.equal(records.size, 0, "the resumed job settles and stops being resumable");
 
-  const cold = await checkpointingCache(memoryPersistence().persistence).cache.getReport(PGN, OPTIONS);
+  const cold = await checkpointingCache(memoryPersistence().persistence).cache.getReport(
+    PGN,
+    OPTIONS,
+  );
   assert.equal(JSON.stringify(report), JSON.stringify(cold));
 });
 
@@ -385,27 +420,32 @@ test("cancelling an analysis drops its checkpoint instead of silently restarting
   const { records, persistence } = memoryPersistence();
   const port = createStrategicFitCheckpointPort(persistence);
   const controller = new AbortController();
-  const cache = new StrategicFitReportCache(async (pgn, options, execution = {}) => {
-    const record = createStrategicFitJobRecorder({
-      compatibility: strategicFitJobCompatibility(pgn, options),
-      save: (checkpoint) => execution.onCheckpoint?.(checkpoint),
-      now: () => "2026-07-31T09:50:00.000Z",
-    });
-    analyzeStrategicFit(GameTree.fromPgn(pgn), {
-      ...options,
-      index: new StrategicFitIndexCache(),
-      onCheckpoint: (stage) => {
-        record(stage);
-        controller.abort();
-      },
-      shouldCancel: () => controller.signal.aborted,
-    });
-    throw new Error("unreachable: the fixture cancels before it completes");
-  }, 4, port);
+  const cache = new StrategicFitReportCache(
+    async (pgn, options, execution = {}) => {
+      const record = createStrategicFitJobRecorder({
+        compatibility: strategicFitJobCompatibility(pgn, options),
+        save: (checkpoint) => execution.onCheckpoint?.(checkpoint),
+        now: () => "2026-07-31T09:50:00.000Z",
+      });
+      analyzeStrategicFit(GameTree.fromPgn(pgn), {
+        ...options,
+        index: new StrategicFitIndexCache(),
+        onCheckpoint: (stage) => {
+          record(stage);
+          controller.abort();
+        },
+        shouldCancel: () => controller.signal.aborted,
+      });
+      throw new Error("unreachable: the fixture cancels before it completes");
+    },
+    4,
+    port,
+  );
 
   await assert.rejects(
     cache.getReport(PGN, OPTIONS, { signal: controller.signal }),
-    (error: unknown) => (error as { code?: string }).code === "strategic_fit_analysis_cancelled" ||
+    (error: unknown) =>
+      (error as { code?: string }).code === "strategic_fit_analysis_cancelled" ||
       (error as Error).name === "AbortError",
   );
   await port.settled();
@@ -415,16 +455,22 @@ test("cancelling an analysis drops its checkpoint instead of silently restarting
 });
 
 test("a stored checkpoint for other settings never reaches the analyzer", async () => {
-  const { records, persistence } = memoryPersistence([[
-    STRATEGIC_FIT_CHECKPOINT_KEY,
-    storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:previous" }),
-  ]]);
+  const { records, persistence } = memoryPersistence([
+    [
+      STRATEGIC_FIT_CHECKPOINT_KEY,
+      storedCheckpoint({ ...OPTIONS, repertoireRevision: "revision:previous" }),
+    ],
+  ]);
   const { cache, calls, port } = checkpointingCache(persistence);
 
   await cache.getReport(PGN, OPTIONS);
   await port.settled();
 
-  assert.equal(calls[0]?.resume, undefined, "an incompatible checkpoint is not offered as a resume");
+  assert.equal(
+    calls[0]?.resume,
+    undefined,
+    "an incompatible checkpoint is not offered as a resume",
+  );
   assert.equal(port.lastRejection()?.code, "strategic_fit_checkpoint_stale_revision");
   assert.equal(cache.lastRecovery()?.state, "cold");
   assert.equal(records.size, 0);

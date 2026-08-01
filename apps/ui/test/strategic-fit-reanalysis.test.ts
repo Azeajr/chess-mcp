@@ -115,7 +115,10 @@ test("profile and cohort-override triggers produce deterministic affected scopes
     snapshot(MULTI_ROUTE_PGN, { profile_identity: "profile:versatile" }),
     "profile-change",
   );
-  assert.deepEqual(profile.scope.cohort_ids, report.cohorts.map((cohort) => cohort.cohort_id).sort());
+  assert.deepEqual(
+    profile.scope.cohort_ids,
+    report.cohorts.map((cohort) => cohort.cohort_id).sort(),
+  );
 
   const override = affectedCohortReanalysisRequest(
     "cohort-override",
@@ -123,7 +126,10 @@ test("profile and cohort-override triggers produce deterministic affected scopes
     "Confirmed override.",
   );
   assert.deepEqual(override.scope.cohort_ids, ["cohort:a", "cohort:b"]);
-  assert.equal(affectedCohortReanalysisRequest("cohort-override", [], "Unknown.").scope.kind, "full-scan");
+  assert.equal(
+    affectedCohortReanalysisRequest("cohort-override", [], "Unknown.").scope.kind,
+    "full-scan",
+  );
 });
 
 test("reconciliation preserves unrelated decisions, resolves disappearance, and reopens changed or reappeared evidence", () => {
@@ -167,7 +173,8 @@ test("reconciliation preserves unrelated decisions, resolves disappearance, and 
   assert.deepEqual(reconciled.summary.preserved_resolution_ids, ["resolution:preserved"]);
   assert.equal(reconciled.summary.resolving_revision, "browser:2");
   assert.deepEqual(
-    reconciled.findings.filter((entry) => ["changed", "returned"].includes(entry.semantic_finding_id))
+    reconciled.findings
+      .filter((entry) => ["changed", "returned"].includes(entry.semantic_finding_id))
       .map((entry) => entry.resolution_state),
     ["unresolved", "unresolved"],
   );

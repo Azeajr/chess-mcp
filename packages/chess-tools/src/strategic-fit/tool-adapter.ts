@@ -22,9 +22,7 @@ import type {
   StrategicFitSourceProvenance,
 } from "./types.js";
 import { STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
-import type {
-  StrategicPopularityCollectionOptions,
-} from "./popularity.js";
+import type { StrategicPopularityCollectionOptions } from "./popularity.js";
 import {
   STRATEGIC_PERSONAL_HISTORY_DEFAULT_MAX_GAMES,
   type StrategicPersonalHistorySource,
@@ -53,14 +51,13 @@ export interface StrategicFitToolProfileInput {
   readonly preferences?: StrategicFitToolProfilePreferencesInput;
 }
 
-type WithoutProvenance<T> = T extends { readonly provenance?: unknown }
-  ? Omit<T, "provenance">
-  : T;
+type WithoutProvenance<T> = T extends { readonly provenance?: unknown } ? Omit<T, "provenance"> : T;
 
 export type StrategicFitToolRouteWeightInput = WithoutProvenance<StrategicRouteWeightInput>;
 export type StrategicFitToolDecisionWeightInput = WithoutProvenance<StrategicDecisionWeightInput>;
 export type StrategicFitToolCohortOverrideInput = WithoutProvenance<StrategicCohortOverride>;
-export type StrategicFitToolExplicitModeTargetInput = WithoutProvenance<StrategicExplicitModeTarget>;
+export type StrategicFitToolExplicitModeTargetInput =
+  WithoutProvenance<StrategicExplicitModeTarget>;
 
 export interface StrategicFitToolWeightingInput {
   readonly mode?: StrategicRouteWeightingMode;
@@ -99,7 +96,10 @@ export interface StrategicFitToolArguments {
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
   readonly explicit_targets?: readonly StrategicFitToolExplicitModeTargetInput[];
-  readonly route_assessments?: readonly Omit<StrategicFitRouteAssessmentInput, "semantic_finding_id">[];
+  readonly route_assessments?: readonly Omit<
+    StrategicFitRouteAssessmentInput,
+    "semantic_finding_id"
+  >[];
 }
 
 /** Map the public snake-case popularity request into the host-neutral bounded collector options. */

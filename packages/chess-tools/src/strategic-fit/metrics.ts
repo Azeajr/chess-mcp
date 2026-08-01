@@ -24,10 +24,7 @@ import type {
   StrategicFitSourceProvenance,
 } from "./types.js";
 import type { StrategicRouteWeightingReport } from "./weights.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export const STRATEGIC_METRICS_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.metrics;
 
@@ -195,10 +192,20 @@ function requireCompatibleInputs(input: StrategicFitMetricsInput): void {
     throw new Error("strategic_fit_metrics_graph_mismatch");
   }
   const routeIds = input.graph.routes.map((route) => route.route_id);
-  if (!sameIds(input.weights.routes.map((route) => route.route_id), routeIds)) {
+  if (
+    !sameIds(
+      input.weights.routes.map((route) => route.route_id),
+      routeIds,
+    )
+  ) {
     throw new Error("strategic_fit_metrics_weight_route_mismatch");
   }
-  if (!sameIds(input.concepts.routes.map((route) => route.route_id), routeIds)) {
+  if (
+    !sameIds(
+      input.concepts.routes.map((route) => route.route_id),
+      routeIds,
+    )
+  ) {
     throw new Error("strategic_fit_metrics_concept_route_mismatch");
   }
   const cohortRouteIds = input.modes.cohorts.flatMap((cohort) => [
@@ -250,10 +257,13 @@ function familyBuckets(
   for (const selection of input.modes.selections) {
     if (selection.state === "excluded" || selection.state === "insufficient-evidence") continue;
     const cohort = cohortById.get(selection.cohort_id);
-    if (!cohort) throw new Error(`strategic_fit_metrics_unknown_selection_cohort: ${selection.cohort_id}`);
+    if (!cohort)
+      throw new Error(`strategic_fit_metrics_unknown_selection_cohort: ${selection.cohort_id}`);
     for (const routeId of cohort.route_ids) comparable.add(routeId);
     for (const candidate of selection.candidates) {
-      const bucketId = [selection.cohort_id, "candidate", candidate.representative_route_id].join(ID_SEPARATOR);
+      const bucketId = [selection.cohort_id, "candidate", candidate.representative_route_id].join(
+        ID_SEPARATOR,
+      );
       for (const routeId of candidate.supporting_route_ids) {
         if (buckets.has(routeId)) {
           throw new Error(`strategic_fit_metrics_overlapping_mode_candidates: ${routeId}`);
@@ -263,7 +273,10 @@ function familyBuckets(
     }
     for (const routeId of cohort.route_ids) {
       if (!buckets.has(routeId)) {
-        buckets.set(routeId, [selection.cohort_id, "unit", routeUnit.get(routeId)!].join(ID_SEPARATOR));
+        buckets.set(
+          routeId,
+          [selection.cohort_id, "unit", routeUnit.get(routeId)!].join(ID_SEPARATOR),
+        );
       }
     }
   }
@@ -272,15 +285,21 @@ function familyBuckets(
 
 function makeContext(input: StrategicFitMetricsInput): MetricContext {
   requireCompatibleInputs(input);
-  const routeWeight = new Map(input.weights.routes.map((route) => {
-    requireUnitInterval(`route:${route.route_id}:weight`, route.normalized_weight);
-    return [route.route_id, route.normalized_weight] as const;
-  }));
-  const routeUnit = new Map(input.weights.routes.map((route) => [route.route_id, route.weighting_unit_id]));
-  const routeConceptIds = new Map(input.concepts.routes.map((route) => [
-    route.route_id,
-    sortedUnique(route.concepts.map((concept) => concept.concept_id)),
-  ]));
+  const routeWeight = new Map(
+    input.weights.routes.map((route) => {
+      requireUnitInterval(`route:${route.route_id}:weight`, route.normalized_weight);
+      return [route.route_id, route.normalized_weight] as const;
+    }),
+  );
+  const routeUnit = new Map(
+    input.weights.routes.map((route) => [route.route_id, route.weighting_unit_id]),
+  );
+  const routeConceptIds = new Map(
+    input.concepts.routes.map((route) => [
+      route.route_id,
+      sortedUnique(route.concepts.map((concept) => concept.concept_id)),
+    ]),
+  );
   const routeCohortId = new Map<string, string>();
   for (const cohort of input.modes.cohorts) {
     for (const routeId of [...cohort.route_ids, ...cohort.excluded_route_ids]) {
@@ -335,21 +354,27 @@ function memorizationSensitivity(context: MetricContext): {
   if (!context.input.profile) return { value, provenance: [] };
   return {
     value,
-    provenance: [{
-      source_id: "strategic-fit:memorization-sensitivity",
-      kind: "user-profile",
-      state: "available",
-      version: context.input.profile.schema_version,
-      snapshot: `sensitivity=${round(value)}`,
-      reason: "Remaining training burden is multiplied by one minus the profile's additional-memorization tolerance.",
-    }],
+    provenance: [
+      {
+        source_id: "strategic-fit:memorization-sensitivity",
+        kind: "user-profile",
+        state: "available",
+        version: context.input.profile.schema_version,
+        snapshot: `sensitivity=${round(value)}`,
+        reason:
+          "Remaining training burden is multiplied by one minus the profile's additional-memorization tolerance.",
+      },
+    ],
   };
 }
 
 function strategicEntropy(context: MetricContext): StrategicFitMetric<number> {
   const bucketWeights = new Map<string, number>();
   for (const [routeId, bucketId] of context.familyBucketByRoute) {
-    bucketWeights.set(bucketId, (bucketWeights.get(bucketId) ?? 0) + context.routeWeight.get(routeId)!);
+    bucketWeights.set(
+      bucketId,
+      (bucketWeights.get(bucketId) ?? 0) + context.routeWeight.get(routeId)!,
+    );
   }
   const coveredWeight = [...bucketWeights.values()].reduce((sum, weight) => sum + weight, 0);
   if (coveredWeight <= EPSILON) {
@@ -413,9 +438,9 @@ function conceptReuse(
     const weight = context.routeWeight.get(routeId)!;
     coveredWeight += weight;
     totalExposure += weight * conceptIds.length;
-    reusedExposure += weight * conceptIds.filter((conceptId) =>
-      (aggregates.get(conceptId)?.unitIds.size ?? 0) >= 2
-    ).length;
+    reusedExposure +=
+      weight *
+      conceptIds.filter((conceptId) => (aggregates.get(conceptId)?.unitIds.size ?? 0) >= 2).length;
   }
   if (totalExposure <= EPSILON) {
     return unavailable(
@@ -499,19 +524,26 @@ export function calculateStrategicFamiliarityAdjustedCoverage(
     if (mastery.has(concept.concept_id)) {
       throw new Error(`strategic_fit_metrics_duplicate_concept_mastery: ${concept.concept_id}`);
     }
-    mastery.set(concept.concept_id,
-      requireUnitInterval(`concept:${concept.concept_id}:mastery`, concept.mastery));
+    mastery.set(
+      concept.concept_id,
+      requireUnitInterval(`concept:${concept.concept_id}:mastery`, concept.mastery),
+    );
   }
-  const routeWeights = new Map(input.weights.routes.map((route) => [route.route_id, route.normalized_weight]));
-  const routeConceptIds = new Map(input.concepts.routes.map((route) => [
-    route.route_id,
-    route.concepts.map((concept) => concept.concept_id),
-  ]));
+  const routeWeights = new Map(
+    input.weights.routes.map((route) => [route.route_id, route.normalized_weight]),
+  );
+  const routeConceptIds = new Map(
+    input.concepts.routes.map((route) => [
+      route.route_id,
+      route.concepts.map((concept) => concept.concept_id),
+    ]),
+  );
   const totalWeight = [...routeWeights.values()].reduce((sum, value) => sum + value, 0);
   let coveredWeight = 0;
   let familiarWeight = 0;
   for (const [routeId, conceptIds] of routeConceptIds) {
-    const values = conceptIds.map((conceptId) => mastery.get(conceptId))
+    const values = conceptIds
+      .map((conceptId) => mastery.get(conceptId))
       .filter((value): value is number => value !== undefined);
     if (values.length === 0) continue;
     const weight = routeWeights.get(routeId);
@@ -570,7 +602,9 @@ function exceptionBurden(
       "partial",
       { expected_frequency: round(expectedFrequency), training_cost: null },
       "Expected exception frequency is available, but training cost requires calibrated training metadata.",
-      mergeProvenance(context.input.weights.provenance, context.input.modes.provenance, [TRAINING_UNAVAILABLE]),
+      mergeProvenance(context.input.weights.provenance, context.input.modes.provenance, [
+        TRAINING_UNAVAILABLE,
+      ]),
     );
   }
   const mastery = routeMastery(context, training.mastery);
@@ -583,10 +617,11 @@ function exceptionBurden(
     if (routeMasteryValue === undefined) continue;
     const weight = context.routeWeight.get(routeId)!;
     coveredExceptionWeight += weight;
-    trainingCost += weight * (burden.get(routeId) ?? 0) *
-      (1 - routeMasteryValue) * sensitivity.value;
+    trainingCost +=
+      weight * (burden.get(routeId) ?? 0) * (1 - routeMasteryValue) * sensitivity.value;
   }
-  const complete = expectedFrequency <= EPSILON || coveredExceptionWeight + EPSILON >= expectedFrequency;
+  const complete =
+    expectedFrequency <= EPSILON || coveredExceptionWeight + EPSILON >= expectedFrequency;
   return metric(
     "exception-burden",
     "composite",
@@ -609,7 +644,10 @@ function forcedDiversityFloor(context: MetricContext): StrategicFitMetric<number
       .filter((finding) => finding.classification === "forced-diversity")
       .flatMap((finding) => finding.references.route_ids),
   );
-  const value = [...forcedRouteIds].reduce((sum, routeId) => sum + context.routeWeight.get(routeId)!, 0);
+  const value = [...forcedRouteIds].reduce(
+    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    0,
+  );
   return metric(
     "forced-diversity-floor",
     "fraction",
@@ -650,7 +688,9 @@ function trainingAdjustedWorkload(
   const mastery = routeMastery(context, training.mastery);
   const burden = burdenByRoute(context);
   const sensitivity = memorizationSensitivity(context);
-  const relevantRoutes = new Set(context.input.findings.flatMap((finding) => finding.references.route_ids));
+  const relevantRoutes = new Set(
+    context.input.findings.flatMap((finding) => finding.references.route_ids),
+  );
   let workload = 0;
   let relevantWeight = 0;
   let coveredWeight = 0;
@@ -660,8 +700,7 @@ function trainingAdjustedWorkload(
     const routeMasteryValue = mastery.get(routeId);
     if (routeMasteryValue === undefined) continue;
     coveredWeight += weight;
-    workload += weight * (burden.get(routeId) ?? 0) *
-      (1 - routeMasteryValue) * sensitivity.value;
+    workload += weight * (burden.get(routeId) ?? 0) * (1 - routeMasteryValue) * sensitivity.value;
   }
   const complete = relevantWeight <= EPSILON || coveredWeight + EPSILON >= relevantWeight;
   return metric(
@@ -684,16 +723,19 @@ function repertoireRegret(
   context: MetricContext,
   training: ReturnType<typeof masteryByConcept>,
 ): StrategicFitMetric<number> {
-  const marketCoverage = context.input.weights.evidence_sources.find((source) =>
-    source.kind === "market" && source.resolution === "used"
+  const marketCoverage = context.input.weights.evidence_sources.find(
+    (source) => source.kind === "market" && source.resolution === "used",
   );
-  const legacyMarketAvailable = context.input.weights.requested_mode !== "equal" &&
-    context.input.weights.provenance.some((source) =>
-      source.kind === "opening-explorer" && (source.state === "available" || source.state === "partial")
+  const legacyMarketAvailable =
+    context.input.weights.requested_mode !== "equal" &&
+    context.input.weights.provenance.some(
+      (source) =>
+        source.kind === "opening-explorer" &&
+        (source.state === "available" || source.state === "partial"),
     );
   const marketAvailable = marketCoverage !== undefined || legacyMarketAvailable;
-  const marketProvenance = context.input.weights.provenance.filter((source) =>
-    source.kind === "opening-explorer"
+  const marketProvenance = context.input.weights.provenance.filter(
+    (source) => source.kind === "opening-explorer",
   );
   if (!marketAvailable) {
     return unavailable(
@@ -745,17 +787,20 @@ function repertoireRegret(
       }
     }
   }
-  const trainingCoveredWeight = [...relevantRouteIds].reduce((sum, routeId) =>
-    sum + (mastery.has(routeId) ? context.routeWeight.get(routeId)! : 0), 0
+  const trainingCoveredWeight = [...relevantRouteIds].reduce(
+    (sum, routeId) => sum + (mastery.has(routeId) ? context.routeWeight.get(routeId)! : 0),
+    0,
   );
-  const replacementCoveredWeight = [...relevantRouteIds].reduce((sum, routeId) =>
-    sum + (replacementByRoute.has(routeId) ? context.routeWeight.get(routeId)! : 0), 0
+  const replacementCoveredWeight = [...relevantRouteIds].reduce(
+    (sum, routeId) =>
+      sum + (replacementByRoute.has(routeId) ? context.routeWeight.get(routeId)! : 0),
+    0,
   );
   if (replacementCoveredWeight <= EPSILON) {
     return unavailable(
       "repertoire-regret",
       "score",
-      `Repertoire regret has ${Math.round(trainingCoveredWeight / relevantWeight * 100)}% training coverage but 0% viable-replacement coverage; unassessed alternatives are not treated as replaceable.`,
+      `Repertoire regret has ${Math.round((trainingCoveredWeight / relevantWeight) * 100)}% training coverage but 0% viable-replacement coverage; unassessed alternatives are not treated as replaceable.`,
       mergeProvenance(
         context.input.weights.provenance,
         training.provenance,
@@ -767,7 +812,7 @@ function repertoireRegret(
     return unavailable(
       "repertoire-regret",
       "score",
-      `Repertoire regret has 0% training coverage and ${Math.round(replacementCoveredWeight / relevantWeight * 100)}% viable-replacement coverage; missing mastery is not counted as zero.`,
+      `Repertoire regret has 0% training coverage and ${Math.round((replacementCoveredWeight / relevantWeight) * 100)}% viable-replacement coverage; missing mastery is not counted as zero.`,
       mergeProvenance(context.input.weights.provenance, training.provenance),
     );
   }
@@ -784,19 +829,18 @@ function repertoireRegret(
     const unitId = context.routeUnit.get(routeId)!;
     regretScoreByUnit.set(
       unitId,
-      (regretScoreByUnit.get(unitId) ?? 0) + weight * replacement.burden *
-        (1 - routeMasteryValue) * replacement.actionability,
+      (regretScoreByUnit.get(unitId) ?? 0) +
+        weight * replacement.burden * (1 - routeMasteryValue) * replacement.actionability,
     );
-    regretCoveredWeightByUnit.set(
-      unitId,
-      (regretCoveredWeightByUnit.get(unitId) ?? 0) + weight,
-    );
+    regretCoveredWeightByUnit.set(unitId, (regretCoveredWeightByUnit.get(unitId) ?? 0) + weight);
   }
   let regret = 0;
-  const unitWeight = new Map(context.input.weights.weighting_units.map((unit) => [
-    unit.weighting_unit_id,
-    unit.normalized_weight,
-  ]));
+  const unitWeight = new Map(
+    context.input.weights.weighting_units.map((unit) => [
+      unit.weighting_unit_id,
+      unit.normalized_weight,
+    ]),
+  );
   for (const [unitId, score] of regretScoreByUnit) {
     const coveredWeight = regretCoveredWeightByUnit.get(unitId)!;
     const frequency = unitWeight.get(unitId)!;
@@ -804,13 +848,14 @@ function repertoireRegret(
     // discounted by familiarity and by how common that unit already is.
     regret += frequency * (1 - frequency) * (score / coveredWeight) * sensitivity.value;
   }
-  const legacyMarketPartial = marketCoverage === undefined && marketProvenance.some((source) =>
-    source.state === "partial"
-  );
-  const complete = jointlyCoveredWeight + EPSILON >= relevantWeight &&
-    marketCoverage?.state !== "partial" && !legacyMarketPartial;
+  const legacyMarketPartial =
+    marketCoverage === undefined && marketProvenance.some((source) => source.state === "partial");
+  const complete =
+    jointlyCoveredWeight + EPSILON >= relevantWeight &&
+    marketCoverage?.state !== "partial" &&
+    !legacyMarketPartial;
   const marketState = marketCoverage?.state ?? (legacyMarketPartial ? "partial" : "available");
-  const reason = `Repertoire regret uses ${Math.round(trainingCoveredWeight / relevantWeight * 100)}% training coverage, ${Math.round(replacementCoveredWeight / relevantWeight * 100)}% viable-replacement coverage, and ${marketState} market weighting; ${Math.round(jointlyCoveredWeight / relevantWeight * 100)}% is jointly calculable. Applied ${Math.round(sensitivity.value * 100)}% memorization sensitivity. Missing evidence is not counted as zero.`;
+  const reason = `Repertoire regret uses ${Math.round((trainingCoveredWeight / relevantWeight) * 100)}% training coverage, ${Math.round((replacementCoveredWeight / relevantWeight) * 100)}% viable-replacement coverage, and ${marketState} market weighting; ${Math.round((jointlyCoveredWeight / relevantWeight) * 100)}% is jointly calculable. Applied ${Math.round(sensitivity.value * 100)}% memorization sensitivity. Missing evidence is not counted as zero.`;
   return metric(
     "repertoire-regret",
     "score",
@@ -828,7 +873,10 @@ function repertoireRegret(
 
 function moveOrderResilience(context: MetricContext): StrategicFitMetric<number> {
   const eligibleRoutes = new Set(context.selectedModeIdsByRoute.keys());
-  const eligibleWeight = [...eligibleRoutes].reduce((sum, routeId) => sum + context.routeWeight.get(routeId)!, 0);
+  const eligibleWeight = [...eligibleRoutes].reduce(
+    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    0,
+  );
   if (eligibleWeight <= EPSILON) {
     return unavailable(
       "move-order-resilience",
@@ -842,9 +890,12 @@ function moveOrderResilience(context: MetricContext): StrategicFitMetric<number>
     const routeIds = link.route_ids.filter((routeId) => eligibleRoutes.has(routeId));
     for (const routeId of routeIds) {
       const modes = context.selectedModeIdsByRoute.get(routeId)!;
-      const survives = routeIds.some((otherRouteId) =>
-        otherRouteId !== routeId &&
-        [...modes].some((modeId) => context.selectedModeIdsByRoute.get(otherRouteId)!.has(modeId))
+      const survives = routeIds.some(
+        (otherRouteId) =>
+          otherRouteId !== routeId &&
+          [...modes].some((modeId) =>
+            context.selectedModeIdsByRoute.get(otherRouteId)!.has(modeId),
+          ),
       );
       if (survives) resilientRoutes.add(routeId);
     }
@@ -859,7 +910,9 @@ function moveOrderResilience(context: MetricContext): StrategicFitMetric<number>
     "fraction",
     partial ? "partial" : "available",
     round(resilientWeight / eligibleWeight),
-    partial ? evidenceCoverageReason("Move-order resilience", eligibleWeight, context.totalWeight) : null,
+    partial
+      ? evidenceCoverageReason("Move-order resilience", eligibleWeight, context.totalWeight)
+      : null,
     mergeProvenance(context.input.weights.provenance, context.input.modes.provenance),
   );
 }
@@ -876,13 +929,17 @@ function conceptCentrality(
       context.input.concepts.provenance,
     );
   }
-  const values = [...aggregates.entries()].map(([conceptId, aggregate]) => ({
-    concept_id: conceptId,
-    expected_frequency: round(aggregate.weight),
-    cohort_ids: [...aggregate.cohortIds].sort(compareStrings),
-  })).sort((left, right) =>
-    right.expected_frequency - left.expected_frequency || compareStrings(left.concept_id, right.concept_id)
-  );
+  const values = [...aggregates.entries()]
+    .map(([conceptId, aggregate]) => ({
+      concept_id: conceptId,
+      expected_frequency: round(aggregate.weight),
+      cohort_ids: [...aggregate.cohortIds].sort(compareStrings),
+    }))
+    .sort(
+      (left, right) =>
+        right.expected_frequency - left.expected_frequency ||
+        compareStrings(left.concept_id, right.concept_id),
+    );
   const coveredWeight = [...context.routeConceptIds.entries()]
     .filter(([, conceptIds]) => conceptIds.length > 0)
     .reduce((sum, [routeId]) => sum + context.routeWeight.get(routeId)!, 0);
@@ -892,7 +949,9 @@ function conceptCentrality(
     "composite",
     partial ? "partial" : "available",
     values,
-    partial ? evidenceCoverageReason("Concept centrality", coveredWeight, context.totalWeight) : null,
+    partial
+      ? evidenceCoverageReason("Concept centrality", coveredWeight, context.totalWeight)
+      : null,
     mergeProvenance(context.input.weights.provenance, context.input.concepts.provenance),
   );
 }
@@ -931,30 +990,35 @@ function unadjustedWorkload(context: MetricContext): number {
 }
 
 /** Compose the deterministic overview counts and workload label around the metric bundle. */
-export function calculateStrategicFitOverview(input: StrategicFitMetricsInput): StrategicFitOverview {
+export function calculateStrategicFitOverview(
+  input: StrategicFitMetricsInput,
+): StrategicFitOverview {
   const context = makeContext(input);
   const metrics = calculateStrategicFitMetrics(input);
   const expectedConceptBurden = [...context.routeConceptIds.entries()].reduce(
     (sum, [routeId, conceptIds]) => sum + context.routeWeight.get(routeId)! * conceptIds.length,
     0,
   );
-  const hasConceptEvidence = [...context.routeConceptIds.values()].some((conceptIds) => conceptIds.length > 0);
+  const hasConceptEvidence = [...context.routeConceptIds.values()].some(
+    (conceptIds) => conceptIds.length > 0,
+  );
   const workloadScore = unadjustedWorkload(context);
-  const workload = workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.high
-    ? "high" as const
-    : workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.moderate
-      ? "moderate" as const
-      : "low" as const;
+  const workload =
+    workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.high
+      ? ("high" as const)
+      : workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.moderate
+        ? ("moderate" as const)
+        : ("low" as const);
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     workload,
     strategic_family_count: new Set(context.familyBucketByRoute.values()).size,
     expected_concept_burden: hasConceptEvidence ? round(expectedConceptBurden) : null,
-    intentional_exception_count: input.findings.filter((finding) =>
-      finding.classification === "intentional-diversity"
+    intentional_exception_count: input.findings.filter(
+      (finding) => finding.classification === "intentional-diversity",
     ).length,
-    unresolved_finding_count: input.findings.filter((finding) =>
-      finding.resolution_state === "unresolved"
+    unresolved_finding_count: input.findings.filter(
+      (finding) => finding.resolution_state === "unresolved",
     ).length,
     insufficient_evidence_branch_count: input.modes.data_quality.insufficient_evidence_route_count,
     metrics,

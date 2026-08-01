@@ -20,7 +20,9 @@ function bytesToUuid(bytes: Uint8Array): BrowserDocumentId {
 }
 
 /** Generate a secure RFC 4122 version-4 ID, preferring the browser's native implementation. */
-export function createBrowserDocumentId(source: SecureUuidSource = globalThis.crypto): BrowserDocumentId {
+export function createBrowserDocumentId(
+  source: SecureUuidSource = globalThis.crypto,
+): BrowserDocumentId {
   const native = source?.randomUUID?.();
   const normalized = normalizeBrowserDocumentId(native);
   if (normalized) return normalized;

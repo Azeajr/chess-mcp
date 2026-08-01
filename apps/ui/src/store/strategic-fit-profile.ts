@@ -19,10 +19,7 @@ import {
 import { createSignal } from "solid-js";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 import { documentId } from "./game";
-import {
-  replaceStrategicFitMetadata,
-  strategicFitMetadata,
-} from "./strategic-fit-metadata";
+import { replaceStrategicFitMetadata, strategicFitMetadata } from "./strategic-fit-metadata";
 
 export type StrategicFitProfilePreferencesInput = Readonly<
   Partial<Record<keyof StrategicFitProfilePreferences, unknown>>
@@ -59,7 +56,9 @@ export interface StrategicFitProfileState {
 const DEFAULT_PROFILE = createDefaultStrategicFitDocumentMetadata().profile;
 const PROFILE_MODE_SET = new Set<StrategicFitProfileMode>(STRATEGIC_FIT_PROFILE_MODES);
 
-function clonePreferences(preferences: StrategicFitProfilePreferences): StrategicFitProfilePreferences {
+function clonePreferences(
+  preferences: StrategicFitProfilePreferences,
+): StrategicFitProfilePreferences {
   return {
     ...preferences,
     preferred_concept_ids: [...preferences.preferred_concept_ids],
@@ -114,10 +113,12 @@ function featureFamilyWeights(
 ): Record<StrategicSignalFamily, number> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return { ...fallback };
   const candidate = value as Record<string, unknown>;
-  const result = Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [
-    family,
-    boundedNumber(candidate[family], fallback[family], 0, 3),
-  ])) as Record<StrategicSignalFamily, number>;
+  const result = Object.fromEntries(
+    STRATEGIC_SIGNAL_FAMILIES.map((family) => [
+      family,
+      boundedNumber(candidate[family], fallback[family], 0, 3),
+    ]),
+  ) as Record<StrategicSignalFamily, number>;
   return Object.values(result).every((weight) => weight === 0) ? { ...fallback } : result;
 }
 
@@ -234,9 +235,11 @@ export function createStrategicFitProfileState(
 
     select(mode, preferences) {
       const preset = strategicFitPresetProfile(mode);
-      return commit(mode === "custom"
-        ? { ...preset, preferences: normalizeStrategicFitProfilePreferences(preferences) }
-        : preset);
+      return commit(
+        mode === "custom"
+          ? { ...preset, preferences: normalizeStrategicFitProfilePreferences(preferences) }
+          : preset,
+      );
     },
 
     updateCustom(preferences) {

@@ -61,7 +61,8 @@ function comparableMetrics(base: StrategicFitMetrics): StrategicFitMetrics {
 function popularityFor(
   graph: ReturnType<typeof contextFixture>["graph"],
 ): StrategicPopularityCollection {
-  const decisionWeights = graph.decisions.filter((decision) => decision.owner === "opponent")
+  const decisionWeights = graph.decisions
+    .filter((decision) => decision.owner === "opponent")
     .map((decision, index) => ({
       decision_id: decision.decision_id,
       weight: index + 1,
@@ -70,8 +71,11 @@ function popularityFor(
   return {
     state: "complete",
     filters: normalizeExplorerFilters({ movesLimit: 30 }),
-    relevant_positions: new Set(graph.decisions.filter((decision) => decision.owner === "opponent")
-      .map((decision) => decision.from_position_id)).size,
+    relevant_positions: new Set(
+      graph.decisions
+        .filter((decision) => decision.owner === "opponent")
+        .map((decision) => decision.from_position_id),
+    ).size,
     positions_queried: decisionWeights.length,
     positions_weighted: decisionWeights.length,
     positions_skipped: 0,
@@ -104,8 +108,8 @@ export function expandedNovelLine(
   const sans = ["Be7", "O-O", "Nf6", "d3", "O-O", "Nc3", "d6", "Re1", "a6"];
   let chess = Chess.fromSetup(parseFen(outcome.fen).unwrap()).unwrap();
   let fromNodeId = outcome.node_id;
-  const nodes: Array<typeof subtree.nodes[number]> = [];
-  const edges: Array<typeof subtree.edges[number]> = [];
+  const nodes: Array<(typeof subtree.nodes)[number]> = [];
+  const edges: Array<(typeof subtree.edges)[number]> = [];
   const nodeIds = [root.node_id, outcome.node_id];
   const edgeIds = [subtree.edges[0]!.edge_id];
   const opponentEdgeIds: string[] = [];
@@ -121,7 +125,8 @@ export function expandedNovelLine(
     const positionId = semanticPositionId(fen);
     const nodeId = `node:${complete.candidate_id}:novel:${index}`;
     const edgeId = `edge:${complete.candidate_id}:novel:${index}`;
-    const owner = mover === complete.seed.repertoire_color ? "repertoire" as const : "opponent" as const;
+    const owner =
+      mover === complete.seed.repertoire_color ? ("repertoire" as const) : ("opponent" as const);
     const decisionId = `decision:${stableHash([fromPositionId, uci, positionId].join("\u001f"))}`;
     edges.push({
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -142,8 +147,12 @@ export function expandedNovelLine(
     nodes.push({
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       node_id: nodeId,
-      kind: index === sans.length - 1 ? "terminal" : owner === "opponent"
-        ? "opponent-reply" : "repertoire-decision",
+      kind:
+        index === sans.length - 1
+          ? "terminal"
+          : owner === "opponent"
+            ? "opponent-reply"
+            : "repertoire-decision",
       position_id: positionId,
       fen,
       ply: outcome.ply + index + 1,
@@ -162,22 +171,28 @@ export function expandedNovelLine(
     subtree: {
       ...subtree,
       subtree_id: `${subtree.subtree_id}:novel`,
-      nodes: [root, {
-        ...outcome,
-        kind: "repertoire-decision",
-        outgoing_edge_ids: [edges[0]!.edge_id],
-        transposition_target_position_id: null,
-      }, ...nodes] as typeof subtree.nodes,
+      nodes: [
+        root,
+        {
+          ...outcome,
+          kind: "repertoire-decision",
+          outgoing_edge_ids: [edges[0]!.edge_id],
+          transposition_target_position_id: null,
+        },
+        ...nodes,
+      ] as typeof subtree.nodes,
       edges: [subtree.edges[0]!, ...edges] as typeof subtree.edges,
-      routes: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        route_id: `route:${complete.candidate_id}:novel`,
-        node_ids: nodeIds,
-        edge_ids: edgeIds,
-        terminal_node_id: nodeIds.at(-1)!,
-        termination: "strategic-horizon",
-        expected_opponent_frequency: 1,
-      }],
+      routes: [
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          route_id: `route:${complete.candidate_id}:novel`,
+          node_ids: nodeIds,
+          edge_ids: edgeIds,
+          terminal_node_id: nodeIds.at(-1)!,
+          termination: "strategic-horizon",
+          expected_opponent_frequency: 1,
+        },
+      ],
       important_reply_count: opponentEdgeIds.length,
       covered_important_reply_count: opponentEdgeIds.length,
       forcing_reply_count: 1,
@@ -206,7 +221,8 @@ export function scoredFixture(
 
 export function addOnlyFixture(candidateKind: "novel" | "transposition" = "novel", pgn = PGN) {
   const values = completeFixture();
-  const candidate = candidateKind === "novel" ? expandedNovelLine(values.candidates[0]!) : values.candidates[0]!;
+  const candidate =
+    candidateKind === "novel" ? expandedNovelLine(values.candidates[0]!) : values.candidates[0]!;
   const scoring = scoredFixture(values.fixture, [candidate]);
   const tree = GameTree.fromPgn(pgn);
   const safety = simulateReplacementSafety({
@@ -222,7 +238,13 @@ export function replacementFixture(pgnComment = "", repertoireRevision = "revisi
     "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 *",
     `1. e4 e5 2. Nf3 Nc6 3. Bb5${pgnComment ? ` {${pgnComment}}` : ""} *`,
   );
-  const fixture = contextFixture(undefined, "white", "e4 e5 Nf3 Nc6 Bc4", shortRuy, repertoireRevision);
+  const fixture = contextFixture(
+    undefined,
+    "white",
+    "e4 e5 Nf3 Nc6 Bc4",
+    shortRuy,
+    repertoireRevision,
+  );
   const base = completeCandidate(fixture, "Bc4", "candidate:safe-replacement", 20, 0.8);
   const candidate = expandedNovelLine(base);
   const scoring = scoredFixture(fixture, [candidate]);
@@ -231,7 +253,9 @@ export function replacementFixture(pgnComment = "", repertoireRevision = "revisi
     source_tree: tree,
     request: fixture.request,
     scoring,
-    candidate_actions: [{ candidate_id: candidate.candidate_id, action: "replace", prune_explicitly_confirmed: true }],
+    candidate_actions: [
+      { candidate_id: candidate.candidate_id, action: "replace", prune_explicitly_confirmed: true },
+    ],
   });
   return { tree, request: fixture.request, scoring, safety, candidate, shortRuy };
 }

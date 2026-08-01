@@ -5,11 +5,16 @@ import {
   type CausalEventKind,
 } from "@chess-mcp/chess-tools";
 
-const EVENT_PRESENTATION: Readonly<Record<CausalEventKind, {
-  label: string;
-  marker: string;
-  pattern: string;
-}>> = {
+const EVENT_PRESENTATION: Readonly<
+  Record<
+    CausalEventKind,
+    {
+      label: string;
+      marker: string;
+      pattern: string;
+    }
+  >
+> = {
   "opponent-divergence": {
     label: "Opponent divergence",
     marker: "↪",
@@ -96,22 +101,31 @@ export default function CausalTimeline(props: { causality: CausalAttribution }) 
         <strong>{presentation().ownership}</strong>
         <p>{presentation().explanation}</p>
       </header>
-      <Show when={presentation().events.length > 0} fallback={(
-        <p class="strategic-fit-evidence-unavailable">
-          No causal timeline events are supported by this report.
-        </p>
-      )}>
+      <Show
+        when={presentation().events.length > 0}
+        fallback={
+          <p class="strategic-fit-evidence-unavailable">
+            No causal timeline events are supported by this report.
+          </p>
+        }
+      >
         <ol aria-label="Causal timeline events">
-          <For each={presentation().events}>{(event) => (
-            <li data-causal-event={event.kind}>
-              <span class="strategic-fit-causal-marker" aria-hidden="true">{event.marker}</span>
-              <div>
-                <strong>{event.label}</strong>
-                <span>Ply {event.ply} · {event.move} · {event.pattern}</span>
-                <p>{event.explanation}</p>
-              </div>
-            </li>
-          )}</For>
+          <For each={presentation().events}>
+            {(event) => (
+              <li data-causal-event={event.kind}>
+                <span class="strategic-fit-causal-marker" aria-hidden="true">
+                  {event.marker}
+                </span>
+                <div>
+                  <strong>{event.label}</strong>
+                  <span>
+                    Ply {event.ply} · {event.move} · {event.pattern}
+                  </span>
+                  <p>{event.explanation}</p>
+                </div>
+              </li>
+            )}
+          </For>
         </ol>
       </Show>
     </section>

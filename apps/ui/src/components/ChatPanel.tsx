@@ -4,7 +4,17 @@
  * chat store. Proposed lines land in the AnalysisPanel (Suggestions) + as blue board arrows.
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { history, streamingText, busy, error, send, clearChat, stop, retry, toolRuns } from "../store/chat";
+import {
+  history,
+  streamingText,
+  busy,
+  error,
+  send,
+  clearChat,
+  stop,
+  retry,
+  toolRuns,
+} from "../store/chat";
 import { hasApiKey, chatMode, setChatMode } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
@@ -82,7 +92,9 @@ export default function ChatPanel() {
               </Show>
               <Show when={m.role === "assistant" && m.tool_calls}>
                 <div class="tool-chips">
-                  <For each={m.tool_calls}>{(tc) => <span class="chip">⚙ {tc.function.name}</span>}</For>
+                  <For each={m.tool_calls}>
+                    {(tc) => <span class="chip">⚙ {tc.function.name}</span>}
+                  </For>
                 </div>
               </Show>
               <Show when={m.role === "tool" && m.tool_call_id}>
@@ -91,7 +103,10 @@ export default function ChatPanel() {
                     {toolNames().get(m.tool_call_id!) ?? "tool"} result
                     {isErrorResult(m.content) ? " ⚠" : ""}
                   </div>
-                  <ToolResult operation={toolNames().get(m.tool_call_id!) ?? "tool"} content={m.content} />
+                  <ToolResult
+                    operation={toolNames().get(m.tool_call_id!) ?? "tool"}
+                    content={m.content}
+                  />
                 </div>
               </Show>
             </>
@@ -107,14 +122,22 @@ export default function ChatPanel() {
           {(run) => (
             <div class={`tool-run ${run.status}`}>
               <span class="tool-run-state">{run.status}</span> {run.name}
-              <Show when={run.total != null}><span> {run.done ?? 0}/{run.total}</span></Show>
-              <Show when={run.detail}><span class="tool-run-detail"> — {run.detail}</span></Show>
+              <Show when={run.total != null}>
+                <span>
+                  {" "}
+                  {run.done ?? 0}/{run.total}
+                </span>
+              </Show>
+              <Show when={run.detail}>
+                <span class="tool-run-detail"> — {run.detail}</span>
+              </Show>
               <Show when={run.status === "running"}>
-                <Show
-                  when={run.total != null}
-                  fallback={<progress class="tool-run-progress" />}
-                >
-                  <progress class="tool-run-progress" max={run.total || 1} value={Math.min(run.done ?? 0, run.total!)} />
+                <Show when={run.total != null} fallback={<progress class="tool-run-progress" />}>
+                  <progress
+                    class="tool-run-progress"
+                    max={run.total || 1}
+                    value={Math.min(run.done ?? 0, run.total!)}
+                  />
                 </Show>
               </Show>
             </div>
@@ -123,7 +146,14 @@ export default function ChatPanel() {
       </div>
 
       <Show when={error()}>
-        <div class="chat-error">{error()} <Show when={!busy()}><button class="chat-retry" onClick={retry}>Retry</button></Show></div>
+        <div class="chat-error">
+          {error()}{" "}
+          <Show when={!busy()}>
+            <button class="chat-retry" onClick={retry}>
+              Retry
+            </button>
+          </Show>
+        </div>
       </Show>
       <Show when={!hasApiKey()}>
         <div class="chat-error">
@@ -147,7 +177,14 @@ export default function ChatPanel() {
             }
           }}
         />
-        <Show when={!busy()} fallback={<button class="stop-btn" onClick={stop}>Stop</button>}>
+        <Show
+          when={!busy()}
+          fallback={
+            <button class="stop-btn" onClick={stop}>
+              Stop
+            </button>
+          }
+        >
           <button onClick={submit}>Send</button>
         </Show>
       </div>

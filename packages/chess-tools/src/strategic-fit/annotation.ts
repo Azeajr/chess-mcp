@@ -5,11 +5,7 @@
  * intent, collapse confidence/difference/priority into a legacy severity, or select a single path
  * from a multi-path finding.
  */
-import type {
-  StrategicFinding,
-  StrategicFitClassification,
-  StrategicFitReport,
-} from "./types.js";
+import type { StrategicFinding, StrategicFitClassification, StrategicFitReport } from "./types.js";
 
 export const STRATEGIC_FIT_ANNOTATION_STATUS = Object.freeze({
   "genuine-inconsistency": "reviewable-observation",
@@ -54,11 +50,13 @@ export function strategicFitAnnotationText(finding: StrategicFinding): string {
   const status = annotationStatus(finding);
   const confidence = `${finding.confidence.label} (${finding.confidence.score}/100)`;
   const difference = `${finding.difference.magnitude} (${finding.difference.distance.toFixed(3)})`;
-  return `Strategic Fit evidence [analysis=${finding.analysis_version}; ` +
+  return (
+    `Strategic Fit evidence [analysis=${finding.analysis_version}; ` +
     `finding=${finding.finding_id}; category=${finding.classification}; ` +
     `confidence=${confidence}; difference=${difference}; ` +
     `cohort=${finding.evidence.cohort_id}; status=${status}]: ` +
-    `${finding.plain_language_category} — ${finding.explanation}`;
+    `${finding.plain_language_category} — ${finding.explanation}`
+  );
 }
 
 /**
@@ -72,10 +70,12 @@ export function strategicFitPortableAnnotations(
     const sourceSanPaths = uniquePaths(finding.references.source_san_paths);
     return sourceSanPaths.length === 0
       ? []
-      : [{
-          finding_id: finding.finding_id,
-          source_san_paths: sourceSanPaths,
-          text: strategicFitAnnotationText(finding),
-        }];
+      : [
+          {
+            finding_id: finding.finding_id,
+            source_san_paths: sourceSanPaths,
+            text: strategicFitAnnotationText(finding),
+          },
+        ];
   });
 }

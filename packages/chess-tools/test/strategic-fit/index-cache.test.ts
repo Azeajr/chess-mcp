@@ -33,7 +33,10 @@ function analyze(
 }
 
 /** Equivalence is exact: the same values in the same order, not a tolerance. */
-function assertIdentical(actual: StrategicFitAnalysisResult, expected: StrategicFitAnalysisResult): void {
+function assertIdentical(
+  actual: StrategicFitAnalysisResult,
+  expected: StrategicFitAnalysisResult,
+): void {
   assert.deepStrictEqual(actual, expected);
   assert.equal(JSON.stringify(actual), JSON.stringify(expected));
 }
@@ -55,7 +58,9 @@ function affectedCohortScope(
 ): StrategicFitRecomputationScope {
   const previousRoutes = buildRepertoireGraph(GameTree.fromPgn(previousPgn), "white").routes;
   const currentRoutes = new Set(
-    buildRepertoireGraph(GameTree.fromPgn(currentPgn), "white").routes.map((route) => route.route_id),
+    buildRepertoireGraph(GameTree.fromPgn(currentPgn), "white").routes.map(
+      (route) => route.route_id,
+    ),
   );
   const removed = previousRoutes
     .map((route) => route.route_id)
@@ -85,7 +90,11 @@ test("an indexed analysis is identical to a full scan and reuses its own generat
   const second = analyze(BROAD_ECO_FIXTURE.pgn, "white", { index });
   assertIdentical(second, cold);
   assert.ok(index.stats.hits > afterFirst.hits, "an unchanged document must reuse indexed values");
-  assert.equal(index.stats.misses, afterFirst.misses, "an unchanged document must recompute nothing");
+  assert.equal(
+    index.stats.misses,
+    afterFirst.misses,
+    "an unchanged document must recompute nothing",
+  );
   assert.deepStrictEqual(index.lastPlan?.changed_route_ids, []);
 });
 
@@ -150,7 +159,10 @@ test("transposing routes share one canonical position entry", () => {
   const indexed = analyze(WHITE_TRANSPOSITION_FIXTURE.pgn, "white", { index });
   assertIdentical(indexed, cold);
 
-  const routes = buildRepertoireGraph(GameTree.fromPgn(WHITE_TRANSPOSITION_FIXTURE.pgn), "white").routes;
+  const routes = buildRepertoireGraph(
+    GameTree.fromPgn(WHITE_TRANSPOSITION_FIXTURE.pgn),
+    "white",
+  ).routes;
   assert.equal(routes.length, 2);
   assert.equal(routes[0]!.terminal_position_id, routes[1]!.terminal_position_id);
   assert.notEqual(routes[0]!.route_id, routes[1]!.route_id);
@@ -188,7 +200,9 @@ test("every manifest version participates in the index generation", () => {
   const settings = { repertoire_color: "white" as const, trajectory: null, opening_table: [] };
   const base = strategicFitIndexGeneration(settings);
 
-  const components = Object.keys(STRATEGIC_FIT_ANALYSIS_MANIFEST.components) as StrategicFitManifestComponent[];
+  const components = Object.keys(
+    STRATEGIC_FIT_ANALYSIS_MANIFEST.components,
+  ) as StrategicFitManifestComponent[];
   assert.ok(components.length > 0);
   for (const component of components) {
     const manifest: StrategicFitAnalysisManifest = {
@@ -203,7 +217,10 @@ test("every manifest version participates in the index generation", () => {
   }
   for (const field of ["schema_version", "analysis_version"] as const) {
     assert.notEqual(
-      strategicFitIndexGeneration(settings, { ...STRATEGIC_FIT_ANALYSIS_MANIFEST, [field]: "99.0.0" }),
+      strategicFitIndexGeneration(settings, {
+        ...STRATEGIC_FIT_ANALYSIS_MANIFEST,
+        [field]: "99.0.0",
+      }),
       base,
     );
   }
@@ -213,21 +230,30 @@ test("a deep-frozen cached report does not prevent later reuse of its indexed va
   // The MCP handle path freezes the analyzer result while the index still holds the same graph and
   // trajectory objects, so reuse must survive an immutable consumer.
   const index = new StrategicFitIndexCache();
-  const first = completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn),
-    { ...strategicFitCompleteAnalysisOptions({ repertoireColor: "white", repertoireRevision: "mcp:1" }), index },
-  ));
+  const first = completeStrategicFitReport(
+    analyzeStrategicFit(GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn), {
+      ...strategicFitCompleteAnalysisOptions({
+        repertoireColor: "white",
+        repertoireRevision: "mcp:1",
+      }),
+      index,
+    }),
+  );
   assert.ok(Object.isFrozen(first));
 
   const later = { repertoireColor: "white" as const, repertoireRevision: "mcp:2" };
-  const reused = completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn),
-    { ...strategicFitCompleteAnalysisOptions(later), index },
-  ));
-  const cold = completeStrategicFitReport(analyzeStrategicFit(
-    GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn),
-    strategicFitCompleteAnalysisOptions(later),
-  ));
+  const reused = completeStrategicFitReport(
+    analyzeStrategicFit(GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn), {
+      ...strategicFitCompleteAnalysisOptions(later),
+      index,
+    }),
+  );
+  const cold = completeStrategicFitReport(
+    analyzeStrategicFit(
+      GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn),
+      strategicFitCompleteAnalysisOptions(later),
+    ),
+  );
 
   assert.deepStrictEqual(reused, cold);
   assert.equal(JSON.stringify(reused), JSON.stringify(cold));

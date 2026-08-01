@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6   # version resolved from package.json "packageManager"
+      - uses: pnpm/action-setup@v6 # version resolved from package.json "packageManager"
       - uses: actions/setup-node@v6
         with:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Plugin skills in sync with dev skills (no drift)
-        run: pnpm check:skills   # fix with `pnpm sync:skills` (.claude/skills → plugin/skills)
+        run: pnpm check:skills # fix with `pnpm sync:skills` (.claude/skills → plugin/skills)
       - name: Build chess-tools (dist used by the smoke scripts)
         run: pnpm --filter @chess-mcp/chess-tools build
       - name: Generated documentation is current
@@ -36,13 +36,13 @@ jobs:
           node scripts/structure-accuracy.mjs
       - name: MCP stdio smoke (engine on, network assertions gated out)
         env:
-          SMOKE_NETWORK: "0"   # skip live Lichess/Chess.com; engine + local paths still run
-          EVAL_CACHE_DIR: "0"  # cold cache — CI must not depend on a warm eval store
+          SMOKE_NETWORK: "0" # skip live Lichess/Chess.com; engine + local paths still run
+          EVAL_CACHE_DIR: "0" # cold cache — CI must not depend on a warm eval store
         run: node apps/mcp-server/test/smoke-client.mjs
 
   release:
     name: GitHub release
-    needs: node                          # plugin ships from the repo; gate on the product build
+    needs: node # plugin ships from the repo; gate on the product build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

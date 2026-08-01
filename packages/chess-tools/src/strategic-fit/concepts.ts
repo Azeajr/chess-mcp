@@ -177,9 +177,7 @@ function numberValue(value: JsonValue | undefined): number | null {
 }
 
 function stringArray(value: JsonValue | undefined): string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string")
-    ? [...value]
-    : [];
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? [...value] : [];
 }
 
 function validToken(value: JsonValue | undefined): string | null {
@@ -189,7 +187,7 @@ function validToken(value: JsonValue | undefined): string | null {
 
 function validSide(value: JsonValue | undefined): "repertoire" | "opponent" | null {
   const side = stringValue(value);
-  return side !== null && RELATIVE_SIDES.has(side) ? side as "repertoire" | "opponent" : null;
+  return side !== null && RELATIVE_SIDES.has(side) ? (side as "repertoire" | "opponent") : null;
 }
 
 function validSquare(value: JsonValue | undefined): string | null {
@@ -224,8 +222,8 @@ function mergeProvenance(
 }
 
 function stableSignals(snapshot: StrategicSnapshot): StrategicSignal[] {
-  return snapshot.signals.filter((signal) =>
-    signal.persistence === "stable" || signal.persistence === "irreversible"
+  return snapshot.signals.filter(
+    (signal) => signal.persistence === "stable" || signal.persistence === "irreversible",
   );
 }
 
@@ -233,7 +231,10 @@ function byFeature(signals: readonly StrategicSignal[], featureId: string): Stra
   return signals.find((signal) => signal.feature_id === featureId) ?? null;
 }
 
-function evidenceFor(snapshot: StrategicSnapshot, signal: StrategicSignal): StrategicConceptEvidence {
+function evidenceFor(
+  snapshot: StrategicSnapshot,
+  signal: StrategicSignal,
+): StrategicConceptEvidence {
   return {
     signal_id: signal.signal_id,
     feature_id: signal.feature_id,
@@ -256,12 +257,16 @@ function emit(
   firstObservedPly = snapshot.checkpoint.ply,
   persistenceOverride?: StrategicConceptPersistence,
 ): void {
-  if (!signals.length || signals.some((signal) =>
-    signal.persistence !== "stable" && signal.persistence !== "irreversible"
-  )) return;
-  const persistence: StrategicConceptPersistence = persistenceOverride ?? (
-    signals.every((signal) => signal.persistence === "irreversible") ? "irreversible" : "stable"
-  );
+  if (
+    !signals.length ||
+    signals.some(
+      (signal) => signal.persistence !== "stable" && signal.persistence !== "irreversible",
+    )
+  )
+    return;
+  const persistence: StrategicConceptPersistence =
+    persistenceOverride ??
+    (signals.every((signal) => signal.persistence === "irreversible") ? "irreversible" : "stable");
   const evidence = signals.map((signal) => evidenceFor(snapshot, signal));
   const provenance = mergeProvenance(
     [CLASSIFIER_PROVENANCE],
@@ -276,7 +281,9 @@ function emit(
       confidence: round(Math.max(0, Math.min(1, confidence))),
       persistence,
       firstObservedPly,
-      evidence: new Map(evidence.map((item) => [`${item.snapshot_id}${ID_SEPARATOR}${item.signal_id}`, item])),
+      evidence: new Map(
+        evidence.map((item) => [`${item.snapshot_id}${ID_SEPARATOR}${item.signal_id}`, item]),
+      ),
       provenance,
     });
     return;
@@ -388,7 +395,9 @@ function emitFianchettoSetups(
         "fianchetto-setup",
         `${sideLabel(side)} ${wing} fianchetto setup`,
         signal.confidence,
-        firstObserved ? numberValue(firstObserved[wing]) ?? snapshot.checkpoint.ply : snapshot.checkpoint.ply,
+        firstObserved
+          ? (numberValue(firstObserved[wing]) ?? snapshot.checkpoint.ply)
+          : snapshot.checkpoint.ply,
       );
     }
   }
@@ -521,7 +530,8 @@ function emitRookFilePlans(
     const square = validSquare(placement.square);
     if (!side || !square) continue;
     const file = square[0]!;
-    const available = open.has(file) || (halfOpen ? stringArray(halfOpen[side]).includes(file) : false);
+    const available =
+      open.has(file) || (halfOpen ? stringArray(halfOpen[side]).includes(file) : false);
     if (!available) continue;
     emit(
       concepts,
@@ -548,8 +558,10 @@ function emitTacticalPrerequisites(
     const repertoire = value ? objectValue(value.repertoire) : null;
     const opponent = value ? objectValue(value.opponent) : null;
     if (
-      repertoire?.castled === true && opponent?.castled === true &&
-      typeof repertoire.side === "string" && typeof opponent.side === "string" &&
+      repertoire?.castled === true &&
+      opponent?.castled === true &&
+      typeof repertoire.side === "string" &&
+      typeof opponent.side === "string" &&
       repertoire.side !== opponent.side
     ) {
       emit(
@@ -573,7 +585,8 @@ function emitTacticalPrerequisites(
   const repertoire = queenValue ? objectValue(queenValue.repertoire) : null;
   const opponent = queenValue ? objectValue(queenValue.opponent) : null;
   if (
-    repertoire?.status === "retained" && opponent?.status === "retained" &&
+    repertoire?.status === "retained" &&
+    opponent?.status === "retained" &&
     centerValue?.state === "fluid"
   ) {
     emit(
@@ -673,10 +686,11 @@ function extractRouteConcepts(
         confidence: concept.confidence,
         persistence: concept.persistence,
         first_observed_ply: concept.firstObservedPly,
-        evidence: [...concept.evidence.values()].sort((left, right) =>
-          left.ply - right.ply ||
-          left.snapshot_id.localeCompare(right.snapshot_id) ||
-          left.signal_id.localeCompare(right.signal_id)
+        evidence: [...concept.evidence.values()].sort(
+          (left, right) =>
+            left.ply - right.ply ||
+            left.snapshot_id.localeCompare(right.snapshot_id) ||
+            left.signal_id.localeCompare(right.signal_id),
         ),
         provenance: concept.provenance,
       };
@@ -714,18 +728,25 @@ export function buildStrategicConceptDictionary(
   if (trajectories.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION) {
     throw new Error(`strategic_fit_concept_version_mismatch: ${trajectories.analysis_version}`);
   }
-  if (new Set(trajectories.trajectories.map((trajectory) => trajectory.route_id)).size !== trajectories.trajectories.length) {
+  if (
+    new Set(trajectories.trajectories.map((trajectory) => trajectory.route_id)).size !==
+    trajectories.trajectories.length
+  ) {
     throw new Error("strategic_fit_concept_duplicate_route");
   }
   const labels = new Map<string, StrategicConceptLabel>();
-  const routes = trajectories.trajectories.map((trajectory) => extractRouteConcepts(trajectory, labels));
+  const routes = trajectories.trajectories.map((trajectory) =>
+    extractRouteConcepts(trajectory, labels),
+  );
   return {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     classifier_version: STRATEGIC_FIT_ANALYSIS_MANIFEST.components.concepts,
     graph_id: trajectories.graph_id,
     routes,
-    labels: [...labels.values()].sort((left, right) => left.concept_id.localeCompare(right.concept_id)),
+    labels: [...labels.values()].sort((left, right) =>
+      left.concept_id.localeCompare(right.concept_id),
+    ),
     provenance: mergeProvenance(
       [CLASSIFIER_PROVENANCE],
       trajectories.provenance,

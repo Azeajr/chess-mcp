@@ -125,8 +125,12 @@ function fixture() {
     patchSnapshot: (patch: Partial<StrategicFitRequestSnapshot>) => {
       currentSnapshot = { ...currentSnapshot, ...patch };
     },
-    setCurrentFinding: (value: StrategicFinding | null) => { currentFinding = value; },
-    clearReport: () => { completed = null; },
+    setCurrentFinding: (value: StrategicFinding | null) => {
+      currentFinding = value;
+    },
+    clearReport: () => {
+      completed = null;
+    },
   };
 }
 
@@ -149,17 +153,17 @@ test("every Task 6.1 resolution transition is metadata-only and reversible", () 
     assert.equal(result.state, "updated", state);
     assert.equal(subject.metadata().resolutions.length, 1);
     assert.equal(subject.metadata().resolutions[0]!.state, state);
-    assert.equal(subject.metadata().resolutions[0]!.semantic_finding_id, subject.finding.semantic_finding_id);
-    assert.equal(subject.metadata().resolutions[0]!.finding_id, subject.finding.finding_id);
-    assert.deepEqual(
-      subject.metadata().resolutions[0]!.references,
-      {
-        position_ids: [...subject.finding.references.position_ids].sort(),
-        decision_ids: [...subject.finding.references.decision_ids].sort(),
-        route_ids: [...subject.finding.references.route_ids].sort(),
-        source_san_paths: subject.finding.references.source_san_paths,
-      },
+    assert.equal(
+      subject.metadata().resolutions[0]!.semantic_finding_id,
+      subject.finding.semantic_finding_id,
     );
+    assert.equal(subject.metadata().resolutions[0]!.finding_id, subject.finding.finding_id);
+    assert.deepEqual(subject.metadata().resolutions[0]!.references, {
+      position_ids: [...subject.finding.references.position_ids].sort(),
+      decision_ids: [...subject.finding.references.decision_ids].sort(),
+      route_ids: [...subject.finding.references.route_ids].sort(),
+      source_san_paths: subject.finding.references.source_san_paths,
+    });
     assert.equal(subject.state.displayState(subject.finding), state);
     assert.equal(subject.state.unresolvedCount(subject.report), 0);
 

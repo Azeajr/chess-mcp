@@ -188,7 +188,8 @@ export function editStrategicFitBenchmarkRepertoire(
   const tree = GameTree.fromPgn(source.pgn);
   if (!replaceOneReply(target, tree)) throw new Error("strategic_fit_benchmark_edit_found_no_node");
   const result = describe(target, tree);
-  if (result.digest === source.digest) throw new Error("strategic_fit_benchmark_edit_changed_nothing");
+  if (result.digest === source.digest)
+    throw new Error("strategic_fit_benchmark_edit_changed_nothing");
   return { ...result, scale_id: `${target.id}-edited` };
 }
 

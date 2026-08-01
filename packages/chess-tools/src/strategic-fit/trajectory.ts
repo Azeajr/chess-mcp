@@ -31,10 +31,7 @@ import type {
   StrategicTrajectory,
   StrategicTrajectoryState,
 } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export interface StrategicTrajectoryBuildOptions extends StrategicCheckpointSelectionOptions {
   /** A precomputed selection may be injected by the analyzer to avoid selecting twice. */
@@ -99,17 +96,19 @@ function isObject(value: JsonValue): value is { readonly [key: string]: JsonValu
 function stableSerialize(value: JsonValue): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   if (isObject(value)) {
-    return `{${Object.keys(value).sort().map((key) =>
-      `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`
-    ).join(",")}}`;
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
 
 function signalSlot(signal: StrategicSignal): string {
-  const subject = isObject(signal.value) && typeof signal.value.subject === "string"
-    ? signal.value.subject
-    : null;
+  const subject =
+    isObject(signal.value) && typeof signal.value.subject === "string"
+      ? signal.value.subject
+      : null;
   return subject === null ? signal.feature_id : `${signal.feature_id}:${subject}`;
 }
 
@@ -132,7 +131,10 @@ function persistenceValue(signal: StrategicSignal): JsonValue {
   };
 }
 
-function pairHas(value: JsonValue, predicate: (side: { readonly [key: string]: JsonValue }) => boolean): boolean {
+function pairHas(
+  value: JsonValue,
+  predicate: (side: { readonly [key: string]: JsonValue }) => boolean,
+): boolean {
   if (!isObject(value)) return false;
   for (const side of [value.repertoire, value.opponent]) {
     if (side !== undefined && isObject(side) && predicate(side)) return true;
@@ -150,7 +152,11 @@ function isHistoricalIrreversible(signal: StrategicSignal): boolean {
     case "piece.bishop-pair":
       return pairHas(signal.value, (side) => typeof side.first_lost_ply === "number");
     case "piece.exchange-history":
-      return isObject(signal.value) && Array.isArray(signal.value.exchanges) && signal.value.exchanges.length > 0;
+      return (
+        isObject(signal.value) &&
+        Array.isArray(signal.value.exchanges) &&
+        signal.value.exchanges.length > 0
+      );
     case "piece.queen-retention":
       return pairHas(signal.value, (side) => typeof side.first_lost_ply === "number");
     default:
@@ -181,7 +187,10 @@ function classifierConfidence(signals: readonly StrategicSignal[]): number {
   return round(signals.reduce((sum, signal) => sum + signal.confidence, 0) / signals.length);
 }
 
-function requireSelection(graph: RepertoireGraph, options: StrategicTrajectoryBuildOptions): StrategicCheckpointSelection {
+function requireSelection(
+  graph: RepertoireGraph,
+  options: StrategicTrajectoryBuildOptions,
+): StrategicCheckpointSelection {
   const selection = options.checkpointSelection ?? selectStrategicCheckpoints(graph, options);
   if (selection.graph_id !== graph.graph_id) {
     throw new Error(
@@ -220,31 +229,34 @@ function makeSnapshot(
     );
   }
   const extractPawnReport = () => extractPawnSignalsFromFen(position.fen, route.repertoire_color);
-  const pawnReport = signalIndex === undefined
-    ? extractPawnReport()
-    : signalIndex.pawnSignals(position.fen, route.repertoire_color, extractPawnReport);
-  const snapshotId = `snapshot:${stableHash([
-    STRATEGIC_FIT_ANALYSIS_VERSION,
-    route.route_id,
-    selected.checkpoint.checkpoint_id,
-    selected.position_id,
-  ].join(ID_SEPARATOR))}`;
+  const pawnReport =
+    signalIndex === undefined
+      ? extractPawnReport()
+      : signalIndex.pawnSignals(position.fen, route.repertoire_color, extractPawnReport);
+  const snapshotId = `snapshot:${stableHash(
+    [
+      STRATEGIC_FIT_ANALYSIS_VERSION,
+      route.route_id,
+      selected.checkpoint.checkpoint_id,
+      selected.position_id,
+    ].join(ID_SEPARATOR),
+  )}`;
   // Pawn signal value interfaces are JSON-safe but intentionally retain their narrower named
   // shapes, which TypeScript does not infer as the recursive JsonValue index signature.
   const sourceSignals: StrategicSignal[] = [
-    ...pawnReport.signals.map((sourceSignal): StrategicSignal => ({
-      ...sourceSignal,
-      value: sourceSignal.value as unknown as JsonValue,
-    })),
+    ...pawnReport.signals.map(
+      (sourceSignal): StrategicSignal => ({
+        ...sourceSignal,
+        value: sourceSignal.value as unknown as JsonValue,
+      }),
+    ),
     ...routeObservation.signals,
   ];
   const signals: StrategicSignal[] = sourceSignals.map((sourceSignal) => ({
     ...sourceSignal,
-    signal_id: `trajectory-signal:${stableHash([
-      STRATEGIC_FIT_ANALYSIS_VERSION,
-      snapshotId,
-      signalSlot(sourceSignal),
-    ].join(ID_SEPARATOR))}`,
+    signal_id: `trajectory-signal:${stableHash(
+      [STRATEGIC_FIT_ANALYSIS_VERSION, snapshotId, signalSlot(sourceSignal)].join(ID_SEPARATOR),
+    )}`,
     persistence: "unknown" as const,
     provenance: mergeProvenance([CORE_PROVENANCE], sourceSignal.provenance),
   }));
@@ -270,9 +282,12 @@ function makeSnapshot(
 }
 
 function compareRawSnapshots(left: RawSnapshot, right: RawSnapshot): number {
-  return left.snapshot.checkpoint.ply - right.snapshot.checkpoint.ply ||
-    CHECKPOINT_ORDER[left.snapshot.checkpoint.kind] - CHECKPOINT_ORDER[right.snapshot.checkpoint.kind] ||
-    left.snapshot.checkpoint.checkpoint_id.localeCompare(right.snapshot.checkpoint.checkpoint_id);
+  return (
+    left.snapshot.checkpoint.ply - right.snapshot.checkpoint.ply ||
+    CHECKPOINT_ORDER[left.snapshot.checkpoint.kind] -
+      CHECKPOINT_ORDER[right.snapshot.checkpoint.kind] ||
+    left.snapshot.checkpoint.checkpoint_id.localeCompare(right.snapshot.checkpoint.checkpoint_id)
+  );
 }
 
 function applyPersistence(rawSnapshots: readonly RawSnapshot[]): StrategicSnapshot[] {
@@ -310,7 +325,8 @@ function finalRouteIsTerminal(
   positions: ReadonlyMap<string, RepertoireGraph["positions"][number]>,
 ): boolean {
   const position = positions.get(route.terminal_position_id);
-  if (!position) throw new Error(`strategic_fit_trajectory_missing_terminal_position: ${route.route_id}`);
+  if (!position)
+    throw new Error(`strategic_fit_trajectory_missing_terminal_position: ${route.route_id}`);
   return Chess.fromSetup(parseFen(position.fen).unwrap()).unwrap().isEnd();
 }
 
@@ -337,31 +353,38 @@ function buildTrajectory(
   signalIndex: StrategicFitSignalIndex | undefined,
 ): StrategicTrajectory {
   const extractRouteSignals = () => extractRoutePositionSignals(graph, route);
-  const positionSignals = signalIndex === undefined
-    ? extractRouteSignals()
-    : signalIndex.routePositionSignals(route.route_id, extractRouteSignals);
+  const positionSignals =
+    signalIndex === undefined
+      ? extractRouteSignals()
+      : signalIndex.routePositionSignals(route.route_id, extractRouteSignals);
   const rawSnapshots = routeSelection.milestones
     .filter((milestone): milestone is MatchedStrategicCheckpoint => milestone.state === "selected")
-    .map((selected) => makeSnapshot(graph, route, selected, positionSignals, positions, signalIndex))
+    .map((selected) =>
+      makeSnapshot(graph, route, selected, positionSignals, positions, signalIndex),
+    )
     .sort(compareRawSnapshots);
   const snapshots = applyPersistence(rawSnapshots);
   const missingCheckpoints = routeSelection.milestones
     .filter((milestone) => milestone.state === "missing")
-    .map((milestone): MissingStrategicCheckpoint => ({
-      kind: milestone.kind,
-      reason: milestone.reason,
-    }));
-  const requestedMilestones = routeSelection.milestones.filter((milestone) =>
-    milestone.state === "missing" || milestone.checkpoint.kind !== "final-valid-position"
+    .map(
+      (milestone): MissingStrategicCheckpoint => ({
+        kind: milestone.kind,
+        reason: milestone.reason,
+      }),
+    );
+  const requestedMilestones = routeSelection.milestones.filter(
+    (milestone) =>
+      milestone.state === "missing" || milestone.checkpoint.kind !== "final-valid-position",
   );
-  const usableCount = requestedMilestones.filter((milestone) =>
-    milestone.state === "selected" && milestone.checkpoint.comparability === "comparable"
+  const usableCount = requestedMilestones.filter(
+    (milestone) =>
+      milestone.state === "selected" && milestone.checkpoint.comparability === "comparable",
   ).length;
   const requestedCount = requestedMilestones.length;
   const allRequestedUnsupported = requestedMilestones.every((milestone) =>
     milestone.state === "selected"
       ? milestone.checkpoint.comparability === "not-comparable"
-      : milestone.comparability === "not-comparable"
+      : milestone.comparability === "not-comparable",
   );
   const stableSignalIds: string[] = [];
   const transientSignalIds: string[] = [];
@@ -374,14 +397,18 @@ function buildTrajectory(
       }
     }
   }
-  const trajectoryId = `trajectory:${stableHash([
-    STRATEGIC_FIT_ANALYSIS_VERSION,
-    graph.graph_id,
-    route.route_id,
-    ...routeSelection.milestones.map((milestone) =>
-      milestone.state === "selected" ? milestone.checkpoint.checkpoint_id : milestone.checkpoint_id
-    ),
-  ].join(ID_SEPARATOR))}`;
+  const trajectoryId = `trajectory:${stableHash(
+    [
+      STRATEGIC_FIT_ANALYSIS_VERSION,
+      graph.graph_id,
+      route.route_id,
+      ...routeSelection.milestones.map((milestone) =>
+        milestone.state === "selected"
+          ? milestone.checkpoint.checkpoint_id
+          : milestone.checkpoint_id,
+      ),
+    ].join(ID_SEPARATOR),
+  )}`;
   const provenance = mergeProvenance(
     [CORE_PROVENANCE],
     ...snapshots.map((snapshot) => snapshot.provenance),
@@ -420,7 +447,8 @@ export function buildStrategicTrajectories(
   const selections = new Map(selection.routes.map((route) => [route.route_id, route]));
   const trajectories = graph.routes.map((route) => {
     const routeSelection = selections.get(route.route_id);
-    if (!routeSelection) throw new Error(`strategic_fit_trajectory_missing_route: ${route.route_id}`);
+    if (!routeSelection)
+      throw new Error(`strategic_fit_trajectory_missing_route: ${route.route_id}`);
     return buildTrajectory(graph, route, routeSelection, positions, options.signalIndex);
   });
   return {

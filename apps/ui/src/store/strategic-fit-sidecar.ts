@@ -72,19 +72,27 @@ export interface StrategicFitSidecarImportState {
   >;
 }
 
-const metadataIdentity = (metadata: StrategicFitDocumentMetadata): string => JSON.stringify(metadata);
+const metadataIdentity = (metadata: StrategicFitDocumentMetadata): string =>
+  JSON.stringify(metadata);
 
 function staleIds(metadata: StrategicFitDocumentMetadata) {
   return {
     route_weights: metadata.manual_weights.route_weights
-      .filter((entry) => entry.record_state === "stale").map((entry) => entry.route_id).sort(),
+      .filter((entry) => entry.record_state === "stale")
+      .map((entry) => entry.route_id)
+      .sort(),
     decision_weights: metadata.manual_weights.decision_weights
-      .filter((entry) => entry.record_state === "stale").map((entry) => entry.decision_id).sort(),
+      .filter((entry) => entry.record_state === "stale")
+      .map((entry) => entry.decision_id)
+      .sort(),
     overrides: [...metadata.cohort_overrides, ...metadata.exclusions]
-      .filter((entry) => entry.record_state === "stale").map((entry) => entry.override_id).sort(),
+      .filter((entry) => entry.record_state === "stale")
+      .map((entry) => entry.override_id)
+      .sort(),
     resolutions: metadata.resolutions
       .filter((entry) => entry.record_state === "stale")
-      .map((entry) => entry.semantic_finding_id ?? `legacy:${entry.resolution_id}`).sort(),
+      .map((entry) => entry.semantic_finding_id ?? `legacy:${entry.resolution_id}`)
+      .sort(),
   };
 }
 
@@ -162,12 +170,18 @@ export function createStrategicFitSidecarImportState(
     async confirm(input) {
       const preview = currentPreview;
       if (preview === null) {
-        const failure = confirmationError("no-preview", "There is no Strategic Fit sidecar preview to confirm.");
+        const failure = confirmationError(
+          "no-preview",
+          "There is no Strategic Fit sidecar preview to confirm.",
+        );
         currentError = failure;
         return failure;
       }
       if (input.preview_id !== preview.preview_id) {
-        const failure = confirmationError("preview-id-mismatch", "The confirmation does not match the visible sidecar preview.");
+        const failure = confirmationError(
+          "preview-id-mismatch",
+          "The confirmation does not match the visible sidecar preview.",
+        );
         currentError = failure;
         return failure;
       }
@@ -233,7 +247,9 @@ const browserImportState = createStrategicFitSidecarImportState({
   },
 });
 
-const [previewSignal, setPreviewSignal] = createSignal<StrategicFitSidecarImportPreview | null>(null);
+const [previewSignal, setPreviewSignal] = createSignal<StrategicFitSidecarImportPreview | null>(
+  null,
+);
 const [errorSignal, setErrorSignal] = createSignal<
   StrategicFitSidecarError | StrategicFitSidecarConfirmationError | null
 >(null);

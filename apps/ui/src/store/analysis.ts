@@ -41,12 +41,14 @@ const [evalEnabled, setEvalEnabled] = createSignal(false);
 export { engineLines, engineArrows, analysing, engineOffline, evalEnabled, setEvalEnabled };
 
 export const repertoireArrows = (): Arrow[] =>
-  currentTree().childMovesAt(currentPath()).map((m) => ({
-    orig: m.orig,
-    dest: m.dest,
-    brush: "green",
-    modifiers: { lineWidth: 7 },
-  }));
+  currentTree()
+    .childMovesAt(currentPath())
+    .map((m) => ({
+      orig: m.orig,
+      dest: m.dest,
+      brush: "green",
+      modifiers: { lineWidth: 7 },
+    }));
 
 function toArrow(l: EngineLine): Arrow {
   return {
@@ -91,7 +93,15 @@ createEffect(() => {
       const keys = tree.allPositionKeys();
       const lines: EngineLine[] = res.map((l) => {
         const { san, fit } = classifyUciMove(f, l.uci, childSans, keys);
-        return { uci: l.uci, san, fit, weight: weightFor(l.cp, l.mate, col), cp: l.cp, mate: l.mate, depth: l.depth };
+        return {
+          uci: l.uci,
+          san,
+          fit,
+          weight: weightFor(l.cp, l.mate, col),
+          cp: l.cp,
+          mate: l.mate,
+          depth: l.depth,
+        };
       });
       setLines(lines);
       setArrows(lines.map(toArrow));

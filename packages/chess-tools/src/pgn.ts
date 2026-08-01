@@ -218,7 +218,9 @@ export function* iterateLegal(pos: Chess): Generator<{ move: NormalMove; after: 
       const piece = pos.board.get(from);
       const toRank = to >> 3;
       const move: NormalMove =
-        piece?.role === "pawn" && (toRank === 0 || toRank === 7) ? { from, to, promotion: "queen" } : { from, to };
+        piece?.role === "pawn" && (toRank === 0 || toRank === 7)
+          ? { from, to, promotion: "queen" }
+          : { from, to };
       const after = pos.clone();
       after.play(move);
       yield { move, after };
@@ -232,7 +234,10 @@ export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[]
 }
 
 /** True when any legal move satisfies `pred` — stops cloning at the first hit (P6). */
-export function someLegal(pos: Chess, pred: (m: { move: NormalMove; after: Chess }) => boolean): boolean {
+export function someLegal(
+  pos: Chess,
+  pred: (m: { move: NormalMove; after: Chess }) => boolean,
+): boolean {
   for (const m of iterateLegal(pos)) if (pred(m)) return true;
   return false;
 }
@@ -252,7 +257,8 @@ export class GameTree {
   /** P5: cached prune-scan pre-pass (key index + per-leaf replay/candidates). Valid because the
    *  tree is immutable per MCP handle (edits clone-on-write); the UI's live tree mutates only
    *  through appendSan, which drops the cache. Scan code must treat `steps[].pos` as read-only. */
-  private _pruneWork: { color: Color; keyMap: KeyIndex["keyMap"]; work: PruneLeafWork[] } | null = null;
+  private _pruneWork: { color: Color; keyMap: KeyIndex["keyMap"]; work: PruneLeafWork[] } | null =
+    null;
 
   constructor(game?: Game<PgnNodeData>) {
     this.game = game ?? defaultGame();
@@ -461,7 +467,9 @@ export class GameTree {
       }
     };
     dfs(this.game.moves, Chess.default(), []);
-    return [...groups.values()].filter((g) => g.paths.length > 1).sort((a, b) => b.paths.length - a.paths.length);
+    return [...groups.values()]
+      .filter((g) => g.paths.length > 1)
+      .sort((a, b) => b.paths.length - a.paths.length);
   }
 
   /**
@@ -475,7 +483,12 @@ export class GameTree {
    */
   async extendedBridges(
     color: Color,
-    opts: { maxDepth?: number; nodeBudget?: number; shouldCancel?: () => boolean; onProgress?: (done: number, total: number) => void },
+    opts: {
+      maxDepth?: number;
+      nodeBudget?: number;
+      shouldCancel?: () => boolean;
+      onProgress?: (done: number, total: number) => void;
+    },
     pickMoves: (fen: string) => Promise<string[]>,
   ): Promise<ExtendedBridge[]> {
     const maxDepth = opts.maxDepth ?? 4;
@@ -485,7 +498,11 @@ export class GameTree {
 
     // Legal moves at pos as { san, after, uci } (queen-promo only), via the shared enumerator.
     const legalMoves = (pos: Chess) =>
-      enumerateLegal(pos).map(({ move, after }) => ({ san: makeSan(pos, move), after, uci: makeUci(move) }));
+      enumerateLegal(pos).map(({ move, after }) => ({
+        san: makeSan(pos, move),
+        after,
+        uci: makeUci(move),
+      }));
 
     // Frontier leaves (no children) where `color` is to move; shallowest first (highest impact).
     const frontiers: { path: Path; pos: Chess; sanPath: string[] }[] = [];
@@ -533,7 +550,13 @@ export class GameTree {
             const dedup = `${f.sanPath.join(",")}|${accNext.join(",")}`;
             if (!seen.has(dedup)) {
               seen.add(dedup);
-              out.push({ fromPath: [...f.sanPath], moves: accNext, sideToMove: color, joinsPath: tgt.sanPath, joinsPly: tgt.ply });
+              out.push({
+                fromPath: [...f.sanPath],
+                moves: accNext,
+                sideToMove: color,
+                joinsPath: tgt.sanPath,
+                joinsPly: tgt.ply,
+              });
             }
             continue; // reached prep — stop deepening this branch
           }
@@ -545,7 +568,10 @@ export class GameTree {
     }
 
     return out.sort(
-      (a, b) => a.fromPath.length - b.fromPath.length || b.joinsPly - a.joinsPly || a.moves.length - b.moves.length,
+      (a, b) =>
+        a.fromPath.length - b.fromPath.length ||
+        b.joinsPly - a.joinsPly ||
+        a.moves.length - b.moves.length,
     );
   }
 
@@ -656,7 +682,11 @@ export class GameTree {
     // FEN, clock dropped) + multipv. A position reached by several leaves or move-orders is analysed
     // once. Only a real engine call (cache miss) counts toward analyses / onProgress.
     const evalMemo = new Map<string, PruneEngineLine[] | null>();
-    const analyseCached = async (fen: string, mpv: number, depth?: number): Promise<PruneEngineLine[] | null> => {
+    const analyseCached = async (
+      fen: string,
+      mpv: number,
+      depth?: number,
+    ): Promise<PruneEngineLine[] | null> => {
       if (opts.shouldCancel?.()) return null;
       const k = `${positionKey(fen)}|${mpv}|${depth ?? 0}`;
       if (evalMemo.has(k)) return evalMemo.get(k) ?? null;
@@ -669,7 +699,11 @@ export class GameTree {
 
     // mover-POV cp of the position AFTER the move (single-PV, negated to the mover). Used to fill an
     // out-of-top-k stay move (C2) and to deep-confirm a re-route's eval (E1, via the depth override).
-    const evalAfterMove = async (pos: Chess, san: string, depth?: number): Promise<number | null> => {
+    const evalAfterMove = async (
+      pos: Chess,
+      san: string,
+      depth?: number,
+    ): Promise<number | null> => {
       const after = pos.clone();
       const mv = parseSan(after, san);
       if (!mv) return null;
@@ -699,7 +733,10 @@ export class GameTree {
       const reroutes: Reroute[] = [];
       for (const idx of candidates) {
         if (opts.shouldCancel?.()) break;
-        if (budget != null && analyses >= budget) { budgetSpent = true; break; }
+        if (budget != null && analyses >= budget) {
+          budgetSpent = true;
+          break;
+        }
         const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyseCached(fen, multipv);
@@ -734,8 +771,14 @@ export class GameTree {
           }
           if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
           reroutes.push({
-            pos: s.pos, atPly: s.ply, rerouteMove: e.san, joinsPath: tgt.sanPath,
-            savedPlies: leaf.length - s.ply, evalBest, evalStay, evalTranspose: e.cp,
+            pos: s.pos,
+            atPly: s.ply,
+            rerouteMove: e.san,
+            joinsPath: tgt.sanPath,
+            savedPlies: leaf.length - s.ply,
+            evalBest,
+            evalStay,
+            evalTranspose: e.cp,
           });
         }
       }
@@ -748,9 +791,17 @@ export class GameTree {
       let evIdx = 0;
       reroutes.forEach((r, i) => {
         const sav = reroutes[savIdx]!;
-        if (r.savedPlies > sav.savedPlies || (r.savedPlies === sav.savedPlies && r.evalTranspose > sav.evalTranspose)) savIdx = i;
+        if (
+          r.savedPlies > sav.savedPlies ||
+          (r.savedPlies === sav.savedPlies && r.evalTranspose > sav.evalTranspose)
+        )
+          savIdx = i;
         const ev = reroutes[evIdx]!;
-        if (r.evalTranspose > ev.evalTranspose || (r.evalTranspose === ev.evalTranspose && r.savedPlies > ev.savedPlies)) evIdx = i;
+        if (
+          r.evalTranspose > ev.evalTranspose ||
+          (r.evalTranspose === ev.evalTranspose && r.savedPlies > ev.savedPlies)
+        )
+          evIdx = i;
       });
 
       // E1: deep-confirm the best-eval pick so the number the user acts on is trustworthy (selection
@@ -784,7 +835,10 @@ export class GameTree {
       });
     }
 
-    out.sort((a, b) => b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly);
+    out.sort(
+      (a, b) =>
+        b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly,
+    );
     const scannedEnd = leafStart + leavesScanned;
     // U1: a self-correcting remaining estimate from THIS call's actual cost-per-leaf (the agent's ETA
     // tightens after the first chunk instead of trusting the loose upper bound).
@@ -858,7 +912,8 @@ export class GameTree {
     const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
       if (node.children.length) {
         const key = positionKey(makeFen(pos.toSetup()));
-        if (!map.has(key)) map.set(key, { sans: node.children.map((c) => c.data.san), turn: pos.turn });
+        if (!map.has(key))
+          map.set(key, { sans: node.children.map((c) => c.data.san), turn: pos.turn });
       }
       for (const child of node.children) {
         const next = pos.clone();
@@ -959,7 +1014,9 @@ export class GameTree {
   }
 
   /** Resolve a SAN variation path to its node + parent (null parent at the root). */
-  private resolveSan(sans: readonly string[]): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
+  private resolveSan(
+    sans: readonly string[],
+  ): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
     let node: Node<PgnNodeData> = this.game.moves;
     let parent: Node<PgnNodeData> | null = null;
     for (const san of sans) {

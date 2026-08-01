@@ -17,17 +17,19 @@ import type {
   StrategicDifference,
 } from "./types.js";
 import { CONFIDENCE_CAP_REASONS, CONFIDENCE_COMPONENTS } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_MANIFEST,
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export const STRATEGIC_CONFIDENCE_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.confidence;
 
 /** The frozen design does not privilege one confidence component, so each receives equal weight. */
-export const STRATEGIC_CONFIDENCE_COMPONENT_WEIGHTS: Readonly<Record<ConfidenceComponentKind, number>> =
-  Object.freeze(Object.fromEntries(CONFIDENCE_COMPONENTS.map((component) => [component, 1])) as
-    Record<ConfidenceComponentKind, number>);
+export const STRATEGIC_CONFIDENCE_COMPONENT_WEIGHTS: Readonly<
+  Record<ConfidenceComponentKind, number>
+> = Object.freeze(
+  Object.fromEntries(CONFIDENCE_COMPONENTS.map((component) => [component, 1])) as Record<
+    ConfidenceComponentKind,
+    number
+  >,
+);
 
 export const STRATEGIC_CONFIDENCE_CAP_MAXIMUMS: Readonly<Record<ConfidenceCapReason, number>> =
   Object.freeze({
@@ -131,8 +133,14 @@ function confidenceComponents(input: StrategicConfidenceInput): ConfidenceCompon
     );
   }
   const scores: Record<ConfidenceComponentKind, number> = {
-    "classifier-confidence": requireUnitInterval("classifier-confidence", input.classifier_confidence),
-    "checkpoint-completeness": requireUnitInterval("checkpoint-completeness", input.checkpoint_completeness),
+    "classifier-confidence": requireUnitInterval(
+      "classifier-confidence",
+      input.classifier_confidence,
+    ),
+    "checkpoint-completeness": requireUnitInterval(
+      "checkpoint-completeness",
+      input.checkpoint_completeness,
+    ),
     "effective-sample-size": Math.min(1, input.effective_sample_size / 4),
     "temporal-persistence": requireUnitInterval("temporal-persistence", input.temporal_persistence),
     "cohort-coherence": requireUnitInterval("cohort-coherence", input.cohort_coherence),
@@ -182,10 +190,10 @@ function weightedGeometricScore(components: readonly ConfidenceComponent[]): num
   const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
   if (totalWeight <= 0) throw new Error("strategic_fit_confidence_no_component_weight");
   if (components.some((component) => component.score === 0)) return 0;
-  return Math.exp(components.reduce(
-    (sum, component) => sum + component.weight * Math.log(component.score),
-    0,
-  ) / totalWeight);
+  return Math.exp(
+    components.reduce((sum, component) => sum + component.weight * Math.log(component.score), 0) /
+      totalWeight,
+  );
 }
 
 /** Combine the seven frozen confidence components, then apply every evidence-derived hard cap. */
@@ -196,12 +204,14 @@ export function calculateFindingConfidence(input: StrategicConfidenceInput): Fin
   const score = Math.min(uncappedScore, ...caps.map((cap) => cap.maximum_score), 100);
   const label = confidenceLabel(score);
   const strictestCap = caps.reduce<ConfidenceCap | null>(
-    (strictest, cap) => strictest === null || cap.maximum_score < strictest.maximum_score ? cap : strictest,
+    (strictest, cap) =>
+      strictest === null || cap.maximum_score < strictest.maximum_score ? cap : strictest,
     null,
   );
-  const explanation = strictestCap === null
-    ? `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the seven evidence components combine to ${score}.`
-    : `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the geometric component score of ${uncappedScore} is capped at ${score}. ${strictestCap.explanation}`;
+  const explanation =
+    strictestCap === null
+      ? `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the seven evidence components combine to ${score}.`
+      : `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the geometric component score of ${uncappedScore} is capped at ${score}. ${strictestCap.explanation}`;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     score,
@@ -216,10 +226,17 @@ function validateDifferenceInput(input: StrategicDifferenceInput): number {
   requireUnitInterval("distance", input.distance);
   requireUnitInterval("persistence", input.persistence);
   if (!Number.isInteger(input.new_concept_count) || input.new_concept_count < 0) {
-    throw new Error(`strategic_fit_difference_invalid_concept_count: ${String(input.new_concept_count)}`);
+    throw new Error(
+      `strategic_fit_difference_invalid_concept_count: ${String(input.new_concept_count)}`,
+    );
   }
-  if (input.stable_from_ply !== null && (!Number.isInteger(input.stable_from_ply) || input.stable_from_ply < 0)) {
-    throw new Error(`strategic_fit_difference_invalid_stable_ply: ${String(input.stable_from_ply)}`);
+  if (
+    input.stable_from_ply !== null &&
+    (!Number.isInteger(input.stable_from_ply) || input.stable_from_ply < 0)
+  ) {
+    throw new Error(
+      `strategic_fit_difference_invalid_stable_ply: ${String(input.stable_from_ply)}`,
+    );
   }
   const horizon = input.stability_horizon_ply ?? DEFAULT_DIFFERENCE_STABILITY_HORIZON_PLY;
   if (!Number.isInteger(horizon) || horizon <= 0) {
@@ -247,12 +264,10 @@ export function scoreStrategicDifferenceMagnitude(
   const components: StrategicDifferenceMagnitudeComponents = {
     strategic_distance: input.distance,
     temporal_persistence: input.persistence,
-    concept_novelty: input.new_concept_count === 0
-      ? 0
-      : input.new_concept_count / (input.new_concept_count + 1),
-    stability_depth: input.stable_from_ply === null
-      ? 0
-      : Math.max(0, 1 - input.stable_from_ply / horizon),
+    concept_novelty:
+      input.new_concept_count === 0 ? 0 : input.new_concept_count / (input.new_concept_count + 1),
+    stability_depth:
+      input.stable_from_ply === null ? 0 : Math.max(0, 1 - input.stable_from_ply / horizon),
   };
   const score = round(Object.values(components).reduce((sum, value) => sum + value, 0) / 4);
   return {

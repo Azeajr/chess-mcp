@@ -108,14 +108,16 @@ test("typed client serializes clone-safe inputs and waits for its worker result"
     ...OPTIONS,
     training: {
       concept_mastery: [{ concept_id: "concept:center-control", mastery: 0.75 }],
-      provenance: [{
-        source_id: "fixture:worker-training",
-        kind: "training-metadata",
-        state: "available",
-        version: "fixture-1",
-        snapshot: "attempt:1",
-        reason: null,
-      }],
+      provenance: [
+        {
+          source_id: "fixture:worker-training",
+          kind: "training-metadata",
+          state: "available",
+          version: "fixture-1",
+          snapshot: "attempt:1",
+          reason: null,
+        },
+      ],
     },
   };
   const pending = client.analyze(PGN, options);
@@ -126,7 +128,10 @@ test("typed client serializes clone-safe inputs and waits for its worker result"
   if (request.type !== "analyze") return;
   assert.equal(request.payload.pgn, PGN);
   assert.equal(request.payload.repertoire_color, "white");
-  assert.deepEqual(request.payload.opening_table_entries.map(([key]) => key), ["a-position", "z-position"]);
+  assert.deepEqual(
+    request.payload.opening_table_entries.map(([key]) => key),
+    ["a-position", "z-position"],
+  );
   assert.deepEqual(request.payload.metadata, {
     repertoire_revision: "revision:worker-fixture",
     generated_at: "2026-07-17T12:00:00.000Z",
@@ -137,7 +142,9 @@ test("typed client serializes clone-safe inputs and waits for its worker result"
   assert.deepEqual(request.payload.options.training, options.training);
 
   let settled = false;
-  void pending.finally(() => { settled = true; });
+  void pending.finally(() => {
+    settled = true;
+  });
   await Promise.resolve();
   assert.equal(settled, false, "the client does not run the analyzer on the caller's thread");
 
@@ -154,7 +161,9 @@ test("abort terminates active computation and discards late results", async () =
   let progressEvents = 0;
   const pending = client.analyze(PGN, OPTIONS, {
     signal: controller.signal,
-    onProgress: () => { progressEvents++; },
+    onProgress: () => {
+      progressEvents++;
+    },
   });
   const request = worker.posted[0]!;
   assert.equal(request.type, "analyze");
@@ -198,7 +207,11 @@ test("a newer analysis rejects the stale request and ignores its late result", a
     ...OPTIONS,
     repertoireRevision: "revision:current",
   });
-  workers[1]!.emit({ type: "result", request_id: currentRequest.request_id, result: currentReport });
+  workers[1]!.emit({
+    type: "result",
+    request_id: currentRequest.request_id,
+    result: currentReport,
+  });
   assert.equal((await second).repertoire_revision, "revision:current");
 });
 
@@ -218,7 +231,9 @@ test("malformed payloads and invalid PGNs return structured errors", () => {
     },
   });
 
-  const errors = responses.filter((response) => response.type === "error").map((response) => response.error);
+  const errors = responses
+    .filter((response) => response.type === "error")
+    .map((response) => response.error);
   assert.equal(errors[0]?.code, "strategic_fit_worker_invalid_payload");
   assert.equal(errors[0]?.name, "StrategicFitWorkerPayloadError");
   assert.equal(errors[1]?.code, "strategic_fit_worker_invalid_pgn");

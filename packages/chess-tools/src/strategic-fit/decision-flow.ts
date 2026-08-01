@@ -353,9 +353,10 @@ function causalityFor(
   findings: readonly StrategicFinding[],
 ): DecisionFlowCausality {
   const attributing = findings
-    .filter((finding) =>
-      finding.evidence.causality.likely_causal_decision_ids.includes(decisionId) &&
-      finding.references.route_ids.some((routeId) => routeIds.has(routeId))
+    .filter(
+      (finding) =>
+        finding.evidence.causality.likely_causal_decision_ids.includes(decisionId) &&
+        finding.references.route_ids.some((routeId) => routeIds.has(routeId)),
     )
     .sort((left, right) => compareStrings(left.finding_id, right.finding_id));
   if (attributing.length === 0) {
@@ -364,12 +365,14 @@ function causalityFor(
       controllability: null,
       qualified: false,
       finding_ids: [],
-      reason: "No finding attributes a strategic difference to this decision, so no causal claim is made.",
+      reason:
+        "No finding attributes a strategic difference to this decision, so no causal claim is made.",
     };
   }
   const findingIds = attributing.map((finding) => finding.finding_id);
-  const labels = [...new Set(attributing.map((finding) => finding.evidence.causality.label))]
-    .sort(compareStrings) as readonly CausalControlLabel[];
+  const labels = [...new Set(attributing.map((finding) => finding.evidence.causality.label))].sort(
+    compareStrings,
+  ) as readonly CausalControlLabel[];
   const lowConfidence = attributing.some((finding) => finding.confidence.label === "low");
   if (labels.length > 1) {
     return {
@@ -386,7 +389,9 @@ function causalityFor(
   const uncertainLabel = label === "shared-or-uncertain" || label === "unknown";
   const reasons: string[] = [];
   if (single === null) {
-    reasons.push("Several findings attribute a difference to this decision, so no single controllability value is claimed.");
+    reasons.push(
+      "Several findings attribute a difference to this decision, so no single controllability value is claimed.",
+    );
   } else if (controllability === null) {
     reasons.push("The attributing finding could not support a numerical controllability value.");
   }
@@ -416,8 +421,7 @@ export function buildDecisionFlowProjection(
   }
   const graphRevision = options.graph_revision ?? null;
   if (graphRevision !== null && graphRevision !== input.repertoire_revision) {
-    const reason =
-      `The supplied repertoire graph is at revision ${graphRevision} while this report is at ${input.repertoire_revision}, so its decisions cannot be attributed to this report.`;
+    const reason = `The supplied repertoire graph is at revision ${graphRevision} while this report is at ${input.repertoire_revision}, so its decisions cannot be attributed to this report.`;
     return unavailableProjection(input, graph, reason, [], reason);
   }
 
@@ -429,7 +433,7 @@ export function buildDecisionFlowProjection(
     graph.transposition_links.map((link) => [link.position_id, link]),
   );
   const sortedCohorts = [...input.cohorts].sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id)
+    compareStrings(left.cohort_id, right.cohort_id),
   );
   const findingsByRoute = new Map<string, string[]>();
   for (const finding of findings) {
@@ -440,8 +444,9 @@ export function buildDecisionFlowProjection(
     }
   }
   const findingIdsFor = (routeIds: Iterable<string>): string[] =>
-    [...new Set([...routeIds].flatMap((routeId) => findingsByRoute.get(routeId) ?? []))]
-      .sort(compareStrings);
+    [...new Set([...routeIds].flatMap((routeId) => findingsByRoute.get(routeId) ?? []))].sort(
+      compareStrings,
+    );
 
   const exclusions: DecisionFlowExclusion[] = [];
   const truncations: DecisionFlowTruncation[] = [];
@@ -457,7 +462,8 @@ export function buildDecisionFlowProjection(
         route_id: routeId,
         cohort_id: cohort.cohort_id,
         reason: "excluded-from-cohort",
-        explanation: "This route is excluded from its cohort's analysis, so it carries no expected games through the flow.",
+        explanation:
+          "This route is excluded from its cohort's analysis, so it carries no expected games through the flow.",
       });
     }
     if (cohort.state === "excluded") {
@@ -483,8 +489,10 @@ export function buildDecisionFlowProjection(
       startNodeId,
       modeNodeIds: new Set(),
     };
-    const sortedModes = [...cohort.modes].sort((left, right) =>
-      right.normalized_weight - left.normalized_weight || compareStrings(left.mode_id, right.mode_id)
+    const sortedModes = [...cohort.modes].sort(
+      (left, right) =>
+        right.normalized_weight - left.normalized_weight ||
+        compareStrings(left.mode_id, right.mode_id),
     );
     const plottedRouteIds: string[] = [];
 
@@ -518,7 +526,8 @@ export function buildDecisionFlowProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "missing-graph-route",
-          explanation: "The supplied repertoire graph has no route with this identity, so its decisions cannot be shown.",
+          explanation:
+            "The supplied repertoire graph has no route with this identity, so its decisions cannot be shown.",
         });
         continue;
       }
@@ -545,17 +554,22 @@ export function buildDecisionFlowProjection(
         route_id: routeId,
         cohort_id: cohort.cohort_id,
         mode_id: chosen?.mode_id ?? null,
-        alternative_mode_ids: supporting.slice(1).map((mode) => mode.mode_id).sort(compareStrings),
-        rule: chosen === null
-          ? "no-supporting-mode"
-          : supporting.length === 1
-            ? "single-supporting-mode"
-            : "heaviest-supporting-mode",
-        explanation: chosen === null
-          ? "No strategic mode of this cohort supports this route, so it flows into an explicit unassigned outcome."
-          : supporting.length === 1
-            ? "Exactly one strategic mode supports this route."
-            : "Several strategic modes support this route; the heaviest one receives its full weight rather than splitting it.",
+        alternative_mode_ids: supporting
+          .slice(1)
+          .map((mode) => mode.mode_id)
+          .sort(compareStrings),
+        rule:
+          chosen === null
+            ? "no-supporting-mode"
+            : supporting.length === 1
+              ? "single-supporting-mode"
+              : "heaviest-supporting-mode",
+        explanation:
+          chosen === null
+            ? "No strategic mode of this cohort supports this route, so it flows into an explicit unassigned outcome."
+            : supporting.length === 1
+              ? "Exactly one strategic mode supports this route."
+              : "Several strategic modes support this route; the heaviest one receives its full weight rather than splitting it.",
       });
       const modeNodeId = `${cohort.cohort_id}|mode:${chosen?.mode_id ?? "none"}`;
       flow.modeNodeIds.add(modeNodeId);
@@ -571,9 +585,8 @@ export function buildDecisionFlowProjection(
         plies: [],
         mode_id: chosen?.mode_id ?? null,
         concept_ids: chosen === null ? [] : [...chosen.concept_ids].sort(compareStrings),
-        reason: chosen === null
-          ? "These branches share no strategic mode inside their cohort."
-          : null,
+        reason:
+          chosen === null ? "These branches share no strategic mode inside their cohort." : null,
         route_ids: new Set(),
       }).route_ids.add(routeId);
 
@@ -622,7 +635,8 @@ export function buildDecisionFlowProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "cyclic-flow-evidence",
-          explanation: "This cohort's routes revisit a semantic position, so a layered flow would misstate move order.",
+          explanation:
+            "This cohort's routes revisit a semantic position, so a layered flow would misstate move order.",
         });
       }
       continue;
@@ -637,67 +651,77 @@ export function buildDecisionFlowProjection(
       outgoingCount.set(link.from_node_id, (outgoingCount.get(link.from_node_id) ?? 0) + 1);
     }
 
-    const cohortNodes: DecisionFlowNode[] = [...flow.nodes.values()].map((node) => {
-      const routeIds = [...node.route_ids].sort(compareStrings);
-      const incoming = [...(incomingByNode.get(node.node_id) ?? new Set<string>())].sort(compareStrings);
-      const canonical = node.from_position_id === null
-        ? undefined
-        : transpositionByPosition.get(node.from_position_id);
-      return {
-        node_id: node.node_id,
-        kind: node.kind,
-        cohort_id: node.cohort_id,
-        actor: node.actor,
-        depth: depths.get(node.node_id) ?? 0,
-        weight: weightOf(routeIds, weights),
-        decision_id: node.decision_id,
-        from_position_id: node.from_position_id,
-        to_position_id: node.to_position_id,
-        san: node.san,
-        plies: node.plies,
-        mode_id: node.mode_id,
-        concept_ids: node.concept_ids,
-        branching: (outgoingCount.get(node.node_id) ?? 0) > 1,
-        transposition: node.kind === "decision" && canonical !== undefined && incoming.length > 1
-          ? {
-            transposition_id: canonical.transposition_id,
-            position_id: canonical.position_id,
-            incoming_node_ids: incoming,
-          }
-          : null,
-        causality: node.decision_id === null
-          ? {
-            label: "not-referenced" as const,
-            controllability: null,
-            qualified: false,
-            finding_ids: [],
-            reason: "Only decisions carry causal ownership.",
-          }
-          : causalityFor(node.decision_id, node.route_ids, findings),
-        route_ids: routeIds,
-        finding_ids: findingIdsFor(routeIds),
-        reason: node.reason,
-      };
-    }).sort((left, right) =>
-      left.depth - right.depth || compareStrings(left.node_id, right.node_id)
-    );
+    const cohortNodes: DecisionFlowNode[] = [...flow.nodes.values()]
+      .map((node) => {
+        const routeIds = [...node.route_ids].sort(compareStrings);
+        const incoming = [...(incomingByNode.get(node.node_id) ?? new Set<string>())].sort(
+          compareStrings,
+        );
+        const canonical =
+          node.from_position_id === null
+            ? undefined
+            : transpositionByPosition.get(node.from_position_id);
+        return {
+          node_id: node.node_id,
+          kind: node.kind,
+          cohort_id: node.cohort_id,
+          actor: node.actor,
+          depth: depths.get(node.node_id) ?? 0,
+          weight: weightOf(routeIds, weights),
+          decision_id: node.decision_id,
+          from_position_id: node.from_position_id,
+          to_position_id: node.to_position_id,
+          san: node.san,
+          plies: node.plies,
+          mode_id: node.mode_id,
+          concept_ids: node.concept_ids,
+          branching: (outgoingCount.get(node.node_id) ?? 0) > 1,
+          transposition:
+            node.kind === "decision" && canonical !== undefined && incoming.length > 1
+              ? {
+                  transposition_id: canonical.transposition_id,
+                  position_id: canonical.position_id,
+                  incoming_node_ids: incoming,
+                }
+              : null,
+          causality:
+            node.decision_id === null
+              ? {
+                  label: "not-referenced" as const,
+                  controllability: null,
+                  qualified: false,
+                  finding_ids: [],
+                  reason: "Only decisions carry causal ownership.",
+                }
+              : causalityFor(node.decision_id, node.route_ids, findings),
+          route_ids: routeIds,
+          finding_ids: findingIdsFor(routeIds),
+          reason: node.reason,
+        };
+      })
+      .sort(
+        (left, right) => left.depth - right.depth || compareStrings(left.node_id, right.node_id),
+      );
 
-    const cohortLinks: DecisionFlowLink[] = [...flow.links.values()].map((link) => {
-      const routeIds = [...link.route_ids].sort(compareStrings);
-      return {
-        link_id: `${link.from_node_id}->${link.to_node_id}`,
-        cohort_id: cohort.cohort_id,
-        from_node_id: link.from_node_id,
-        to_node_id: link.to_node_id,
-        weight: weightOf(routeIds, weights),
-        route_ids: routeIds,
-        finding_ids: findingIdsFor(routeIds),
-        truncated: link.truncated,
-      };
-    }).sort((left, right) =>
-      compareStrings(left.from_node_id, right.from_node_id) ||
-      compareStrings(left.to_node_id, right.to_node_id)
-    );
+    const cohortLinks: DecisionFlowLink[] = [...flow.links.values()]
+      .map((link) => {
+        const routeIds = [...link.route_ids].sort(compareStrings);
+        return {
+          link_id: `${link.from_node_id}->${link.to_node_id}`,
+          cohort_id: cohort.cohort_id,
+          from_node_id: link.from_node_id,
+          to_node_id: link.to_node_id,
+          weight: weightOf(routeIds, weights),
+          route_ids: routeIds,
+          finding_ids: findingIdsFor(routeIds),
+          truncated: link.truncated,
+        };
+      })
+      .sort(
+        (left, right) =>
+          compareStrings(left.from_node_id, right.from_node_id) ||
+          compareStrings(left.to_node_id, right.to_node_id),
+      );
 
     nodes.push(...cohortNodes);
     links.push(...cohortLinks);
@@ -713,14 +737,20 @@ export function buildDecisionFlowProjection(
     });
   }
 
-  exclusions.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  exclusions.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
-  truncations.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  truncations.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
-  modeAssignments.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  modeAssignments.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
 
   if (cohortSummaries.length === 0) {

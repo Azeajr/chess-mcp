@@ -52,7 +52,8 @@ function detailText(value: unknown): string {
 
 export function boundedPreflightEvidence(issue: PreflightIssue) {
   const paths = issue.affected_source_paths.slice(0, MAX_VISIBLE_PATHS);
-  const details = Object.entries(issue.details).slice(0, MAX_VISIBLE_DETAILS)
+  const details = Object.entries(issue.details)
+    .slice(0, MAX_VISIBLE_DETAILS)
     .map(([key, value]) => ({ key, value: detailText(value) }));
   return {
     paths,
@@ -63,10 +64,11 @@ export function boundedPreflightEvidence(issue: PreflightIssue) {
 }
 
 export function preflightCountsAreMeaningful(preflight: StrategicFitPreflight): boolean {
-  return !preflight.issues.some((issue) =>
-    issue.code === "unsupported-custom-start" ||
-    issue.code === "malformed-data" ||
-    issue.code === "illegal-line"
+  return !preflight.issues.some(
+    (issue) =>
+      issue.code === "unsupported-custom-start" ||
+      issue.code === "malformed-data" ||
+      issue.code === "illegal-line",
   );
 }
 
@@ -74,22 +76,26 @@ function stateCopy(preflight: StrategicFitPreflight): { label: string; descripti
   if (preflight.state === "blocked") {
     return {
       label: "Preflight blocked",
-      description: "Input validation stopped the analysis. Only move-order normalization ran; five dependent phases were not run.",
+      description:
+        "Input validation stopped the analysis. Only move-order normalization ran; five dependent phases were not run.",
     };
   }
   if (preflight.state === "degraded") {
     return {
       label: "Preflight degraded",
-      description: "Analysis completed with evidence limitations. These limits constrain what the report can support.",
+      description:
+        "Analysis completed with evidence limitations. These limits constrain what the report can support.",
     };
   }
   return {
     label: "Preflight ready",
-    description: "The repertoire could proceed through deterministic analysis. Preflight confirms analyzability, not strategic quality.",
+    description:
+      "The repertoire could proceed through deterministic analysis. Preflight confirms analyzability, not strategic quality.",
   };
 }
 
-const sourcePath = (path: readonly string[]) => path.length === 0 ? "Repertoire root" : path.join(" ");
+const sourcePath = (path: readonly string[]) =>
+  path.length === 0 ? "Repertoire root" : path.join(" ");
 
 function PreflightIssueResult(props: { issue: PreflightIssue }) {
   const evidence = () => boundedPreflightEvidence(props.issue);
@@ -104,7 +110,9 @@ function PreflightIssueResult(props: { issue: PreflightIssue }) {
     >
       <div class="strategic-fit-preflight-issue-heading">
         <strong>{PREFLIGHT_CODE_LABELS[props.issue.code]}</strong>
-        <span class="strategic-fit-preflight-severity">{PREFLIGHT_SEVERITY_LABELS[props.issue.severity]}</span>
+        <span class="strategic-fit-preflight-severity">
+          {PREFLIGHT_SEVERITY_LABELS[props.issue.severity]}
+        </span>
         <span class="strategic-fit-preflight-kind">{PREFLIGHT_KIND_LABELS[props.issue.kind]}</span>
       </div>
       <p>{props.issue.message}</p>
@@ -115,24 +123,38 @@ function PreflightIssueResult(props: { issue: PreflightIssue }) {
             <div>
               <h3>Affected repertoire paths</h3>
               <ol>
-                <For each={evidence().paths}>{(path) => <li><code>{sourcePath(path)}</code></li>}</For>
+                <For each={evidence().paths}>
+                  {(path) => (
+                    <li>
+                      <code>{sourcePath(path)}</code>
+                    </li>
+                  )}
+                </For>
               </ol>
               <Show when={evidence().hidden_path_count > 0}>
-                <p>{evidence().hidden_path_count} additional affected path(s) are retained in the report.</p>
+                <p>
+                  {evidence().hidden_path_count} additional affected path(s) are retained in the
+                  report.
+                </p>
               </Show>
             </div>
           </Show>
           <Show when={evidence().details.length > 0}>
             <dl>
-              <For each={evidence().details}>{(entry) => (
-                <>
-                  <dt>{entry.key.replaceAll("_", " ")}</dt>
-                  <dd>{entry.value}</dd>
-                </>
-              )}</For>
+              <For each={evidence().details}>
+                {(entry) => (
+                  <>
+                    <dt>{entry.key.replaceAll("_", " ")}</dt>
+                    <dd>{entry.value}</dd>
+                  </>
+                )}
+              </For>
             </dl>
             <Show when={evidence().hidden_detail_count > 0}>
-              <p>{evidence().hidden_detail_count} additional detail field(s) are retained in the report.</p>
+              <p>
+                {evidence().hidden_detail_count} additional detail field(s) are retained in the
+                report.
+              </p>
             </Show>
           </Show>
         </details>
@@ -160,21 +182,35 @@ export default function PreflightResults(props: { preflight: StrategicFitPreflig
       </header>
       <p class="strategic-fit-preflight-summary">{copy().description}</p>
 
-      <Show when={countsMeaningful()} fallback={(
-        <p class="strategic-fit-preflight-counts-unavailable">
-          Route counts are withheld because the input could not be enumerated safely.
-        </p>
-      )}>
+      <Show
+        when={countsMeaningful()}
+        fallback={
+          <p class="strategic-fit-preflight-counts-unavailable">
+            Route counts are withheld because the input could not be enumerated safely.
+          </p>
+        }
+      >
         <dl class="strategic-fit-preflight-counts" aria-label="Preflight route evidence counts">
-          <div><dt>Routes found</dt><dd>{props.preflight.route_count}</dd></div>
-          <div><dt>Comparable routes</dt><dd>{props.preflight.comparable_route_count}</dd></div>
-          <div><dt>Incomplete routes</dt><dd>{props.preflight.incomplete_route_count}</dd></div>
+          <div>
+            <dt>Routes found</dt>
+            <dd>{props.preflight.route_count}</dd>
+          </div>
+          <div>
+            <dt>Comparable routes</dt>
+            <dd>{props.preflight.comparable_route_count}</dd>
+          </div>
+          <div>
+            <dt>Incomplete routes</dt>
+            <dd>{props.preflight.incomplete_route_count}</dd>
+          </div>
         </dl>
       </Show>
 
       <Show when={props.preflight.issues.length > 0}>
         <ul class="strategic-fit-preflight-issues" aria-label="Preflight findings">
-          <For each={props.preflight.issues}>{(issue) => <PreflightIssueResult issue={issue} />}</For>
+          <For each={props.preflight.issues}>
+            {(issue) => <PreflightIssueResult issue={issue} />}
+          </For>
         </ul>
       </Show>
     </section>

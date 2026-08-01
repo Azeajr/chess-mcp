@@ -33,10 +33,19 @@ export async function scanBridges() {
   setExtBridges(null);
   setBridgeScanning(true);
   try {
-    const result = await executeBrowserCommand("get_repertoire_coverage", { connect_stubs: true, limit: 20, depth: analysisDepth() }) as {
+    const result = (await executeBrowserCommand("get_repertoire_coverage", {
+      connect_stubs: true,
+      limit: 20,
+      depth: analysisDepth(),
+    })) as {
       error?: string;
       color?: "white" | "black";
-      dangling_lines?: { path: string[]; connects_via?: string[]; joins_path?: string[]; joins_ply?: number }[];
+      dangling_lines?: {
+        path: string[];
+        connects_via?: string[];
+        joins_path?: string[];
+        joins_ply?: number;
+      }[];
     };
     if (result.error) {
       setBridgeError(result.error === "engine_unavailable" ? "engine offline" : result.error);
@@ -44,7 +53,13 @@ export async function scanBridges() {
     }
     const resolved: ExtendedBridge[] = (result.dangling_lines ?? [])
       .filter((stub) => stub.connects_via?.length && stub.joins_path?.length)
-      .map((stub) => ({ fromPath: stub.path, moves: stub.connects_via!, sideToMove: result.color ?? "white", joinsPath: stub.joins_path!, joinsPly: stub.joins_ply ?? stub.joins_path!.length }));
+      .map((stub) => ({
+        fromPath: stub.path,
+        moves: stub.connects_via!,
+        sideToMove: result.color ?? "white",
+        joinsPath: stub.joins_path!,
+        joinsPly: stub.joins_ply ?? stub.joins_path!.length,
+      }));
     setExtBridges(resolved);
   } catch (e) {
     setBridgeError(e instanceof Error ? e.message : String(e));
@@ -83,20 +98,24 @@ export async function scanPrune() {
   setPruneTotal(0);
   setPruneScanning(true);
   try {
-    const res = await executeBrowserCommand("find_pruning_transpositions", {
-      multipv: MULTIPV,
-      cp_threshold: CP_THRESHOLD,
-      confirm_depth: analysisDepth(),
-      depth: analysisDepth(),
-      limit: 100,
-    }, {
-      signal: controller.signal,
-      onProgress: (done, total) => {
-        if (pruneController !== controller) return;
-        setPruneDone(done);
-        setPruneTotal(total ?? 0);
+    const res = (await executeBrowserCommand(
+      "find_pruning_transpositions",
+      {
+        multipv: MULTIPV,
+        cp_threshold: CP_THRESHOLD,
+        confirm_depth: analysisDepth(),
+        depth: analysisDepth(),
+        limit: 100,
       },
-    }) as { error?: string; suggestions?: PruneSuggestion[] };
+      {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          if (pruneController !== controller) return;
+          setPruneDone(done);
+          setPruneTotal(total ?? 0);
+        },
+      },
+    )) as { error?: string; suggestions?: PruneSuggestion[] };
     if (pruneController !== controller || controller.signal.aborted) return;
     if (res.error) throw new Error(res.error);
     setPruneSuggestions(res.suggestions ?? []);
@@ -146,13 +165,16 @@ export async function inspectShortcut(p: PruneSuggestion) {
   setInspectError(null);
   setInspecting(true);
   try {
-    const result = await executeBrowserCommand("inspect_shortcut", {
+    const result = (await executeBrowserCommand("inspect_shortcut", {
       line_path: p.linePath,
       at_ply: p.atPly,
       joins_path: p.joinsPath,
       depth: analysisDepth(),
       max_positions: INSPECT_MAX_POSITIONS,
-    }) as { quality: ShortcutComparison | { error: string }; coverage: ShortcutCoverage | { error: string } };
+    })) as {
+      quality: ShortcutComparison | { error: string };
+      coverage: ShortcutCoverage | { error: string };
+    };
     const cmp = result.quality;
     const cov = result.coverage;
     if (token !== inspectToken) return;
@@ -188,7 +210,10 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
   setCompError(null);
   setCompScanning(true);
   try {
-    const r = (await executeBrowserCommand("suggest_complementary_lines", { mode, depth: analysisDepth() })) as {
+    const r = (await executeBrowserCommand("suggest_complementary_lines", {
+      mode,
+      depth: analysisDepth(),
+    })) as {
       suggestions?: ComplementaryMove[];
       error?: string;
     };
@@ -209,4 +234,3 @@ export function clearComplementary() {
   setComplementary(null);
   setCompError(null);
 }
-

@@ -26,10 +26,7 @@ import type {
   StrategicFitProvenance,
   StrategicFitSourceProvenance,
 } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 
 export const REPLACEMENT_PIVOT_RESULT_STATUSES = [
   "selected",
@@ -74,8 +71,7 @@ interface ReplacementUserCandidateLineResultBase extends StrategicFitReplacement
   readonly pivot_position_id: string | null;
 }
 
-export interface ReplacementValidUserCandidateLineResult
-  extends ReplacementUserCandidateLineResultBase {
+export interface ReplacementValidUserCandidateLineResult extends ReplacementUserCandidateLineResultBase {
   readonly status: "valid";
   readonly canonical_san_line: readonly [string, ...string[]];
   readonly first_move_uci: string;
@@ -85,8 +81,7 @@ export interface ReplacementValidUserCandidateLineResult
   readonly explanation: string;
 }
 
-export interface ReplacementIllegalUserCandidateLineResult
-  extends ReplacementUserCandidateLineResultBase {
+export interface ReplacementIllegalUserCandidateLineResult extends ReplacementUserCandidateLineResultBase {
   readonly status: "illegal";
   readonly canonical_san_line: readonly string[];
   readonly first_move_uci: string | null;
@@ -96,8 +91,7 @@ export interface ReplacementIllegalUserCandidateLineResult
   readonly explanation: string;
 }
 
-export interface ReplacementStaleUserCandidateLineResult
-  extends ReplacementUserCandidateLineResultBase {
+export interface ReplacementStaleUserCandidateLineResult extends ReplacementUserCandidateLineResultBase {
   readonly status: "stale";
   readonly canonical_san_line: readonly [];
   readonly first_move_uci: null;
@@ -240,19 +234,21 @@ function mergeProvenance(
     ...finding.provenance.sources,
     ...cohort.provenance,
     core,
-  ].filter((source) => {
-    const key = [
-      source.source_id,
-      source.kind,
-      source.state,
-      source.version,
-      source.snapshot,
-      source.reason,
-    ].join(ID_SEPARATOR);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).sort((left, right) => compareStrings(left.source_id, right.source_id));
+  ]
+    .filter((source) => {
+      const key = [
+        source.source_id,
+        source.kind,
+        source.state,
+        source.version,
+        source.snapshot,
+        source.reason,
+      ].join(ID_SEPARATOR);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => compareStrings(left.source_id, right.source_id));
 }
 
 function sourcePaths(pathsToCopy: readonly (readonly string[])[]): string[][] {
@@ -260,8 +256,10 @@ function sourcePaths(pathsToCopy: readonly (readonly string[])[]): string[][] {
   for (const path of pathsToCopy) {
     paths.set(path.join(ID_SEPARATOR), [...path]);
   }
-  return [...paths.values()].sort((left, right) =>
-    compareStrings(left.join(ID_SEPARATOR), right.join(ID_SEPARATOR)) || left.length - right.length
+  return [...paths.values()].sort(
+    (left, right) =>
+      compareStrings(left.join(ID_SEPARATOR), right.join(ID_SEPARATOR)) ||
+      left.length - right.length,
   );
 }
 
@@ -276,9 +274,11 @@ function currentFindingPaths(
 ): string[][] {
   const findingRoutes = new Set(finding.references.route_ids);
   const cohortRoutes = new Set(cohort.route_ids);
-  return sourcePaths(graph.routes
-    .filter((route) => findingRoutes.has(route.route_id) && cohortRoutes.has(route.route_id))
-    .flatMap((route) => route.source_san_paths));
+  return sourcePaths(
+    graph.routes
+      .filter((route) => findingRoutes.has(route.route_id) && cohortRoutes.has(route.route_id))
+      .flatMap((route) => route.source_san_paths),
+  );
 }
 
 function affectedFeatures(finding: ReplacementPivotFindingEvidence): string[] {
@@ -289,7 +289,7 @@ function causalDecisionIds(finding: ReplacementPivotFindingEvidence): string[] {
   return sortedUnique([
     ...finding.evidence.causality.likely_causal_decision_ids,
     ...finding.evidence.causality.timeline.flatMap((event) =>
-      event.kind === "player-decision" && event.decision_id ? [event.decision_id] : []
+      event.kind === "player-decision" && event.decision_id ? [event.decision_id] : [],
     ),
   ]);
 }
@@ -304,7 +304,9 @@ function pivotCandidates(
   const affectedRoutes = new Set(affectedRouteIds);
   const cohortRoutes = new Set(cohort.route_ids);
   const findingDecisions = new Set(finding.references.decision_ids);
-  const weights = new Map(cohort.route_weights.map((route) => [route.route_id, route.normalized_weight]));
+  const weights = new Map(
+    cohort.route_weights.map((route) => [route.route_id, route.normalized_weight]),
+  );
   const eventCounts = new Map<string, number>();
   for (const event of finding.evidence.causality.timeline) {
     if (event.kind !== "player-decision" || !event.decision_id) continue;
@@ -312,40 +314,51 @@ function pivotCandidates(
   }
   const decisions = new Map(graph.decisions.map((decision) => [decision.decision_id, decision]));
   const routes = new Map(graph.routes.map((route) => [route.route_id, route]));
-  return causalDecisionIds(finding).flatMap((decisionId): PivotCandidate[] => {
-    const decision = decisions.get(decisionId);
-    if (
-      !decision ||
-      decision.owner !== "repertoire" ||
-      decision.mover_color !== repertoireColor ||
-      !findingDecisions.has(decisionId)
-    ) return [];
-    const supportingRouteIds = decision.route_ids
-      .filter((routeId) => affectedRoutes.has(routeId) && cohortRoutes.has(routeId))
-      .sort(compareStrings);
-    if (supportingRouteIds.length === 0) return [];
-    const support = new Set(supportingRouteIds);
-    const supportingNavigationPaths = supportingRouteIds.flatMap((routeId) =>
-      routes.get(routeId)?.source_san_paths ?? []
+  return causalDecisionIds(finding)
+    .flatMap((decisionId): PivotCandidate[] => {
+      const decision = decisions.get(decisionId);
+      if (
+        !decision ||
+        decision.owner !== "repertoire" ||
+        decision.mover_color !== repertoireColor ||
+        !findingDecisions.has(decisionId)
+      )
+        return [];
+      const supportingRouteIds = decision.route_ids
+        .filter((routeId) => affectedRoutes.has(routeId) && cohortRoutes.has(routeId))
+        .sort(compareStrings);
+      if (supportingRouteIds.length === 0) return [];
+      const support = new Set(supportingRouteIds);
+      const supportingNavigationPaths = supportingRouteIds.flatMap(
+        (routeId) => routes.get(routeId)?.source_san_paths ?? [],
+      );
+      const decisionPaths = decision.source_san_paths.filter((decisionPath) =>
+        supportingNavigationPaths.some((routePath) => isPathPrefix(decisionPath, routePath)),
+      );
+      return [
+        {
+          decision,
+          supportingRouteIds,
+          unsupportedRouteIds: affectedRouteIds.filter((routeId) => !support.has(routeId)),
+          sourceSanPaths: sourcePaths(
+            decisionPaths.length > 0 ? decisionPaths : supportingNavigationPaths,
+          ),
+          cohortWeight: supportingRouteIds.reduce(
+            (sum, routeId) => sum + (weights.get(routeId) ?? 0),
+            0,
+          ),
+          causalEventCount: eventCounts.get(decisionId) ?? 0,
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        left.unsupportedRouteIds.length - right.unsupportedRouteIds.length ||
+        right.causalEventCount - left.causalEventCount ||
+        right.cohortWeight - left.cohortWeight ||
+        Math.min(...left.decision.plies) - Math.min(...right.decision.plies) ||
+        compareStrings(left.decision.decision_id, right.decision.decision_id),
     );
-    const decisionPaths = decision.source_san_paths.filter((decisionPath) =>
-      supportingNavigationPaths.some((routePath) => isPathPrefix(decisionPath, routePath))
-    );
-    return [{
-      decision,
-      supportingRouteIds,
-      unsupportedRouteIds: affectedRouteIds.filter((routeId) => !support.has(routeId)),
-      sourceSanPaths: sourcePaths(decisionPaths.length > 0 ? decisionPaths : supportingNavigationPaths),
-      cohortWeight: supportingRouteIds.reduce((sum, routeId) => sum + (weights.get(routeId) ?? 0), 0),
-      causalEventCount: eventCounts.get(decisionId) ?? 0,
-    }];
-  }).sort((left, right) =>
-    left.unsupportedRouteIds.length - right.unsupportedRouteIds.length ||
-    right.causalEventCount - left.causalEventCount ||
-    right.cohortWeight - left.cohortWeight ||
-    Math.min(...left.decision.plies) - Math.min(...right.decision.plies) ||
-    compareStrings(left.decision.decision_id, right.decision.decision_id)
-  );
 }
 
 function baseEvidence(
@@ -365,9 +378,11 @@ function baseEvidence(
     opponent_contribution: causality.opponent_contribution,
     causal_event_ids: sortedUnique(causality.timeline.map((event) => event.event_id)),
     affected_feature_ids: affectedFeatures(finding),
-    transposition_position_ids: sortedUnique(cohort.transposition_position_ids.filter((positionId) =>
-      finding.references.position_ids.includes(positionId)
-    )),
+    transposition_position_ids: sortedUnique(
+      cohort.transposition_position_ids.filter((positionId) =>
+        finding.references.position_ids.includes(positionId),
+      ),
+    ),
     source_san_paths: sourcePaths(navigationPaths),
     provenance,
   } as const;
@@ -422,11 +437,11 @@ function sharedEvidence(
     san: null,
     uci: null,
     alternative_decision_ids: decisionIds,
-    explanation: finding.references.route_ids.length > 1 && candidates.some((candidate) =>
-        candidate.unsupportedRouteIds.length > 0
-      )
-      ? "Finding spans several semantic routes without one supported causal pivot; explicit pivot selection is required."
-      : "Shared or interacting causal evidence supports several repertoire-owned pivots; explicit pivot selection is required.",
+    explanation:
+      finding.references.route_ids.length > 1 &&
+      candidates.some((candidate) => candidate.unsupportedRouteIds.length > 0)
+        ? "Finding spans several semantic routes without one supported causal pivot; explicit pivot selection is required."
+        : "Shared or interacting causal evidence supports several repertoire-owned pivots; explicit pivot selection is required.",
   };
 }
 
@@ -440,10 +455,9 @@ function nonActionableEvidence(
 ): ReplacementNonActionablePivotEvidence {
   return {
     ...baseEvidence(request, finding, cohort, navigationPaths, provenance),
-    pivot_id: `replacement-pivot:non-actionable:${stableHash([
-      request.request_id,
-      reason,
-    ].join(ID_SEPARATOR))}`,
+    pivot_id: `replacement-pivot:non-actionable:${stableHash(
+      [request.request_id, reason].join(ID_SEPARATOR),
+    )}`,
     status: "non-actionable",
     owner: null,
     decision_id: null,
@@ -471,9 +485,10 @@ function staleCandidateLines(
     final_fen: null,
     illegal_san_index: null,
     error_code: code,
-    explanation: code === "pivot-selection-required"
-      ? "Candidate line cannot be validated until one semantic pivot is selected."
-      : "Candidate line cannot be validated because its pivot is unavailable in current evidence.",
+    explanation:
+      code === "pivot-selection-required"
+        ? "Candidate line cannot be validated until one semantic pivot is selected."
+        : "Candidate line cannot be validated because its pivot is unavailable in current evidence.",
   }));
 }
 
@@ -484,73 +499,75 @@ function validateCandidateLines(
 ): ReplacementUserCandidateLineResult[] {
   const position = graph.positions.find((candidate) => candidate.position_id === pivot.position_id);
   if (!position) return staleCandidateLines(request, "pivot-unavailable");
-  return request.user_candidate_san_lines.map((line, candidateIndex): ReplacementUserCandidateLineResult => {
-    if (line.length === 0) {
-      return {
-        ...versioned(),
-        candidate_index: candidateIndex,
-        input_san_line: [],
-        pivot_position_id: pivot.position_id,
-        status: "illegal",
-        canonical_san_line: [],
-        first_move_uci: null,
-        final_fen: null,
-        illegal_san_index: 0,
-        error_code: "empty-line",
-        explanation: "Candidate SAN line must contain at least one move.",
-      };
-    }
-    try {
-      const validation = validateLine(position.fen, line);
-      if (
-        validation.ok &&
-        validation.canonical.length > 0 &&
-        validation.firstUci &&
-        validation.finalFen
-      ) {
+  return request.user_candidate_san_lines.map(
+    (line, candidateIndex): ReplacementUserCandidateLineResult => {
+      if (line.length === 0) {
+        return {
+          ...versioned(),
+          candidate_index: candidateIndex,
+          input_san_line: [],
+          pivot_position_id: pivot.position_id,
+          status: "illegal",
+          canonical_san_line: [],
+          first_move_uci: null,
+          final_fen: null,
+          illegal_san_index: 0,
+          error_code: "empty-line",
+          explanation: "Candidate SAN line must contain at least one move.",
+        };
+      }
+      try {
+        const validation = validateLine(position.fen, line);
+        if (
+          validation.ok &&
+          validation.canonical.length > 0 &&
+          validation.firstUci &&
+          validation.finalFen
+        ) {
+          return {
+            ...versioned(),
+            candidate_index: candidateIndex,
+            input_san_line: [...line],
+            pivot_position_id: pivot.position_id,
+            status: "valid",
+            canonical_san_line: validation.canonical as [string, ...string[]],
+            first_move_uci: validation.firstUci,
+            final_fen: validation.finalFen,
+            illegal_san_index: null,
+            error_code: null,
+            explanation: "Candidate SAN line is legal from the selected semantic pivot position.",
+          };
+        }
         return {
           ...versioned(),
           candidate_index: candidateIndex,
           input_san_line: [...line],
           pivot_position_id: pivot.position_id,
-          status: "valid",
-          canonical_san_line: validation.canonical as [string, ...string[]],
-          first_move_uci: validation.firstUci,
-          final_fen: validation.finalFen,
+          status: "illegal",
+          canonical_san_line: validation.canonical,
+          first_move_uci: validation.firstUci ?? null,
+          final_fen: null,
+          illegal_san_index: validation.badIndex ?? validation.canonical.length,
+          error_code: "illegal-san",
+          explanation: `Candidate SAN is illegal at index ${validation.badIndex ?? validation.canonical.length}.`,
+        };
+      } catch {
+        return {
+          ...versioned(),
+          candidate_index: candidateIndex,
+          input_san_line: [...line],
+          pivot_position_id: pivot.position_id,
+          status: "stale",
+          canonical_san_line: [],
+          first_move_uci: null,
+          final_fen: null,
           illegal_san_index: null,
-          error_code: null,
-          explanation: "Candidate SAN line is legal from the selected semantic pivot position.",
+          error_code: "pivot-unavailable",
+          explanation: "Current pivot position cannot validate this candidate line.",
         };
       }
-      return {
-        ...versioned(),
-        candidate_index: candidateIndex,
-        input_san_line: [...line],
-        pivot_position_id: pivot.position_id,
-        status: "illegal",
-        canonical_san_line: validation.canonical,
-        first_move_uci: validation.firstUci ?? null,
-        final_fen: null,
-        illegal_san_index: validation.badIndex ?? validation.canonical.length,
-        error_code: "illegal-san",
-        explanation: `Candidate SAN is illegal at index ${validation.badIndex ?? validation.canonical.length}.`,
-      };
-    } catch {
-      return {
-        ...versioned(),
-        candidate_index: candidateIndex,
-        input_san_line: [...line],
-        pivot_position_id: pivot.position_id,
-        status: "stale",
-        canonical_san_line: [],
-        first_move_uci: null,
-        final_fen: null,
-        illegal_san_index: null,
-        error_code: "pivot-unavailable",
-        explanation: "Current pivot position cannot validate this candidate line.",
-      };
-    }
-  });
+    },
+  );
 }
 
 function resultBase(
@@ -572,25 +589,32 @@ function resultBase(
   };
 }
 
-function incompatibleReason(input: SelectReplacementPivotInput): ReplacementPivotNonActionableReason | null {
+function incompatibleReason(
+  input: SelectReplacementPivotInput,
+): ReplacementPivotNonActionableReason | null {
   const { request, graph, finding, cohort } = input;
   if (
     request.finding_id !== finding.finding_id ||
     request.semantic_finding_id !== finding.semantic_finding_id
-  ) return "request-finding-mismatch";
+  )
+    return "request-finding-mismatch";
   if (request.cohort_id !== cohort.cohort_id) return "request-cohort-mismatch";
   if (
     request.repertoire_revision !== finding.repertoire_revision ||
     request.repertoire_revision !== finding.provenance.repertoire_revision
-  ) return "repertoire-revision-mismatch";
+  )
+    return "repertoire-revision-mismatch";
   if (request.repertoire_color !== graph.repertoire_color) return "repertoire-color-mismatch";
   if (finding.evidence.cohort_id !== cohort.cohort_id) return "finding-evidence-cohort-mismatch";
   const graphRoutes = new Set(graph.routes.map((route) => route.route_id));
   const cohortRoutes = new Set(cohort.route_ids);
   if (
     finding.references.route_ids.length === 0 ||
-    finding.references.route_ids.some((routeId) => !graphRoutes.has(routeId) || !cohortRoutes.has(routeId))
-  ) return "finding-routes-stale";
+    finding.references.route_ids.some(
+      (routeId) => !graphRoutes.has(routeId) || !cohortRoutes.has(routeId),
+    )
+  )
+    return "finding-routes-stale";
   return null;
 }
 
@@ -631,8 +655,8 @@ export function selectReplacementPivot(
   const candidates = pivotCandidates(graph, finding, cohort, request.repertoire_color);
 
   if (request.pivot_selection.kind === "user-selected") {
-    const selectedDecision = graph.decisions.find((decision) =>
-      decision.decision_id === request.pivot_selection.decision_id
+    const selectedDecision = graph.decisions.find(
+      (decision) => decision.decision_id === request.pivot_selection.decision_id,
     );
     if (!selectedDecision) {
       return nonActionableResult(input, "unknown-user-selected-decision", provenance);
@@ -643,32 +667,18 @@ export function selectReplacementPivot(
     ) {
       return nonActionableResult(input, "user-selected-decision-not-repertoire-owned", provenance);
     }
-    const selected = candidates.find((candidate) =>
-      candidate.decision.decision_id === selectedDecision.decision_id
+    const selected = candidates.find(
+      (candidate) => candidate.decision.decision_id === selectedDecision.decision_id,
     );
     if (!selected) return nonActionableResult(input, "stale-user-selected-decision", provenance);
     const alternatives = candidates.filter((candidate) => candidate !== selected);
-    const pivot = actionableEvidence(
-      selected,
-      alternatives,
-      request,
-      finding,
-      cohort,
-      provenance,
-    );
+    const pivot = actionableEvidence(selected, alternatives, request, finding, cohort, provenance);
     return {
       ...resultBase(request, provenance),
       status: "selected",
       pivot,
       alternative_pivots: alternatives.map((candidate) =>
-        actionableEvidence(
-          candidate,
-          candidates,
-          request,
-          finding,
-          cohort,
-          provenance,
-        )
+        actionableEvidence(candidate, candidates, request, finding, cohort, provenance),
       ),
       non_actionable_reason: null,
       candidate_line_results: validateCandidateLines(request, graph, pivot),
@@ -692,14 +702,7 @@ export function selectReplacementPivot(
     !coversEveryAffectedRoute
   ) {
     const alternativePivots = candidates.map((candidate) =>
-      actionableEvidence(
-        candidate,
-        candidates,
-        request,
-        finding,
-        cohort,
-        provenance,
-      )
+      actionableEvidence(candidate, candidates, request, finding, cohort, provenance),
     ) as [ReplacementActionablePivotEvidence, ...ReplacementActionablePivotEvidence[]];
     return {
       ...resultBase(request, provenance),
@@ -711,14 +714,7 @@ export function selectReplacementPivot(
     };
   }
 
-  const pivot = actionableEvidence(
-    candidates[0]!,
-    [],
-    request,
-    finding,
-    cohort,
-    provenance,
-  );
+  const pivot = actionableEvidence(candidates[0]!, [], request, finding, cohort, provenance);
   return {
     ...resultBase(request, provenance),
     status: "selected",

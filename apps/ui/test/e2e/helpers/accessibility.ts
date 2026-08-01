@@ -8,8 +8,12 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
       if (!(element instanceof HTMLElement)) return false;
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      return style.display !== "none" && style.visibility !== "hidden" &&
-        rect.width > 0 && rect.height > 0;
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
     const description = (element: Element) => {
       const id = element.id ? `#${element.id}` : "";
@@ -41,8 +45,12 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
         if (labels) return labels;
       }
       if (element instanceof HTMLImageElement && element.alt.trim()) return element.alt.trim();
-      if (element instanceof HTMLInputElement && element.value.trim() &&
-        ["button", "reset", "submit"].includes(element.type)) return element.value.trim();
+      if (
+        element instanceof HTMLInputElement &&
+        element.value.trim() &&
+        ["button", "reset", "submit"].includes(element.type)
+      )
+        return element.value.trim();
       return element.textContent?.trim() || element.getAttribute("title")?.trim() || "";
     };
 
@@ -55,7 +63,9 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
       if (count > 1) issues.push(`duplicate id #${id}`);
     }
 
-    for (const element of container.querySelectorAll("[aria-labelledby], [aria-describedby], [aria-controls]")) {
+    for (const element of container.querySelectorAll(
+      "[aria-labelledby], [aria-describedby], [aria-controls]",
+    )) {
       for (const attribute of ["aria-labelledby", "aria-describedby", "aria-controls"] as const) {
         const value = element.getAttribute(attribute);
         if (!value) continue;
@@ -84,8 +94,7 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
       }
     }
 
-    const headings = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")]
-      .filter(visible);
+    const headings = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].filter(visible);
     if (headings.length === 0 || headings[0]!.tagName !== "H1") {
       issues.push("visible heading outline does not start with h1");
     }
@@ -94,7 +103,9 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
       const level = Number(heading.tagName.slice(1));
       if (!heading.textContent?.trim()) issues.push(`${description(heading)} is empty`);
       if (previousLevel > 0 && level > previousLevel + 1) {
-        issues.push(`heading level jumps from h${previousLevel} to h${level}: ${heading.textContent?.trim()}`);
+        issues.push(
+          `heading level jumps from h${previousLevel} to h${level}: ${heading.textContent?.trim()}`,
+        );
       }
       previousLevel = level;
     }
@@ -125,7 +136,8 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
     }
 
     for (const live of container.querySelectorAll("[role='status'][aria-live]")) {
-      if (visible(live)) issues.push(`${description(live)} duplicates status and aria-live semantics`);
+      if (visible(live))
+        issues.push(`${description(live)} duplicates status and aria-live semantics`);
     }
 
     return issues;
@@ -142,21 +154,29 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
     const visible = (element: HTMLElement) => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      return style.display !== "none" && style.visibility !== "hidden" &&
-        rect.width > 0 && rect.height > 0;
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
     };
     for (const candidate of container.querySelectorAll<HTMLElement>(
       "button, select, summary, textarea, input:not([type='hidden'])",
     )) {
       if (!visible(candidate) || candidate.matches(":disabled")) continue;
       const input = candidate instanceof HTMLInputElement ? candidate : null;
-      const target = input && ["checkbox", "radio"].includes(input.type)
-        ? candidate.closest<HTMLElement>("label") ?? candidate
-        : candidate;
+      const target =
+        input && ["checkbox", "radio"].includes(input.type)
+          ? (candidate.closest<HTMLElement>("label") ?? candidate)
+          : candidate;
       const rect = target.getBoundingClientRect();
       if (rect.width + 0.01 < min || rect.height + 0.01 < min) {
-        const name = candidate.getAttribute("aria-label") ??
-          candidate.textContent?.trim() ?? input?.name ?? candidate.tagName.toLowerCase();
+        const name =
+          candidate.getAttribute("aria-label") ??
+          candidate.textContent?.trim() ??
+          input?.name ??
+          candidate.tagName.toLowerCase();
         issues.push(`${name}: ${rect.width.toFixed(1)}×${rect.height.toFixed(1)}`);
       }
     }
@@ -167,9 +187,16 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
 export async function contrastViolations(root: Locator): Promise<string[]> {
   return root.evaluate((container) => {
     const parseColor = (value: string): [number, number, number, number] | null => {
-      const match = value.match(/^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/u);
+      const match = value.match(
+        /^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/u,
+      );
       return match
-        ? [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? 1 : Number(match[4])]
+        ? [
+            Number(match[1]),
+            Number(match[2]),
+            Number(match[3]),
+            match[4] === undefined ? 1 : Number(match[4]),
+          ]
         : null;
     };
     const luminance = ([red, green, blue]: readonly number[]) => {
@@ -193,24 +220,31 @@ export async function contrastViolations(root: Locator): Promise<string[]> {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       if (
-        style.display === "none" || style.visibility === "hidden" ||
-        rect.width === 0 || rect.height === 0 ||
-        element.closest(":disabled") || Number(style.opacity) < 0.99 ||
-        ![...element.childNodes].some((node) =>
-          node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim())
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        rect.width === 0 ||
+        rect.height === 0 ||
+        element.closest(":disabled") ||
+        Number(style.opacity) < 0.99 ||
+        ![...element.childNodes].some(
+          (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
         )
-      ) continue;
+      )
+        continue;
       const foreground = parseColor(style.color);
       if (!foreground || foreground[3] < 0.99) continue;
       const foregroundLuminance = luminance(foreground);
       const backgroundLuminance = luminance(background(element));
-      const ratio = (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+      const ratio =
+        (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
         (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
       const fontSize = Number.parseFloat(style.fontSize);
       const fontWeight = Number.parseInt(style.fontWeight, 10) || 400;
       const threshold = fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700) ? 3 : 4.5;
       if (ratio + 0.01 < threshold) {
-        issues.push(`${element.tagName.toLowerCase()} "${element.textContent?.trim().slice(0, 48)}": ${ratio.toFixed(2)}:1`);
+        issues.push(
+          `${element.tagName.toLowerCase()} "${element.textContent?.trim().slice(0, 48)}": ${ratio.toFixed(2)}:1`,
+        );
       }
     }
     return issues;

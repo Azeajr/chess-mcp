@@ -7,7 +7,10 @@
  */
 
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
+export type JsonValue =
+  | JsonPrimitive
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
 
 export interface SchemaVersioned {
   readonly schema_version: string;
@@ -19,7 +22,12 @@ export interface AnalysisVersioned {
 
 export interface StrategicFitVersioned extends SchemaVersioned, AnalysisVersioned {}
 
-export const STRATEGIC_FIT_PROFILE_MODES = ["familiar-plans", "balanced", "versatile", "custom"] as const;
+export const STRATEGIC_FIT_PROFILE_MODES = [
+  "familiar-plans",
+  "balanced",
+  "versatile",
+  "custom",
+] as const;
 export type StrategicFitProfileMode = (typeof STRATEGIC_FIT_PROFILE_MODES)[number];
 
 export const STRATEGIC_FIT_PROFILE_SOURCES = ["explicit", "inferred"] as const;
@@ -65,7 +73,12 @@ export const STRATEGIC_FIT_SOURCE_KINDS = [
 ] as const;
 export type StrategicFitSourceKind = (typeof STRATEGIC_FIT_SOURCE_KINDS)[number];
 
-export const STRATEGIC_FIT_SOURCE_STATES = ["available", "partial", "unavailable", "stale"] as const;
+export const STRATEGIC_FIT_SOURCE_STATES = [
+  "available",
+  "partial",
+  "unavailable",
+  "stale",
+] as const;
 export type StrategicFitSourceState = (typeof STRATEGIC_FIT_SOURCE_STATES)[number];
 
 export interface StrategicFitSourceProvenance {
@@ -97,7 +110,12 @@ export type StrategicSignalFamily = (typeof STRATEGIC_SIGNAL_FAMILIES)[number];
 export const STRATEGIC_SIGNAL_KINDS = ["observation", "derived-concept"] as const;
 export type StrategicSignalKind = (typeof STRATEGIC_SIGNAL_KINDS)[number];
 
-export const SIGNAL_PERSISTENCE_STATES = ["unknown", "transient", "stable", "irreversible"] as const;
+export const SIGNAL_PERSISTENCE_STATES = [
+  "unknown",
+  "transient",
+  "stable",
+  "irreversible",
+] as const;
 export type SignalPersistenceState = (typeof SIGNAL_PERSISTENCE_STATES)[number];
 
 export interface StrategicSignal<T = JsonValue> extends AnalysisVersioned {
@@ -122,7 +140,11 @@ export const STRATEGIC_CHECKPOINT_KINDS = [
 ] as const;
 export type StrategicCheckpointKind = (typeof STRATEGIC_CHECKPOINT_KINDS)[number];
 
-export const CHECKPOINT_COMPARABILITY_STATES = ["comparable", "incomplete", "not-comparable"] as const;
+export const CHECKPOINT_COMPARABILITY_STATES = [
+  "comparable",
+  "incomplete",
+  "not-comparable",
+] as const;
 export type CheckpointComparabilityState = (typeof CHECKPOINT_COMPARABILITY_STATES)[number];
 
 export interface StrategicCheckpoint extends AnalysisVersioned {
@@ -144,7 +166,12 @@ export interface StrategicSnapshot extends AnalysisVersioned {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export const STRATEGIC_TRAJECTORY_STATES = ["complete", "incomplete", "unsupported", "terminal"] as const;
+export const STRATEGIC_TRAJECTORY_STATES = [
+  "complete",
+  "incomplete",
+  "unsupported",
+  "terminal",
+] as const;
 export type StrategicTrajectoryState = (typeof STRATEGIC_TRAJECTORY_STATES)[number];
 
 export interface MissingStrategicCheckpoint {
@@ -183,7 +210,12 @@ export interface StrategicMode extends AnalysisVersioned {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export const STRATEGIC_COHORT_STATES = ["actionable", "mixed-profile", "insufficient-evidence", "excluded"] as const;
+export const STRATEGIC_COHORT_STATES = [
+  "actionable",
+  "mixed-profile",
+  "insufficient-evidence",
+  "excluded",
+] as const;
 export type StrategicCohortState = (typeof STRATEGIC_COHORT_STATES)[number];
 
 export interface StrategicCohort extends AnalysisVersioned {
@@ -276,7 +308,12 @@ export interface ObjectiveQuality extends AnalysisVersioned {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export const FINDING_PRIORITY_LABELS = ["review-now", "review-later", "informational", "insufficient-evidence"] as const;
+export const FINDING_PRIORITY_LABELS = [
+  "review-now",
+  "review-later",
+  "informational",
+  "insufficient-evidence",
+] as const;
 export type FindingPriorityLabel = (typeof FINDING_PRIORITY_LABELS)[number];
 
 export const FINDING_PRIORITY_KINDS = ["replacement", "training"] as const;
@@ -525,7 +562,14 @@ export type StrategicFitMetricId = (typeof STRATEGIC_FIT_METRIC_IDS)[number];
 export const METRIC_STATES = ["available", "partial", "unavailable"] as const;
 export type MetricState = (typeof METRIC_STATES)[number];
 
-export const METRIC_UNITS = ["count", "fraction", "entropy", "score", "centipawns", "composite"] as const;
+export const METRIC_UNITS = [
+  "count",
+  "fraction",
+  "entropy",
+  "score",
+  "centipawns",
+  "composite",
+] as const;
 export type MetricUnit = (typeof METRIC_UNITS)[number];
 
 export interface StrategicFitMetric<T> extends AnalysisVersioned {
@@ -587,7 +631,12 @@ export const STRATEGIC_FIT_PROGRESS_PHASES = [
 ] as const;
 export type StrategicFitProgressPhase = (typeof STRATEGIC_FIT_PROGRESS_PHASES)[number];
 
-export const STRATEGIC_FIT_PROGRESS_STATES = ["pending", "running", "completed", "cancelled"] as const;
+export const STRATEGIC_FIT_PROGRESS_STATES = [
+  "pending",
+  "running",
+  "completed",
+  "cancelled",
+] as const;
 export type StrategicFitProgressState = (typeof STRATEGIC_FIT_PROGRESS_STATES)[number];
 
 export interface StrategicFitProgress extends AnalysisVersioned {

@@ -85,18 +85,18 @@ export interface StrategicFitMetadataRecordLifecycle {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export type StrategicFitPersistedRouteWeight =
-  Omit<StrategicRouteWeightInput, "provenance"> & StrategicFitMetadataRecordLifecycle;
+export type StrategicFitPersistedRouteWeight = Omit<StrategicRouteWeightInput, "provenance"> &
+  StrategicFitMetadataRecordLifecycle;
 
-export type StrategicFitPersistedDecisionWeight =
-  Omit<StrategicDecisionWeightInput, "provenance"> & StrategicFitMetadataRecordLifecycle;
+export type StrategicFitPersistedDecisionWeight = Omit<StrategicDecisionWeightInput, "provenance"> &
+  StrategicFitMetadataRecordLifecycle;
 
 export type StrategicFitPersistedStructuralCohortOverride =
   | (StrategicCohortMergeOverride & StrategicFitMetadataRecordLifecycle)
   | (StrategicCohortSplitOverride & StrategicFitMetadataRecordLifecycle);
 
-export type StrategicFitPersistedExclusionOverride =
-  StrategicCohortExclusionOverride & StrategicFitMetadataRecordLifecycle;
+export type StrategicFitPersistedExclusionOverride = StrategicCohortExclusionOverride &
+  StrategicFitMetadataRecordLifecycle;
 
 /** Display-only user label for one canonical cohort. It never changes analyzer grouping. */
 export interface StrategicFitPersistedCohortLabel extends StrategicFitMetadataRecordLifecycle {
@@ -106,7 +106,8 @@ export interface StrategicFitPersistedCohortLabel extends StrategicFitMetadataRe
 }
 
 export interface StrategicFitPersistedResolution
-  extends Omit<FindingResolution, "state" | "provenance" | "semantic_finding_id">,
+  extends
+    Omit<FindingResolution, "state" | "provenance" | "semantic_finding_id">,
     StrategicFitMetadataRecordLifecycle {
   readonly state: StrategicFitPersistedResolutionState;
   /** Null only on migrated stale records that predate semantic finding identity. */
@@ -182,7 +183,11 @@ export interface StrategicFitDocumentMetadata {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export const STRATEGIC_FIT_METADATA_NORMALIZATION_STATES = ["valid", "migrated", "fallback"] as const;
+export const STRATEGIC_FIT_METADATA_NORMALIZATION_STATES = [
+  "valid",
+  "migrated",
+  "fallback",
+] as const;
 export type StrategicFitMetadataNormalizationState =
   (typeof STRATEGIC_FIT_METADATA_NORMALIZATION_STATES)[number];
 
@@ -223,8 +228,12 @@ export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string,
   });
 
 const DEFAULT_FEATURE_FAMILY_WEIGHTS: Readonly<Record<StrategicSignalFamily, number>> =
-  Object.freeze(Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [family, 1])) as
-    Record<StrategicSignalFamily, number>);
+  Object.freeze(
+    Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [family, 1])) as Record<
+      StrategicSignalFamily,
+      number
+    >,
+  );
 
 const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freeze({
   maximum_engine_loss_cp: null,
@@ -362,7 +371,11 @@ function nullableString(value: unknown): string | null | undefined {
   return value === null ? null : typeof value === "string" ? value : undefined;
 }
 
-function finiteNumber(value: unknown, minimum: number, maximum = Number.POSITIVE_INFINITY): number | null {
+function finiteNumber(
+  value: unknown,
+  minimum: number,
+  maximum = Number.POSITIVE_INFINITY,
+): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum
     ? value
     : null;
@@ -423,8 +436,14 @@ function provenanceSource(
   const snapshot = nullableString(value.snapshot);
   const reason = nullableString(value.reason);
   if (
-    sourceId === null || kind === null || !SOURCE_KINDS.has(kind) || state === null ||
-    !SOURCE_STATES.has(state) || version === undefined || snapshot === undefined || reason === undefined
+    sourceId === null ||
+    kind === null ||
+    !SOURCE_KINDS.has(kind) ||
+    state === null ||
+    !SOURCE_STATES.has(state) ||
+    version === undefined ||
+    snapshot === undefined ||
+    reason === undefined
   ) {
     issue(context, "invalid-entry", path, "Provenance fields do not match the current contract.");
     return null;
@@ -467,12 +486,21 @@ function recordLifecycle(
   const staleReasons = stringArray(value.stale_reasons, `${path}.stale_reasons`, context);
   const provenance = provenanceArray(value.provenance, `${path}.provenance`, context);
   if (
-    recordState === null || !RECORD_STATES.has(recordState) || reason === undefined ||
-    updatedAt === null || staleReasons.some((entry) => !STALE_REASONS.has(entry)) ||
+    recordState === null ||
+    !RECORD_STATES.has(recordState) ||
+    reason === undefined ||
+    updatedAt === null ||
+    staleReasons.some((entry) => !STALE_REASONS.has(entry)) ||
     (recordState === "active" && staleReasons.length > 0) ||
-    (recordState === "stale" && staleReasons.length === 0) || provenance.length === 0
+    (recordState === "stale" && staleReasons.length === 0) ||
+    provenance.length === 0
   ) {
-    issue(context, "invalid-entry", path, "Metadata record lifecycle fields do not match the current contract.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Metadata record lifecycle fields do not match the current contract.",
+    );
     return null;
   }
   return {
@@ -510,16 +538,16 @@ function profilePreferences(
     path,
     context,
   );
-  const maximumEngineLoss = value.maximum_engine_loss_cp === null
-    ? null
-    : finiteNumber(value.maximum_engine_loss_cp, 0);
+  const maximumEngineLoss =
+    value.maximum_engine_loss_cp === null ? null : finiteNumber(value.maximum_engine_loss_cp, 0);
   const opponentPopularity = finiteNumber(value.opponent_popularity_importance, 0, 1);
   const personalFrequency = finiteNumber(value.personal_game_frequency_importance, 0, 1);
   const manualWeight = finiteNumber(value.manual_weight_importance, 0, 1);
   const memorizationTolerance = finiteNumber(value.additional_memorization_tolerance, 0, 1);
-  const minimumCoverage = value.minimum_opponent_coverage === null
-    ? null
-    : finiteNumber(value.minimum_opponent_coverage, 0, 1);
+  const minimumCoverage =
+    value.minimum_opponent_coverage === null
+      ? null
+      : finiteNumber(value.minimum_opponent_coverage, 0, 1);
   let familyWeights: Record<StrategicSignalFamily, number | null> | null;
   const rawFamilyWeights = value.feature_family_weights;
   if (isRecord(rawFamilyWeights)) {
@@ -529,23 +557,32 @@ function profilePreferences(
       `${path}.feature_family_weights`,
       context,
     );
-    familyWeights = Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => [
-      family,
-      finiteNumber(rawFamilyWeights[family], 0, 3),
-    ])) as Record<StrategicSignalFamily, number | null>;
+    familyWeights = Object.fromEntries(
+      STRATEGIC_SIGNAL_FAMILIES.map((family) => [
+        family,
+        finiteNumber(rawFamilyWeights[family], 0, 3),
+      ]),
+    ) as Record<StrategicSignalFamily, number | null>;
   } else {
-    familyWeights = rawFamilyWeights === undefined
-      ? { ...DEFAULT_FEATURE_FAMILY_WEIGHTS }
-      : null;
+    familyWeights = rawFamilyWeights === undefined ? { ...DEFAULT_FEATURE_FAMILY_WEIGHTS } : null;
   }
   if (
-    maximumEngineLoss === null && value.maximum_engine_loss_cp !== null ||
-    opponentPopularity === null || personalFrequency === null || manualWeight === null ||
-    memorizationTolerance === null || minimumCoverage === null && value.minimum_opponent_coverage !== null ||
-    familyWeights === null || Object.values(familyWeights).some((weight) => weight === null) ||
-    familyWeights !== null && Object.values(familyWeights).every((weight) => weight === 0)
+    (maximumEngineLoss === null && value.maximum_engine_loss_cp !== null) ||
+    opponentPopularity === null ||
+    personalFrequency === null ||
+    manualWeight === null ||
+    memorizationTolerance === null ||
+    (minimumCoverage === null && value.minimum_opponent_coverage !== null) ||
+    familyWeights === null ||
+    Object.values(familyWeights).some((weight) => weight === null) ||
+    (familyWeights !== null && Object.values(familyWeights).every((weight) => weight === 0))
   ) {
-    issue(context, "invalid-field", path, "Profile preference numbers are outside the supported ranges.");
+    issue(
+      context,
+      "invalid-field",
+      path,
+      "Profile preference numbers are outside the supported ranges.",
+    );
     return null;
   }
   return {
@@ -554,8 +591,16 @@ function profilePreferences(
     personal_game_frequency_importance: personalFrequency,
     manual_weight_importance: manualWeight,
     additional_memorization_tolerance: memorizationTolerance,
-    preferred_concept_ids: stringArray(value.preferred_concept_ids, `${path}.preferred_concept_ids`, context),
-    avoided_concept_ids: stringArray(value.avoided_concept_ids, `${path}.avoided_concept_ids`, context),
+    preferred_concept_ids: stringArray(
+      value.preferred_concept_ids,
+      `${path}.preferred_concept_ids`,
+      context,
+    ),
+    avoided_concept_ids: stringArray(
+      value.avoided_concept_ids,
+      `${path}.avoided_concept_ids`,
+      context,
+    ),
     preferred_tactical_character: stringArray(
       value.preferred_tactical_character,
       `${path}.preferred_tactical_character`,
@@ -571,16 +616,31 @@ function profile(value: unknown, path: string, context: NormalizationContext): S
     issue(context, "invalid-field", path, "Expected a Strategic Fit profile object.");
     return defaultProfile();
   }
-  unknownFields(value, new Set(["schema_version", "mode", "source", "provisional", "preferences"]), path, context);
+  unknownFields(
+    value,
+    new Set(["schema_version", "mode", "source", "provisional", "preferences"]),
+    path,
+    context,
+  );
   const mode = nonEmptyString(value.mode);
   const source = nonEmptyString(value.source);
   const preferences = profilePreferences(value.preferences, `${path}.preferences`, context);
   if (
-    value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION || mode === null || !PROFILE_MODES.has(mode) ||
-    source === null || !PROFILE_SOURCES.has(source) || typeof value.provisional !== "boolean" ||
-    (source === "inferred") !== value.provisional || preferences === null
+    value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
+    mode === null ||
+    !PROFILE_MODES.has(mode) ||
+    source === null ||
+    !PROFILE_SOURCES.has(source) ||
+    typeof value.provisional !== "boolean" ||
+    (source === "inferred") !== value.provisional ||
+    preferences === null
   ) {
-    issue(context, "invalid-field", path, "Profile fields do not match the current Strategic Fit contract.");
+    issue(
+      context,
+      "invalid-field",
+      path,
+      "Profile fields do not match the current Strategic Fit contract.",
+    );
     return defaultProfile();
   }
   return {
@@ -603,7 +663,15 @@ function routeWeight(
   }
   unknownFields(
     value,
-    new Set(["route_id", "weight", "record_state", "stale_reasons", "reason", "updated_at", "provenance"]),
+    new Set([
+      "route_id",
+      "weight",
+      "record_state",
+      "stale_reasons",
+      "reason",
+      "updated_at",
+      "provenance",
+    ]),
     path,
     context,
   );
@@ -611,7 +679,12 @@ function routeWeight(
   const weight = finiteNumber(value.weight, 0);
   const lifecycle = recordLifecycle(value, path, context);
   if (routeId === null || weight === null || lifecycle === null) {
-    issue(context, "invalid-entry", path, "Route weight requires a semantic route ID and a non-negative weight.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Route weight requires a semantic route ID and a non-negative weight.",
+    );
     return null;
   }
   return { route_id: routeId, weight, ...lifecycle };
@@ -628,7 +701,15 @@ function decisionWeight(
   }
   unknownFields(
     value,
-    new Set(["decision_id", "weight", "record_state", "stale_reasons", "reason", "updated_at", "provenance"]),
+    new Set([
+      "decision_id",
+      "weight",
+      "record_state",
+      "stale_reasons",
+      "reason",
+      "updated_at",
+      "provenance",
+    ]),
     path,
     context,
   );
@@ -636,7 +717,12 @@ function decisionWeight(
   const weight = finiteNumber(value.weight, 0);
   const lifecycle = recordLifecycle(value, path, context);
   if (decisionId === null || weight === null || lifecycle === null) {
-    issue(context, "invalid-entry", path, "Decision weight requires a semantic decision ID and a non-negative weight.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Decision weight requires a semantic decision ID and a non-negative weight.",
+    );
     return null;
   }
   return { decision_id: decisionId, weight, ...lifecycle };
@@ -673,8 +759,10 @@ function compareResolutionPrecedence(
   left: StrategicFitPersistedResolution,
   right: StrategicFitPersistedResolution,
 ): number {
-  return left.updated_at.localeCompare(right.updated_at) ||
-    left.resolution_id.localeCompare(right.resolution_id);
+  return (
+    left.updated_at.localeCompare(right.updated_at) ||
+    left.resolution_id.localeCompare(right.resolution_id)
+  );
 }
 
 function singularActiveResolutions(
@@ -700,9 +788,11 @@ function singularActiveResolutions(
       false,
     );
   }
-  return resolutions.filter((record) =>
-    record.record_state !== "active" || record.semantic_finding_id === null ||
-    winnerByFinding.get(record.semantic_finding_id) === record
+  return resolutions.filter(
+    (record) =>
+      record.record_state !== "active" ||
+      record.semantic_finding_id === null ||
+      winnerByFinding.get(record.semantic_finding_id) === record,
   );
 }
 
@@ -710,7 +800,9 @@ function compareCohortLabelPrecedence(
   left: StrategicFitPersistedCohortLabel,
   right: StrategicFitPersistedCohortLabel,
 ): number {
-  return left.updated_at.localeCompare(right.updated_at) || left.label_id.localeCompare(right.label_id);
+  return (
+    left.updated_at.localeCompare(right.updated_at) || left.label_id.localeCompare(right.label_id)
+  );
 }
 
 function singularActiveCohortLabels(
@@ -736,12 +828,16 @@ function singularActiveCohortLabels(
       false,
     );
   }
-  return labels.filter((record) =>
-    record.record_state !== "active" || winnerByCohort.get(record.cohort_id) === record
+  return labels.filter(
+    (record) => record.record_state !== "active" || winnerByCohort.get(record.cohort_id) === record,
   );
 }
 
-function manualWeights(value: unknown, path: string, context: NormalizationContext): StrategicFitManualWeights {
+function manualWeights(
+  value: unknown,
+  path: string,
+  context: NormalizationContext,
+): StrategicFitManualWeights {
   if (!isRecord(value)) {
     issue(context, "invalid-field", path, "Expected a manual weights object.");
     return { route_weights: [], decision_weights: [] };
@@ -777,7 +873,11 @@ function cohortOverride(
   const overrideId = nonEmptyString(value.override_id);
   const kind = nonEmptyString(value.kind);
   const lifecycle = recordLifecycle(value, path, context);
-  if (overrideId === null || !["merge", "split", "exclude"].includes(kind ?? "") || lifecycle === null) {
+  if (
+    overrideId === null ||
+    !["merge", "split", "exclude"].includes(kind ?? "") ||
+    lifecycle === null
+  ) {
     issue(context, "invalid-entry", path, "Cohort override identity or kind is invalid.");
     return null;
   }
@@ -785,7 +885,13 @@ function cohortOverride(
     unknownFields(
       value,
       new Set([
-        "override_id", "kind", "route_ids", "record_state", "stale_reasons", "reason", "updated_at",
+        "override_id",
+        "kind",
+        "route_ids",
+        "record_state",
+        "stale_reasons",
+        "reason",
+        "updated_at",
         "provenance",
       ]),
       path,
@@ -793,7 +899,12 @@ function cohortOverride(
     );
     const routeIds = stringArray(value.route_ids, `${path}.route_ids`, context);
     if (routeIds.length === 0) {
-      issue(context, "invalid-entry", path, "Structural cohort overrides require at least one route.");
+      issue(
+        context,
+        "invalid-entry",
+        path,
+        "Structural cohort overrides require at least one route.",
+      );
       return null;
     }
     return {
@@ -806,18 +917,32 @@ function cohortOverride(
   unknownFields(
     value,
     new Set([
-      "override_id", "kind", "route_ids", "decision_ids", "record_state", "stale_reasons", "reason",
-      "updated_at", "provenance",
+      "override_id",
+      "kind",
+      "route_ids",
+      "decision_ids",
+      "record_state",
+      "stale_reasons",
+      "reason",
+      "updated_at",
+      "provenance",
     ]),
     path,
     context,
   );
-  const routeIds = value.route_ids === undefined ? [] : stringArray(value.route_ids, `${path}.route_ids`, context);
-  const decisionIds = value.decision_ids === undefined
-    ? []
-    : stringArray(value.decision_ids, `${path}.decision_ids`, context);
+  const routeIds =
+    value.route_ids === undefined ? [] : stringArray(value.route_ids, `${path}.route_ids`, context);
+  const decisionIds =
+    value.decision_ids === undefined
+      ? []
+      : stringArray(value.decision_ids, `${path}.decision_ids`, context);
   if (routeIds.length === 0 && decisionIds.length === 0) {
-    issue(context, "invalid-entry", path, "Exclusions require at least one semantic route or decision ID.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Exclusions require at least one semantic route or decision ID.",
+    );
     return null;
   }
   return {
@@ -874,8 +999,14 @@ function cohortLabel(
   unknownFields(
     value,
     new Set([
-      "label_id", "cohort_id", "display_name", "record_state", "stale_reasons", "reason",
-      "updated_at", "provenance",
+      "label_id",
+      "cohort_id",
+      "display_name",
+      "record_state",
+      "stale_reasons",
+      "reason",
+      "updated_at",
+      "provenance",
     ]),
     path,
     context,
@@ -885,8 +1016,11 @@ function cohortLabel(
   const displayName = typeof value.display_name === "string" ? value.display_name.trim() : "";
   const lifecycle = recordLifecycle(value, path, context);
   if (
-    labelId === null || cohortId === null || displayName.length === 0 ||
-    displayName.length > 120 || lifecycle === null
+    labelId === null ||
+    cohortId === null ||
+    displayName.length === 0 ||
+    displayName.length > 120 ||
+    lifecycle === null
   ) {
     issue(context, "invalid-entry", path, "Cohort label fields do not match the current contract.");
     return null;
@@ -903,7 +1037,12 @@ function semanticReferences(
     issue(context, "invalid-field", path, "Expected semantic references.");
     return null;
   }
-  unknownFields(value, new Set(["position_ids", "decision_ids", "route_ids", "source_san_paths"]), path, context);
+  unknownFields(
+    value,
+    new Set(["position_ids", "decision_ids", "route_ids", "source_san_paths"]),
+    path,
+    context,
+  );
   return {
     position_ids: stringArray(value.position_ids, `${path}.position_ids`, context),
     decision_ids: stringArray(value.decision_ids, `${path}.decision_ids`, context),
@@ -950,9 +1089,8 @@ function resolution(
   );
   const resolutionId = nonEmptyString(value.resolution_id);
   const findingId = nonEmptyString(value.finding_id);
-  const semanticFindingId = value.semantic_finding_id === null
-    ? null
-    : nonEmptyString(value.semantic_finding_id);
+  const semanticFindingId =
+    value.semantic_finding_id === null ? null : nonEmptyString(value.semantic_finding_id);
   const repertoireRevision = nonEmptyString(value.repertoire_revision);
   const state = nonEmptyString(value.state);
   const intentionalReason = nullableString(value.intentional_reason);
@@ -963,16 +1101,31 @@ function resolution(
   const profileSnapshot = nullableString(value.profile_snapshot);
   const lifecycle = recordLifecycle(value, path, context);
   if (
-    value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION || resolutionId === null || findingId === null ||
+    value.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
+    resolutionId === null ||
+    findingId === null ||
     (semanticFindingId === null && value.semantic_finding_id !== null) ||
-    repertoireRevision === null || state === null || !PERSISTED_RESOLUTION_STATES.has(state) ||
-    intentionalReason === undefined || intentionalReason !== null && !INTENTIONAL_REASONS.has(intentionalReason) ||
-    note === undefined || references === null || expiresAt === undefined || createdAt === null ||
-    profileSnapshot === undefined || lifecycle === null ||
-    references.position_ids.length === 0 && references.decision_ids.length === 0 &&
-      references.route_ids.length === 0
+    repertoireRevision === null ||
+    state === null ||
+    !PERSISTED_RESOLUTION_STATES.has(state) ||
+    intentionalReason === undefined ||
+    (intentionalReason !== null && !INTENTIONAL_REASONS.has(intentionalReason)) ||
+    note === undefined ||
+    references === null ||
+    expiresAt === undefined ||
+    createdAt === null ||
+    profileSnapshot === undefined ||
+    lifecycle === null ||
+    (references.position_ids.length === 0 &&
+      references.decision_ids.length === 0 &&
+      references.route_ids.length === 0)
   ) {
-    issue(context, "invalid-entry", path, "Finding resolution fields do not match the current contract.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Finding resolution fields do not match the current contract.",
+    );
     return null;
   }
   const identityMissing = lifecycle.stale_reasons.includes("finding-identity-missing");
@@ -980,10 +1133,19 @@ function resolution(
     (semanticFindingId === null && (lifecycle.record_state !== "stale" || !identityMissing)) ||
     (semanticFindingId !== null && identityMissing)
   ) {
-    issue(context, "invalid-entry", path, "Finding resolution semantic identity and lifecycle disagree.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Finding resolution semantic identity and lifecycle disagree.",
+    );
     return null;
   }
-  const invalidationRules = stringArray(value.invalidation_rules, `${path}.invalidation_rules`, context);
+  const invalidationRules = stringArray(
+    value.invalidation_rules,
+    `${path}.invalidation_rules`,
+    context,
+  );
   if (
     invalidationRules.some((rule) => !INVALIDATION_RULES.has(rule)) ||
     (invalidationRules.includes("never") && invalidationRules.length !== 1) ||
@@ -1010,7 +1172,11 @@ function resolution(
     references,
     invalidation_rules: invalidationRules as FindingResolution["invalidation_rules"],
     expires_at: expiresAt,
-    linked_training_ids: stringArray(value.linked_training_ids, `${path}.linked_training_ids`, context),
+    linked_training_ids: stringArray(
+      value.linked_training_ids,
+      `${path}.linked_training_ids`,
+      context,
+    ),
     linked_staged_edit_ids: stringArray(
       value.linked_staged_edit_ids,
       `${path}.linked_staged_edit_ids`,
@@ -1050,10 +1216,18 @@ function archiveReference(
   const linkedStagedEditId = nullableString(value.linked_staged_edit_id);
   const createdAt = nonEmptyString(value.created_at);
   if (
-    archiveId === null || repertoireRevision === null || references === null ||
-    linkedStagedEditId === undefined || createdAt === null
+    archiveId === null ||
+    repertoireRevision === null ||
+    references === null ||
+    linkedStagedEditId === undefined ||
+    createdAt === null
   ) {
-    issue(context, "invalid-entry", path, "Archive reference fields do not match the current contract.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Archive reference fields do not match the current contract.",
+    );
     return null;
   }
   return {
@@ -1077,7 +1251,14 @@ function trainingReference(
   }
   unknownFields(
     value,
-    new Set(["training_id", "finding_id", "repertoire_revision", "references", "created_at", "provenance"]),
+    new Set([
+      "training_id",
+      "finding_id",
+      "repertoire_revision",
+      "references",
+      "created_at",
+      "provenance",
+    ]),
     path,
     context,
   );
@@ -1087,10 +1268,18 @@ function trainingReference(
   const references = semanticReferences(value.references, `${path}.references`, context);
   const createdAt = nonEmptyString(value.created_at);
   if (
-    trainingId === null || findingId === undefined || repertoireRevision === null ||
-    references === null || createdAt === null
+    trainingId === null ||
+    findingId === undefined ||
+    repertoireRevision === null ||
+    references === null ||
+    createdAt === null
   ) {
-    issue(context, "invalid-entry", path, "Training reference fields do not match the current contract.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "Training reference fields do not match the current contract.",
+    );
     return null;
   }
   return {
@@ -1115,9 +1304,21 @@ function commentIntentDecision(
   unknownFields(
     value,
     new Set([
-      "decision_id", "suggestion_id", "disposition", "kind", "intent_value", "detection",
-      "source_comment", "source_match", "source_comment_index", "source_match_index",
-      "source_san_path", "references", "created_at", "updated_at", "provenance",
+      "decision_id",
+      "suggestion_id",
+      "disposition",
+      "kind",
+      "intent_value",
+      "detection",
+      "source_comment",
+      "source_match",
+      "source_comment_index",
+      "source_match_index",
+      "source_san_path",
+      "references",
+      "created_at",
+      "updated_at",
+      "provenance",
     ]),
     path,
     context,
@@ -1132,21 +1333,43 @@ function commentIntentDecision(
   const sourceMatch = nonEmptyString(value.source_match);
   const sourceCommentIndex = finiteNumber(value.source_comment_index, 0);
   const sourceMatchIndex = finiteNumber(value.source_match_index, 0);
-  const sourcePath = sourcePathArray([value.source_san_path], `${path}.source_san_path`, context)[0];
+  const sourcePath = sourcePathArray(
+    [value.source_san_path],
+    `${path}.source_san_path`,
+    context,
+  )[0];
   const references = semanticReferences(value.references, `${path}.references`, context);
   const createdAt = nonEmptyString(value.created_at);
   const updatedAt = nonEmptyString(value.updated_at);
   const provenance = provenanceArray(value.provenance, `${path}.provenance`, context);
   if (
-    decisionId === null || suggestionId === null || disposition === null ||
-    !COMMENT_INTENT_DISPOSITIONS.has(disposition) || kind === null || !COMMENT_INTENT_KINDS.has(kind) ||
-    intentValue === null || detection === null || !COMMENT_INTENT_DETECTIONS.has(detection) ||
-    sourceComment === null || sourceMatch === null || sourceCommentIndex === null ||
-    !Number.isInteger(sourceCommentIndex) || sourceMatchIndex === null || !Number.isInteger(sourceMatchIndex) ||
-    sourcePath === undefined || references === null || createdAt === null || updatedAt === null ||
+    decisionId === null ||
+    suggestionId === null ||
+    disposition === null ||
+    !COMMENT_INTENT_DISPOSITIONS.has(disposition) ||
+    kind === null ||
+    !COMMENT_INTENT_KINDS.has(kind) ||
+    intentValue === null ||
+    detection === null ||
+    !COMMENT_INTENT_DETECTIONS.has(detection) ||
+    sourceComment === null ||
+    sourceMatch === null ||
+    sourceCommentIndex === null ||
+    !Number.isInteger(sourceCommentIndex) ||
+    sourceMatchIndex === null ||
+    !Number.isInteger(sourceMatchIndex) ||
+    sourcePath === undefined ||
+    references === null ||
+    createdAt === null ||
+    updatedAt === null ||
     provenance.length === 0
   ) {
-    issue(context, "invalid-entry", path, "PGN comment intent fields do not match the current contract.");
+    issue(
+      context,
+      "invalid-entry",
+      path,
+      "PGN comment intent fields do not match the current contract.",
+    );
     return null;
   }
   return {
@@ -1197,30 +1420,47 @@ function normalizedCurrent(
   const structuralOverrides = uniqueEntries(
     value.cohort_overrides,
     "$.cohort_overrides",
-    (entry: StrategicFitPersistedStructuralCohortOverride | StrategicFitPersistedExclusionOverride) =>
-      entry.override_id,
+    (
+      entry: StrategicFitPersistedStructuralCohortOverride | StrategicFitPersistedExclusionOverride,
+    ) => entry.override_id,
     cohortOverride,
     context,
-  ).filter((override): override is StrategicFitPersistedStructuralCohortOverride => override.kind !== "exclude");
+  ).filter(
+    (override): override is StrategicFitPersistedStructuralCohortOverride =>
+      override.kind !== "exclude",
+  );
   const exclusions = exclusionOverrides(
     value.exclusions,
     "$.exclusions",
     new Set(structuralOverrides.map((override) => override.override_id)),
     context,
   );
-  if (structuralOverrides.length !== (Array.isArray(value.cohort_overrides) ? value.cohort_overrides.length : 0)) {
-    const misplaced = Array.isArray(value.cohort_overrides) && value.cohort_overrides.some(
-      (entry) => isRecord(entry) && entry.kind === "exclude",
-    );
-    if (misplaced) issue(context, "invalid-entry", "$.cohort_overrides", "Exclusions belong in the exclusions field.");
+  if (
+    structuralOverrides.length !==
+    (Array.isArray(value.cohort_overrides) ? value.cohort_overrides.length : 0)
+  ) {
+    const misplaced =
+      Array.isArray(value.cohort_overrides) &&
+      value.cohort_overrides.some((entry) => isRecord(entry) && entry.kind === "exclude");
+    if (misplaced)
+      issue(
+        context,
+        "invalid-entry",
+        "$.cohort_overrides",
+        "Exclusions belong in the exclusions field.",
+      );
   }
-  const resolutions = singularActiveResolutions(uniqueEntries(
-    value.resolutions,
+  const resolutions = singularActiveResolutions(
+    uniqueEntries(
+      value.resolutions,
+      "$.resolutions",
+      (entry: StrategicFitPersistedResolution) => entry.resolution_id,
+      resolution,
+      context,
+    ),
     "$.resolutions",
-    (entry: StrategicFitPersistedResolution) => entry.resolution_id,
-    resolution,
     context,
-  ), "$.resolutions", context);
+  );
   return {
     metadata_kind: STRATEGIC_FIT_DOCUMENT_METADATA_KIND,
     metadata_version: STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
@@ -1276,9 +1516,10 @@ const MIGRATED_RECORD_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
 
 function migrateRecordLifecycle(value: unknown): unknown {
   if (!isRecord(value)) return value;
-  const provenance = Array.isArray(value.provenance) && value.provenance.length > 0
-    ? value.provenance
-    : [MIGRATED_RECORD_PROVENANCE];
+  const provenance =
+    Array.isArray(value.provenance) && value.provenance.length > 0
+      ? value.provenance
+      : [MIGRATED_RECORD_PROVENANCE];
   return {
     ...value,
     record_state: value.record_state ?? "active",
@@ -1295,7 +1536,9 @@ function migratedRecords(value: unknown): unknown[] {
 
 function migratedResolutions(value: unknown, profileValue: unknown): unknown[] {
   const snapshot = isRecord(profileValue)
-    ? strategicFitProfileSnapshot(profile(profileValue, "$.profile", { issues: [], fallback: false }))
+    ? strategicFitProfileSnapshot(
+        profile(profileValue, "$.profile", { issues: [], fallback: false }),
+      )
     : strategicFitProfileSnapshot(defaultProfile());
   return migratedRecords(value).map((entry) => {
     if (!isRecord(entry)) return entry;
@@ -1305,11 +1548,14 @@ function migratedResolutions(value: unknown, profileValue: unknown): unknown[] {
     return {
       ...entry,
       semantic_finding_id: hasSemanticFindingId ? entry.semantic_finding_id : null,
-      profile_snapshot: entry.profile_snapshot ?? (rules.includes("profile-changed") ? snapshot : null),
-      ...(hasSemanticFindingId ? {} : {
-        record_state: "stale",
-        stale_reasons: [...new Set([...staleReasons, "finding-identity-missing"])].sort(),
-      }),
+      profile_snapshot:
+        entry.profile_snapshot ?? (rules.includes("profile-changed") ? snapshot : null),
+      ...(hasSemanticFindingId
+        ? {}
+        : {
+            record_state: "stale",
+            stale_reasons: [...new Set([...staleReasons, "finding-identity-missing"])].sort(),
+          }),
     };
   });
 }
@@ -1352,7 +1598,9 @@ function legacyToCurrent(value: UnknownRecord, context: NormalizationContext): U
     profile: profileValue,
     manual_weights: {
       route_weights: migratedRecords(legacyManualWeights?.route_weights ?? value.route_weights),
-      decision_weights: migratedRecords(legacyManualWeights?.decision_weights ?? value.decision_weights),
+      decision_weights: migratedRecords(
+        legacyManualWeights?.decision_weights ?? value.decision_weights,
+      ),
     },
     cohort_overrides: migratedRecords(value.cohort_overrides),
     exclusions: migratedRecords(value.exclusions),
@@ -1394,7 +1642,12 @@ export function normalizeStrategicFitDocumentMetadata(
   }
   const sourceVersion = nonEmptyString(input.metadata_version);
   if (sourceVersion === null) {
-    issue(context, "missing-version", "$.metadata_version", "Metadata version is missing or corrupt.");
+    issue(
+      context,
+      "missing-version",
+      "$.metadata_version",
+      "Metadata version is missing or corrupt.",
+    );
     return fallbackResult(null, context.issues);
   }
   if (sourceVersion === STRATEGIC_FIT_DOCUMENT_METADATA_VERSION) {
@@ -1483,52 +1736,70 @@ export function reconcileStrategicFitDocumentMetadata(
   const profileSnapshot = strategicFitProfileSnapshot(input.profile);
   const now = Date.parse(input.now);
 
-  const routeWeights = metadata.manual_weights.route_weights.map((record) => reconciledLifecycle(
-    record,
-    missingReferences([record.route_id], routeIds, "referenced-route-missing"),
-  ));
-  const decisionWeights = metadata.manual_weights.decision_weights.map((record) => reconciledLifecycle(
-    record,
-    missingReferences([record.decision_id], decisionIds, "referenced-decision-missing"),
-  ));
-  const cohortOverrides = metadata.cohort_overrides.map((record) => reconciledLifecycle(
-    record,
-    missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
-  ));
-  const exclusions = metadata.exclusions.map((record) => reconciledLifecycle(record, [
-    ...missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
-    ...missingReferences(record.decision_ids, decisionIds, "referenced-decision-missing"),
-  ]));
+  const routeWeights = metadata.manual_weights.route_weights.map((record) =>
+    reconciledLifecycle(
+      record,
+      missingReferences([record.route_id], routeIds, "referenced-route-missing"),
+    ),
+  );
+  const decisionWeights = metadata.manual_weights.decision_weights.map((record) =>
+    reconciledLifecycle(
+      record,
+      missingReferences([record.decision_id], decisionIds, "referenced-decision-missing"),
+    ),
+  );
+  const cohortOverrides = metadata.cohort_overrides.map((record) =>
+    reconciledLifecycle(
+      record,
+      missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
+    ),
+  );
+  const exclusions = metadata.exclusions.map((record) =>
+    reconciledLifecycle(record, [
+      ...missingReferences(record.route_ids, routeIds, "referenced-route-missing"),
+      ...missingReferences(record.decision_ids, decisionIds, "referenced-decision-missing"),
+    ]),
+  );
   const resolutions = metadata.resolutions.map((record) => {
-    if (record.record_state === "stale" || record.invalidation_rules.includes("never")) return record;
+    if (record.record_state === "stale" || record.invalidation_rules.includes("never"))
+      return record;
     const reasons: StrategicFitMetadataStaleReason[] = [];
     if (record.invalidation_rules.includes("referenced-position-changed")) {
-      reasons.push(...missingReferences(
-        record.references.position_ids,
-        positionIds,
-        "referenced-position-missing",
-      ));
+      reasons.push(
+        ...missingReferences(
+          record.references.position_ids,
+          positionIds,
+          "referenced-position-missing",
+        ),
+      );
     }
     if (record.invalidation_rules.includes("referenced-decision-changed")) {
-      reasons.push(...missingReferences(
-        record.references.decision_ids,
-        decisionIds,
-        "referenced-decision-missing",
-      ));
+      reasons.push(
+        ...missingReferences(
+          record.references.decision_ids,
+          decisionIds,
+          "referenced-decision-missing",
+        ),
+      );
     }
     if (record.invalidation_rules.includes("referenced-route-changed")) {
-      reasons.push(...missingReferences(record.references.route_ids, routeIds, "referenced-route-missing"));
+      reasons.push(
+        ...missingReferences(record.references.route_ids, routeIds, "referenced-route-missing"),
+      );
     }
     if (
       record.invalidation_rules.includes("repertoire-revision-changed") &&
       record.repertoire_revision !== input.repertoire_revision
-    ) reasons.push("repertoire-revision-changed");
+    )
+      reasons.push("repertoire-revision-changed");
     if (
       record.invalidation_rules.includes("profile-changed") &&
       record.profile_snapshot !== profileSnapshot
-    ) reasons.push("profile-changed");
+    )
+      reasons.push("profile-changed");
     const expiresAt = record.expires_at === null ? Number.NaN : Date.parse(record.expires_at);
-    if (Number.isFinite(now) && Number.isFinite(expiresAt) && expiresAt <= now) reasons.push("expired");
+    if (Number.isFinite(now) && Number.isFinite(expiresAt) && expiresAt <= now)
+      reasons.push("expired");
     return reconciledLifecycle(record, reasons);
   });
 
@@ -1566,13 +1837,17 @@ function resolutionRouteIds(
   if (direct.length > 0) return [...new Set(direct)].sort();
   if (resolution.references.decision_ids.length > 0) {
     return graph.routes
-      .filter((route) => resolution.references.decision_ids.every((id) => route.decision_ids.includes(id)))
+      .filter((route) =>
+        resolution.references.decision_ids.every((id) => route.decision_ids.includes(id)),
+      )
       .map((route) => route.route_id)
       .sort();
   }
   if (resolution.references.position_ids.length > 0) {
     return graph.routes
-      .filter((route) => resolution.references.position_ids.every((id) => route.position_ids.includes(id)))
+      .filter((route) =>
+        resolution.references.position_ids.every((id) => route.position_ids.includes(id)),
+      )
       .map((route) => route.route_id)
       .sort();
   }
@@ -1590,30 +1865,32 @@ export function strategicFitAnalysisInputsFromMetadata(
   const decisionWeights = metadata.manual_weights.decision_weights
     .filter((record) => record.record_state === "active")
     .map(({ decision_id, weight, provenance }) => ({ decision_id, weight, provenance }));
-  const cohortOverrides = [
-    ...metadata.cohort_overrides,
-    ...metadata.exclusions,
-  ].filter((record) => record.record_state === "active").map((record) => record.kind === "exclude"
-    ? {
-        override_id: record.override_id,
-        kind: record.kind,
-        route_ids: [...(record.route_ids ?? [])],
-        decision_ids: [...(record.decision_ids ?? [])],
-        provenance: record.provenance,
-      }
-    : {
-        override_id: record.override_id,
-        kind: record.kind,
-        route_ids: [...record.route_ids],
-        provenance: record.provenance,
-      });
+  const cohortOverrides = [...metadata.cohort_overrides, ...metadata.exclusions]
+    .filter((record) => record.record_state === "active")
+    .map((record) =>
+      record.kind === "exclude"
+        ? {
+            override_id: record.override_id,
+            kind: record.kind,
+            route_ids: [...(record.route_ids ?? [])],
+            decision_ids: [...(record.decision_ids ?? [])],
+            provenance: record.provenance,
+          }
+        : {
+            override_id: record.override_id,
+            kind: record.kind,
+            route_ids: [...record.route_ids],
+            provenance: record.provenance,
+          },
+    );
 
   const assessmentByFindingRoute = new Map<string, StrategicFitRouteAssessmentInput>();
   const resolutions = metadata.resolutions
-    .filter((record) =>
-      record.record_state === "active" &&
-      record.semantic_finding_id !== null &&
-      record.state !== "automatically-resolved-by-another-edit"
+    .filter(
+      (record) =>
+        record.record_state === "active" &&
+        record.semantic_finding_id !== null &&
+        record.state !== "automatically-resolved-by-another-edit",
     )
     .sort(compareResolutionPrecedence);
   for (const resolution of resolutions) {
@@ -1625,22 +1902,31 @@ export function strategicFitAnalysisInputsFromMetadata(
         route_id: routeId,
         semantic_finding_id: semanticFindingId,
         matches_declared_objective: resolution.state === "keep-intentionally",
-        resolution_state: resolution.state === "invalid-comparison"
-          ? "insufficient-evidence"
-          : resolution.state,
+        resolution_state:
+          resolution.state === "invalid-comparison" ? "insufficient-evidence" : resolution.state,
       });
     }
   }
 
   return {
-    ...(routeWeights.length === 0 && decisionWeights.length === 0 ? {} : {
-      weighting: { mode: "manual", route_weights: routeWeights, decision_weights: decisionWeights },
-    }),
+    ...(routeWeights.length === 0 && decisionWeights.length === 0
+      ? {}
+      : {
+          weighting: {
+            mode: "manual",
+            route_weights: routeWeights,
+            decision_weights: decisionWeights,
+          },
+        }),
     ...(cohortOverrides.length === 0 ? {} : { cohort_overrides: cohortOverrides }),
-    ...(assessmentByFindingRoute.size === 0 ? {} : {
-      route_assessments: [...assessmentByFindingRoute.values()].sort((left, right) =>
-        left.route_id.localeCompare(right.route_id) ||
-        (left.semantic_finding_id ?? "").localeCompare(right.semantic_finding_id ?? "")),
-    }),
+    ...(assessmentByFindingRoute.size === 0
+      ? {}
+      : {
+          route_assessments: [...assessmentByFindingRoute.values()].sort(
+            (left, right) =>
+              left.route_id.localeCompare(right.route_id) ||
+              (left.semantic_finding_id ?? "").localeCompare(right.semantic_finding_id ?? ""),
+          ),
+        }),
   };
 }

@@ -27,9 +27,7 @@ import type {
   StrategicFitReplacementVersioned,
 } from "./replacement-types.js";
 import { STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION } from "./replacement-types.js";
-import type {
-  ReplacementCandidateGenerationResult,
-} from "./replacement-candidates.js";
+import type { ReplacementCandidateGenerationResult } from "./replacement-candidates.js";
 import type {
   ReplacementEngineAnalysisEvidence,
   ReplacementEngineCacheTrace,
@@ -43,15 +41,9 @@ import type {
 } from "./replacement-engine.js";
 import { REPLACEMENT_ENGINE_MAX_MULTIPV } from "./replacement-engine.js";
 import type { ReplacementPivotSelectionResult } from "./replacement-pivot.js";
-import type {
-  JsonValue,
-  StrategicFitSourceProvenance,
-} from "./types.js";
+import type { JsonValue, StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_SOURCE_KINDS, STRATEGIC_FIT_SOURCE_STATES } from "./types.js";
-import {
-  STRATEGIC_FIT_ANALYSIS_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
-} from "./version.js";
+import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
 
 export const REPLACEMENT_EXPANSION_EVIDENCE_STATES = [
   "available",
@@ -75,8 +67,7 @@ export const REPLACEMENT_EXPANSION_ITEM_STATUSES = [
   "cancelled",
   "stale",
 ] as const;
-export type ReplacementExpansionItemStatus =
-  (typeof REPLACEMENT_EXPANSION_ITEM_STATUSES)[number];
+export type ReplacementExpansionItemStatus = (typeof REPLACEMENT_EXPANSION_ITEM_STATUSES)[number];
 
 export const REPLACEMENT_EXPANSION_ITEM_ERROR_CODES = [
   "illegal-san",
@@ -133,11 +124,7 @@ export const REPLACEMENT_EXPANSION_RESULT_ERROR_CODES = [
 export type ReplacementExpansionResultErrorCode =
   (typeof REPLACEMENT_EXPANSION_RESULT_ERROR_CODES)[number];
 
-export const REPLACEMENT_EXPANSION_PROGRESS_STATES = [
-  "running",
-  "completed",
-  "cancelled",
-] as const;
+export const REPLACEMENT_EXPANSION_PROGRESS_STATES = ["running", "completed", "cancelled"] as const;
 export type ReplacementExpansionProgressState =
   (typeof REPLACEMENT_EXPANSION_PROGRESS_STATES)[number];
 
@@ -165,8 +152,7 @@ export const REPLACEMENT_EXPANSION_RISK_KINDS = [
   "transposition-uncertain",
   "stale-source",
 ] as const;
-export type ReplacementExpansionRiskKind =
-  (typeof REPLACEMENT_EXPANSION_RISK_KINDS)[number];
+export type ReplacementExpansionRiskKind = (typeof REPLACEMENT_EXPANSION_RISK_KINDS)[number];
 
 export interface ReplacementExpansionPositionEvidence {
   readonly position_id: string;
@@ -274,7 +260,10 @@ export interface ReplacementExpansionSourceResult extends StrategicFitReplacemen
   readonly reason: string | null;
   readonly engine: ReplacementEngineIdentity | null;
   readonly cache: ReplacementEngineCacheTrace | null;
-  readonly evidence: ReplacementExplorerExpansionEvidence | ReplacementEngineAnalysisEvidence | null;
+  readonly evidence:
+    | ReplacementExplorerExpansionEvidence
+    | ReplacementEngineAnalysisEvidence
+    | null;
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
@@ -309,7 +298,10 @@ export interface ReplacementCompleteCandidateExpansion extends ReplacementCandid
 
 export interface ReplacementIncompleteCandidateExpansion extends ReplacementCandidateExpansionBase {
   readonly status: Exclude<ReplacementExpansionItemStatus, "complete">;
-  readonly subtree: ReplacementTruncatedCandidateSubtree | ReplacementBlockedCandidateSubtree | null;
+  readonly subtree:
+    | ReplacementTruncatedCandidateSubtree
+    | ReplacementBlockedCandidateSubtree
+    | null;
 }
 
 /** Task 8.5 output. It intentionally cannot satisfy the Task 8.6+ `ReplacementCandidate`. */
@@ -467,31 +459,39 @@ const SOURCE_KINDS = new Set<string>(STRATEGIC_FIT_SOURCE_KINDS);
 const SOURCE_STATES = new Set<string>(STRATEGIC_FIT_SOURCE_STATES);
 
 function validProvenance(source: unknown): source is StrategicFitSourceProvenance {
-  return isRecord(source) && typeof source.source_id === "string" && source.source_id.length > 0 &&
-    typeof source.kind === "string" && SOURCE_KINDS.has(source.kind) &&
-    typeof source.state === "string" && SOURCE_STATES.has(source.state) &&
+  return (
+    isRecord(source) &&
+    typeof source.source_id === "string" &&
+    source.source_id.length > 0 &&
+    typeof source.kind === "string" &&
+    SOURCE_KINDS.has(source.kind) &&
+    typeof source.state === "string" &&
+    SOURCE_STATES.has(source.state) &&
     (source.version === null || typeof source.version === "string") &&
     (source.snapshot === null || typeof source.snapshot === "string") &&
-    (source.reason === null || typeof source.reason === "string");
+    (source.reason === null || typeof source.reason === "string")
+  );
 }
 
-function mergeProvenance(
-  sources: readonly unknown[],
-): StrategicFitSourceProvenance[] {
+function mergeProvenance(sources: readonly unknown[]): StrategicFitSourceProvenance[] {
   const unique = new Map<string, StrategicFitSourceProvenance>();
   for (const source of sources) {
     if (!validProvenance(source)) continue;
     const cloned = safeClone(source);
     if (cloned) unique.set(provenanceKey(cloned), cloned);
   }
-  return [...unique.entries()].sort(([left], [right]) => compareStrings(left, right))
+  return [...unique.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
     .map(([, source]) => source);
 }
 
 function sortedPaths(paths: readonly (readonly string[])[]): string[][] {
-  return paths.map((path) => [...path]).sort((left, right) =>
-    compareStrings(left.join(SEPARATOR), right.join(SEPARATOR)) || left.length - right.length
-  );
+  return paths
+    .map((path) => [...path])
+    .sort(
+      (left, right) =>
+        compareStrings(left.join(SEPARATOR), right.join(SEPARATOR)) || left.length - right.length,
+    );
 }
 
 function finiteInteger(value: unknown): value is number {
@@ -530,7 +530,7 @@ function legalMoves(position: Chess): LegalMove[] {
       const to = parseSquare(destination);
       if (to === undefined) continue;
       const promotion = piece?.role === "pawn" && (to >> 3 === 0 || to >> 3 === 7);
-      const roles = promotion ? PROMOTIONS : [null] as const;
+      const roles = promotion ? PROMOTIONS : ([null] as const);
       for (const role of roles) {
         const move: NormalMove = role === null ? { from, to } : { from, to, promotion: role };
         if (!position.isLegal(move)) continue;
@@ -538,20 +538,28 @@ function legalMoves(position: Chess): LegalMove[] {
         const uci = makeUci(move);
         const after = position.clone();
         after.play(move);
-        const forcing = san.includes("x") || san.includes("+") || san.includes("#") || san.includes("=");
+        const forcing =
+          san.includes("x") || san.includes("+") || san.includes("#") || san.includes("=");
         moves.push({ move, san, uci, after, forcing });
       }
     }
   }
-  return moves.sort((left, right) => compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san));
+  return moves.sort(
+    (left, right) => compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san),
+  );
 }
 
-function validateMove(position: Chess, san: unknown, uci: unknown): {
+function validateMove(
+  position: Chess,
+  san: unknown,
+  uci: unknown,
+): {
   readonly move: LegalMove | null;
   readonly error: ReplacementExpansionItemErrorCode | null;
 } {
   if (typeof san !== "string" || san.length === 0) return { move: null, error: "illegal-san" };
-  if (typeof uci !== "string" || parseUci(uci) === undefined) return { move: null, error: "illegal-uci" };
+  if (typeof uci !== "string" || parseUci(uci) === undefined)
+    return { move: null, error: "illegal-uci" };
   const parsed = parseSan(position, san);
   if (!parsed || !position.isLegal(parsed)) return { move: null, error: "illegal-san" };
   const canonicalUci = makeUci(parsed);
@@ -565,14 +573,21 @@ function validateMove(position: Chess, san: unknown, uci: unknown): {
       san: canonicalSan,
       uci: canonicalUci,
       after,
-      forcing: canonicalSan.includes("x") || canonicalSan.includes("+") ||
-        canonicalSan.includes("#") || canonicalSan.includes("="),
+      forcing:
+        canonicalSan.includes("x") ||
+        canonicalSan.includes("+") ||
+        canonicalSan.includes("#") ||
+        canonicalSan.includes("="),
     },
     error: null,
   };
 }
 
-function validatePv(position: Chess, pv: unknown, requiredFirstUci?: string): readonly string[] | null {
+function validatePv(
+  position: Chess,
+  pv: unknown,
+  requiredFirstUci?: string,
+): readonly string[] | null {
   if (!Array.isArray(pv) || pv.some((uci) => typeof uci !== "string")) return null;
   if (requiredFirstUci !== undefined && pv[0] !== requiredFirstUci) return null;
   const current = position.clone();
@@ -587,8 +602,12 @@ function validatePv(position: Chess, pv: unknown, requiredFirstUci?: string): re
 }
 
 function aborted(error: unknown): boolean {
-  return (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError") ||
-    (isRecord(error) && error.name === "AbortError");
+  return (
+    (typeof DOMException !== "undefined" &&
+      error instanceof DOMException &&
+      error.name === "AbortError") ||
+    (isRecord(error) && error.name === "AbortError")
+  );
 }
 
 type CompatibilityFailure = readonly [
@@ -602,9 +621,11 @@ function sameVersions(value: {
   readonly analysis_version?: unknown;
   readonly replacement_schema_version?: unknown;
 }): boolean {
-  return value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
+  return (
+    value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
     value.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
-    value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION;
+    value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
+  );
 }
 
 function sameRequestIdentity(
@@ -619,105 +640,225 @@ function sameRequestIdentity(
   },
   request: ExpandReplacementCandidatesInput["request"],
 ): boolean {
-  return value.request_id === request.request_id && value.report_id === request.report_id &&
+  return (
+    value.request_id === request.request_id &&
+    value.report_id === request.report_id &&
     value.finding_id === request.finding_id &&
     value.semantic_finding_id === request.semantic_finding_id &&
     value.cohort_id === request.cohort_id &&
     value.repertoire_revision === request.repertoire_revision &&
-    value.repertoire_color === request.repertoire_color;
+    value.repertoire_color === request.repertoire_color
+  );
 }
 
 function compatibilityError(input: ExpandReplacementCandidatesInput): CompatibilityFailure | null {
-  const { request, graph, pivot_result: pivotResult, candidate_generation: generation,
-    engine_generation: engineGeneration } = input;
+  const {
+    request,
+    graph,
+    pivot_result: pivotResult,
+    candidate_generation: generation,
+    engine_generation: engineGeneration,
+  } = input;
   if (!sameVersions(request)) {
     return ["stale", "request-pivot-mismatch", "Replacement request schema versions are stale."];
   }
   if (!finiteInteger(request.budget.maximum_candidates) || request.budget.maximum_candidates < 0) {
-    return ["invalid-request", "invalid-maximum-candidates", "Maximum candidates must be a non-negative safe integer."];
+    return [
+      "invalid-request",
+      "invalid-maximum-candidates",
+      "Maximum candidates must be a non-negative safe integer.",
+    ];
   }
-  if (!finiteInteger(request.budget.maximum_subtree_nodes_per_candidate) ||
-    request.budget.maximum_subtree_nodes_per_candidate < 2) {
-    return ["invalid-request", "invalid-subtree-node-budget", "Subtree-node budget must be a safe integer of at least two."];
+  if (
+    !finiteInteger(request.budget.maximum_subtree_nodes_per_candidate) ||
+    request.budget.maximum_subtree_nodes_per_candidate < 2
+  ) {
+    return [
+      "invalid-request",
+      "invalid-subtree-node-budget",
+      "Subtree-node budget must be a safe integer of at least two.",
+    ];
   }
-  if (!finiteInteger(request.budget.maximum_engine_positions) || request.budget.maximum_engine_positions < 0) {
-    return ["invalid-request", "invalid-engine-position-budget", "Engine-position budget must be a non-negative safe integer."];
+  if (
+    !finiteInteger(request.budget.maximum_engine_positions) ||
+    request.budget.maximum_engine_positions < 0
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-position-budget",
+      "Engine-position budget must be a non-negative safe integer.",
+    ];
   }
-  if (!finiteInteger(request.budget.maximum_explorer_queries) || request.budget.maximum_explorer_queries < 0) {
-    return ["invalid-request", "invalid-explorer-query-budget", "Explorer-query budget must be a non-negative safe integer."];
+  if (
+    !finiteInteger(request.budget.maximum_explorer_queries) ||
+    request.budget.maximum_explorer_queries < 0
+  ) {
+    return [
+      "invalid-request",
+      "invalid-explorer-query-budget",
+      "Explorer-query budget must be a non-negative safe integer.",
+    ];
   }
-  if (!finiteInteger(request.budget.engine_depth) || request.budget.engine_depth < 1 || request.budget.engine_depth > 30) {
-    return ["invalid-request", "invalid-engine-depth", "Engine depth must be a safe integer from 1 through 30."];
+  if (
+    !finiteInteger(request.budget.engine_depth) ||
+    request.budget.engine_depth < 1 ||
+    request.budget.engine_depth > 30
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-depth",
+      "Engine depth must be a safe integer from 1 through 30.",
+    ];
   }
-  if (!finiteInteger(request.budget.engine_multipv) || request.budget.engine_multipv < 1 ||
-    request.budget.engine_multipv > REPLACEMENT_ENGINE_MAX_MULTIPV) {
-    return ["invalid-request", "invalid-engine-multipv", `Engine MultiPV must be from 1 through ${REPLACEMENT_ENGINE_MAX_MULTIPV}.`];
+  if (
+    !finiteInteger(request.budget.engine_multipv) ||
+    request.budget.engine_multipv < 1 ||
+    request.budget.engine_multipv > REPLACEMENT_ENGINE_MAX_MULTIPV
+  ) {
+    return [
+      "invalid-request",
+      "invalid-engine-multipv",
+      `Engine MultiPV must be from 1 through ${REPLACEMENT_ENGINE_MAX_MULTIPV}.`,
+    ];
   }
-  if (!finiteInteger(request.budget.strategic_horizon_ply) || request.budget.strategic_horizon_ply < 1) {
-    return ["invalid-request", "invalid-strategic-horizon", "Strategic horizon must be a positive safe-integer ply."];
+  if (
+    !finiteInteger(request.budget.strategic_horizon_ply) ||
+    request.budget.strategic_horizon_ply < 1
+  ) {
+    return [
+      "invalid-request",
+      "invalid-strategic-horizon",
+      "Strategic horizon must be a positive safe-integer ply.",
+    ];
   }
-  if (!finiteNonNegative(request.budget.minimum_reply_popularity) ||
-    request.budget.minimum_reply_popularity > 1) {
-    return ["invalid-request", "invalid-popularity-threshold", "Minimum reply popularity must be a fraction from zero through one."];
+  if (
+    !finiteNonNegative(request.budget.minimum_reply_popularity) ||
+    request.budget.minimum_reply_popularity > 1
+  ) {
+    return [
+      "invalid-request",
+      "invalid-popularity-threshold",
+      "Minimum reply popularity must be a fraction from zero through one.",
+    ];
   }
   if (typeof request.budget.include_all_forcing_replies !== "boolean") {
     return ["invalid-request", "invalid-reply-policy", "Forcing-reply policy must be boolean."];
   }
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
-    return ["stale", "pivot-not-selected", "Expansion requires one current validated actionable Task 8.2 pivot."];
+    return [
+      "stale",
+      "pivot-not-selected",
+      "Expansion requires one current validated actionable Task 8.2 pivot.",
+    ];
   }
   const pivot = pivotResult.pivot;
-  if (!sameVersions(pivotResult) || !sameRequestIdentity(pivotResult, request) ||
-    pivot.repertoire_color !== request.repertoire_color || pivot.owner !== "repertoire") {
-    return ["stale", "request-pivot-mismatch", "Validated pivot does not match current request identity."];
+  if (
+    !sameVersions(pivotResult) ||
+    !sameRequestIdentity(pivotResult, request) ||
+    pivot.repertoire_color !== request.repertoire_color ||
+    pivot.owner !== "repertoire"
+  ) {
+    return [
+      "stale",
+      "request-pivot-mismatch",
+      "Validated pivot does not match current request identity.",
+    ];
   }
   if (graph.repertoire_color !== request.repertoire_color) {
     return ["stale", "repertoire-color-mismatch", "Current graph color does not match request."];
   }
-  const graphPosition = graph.positions.find((position) => position.position_id === pivot.position_id);
+  const graphPosition = graph.positions.find(
+    (position) => position.position_id === pivot.position_id,
+  );
   const current = graphPosition ? currentPosition(graphPosition.fen) : null;
-  if (!graphPosition || !current || graphPosition.turn !== request.repertoire_color ||
+  if (
+    !graphPosition ||
+    !current ||
+    graphPosition.turn !== request.repertoire_color ||
     positionKey(makeFen(current.toSetup())) !== graphPosition.position_key ||
-    current.turn !== graphPosition.turn) {
-    return ["stale", "pivot-position-stale", "Semantic pivot position is stale or no longer repertoire-owned."];
+    current.turn !== graphPosition.turn
+  ) {
+    return [
+      "stale",
+      "pivot-position-stale",
+      "Semantic pivot position is stale or no longer repertoire-owned.",
+    ];
   }
-  const graphDecision = graph.decisions.find((decision) => decision.decision_id === pivot.decision_id);
-  if (!graphDecision || graphDecision.from_position_id !== pivot.position_id ||
-    graphDecision.san !== pivot.san || graphDecision.uci !== pivot.uci ||
-    graphDecision.owner !== "repertoire" || graphDecision.mover_color !== request.repertoire_color) {
-    return ["stale", "pivot-decision-stale", "Semantic pivot decision no longer matches current graph."];
+  const graphDecision = graph.decisions.find(
+    (decision) => decision.decision_id === pivot.decision_id,
+  );
+  if (
+    !graphDecision ||
+    graphDecision.from_position_id !== pivot.position_id ||
+    graphDecision.san !== pivot.san ||
+    graphDecision.uci !== pivot.uci ||
+    graphDecision.owner !== "repertoire" ||
+    graphDecision.mover_color !== request.repertoire_color
+  ) {
+    return [
+      "stale",
+      "pivot-decision-stale",
+      "Semantic pivot decision no longer matches current graph.",
+    ];
   }
-  if (!sameVersions(generation) || !sameRequestIdentity(generation, request) ||
+  if (
+    !sameVersions(generation) ||
+    !sameRequestIdentity(generation, request) ||
     generation.pivot_id !== pivot.pivot_id ||
-    (generation.status !== "complete" && generation.status !== "partial")) {
+    (generation.status !== "complete" && generation.status !== "partial")
+  ) {
     return ["stale", "candidate-generation-mismatch", "Task 8.3 result is stale or incompatible."];
   }
-  if (!sameVersions(engineGeneration) || !sameRequestIdentity(engineGeneration, request) ||
+  if (
+    !sameVersions(engineGeneration) ||
+    !sameRequestIdentity(engineGeneration, request) ||
     engineGeneration.pivot_id !== pivot.pivot_id ||
     engineGeneration.maximum_candidates !== request.budget.maximum_candidates ||
     engineGeneration.maximum_engine_positions !== request.budget.maximum_engine_positions ||
     engineGeneration.requested_engine_depth !== request.budget.engine_depth ||
     engineGeneration.requested_engine_multipv !== request.budget.engine_multipv ||
     engineGeneration.candidates.length > request.budget.maximum_candidates ||
-    engineGeneration.status === "stale" || engineGeneration.status === "non-actionable" ||
-    engineGeneration.status === "invalid-request") {
-    return ["stale", "engine-generation-mismatch", "Task 8.4 engine-enriched seed result is stale or incompatible."];
+    engineGeneration.status === "stale" ||
+    engineGeneration.status === "non-actionable" ||
+    engineGeneration.status === "invalid-request"
+  ) {
+    return [
+      "stale",
+      "engine-generation-mismatch",
+      "Task 8.4 engine-enriched seed result is stale or incompatible.",
+    ];
   }
   const seenIds = new Set<string>();
   for (const seed of engineGeneration.candidates) {
-    if (!sameVersions(seed) || !sameRequestIdentity(seed, request) ||
-      seed.pivot.pivot_id !== pivot.pivot_id || seed.mover_color !== request.repertoire_color ||
-      seed.expansion.status !== "full-subtree-required" || !seed.expansion.full_subtree_required ||
+    if (
+      !sameVersions(seed) ||
+      !sameRequestIdentity(seed, request) ||
+      seed.pivot.pivot_id !== pivot.pivot_id ||
+      seed.mover_color !== request.repertoire_color ||
+      seed.expansion.status !== "full-subtree-required" ||
+      !seed.expansion.full_subtree_required ||
       seed.expansion.required_contract !== "ReplacementCandidateSubtree" ||
-      seenIds.has(seed.candidate_id)) {
-      return ["stale", "engine-generation-mismatch", "Task 8.4 contains an incompatible candidate seed."];
+      seenIds.has(seed.candidate_id)
+    ) {
+      return [
+        "stale",
+        "engine-generation-mismatch",
+        "Task 8.4 contains an incompatible candidate seed.",
+      ];
     }
     seenIds.add(seed.candidate_id);
     const validated = validateMove(current, seed.san, seed.uci);
-    if (!validated.move || positionKey(makeFen(validated.move.after.toSetup())) !== seed.outcome_position_key ||
+    if (
+      !validated.move ||
+      positionKey(makeFen(validated.move.after.toSetup())) !== seed.outcome_position_key ||
       semanticPositionId(seed.outcome_position_key) !== seed.outcome_position_id ||
-      positionKey(seed.outcome_fen) !== seed.outcome_position_key) {
-      return ["stale", "engine-generation-mismatch", "Task 8.4 candidate outcome is illegal or stale."];
+      positionKey(seed.outcome_fen) !== seed.outcome_position_key
+    ) {
+      return [
+        "stale",
+        "engine-generation-mismatch",
+        "Task 8.4 candidate outcome is illegal or stale.",
+      ];
     }
   }
   return null;
@@ -834,8 +975,16 @@ function advance(input: ExpandReplacementCandidatesInput, tracker: ProgressTrack
 }
 
 function candidateProvenanceKey(source: ReplacementCandidateSourceProvenance): string {
-  return [source.source_id, source.kind, source.status, source.provider ?? "", source.version ?? "",
-    source.snapshot ?? "", source.reason ?? "", jsonKey(source.details)].join(SEPARATOR);
+  return [
+    source.source_id,
+    source.kind,
+    source.status,
+    source.provider ?? "",
+    source.version ?? "",
+    source.snapshot ?? "",
+    source.reason ?? "",
+    jsonKey(source.details),
+  ].join(SEPARATOR);
 }
 
 function mergeCandidateProvenance(
@@ -846,7 +995,8 @@ function mergeCandidateProvenance(
     const cloned = safeClone(source);
     if (cloned) unique.set(candidateProvenanceKey(cloned), cloned);
   }
-  return [...unique.entries()].sort(([left], [right]) => compareStrings(left, right))
+  return [...unique.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
     .map(([, source]) => source);
 }
 
@@ -861,16 +1011,21 @@ function expansionCandidateSource(
   details: Readonly<Record<string, JsonValue>>,
   provenance: readonly StrategicFitSourceProvenance[],
 ): ReplacementCandidateSourceProvenance {
-  const status = state === "available" ? "available" as const
-    : state === "partial" || state === "malformed" ? "partial" as const
-    : state === "cancelled" ? "cancelled" as const
-    : state === "stale" ? "stale" as const
-    : "unavailable" as const;
+  const status =
+    state === "available"
+      ? ("available" as const)
+      : state === "partial" || state === "malformed"
+        ? ("partial" as const)
+        : state === "cancelled"
+          ? ("cancelled" as const)
+          : state === "stale"
+            ? ("stale" as const)
+            : ("unavailable" as const);
   return {
     ...versioned(),
-    source_id: `strategic-fit:replacement-expand:${kind}:${stableHash([
-      provider, version ?? "", snapshot ?? "", position.position_key,
-    ].join(SEPARATOR))}`,
+    source_id: `strategic-fit:replacement-expand:${kind}:${stableHash(
+      [provider, version ?? "", snapshot ?? "", position.position_key].join(SEPARATOR),
+    )}`,
     kind,
     status,
     provider,
@@ -896,8 +1051,15 @@ function risk(
 ): ReplacementUnresolvedRisk {
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-    risk_id: `replacement-risk:${stableHash([candidateId, kind, explanation,
-      ...sortedUnique(positionIds), ...sortedUnique(routeIds)].join(SEPARATOR))}`,
+    risk_id: `replacement-risk:${stableHash(
+      [
+        candidateId,
+        kind,
+        explanation,
+        ...sortedUnique(positionIds),
+        ...sortedUnique(routeIds),
+      ].join(SEPARATOR),
+    )}`,
     kind,
     status: blocking ? "blocking" : "open",
     explanation,
@@ -920,11 +1082,13 @@ function omission(
 ): ReplacementExpansionOmission {
   return {
     ...versioned(),
-    omission_id: `replacement-omission:${stableHash([
-      candidateId, position.position_key, move?.uci ?? "unknown", reason,
-    ].join(SEPARATOR))}`,
+    omission_id: `replacement-omission:${stableHash(
+      [candidateId, position.position_key, move?.uci ?? "unknown", reason].join(SEPARATOR),
+    )}`,
     position_id: position.position_id,
-    decision_id: move ? decisionId(position.position_id, move.uci, positionKey(makeFen(move.after.toSetup()))) : null,
+    decision_id: move
+      ? decisionId(position.position_id, move.uci, positionKey(makeFen(move.after.toSetup())))
+      : null,
     san: move?.san ?? null,
     uci: move?.uci ?? null,
     important,
@@ -941,15 +1105,27 @@ function decisionId(fromPositionId: string, uci: string, toPositionKey: string):
 }
 
 function validEngineIdentity(value: unknown): value is ReplacementEngineIdentity {
-  return isRecord(value) && typeof value.engine_id === "string" &&
-    typeof value.name === "string" && typeof value.version === "string" &&
-    typeof value.configuration_id === "string" && isRecord(value.configuration) &&
-    typeof value.analysis_schema_version === "string" && safeClone(value.configuration) !== null;
+  return (
+    isRecord(value) &&
+    typeof value.engine_id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.version === "string" &&
+    typeof value.configuration_id === "string" &&
+    isRecord(value.configuration) &&
+    typeof value.analysis_schema_version === "string" &&
+    safeClone(value.configuration) !== null
+  );
 }
 
 function engineIdentityKey(identity: ReplacementEngineIdentity): string {
-  return [identity.engine_id, identity.name, identity.version, identity.configuration_id,
-    jsonKey(identity.configuration), identity.analysis_schema_version].join(SEPARATOR);
+  return [
+    identity.engine_id,
+    identity.name,
+    identity.version,
+    identity.configuration_id,
+    jsonKey(identity.configuration),
+    identity.analysis_schema_version,
+  ].join(SEPARATOR);
 }
 
 function cachePositionIdentity(position: ReplacementExpansionPositionEvidence): string {
@@ -961,9 +1137,9 @@ function expansionCacheKey(
   position: ReplacementExpansionPositionEvidence,
   identity: ReplacementEngineIdentity,
 ): string {
-  return `replacement-expand-engine:${stableHash([
-    cachePositionIdentity(position), engineIdentityKey(identity),
-  ].join(SEPARATOR))}`;
+  return `replacement-expand-engine:${stableHash(
+    [cachePositionIdentity(position), engineIdentityKey(identity)].join(SEPARATOR),
+  )}`;
 }
 
 function cacheTrace(
@@ -985,11 +1161,9 @@ function cacheTrace(
   };
 }
 
-function providerState(
-  state: unknown,
-): ReplacementExpansionEvidenceState {
+function providerState(state: unknown): ReplacementExpansionEvidenceState {
   return REPLACEMENT_EXPANSION_EVIDENCE_STATES.includes(state as ReplacementExpansionEvidenceState)
-    ? state as ReplacementExpansionEvidenceState
+    ? (state as ReplacementExpansionEvidenceState)
     : "malformed";
 }
 
@@ -1003,11 +1177,12 @@ function strategicSource(
   reason: string | null,
 ): StrategicFitSourceProvenance {
   return {
-    source_id: `strategic-fit:replacement-expand:${providerKind}:${stableHash([
-      provider, version ?? "", snapshot ?? "", position.position_key,
-    ].join(SEPARATOR))}`,
+    source_id: `strategic-fit:replacement-expand:${providerKind}:${stableHash(
+      [provider, version ?? "", snapshot ?? "", position.position_key].join(SEPARATOR),
+    )}`,
     kind: providerKind === "engine" ? "engine" : "opening-explorer",
-    state: state === "available" ? "available" : state === "unavailable" ? "unavailable" : "partial",
+    state:
+      state === "available" ? "available" : state === "unavailable" ? "unavailable" : "partial",
     version,
     snapshot,
     reason,
@@ -1104,13 +1279,31 @@ async function queryExplorer(
   } catch {
     providerName = "malformed";
   }
-  const unavailable = (state: ReplacementExpansionEvidenceState, explanation: string,
-    error: ReplacementExpansionItemErrorCode): ExplorerQueryResult => {
-    const provenance = [strategicSource("explorer", state, providerName, providerVersion,
-      providerSnapshot, evidencePosition, explanation)];
+  const unavailable = (
+    state: ReplacementExpansionEvidenceState,
+    explanation: string,
+    error: ReplacementExpansionItemErrorCode,
+  ): ExplorerQueryResult => {
+    const provenance = [
+      strategicSource(
+        "explorer",
+        state,
+        providerName,
+        providerVersion,
+        providerSnapshot,
+        evidencePosition,
+        explanation,
+      ),
+    ];
     const item = evidenceItem("explorer", evidencePosition, {
-      status: state === "cancelled" ? "cancelled" : state === "stale" ? "stale"
-        : state === "malformed" ? "malformed" : "unavailable",
+      status:
+        state === "cancelled"
+          ? "cancelled"
+          : state === "stale"
+            ? "stale"
+            : state === "malformed"
+              ? "malformed"
+              : "unavailable",
       error_code: error,
       explanation,
       provenance,
@@ -1128,81 +1321,154 @@ async function queryExplorer(
         reason: explanation,
         provenance,
       }),
-      candidateSource: expansionCandidateSource("opening-database", state, providerName,
-        providerVersion, providerSnapshot, evidencePosition, explanation,
-        { expansion: true, evidence_state: state }, provenance),
+      candidateSource: expansionCandidateSource(
+        "opening-database",
+        state,
+        providerName,
+        providerVersion,
+        providerSnapshot,
+        evidencePosition,
+        explanation,
+        { expansion: true, evidence_state: state },
+        provenance,
+      ),
     };
   };
   if (!provider || providerName.length === 0) {
-    return unavailable("unavailable", "Explorer provider is unavailable; common-reply coverage is unresolved.", "provider-unavailable");
+    return unavailable(
+      "unavailable",
+      "Explorer provider is unavailable; common-reply coverage is unresolved.",
+      "provider-unavailable",
+    );
   }
   if (cancelled(input)) {
-    return unavailable("cancelled", "Explorer expansion was cancelled before scheduling.", "provider-cancelled");
+    return unavailable(
+      "cancelled",
+      "Explorer expansion was cancelled before scheduling.",
+      "provider-cancelled",
+    );
   }
   let evidence: ReplacementExplorerExpansionEvidence | null = null;
   try {
-    evidence = await provider.query({
-      request_id: input.request.request_id,
-      repertoire_revision: input.request.repertoire_revision,
-      repertoire_color: input.request.repertoire_color,
-      position: cloneJson(evidencePosition),
-      minimum_reply_popularity: input.request.budget.minimum_reply_popularity,
-    }, input.signal);
+    evidence = await provider.query(
+      {
+        request_id: input.request.request_id,
+        repertoire_revision: input.request.repertoire_revision,
+        repertoire_color: input.request.repertoire_color,
+        position: cloneJson(evidencePosition),
+        minimum_reply_popularity: input.request.budget.minimum_reply_popularity,
+      },
+      input.signal,
+    );
   } catch (error) {
-    return unavailable(cancelled(input) || aborted(error) ? "cancelled" : "unavailable",
+    return unavailable(
+      cancelled(input) || aborted(error) ? "cancelled" : "unavailable",
       cancelled(input) || aborted(error)
         ? "Explorer expansion was cancelled during query."
         : "Explorer provider failed; common-reply coverage is unresolved.",
-      cancelled(input) || aborted(error) ? "provider-cancelled" : "provider-unavailable");
+      cancelled(input) || aborted(error) ? "provider-cancelled" : "provider-unavailable",
+    );
   }
   if (cancelled(input)) {
-    return unavailable("cancelled", "Explorer expansion was cancelled after query; no new work was scheduled.", "provider-cancelled");
+    return unavailable(
+      "cancelled",
+      "Explorer expansion was cancelled after query; no new work was scheduled.",
+      "provider-cancelled",
+    );
   }
   if (!evidence) {
-    return unavailable("unavailable", "Explorer returned no evidence; common-reply coverage is unresolved.", "provider-unavailable");
+    return unavailable(
+      "unavailable",
+      "Explorer returned no evidence; common-reply coverage is unresolved.",
+      "provider-unavailable",
+    );
   }
   const clone = safeClone(evidence);
-  if (!clone || !isRecord(evidence) || typeof evidence.evidence_id !== "string" ||
-    typeof evidence.provider !== "string" || !isRecord(evidence.position) ||
-    !Array.isArray(evidence.replies) || !Array.isArray(evidence.provenance) ||
-    !evidence.provenance.every(validProvenance)) {
+  if (
+    !clone ||
+    !isRecord(evidence) ||
+    typeof evidence.evidence_id !== "string" ||
+    typeof evidence.provider !== "string" ||
+    !isRecord(evidence.position) ||
+    !Array.isArray(evidence.replies) ||
+    !Array.isArray(evidence.provenance) ||
+    !evidence.provenance.every(validProvenance)
+  ) {
     return unavailable("malformed", "Explorer evidence header is malformed.", "malformed-evidence");
   }
   const state = providerState(evidence.state);
-  const stale = !sameVersions(evidence) || evidence.provider !== providerName ||
-    evidence.provider_version !== providerVersion || evidence.snapshot !== providerSnapshot ||
+  const stale =
+    !sameVersions(evidence) ||
+    evidence.provider !== providerName ||
+    evidence.provider_version !== providerVersion ||
+    evidence.snapshot !== providerSnapshot ||
     evidence.position.position_id !== evidencePosition.position_id ||
     evidence.position.position_key !== evidencePosition.position_key ||
     evidence.position.ply !== evidencePosition.ply ||
-    (() => { try { return positionKey(evidence.position.fen) !== evidencePosition.position_key; } catch { return true; } })();
-  if (stale) return unavailable("stale", "Explorer evidence position, provider, or schema identity is stale.", "stale-position");
+    (() => {
+      try {
+        return positionKey(evidence.position.fen) !== evidencePosition.position_key;
+      } catch {
+        return true;
+      }
+    })();
+  if (stale)
+    return unavailable(
+      "stale",
+      "Explorer evidence position, provider, or schema identity is stale.",
+      "stale-position",
+    );
   if (state !== "available" && state !== "partial") {
-    return unavailable(state, evidence.reason ?? `Explorer evidence is ${state}.`,
-      state === "cancelled" ? "provider-cancelled" : state === "stale" ? "stale-position"
-        : state === "malformed" ? "malformed-evidence" : "provider-unavailable");
+    return unavailable(
+      state,
+      evidence.reason ?? `Explorer evidence is ${state}.`,
+      state === "cancelled"
+        ? "provider-cancelled"
+        : state === "stale"
+          ? "stale-position"
+          : state === "malformed"
+            ? "malformed-evidence"
+            : "provider-unavailable",
+    );
   }
   const items: ReplacementExpansionEvidenceItemResult[] = [];
   const replies: ValidExplorerReply[] = [];
   const evidenceProvenance = mergeProvenance([
     ...evidence.provenance,
-    strategicSource("explorer", state, providerName, providerVersion, providerSnapshot,
-      evidencePosition, evidence.reason),
+    strategicSource(
+      "explorer",
+      state,
+      providerName,
+      providerVersion,
+      providerSnapshot,
+      evidencePosition,
+      evidence.reason,
+    ),
   ]);
   for (const [itemIndex, raw] of evidence.replies.entries()) {
     const rawRecord = isRecord(raw);
     const moveId = rawRecord && typeof raw.move_id === "string" ? raw.move_id : null;
     const inputSan = rawRecord && typeof raw.san === "string" ? raw.san : null;
     const inputUci = rawRecord && typeof raw.uci === "string" ? raw.uci : null;
-    const inputPv = rawRecord && Array.isArray(raw.pv) && raw.pv.every((value) => typeof value === "string")
-      ? raw.pv as string[] : [];
-    const popularityValid = rawRecord && finiteNonNegative(raw.played_probability) &&
-      raw.played_probability <= 1 && finiteInteger(raw.games) && raw.games >= 0;
-    const provenanceValid = rawRecord && Array.isArray(raw.provenance) &&
-      raw.provenance.every(validProvenance);
+    const inputPv =
+      rawRecord && Array.isArray(raw.pv) && raw.pv.every((value) => typeof value === "string")
+        ? (raw.pv as string[])
+        : [];
+    const popularityValid =
+      rawRecord &&
+      finiteNonNegative(raw.played_probability) &&
+      raw.played_probability <= 1 &&
+      finiteInteger(raw.games) &&
+      raw.games >= 0;
+    const provenanceValid =
+      rawRecord && Array.isArray(raw.provenance) && raw.provenance.every(validProvenance);
     const validated = validateMove(position, inputSan, inputUci);
-    const pvSan = validated.move && rawRecord
-      ? (Array.isArray(raw.pv) && raw.pv.length === 0 ? [] : validatePv(position, raw.pv, validated.move.uci))
-      : null;
+    const pvSan =
+      validated.move && rawRecord
+        ? Array.isArray(raw.pv) && raw.pv.length === 0
+          ? []
+          : validatePv(position, raw.pv, validated.move.uci)
+        : null;
     let status: ReplacementExpansionItemStatus = "complete";
     let error: ReplacementExpansionItemErrorCode | null = null;
     if (!rawRecord || !moveId || !provenanceValid) {
@@ -1218,32 +1484,41 @@ async function queryExplorer(
       status = "malformed";
       error = "malformed-pv";
     }
-    const playedProbability = popularityValid ? raw.played_probability as number : null;
-    const important = playedProbability !== null &&
+    const playedProbability = popularityValid ? (raw.played_probability as number) : null;
+    const important =
+      playedProbability !== null &&
       playedProbability >= input.request.budget.minimum_reply_popularity;
-    const provenance = rawRecord && Array.isArray(raw.provenance)
-      ? mergeProvenance([...evidenceProvenance, ...raw.provenance as StrategicFitSourceProvenance[]])
-      : evidenceProvenance;
-    items.push(evidenceItem("explorer", evidencePosition, {
-      evidence_id: evidence.evidence_id,
-      item_id: moveId,
-      item_index: itemIndex,
-      status,
-      error_code: error,
-      explanation: status === "complete" ? "Explorer reply is legal and semantically current."
-        : `Explorer reply is ${status}: ${error ?? "unknown"}.`,
-      input_san: inputSan,
-      input_uci: inputUci,
-      input_pv: [...inputPv],
-      canonical_san: validated.move?.san ?? null,
-      canonical_uci: validated.move?.uci ?? null,
-      canonical_pv_san: pvSan ? [...pvSan] : [],
-      important,
-      forcing: validated.move?.forcing ?? false,
-      included: false,
-      played_probability: playedProbability,
-      provenance,
-    }));
+    const provenance =
+      rawRecord && Array.isArray(raw.provenance)
+        ? mergeProvenance([
+            ...evidenceProvenance,
+            ...(raw.provenance as StrategicFitSourceProvenance[]),
+          ])
+        : evidenceProvenance;
+    items.push(
+      evidenceItem("explorer", evidencePosition, {
+        evidence_id: evidence.evidence_id,
+        item_id: moveId,
+        item_index: itemIndex,
+        status,
+        error_code: error,
+        explanation:
+          status === "complete"
+            ? "Explorer reply is legal and semantically current."
+            : `Explorer reply is ${status}: ${error ?? "unknown"}.`,
+        input_san: inputSan,
+        input_uci: inputUci,
+        input_pv: [...inputPv],
+        canonical_san: validated.move?.san ?? null,
+        canonical_uci: validated.move?.uci ?? null,
+        canonical_pv_san: pvSan ? [...pvSan] : [],
+        important,
+        forcing: validated.move?.forcing ?? false,
+        included: false,
+        played_probability: playedProbability,
+        provenance,
+      }),
+    );
     if (status === "complete" && validated.move && rawRecord && popularityValid && pvSan) {
       replies.push({
         move: validated.move,
@@ -1259,38 +1534,58 @@ async function queryExplorer(
     replyGroups.set(reply.move.uci, [...(replyGroups.get(reply.move.uci) ?? []), reply]);
   }
   const deduplicatedReplies: ValidExplorerReply[] = [];
-  for (const [, matches] of [...replyGroups.entries()].sort(([left], [right]) => compareStrings(left, right))) {
-    const orderedMatches = [...matches].sort((left, right) =>
-      compareStrings(left.evidence.move_id, right.evidence.move_id) ||
-      right.evidence.played_probability - left.evidence.played_probability);
+  for (const [, matches] of [...replyGroups.entries()].sort(([left], [right]) =>
+    compareStrings(left, right),
+  )) {
+    const orderedMatches = [...matches].sort(
+      (left, right) =>
+        compareStrings(left.evidence.move_id, right.evidence.move_id) ||
+        right.evidence.played_probability - left.evidence.played_probability,
+    );
     deduplicatedReplies.push(orderedMatches[0]!);
     for (const duplicate of orderedMatches.slice(1)) {
       items[duplicate.itemIndex] = {
         ...items[duplicate.itemIndex]!,
         status: "malformed",
         error_code: "malformed-evidence",
-        explanation: "Explorer evidence duplicates a canonical reply; only the deterministic canonical item is usable.",
+        explanation:
+          "Explorer evidence duplicates a canonical reply; only the deterministic canonical item is usable.",
         included: false,
       };
     }
   }
-  const canonicalItems = [...items].sort((left, right) =>
-    compareStrings(left.canonical_uci ?? left.input_uci ?? "", right.canonical_uci ?? right.input_uci ?? "") ||
-    compareStrings(left.item_id ?? "", right.item_id ?? "") || compareStrings(left.status, right.status)
-  ).map((item, itemIndex) => ({ ...item, item_index: itemIndex }));
-  const canonicalItemIndexes = new Map(canonicalItems.map((item) => [
-    [item.item_id ?? "", item.canonical_uci ?? item.input_uci ?? ""].join(SEPARATOR),
-    item.item_index,
-  ]));
-  const ordered = deduplicatedReplies.map((item) => ({
-    ...item,
-    itemIndex: canonicalItemIndexes.get([item.evidence.move_id, item.move.uci].join(SEPARATOR)) ?? item.itemIndex,
-  })).sort((left, right) =>
-    Number(right.important) - Number(left.important) ||
-    Number(right.move.forcing) - Number(left.move.forcing) ||
-    right.evidence.played_probability - left.evidence.played_probability ||
-    compareStrings(left.move.uci, right.move.uci) || compareStrings(left.evidence.move_id, right.evidence.move_id)
+  const canonicalItems = [...items]
+    .sort(
+      (left, right) =>
+        compareStrings(
+          left.canonical_uci ?? left.input_uci ?? "",
+          right.canonical_uci ?? right.input_uci ?? "",
+        ) ||
+        compareStrings(left.item_id ?? "", right.item_id ?? "") ||
+        compareStrings(left.status, right.status),
+    )
+    .map((item, itemIndex) => ({ ...item, item_index: itemIndex }));
+  const canonicalItemIndexes = new Map(
+    canonicalItems.map((item) => [
+      [item.item_id ?? "", item.canonical_uci ?? item.input_uci ?? ""].join(SEPARATOR),
+      item.item_index,
+    ]),
   );
+  const ordered = deduplicatedReplies
+    .map((item) => ({
+      ...item,
+      itemIndex:
+        canonicalItemIndexes.get([item.evidence.move_id, item.move.uci].join(SEPARATOR)) ??
+        item.itemIndex,
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.important) - Number(left.important) ||
+        Number(right.move.forcing) - Number(left.move.forcing) ||
+        right.evidence.played_probability - left.evidence.played_probability ||
+        compareStrings(left.move.uci, right.move.uci) ||
+        compareStrings(left.evidence.move_id, right.evidence.move_id),
+    );
   const source = expansionSource("explorer", evidencePosition, {
     source_id: `strategic-fit:replacement-expand:explorer:${evidence.evidence_id}`,
     state,
@@ -1305,10 +1600,16 @@ async function queryExplorer(
       replies: [...clone.replies].sort((left, right) => {
         const leftRecord = isRecord(left);
         const rightRecord = isRecord(right);
-        return compareStrings(leftRecord && typeof left.uci === "string" ? left.uci : "",
-          rightRecord && typeof right.uci === "string" ? right.uci : "") ||
-          compareStrings(leftRecord && typeof left.move_id === "string" ? left.move_id : jsonKey(left),
-            rightRecord && typeof right.move_id === "string" ? right.move_id : jsonKey(right));
+        return (
+          compareStrings(
+            leftRecord && typeof left.uci === "string" ? left.uci : "",
+            rightRecord && typeof right.uci === "string" ? right.uci : "",
+          ) ||
+          compareStrings(
+            leftRecord && typeof left.move_id === "string" ? left.move_id : jsonKey(left),
+            rightRecord && typeof right.move_id === "string" ? right.move_id : jsonKey(right),
+          )
+        );
       }),
     },
     provenance: evidenceProvenance,
@@ -1318,9 +1619,17 @@ async function queryExplorer(
     replies: ordered,
     items: canonicalItems,
     source,
-    candidateSource: expansionCandidateSource("opening-database", state, providerName,
-      providerVersion, providerSnapshot, evidencePosition, evidence.reason,
-      { expansion: true, evidence_id: evidence.evidence_id }, evidenceProvenance),
+    candidateSource: expansionCandidateSource(
+      "opening-database",
+      state,
+      providerName,
+      providerVersion,
+      providerSnapshot,
+      evidencePosition,
+      evidence.reason,
+      { expansion: true, evidence_id: evidence.evidence_id },
+      evidenceProvenance,
+    ),
   };
 }
 
@@ -1341,35 +1650,59 @@ function compatibleExpansionCache(
   depth: number,
   multipv: number,
 ): ReplacementEngineAnalysisEvidence | null {
-  const compatible = entries.filter((entry) => {
-    if (!isRecord(entry) || !sameVersions(entry) || entry.state !== "available" ||
-      !validEngineIdentity(entry.engine) || engineIdentityKey(entry.engine) !== engineIdentityKey(identity) ||
-      !isRecord(entry.position) || entry.position.position_id !== position.position_id ||
-      entry.position.position_key !== position.position_key ||
-      cachePositionIdentity({ ...position, fen: entry.position.fen }) !== cachePositionIdentity(position) ||
-      !finiteInteger(entry.reached_depth) || entry.reached_depth < depth ||
-      !finiteInteger(entry.requested_multipv) || entry.requested_multipv < multipv ||
-      !Array.isArray(entry.lines)) return false;
-    const ranks = new Set<number>();
-    const requestedRanks = new Set<number>();
-    const chess = currentPosition(position.fen);
-    if (!chess) return false;
-    for (const raw of entry.lines) {
-      if (!isRecord(raw) || !finiteInteger(raw.multipv_rank) || raw.multipv_rank < 1 ||
-        ranks.has(raw.multipv_rank) ||
-        !finiteInteger(raw.depth) || raw.depth < depth || typeof raw.uci !== "string" ||
-        !((finiteInteger(raw.white_pov_evaluation_cp) && raw.white_pov_mate_in === null) ||
-          (raw.white_pov_evaluation_cp === null && finiteInteger(raw.white_pov_mate_in) && raw.white_pov_mate_in !== 0)) ||
-        validatePv(chess, raw.pv, raw.uci) === null) return false;
-      ranks.add(raw.multipv_rank);
-      if (raw.multipv_rank <= multipv) requestedRanks.add(raw.multipv_rank);
-    }
-    return requestedRanks.size === multipv;
-  }).sort((left, right) =>
-    left.reached_depth! - right.reached_depth! ||
-    left.requested_multipv - right.requested_multipv ||
-    compareStrings(left.evidence_id, right.evidence_id)
-  );
+  const compatible = entries
+    .filter((entry) => {
+      if (
+        !isRecord(entry) ||
+        !sameVersions(entry) ||
+        entry.state !== "available" ||
+        !validEngineIdentity(entry.engine) ||
+        engineIdentityKey(entry.engine) !== engineIdentityKey(identity) ||
+        !isRecord(entry.position) ||
+        entry.position.position_id !== position.position_id ||
+        entry.position.position_key !== position.position_key ||
+        cachePositionIdentity({ ...position, fen: entry.position.fen }) !==
+          cachePositionIdentity(position) ||
+        !finiteInteger(entry.reached_depth) ||
+        entry.reached_depth < depth ||
+        !finiteInteger(entry.requested_multipv) ||
+        entry.requested_multipv < multipv ||
+        !Array.isArray(entry.lines)
+      )
+        return false;
+      const ranks = new Set<number>();
+      const requestedRanks = new Set<number>();
+      const chess = currentPosition(position.fen);
+      if (!chess) return false;
+      for (const raw of entry.lines) {
+        if (
+          !isRecord(raw) ||
+          !finiteInteger(raw.multipv_rank) ||
+          raw.multipv_rank < 1 ||
+          ranks.has(raw.multipv_rank) ||
+          !finiteInteger(raw.depth) ||
+          raw.depth < depth ||
+          typeof raw.uci !== "string" ||
+          !(
+            (finiteInteger(raw.white_pov_evaluation_cp) && raw.white_pov_mate_in === null) ||
+            (raw.white_pov_evaluation_cp === null &&
+              finiteInteger(raw.white_pov_mate_in) &&
+              raw.white_pov_mate_in !== 0)
+          ) ||
+          validatePv(chess, raw.pv, raw.uci) === null
+        )
+          return false;
+        ranks.add(raw.multipv_rank);
+        if (raw.multipv_rank <= multipv) requestedRanks.add(raw.multipv_rank);
+      }
+      return requestedRanks.size === multipv;
+    })
+    .sort(
+      (left, right) =>
+        left.reached_depth! - right.reached_depth! ||
+        left.requested_multipv - right.requested_multipv ||
+        compareStrings(left.evidence_id, right.evidence_id),
+    );
   return safeClone(compatible[0] ?? null);
 }
 
@@ -1377,11 +1710,19 @@ function sortedEngineLines(lines: readonly unknown[]): ReplacementEngineLineEvid
   return [...lines].sort((left, right) => {
     const leftRecord = isRecord(left);
     const rightRecord = isRecord(right);
-    const leftRank = leftRecord && finiteInteger(left.multipv_rank) ? left.multipv_rank : Number.MAX_SAFE_INTEGER;
-    const rightRank = rightRecord && finiteInteger(right.multipv_rank) ? right.multipv_rank : Number.MAX_SAFE_INTEGER;
-    return leftRank - rightRank ||
-      compareStrings(leftRecord && typeof left.line_id === "string" ? left.line_id : jsonKey(left),
-        rightRecord && typeof right.line_id === "string" ? right.line_id : jsonKey(right));
+    const leftRank =
+      leftRecord && finiteInteger(left.multipv_rank) ? left.multipv_rank : Number.MAX_SAFE_INTEGER;
+    const rightRank =
+      rightRecord && finiteInteger(right.multipv_rank)
+        ? right.multipv_rank
+        : Number.MAX_SAFE_INTEGER;
+    return (
+      leftRank - rightRank ||
+      compareStrings(
+        leftRecord && typeof left.line_id === "string" ? left.line_id : jsonKey(left),
+        rightRecord && typeof right.line_id === "string" ? right.line_id : jsonKey(right),
+      )
+    );
   }) as ReplacementEngineLineEvidence[];
 }
 
@@ -1410,8 +1751,13 @@ async function queryEngine(
   } catch {
     identityValid = false;
   }
-  let trace = cacheTrace("not-configured", evidencePosition, identity,
-    input.request.budget.engine_depth, input.request.budget.engine_multipv);
+  let trace = cacheTrace(
+    "not-configured",
+    evidencePosition,
+    identity,
+    input.request.budget.engine_depth,
+    input.request.budget.engine_multipv,
+  );
   let providerScheduled = false;
   const unavailable = (
     state: ReplacementExpansionEvidenceState,
@@ -1421,13 +1767,26 @@ async function queryEngine(
   ): EngineQueryResult => {
     const provenance = mergeProvenance([
       ...(evidence?.provenance ?? []),
-      strategicSource("engine", state, identity.name, identity.version,
-        evidence?.evidence_id ?? null, evidencePosition, explanation),
+      strategicSource(
+        "engine",
+        state,
+        identity.name,
+        identity.version,
+        evidence?.evidence_id ?? null,
+        evidencePosition,
+        explanation,
+      ),
     ]);
     const item = evidenceItem("engine", evidencePosition, {
       evidence_id: evidence?.evidence_id ?? null,
-      status: state === "cancelled" ? "cancelled" : state === "stale" ? "stale"
-        : state === "malformed" ? "malformed" : "unavailable",
+      status:
+        state === "cancelled"
+          ? "cancelled"
+          : state === "stale"
+            ? "stale"
+            : state === "malformed"
+              ? "malformed"
+              : "unavailable",
       error_code: error,
       explanation,
       engine: cloneJson(identity),
@@ -1453,113 +1812,240 @@ async function queryEngine(
         evidence: safeClone(evidence),
         provenance,
       }),
-      candidateSource: expansionCandidateSource("engine-multipv", state, identity.name,
-        identity.version, evidence?.evidence_id ?? null, evidencePosition, explanation,
-        { expansion: true, cache: trace.status, engine_configuration: cloneJson(identity.configuration) },
-        provenance),
+      candidateSource: expansionCandidateSource(
+        "engine-multipv",
+        state,
+        identity.name,
+        identity.version,
+        evidence?.evidence_id ?? null,
+        evidencePosition,
+        explanation,
+        {
+          expansion: true,
+          cache: trace.status,
+          engine_configuration: cloneJson(identity.configuration),
+        },
+        provenance,
+      ),
       cacheWrite: null,
       providerScheduled,
     };
   };
-  if (!provider) return unavailable("unavailable", "Engine provider is unavailable; continuation is unresolved.", "provider-unavailable");
-  if (!identityValid) return unavailable("malformed", "Engine provider identity or configuration is malformed.", "malformed-evidence");
+  if (!provider)
+    return unavailable(
+      "unavailable",
+      "Engine provider is unavailable; continuation is unresolved.",
+      "provider-unavailable",
+    );
+  if (!identityValid)
+    return unavailable(
+      "malformed",
+      "Engine provider identity or configuration is malformed.",
+      "malformed-evidence",
+    );
   const cacheEntries = input.engine_cache_evidence ?? [];
-  const cached = compatibleExpansionCache(cacheEntries, evidencePosition, identity,
-    input.request.budget.engine_depth, input.request.budget.engine_multipv);
+  const cached = compatibleExpansionCache(
+    cacheEntries,
+    evidencePosition,
+    identity,
+    input.request.budget.engine_depth,
+    input.request.budget.engine_multipv,
+  );
   let evidence = cached;
   if (cached) {
-    trace = cacheTrace("hit", evidencePosition, identity, input.request.budget.engine_depth,
-      input.request.budget.engine_multipv, cached);
+    trace = cacheTrace(
+      "hit",
+      evidencePosition,
+      identity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+      cached,
+    );
   } else {
-    trace = cacheTrace(cacheEntries.length > 0 ? "miss" : "not-configured", evidencePosition,
-      identity, input.request.budget.engine_depth, input.request.budget.engine_multipv);
+    trace = cacheTrace(
+      cacheEntries.length > 0 ? "miss" : "not-configured",
+      evidencePosition,
+      identity,
+      input.request.budget.engine_depth,
+      input.request.budget.engine_multipv,
+    );
     if (!allowProviderSchedule) {
-      return unavailable("partial", "Engine-position budget exhausted before provider analysis; no compatible cache entry was available.",
-        "engine-position-budget-exhausted");
+      return unavailable(
+        "partial",
+        "Engine-position budget exhausted before provider analysis; no compatible cache entry was available.",
+        "engine-position-budget-exhausted",
+      );
     }
-    if (cancelled(input)) return unavailable("cancelled", "Engine expansion was cancelled before scheduling.", "provider-cancelled");
+    if (cancelled(input))
+      return unavailable(
+        "cancelled",
+        "Engine expansion was cancelled before scheduling.",
+        "provider-cancelled",
+      );
     providerScheduled = true;
     try {
-      evidence = await provider.analyse({
-        request_id: input.request.request_id,
-        repertoire_revision: input.request.repertoire_revision,
-        repertoire_color: input.request.repertoire_color,
-        position: {
-          position_id: evidencePosition.position_id,
-          position_key: evidencePosition.position_key,
-          fen: evidencePosition.fen,
+      evidence = await provider.analyse(
+        {
+          request_id: input.request.request_id,
+          repertoire_revision: input.request.repertoire_revision,
+          repertoire_color: input.request.repertoire_color,
+          position: {
+            position_id: evidencePosition.position_id,
+            position_key: evidencePosition.position_key,
+            fen: evidencePosition.fen,
+          },
+          depth: input.request.budget.engine_depth,
+          multipv: input.request.budget.engine_multipv,
         },
-        depth: input.request.budget.engine_depth,
-        multipv: input.request.budget.engine_multipv,
-      }, input.signal);
+        input.signal,
+      );
     } catch (error) {
-      return unavailable(cancelled(input) || aborted(error) ? "cancelled" : "unavailable",
+      return unavailable(
+        cancelled(input) || aborted(error) ? "cancelled" : "unavailable",
         cancelled(input) || aborted(error)
           ? "Engine expansion was cancelled during analysis."
           : "Engine provider failed; continuation is unresolved.",
-        cancelled(input) || aborted(error) ? "provider-cancelled" : "provider-unavailable");
+        cancelled(input) || aborted(error) ? "provider-cancelled" : "provider-unavailable",
+      );
     }
   }
   if (cancelled(input)) {
-    return unavailable("cancelled", "Engine expansion was cancelled after analysis; no new work was scheduled.", "provider-cancelled", evidence);
+    return unavailable(
+      "cancelled",
+      "Engine expansion was cancelled after analysis; no new work was scheduled.",
+      "provider-cancelled",
+      evidence,
+    );
   }
-  if (!evidence) return unavailable("unavailable", "Engine returned no evidence; continuation is unresolved.", "provider-unavailable");
+  if (!evidence)
+    return unavailable(
+      "unavailable",
+      "Engine returned no evidence; continuation is unresolved.",
+      "provider-unavailable",
+    );
   const clonedEvidence = safeClone(evidence);
-  if (!clonedEvidence || !isRecord(evidence) || typeof evidence.evidence_id !== "string" ||
-    !validEngineIdentity(evidence.engine) || !isRecord(evidence.position) ||
-    !Array.isArray(evidence.lines) || !Array.isArray(evidence.provenance) ||
+  if (
+    !clonedEvidence ||
+    !isRecord(evidence) ||
+    typeof evidence.evidence_id !== "string" ||
+    !validEngineIdentity(evidence.engine) ||
+    !isRecord(evidence.position) ||
+    !Array.isArray(evidence.lines) ||
+    !Array.isArray(evidence.provenance) ||
     !evidence.provenance.every(validProvenance) ||
-    !finiteInteger(evidence.requested_depth) || !finiteInteger(evidence.requested_multipv) ||
+    !finiteInteger(evidence.requested_depth) ||
+    !finiteInteger(evidence.requested_multipv) ||
     (evidence.reached_depth !== null && !finiteInteger(evidence.reached_depth)) ||
-    (evidence.reason !== null && typeof evidence.reason !== "string")) {
-    return unavailable("malformed", "Engine evidence header is malformed.", "malformed-evidence", evidence);
+    (evidence.reason !== null && typeof evidence.reason !== "string")
+  ) {
+    return unavailable(
+      "malformed",
+      "Engine evidence header is malformed.",
+      "malformed-evidence",
+      evidence,
+    );
   }
-  const positionStale = evidence.position.position_id !== evidencePosition.position_id ||
+  const positionStale =
+    evidence.position.position_id !== evidencePosition.position_id ||
     evidence.position.position_key !== evidencePosition.position_key ||
-    cachePositionIdentity({ ...evidencePosition, fen: evidence.position.fen }) !== cachePositionIdentity(evidencePosition) ||
-    (() => { try { return positionKey(evidence.position.fen) !== evidencePosition.position_key; } catch { return true; } })();
-  const requestStale = evidence.requested_depth < input.request.budget.engine_depth ||
+    cachePositionIdentity({ ...evidencePosition, fen: evidence.position.fen }) !==
+      cachePositionIdentity(evidencePosition) ||
+    (() => {
+      try {
+        return positionKey(evidence.position.fen) !== evidencePosition.position_key;
+      } catch {
+        return true;
+      }
+    })();
+  const requestStale =
+    evidence.requested_depth < input.request.budget.engine_depth ||
     evidence.requested_multipv < input.request.budget.engine_multipv;
-  const identityStale = engineIdentityKey(evidence.engine) !== engineIdentityKey(identity) || !sameVersions(evidence);
+  const identityStale =
+    engineIdentityKey(evidence.engine) !== engineIdentityKey(identity) || !sameVersions(evidence);
   if (positionStale || requestStale || identityStale) {
-    return unavailable("stale", "Engine evidence position, request, identity, or schema is stale.",
-      positionStale ? "stale-position" : "stale-request", evidence);
+    return unavailable(
+      "stale",
+      "Engine evidence position, request, identity, or schema is stale.",
+      positionStale ? "stale-position" : "stale-request",
+      evidence,
+    );
   }
   const rawState = evidence.state;
   if (rawState !== "available" && rawState !== "partial") {
-    const terminalState: ReplacementExpansionEvidenceState = rawState === "cancelled" ? "cancelled"
-      : rawState === "stale" ? "stale" : rawState === "unavailable" ? "unavailable" : "partial";
-    return unavailable(terminalState, evidence.reason ?? `Engine evidence is ${rawState}.`,
-      terminalState === "cancelled" ? "provider-cancelled"
-        : terminalState === "stale" ? "stale-position" : "provider-unavailable", evidence);
+    const terminalState: ReplacementExpansionEvidenceState =
+      rawState === "cancelled"
+        ? "cancelled"
+        : rawState === "stale"
+          ? "stale"
+          : rawState === "unavailable"
+            ? "unavailable"
+            : "partial";
+    return unavailable(
+      terminalState,
+      evidence.reason ?? `Engine evidence is ${rawState}.`,
+      terminalState === "cancelled"
+        ? "provider-cancelled"
+        : terminalState === "stale"
+          ? "stale-position"
+          : "provider-unavailable",
+      evidence,
+    );
   }
   const state: ReplacementExpansionEvidenceState = rawState;
   const items: ReplacementExpansionEvidenceItemResult[] = [];
-  const valid: { readonly move: LegalMove; readonly rank: number; readonly depth: number;
-    readonly id: string; readonly itemIndex: number }[] = [];
+  const valid: {
+    readonly move: LegalMove;
+    readonly rank: number;
+    readonly depth: number;
+    readonly id: string;
+    readonly itemIndex: number;
+  }[] = [];
   const baseProvenance = mergeProvenance([
     ...evidence.provenance,
-    strategicSource("engine", state, identity.name, identity.version, evidence.evidence_id,
-      evidencePosition, evidence.reason),
+    strategicSource(
+      "engine",
+      state,
+      identity.name,
+      identity.version,
+      evidence.evidence_id,
+      evidencePosition,
+      evidence.reason,
+    ),
   ]);
   for (const [itemIndex, line] of evidence.lines.entries()) {
     const record = isRecord(line);
     const lineId = record && typeof line.line_id === "string" ? line.line_id : null;
     const uci = record && typeof line.uci === "string" ? line.uci : null;
-    const pv = record && Array.isArray(line.pv) && line.pv.every((value) => typeof value === "string")
-      ? line.pv as string[] : [];
+    const pv =
+      record && Array.isArray(line.pv) && line.pv.every((value) => typeof value === "string")
+        ? (line.pv as string[])
+        : [];
     const rank = record && finiteInteger(line.multipv_rank) ? line.multipv_rank : null;
     const depth = record && finiteInteger(line.depth) ? line.depth : null;
-    const cpValid = record && finiteInteger(line.white_pov_evaluation_cp) && line.white_pov_mate_in === null;
-    const mateValid = record && line.white_pov_evaluation_cp === null && finiteInteger(line.white_pov_mate_in) && line.white_pov_mate_in !== 0;
-    const provenanceValid = record && Array.isArray(line.provenance) && line.provenance.every(validProvenance);
+    const cpValid =
+      record && finiteInteger(line.white_pov_evaluation_cp) && line.white_pov_mate_in === null;
+    const mateValid =
+      record &&
+      line.white_pov_evaluation_cp === null &&
+      finiteInteger(line.white_pov_mate_in) &&
+      line.white_pov_mate_in !== 0;
+    const provenanceValid =
+      record && Array.isArray(line.provenance) && line.provenance.every(validProvenance);
     const parsed = uci ? parseUci(uci) : undefined;
     const moveValid = parsed && position.isLegal(parsed);
     const canonicalPv = uci ? validatePv(position, record ? line.pv : null, uci) : null;
     let status: ReplacementExpansionItemStatus = "complete";
     let error: ReplacementExpansionItemErrorCode | null = null;
-    if (!record || !lineId || !provenanceValid || rank === null || depth === null || rank < 1 || depth < 1 ||
-      (!cpValid && !mateValid)) {
+    if (
+      !record ||
+      !lineId ||
+      !provenanceValid ||
+      rank === null ||
+      depth === null ||
+      rank < 1 ||
+      depth < 1 ||
+      (!cpValid && !mateValid)
+    ) {
       status = "malformed";
       error = "malformed-evidence";
     } else if (!uci || !parsed || !moveValid) {
@@ -1586,71 +2072,107 @@ async function queryEngine(
       };
       valid.push({ move: legal, rank: rank!, depth: depth!, id: lineId!, itemIndex });
     }
-    const whiteCp = cpValid ? line.white_pov_evaluation_cp as number : null;
-    const whiteMate = mateValid ? line.white_pov_mate_in as number : null;
+    const whiteCp = cpValid ? (line.white_pov_evaluation_cp as number) : null;
+    const whiteMate = mateValid ? (line.white_pov_mate_in as number) : null;
     const sign = input.request.repertoire_color === "white" ? 1 : -1;
-    const provenance = record && Array.isArray(line.provenance)
-      ? mergeProvenance([...baseProvenance, ...line.provenance as StrategicFitSourceProvenance[]])
-      : baseProvenance;
-    items.push(evidenceItem("engine", evidencePosition, {
-      evidence_id: evidence.evidence_id,
-      item_id: lineId,
-      item_index: itemIndex,
-      status,
-      error_code: error,
-      explanation: status === "complete" ? "Engine continuation is legal from its semantic position."
-        : `Engine continuation is ${status}: ${error ?? "unknown"}.`,
-      input_uci: uci,
-      input_pv: [...pv],
-      canonical_san: legal?.san ?? null,
-      canonical_uci: legal?.uci ?? null,
-      canonical_pv_san: canonicalPv ? [...canonicalPv] : [],
-      forcing: legal?.forcing ?? false,
-      included: false,
-      white_pov_evaluation_cp: whiteCp,
-      white_pov_mate_in: whiteMate,
-      repertoire_pov_evaluation_cp: whiteCp === null ? null : whiteCp * sign,
-      repertoire_pov_mate_in: whiteMate === null ? null : whiteMate * sign,
-      engine: cloneJson(identity),
-      cache: cloneJson(trace),
-      provenance,
-    }));
+    const provenance =
+      record && Array.isArray(line.provenance)
+        ? mergeProvenance([
+            ...baseProvenance,
+            ...(line.provenance as StrategicFitSourceProvenance[]),
+          ])
+        : baseProvenance;
+    items.push(
+      evidenceItem("engine", evidencePosition, {
+        evidence_id: evidence.evidence_id,
+        item_id: lineId,
+        item_index: itemIndex,
+        status,
+        error_code: error,
+        explanation:
+          status === "complete"
+            ? "Engine continuation is legal from its semantic position."
+            : `Engine continuation is ${status}: ${error ?? "unknown"}.`,
+        input_uci: uci,
+        input_pv: [...pv],
+        canonical_san: legal?.san ?? null,
+        canonical_uci: legal?.uci ?? null,
+        canonical_pv_san: canonicalPv ? [...canonicalPv] : [],
+        forcing: legal?.forcing ?? false,
+        included: false,
+        white_pov_evaluation_cp: whiteCp,
+        white_pov_mate_in: whiteMate,
+        repertoire_pov_evaluation_cp: whiteCp === null ? null : whiteCp * sign,
+        repertoire_pov_mate_in: whiteMate === null ? null : whiteMate * sign,
+        engine: cloneJson(identity),
+        cache: cloneJson(trace),
+        provenance,
+      }),
+    );
   }
   const validByRank = new Map<number, typeof valid>();
-  for (const line of valid) validByRank.set(line.rank, [...(validByRank.get(line.rank) ?? []), line]);
+  for (const line of valid)
+    validByRank.set(line.rank, [...(validByRank.get(line.rank) ?? []), line]);
   const canonicalValid: typeof valid = [];
   for (const [, matches] of [...validByRank.entries()].sort(([left], [right]) => left - right)) {
-    const orderedMatches = [...matches].sort((left, right) => right.depth - left.depth ||
-      compareStrings(left.move.uci, right.move.uci) || compareStrings(left.id, right.id));
+    const orderedMatches = [...matches].sort(
+      (left, right) =>
+        right.depth - left.depth ||
+        compareStrings(left.move.uci, right.move.uci) ||
+        compareStrings(left.id, right.id),
+    );
     canonicalValid.push(orderedMatches[0]!);
     for (const duplicate of orderedMatches.slice(1)) {
       items[duplicate.itemIndex] = {
         ...items[duplicate.itemIndex]!,
         status: "malformed",
         error_code: "malformed-evidence",
-        explanation: "Engine evidence duplicates a MultiPV rank; only the deterministic canonical line is usable.",
+        explanation:
+          "Engine evidence duplicates a MultiPV rank; only the deterministic canonical line is usable.",
         included: false,
       };
     }
   }
-  const requestedValid = canonicalValid.filter((line) => line.rank <= input.request.budget.engine_multipv);
-  const chosen = requestedValid.sort((left, right) => left.rank - right.rank || right.depth - left.depth ||
-    compareStrings(left.move.uci, right.move.uci) || compareStrings(left.id, right.id))[0] ?? null;
-  const finalItems = items.map((item) => ({
-    ...item,
-    included: chosen !== null && item.item_index === chosen.itemIndex,
-  })).sort((left, right) =>
-    (Number(right.included) - Number(left.included)) ||
-    compareStrings(left.canonical_uci ?? left.input_uci ?? "", right.canonical_uci ?? right.input_uci ?? "") ||
-    compareStrings(left.item_id ?? "", right.item_id ?? "") || compareStrings(left.status, right.status)
-  ).map((item, itemIndex) => ({ ...item, item_index: itemIndex }));
+  const requestedValid = canonicalValid.filter(
+    (line) => line.rank <= input.request.budget.engine_multipv,
+  );
+  const chosen =
+    requestedValid.sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        right.depth - left.depth ||
+        compareStrings(left.move.uci, right.move.uci) ||
+        compareStrings(left.id, right.id),
+    )[0] ?? null;
+  const finalItems = items
+    .map((item) => ({
+      ...item,
+      included: chosen !== null && item.item_index === chosen.itemIndex,
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.included) - Number(left.included) ||
+        compareStrings(
+          left.canonical_uci ?? left.input_uci ?? "",
+          right.canonical_uci ?? right.input_uci ?? "",
+        ) ||
+        compareStrings(left.item_id ?? "", right.item_id ?? "") ||
+        compareStrings(left.status, right.status),
+    )
+    .map((item, itemIndex) => ({ ...item, item_index: itemIndex }));
   const requestedRanks = new Set(requestedValid.map((line) => line.rank));
-  const reachedSufficient = finiteInteger(evidence.reached_depth) &&
+  const reachedSufficient =
+    finiteInteger(evidence.reached_depth) &&
     evidence.reached_depth >= input.request.budget.engine_depth;
   const completeRequestedRanks = requestedRanks.size === input.request.budget.engine_multipv;
-  const finalState = state === "partial" || !chosen || !reachedSufficient || !completeRequestedRanks ||
+  const finalState =
+    state === "partial" ||
+    !chosen ||
+    !reachedSufficient ||
+    !completeRequestedRanks ||
     finalItems.some((item) => item.status !== "complete")
-    ? "partial" as const : "available" as const;
+      ? ("partial" as const)
+      : ("available" as const);
   const source = expansionSource("engine", evidencePosition, {
     source_id: `strategic-fit:replacement-expand:engine:${evidence.evidence_id}`,
     state: finalState,
@@ -1662,10 +2184,13 @@ async function queryEngine(
     reached_depth: evidence.reached_depth,
     accepted_item_count: finalItems.filter((item) => item.status === "complete").length,
     rejected_item_count: finalItems.filter((item) => item.status !== "complete").length,
-    reason: evidence.reason ?? (!chosen ? "No legal engine continuation was available."
-      : !reachedSufficient || !completeRequestedRanks
-        ? "Engine evidence did not reach requested depth and complete MultiPV rank coverage."
-        : null),
+    reason:
+      evidence.reason ??
+      (!chosen
+        ? "No legal engine continuation was available."
+        : !reachedSufficient || !completeRequestedRanks
+          ? "Engine evidence did not reach requested depth and complete MultiPV rank coverage."
+          : null),
     engine: cloneJson(identity),
     cache: cloneJson(trace),
     evidence: {
@@ -1674,25 +2199,49 @@ async function queryEngine(
     },
     provenance: baseProvenance,
   });
-  const completeRanks = new Set(canonicalValid.filter((line) => line.depth >= input.request.budget.engine_depth &&
-    line.rank <= input.request.budget.engine_multipv).map((line) => line.rank));
-  const cacheWrite = !cached && finalState === "available" &&
-    finiteInteger(evidence.reached_depth) && evidence.reached_depth >= input.request.budget.engine_depth &&
-    completeRanks.size === input.request.budget.engine_multipv ? {
-      ...clonedEvidence,
-      lines: sortedEngineLines(clonedEvidence.lines),
-    } : null;
+  const completeRanks = new Set(
+    canonicalValid
+      .filter(
+        (line) =>
+          line.depth >= input.request.budget.engine_depth &&
+          line.rank <= input.request.budget.engine_multipv,
+      )
+      .map((line) => line.rank),
+  );
+  const cacheWrite =
+    !cached &&
+    finalState === "available" &&
+    finiteInteger(evidence.reached_depth) &&
+    evidence.reached_depth >= input.request.budget.engine_depth &&
+    completeRanks.size === input.request.budget.engine_multipv
+      ? {
+          ...clonedEvidence,
+          lines: sortedEngineLines(clonedEvidence.lines),
+        }
+      : null;
   return {
     state: finalState,
     move: chosen?.move ?? null,
     items: finalItems,
     source,
-    candidateSource: expansionCandidateSource("engine-multipv", finalState, identity.name,
-      identity.version, evidence.evidence_id, evidencePosition, source.reason,
-      { expansion: true, cache: trace.status, engine_configuration: cloneJson(identity.configuration),
+    candidateSource: expansionCandidateSource(
+      "engine-multipv",
+      finalState,
+      identity.name,
+      identity.version,
+      evidence.evidence_id,
+      evidencePosition,
+      source.reason,
+      {
+        expansion: true,
+        cache: trace.status,
+        engine_configuration: cloneJson(identity.configuration),
         requested_depth: input.request.budget.engine_depth,
         requested_multipv: input.request.budget.engine_multipv,
-        reached_depth: evidence.reached_depth }, baseProvenance),
+        reached_depth: evidence.reached_depth,
+      },
+      baseProvenance,
+    ),
     cacheWrite,
     providerScheduled,
   };
@@ -1736,26 +2285,41 @@ function graphTransposition(
 }
 
 function sourcePaths(seed: ReplacementEngineCandidateSeed): string[][] {
-  return sortedPaths(seed.source_san_paths.length > 0
-    ? seed.source_san_paths
-    : seed.pivot.source_san_paths);
+  return sortedPaths(
+    seed.source_san_paths.length > 0 ? seed.source_san_paths : seed.pivot.source_san_paths,
+  );
 }
 
-function subtreeValid(subtree: ReplacementCandidateSubtree, repertoireColor: "white" | "black"): boolean {
-  if (subtree.nodes.length < 2 || subtree.edges.length < 1 || subtree.routes.length < 1) return false;
+function subtreeValid(
+  subtree: ReplacementCandidateSubtree,
+  repertoireColor: "white" | "black",
+): boolean {
+  if (subtree.nodes.length < 2 || subtree.edges.length < 1 || subtree.routes.length < 1)
+    return false;
   const nodes = new Map(subtree.nodes.map((node) => [node.node_id, node]));
   const edges = new Map(subtree.edges.map((edge) => [edge.edge_id, edge]));
-  if (nodes.size !== subtree.nodes.length || edges.size !== subtree.edges.length ||
-    !nodes.has(subtree.root_node_id) || nodes.get(subtree.root_node_id)?.kind !== "root" ||
-    nodes.get(subtree.root_node_id)?.position_id !== subtree.root_position_id) return false;
+  if (
+    nodes.size !== subtree.nodes.length ||
+    edges.size !== subtree.edges.length ||
+    !nodes.has(subtree.root_node_id) ||
+    nodes.get(subtree.root_node_id)?.kind !== "root" ||
+    nodes.get(subtree.root_node_id)?.position_id !== subtree.root_position_id
+  )
+    return false;
   for (const node of subtree.nodes) {
     const chess = currentPosition(node.fen);
-    if (!chess || semanticPositionId(positionKey(makeFen(chess.toSetup()))) !== node.position_id) return false;
-    const actualOutgoing = subtree.edges.filter((edge) => edge.from_node_id === node.node_id)
-      .map((edge) => edge.edge_id).sort(compareStrings);
-    if (new Set(node.outgoing_edge_ids).size !== node.outgoing_edge_ids.length ||
+    if (!chess || semanticPositionId(positionKey(makeFen(chess.toSetup()))) !== node.position_id)
+      return false;
+    const actualOutgoing = subtree.edges
+      .filter((edge) => edge.from_node_id === node.node_id)
+      .map((edge) => edge.edge_id)
+      .sort(compareStrings);
+    if (
+      new Set(node.outgoing_edge_ids).size !== node.outgoing_edge_ids.length ||
       node.outgoing_edge_ids.some((id) => edges.get(id)?.from_node_id !== node.node_id) ||
-      jsonKey([...node.outgoing_edge_ids].sort(compareStrings)) !== jsonKey(actualOutgoing)) return false;
+      jsonKey([...node.outgoing_edge_ids].sort(compareStrings)) !== jsonKey(actualOutgoing)
+    )
+      return false;
   }
   for (const edge of subtree.edges) {
     const from = nodes.get(edge.from_node_id);
@@ -1763,28 +2327,47 @@ function subtreeValid(subtree: ReplacementCandidateSubtree, repertoireColor: "wh
     if (!from || !to) return false;
     const chess = currentPosition(from.fen);
     const validated = chess ? validateMove(chess, edge.san, edge.uci) : { move: null };
-    if (!validated.move || positionKey(makeFen(validated.move.after.toSetup())) !== positionKey(to.fen) ||
+    if (
+      !validated.move ||
+      positionKey(makeFen(validated.move.after.toSetup())) !== positionKey(to.fen) ||
       edge.decision_id !== decisionId(from.position_id, edge.uci, positionKey(to.fen)) ||
-      to.ply !== from.ply + 1 || edge.mover_color !== chess!.turn ||
+      to.ply !== from.ply + 1 ||
+      edge.mover_color !== chess!.turn ||
       edge.owner !== (chess!.turn === repertoireColor ? "repertoire" : "opponent") ||
-      edge.forcing !== validated.move.forcing) return false;
+      edge.forcing !== validated.move.forcing
+    )
+      return false;
   }
   for (const route of subtree.routes) {
-    if (route.node_ids.length !== route.edge_ids.length + 1 ||
+    if (
+      route.node_ids.length !== route.edge_ids.length + 1 ||
       route.node_ids[0] !== subtree.root_node_id ||
       route.node_ids.at(-1) !== route.terminal_node_id ||
-      route.node_ids.some((id) => !nodes.has(id)) || route.edge_ids.some((id) => !edges.has(id))) return false;
+      route.node_ids.some((id) => !nodes.has(id)) ||
+      route.edge_ids.some((id) => !edges.has(id))
+    )
+      return false;
     for (let index = 0; index < route.edge_ids.length; index++) {
       const edge = edges.get(route.edge_ids[index]!)!;
-      if (edge.from_node_id !== route.node_ids[index] || edge.to_node_id !== route.node_ids[index + 1]) return false;
+      if (
+        edge.from_node_id !== route.node_ids[index] ||
+        edge.to_node_id !== route.node_ids[index + 1]
+      )
+        return false;
     }
   }
-  if (subtree.covered_important_reply_count > subtree.important_reply_count ||
-    subtree.covered_forcing_reply_count > subtree.forcing_reply_count) return false;
+  if (
+    subtree.covered_important_reply_count > subtree.important_reply_count ||
+    subtree.covered_forcing_reply_count > subtree.forcing_reply_count
+  )
+    return false;
   if (subtree.status === "complete") {
     if (subtree.truncation_reasons.length !== 0 || subtree.completion === null) return false;
-    if (subtree.completion.kind === "expanded-opponent-replies" &&
-      subtree.completion.opponent_reply_edge_ids.length === 0) return false;
+    if (
+      subtree.completion.kind === "expanded-opponent-replies" &&
+      subtree.completion.opponent_reply_edge_ids.length === 0
+    )
+      return false;
   } else if (subtree.completion !== null || subtree.truncation_reasons.length === 0) return false;
   return true;
 }
@@ -1836,30 +2419,44 @@ function makeEdge(
 function sortedExpansionItems(
   items: readonly ReplacementExpansionEvidenceItemResult[],
 ): ReplacementExpansionEvidenceItemResult[] {
-  return [...items].sort((left, right) =>
-    left.position.ply - right.position.ply ||
-    compareStrings(left.position.position_key, right.position.position_key) ||
-    compareStrings(left.provider_kind, right.provider_kind) ||
-    compareStrings(left.canonical_uci ?? left.input_uci ?? "", right.canonical_uci ?? right.input_uci ?? "") ||
-    compareStrings(left.item_id ?? "", right.item_id ?? "") || left.item_index - right.item_index
+  return [...items].sort(
+    (left, right) =>
+      left.position.ply - right.position.ply ||
+      compareStrings(left.position.position_key, right.position.position_key) ||
+      compareStrings(left.provider_kind, right.provider_kind) ||
+      compareStrings(
+        left.canonical_uci ?? left.input_uci ?? "",
+        right.canonical_uci ?? right.input_uci ?? "",
+      ) ||
+      compareStrings(left.item_id ?? "", right.item_id ?? "") ||
+      left.item_index - right.item_index,
   );
 }
 
 function sortedSources(
   sources: readonly ReplacementExpansionSourceResult[],
 ): ReplacementExpansionSourceResult[] {
-  return [...sources].sort((left, right) => left.position.ply - right.position.ply ||
-    compareStrings(left.position.position_key, right.position.position_key) ||
-    compareStrings(left.provider_kind, right.provider_kind) || compareStrings(left.source_id, right.source_id));
+  return [...sources].sort(
+    (left, right) =>
+      left.position.ply - right.position.ply ||
+      compareStrings(left.position.position_key, right.position.position_key) ||
+      compareStrings(left.provider_kind, right.provider_kind) ||
+      compareStrings(left.source_id, right.source_id),
+  );
 }
 
 function sortedOmissions(
   omissions: readonly ReplacementExpansionOmission[],
 ): ReplacementExpansionOmission[] {
-  return [...omissions].sort((left, right) => compareStrings(left.position_id, right.position_id) ||
-    Number(right.important) - Number(left.important) || Number(right.forcing) - Number(left.forcing) ||
-    (right.played_probability ?? -1) - (left.played_probability ?? -1) ||
-    compareStrings(left.uci ?? "", right.uci ?? "") || compareStrings(left.reason, right.reason));
+  return [...omissions].sort(
+    (left, right) =>
+      compareStrings(left.position_id, right.position_id) ||
+      Number(right.important) - Number(left.important) ||
+      Number(right.forcing) - Number(left.forcing) ||
+      (right.played_probability ?? -1) - (left.played_probability ?? -1) ||
+      compareStrings(left.uci ?? "", right.uci ?? "") ||
+      compareStrings(left.reason, right.reason),
+  );
 }
 
 async function expandCandidate(
@@ -1870,7 +2467,9 @@ async function expandCandidate(
   global: ExpansionCounters,
 ): Promise<ReplacementCandidateExpansion> {
   const paths = sourcePaths(seed);
-  const pivotPosition = input.graph.positions.find((position) => position.position_id === seed.pivot.position_id)!;
+  const pivotPosition = input.graph.positions.find(
+    (position) => position.position_id === seed.pivot.position_id,
+  )!;
   const rootChess = currentPosition(pivotPosition.fen)!;
   const rootEvidence: ReplacementExpansionPositionEvidence = {
     position_id: pivotPosition.position_id,
@@ -1896,14 +2495,16 @@ async function expandCandidate(
   nodes[0]!.outgoing_edge_ids.push(firstEdgeId);
   edges.push(firstEdge);
   const routes: ReplacementSubtreeRoute[] = [];
-  const queue: RouteWork[] = [{
-    position: seedMove.after,
-    positionEvidence: outcomeEvidence,
-    nodeId: outcomeId,
-    nodeIds: [rootId, outcomeId],
-    edgeIds: [firstEdgeId],
-    expectedFrequency: 1,
-  }];
+  const queue: RouteWork[] = [
+    {
+      position: seedMove.after,
+      positionEvidence: outcomeEvidence,
+      nodeId: outcomeId,
+      nodeIds: [rootId, outcomeId],
+      edgeIds: [firstEdgeId],
+      expectedFrequency: 1,
+    },
+  ];
   const items: ReplacementExpansionEvidenceItemResult[] = [];
   const sources: ReplacementExpansionSourceResult[] = [];
   const omissions: ReplacementExpansionOmission[] = [];
@@ -1918,7 +2519,10 @@ async function expandCandidate(
   let immediateCompletion: ReplacementCompleteCandidateSubtree["completion"] | null = null;
   let candidateStatus: ReplacementExpansionItemStatus = "complete";
 
-  const finishRoute = (work: RouteWork, termination: ReplacementSubtreeRoute["termination"]): string => {
+  const finishRoute = (
+    work: RouteWork,
+    termination: ReplacementSubtreeRoute["termination"],
+  ): string => {
     const id = routeId(seed.candidate_id, work.edgeIds);
     if (!routes.some((route) => route.route_id === id)) {
       routes.push({
@@ -1941,18 +2545,26 @@ async function expandCandidate(
     explanation: string,
     positionIds: readonly string[],
   ): void => {
-    if (candidateStatus === "complete" || candidateStatus === "truncated" ||
-      (candidateStatus === "unresolved" && status === "budget-exhausted")) candidateStatus = status;
+    if (
+      candidateStatus === "complete" ||
+      candidateStatus === "truncated" ||
+      (candidateStatus === "unresolved" && status === "budget-exhausted")
+    )
+      candidateStatus = status;
     truncationReasons.add(reason);
-    risks.push(risk(seed.candidate_id, riskKind, explanation, positionIds, [],
-      mergeProvenance([...input.request.provenance, ...seed.objective_quality.provenance])));
+    risks.push(
+      risk(
+        seed.candidate_id,
+        riskKind,
+        explanation,
+        positionIds,
+        [],
+        mergeProvenance([...input.request.provenance, ...seed.objective_quality.provenance]),
+      ),
+    );
   };
 
-  const resolveChild = (
-    parent: RouteWork,
-    child: RouteWork,
-    childNode: MutableNode,
-  ): void => {
+  const resolveChild = (parent: RouteWork, child: RouteWork, childNode: MutableNode): void => {
     const existing = graphTransposition(graphPositions, child.positionEvidence);
     if (existing) {
       childNode.kind = "transposition";
@@ -1969,16 +2581,33 @@ async function expandCandidate(
       finishRoute(child, "strategic-horizon");
       return;
     }
-    if (child.nodeIds.slice(0, -1).some((id) => {
-      const node = nodes.find((candidate) => candidate.node_id === id);
-      return node ? positionKey(node.fen) === child.positionEvidence.position_key : false;
-    })) {
+    if (
+      child.nodeIds.slice(0, -1).some((id) => {
+        const node = nodes.find((candidate) => candidate.node_id === id);
+        return node ? positionKey(node.fen) === child.positionEvidence.position_key : false;
+      })
+    ) {
       const route = finishRoute(child, "unresolved-reply");
-      omissions.push(omission(seed.candidate_id, child.positionEvidence, null, false, false, null,
-        "transposition-unresolved", "Generated continuation repeats inside the candidate subtree without joining existing preparation.",
-        input.request.provenance));
-      markTruncated("unresolved", "transposition-unresolved", "transposition-uncertain",
-        "Internal repetition could not be joined to current preparation.", [child.positionEvidence.position_id]);
+      omissions.push(
+        omission(
+          seed.candidate_id,
+          child.positionEvidence,
+          null,
+          false,
+          false,
+          null,
+          "transposition-unresolved",
+          "Generated continuation repeats inside the candidate subtree without joining existing preparation.",
+          input.request.provenance,
+        ),
+      );
+      markTruncated(
+        "unresolved",
+        "transposition-unresolved",
+        "transposition-uncertain",
+        "Internal repetition could not be joined to current preparation.",
+        [child.positionEvidence.position_id],
+      );
       void parent;
       void route;
       return;
@@ -1991,7 +2620,10 @@ async function expandCandidate(
     outcomeNode.kind = "transposition";
     outcomeNode.transposition_target_position_id = immediate.position_id;
     finishRoute(queue.shift()!, "existing-preparation");
-    immediateCompletion = { kind: "immediate-transposition", target_position_id: immediate.position_id };
+    immediateCompletion = {
+      kind: "immediate-transposition",
+      target_position_id: immediate.position_id,
+    };
   } else if (seedMove.after.isEnd()) {
     outcomeNode.kind = "terminal";
     finishRoute(queue.shift()!, "terminal-position");
@@ -2004,10 +2636,26 @@ async function expandCandidate(
     advance(input, tracker);
     if (cancelled(input)) {
       finishRoute(work, "unresolved-reply");
-      omissions.push(omission(seed.candidate_id, work.positionEvidence, null, false, false, null,
-        "provider-cancelled", "Expansion cancelled before this position could be scheduled.", input.request.provenance));
-      markTruncated("cancelled", "cancelled", "incomplete-expansion",
-        "Cancellation stopped candidate expansion and all new provider scheduling.", [work.positionEvidence.position_id]);
+      omissions.push(
+        omission(
+          seed.candidate_id,
+          work.positionEvidence,
+          null,
+          false,
+          false,
+          null,
+          "provider-cancelled",
+          "Expansion cancelled before this position could be scheduled.",
+          input.request.provenance,
+        ),
+      );
+      markTruncated(
+        "cancelled",
+        "cancelled",
+        "incomplete-expansion",
+        "Cancellation stopped candidate expansion and all new provider scheduling.",
+        [work.positionEvidence.position_id],
+      );
       while (queue.length > 0) finishRoute(queue.shift()!, "unresolved-reply");
       break;
     }
@@ -2021,19 +2669,34 @@ async function expandCandidate(
       const forcingMoves = allLegal.filter((move) => move.forcing);
       forcingReplyCount += forcingMoves.length;
       let explorer: ExplorerQueryResult;
-      if (input.explorer_provider && tracker.explorerScheduled >= input.request.budget.maximum_explorer_queries) {
-        const explanation = "Explorer-query budget exhausted before common replies could be resolved.";
-        const provenance = [strategicSource("explorer", "partial", "budget", null, null,
-          work.positionEvidence, explanation)];
+      if (
+        input.explorer_provider &&
+        tracker.explorerScheduled >= input.request.budget.maximum_explorer_queries
+      ) {
+        const explanation =
+          "Explorer-query budget exhausted before common replies could be resolved.";
+        const provenance = [
+          strategicSource(
+            "explorer",
+            "partial",
+            "budget",
+            null,
+            null,
+            work.positionEvidence,
+            explanation,
+          ),
+        ];
         explorer = {
           state: "partial",
           replies: [],
-          items: [evidenceItem("explorer", work.positionEvidence, {
-            status: "budget-exhausted",
-            error_code: "explorer-query-budget-exhausted",
-            explanation,
-            provenance,
-          })],
+          items: [
+            evidenceItem("explorer", work.positionEvidence, {
+              status: "budget-exhausted",
+              error_code: "explorer-query-budget-exhausted",
+              explanation,
+              provenance,
+            }),
+          ],
           source: expansionSource("explorer", work.positionEvidence, {
             state: "partial",
             provider: "budget",
@@ -2041,8 +2704,17 @@ async function expandCandidate(
             reason: explanation,
             provenance,
           }),
-          candidateSource: expansionCandidateSource("opening-database", "partial", "budget", null,
-            null, work.positionEvidence, explanation, { expansion: true, budget_exhausted: true }, provenance),
+          candidateSource: expansionCandidateSource(
+            "opening-database",
+            "partial",
+            "budget",
+            null,
+            null,
+            work.positionEvidence,
+            explanation,
+            { expansion: true, budget_exhausted: true },
+            provenance,
+          ),
         };
       } else {
         if (input.explorer_provider) tracker.explorerScheduled++;
@@ -2055,11 +2727,21 @@ async function expandCandidate(
       global.evidenceItems.push(...explorer.items);
       candidateSources.push(explorer.candidateSource);
       const explorerByUci = new Map(explorer.replies.map((reply) => [reply.move.uci, reply]));
-      const selected = new Map<string, { move: LegalMove; important: boolean; probability: number | null;
-        itemIndex: number | null; provenance: readonly StrategicFitSourceProvenance[] }>();
+      const selected = new Map<
+        string,
+        {
+          move: LegalMove;
+          important: boolean;
+          probability: number | null;
+          itemIndex: number | null;
+          provenance: readonly StrategicFitSourceProvenance[];
+        }
+      >();
       for (const reply of explorer.replies) {
         if (reply.important) importantReplyCount++;
-        const include = reply.important || (reply.move.forcing && input.request.budget.include_all_forcing_replies);
+        const include =
+          reply.important ||
+          (reply.move.forcing && input.request.budget.include_all_forcing_replies);
         if (include) {
           selected.set(reply.move.uci, {
             move: reply.move,
@@ -2070,109 +2752,244 @@ async function expandCandidate(
           });
         } else {
           const reason = reply.move.forcing ? "reply-policy-excluded" : "popularity-filtered";
-          omissions.push(omission(seed.candidate_id, work.positionEvidence, reply.move,
-            reply.important, reply.move.forcing, reply.evidence.played_probability, reason,
-            reply.move.forcing
-              ? "Forcing reply was excluded by configured reply policy."
-              : "Legal reply fell below configured popularity threshold.", reply.evidence.provenance));
+          omissions.push(
+            omission(
+              seed.candidate_id,
+              work.positionEvidence,
+              reply.move,
+              reply.important,
+              reply.move.forcing,
+              reply.evidence.played_probability,
+              reason,
+              reply.move.forcing
+                ? "Forcing reply was excluded by configured reply policy."
+                : "Legal reply fell below configured popularity threshold.",
+              reply.evidence.provenance,
+            ),
+          );
         }
       }
       for (const forcingMove of forcingMoves) {
         if (input.request.budget.include_all_forcing_replies) {
           const explorerReply = explorerByUci.get(forcingMove.uci);
-          selected.set(forcingMove.uci, selected.get(forcingMove.uci) ?? {
-            move: forcingMove,
-            important: explorerReply?.important ?? false,
-            probability: explorerReply?.evidence.played_probability ?? null,
-            itemIndex: explorerReply?.itemIndex ?? null,
-            provenance: explorerReply?.evidence.provenance ?? explorer.source.provenance,
-          });
+          selected.set(
+            forcingMove.uci,
+            selected.get(forcingMove.uci) ?? {
+              move: forcingMove,
+              important: explorerReply?.important ?? false,
+              probability: explorerReply?.evidence.played_probability ?? null,
+              itemIndex: explorerReply?.itemIndex ?? null,
+              provenance: explorerReply?.evidence.provenance ?? explorer.source.provenance,
+            },
+          );
         } else if (!explorerByUci.has(forcingMove.uci)) {
-          omissions.push(omission(seed.candidate_id, work.positionEvidence, forcingMove, false, true,
-            null, "reply-policy-excluded", "Forcing reply was excluded by configured reply policy.", explorer.source.provenance));
+          omissions.push(
+            omission(
+              seed.candidate_id,
+              work.positionEvidence,
+              forcingMove,
+              false,
+              true,
+              null,
+              "reply-policy-excluded",
+              "Forcing reply was excluded by configured reply policy.",
+              explorer.source.provenance,
+            ),
+          );
         }
       }
       if (explorer.state !== "available" && explorer.state !== "partial") {
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, null, true, false, null,
-          explorer.state === "cancelled" ? "provider-cancelled" : "provider-unavailable",
-          "Common replies are unknown because explorer evidence is unavailable.", explorer.source.provenance));
-        markTruncated(explorer.state === "cancelled" ? "cancelled" : "unavailable",
-          `explorer-${explorer.state}`, "incomplete-expansion",
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            null,
+            true,
+            false,
+            null,
+            explorer.state === "cancelled" ? "provider-cancelled" : "provider-unavailable",
+            "Common replies are unknown because explorer evidence is unavailable.",
+            explorer.source.provenance,
+          ),
+        );
+        markTruncated(
+          explorer.state === "cancelled" ? "cancelled" : "unavailable",
+          `explorer-${explorer.state}`,
+          "incomplete-expansion",
           "Important opponent-reply coverage is unresolved without current explorer evidence.",
-          [work.positionEvidence.position_id]);
+          [work.positionEvidence.position_id],
+        );
       } else if (explorer.state === "partial") {
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, null, true, false, null,
-          "provider-unavailable", "Explorer evidence is partial, so additional common replies may be unknown.",
-          explorer.source.provenance));
-        markTruncated("truncated", "partial-explorer-evidence", "incomplete-expansion",
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            null,
+            true,
+            false,
+            null,
+            "provider-unavailable",
+            "Explorer evidence is partial, so additional common replies may be unknown.",
+            explorer.source.provenance,
+          ),
+        );
+        markTruncated(
+          "truncated",
+          "partial-explorer-evidence",
+          "incomplete-expansion",
           "Partial explorer evidence cannot prove complete common-reply coverage.",
-          [work.positionEvidence.position_id]);
-      } else if (explorer.items.some((item) => item.status === "illegal" || item.status === "malformed" || item.status === "stale")) {
-        markTruncated("truncated", "invalid-explorer-evidence", "incomplete-expansion",
-          "Invalid explorer items were retained and could not count toward coverage.", [work.positionEvidence.position_id]);
+          [work.positionEvidence.position_id],
+        );
+      } else if (
+        explorer.items.some(
+          (item) =>
+            item.status === "illegal" || item.status === "malformed" || item.status === "stale",
+        )
+      ) {
+        markTruncated(
+          "truncated",
+          "invalid-explorer-evidence",
+          "incomplete-expansion",
+          "Invalid explorer items were retained and could not count toward coverage.",
+          [work.positionEvidence.position_id],
+        );
       }
-      if (tracker.explorerScheduled >= input.request.budget.maximum_explorer_queries &&
-        explorer.items.some((item) => item.error_code === "explorer-query-budget-exhausted")) {
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, null, true, false, null,
-          "explorer-query-budget-exhausted", "Explorer-query budget exhausted before common replies could be proven complete.", explorer.source.provenance));
-        markTruncated("budget-exhausted", "explorer-query-budget-exhausted", "incomplete-expansion",
-          "Explorer-query budget prevented complete common-reply coverage.", [work.positionEvidence.position_id]);
+      if (
+        tracker.explorerScheduled >= input.request.budget.maximum_explorer_queries &&
+        explorer.items.some((item) => item.error_code === "explorer-query-budget-exhausted")
+      ) {
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            null,
+            true,
+            false,
+            null,
+            "explorer-query-budget-exhausted",
+            "Explorer-query budget exhausted before common replies could be proven complete.",
+            explorer.source.provenance,
+          ),
+        );
+        markTruncated(
+          "budget-exhausted",
+          "explorer-query-budget-exhausted",
+          "incomplete-expansion",
+          "Explorer-query budget prevented complete common-reply coverage.",
+          [work.positionEvidence.position_id],
+        );
       }
       if (!input.request.budget.include_all_forcing_replies && forcingMoves.length > 0) {
-        markTruncated("unresolved", "forcing-reply-policy", "unresolved-forcing-reply",
-          "Configured reply policy omitted legal forcing replies explicitly.", [work.positionEvidence.position_id]);
+        markTruncated(
+          "unresolved",
+          "forcing-reply-policy",
+          "unresolved-forcing-reply",
+          "Configured reply policy omitted legal forcing replies explicitly.",
+          [work.positionEvidence.position_id],
+        );
       }
-      const orderedSelected = [...selected.values()].sort((left, right) =>
-        Number(right.important) - Number(left.important) || Number(right.move.forcing) - Number(left.move.forcing) ||
-        (right.probability ?? -1) - (left.probability ?? -1) || compareStrings(left.move.uci, right.move.uci)
+      const orderedSelected = [...selected.values()].sort(
+        (left, right) =>
+          Number(right.important) - Number(left.important) ||
+          Number(right.move.forcing) - Number(left.move.forcing) ||
+          (right.probability ?? -1) - (left.probability ?? -1) ||
+          compareStrings(left.move.uci, right.move.uci),
       );
       if (orderedSelected.length === 0) {
         const id = finishRoute(work, "unresolved-reply");
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, null, true,
-          forcingMoves.length > 0, null, explorer.state === "cancelled" ? "provider-cancelled" : "provider-unavailable",
-          "No covered opponent reply could be expanded from this nonterminal position.", explorer.source.provenance));
-        markTruncated(explorer.state === "cancelled" ? "cancelled" : "unresolved",
-          "opponent-replies-unresolved", forcingMoves.length > 0 ? "unresolved-forcing-reply" : "incomplete-expansion",
-          "Opponent-reply coverage remains unresolved.", [work.positionEvidence.position_id]);
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            null,
+            true,
+            forcingMoves.length > 0,
+            null,
+            explorer.state === "cancelled" ? "provider-cancelled" : "provider-unavailable",
+            "No covered opponent reply could be expanded from this nonterminal position.",
+            explorer.source.provenance,
+          ),
+        );
+        markTruncated(
+          explorer.state === "cancelled" ? "cancelled" : "unresolved",
+          "opponent-replies-unresolved",
+          forcingMoves.length > 0 ? "unresolved-forcing-reply" : "incomplete-expansion",
+          "Opponent-reply coverage remains unresolved.",
+          [work.positionEvidence.position_id],
+        );
         void id;
         continue;
       }
       for (const selectedReply of orderedSelected) {
         if (nodes.length >= input.request.budget.maximum_subtree_nodes_per_candidate) {
-          omissions.push(omission(seed.candidate_id, work.positionEvidence, selectedReply.move,
-            selectedReply.important, selectedReply.move.forcing, selectedReply.probability,
-            "subtree-node-budget-exhausted", "Subtree-node budget omitted this required reply.", selectedReply.provenance));
-          markTruncated("budget-exhausted", "subtree-node-budget-exhausted",
+          omissions.push(
+            omission(
+              seed.candidate_id,
+              work.positionEvidence,
+              selectedReply.move,
+              selectedReply.important,
+              selectedReply.move.forcing,
+              selectedReply.probability,
+              "subtree-node-budget-exhausted",
+              "Subtree-node budget omitted this required reply.",
+              selectedReply.provenance,
+            ),
+          );
+          markTruncated(
+            "budget-exhausted",
+            "subtree-node-budget-exhausted",
             selectedReply.move.forcing ? "unresolved-forcing-reply" : "incomplete-expansion",
-            "Subtree-node budget prevented full reply expansion.", [work.positionEvidence.position_id]);
+            "Subtree-node budget prevented full reply expansion.",
+            [work.positionEvidence.position_id],
+          );
           continue;
         }
         const id = edgeId(seed.candidate_id, work.edgeIds, selectedReply.move.uci);
-        const childEvidence = positionEvidence(selectedReply.move.after, work.positionEvidence.ply + 1);
+        const childEvidence = positionEvidence(
+          selectedReply.move.after,
+          work.positionEvidence.ply + 1,
+        );
         const childId = nodeId(seed.candidate_id, [...work.edgeIds, id]);
         const childNode = makeNode(childId, "opponent-reply", childEvidence, paths);
         nodes.push(childNode);
-        const edge = makeEdge(seed, parentNode, childNode, selectedReply.move, id, selectedReply.probability);
+        const edge = makeEdge(
+          seed,
+          parentNode,
+          childNode,
+          selectedReply.move,
+          id,
+          selectedReply.probability,
+        );
         parentNode.outgoing_edge_ids.push(id);
         edges.push(edge);
         opponentReplyEdgeIds.push(id);
         if (selectedReply.important) coveredImportantReplyCount++;
         if (selectedReply.move.forcing) coveredForcingReplyCount++;
         if (selectedReply.itemIndex !== null) {
-          const index = items.findIndex((item) => item.provider_kind === "explorer" &&
-            item.position.position_key === work.positionEvidence.position_key && item.item_index === selectedReply.itemIndex);
+          const index = items.findIndex(
+            (item) =>
+              item.provider_kind === "explorer" &&
+              item.position.position_key === work.positionEvidence.position_key &&
+              item.item_index === selectedReply.itemIndex,
+          );
           if (index >= 0) items[index] = { ...items[index]!, included: true };
         }
-        const frequency = work.expectedFrequency === null || selectedReply.probability === null
-          ? null : work.expectedFrequency * selectedReply.probability;
-        resolveChild(work, {
-          position: selectedReply.move.after,
-          positionEvidence: childEvidence,
-          nodeId: childId,
-          nodeIds: [...work.nodeIds, childId],
-          edgeIds: [...work.edgeIds, id],
-          expectedFrequency: frequency,
-        }, childNode);
+        const frequency =
+          work.expectedFrequency === null || selectedReply.probability === null
+            ? null
+            : work.expectedFrequency * selectedReply.probability;
+        resolveChild(
+          work,
+          {
+            position: selectedReply.move.after,
+            positionEvidence: childEvidence,
+            nodeId: childId,
+            nodeIds: [...work.nodeIds, childId],
+            edgeIds: [...work.edgeIds, id],
+            expectedFrequency: frequency,
+          },
+          childNode,
+        );
       }
       if (parentNode.outgoing_edge_ids.length === 0) finishRoute(work, "budget-exhausted");
     } else {
@@ -2193,35 +3010,79 @@ async function expandCandidate(
         global.cacheWrites.push(engine.cacheWrite);
       }
       if (engine.state === "partial" && engine.move) {
-        markTruncated("truncated", "partial-engine-evidence", "engine-unverified",
+        markTruncated(
+          "truncated",
+          "partial-engine-evidence",
+          "engine-unverified",
           "Partial engine evidence supplied a legal continuation but not complete requested verification.",
-          [work.positionEvidence.position_id]);
+          [work.positionEvidence.position_id],
+        );
       }
       if (!engine.move) {
-        const engineBudgetExhausted = engine.items.some((item) =>
-          item.error_code === "engine-position-budget-exhausted");
+        const engineBudgetExhausted = engine.items.some(
+          (item) => item.error_code === "engine-position-budget-exhausted",
+        );
         const termination = engineBudgetExhausted ? "budget-exhausted" : "unresolved-reply";
         finishRoute(work, termination);
         const reason: ReplacementExpansionOmissionReason = engineBudgetExhausted
-          ? "engine-position-budget-exhausted" : engine.state === "cancelled"
-          ? "provider-cancelled" : engine.state === "unavailable" ? "provider-unavailable"
-          : engine.state === "stale" ? "malformed-evidence" : "no-legal-continuation";
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, null, false, false, null,
-          reason, "No current legal engine continuation was available.", engine.source.provenance));
-        markTruncated(engineBudgetExhausted ? "budget-exhausted" : engine.state === "cancelled" ? "cancelled"
-          : engine.state === "unavailable" ? "unavailable" : "unresolved",
-          `engine-${engine.state}`, "engine-unverified",
+          ? "engine-position-budget-exhausted"
+          : engine.state === "cancelled"
+            ? "provider-cancelled"
+            : engine.state === "unavailable"
+              ? "provider-unavailable"
+              : engine.state === "stale"
+                ? "malformed-evidence"
+                : "no-legal-continuation";
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            null,
+            false,
+            false,
+            null,
+            reason,
+            "No current legal engine continuation was available.",
+            engine.source.provenance,
+          ),
+        );
+        markTruncated(
+          engineBudgetExhausted
+            ? "budget-exhausted"
+            : engine.state === "cancelled"
+              ? "cancelled"
+              : engine.state === "unavailable"
+                ? "unavailable"
+                : "unresolved",
+          `engine-${engine.state}`,
+          "engine-unverified",
           "Repertoire continuation remains unverified by current legal engine evidence.",
-          [work.positionEvidence.position_id]);
+          [work.positionEvidence.position_id],
+        );
         continue;
       }
       if (nodes.length >= input.request.budget.maximum_subtree_nodes_per_candidate) {
         finishRoute(work, "budget-exhausted");
-        omissions.push(omission(seed.candidate_id, work.positionEvidence, engine.move, false,
-          engine.move.forcing, null, "subtree-node-budget-exhausted",
-          "Subtree-node budget omitted legal engine continuation.", engine.source.provenance));
-        markTruncated("budget-exhausted", "subtree-node-budget-exhausted", "incomplete-expansion",
-          "Subtree-node budget prevented continuation to strategic horizon.", [work.positionEvidence.position_id]);
+        omissions.push(
+          omission(
+            seed.candidate_id,
+            work.positionEvidence,
+            engine.move,
+            false,
+            engine.move.forcing,
+            null,
+            "subtree-node-budget-exhausted",
+            "Subtree-node budget omitted legal engine continuation.",
+            engine.source.provenance,
+          ),
+        );
+        markTruncated(
+          "budget-exhausted",
+          "subtree-node-budget-exhausted",
+          "incomplete-expansion",
+          "Subtree-node budget prevented continuation to strategic horizon.",
+          [work.positionEvidence.position_id],
+        );
         continue;
       }
       const id = edgeId(seed.candidate_id, work.edgeIds, engine.move.uci);
@@ -2232,51 +3093,77 @@ async function expandCandidate(
       const edge = makeEdge(seed, parentNode, childNode, engine.move, id, null);
       parentNode.outgoing_edge_ids.push(id);
       edges.push(edge);
-      resolveChild(work, {
-        position: engine.move.after,
-        positionEvidence: childEvidence,
-        nodeId: childId,
-        nodeIds: [...work.nodeIds, childId],
-        edgeIds: [...work.edgeIds, id],
-        expectedFrequency: work.expectedFrequency,
-      }, childNode);
+      resolveChild(
+        work,
+        {
+          position: engine.move.after,
+          positionEvidence: childEvidence,
+          nodeId: childId,
+          nodeIds: [...work.nodeIds, childId],
+          edgeIds: [...work.edgeIds, id],
+          expectedFrequency: work.expectedFrequency,
+        },
+        childNode,
+      );
     }
   }
 
-  const finalNodes = nodes.map((node): ReplacementSubtreeNode => ({
-    analysis_version: node.analysis_version,
-    node_id: node.node_id,
-    kind: node.kind,
-    position_id: node.position_id,
-    fen: node.fen,
-    ply: node.ply,
-    outgoing_edge_ids: sortedUnique(node.outgoing_edge_ids),
-    source_san_paths: sortedPaths(node.source_san_paths),
-    transposition_target_position_id: node.transposition_target_position_id,
-  })).sort((left, right) => left.ply - right.ply || compareStrings(left.node_id, right.node_id));
-  const finalEdges = [...edges].sort((left, right) =>
-    nodes.find((node) => node.node_id === left.from_node_id)!.ply -
-      nodes.find((node) => node.node_id === right.from_node_id)!.ply ||
-    compareStrings(left.from_node_id, right.from_node_id) || compareStrings(left.uci, right.uci));
-  const finalRoutes = [...routes].sort((left, right) =>
-    compareStrings(left.edge_ids.join(SEPARATOR), right.edge_ids.join(SEPARATOR)) ||
-    compareStrings(left.route_id, right.route_id));
-  const finalRisks = [...new Map(risks.map((item) => [item.risk_id, item])).values()]
-    .sort((left, right) => compareStrings(left.risk_id, right.risk_id));
+  const finalNodes = nodes
+    .map(
+      (node): ReplacementSubtreeNode => ({
+        analysis_version: node.analysis_version,
+        node_id: node.node_id,
+        kind: node.kind,
+        position_id: node.position_id,
+        fen: node.fen,
+        ply: node.ply,
+        outgoing_edge_ids: sortedUnique(node.outgoing_edge_ids),
+        source_san_paths: sortedPaths(node.source_san_paths),
+        transposition_target_position_id: node.transposition_target_position_id,
+      }),
+    )
+    .sort((left, right) => left.ply - right.ply || compareStrings(left.node_id, right.node_id));
+  const finalEdges = [...edges].sort(
+    (left, right) =>
+      nodes.find((node) => node.node_id === left.from_node_id)!.ply -
+        nodes.find((node) => node.node_id === right.from_node_id)!.ply ||
+      compareStrings(left.from_node_id, right.from_node_id) ||
+      compareStrings(left.uci, right.uci),
+  );
+  const finalRoutes = [...routes].sort(
+    (left, right) =>
+      compareStrings(left.edge_ids.join(SEPARATOR), right.edge_ids.join(SEPARATOR)) ||
+      compareStrings(left.route_id, right.route_id),
+  );
+  const finalRisks = [...new Map(risks.map((item) => [item.risk_id, item])).values()].sort(
+    (left, right) => compareStrings(left.risk_id, right.risk_id),
+  );
   const finalOmissions = sortedOmissions(omissions);
-  const complete = candidateStatus === "complete" && truncationReasons.size === 0 &&
+  const complete =
+    candidateStatus === "complete" &&
+    truncationReasons.size === 0 &&
     coveredImportantReplyCount === importantReplyCount &&
-    coveredForcingReplyCount === forcingReplyCount && finalRoutes.length > 0 &&
-    finalRoutes.every((route) => route.termination === "strategic-horizon" ||
-      route.termination === "existing-preparation" || route.termination === "terminal-position") &&
+    coveredForcingReplyCount === forcingReplyCount &&
+    finalRoutes.length > 0 &&
+    finalRoutes.every(
+      (route) =>
+        route.termination === "strategic-horizon" ||
+        route.termination === "existing-preparation" ||
+        route.termination === "terminal-position",
+    ) &&
     (immediateCompletion !== null || opponentReplyEdgeIds.length > 0);
   const subtreeBase = {
     ...versioned(),
-    subtree_id: `replacement-subtree:${stableHash([seed.candidate_id,
-      ...finalEdges.map((edge) => edge.edge_id)].join(SEPARATOR))}`,
+    subtree_id: `replacement-subtree:${stableHash(
+      [seed.candidate_id, ...finalEdges.map((edge) => edge.edge_id)].join(SEPARATOR),
+    )}`,
     root_position_id: rootEvidence.position_id,
     root_node_id: rootId,
-    nodes: finalNodes as [ReplacementSubtreeNode, ReplacementSubtreeNode, ...ReplacementSubtreeNode[]],
+    nodes: finalNodes as [
+      ReplacementSubtreeNode,
+      ReplacementSubtreeNode,
+      ...ReplacementSubtreeNode[],
+    ],
     edges: finalEdges as [ReplacementSubtreeEdge, ...ReplacementSubtreeEdge[]],
     routes: finalRoutes as [ReplacementSubtreeRoute, ...ReplacementSubtreeRoute[]],
     strategic_horizon_ply: input.request.budget.strategic_horizon_ply,
@@ -2317,9 +3204,18 @@ async function expandCandidate(
       evidence_item_results: sortedExpansionItems(items),
       source_results: sortedSources(sources),
       omissions: finalOmissions,
-      unresolved_risks: [...finalRisks, risk(seed.candidate_id, "incomplete-expansion",
-        "Constructed subtree failed runtime invariants and was withheld.",
-        finalNodes.map((node) => node.position_id), finalRoutes.map((route) => route.route_id), input.request.provenance, true)],
+      unresolved_risks: [
+        ...finalRisks,
+        risk(
+          seed.candidate_id,
+          "incomplete-expansion",
+          "Constructed subtree failed runtime invariants and was withheld.",
+          finalNodes.map((node) => node.position_id),
+          finalRoutes.map((route) => route.route_id),
+          input.request.provenance,
+          true,
+        ),
+      ],
     };
   }
   const common = {
@@ -2334,7 +3230,11 @@ async function expandCandidate(
     unresolved_risks: finalRisks,
   };
   if (subtree.status === "complete") return { ...common, status: "complete", subtree };
-  return { ...common, status: candidateStatus === "complete" ? "truncated" : candidateStatus, subtree };
+  return {
+    ...common,
+    status: candidateStatus === "complete" ? "truncated" : candidateStatus,
+    subtree,
+  };
 }
 
 /**
@@ -2346,7 +3246,8 @@ export async function expandReplacementCandidates(
 ): Promise<ReplacementCandidateExpansionResult> {
   try {
     const compatibility = compatibilityError(input);
-    if (compatibility) return failureResult(input, compatibility[0], compatibility[1], compatibility[2]);
+    if (compatibility)
+      return failureResult(input, compatibility[0], compatibility[1], compatibility[2]);
     if (input.engine_generation.status === "cancelled" || cancelled(input)) {
       const tracker: ProgressTracker = {
         completedUnits: 0,
@@ -2358,17 +3259,33 @@ export async function expandReplacementCandidates(
         totalUnits: Math.max(1, input.engine_generation.candidates.length),
       };
       emitProgress(input, tracker, "cancelled");
-      return failureResult(input, "cancelled", null,
-        "Expansion cancelled before scheduling; current Task 8.4 evidence remains inspectable.");
+      return failureResult(
+        input,
+        "cancelled",
+        null,
+        "Expansion cancelled before scheduling; current Task 8.4 evidence remains inspectable.",
+      );
     }
-    if (input.engine_generation.engine_positions_scheduled > input.request.budget.maximum_engine_positions) {
-      return failureResult(input, "stale", "engine-generation-mismatch",
-        "Task 8.4 already exceeds current global engine-position budget.");
+    if (
+      input.engine_generation.engine_positions_scheduled >
+      input.request.budget.maximum_engine_positions
+    ) {
+      return failureResult(
+        input,
+        "stale",
+        "engine-generation-mismatch",
+        "Task 8.4 already exceeds current global engine-position budget.",
+      );
     }
-    const seeds = [...input.engine_generation.candidates].sort((left, right) =>
-      left.rank - right.rank || compareStrings(left.outcome_position_key, right.outcome_position_key) ||
-      compareStrings(left.uci, right.uci) || compareStrings(left.candidate_id, right.candidate_id)
-    ).slice(0, input.request.budget.maximum_candidates);
+    const seeds = [...input.engine_generation.candidates]
+      .sort(
+        (left, right) =>
+          left.rank - right.rank ||
+          compareStrings(left.outcome_position_key, right.outcome_position_key) ||
+          compareStrings(left.uci, right.uci) ||
+          compareStrings(left.candidate_id, right.candidate_id),
+      )
+      .slice(0, input.request.budget.maximum_candidates);
     const tracker: ProgressTracker = {
       completedUnits: 0,
       completedCandidates: 0,
@@ -2376,12 +3293,17 @@ export async function expandReplacementCandidates(
       engineScheduled: input.engine_generation.engine_positions_scheduled,
       explorerScheduled: 0,
       totalCandidates: seeds.length,
-      totalUnits: Math.max(1,
+      totalUnits: Math.max(
+        1,
         seeds.length * input.request.budget.maximum_subtree_nodes_per_candidate +
-        input.request.budget.maximum_engine_positions + input.request.budget.maximum_explorer_queries),
+          input.request.budget.maximum_engine_positions +
+          input.request.budget.maximum_explorer_queries,
+      ),
     };
     emitProgress(input, tracker, "running");
-    const graphPositions = new Map(input.graph.positions.map((position) => [position.position_key, position]));
+    const graphPositions = new Map(
+      input.graph.positions.map((position) => [position.position_key, position]),
+    );
     const global: ExpansionCounters = { sourceResults: [], evidenceItems: [], cacheWrites: [] };
     const candidates: ReplacementCandidateExpansion[] = [];
     for (const seed of seeds) {
@@ -2391,23 +3313,39 @@ export async function expandReplacementCandidates(
       advance(input, tracker);
       if (cancelled(input)) break;
     }
-    const wasCancelled = cancelled(input) || candidates.some((candidate) => candidate.status === "cancelled");
+    const wasCancelled =
+      cancelled(input) || candidates.some((candidate) => candidate.status === "cancelled");
     emitProgress(input, tracker, wasCancelled ? "cancelled" : "completed");
     const sources = sortedSources(candidates.flatMap((candidate) => candidate.source_results));
-    const evidenceItems = sortedExpansionItems(candidates.flatMap((candidate) => candidate.evidence_item_results));
-    const omissions = sortedOmissions(candidates.flatMap((candidate) => candidate.omissions));
-    const unresolvedRisks = [...new Map(candidates.flatMap((candidate) => candidate.unresolved_risks)
-      .map((item) => [item.risk_id, item])).values()].sort((left, right) => compareStrings(left.risk_id, right.risk_id));
-    const cacheWrites = [...new Map(global.cacheWrites.map((entry) => [entry.evidence_id, entry])).values()]
-      .sort((left, right) => compareStrings(left.evidence_id, right.evidence_id));
-    const candidateBudgetExcluded = input.engine_generation.discovered_candidate_count > seeds.length;
-    const allComplete = !candidateBudgetExcluded && candidates.length === seeds.length &&
-      candidates.every((candidate) => candidate.status === "complete");
-    const allUnavailable = candidates.length > 0 && candidates.every((candidate) =>
-      candidate.status === "unavailable"
+    const evidenceItems = sortedExpansionItems(
+      candidates.flatMap((candidate) => candidate.evidence_item_results),
     );
-    const status: ReplacementExpansionResultStatus = wasCancelled ? "cancelled"
-      : allComplete ? "complete" : allUnavailable ? "unavailable" : "partial";
+    const omissions = sortedOmissions(candidates.flatMap((candidate) => candidate.omissions));
+    const unresolvedRisks = [
+      ...new Map(
+        candidates
+          .flatMap((candidate) => candidate.unresolved_risks)
+          .map((item) => [item.risk_id, item]),
+      ).values(),
+    ].sort((left, right) => compareStrings(left.risk_id, right.risk_id));
+    const cacheWrites = [
+      ...new Map(global.cacheWrites.map((entry) => [entry.evidence_id, entry])).values(),
+    ].sort((left, right) => compareStrings(left.evidence_id, right.evidence_id));
+    const candidateBudgetExcluded =
+      input.engine_generation.discovered_candidate_count > seeds.length;
+    const allComplete =
+      !candidateBudgetExcluded &&
+      candidates.length === seeds.length &&
+      candidates.every((candidate) => candidate.status === "complete");
+    const allUnavailable =
+      candidates.length > 0 && candidates.every((candidate) => candidate.status === "unavailable");
+    const status: ReplacementExpansionResultStatus = wasCancelled
+      ? "cancelled"
+      : allComplete
+        ? "complete"
+        : allUnavailable
+          ? "unavailable"
+          : "partial";
     const provenance = mergeProvenance([
       ...input.request.provenance,
       ...input.pivot_result.provenance,
@@ -2420,23 +3358,27 @@ export async function expandReplacementCandidates(
         state: status === "complete" ? "available" : "partial",
         version: STRATEGIC_FIT_ANALYSIS_VERSION,
         snapshot: input.request.repertoire_revision,
-        reason: status === "complete" ? null
-          : "Expansion retains explicit provider, budget, cancellation, legality, and coverage limitations.",
+        reason:
+          status === "complete"
+            ? null
+            : "Expansion retains explicit provider, budget, cancellation, legality, and coverage limitations.",
       },
     ]);
     return {
       ...resultBase(input),
       status,
       error_code: null,
-      explanation: status === "complete"
-        ? "All current viable Task 8.4 seeds expanded into bounded legal coverage-aware subtrees."
-        : status === "cancelled"
-          ? "Expansion cancelled; completed evidence and explicit incomplete subtrees were retained."
-          : status === "unavailable"
-            ? "Providers were unavailable; usable seed and partial subtree evidence was retained explicitly."
-            : "Expansion retained explicit truncation, budget, malformed, unavailable, or unresolved results.",
+      explanation:
+        status === "complete"
+          ? "All current viable Task 8.4 seeds expanded into bounded legal coverage-aware subtrees."
+          : status === "cancelled"
+            ? "Expansion cancelled; completed evidence and explicit incomplete subtrees were retained."
+            : status === "unavailable"
+              ? "Providers were unavailable; usable seed and partial subtree evidence was retained explicitly."
+              : "Expansion retained explicit truncation, budget, malformed, unavailable, or unresolved results.",
       discovered_candidate_count: input.engine_generation.discovered_candidate_count,
-      expanded_candidate_count: candidates.filter((candidate) => candidate.status === "complete").length,
+      expanded_candidate_count: candidates.filter((candidate) => candidate.status === "complete")
+        .length,
       engine_positions_scheduled: tracker.engineScheduled,
       explorer_queries_scheduled: tracker.explorerScheduled,
       visited_position_count: tracker.visitedPositions,
@@ -2449,7 +3391,11 @@ export async function expandReplacementCandidates(
       provenance,
     };
   } catch {
-    return failureResult(input, "invalid-request", "engine-generation-mismatch",
-      "Expansion input or injected evidence was malformed and could not be inspected safely.");
+    return failureResult(
+      input,
+      "invalid-request",
+      "engine-generation-mismatch",
+      "Expansion input or injected evidence was malformed and could not be inspected safely.",
+    );
   }
 }

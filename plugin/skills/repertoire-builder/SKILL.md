@@ -11,6 +11,7 @@ description: >-
 Use the `chess-analysis` MCP on the whole branching tree.
 
 <!-- BEGIN GENERATED WORKFLOW GUIDANCE -->
+
 ## Shared grounding contract
 
 - Validate user-pasted FEN or PGN before analysis. Stop on invalid input; never repair it silently. An already parsed host document needs no redundant validation call.
@@ -75,6 +76,7 @@ Grounded questions and the retrieval that answers each:
 - "Where could I transpose into structures I already know?" Not a report question; use `get_transpositions`, `find_pruning_transpositions`, `find_structures`. The report does not own this question. Use the transposition operations for move orders the repertoire already joins and for sound shortcuts that shorten memorization, and structure search for lines matching an explicit structure. A `transpositional-equivalence` finding only says the report already attributed that difference to move order. Cite: `classification`. Missing evidence: Two similar SAN paths are not a transposition. Without a transposition or shortcut result, say the move order was not verified.
 - "What should I train instead of replace?" Use `get_strategic_fit_report` with view `findings` sorted `training-priority`. Both priorities sit on every finding row. Read one page sorted by training priority and compare each row's own `training_priority` against its `replacement_priority`; a page sorted by replacement priority shows the other end. Both are report scores, not an instruction to edit: an edit still goes through the replacement or gap path and needs explicit acceptance. Cite: `training_priority.label`, `replacement_priority.label`, `resolution_state`, `sort`. Missing evidence: A finding already resolved as a kept exception, deferred, or excluded is not a training candidate by default. Read `resolution_state` instead of assuming it is open.
 - "Why is this classified as intentional diversity?" Use `get_strategic_fit_report` with view `finding`. Open that finding and quote the report's own explanation, what the causality evidence attributes the difference to, and the confidence with any cap that limited it. When the status came from a decision the user recorded rather than from the analysis, say so: `resolution_state` carries that. Cite: `classification`, `explanation`, `evidence.causality.label`, `evidence.causality.explanation`, `confidence_explanation`, `applied_caps`, `resolution_state`. Missing evidence: Intentional diversity is not proof the branch is good. Objective quality is a separate field and stays `unavailable` when it was not measured.
+
 <!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP handle and file adaptation

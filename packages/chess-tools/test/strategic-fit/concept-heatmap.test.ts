@@ -12,11 +12,7 @@ import {
   type StrategicFitTrainingMasteryReport,
   type StrategicFitTrainingMasteryStatistic,
 } from "../../src/index.ts";
-import {
-  BROAD_ECO_FIXTURE,
-  SHALLOW_LINES_FIXTURE,
-  parseStrategicFitFixture,
-} from "./fixtures.ts";
+import { BROAD_ECO_FIXTURE, SHALLOW_LINES_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
 /** Deeper middlegame lines than the shared fixtures so several concept rules fire. */
 const CONCEPT_RICH_PGN = `[Event "Heatmap: Queen's Gambit"]
@@ -109,10 +105,12 @@ test("the heatmap projection is deterministic, versioned, and reconciles with re
   assert.ok(first.columns.length > 0);
   assert.ok(first.cells.length > 0);
 
-  const weightsByCohort = new Map(report.cohorts.map((cohort) => [
-    cohort.cohort_id,
-    new Map(cohort.route_weights.map((weight) => [weight.route_id, weight.normalized_weight])),
-  ]));
+  const weightsByCohort = new Map(
+    report.cohorts.map((cohort) => [
+      cohort.cohort_id,
+      new Map(cohort.route_weights.map((weight) => [weight.route_id, weight.normalized_weight])),
+    ]),
+  );
   for (const cell of first.cells) {
     const cohortWeights = weightsByCohort.get(cell.cohort_id)!;
     const expected = cell.route_ids.reduce(
@@ -148,9 +146,11 @@ test("mastery without training evidence is unavailable or untrained, never zero"
     assert.equal(column.mastery.value, null);
     assert.ok(column.mastery.reason !== null);
   }
-  assert.ok(withoutEvidence.provenance.some((source) =>
-    source.kind === "training-metadata" && source.state === "unavailable"
-  ));
+  assert.ok(
+    withoutEvidence.provenance.some(
+      (source) => source.kind === "training-metadata" && source.state === "unavailable",
+    ),
+  );
 
   const emptyReport = buildConceptHeatmapProjection(report, { mastery: masteryReport([]) });
   for (const column of emptyReport.columns) {
@@ -192,9 +192,11 @@ test("observed, untrained, and stale mastery statistics map onto their concepts 
   assert.equal(byConcept.get(stale!)!.mastery.state, "stale");
   assert.equal(byConcept.get(stale!)!.mastery.value, 0.4);
   assert.ok(byConcept.get(stale!)!.mastery.reason !== null);
-  assert.ok(projection.provenance.some((source) =>
-    source.kind === "training-metadata" && source.state === "available"
-  ));
+  assert.ok(
+    projection.provenance.some(
+      (source) => source.kind === "training-metadata" && source.state === "available",
+    ),
+  );
 });
 
 test("intentional status comes from the profile's declared concept preferences", () => {
@@ -237,9 +239,9 @@ test("cells reference only findings on their supporting routes and follow provid
     }
   }
   for (const cell of projection.cells) {
-    const expected = [...new Set(cell.route_ids.flatMap((routeId) =>
-      findingsByRoute.get(routeId) ?? []
-    ))].sort();
+    const expected = [
+      ...new Set(cell.route_ids.flatMap((routeId) => findingsByRoute.get(routeId) ?? [])),
+    ].sort();
     assert.deepEqual([...cell.finding_ids], expected);
   }
   assert.ok(projection.cells.some((cell) => cell.finding_ids.length > 0));
@@ -259,7 +261,7 @@ test("excluded cohorts and missing trajectories become structured exclusions, no
   const projection = buildConceptHeatmapProjection({
     ...report,
     cohorts: report.cohorts.map((cohort) =>
-      cohort.cohort_id === excludedCohortId ? { ...cohort, state: "excluded" as const } : cohort
+      cohort.cohort_id === excludedCohortId ? { ...cohort, state: "excluded" as const } : cohort,
     ),
     trajectories: report.trajectories.filter(
       (trajectory) => trajectory.route_id !== droppedRouteId,
@@ -269,12 +271,18 @@ test("excluded cohorts and missing trajectories become structured exclusions, no
   assert.ok(!projection.rows.some((row) => row.cohort_id === excludedCohortId));
   assert.ok(!projection.cells.some((cell) => cell.cohort_id === excludedCohortId));
   assert.ok(!projection.cells.some((cell) => cell.route_ids.includes(droppedRouteId)));
-  assert.ok(projection.exclusions.some((exclusion) =>
-    exclusion.cohort_id === excludedCohortId && exclusion.reason === "excluded-from-cohort"
-  ));
-  assert.ok(projection.exclusions.some((exclusion) =>
-    exclusion.route_id === droppedRouteId && exclusion.reason === "missing-trajectory"
-  ));
+  assert.ok(
+    projection.exclusions.some(
+      (exclusion) =>
+        exclusion.cohort_id === excludedCohortId && exclusion.reason === "excluded-from-cohort",
+    ),
+  );
+  assert.ok(
+    projection.exclusions.some(
+      (exclusion) =>
+        exclusion.route_id === droppedRouteId && exclusion.reason === "missing-trajectory",
+    ),
+  );
   for (const exclusion of projection.exclusions) assert.ok(exclusion.explanation.length > 0);
 });
 

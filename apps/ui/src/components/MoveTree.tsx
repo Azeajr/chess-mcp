@@ -11,7 +11,8 @@ import { focusLine } from "../store/chat";
 import type { Path } from "@chess-mcp/chess-tools";
 
 const pathEq = (a: Path, b: Path) => a.length === b.length && a.every((v, i) => v === b[i]);
-const isPrefix = (prefix: Path, of: Path) => prefix.length <= of.length && prefix.every((v, i) => of[i] === v);
+const isPrefix = (prefix: Path, of: Path) =>
+  prefix.length <= of.length && prefix.every((v, i) => of[i] === v);
 
 function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Element {
   const moveNo = Math.floor((ply - 1) / 2) + 1;
@@ -64,7 +65,11 @@ export default function MoveTree() {
       focusLine(path); // Feature 2: drop a context marker into chat
     };
 
-    const moveSpan = (node: ChildNode<PgnNodeData>, path: Path, blackDots: boolean): JSX.Element => (
+    const moveSpan = (
+      node: ChildNode<PgnNodeData>,
+      path: Path,
+      blackDots: boolean,
+    ): JSX.Element => (
       <>
         <span
           class={`move${pathEq(path, cur) ? " current" : ""}${previewed.has(path.join(",")) ? " move-preview" : ""}`}
@@ -77,7 +82,11 @@ export default function MoveTree() {
 
     // Render one line (a node's descendants): mainline inline, each sibling variation as an
     // indented block. `blackDots` forces "N..." when a line starts on Black's move.
-    const renderLine = (node: Node<PgnNodeData>, basePath: Path, blackDots: boolean): JSX.Element[] => {
+    const renderLine = (
+      node: Node<PgnNodeData>,
+      basePath: Path,
+      blackDots: boolean,
+    ): JSX.Element[] => {
       const parts: JSX.Element[] = [];
       let cursor: Node<PgnNodeData> = node;
       let path = basePath;
@@ -92,7 +101,8 @@ export default function MoveTree() {
         const branch = cursor.children.length > 1;
         if (branch) {
           const key = path.length ? path.join(",") : "root";
-          const curInVariation = cur.length > path.length && isPrefix(path, cur) && cur[path.length]! >= 1;
+          const curInVariation =
+            cur.length > path.length && isPrefix(path, cur) && cur[path.length]! >= 1;
           const isCollapsed = collapsedSet.has(key) && !curInVariation;
           const hidden = cursor.children.length - 1;
           const toggle = (

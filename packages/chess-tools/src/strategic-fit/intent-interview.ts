@@ -149,7 +149,8 @@ function optionalBoundedNumber(
 ): number | null {
   if (value === null) return null;
   const bounded = boundedNumber(field, value, minimum, maximum);
-  if (integer && !Number.isInteger(bounded)) invalidValue(field, "must be a whole number of centipawns");
+  if (integer && !Number.isInteger(bounded))
+    invalidValue(field, "must be a whole number of centipawns");
   return bounded;
 }
 
@@ -174,7 +175,10 @@ function conceptIdList(field: string, value: unknown): string[] {
 function tacticalCharacterList(field: string, value: unknown): string[] {
   if (!Array.isArray(value)) invalidValue(field, "must be an array of short lowercase terms");
   if (value.length > STRATEGIC_FIT_INTENT_LIMITS.tactical_character_terms) {
-    invalidValue(field, `must contain at most ${STRATEGIC_FIT_INTENT_LIMITS.tactical_character_terms} terms`);
+    invalidValue(
+      field,
+      `must contain at most ${STRATEGIC_FIT_INTENT_LIMITS.tactical_character_terms} terms`,
+    );
   }
   const result: string[] = [];
   for (const entry of value) {
@@ -183,7 +187,10 @@ function tacticalCharacterList(field: string, value: unknown): string[] {
       entry.length > STRATEGIC_FIT_INTENT_LIMITS.tactical_character_characters ||
       !TACTICAL_CHARACTER_PATTERN.test(entry)
     ) {
-      invalidValue(field, `entries must be lowercase terms such as forcing, sharp, or quiet, but ${JSON.stringify(entry)} was proposed`);
+      invalidValue(
+        field,
+        `entries must be lowercase terms such as forcing, sharp, or quiet, but ${JSON.stringify(entry)} was proposed`,
+      );
     }
     if (!result.includes(entry)) result.push(entry);
   }
@@ -346,7 +353,12 @@ export function diffStrategicFitProfiles(
 ): readonly StrategicFitProfileDiffEntry[] {
   const entries: StrategicFitProfileDiffEntry[] = [];
   if (current.mode !== proposed.mode) {
-    entries.push({ field: "mode", label: "Profile mode", current: current.mode, proposed: proposed.mode });
+    entries.push({
+      field: "mode",
+      label: "Profile mode",
+      current: current.mode,
+      proposed: proposed.mode,
+    });
   }
   for (const field of STRATEGIC_FIT_PREFERENCE_FIELDS) {
     if (field === "feature_family_weights") continue;

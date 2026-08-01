@@ -86,7 +86,9 @@ function metricValue(
       value: "Unavailable",
       report_value: "",
       state: "unavailable",
-      reason: metric.reason ?? "This metric is unavailable because its required evidence was not supplied.",
+      reason:
+        metric.reason ??
+        "This metric is unavailable because its required evidence was not supplied.",
     };
   }
   return {
@@ -117,31 +119,44 @@ export function buildStrategicOverviewPresentation(
 ): StrategicOverviewPresentation {
   const summary = report.summary;
   const blocked = report.preflight.state === "blocked";
-  const workload = summary.workload === "unavailable"
-    ? { value: "Unavailable", report_value: "", state: "unavailable" as const, reason: BLOCKED_REASON }
-    : {
-        value: WORKLOAD_LABELS[summary.workload],
-        report_value: summary.workload,
-        state: "available" as const,
-        reason: null,
-      };
+  const workload =
+    summary.workload === "unavailable"
+      ? {
+          value: "Unavailable",
+          report_value: "",
+          state: "unavailable" as const,
+          reason: BLOCKED_REASON,
+        }
+      : {
+          value: WORKLOAD_LABELS[summary.workload],
+          report_value: summary.workload,
+          state: "available" as const,
+          reason: null,
+        };
   const families = countValue(summary.strategic_family_count, blocked ? BLOCKED_REASON : null);
   const conceptReuse = metricValue(summary.metrics.concept_reuse, formatPercent);
   const forcedFloor = metricValue(summary.metrics.forced_diversity_floor, formatPercent);
-  const intentional = countValue(summary.intentional_exception_count, blocked ? BLOCKED_REASON : null);
+  const intentional = countValue(
+    summary.intentional_exception_count,
+    blocked ? BLOCKED_REASON : null,
+  );
   const unresolved = countValue(unresolvedFindingCount, blocked ? BLOCKED_REASON : null);
   const incomplete = countValue(
     summary.insufficient_evidence_branch_count,
     preflightCountsAreMeaningful(report.preflight) ? null : UNSAFE_ROUTE_ENUMERATION_REASON,
   );
-  const familiarCoverage = metricValue(summary.metrics.familiarity_adjusted_coverage, formatPercent);
+  const familiarCoverage = metricValue(
+    summary.metrics.familiarity_adjusted_coverage,
+    formatPercent,
+  );
   const items: StrategicOverviewItemPresentation[] = [
     {
       id: "strategic-workload",
       label: "Strategic workload",
       ...workload,
       description: "Expected learning burden from the report's weighted routes and findings.",
-      review_filter: workload.state === "unavailable" ? null : { kind: "resolution", resolution: "unresolved" },
+      review_filter:
+        workload.state === "unavailable" ? null : { kind: "resolution", resolution: "unresolved" },
       review_label: workload.state === "unavailable" ? null : "Review unresolved workload findings",
     },
     {
@@ -150,7 +165,8 @@ export function buildStrategicOverviewPresentation(
       ...families,
       description: "Distinct expected-weight plan families, not raw PGN leaf count.",
       review_filter: families.state === "unavailable" ? null : { kind: "all" },
-      review_label: families.state === "unavailable" ? null : "Review findings across strategic families",
+      review_label:
+        families.state === "unavailable" ? null : "Review findings across strategic families",
     },
     {
       id: "concept-reuse",
@@ -158,26 +174,31 @@ export function buildStrategicOverviewPresentation(
       ...conceptReuse,
       description: "Expected concept exposure reused across canonical repertoire routes.",
       review_filter: conceptReuse.state === "unavailable" ? null : { kind: "all" },
-      review_label: conceptReuse.state === "unavailable" ? null : "Review findings related to concept reuse",
+      review_label:
+        conceptReuse.state === "unavailable" ? null : "Review findings related to concept reuse",
     },
     {
       id: "forced-diversity-floor",
       label: "Forced-diversity floor",
       ...forcedFloor,
-      description: "The minimum expected diversity currently attributable to opponent-forced branches.",
-      review_filter: forcedFloor.state === "unavailable"
-        ? null
-        : { kind: "classification", classification: "forced-diversity" },
+      description:
+        "The minimum expected diversity currently attributable to opponent-forced branches.",
+      review_filter:
+        forcedFloor.state === "unavailable"
+          ? null
+          : { kind: "classification", classification: "forced-diversity" },
       review_label: forcedFloor.state === "unavailable" ? null : "Review opponent-forced findings",
     },
     {
       id: "intentional-exceptions",
       label: "Intentional exceptions",
       ...intentional,
-      description: "Findings classified as intentional diversity; they remain visible in the strategic map.",
-      review_filter: intentional.state === "unavailable"
-        ? null
-        : { kind: "classification", classification: "intentional-diversity" },
+      description:
+        "Findings classified as intentional diversity; they remain visible in the strategic map.",
+      review_filter:
+        intentional.state === "unavailable"
+          ? null
+          : { kind: "classification", classification: "intentional-diversity" },
       review_label: intentional.state === "unavailable" ? null : "Review intentional exceptions",
     },
     {
@@ -185,7 +206,10 @@ export function buildStrategicOverviewPresentation(
       label: "Unresolved findings",
       ...unresolved,
       description: "Findings whose current review resolution state is still unresolved.",
-      review_filter: unresolved.state === "unavailable" ? null : { kind: "resolution", resolution: "unresolved" },
+      review_filter:
+        unresolved.state === "unavailable"
+          ? null
+          : { kind: "resolution", resolution: "unresolved" },
       review_label: unresolved.state === "unavailable" ? null : "Review unresolved findings",
     },
     {
@@ -193,12 +217,14 @@ export function buildStrategicOverviewPresentation(
       label: "Incomplete branches",
       ...incomplete,
       description: "Branches that did not provide enough comparable strategic checkpoints.",
-      review_filter: incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
-        ? { kind: "evidence", evidence: "insufficient" }
-        : null,
-      review_label: incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
-        ? "Review insufficient-evidence findings"
-        : null,
+      review_filter:
+        incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
+          ? { kind: "evidence", evidence: "insufficient" }
+          : null,
+      review_label:
+        incomplete.state !== "unavailable" && summary.insufficient_evidence_branch_count > 0
+          ? "Review insufficient-evidence findings"
+          : null,
     },
     {
       id: "familiar-plan-coverage",
@@ -206,22 +232,30 @@ export function buildStrategicOverviewPresentation(
       ...familiarCoverage,
       description: "Expected games covered by concepts supported by calibrated mastery evidence.",
       review_filter: familiarCoverage.state === "unavailable" ? null : { kind: "all" },
-      review_label: familiarCoverage.state === "unavailable" ? null : "Review findings affecting familiar-plan coverage",
+      review_label:
+        familiarCoverage.state === "unavailable"
+          ? null
+          : "Review findings affecting familiar-plan coverage",
     },
   ];
-  const entropy = metricValue(summary.metrics.strategic_entropy, (value) => `${formatNumber(value)} bits`);
-  const expectedConceptBurden = summary.expected_concept_burden === null
-    ? {
-        value: "Unavailable",
-        report_value: "",
-        reason: summary.metrics.concept_reuse.reason ??
-          "No supported concept evidence is available for expected concept burden.",
-      }
-    : {
-        value: formatNumber(summary.expected_concept_burden),
-        report_value: String(summary.expected_concept_burden),
-        reason: null,
-      };
+  const entropy = metricValue(
+    summary.metrics.strategic_entropy,
+    (value) => `${formatNumber(value)} bits`,
+  );
+  const expectedConceptBurden =
+    summary.expected_concept_burden === null
+      ? {
+          value: "Unavailable",
+          report_value: "",
+          reason:
+            summary.metrics.concept_reuse.reason ??
+            "No supported concept evidence is available for expected concept burden.",
+        }
+      : {
+          value: formatNumber(summary.expected_concept_burden),
+          report_value: String(summary.expected_concept_burden),
+          reason: null,
+        };
   const screenReaderSummary = [
     "Strategic overview.",
     ...items.map(itemSummary),
@@ -247,11 +281,10 @@ export default function StrategicOverview(props: {
     filter: StrategicFitFindingQueueFilter,
   ) => void;
 }) {
-  const presentation = () => buildStrategicOverviewPresentation(
-    props.report,
-    props.unresolvedFindingCount,
-  );
-  const summaryId = () => `strategic-fit-overview-summary-${presentation().report_id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const presentation = () =>
+    buildStrategicOverviewPresentation(props.report, props.unresolvedFindingCount);
+  const summaryId = () =>
+    `strategic-fit-overview-summary-${presentation().report_id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (
     <section
@@ -265,51 +298,63 @@ export default function StrategicOverview(props: {
         {presentation().screen_reader_summary}
       </p>
       <div class="strategic-fit-overview-grid">
-        <For each={presentation().items}>{(item) => (
-          <article
-            class="strategic-fit-overview-item"
-            data-overview-item={item.id}
-            data-metric-state={item.state}
-            data-report-value={item.report_value}
-          >
-            <header>
-              <h3>{item.label}</h3>
-              <span class="strategic-fit-overview-metric-state">{METRIC_STATE_LABELS[item.state]}</span>
-            </header>
-            <p class="strategic-fit-overview-value" data-overview-value>{item.value}</p>
-            <Show when={item.id === "strategic-workload"}>
-              <p
-                class="strategic-fit-overview-concept-burden"
-                data-report-value={presentation().expected_concept_burden.report_value}
-              >
-                Expected concept burden: {presentation().expected_concept_burden.value}
+        <For each={presentation().items}>
+          {(item) => (
+            <article
+              class="strategic-fit-overview-item"
+              data-overview-item={item.id}
+              data-metric-state={item.state}
+              data-report-value={item.report_value}
+            >
+              <header>
+                <h3>{item.label}</h3>
+                <span class="strategic-fit-overview-metric-state">
+                  {METRIC_STATE_LABELS[item.state]}
+                </span>
+              </header>
+              <p class="strategic-fit-overview-value" data-overview-value>
+                {item.value}
               </p>
-              <Show when={presentation().expected_concept_burden.reason}>
-                <p class="strategic-fit-overview-reason">
-                  {presentation().expected_concept_burden.reason}
+              <Show when={item.id === "strategic-workload"}>
+                <p
+                  class="strategic-fit-overview-concept-burden"
+                  data-report-value={presentation().expected_concept_burden.report_value}
+                >
+                  Expected concept burden: {presentation().expected_concept_burden.value}
                 </p>
+                <Show when={presentation().expected_concept_burden.reason}>
+                  <p class="strategic-fit-overview-reason">
+                    {presentation().expected_concept_burden.reason}
+                  </p>
+                </Show>
               </Show>
-            </Show>
-            <p class="strategic-fit-overview-description">{item.description}</p>
-            <Show when={item.reason}>
-              <p class="strategic-fit-overview-reason">{item.reason}</p>
-            </Show>
-            <Show when={item.review_filter && item.review_label}>
-              <button
-                type="button"
-                aria-controls="strategic-fit-pane-findings"
-                onClick={() => props.onReview(item.id, item.review_label!, item.review_filter!)}
-              >
-                {item.review_label}
-              </button>
-            </Show>
-          </article>
-        )}</For>
+              <p class="strategic-fit-overview-description">{item.description}</p>
+              <Show when={item.reason}>
+                <p class="strategic-fit-overview-reason">{item.reason}</p>
+              </Show>
+              <Show when={item.review_filter && item.review_label}>
+                <button
+                  type="button"
+                  aria-controls="strategic-fit-pane-findings"
+                  onClick={() => props.onReview(item.id, item.review_label!, item.review_filter!)}
+                >
+                  {item.review_label}
+                </button>
+              </Show>
+            </article>
+          )}
+        </For>
       </div>
 
-      <details class="strategic-fit-overview-entropy" data-metric-state={presentation().entropy.state}>
+      <details
+        class="strategic-fit-overview-entropy"
+        data-metric-state={presentation().entropy.state}
+      >
         <summary>How strategic workload is distributed</summary>
-        <div data-overview-item="strategic-entropy" data-report-value={presentation().entropy.report_value}>
+        <div
+          data-overview-item="strategic-entropy"
+          data-report-value={presentation().entropy.report_value}
+        >
           <strong>Strategic entropy</strong>
           <span data-overview-value>{presentation().entropy.value}</span>
           <span>{METRIC_STATE_LABELS[presentation().entropy.state]}</span>

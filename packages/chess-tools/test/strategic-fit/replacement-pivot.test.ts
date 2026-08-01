@@ -58,7 +58,9 @@ function decisionAt(
 ): RepertoireGraphDecision {
   const index = route.san_moves.indexOf(san);
   assert.notEqual(index, -1, `${san} exists on route`);
-  const decision = graph.decisions.find((candidate) => candidate.decision_id === route.decision_ids[index]);
+  const decision = graph.decisions.find(
+    (candidate) => candidate.decision_id === route.decision_ids[index],
+  );
   assert.ok(decision, `decision for ${san}`);
   return decision;
 }
@@ -85,13 +87,14 @@ function attribution(
   likelyDecisionIds: readonly string[],
   events: CausalAttribution["timeline"],
 ): CausalAttribution {
-  const controllability = label === "mostly-player-controlled"
-    ? 0.85
-    : label === "shared-or-uncertain"
-      ? 0.5
-      : label === "mostly-opponent-forced"
-        ? 0.15
-        : null;
+  const controllability =
+    label === "mostly-player-controlled"
+      ? 0.85
+      : label === "shared-or-uncertain"
+        ? 0.5
+        : label === "mostly-opponent-forced"
+          ? 0.15
+          : null;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     controllability,
@@ -118,7 +121,9 @@ function input(options: InputOptions): SelectReplacementPivotInput {
   const routeIds = options.routes.map((route) => route.route_id).sort();
   const positionIds = [...new Set(options.routes.flatMap((route) => route.position_ids))].sort();
   const decisionIds = [...new Set(options.routes.flatMap((route) => route.decision_ids))].sort();
-  const sourcePaths = options.routes.flatMap((route) => route.source_san_paths.map((path) => [...path]));
+  const sourcePaths = options.routes.flatMap((route) =>
+    route.source_san_paths.map((path) => [...path]),
+  );
   const finding: ReplacementPivotFindingEvidence = {
     finding_id: "finding:test",
     semantic_finding_id: "semantic-finding:test",
@@ -169,11 +174,17 @@ test("automatic selection chooses one repertoire-player-controlled causal decisi
   const graph = buildRepertoireGraph(GameTree.fromPgn(WHITE_PGN), "white");
   const route = routeBeginning(graph, "e4 e5");
   const decision = decisionAt(graph, route, "Nf3");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-player-controlled", [decision.decision_id], [causalEvent(route, decision)]),
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "mostly-player-controlled",
+        [decision.decision_id],
+        [causalEvent(route, decision)],
+      ),
+    }),
+  );
 
   assert.equal(result.status, "selected");
   assert.equal(result.pivot.status, "actionable");
@@ -186,11 +197,17 @@ test("opponent-forced finding stays non-actionable instead of blaming next playe
   const graph = buildRepertoireGraph(GameTree.fromPgn(WHITE_PGN), "white");
   const route = routeBeginning(graph, "e4 e5");
   const opponent = decisionAt(graph, route, "e5");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-opponent-forced", [], [causalEvent(route, opponent, "opponent-divergence")]),
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "mostly-opponent-forced",
+        [],
+        [causalEvent(route, opponent, "opponent-divergence")],
+      ),
+    }),
+  );
 
   assert.equal(result.status, "non-actionable");
   assert.equal(result.non_actionable_reason, "opponent-controlled");
@@ -203,15 +220,17 @@ test("shared and interacting causal decisions return explicit alternatives", () 
   const route = routeBeginning(graph, "e4 e5");
   const first = decisionAt(graph, route, "Nf3");
   const second = decisionAt(graph, route, "Bb5");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution(
-      "shared-or-uncertain",
-      [first.decision_id, second.decision_id],
-      [causalEvent(route, first), causalEvent(route, second)],
-    ),
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "shared-or-uncertain",
+        [first.decision_id, second.decision_id],
+        [causalEvent(route, first), causalEvent(route, second)],
+      ),
+    }),
+  );
 
   assert.equal(result.status, "alternatives-required");
   assert.equal(result.pivot.status, "shared");
@@ -226,15 +245,17 @@ test("center finding spanning several paths never silently selects first navigat
   const kingPawn = routeBeginning(graph, "e4 e5");
   const queenPawn = routeBeginning(graph, "d4 d5");
   const onlyFirstPath = decisionAt(graph, kingPawn, "Nf3");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [kingPawn, queenPawn],
-    causality: attribution(
-      "mostly-player-controlled",
-      [onlyFirstPath.decision_id],
-      [causalEvent(kingPawn, onlyFirstPath)],
-    ),
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [kingPawn, queenPawn],
+      causality: attribution(
+        "mostly-player-controlled",
+        [onlyFirstPath.decision_id],
+        [causalEvent(kingPawn, onlyFirstPath)],
+      ),
+    }),
+  );
 
   assert.equal(result.status, "alternatives-required");
   assert.equal(result.pivot.decision_id, null);
@@ -242,20 +263,24 @@ test("center finding spanning several paths never silently selects first navigat
   assert.match(result.pivot.explanation, /several semantic routes/);
   assert.deepEqual(
     new Set(result.pivot.source_san_paths.map((path) => path.join(" "))),
-    new Set([kingPawn, queenPawn].flatMap((route) =>
-      route.source_san_paths.map((path) => path.join(" "))
-    )),
+    new Set(
+      [kingPawn, queenPawn].flatMap((route) =>
+        route.source_san_paths.map((path) => path.join(" ")),
+      ),
+    ),
   );
 });
 
 test("no supported causal pivot returns versioned structured non-actionable result", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(WHITE_PGN), "white");
   const route = routeBeginning(graph, "e4 e5");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-player-controlled", ["decision:removed"], []),
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution("mostly-player-controlled", ["decision:removed"], []),
+    }),
+  );
 
   assert.equal(result.status, "non-actionable");
   assert.equal(result.non_actionable_reason, "no-supported-causal-pivot");
@@ -270,17 +295,19 @@ test("validated user-selected pivot accepts legal SAN line from pivot position",
   const route = routeBeginning(graph, "e4 e5");
   const first = decisionAt(graph, route, "Nf3");
   const selected = decisionAt(graph, route, "Bb5");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution(
-      "shared-or-uncertain",
-      [first.decision_id, selected.decision_id],
-      [causalEvent(route, first), causalEvent(route, selected)],
-    ),
-    pivotSelection: { kind: "user-selected", decision_id: selected.decision_id },
-    candidateLines: [["Bc4", "Nf6"]],
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "shared-or-uncertain",
+        [first.decision_id, selected.decision_id],
+        [causalEvent(route, first), causalEvent(route, selected)],
+      ),
+      pivotSelection: { kind: "user-selected", decision_id: selected.decision_id },
+      candidateLines: [["Bc4", "Nf6"]],
+    }),
+  );
 
   assert.equal(result.status, "selected");
   assert.equal(result.pivot.decision_id, selected.decision_id);
@@ -293,20 +320,29 @@ test("illegal user candidate is rejected per item without throwing", () => {
   const graph = buildRepertoireGraph(GameTree.fromPgn(WHITE_PGN), "white");
   const route = routeBeginning(graph, "e4 e5");
   const selected = decisionAt(graph, route, "Nf3");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-player-controlled", [selected.decision_id], [causalEvent(route, selected)]),
-    pivotSelection: { kind: "user-selected", decision_id: selected.decision_id },
-    candidateLines: [["Qa9"], []],
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "mostly-player-controlled",
+        [selected.decision_id],
+        [causalEvent(route, selected)],
+      ),
+      pivotSelection: { kind: "user-selected", decision_id: selected.decision_id },
+      candidateLines: [["Qa9"], []],
+    }),
+  );
 
   assert.equal(result.status, "selected");
-  assert.deepEqual(result.candidate_line_results.map((candidate) => candidate.status), ["illegal", "illegal"]);
-  assert.deepEqual(result.candidate_line_results.map((candidate) => candidate.error_code), [
-    "illegal-san",
-    "empty-line",
-  ]);
+  assert.deepEqual(
+    result.candidate_line_results.map((candidate) => candidate.status),
+    ["illegal", "illegal"],
+  );
+  assert.deepEqual(
+    result.candidate_line_results.map((candidate) => candidate.error_code),
+    ["illegal-san", "empty-line"],
+  );
 });
 
 test("unknown and stale user-selected decisions return structured stale candidate items", () => {
@@ -317,17 +353,25 @@ test("unknown and stale user-selected decisions return structured stale candidat
   const base = {
     graph,
     routes: [route],
-    causality: attribution("mostly-player-controlled", [causal.decision_id], [causalEvent(route, causal)]),
+    causality: attribution(
+      "mostly-player-controlled",
+      [causal.decision_id],
+      [causalEvent(route, causal)],
+    ),
     candidateLines: [["Bc4"]],
   } as const;
-  const unknown = selectReplacementPivot(input({
-    ...base,
-    pivotSelection: { kind: "user-selected", decision_id: "decision:unknown" },
-  }));
-  const stale = selectReplacementPivot(input({
-    ...base,
-    pivotSelection: { kind: "user-selected", decision_id: unrelated.decision_id },
-  }));
+  const unknown = selectReplacementPivot(
+    input({
+      ...base,
+      pivotSelection: { kind: "user-selected", decision_id: "decision:unknown" },
+    }),
+  );
+  const stale = selectReplacementPivot(
+    input({
+      ...base,
+      pivotSelection: { kind: "user-selected", decision_id: unrelated.decision_id },
+    }),
+  );
 
   assert.equal(unknown.status, "non-actionable");
   assert.equal(unknown.non_actionable_reason, "unknown-user-selected-decision");
@@ -354,16 +398,18 @@ test("semantic pivot selection and validation stay stable across transposition p
   const secondDecision = decisionAt(graph, routes[1]!, "e3");
   assert.equal(firstDecision.decision_id, secondDecision.decision_id);
   assert.equal(firstDecision.source_san_paths.length, 2);
-  const result = selectReplacementPivot(input({
-    graph,
-    routes,
-    causality: attribution(
-      "mostly-player-controlled",
-      [firstDecision.decision_id],
-      [causalEvent(routes[0]!, firstDecision)],
-    ),
-    candidateLines: [["b3"]],
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes,
+      causality: attribution(
+        "mostly-player-controlled",
+        [firstDecision.decision_id],
+        [causalEvent(routes[0]!, firstDecision)],
+      ),
+      candidateLines: [["b3"]],
+    }),
+  );
 
   assert.equal(result.status, "selected");
   assert.equal(result.pivot.decision_id, firstDecision.decision_id);
@@ -382,12 +428,18 @@ test("selection leaves source repertoire and graph byte-identical", () => {
   const beforeGraph = JSON.stringify(graph);
   const route = routeBeginning(graph, "e4 e5");
   const decision = decisionAt(graph, route, "Nf3");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-player-controlled", [decision.decision_id], [causalEvent(route, decision)]),
-    candidateLines: [["Bc4"]],
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "mostly-player-controlled",
+        [decision.decision_id],
+        [causalEvent(route, decision)],
+      ),
+      candidateLines: [["Bc4"]],
+    }),
+  );
 
   assert.equal(result.source_repertoire_unchanged, true);
   assert.equal(tree.toPgn(), beforeTree);
@@ -401,7 +453,11 @@ test("result serialization preserves versions, identities, revision, color, and 
   const selectedInput = input({
     graph,
     routes: [route],
-    causality: attribution("mostly-player-controlled", [decision.decision_id], [causalEvent(route, decision)]),
+    causality: attribution(
+      "mostly-player-controlled",
+      [decision.decision_id],
+      [causalEvent(route, decision)],
+    ),
   });
   const result = selectReplacementPivot(selectedInput);
   const roundTrip = JSON.parse(JSON.stringify(result));
@@ -418,18 +474,27 @@ test("result serialization preserves versions, identities, revision, color, and 
 });
 
 test("Black repertoire ownership uses graph color and validates from Black pivot position", () => {
-  const graph = buildRepertoireGraph(GameTree.fromPgn(`[Event "Black pivot"]
+  const graph = buildRepertoireGraph(
+    GameTree.fromPgn(`[Event "Black pivot"]
 [Result "*"]
 
-1. e4 c5 2. Nf3 d6 3. d4 cxd4 *`), "black");
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 *`),
+    "black",
+  );
   const route = graph.routes[0]!;
   const decision = decisionAt(graph, route, "c5");
-  const result = selectReplacementPivot(input({
-    graph,
-    routes: [route],
-    causality: attribution("mostly-player-controlled", [decision.decision_id], [causalEvent(route, decision)]),
-    candidateLines: [["e5"]],
-  }));
+  const result = selectReplacementPivot(
+    input({
+      graph,
+      routes: [route],
+      causality: attribution(
+        "mostly-player-controlled",
+        [decision.decision_id],
+        [causalEvent(route, decision)],
+      ),
+      candidateLines: [["e5"]],
+    }),
+  );
 
   assert.equal(result.status, "selected");
   assert.equal(result.repertoire_color, "black");

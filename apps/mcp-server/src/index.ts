@@ -86,9 +86,14 @@ import { makeFen } from "chessops/fen";
 import { store, get, getOrCreateStrategicFitReport, strategicFitReportById } from "./handles.js";
 import { confine, readCappedPgn, MAX_PGN_BYTES } from "./paths.js";
 
-const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
+const ok = (data: unknown) => ({
+  content: [{ type: "text" as const, text: JSON.stringify(data) }],
+});
 const notFound = () =>
-  ok({ error: "repertoire_not_found", reason: "unknown or expired repertoire_id; call load_repertoire" });
+  ok({
+    error: "repertoire_not_found",
+    reason: "unknown or expired repertoire_id; call load_repertoire",
+  });
 
 // Untrusted-input caps (the threat is caller-supplied PGN/FEN/path, not a network peer). The PGN
 // byte cap bounds parse/memory DoS on every PGN that enters; MAX_COMPARE_MOVES bounds compare_moves'
@@ -102,116 +107,187 @@ const MAX_COMPARE_MOVES = 64;
 const server = new McpServer({ name: "chess-analysis", version: "2.0.0" });
 
 const strategicFitIdSchema = () => z.string().max(256);
-const replacementRequestEnvelopeSchema = z.object({ request_id: strategicFitIdSchema() }).passthrough();
-const replacementFindingEnvelopeSchema = z.object({ finding_id: strategicFitIdSchema() }).passthrough();
-const replacementPivotEnvelopeSchema = z.object({ kind: z.enum(["automatic", "user-selected"]) }).passthrough();
-const replacementProfileEnvelopeSchema = z.object({ mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]) }).passthrough();
-const replacementBudgetEnvelopeSchema = z.object({
-  engine_depth: z.number().int().min(1).max(30),
-  engine_multipv: z.number().int().min(1).max(10),
-}).passthrough();
-const replacementEngineEnvelopeSchema = z.object({
-  depth: z.number().int().min(1).max(30),
-  multipv: z.number().int().min(1).max(10),
-  allow_unavailable_evidence: z.boolean(),
-}).passthrough();
-const replacementCoverageEnvelopeSchema = z.object({
-  minimum_expected_opponent_coverage: z.number().min(0).max(1),
-  require_all_forcing_replies: z.boolean(),
-}).passthrough();
-const replacementRetentionEnvelopeSchema = z.object({
-  candidate_id: strategicFitIdSchema(),
-  action: z.enum(["add-alternative", "replace"]),
-  prune_explicitly_confirmed: z.boolean().optional(),
-  promote_candidate_to_mainline: z.boolean().optional(),
-}).passthrough();
-const replacementSafetyEnvelopeSchema = z.object({ request_id: strategicFitIdSchema() }).passthrough();
+const replacementRequestEnvelopeSchema = z
+  .object({ request_id: strategicFitIdSchema() })
+  .passthrough();
+const replacementFindingEnvelopeSchema = z
+  .object({ finding_id: strategicFitIdSchema() })
+  .passthrough();
+const replacementPivotEnvelopeSchema = z
+  .object({ kind: z.enum(["automatic", "user-selected"]) })
+  .passthrough();
+const replacementProfileEnvelopeSchema = z
+  .object({ mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]) })
+  .passthrough();
+const replacementBudgetEnvelopeSchema = z
+  .object({
+    engine_depth: z.number().int().min(1).max(30),
+    engine_multipv: z.number().int().min(1).max(10),
+  })
+  .passthrough();
+const replacementEngineEnvelopeSchema = z
+  .object({
+    depth: z.number().int().min(1).max(30),
+    multipv: z.number().int().min(1).max(10),
+    allow_unavailable_evidence: z.boolean(),
+  })
+  .passthrough();
+const replacementCoverageEnvelopeSchema = z
+  .object({
+    minimum_expected_opponent_coverage: z.number().min(0).max(1),
+    require_all_forcing_replies: z.boolean(),
+  })
+  .passthrough();
+const replacementRetentionEnvelopeSchema = z
+  .object({
+    candidate_id: strategicFitIdSchema(),
+    action: z.enum(["add-alternative", "replace"]),
+    prune_explicitly_confirmed: z.boolean().optional(),
+    promote_candidate_to_mainline: z.boolean().optional(),
+  })
+  .passthrough();
+const replacementSafetyEnvelopeSchema = z
+  .object({ request_id: strategicFitIdSchema() })
+  .passthrough();
 const strategicFitIdListSchema = (maximum = 500) => z.array(strategicFitIdSchema()).max(maximum);
-const strategicFitProfileSchema = z.object({
-  mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]),
-  preferences: z.object({
-    maximum_engine_loss_cp: z.number().int().min(0).max(1000).optional(),
-    opponent_popularity_importance: z.number().min(0).max(1).optional(),
-    personal_game_frequency_importance: z.number().min(0).max(1).optional(),
-    manual_weight_importance: z.number().min(0).max(1).optional(),
-    additional_memorization_tolerance: z.number().min(0).max(1).optional(),
-    preferred_concept_ids: strategicFitIdListSchema(128).optional(),
-    avoided_concept_ids: strategicFitIdListSchema(128).optional(),
-    preferred_tactical_character: z.array(z.string().max(128)).max(32).optional(),
-    minimum_opponent_coverage: z.number().min(0).max(1).optional(),
-    feature_family_weights: z.object({
-      "pawn-topology": z.number().min(0).max(3).optional(),
-      "center-dynamics": z.number().min(0).max(3).optional(),
-      "king-and-piece-setup": z.number().min(0).max(3).optional(),
-      "space-and-files": z.number().min(0).max(3).optional(),
-      "dynamic-character": z.number().min(0).max(3).optional(),
-      "learning-concepts": z.number().min(0).max(3).optional(),
-    }).strict().optional(),
-  }).strict().optional(),
-}).strict();
-const strategicFitWeightingSchema = z.object({
-  mode: z.enum(["equal", "manual", "external"]).optional(),
-  route_weights: z.array(z.object({
-    route_id: strategicFitIdSchema(),
-    weight: z.number().min(0).max(1_000_000),
-  }).strict()).max(500).optional(),
-  decision_weights: z.array(z.object({
-    decision_id: strategicFitIdSchema(),
-    weight: z.number().min(0).max(1_000_000),
-  }).strict()).max(500).optional(),
-}).strict();
+const strategicFitProfileSchema = z
+  .object({
+    mode: z.enum(["familiar-plans", "balanced", "versatile", "custom"]),
+    preferences: z
+      .object({
+        maximum_engine_loss_cp: z.number().int().min(0).max(1000).optional(),
+        opponent_popularity_importance: z.number().min(0).max(1).optional(),
+        personal_game_frequency_importance: z.number().min(0).max(1).optional(),
+        manual_weight_importance: z.number().min(0).max(1).optional(),
+        additional_memorization_tolerance: z.number().min(0).max(1).optional(),
+        preferred_concept_ids: strategicFitIdListSchema(128).optional(),
+        avoided_concept_ids: strategicFitIdListSchema(128).optional(),
+        preferred_tactical_character: z.array(z.string().max(128)).max(32).optional(),
+        minimum_opponent_coverage: z.number().min(0).max(1).optional(),
+        feature_family_weights: z
+          .object({
+            "pawn-topology": z.number().min(0).max(3).optional(),
+            "center-dynamics": z.number().min(0).max(3).optional(),
+            "king-and-piece-setup": z.number().min(0).max(3).optional(),
+            "space-and-files": z.number().min(0).max(3).optional(),
+            "dynamic-character": z.number().min(0).max(3).optional(),
+            "learning-concepts": z.number().min(0).max(3).optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+const strategicFitWeightingSchema = z
+  .object({
+    mode: z.enum(["equal", "manual", "external"]).optional(),
+    route_weights: z
+      .array(
+        z
+          .object({
+            route_id: strategicFitIdSchema(),
+            weight: z.number().min(0).max(1_000_000),
+          })
+          .strict(),
+      )
+      .max(500)
+      .optional(),
+    decision_weights: z
+      .array(
+        z
+          .object({
+            decision_id: strategicFitIdSchema(),
+            weight: z.number().min(0).max(1_000_000),
+          })
+          .strict(),
+      )
+      .max(500)
+      .optional(),
+  })
+  .strict();
 const explorerSpeedSchema = z.enum(EXPLORER_SPEEDS);
-const explorerRatingSchema = z.number().int().min(0).max(2500).refine(
-  (rating): rating is (typeof EXPLORER_RATING_BUCKETS)[number] =>
-    (EXPLORER_RATING_BUCKETS as readonly number[]).includes(rating),
-  "unsupported explorer rating bucket",
-);
-const explorerRecencySchema = () => z.string().max(7).regex(/^(?:\d{4}|\d{4}-(?:0[1-9]|1[0-2]))$/);
-const strategicFitPopularitySchema = z.object({
-  db: z.enum(["lichess", "masters"]).optional(),
-  speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
-  ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
-  since: explorerRecencySchema().optional(),
-  until: explorerRecencySchema().optional(),
-  max_positions: z.number().int().min(1).max(120).optional(),
-}).strict();
-const strategicFitPersonalHistorySchema = z.object({
-  username: z.string().max(128),
-  platform: z.enum(["lichess", "chesscom"]).optional(),
-  max_games: z.number().int().min(1).max(100).optional(),
-  year: z.number().int().min(1900).max(9999).optional(),
-  month: z.number().int().min(1).max(12).optional(),
-}).strict();
-const strategicFitPageSchema = z.object({
-  offset: z.number().int().min(0).max(1_000_000).optional(),
-  limit: z.number().int().min(1).max(50).optional(),
-  cursor: z.string().max(512).optional(),
-}).strict();
-const strategicFitCohortOverrideSchema = z.object({
-  override_id: strategicFitIdSchema(),
-  kind: z.enum(["merge", "split", "exclude"]),
-  route_ids: strategicFitIdListSchema().min(1).optional(),
-  decision_ids: strategicFitIdListSchema().min(1).optional(),
-}).strict();
-const strategicFitExplicitTargetSchema = z.object({
-  target_id: strategicFitIdSchema(),
-  cohort_id: strategicFitIdSchema(),
-  representative_route_id: strategicFitIdSchema(),
-  supporting_route_ids: strategicFitIdListSchema().min(1).optional(),
-  concept_ids: strategicFitIdListSchema(128).optional(),
-}).strict();
-const strategicFitRouteAssessmentSchema = z.object({
-  route_id: strategicFitIdSchema(),
-  matches_declared_objective: z.boolean().optional(),
-  resolution_state: z.enum([
-    "unresolved", "change-repertoire", "keep-intentionally", "train-as-exception",
-    "reclassify-cohort", "exclude-from-analysis", "defer", "insufficient-evidence",
-    "automatically-resolved-by-another-edit",
-  ]).optional(),
-  alternative_state: z.enum([
-    "viable-more-congruent", "no-acceptable-alternative", "not-assessed",
-  ]).optional(),
-}).strict();
+const explorerRatingSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(2500)
+  .refine(
+    (rating): rating is (typeof EXPLORER_RATING_BUCKETS)[number] =>
+      (EXPLORER_RATING_BUCKETS as readonly number[]).includes(rating),
+    "unsupported explorer rating bucket",
+  );
+const explorerRecencySchema = () =>
+  z
+    .string()
+    .max(7)
+    .regex(/^(?:\d{4}|\d{4}-(?:0[1-9]|1[0-2]))$/);
+const strategicFitPopularitySchema = z
+  .object({
+    db: z.enum(["lichess", "masters"]).optional(),
+    speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
+    ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
+    since: explorerRecencySchema().optional(),
+    until: explorerRecencySchema().optional(),
+    max_positions: z.number().int().min(1).max(120).optional(),
+  })
+  .strict();
+const strategicFitPersonalHistorySchema = z
+  .object({
+    username: z.string().max(128),
+    platform: z.enum(["lichess", "chesscom"]).optional(),
+    max_games: z.number().int().min(1).max(100).optional(),
+    year: z.number().int().min(1900).max(9999).optional(),
+    month: z.number().int().min(1).max(12).optional(),
+  })
+  .strict();
+const strategicFitPageSchema = z
+  .object({
+    offset: z.number().int().min(0).max(1_000_000).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    cursor: z.string().max(512).optional(),
+  })
+  .strict();
+const strategicFitCohortOverrideSchema = z
+  .object({
+    override_id: strategicFitIdSchema(),
+    kind: z.enum(["merge", "split", "exclude"]),
+    route_ids: strategicFitIdListSchema().min(1).optional(),
+    decision_ids: strategicFitIdListSchema().min(1).optional(),
+  })
+  .strict();
+const strategicFitExplicitTargetSchema = z
+  .object({
+    target_id: strategicFitIdSchema(),
+    cohort_id: strategicFitIdSchema(),
+    representative_route_id: strategicFitIdSchema(),
+    supporting_route_ids: strategicFitIdListSchema().min(1).optional(),
+    concept_ids: strategicFitIdListSchema(128).optional(),
+  })
+  .strict();
+const strategicFitRouteAssessmentSchema = z
+  .object({
+    route_id: strategicFitIdSchema(),
+    matches_declared_objective: z.boolean().optional(),
+    resolution_state: z
+      .enum([
+        "unresolved",
+        "change-repertoire",
+        "keep-intentionally",
+        "train-as-exception",
+        "reclassify-cohort",
+        "exclude-from-analysis",
+        "defer",
+        "insufficient-evidence",
+        "automatically-resolved-by-another-edit",
+      ])
+      .optional(),
+    alternative_state: z
+      .enum(["viable-more-congruent", "no-acceptable-alternative", "not-assessed"])
+      .optional(),
+  })
+  .strict();
 
 // The opening explorer requires a Lichess login since ~2026-03 (anonymous → 401). A personal API
 // token with no scopes is enough; without one the explorer tools return explorer_auth_required
@@ -220,19 +296,22 @@ setExplorerToken(process.env.LICHESS_TOKEN ?? null);
 const explorerAuthRequired = () =>
   ok({
     error: "explorer_auth_required",
-    reason: "the Lichess opening explorer requires authentication; set LICHESS_TOKEN to a personal API token (no scopes needed, https://lichess.org/account/oauth/token)",
+    reason:
+      "the Lichess opening explorer requires authentication; set LICHESS_TOKEN to a personal API token (no scopes needed, https://lichess.org/account/oauth/token)",
   });
 
 // --- validation / position (engine-free) ---
 server.tool(
   "validate_fen",
-  toolContract("validate_fen").description, { fen: z.string() }, ({ fen }) =>
-  ok(validateFen(fen)),
+  toolContract("validate_fen").description,
+  { fen: z.string() },
+  ({ fen }) => ok(validateFen(fen)),
 );
 server.tool(
   "validate_pgn",
-  toolContract("validate_pgn").description, { pgn: z.string() }, ({ pgn }) =>
-  ok(validatePgn(pgn)),
+  toolContract("validate_pgn").description,
+  { pgn: z.string() },
+  ({ pgn }) => ok(validatePgn(pgn)),
 );
 server.tool(
   "validate_line",
@@ -247,30 +326,42 @@ server.tool(
 );
 server.tool(
   "get_legal_moves",
-  toolContract("get_legal_moves").description, { fen: z.string() }, ({ fen }) => {
-  const grounded = groundPosition(fen);
-  if ("error" in grounded) return ok(grounded);
-  return ok({ fen: grounded.fen, moves: grounded.legal_moves });
-});
+  toolContract("get_legal_moves").description,
+  { fen: z.string() },
+  ({ fen }) => {
+    const grounded = groundPosition(fen);
+    if ("error" in grounded) return ok(grounded);
+    return ok({ fen: grounded.fen, moves: grounded.legal_moves });
+  },
+);
 server.tool(
   "get_position",
-  toolContract("get_position").description, { fen: z.string() }, ({ fen }) => {
-  return ok(groundPosition(fen));
-});
+  toolContract("get_position").description,
+  { fen: z.string() },
+  ({ fen }) => {
+    return ok(groundPosition(fen));
+  },
+);
 
 // --- network (offline-safe) ---
 server.tool(
   "cloud_eval",
-  toolContract("cloud_eval").description, { fen: z.string() }, async ({ fen }) => {
-  const c = await cloudEval(fen);
-  return ok(c ? { fen, ...c } : { fen, available: false });
-});
+  toolContract("cloud_eval").description,
+  { fen: z.string() },
+  async ({ fen }) => {
+    const c = await cloudEval(fen);
+    return ok(c ? { fen, ...c } : { fen, available: false });
+  },
+);
 server.tool(
   "tablebase_lookup",
-  toolContract("tablebase_lookup").description, { fen: z.string() }, async ({ fen }) => {
-  const t = await tablebaseLookup(fen);
-  return ok(t ?? { available: false });
-});
+  toolContract("tablebase_lookup").description,
+  { fen: z.string() },
+  async ({ fen }) => {
+    const t = await tablebaseLookup(fen);
+    return ok(t ?? { available: false });
+  },
+);
 server.tool(
   "position_popularity",
   toolContract("position_popularity").description,
@@ -284,27 +375,29 @@ server.tool(
     top_moves: z.number().int().min(0).max(30).optional(),
   },
   async ({ fen, db, speeds, ratings, since, until, top_moves }, extra) => {
-    const rawFilters = Object.fromEntries(Object.entries({
-      fen,
-      db,
-      speeds,
-      ratings,
-      since,
-      until,
-      top_moves,
-    }).filter(([, value]) => value !== undefined));
-    const validation = validateToolArguments(
-      "position_popularity",
-      rawFilters,
-      "mcp",
+    const rawFilters = Object.fromEntries(
+      Object.entries({
+        fen,
+        db,
+        speeds,
+        ratings,
+        since,
+        until,
+        top_moves,
+      }).filter(([, value]) => value !== undefined),
     );
+    const validation = validateToolArguments("position_popularity", rawFilters, "mcp");
     if (!validation.ok) return ok(validation);
     const v = validateFen(fen);
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (!hasExplorerToken()) return explorerAuthRequired();
     const filters: ExplorerFilters = { db, speeds, ratings, since, until, movesLimit: top_moves };
     const res = await explorerPosition(v.fen!, filters, extra.signal);
-    return ok(res ? { fen: v.fen, db: db ?? toolDefault("position_popularity", "db", "lichess"), ...res } : { fen: v.fen, available: false });
+    return ok(
+      res
+        ? { fen: v.fen, db: db ?? toolDefault("position_popularity", "db", "lichess"), ...res }
+        : { fen: v.fen, available: false },
+    );
   },
 );
 
@@ -312,7 +405,11 @@ server.tool(
 server.tool(
   "evaluate_position",
   toolContract("evaluate_position").description,
-  { fen: z.string(), depth: z.number().int().min(1).max(30).optional(), lines: z.number().int().min(1).max(5).optional() },
+  {
+    fen: z.string(),
+    depth: z.number().int().min(1).max(30).optional(),
+    lines: z.number().int().min(1).max(5).optional(),
+  },
   async ({ fen, depth, lines }) => {
     // Reject an illegal-but-parseable FEN up front (the same gate get_position/suggest_* apply):
     // without it, moveSan below throws (chessops rejects the setup) instead of a closed-set error.
@@ -320,7 +417,11 @@ server.tool(
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
     // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
-    const res = await analyseMulti(v.fen!, lines ?? toolDefault("evaluate_position", "lines", 3), depth ?? toolDefault("evaluate_position", "depth", 20));
+    const res = await analyseMulti(
+      v.fen!,
+      lines ?? toolDefault("evaluate_position", "lines", 3),
+      depth ?? toolDefault("evaluate_position", "depth", 20),
+    );
     if (!res) return ok({ error: "engine_unavailable" });
     return ok(shapeEvaluation(v.fen!, res, moveSan));
   },
@@ -356,10 +457,13 @@ server.tool(
   { path: z.string(), color: colorSchema },
   async ({ path, color }) => {
     const real = confine(path);
-    if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+    if (!real)
+      return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
     const r = await readCappedPgn(real);
-    if ("notFound" in r) return ok({ error: "file_not_found", reason: "no such PGN under the repertoire directory" });
-    if ("tooLarge" in r) return ok({ error: "pgn_too_large", reason: `PGN exceeds the ${MAX_PGN_BYTES}-byte limit` });
+    if ("notFound" in r)
+      return ok({ error: "file_not_found", reason: "no such PGN under the repertoire directory" });
+    if ("tooLarge" in r)
+      return ok({ error: "pgn_too_large", reason: `PGN exceeds the ${MAX_PGN_BYTES}-byte limit` });
     let tree: GameTree;
     try {
       tree = GameTree.fromPgn(r.text);
@@ -371,12 +475,15 @@ server.tool(
 );
 server.tool(
   "export_repertoire",
-  toolContract("export_repertoire").description, { repertoire_id: z.string() }, ({ repertoire_id }) => {
-  const e = get(repertoire_id);
-  if (!e) return notFound();
-  const s = e.tree.stats();
-  return ok({ pgn: e.tree.toPgn(), nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth });
-});
+  toolContract("export_repertoire").description,
+  { repertoire_id: z.string() },
+  ({ repertoire_id }) => {
+    const e = get(repertoire_id);
+    if (!e) return notFound();
+    const s = e.tree.stats();
+    return ok({ pgn: e.tree.toPgn(), nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth });
+  },
+);
 server.tool(
   "export_repertoire_to_file",
   toolContract("export_repertoire_to_file").description,
@@ -385,14 +492,18 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     const real = confine(path);
-    if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+    if (!real)
+      return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
     const pgn = e.tree.toPgn();
     try {
       await writeFile(real, pgn, "utf8");
     } catch {
       // Don't surface the raw fs error (it carries the absolute host path); a missing parent dir or
       // permission failure is reported as a closed-set error instead.
-      return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+      return ok({
+        error: "write_failed",
+        reason: "could not write under the repertoire directory",
+      });
     }
     return ok({ path: real, bytes: Buffer.byteLength(pgn, "utf8"), leaves: e.tree.stats().leaves });
   },
@@ -411,7 +522,15 @@ server.tool(
     popularity: z.boolean().optional(),
     popularity_db: z.enum(["lichess", "masters"]).optional(),
   },
-  async ({ repertoire_id, depth, min_severity, max_positions, limit, popularity, popularity_db }) => {
+  async ({
+    repertoire_id,
+    depth,
+    min_severity,
+    max_positions,
+    limit,
+    popularity,
+    popularity_db,
+  }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     if (popularity && !hasExplorerToken()) return explorerAuthRequired();
@@ -428,7 +547,9 @@ server.tool(
         analyseMulti,
         // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
         // ask deep enough that the approximation only bites on true rarities.
-        popularity ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 }) : undefined,
+        popularity
+          ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 })
+          : undefined,
       ),
     );
   },
@@ -449,8 +570,18 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     const path = e.tree.indexPathOfSan(variation_path);
-    if (!path) return ok({ error: "path_not_found", reason: "variation_path is not in the repertoire" });
-    return ok(await suggestGapFills(e.tree, e.color, path, uncovered_move, { depth, limit, target_plies }, analyseMulti));
+    if (!path)
+      return ok({ error: "path_not_found", reason: "variation_path is not in the repertoire" });
+    return ok(
+      await suggestGapFills(
+        e.tree,
+        e.color,
+        path,
+        uncovered_move,
+        { depth, limit, target_plies },
+        analyseMulti,
+      ),
+    );
   },
 );
 
@@ -520,7 +651,8 @@ server.tool(
     let real: string | null = null;
     if (export_path !== undefined) {
       real = confine(export_path);
-      if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+      if (!real)
+        return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
     }
     const res = await findOnlyMoves(
       e.tree,
@@ -536,11 +668,18 @@ server.tool(
         await writeFile(real, csv, "utf8");
       } catch {
         // Don't surface the raw fs error (it carries the absolute host path).
-        return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+        return ok({
+          error: "write_failed",
+          reason: "could not write under the repertoire directory",
+        });
       }
       deck = { path: real, rows: res.findings.length, bytes: Buffer.byteLength(csv, "utf8") };
     }
-    return ok({ ...res, findings: res.findings.slice(0, limit ?? toolDefault("find_only_moves", "limit", 25)), ...(deck ? { deck } : {}) });
+    return ok({
+      ...res,
+      findings: res.findings.slice(0, limit ?? toolDefault("find_only_moves", "limit", 25)),
+      ...(deck ? { deck } : {}),
+    });
   },
 );
 
@@ -571,16 +710,45 @@ server.tool(
     leaf_count: z.number().int().min(1).max(200).optional(),
     confirm_depth: z.number().int().min(1).max(30).optional(),
   },
-  async ({ repertoire_id, limit, multipv, cp_threshold, max_loss_cp, depth, movetime_ms, budget, leaf_start, leaf_count, confirm_depth }) => {
+  async ({
+    repertoire_id,
+    limit,
+    multipv,
+    cp_threshold,
+    max_loss_cp,
+    depth,
+    movetime_ms,
+    budget,
+    leaf_start,
+    leaf_count,
+    confirm_depth,
+  }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const res = await e.tree.pruneTranspositions(
       e.color,
-      { multipv: multipv ?? toolDefault("find_pruning_transpositions", "multipv", 4), cpThreshold: cp_threshold ?? toolDefault("find_pruning_transpositions", "cp_threshold", 50), maxLossCp: max_loss_cp, budget, leafStart: leaf_start, leafCount: leaf_count, confirmDepth: confirm_depth },
+      {
+        multipv: multipv ?? toolDefault("find_pruning_transpositions", "multipv", 4),
+        cpThreshold: cp_threshold ?? toolDefault("find_pruning_transpositions", "cp_threshold", 50),
+        maxLossCp: max_loss_cp,
+        budget,
+        leafStart: leaf_start,
+        leafCount: leaf_count,
+        confirmDepth: confirm_depth,
+      },
       // depth override d (E1 deep confirm) uses fixed depth and bypasses movetime; else the scan effort.
-      (fen, mpv, d) => analyseMulti(fen, mpv, d ?? depth ?? toolDefault("find_pruning_transpositions", "depth", 20), d != null ? undefined : movetime_ms),
+      (fen, mpv, d) =>
+        analyseMulti(
+          fen,
+          mpv,
+          d ?? depth ?? toolDefault("find_pruning_transpositions", "depth", 20),
+          d != null ? undefined : movetime_ms,
+        ),
     );
-    const shown = res.suggestions.slice(0, limit ?? toolDefault("find_pruning_transpositions", "limit", 20));
+    const shown = res.suggestions.slice(
+      0,
+      limit ?? toolDefault("find_pruning_transpositions", "limit", 20),
+    );
     return ok({
       total: res.suggestions.length,
       returned: shown.length,
@@ -616,7 +784,14 @@ server.tool(
       await checkShortcutCoverage(
         e.tree,
         e.color,
-        { linePath: line_path, atPly: at_ply, depth, minSeverity: min_severity, maxPositions: max_positions, limit },
+        {
+          linePath: line_path,
+          atPly: at_ply,
+          depth,
+          minSeverity: min_severity,
+          maxPositions: max_positions,
+          limit,
+        },
         analyseMulti,
       ),
     );
@@ -641,7 +816,13 @@ server.tool(
       await compareShortcutLines(
         e.tree,
         e.color,
-        { linePath: line_path, atPly: at_ply, joinsPath: joins_path, depth, evalTiebreakCp: eval_tiebreak_cp },
+        {
+          linePath: line_path,
+          atPly: at_ply,
+          joinsPath: joins_path,
+          depth,
+          evalTiebreakCp: eval_tiebreak_cp,
+        },
         analyseMulti,
       ),
     );
@@ -651,13 +832,27 @@ server.tool(
 server.tool(
   "get_repertoire_coverage",
   toolContract("get_repertoire_coverage").description,
-  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional(), connect_stubs: z.boolean().optional(), depth: z.number().int().min(1).max(30).optional() },
+  {
+    repertoire_id: z.string(),
+    limit: z.number().int().min(1).max(100).optional(),
+    connect_stubs: z.boolean().optional(),
+    depth: z.number().int().min(1).max(30).optional(),
+  },
   async ({ repertoire_id, limit, connect_stubs, depth }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const base = repertoireCoverageResult(e.tree, e.color, limit ?? toolDefault("get_repertoire_coverage", "limit", 20));
+    const base = repertoireCoverageResult(
+      e.tree,
+      e.color,
+      limit ?? toolDefault("get_repertoire_coverage", "limit", 20),
+    );
     if (!connect_stubs) return ok(base);
-    const r = await resolveDanglingStubs(e.tree, e.color, { limit, depth: depth ?? toolDefault("get_repertoire_coverage", "depth", 20) }, analyseMulti);
+    const r = await resolveDanglingStubs(
+      e.tree,
+      e.color,
+      { limit, depth: depth ?? toolDefault("get_repertoire_coverage", "depth", 20) },
+      analyseMulti,
+    );
     if ("error" in r) return ok({ ...base, error: r.error });
     return ok({ ...base, stubs_resolved: r.resolved, dangling_lines: r.dangling });
   },
@@ -666,7 +861,11 @@ server.tool(
 server.tool(
   "compare_moves",
   toolContract("compare_moves").description,
-  { fen: z.string(), moves: z.array(z.string()), depth: z.number().int().min(1).max(30).optional() },
+  {
+    fen: z.string(),
+    moves: z.array(z.string()),
+    depth: z.number().int().min(1).max(30).optional(),
+  },
   async ({ fen, moves, depth }) => {
     // Gate the FEN (compareMoves → validateLine throws a raw FenError on garbage) and cap the
     // candidate list — each candidate triggers a separate engine search, so an unbounded array is a
@@ -674,8 +873,18 @@ server.tool(
     const v = validateFen(fen);
     if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
     if (moves.length > MAX_COMPARE_MOVES)
-      return ok({ error: "too_many_moves", reason: `at most ${MAX_COMPARE_MOVES} candidate moves` });
-    return ok(await compareMoves(v.fen!, moves, depth ?? toolDefault("compare_moves", "depth", 20), analyseMulti));
+      return ok({
+        error: "too_many_moves",
+        reason: `at most ${MAX_COMPARE_MOVES} candidate moves`,
+      });
+    return ok(
+      await compareMoves(
+        v.fen!,
+        moves,
+        depth ?? toolDefault("compare_moves", "depth", 20),
+        analyseMulti,
+      ),
+    );
   },
 );
 
@@ -683,18 +892,28 @@ server.tool(
 server.tool(
   "analyze_game",
   toolContract("analyze_game").description,
-  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional(), verbose: z.boolean().optional() },
+  {
+    pgn: z.string(),
+    depth: z.number().int().min(1).max(30).optional(),
+    verbose: z.boolean().optional(),
+  },
   async ({ pgn, depth, verbose }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("analyze_game", "depth", 20), analyseMulti);
+      records = await analyzeMainline(
+        pgn,
+        depth ?? toolDefault("analyze_game", "depth", 20),
+        analyseMulti,
+      );
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
     if (records === null) return ok({ error: "engine_unavailable" });
-    return ok(verbose ? { total_moves: records.length, moves: records } : gameAnalysisResult(records));
+    return ok(
+      verbose ? { total_moves: records.length, moves: records } : gameAnalysisResult(records),
+    );
   },
 );
 
@@ -707,7 +926,11 @@ server.tool(
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("get_game_summary", "depth", 20), analyseMulti);
+      records = await analyzeMainline(
+        pgn,
+        depth ?? toolDefault("get_game_summary", "depth", 20),
+        analyseMulti,
+      );
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -726,7 +949,11 @@ server.tool(
     if (tl) return tl;
     let records: MoveRecord[] | null;
     try {
-      records = await analyzeMainline(pgn, depth ?? toolDefault("export_annotated_pgn", "depth", 20), analyseMulti);
+      records = await analyzeMainline(
+        pgn,
+        depth ?? toolDefault("export_annotated_pgn", "depth", 20),
+        analyseMulti,
+      );
     } catch (e) {
       return ok({ error: "invalid_pgn", reason: e instanceof Error ? e.message : String(e) });
     }
@@ -749,14 +976,24 @@ server.tool(
     min_severity: z.enum(["low", "medium", "high"]).optional(),
     export_path: z.string().optional(),
   },
-  async ({ repertoire_id, include, depth, max_positions, min_cp_loss, min_margin, min_severity, export_path }) => {
+  async ({
+    repertoire_id,
+    include,
+    depth,
+    max_positions,
+    min_cp_loss,
+    min_margin,
+    min_severity,
+    export_path,
+  }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     // Resolve the export path BEFORE the engine scans so a bad path fails in ms, not after them.
     let real: string | null = null;
     if (export_path !== undefined) {
       real = confine(export_path);
-      if (!real) return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
+      if (!real)
+        return ok({ error: "path_not_allowed", reason: "path escapes the repertoire directory" });
     }
     const res = await annotateRepertoire(
       e.tree,
@@ -775,15 +1012,16 @@ server.tool(
       include?.includes("congruence") === false
         ? undefined
         : () => {
-            const options = strategicFitOptionsFromToolArguments({}, {
-              repertoireColor: e.color,
-              repertoireRevision: e.revision,
-              openingTable: openingsTable,
-            });
-            return getOrCreateStrategicFitReport(
-              e,
-              options,
-              (completeOptions) => analyzeStrategicFit(e.tree, completeOptions),
+            const options = strategicFitOptionsFromToolArguments(
+              {},
+              {
+                repertoireColor: e.color,
+                repertoireRevision: e.revision,
+                openingTable: openingsTable,
+              },
+            );
+            return getOrCreateStrategicFitReport(e, options, (completeOptions) =>
+              analyzeStrategicFit(e.tree, completeOptions),
             );
           },
     );
@@ -793,9 +1031,17 @@ server.tool(
         await writeFile(real, res.pgn, "utf8");
       } catch {
         // Don't surface the raw fs error (it carries the absolute host path).
-        return ok({ error: "write_failed", reason: "could not write under the repertoire directory" });
+        return ok({
+          error: "write_failed",
+          reason: "could not write under the repertoire directory",
+        });
       }
-      return ok({ color: res.color, path: real, bytes: Buffer.byteLength(res.pgn, "utf8"), annotated: res.annotated });
+      return ok({
+        color: res.color,
+        path: real,
+        bytes: Buffer.byteLength(res.pgn, "utf8"),
+        annotated: res.annotated,
+      });
     }
     return ok(res);
   },
@@ -815,7 +1061,10 @@ server.tool(
   ({ repertoire_id, action, path, add_moves, promote_move }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const { tree, error, added } = e.tree.edit(action, path, { addMoves: add_moves, promoteMove: promote_move });
+    const { tree, error, added } = e.tree.edit(action, path, {
+      addMoves: add_moves,
+      promoteMove: promote_move,
+    });
     if (error || !tree) return ok({ error: error ?? "invalid_edit" });
     const id = store(tree, e.color);
     const s = tree.stats();
@@ -829,7 +1078,14 @@ server.tool(
         : action === "add"
           ? `added ${added?.moves.length ?? 0} ply under '${addWhere}'`
           : `promoted '${promote_move}' to mainline at '${where}'`;
-    return ok({ new_repertoire_id: id, action, nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth, summary });
+    return ok({
+      new_repertoire_id: id,
+      action,
+      nodes: s.nodes,
+      leaves: s.leaves,
+      max_depth: s.maxDepth,
+      summary,
+    });
   },
 );
 
@@ -840,7 +1096,13 @@ server.tool(
   ({ repertoire_id, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    return ok(illustrativeLinesResult(e.tree, e.color, limit ?? toolDefault("classify_illustrative_lines", "limit", 20)));
+    return ok(
+      illustrativeLinesResult(
+        e.tree,
+        e.color,
+        limit ?? toolDefault("classify_illustrative_lines", "limit", 20),
+      ),
+    );
   },
 );
 
@@ -872,17 +1134,19 @@ server.tool(
   async ({ pgn, group_by, username, max_games, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
-    return ok(await batchReviewOperation(
-      pgn,
-      {
-        groupBy: group_by ?? toolDefault("batch_review", "group_by", "eco"),
-        username,
-        maxGames: max_games ?? toolDefault("batch_review", "max_games", 100),
-        depth: depth ?? toolDefault("batch_review", "depth", 20),
-      },
-      openingsTable,
-      analyseMulti,
-    ));
+    return ok(
+      await batchReviewOperation(
+        pgn,
+        {
+          groupBy: group_by ?? toolDefault("batch_review", "group_by", "eco"),
+          username,
+          maxGames: max_games ?? toolDefault("batch_review", "max_games", 100),
+          depth: depth ?? toolDefault("batch_review", "depth", 20),
+        },
+        openingsTable,
+        analyseMulti,
+      ),
+    );
   },
 );
 
@@ -897,7 +1161,12 @@ server.tool(
     include_pgn: z.boolean().optional(),
   },
   async ({ username, max_games, opening_eco, include_pgn }) => {
-    const games = await lichessGames(username, max_games ?? toolDefault("lichess_games", "max_games", 20), opening_eco, include_pgn ?? toolDefault("lichess_games", "include_pgn", false));
+    const games = await lichessGames(
+      username,
+      max_games ?? toolDefault("lichess_games", "max_games", 20),
+      opening_eco,
+      include_pgn ?? toolDefault("lichess_games", "include_pgn", false),
+    );
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
     return ok({ platform: "lichess", username, total: games.length, games });
   },
@@ -938,10 +1207,16 @@ server.tool(
     const plat = platform ?? toolDefault("repertoire_vs_history", "platform", "lichess");
     let games;
     if (plat === "chesscom") {
-      if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
+      if (year == null || month == null)
+        return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
       games = await chesscomGames(username, year, month, undefined, true);
     } else {
-      games = await lichessGames(username, max_games ?? toolDefault("repertoire_vs_history", "max_games", 30), undefined, true);
+      games = await lichessGames(
+        username,
+        max_games ?? toolDefault("repertoire_vs_history", "max_games", 30),
+        undefined,
+        true,
+      );
     }
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
 
@@ -967,10 +1242,16 @@ server.tool(
     const plat = platform ?? toolDefault("prep_vs_opponent", "platform", "lichess");
     let games;
     if (plat === "chesscom") {
-      if (year == null || month == null) return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
+      if (year == null || month == null)
+        return ok({ error: "missing_arg", reason: "chesscom requires year and month" });
       games = await chesscomGames(username, year, month, undefined, true);
     } else {
-      games = await lichessGames(username, max_games ?? toolDefault("prep_vs_opponent", "max_games", 30), undefined, true);
+      games = await lichessGames(
+        username,
+        max_games ?? toolDefault("prep_vs_opponent", "max_games", 30),
+        undefined,
+        true,
+      );
     }
     if (games === null) return ok({ error: "fetch_failed", reason: "offline or unknown user" });
 
@@ -999,7 +1280,15 @@ server.tool(
     min_confidence: z.number().min(0).max(1).optional(),
     center: z.enum(["tense", "locked", "open", "semi-open"]).optional(),
     themes: z
-      .array(z.enum(["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"]))
+      .array(
+        z.enum([
+          "fianchetto_white",
+          "fianchetto_black",
+          "minority_attack_white",
+          "minority_attack_black",
+          "flank_vs_center",
+        ]),
+      )
       .optional(),
     color_complex: z.enum(["light", "dark"]).optional(),
     limit: z.number().int().min(1).max(100).optional(),
@@ -1008,10 +1297,18 @@ server.tool(
     const e = get(repertoire_id);
     if (!e) return notFound();
     if (!structure && !center && !themes?.length && !color_complex)
-      return ok({ error: "missing_criteria", reason: "provide at least one of structure/center/themes/color_complex" });
+      return ok({
+        error: "missing_criteria",
+        reason: "provide at least one of structure/center/themes/color_complex",
+      });
     if (structure && !STRUCTURE_NAMES.some((n) => n.toLowerCase() === structure.toLowerCase()))
-      return ok({ error: "unknown_structure", reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}` });
-    const leaves = e.tree.leaves().map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
+      return ok({
+        error: "unknown_structure",
+        reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}`,
+      });
+    const leaves = e.tree
+      .leaves()
+      .map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
     const matches = searchStructures(leaves, e.color, {
       structure,
       minConfidence: min_confidence,
@@ -1038,7 +1335,15 @@ server.tool(
     popularity: strategicFitPopularitySchema.optional(),
     personal_history: strategicFitPersonalHistorySchema.optional(),
     page: strategicFitPageSchema.optional(),
-    sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
+    sort: z
+      .enum([
+        "replacement-priority",
+        "training-priority",
+        "expected-frequency",
+        "opening-scope",
+        "finding-id",
+      ])
+      .optional(),
     cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
     explicit_targets: z.array(strategicFitExplicitTargetSchema).max(100).optional(),
     route_assessments: z.array(strategicFitRouteAssessmentSchema).max(500).optional(),
@@ -1096,11 +1401,12 @@ server.tool(
           },
         },
         hasExplorerToken()
-          ? (fen) => explorerPosition(
-              fen,
-              { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
-              extra.signal,
-            )
+          ? (fen) =>
+              explorerPosition(
+                fen,
+                { ...popularityOptions.filters, movesLimit: STRATEGIC_POPULARITY_MOVE_LIMIT },
+                extra.signal,
+              )
           : undefined,
       );
       if (extra.signal.aborted || collection.state === "cancelled") {
@@ -1113,9 +1419,12 @@ server.tool(
           ...options.weighting,
           mode: options.weighting?.mode ?? "external",
           market: {
-            state: collection.state === "complete"
-              ? "available"
-              : collection.state === "partial" ? "partial" : "unavailable",
+            state:
+              collection.state === "complete"
+                ? "available"
+                : collection.state === "partial"
+                  ? "partial"
+                  : "unavailable",
             decision_weights: collection.decision_weights,
             provenance: collection.provenance,
           },
@@ -1123,25 +1432,28 @@ server.tool(
       };
     }
     if (personalHistorySource && graph) {
-      const total = popularityProgressTotal + personalHistoryProgressTotal +
+      const total =
+        popularityProgressTotal +
+        personalHistoryProgressTotal +
         STRATEGIC_FIT_PROGRESS_PHASES.length;
       notifyProgress(popularityProgressTotal, total, "Fetching personal game history");
-      const games = personalHistorySource.platform === "chesscom"
-        ? await chesscomGames(
-            personalHistorySource.username,
-            personalHistorySource.year!,
-            personalHistorySource.month!,
-            undefined,
-            true,
-            extra.signal,
-          )
-        : await lichessGames(
-            personalHistorySource.username,
-            personalHistorySource.max_games!,
-            undefined,
-            true,
-            extra.signal,
-          );
+      const games =
+        personalHistorySource.platform === "chesscom"
+          ? await chesscomGames(
+              personalHistorySource.username,
+              personalHistorySource.year!,
+              personalHistorySource.month!,
+              undefined,
+              true,
+              extra.signal,
+            )
+          : await lichessGames(
+              personalHistorySource.username,
+              personalHistorySource.max_games!,
+              undefined,
+              true,
+              extra.signal,
+            );
       if (extra.signal.aborted) {
         throw new DOMException("Strategic Fit personal-history fetch cancelled", "AbortError");
       }
@@ -1160,9 +1472,12 @@ server.tool(
           ...options.weighting,
           mode: options.weighting?.mode ?? "external",
           personal: {
-            state: collection.state === "complete"
-              ? "available"
-              : collection.state === "partial" ? "partial" : "unavailable",
+            state:
+              collection.state === "complete"
+                ? "available"
+                : collection.state === "partial"
+                  ? "partial"
+                  : "unavailable",
             decision_weights: collection.decision_weights,
             provenance: collection.provenance,
           },
@@ -1172,17 +1487,18 @@ server.tool(
     options = {
       ...options,
       shouldCancel: () => extra.signal.aborted,
-      onProgress: (progress) => notifyProgress(
-        popularityProgressTotal + personalHistoryProgressTotal + progress.phase_index +
-          (progress.state === "completed" ? 1 : 0),
-        popularityProgressTotal + personalHistoryProgressTotal + progress.phase_count,
-        progress.message,
-      ),
+      onProgress: (progress) =>
+        notifyProgress(
+          popularityProgressTotal +
+            personalHistoryProgressTotal +
+            progress.phase_index +
+            (progress.state === "completed" ? 1 : 0),
+          popularityProgressTotal + personalHistoryProgressTotal + progress.phase_count,
+          progress.message,
+        ),
     };
-    const completeReport = getOrCreateStrategicFitReport(
-      e,
-      options,
-      (completeOptions) => analyzeStrategicFit(e.tree, completeOptions),
+    const completeReport = getOrCreateStrategicFitReport(e, options, (completeOptions) =>
+      analyzeStrategicFit(e.tree, completeOptions),
     );
     const projection = projectStrategicFitReport(completeReport, {
       kind: "page",
@@ -1210,29 +1526,45 @@ server.tool(
     report_id: z.string().max(256),
     view: z.enum(["summary", "findings", "finding"]).optional(),
     finding_id: z.string().max(256).optional(),
-    page: z.object({
-      offset: z.number().int().min(0).max(1_000_000).optional(),
-      limit: z.number().int().min(1).max(25).optional(),
-      cursor: z.string().max(512).optional(),
-    }).optional(),
-    sort: z.enum(["replacement-priority", "training-priority", "expected-frequency", "opening-scope", "finding-id"]).optional(),
+    page: z
+      .object({
+        offset: z.number().int().min(0).max(1_000_000).optional(),
+        limit: z.number().int().min(1).max(25).optional(),
+        cursor: z.string().max(512).optional(),
+      })
+      .optional(),
+    sort: z
+      .enum([
+        "replacement-priority",
+        "training-priority",
+        "expected-frequency",
+        "opening-scope",
+        "finding-id",
+      ])
+      .optional(),
   },
   ({ repertoire_id, ...rawArgs }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const validation = validateToolArguments("get_strategic_fit_report", { repertoire_id, ...rawArgs }, "mcp");
+    const validation = validateToolArguments(
+      "get_strategic_fit_report",
+      { repertoire_id, ...rawArgs },
+      "mcp",
+    );
     if (!validation.ok) return ok(validation);
     const report = strategicFitReportById(e, rawArgs.report_id);
     if (!report) return ok(strategicFitReportUnavailableResult(rawArgs.report_id));
     try {
-      return ok(projectStrategicFitConversation(report, {
-        view: rawArgs.view ?? "summary",
-        report_id: rawArgs.report_id,
-        expected_repertoire_revision: e.revision,
-        ...(rawArgs.finding_id === undefined ? {} : { finding_id: rawArgs.finding_id }),
-        ...(rawArgs.page === undefined ? {} : { page: rawArgs.page }),
-        ...(rawArgs.sort === undefined ? {} : { sort: rawArgs.sort }),
-      }));
+      return ok(
+        projectStrategicFitConversation(report, {
+          view: rawArgs.view ?? "summary",
+          report_id: rawArgs.report_id,
+          expected_repertoire_revision: e.revision,
+          ...(rawArgs.finding_id === undefined ? {} : { finding_id: rawArgs.finding_id }),
+          ...(rawArgs.page === undefined ? {} : { page: rawArgs.page }),
+          ...(rawArgs.sort === undefined ? {} : { sort: rawArgs.sort }),
+        }),
+      );
     } catch (error) {
       return ok(strategicFitConversationErrorResult(error));
     }
@@ -1253,7 +1585,9 @@ server.tool(
   async ({ repertoire_id, fen, mode, depth, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    return ok(await suggestComplementaryLines(e.tree, e.color, fen, { mode, depth, limit }, analyseMulti));
+    return ok(
+      await suggestComplementaryLines(e.tree, e.color, fen, { mode, depth, limit }, analyseMulti),
+    );
   },
 );
 
@@ -1268,10 +1602,20 @@ server.tool(
     finding: replacementFindingEnvelopeSchema.optional(),
     pivot: replacementPivotEnvelopeSchema.optional(),
     profile: replacementProfileEnvelopeSchema.optional(),
-    sources: z.array(z.enum([
-      "existing-repertoire-transposition", "opening-database", "engine-multipv", "user-line",
-      "structurally-similar", "move-order-shortcut",
-    ])).min(1).max(6).optional(),
+    sources: z
+      .array(
+        z.enum([
+          "existing-repertoire-transposition",
+          "opening-database",
+          "engine-multipv",
+          "user-line",
+          "structurally-similar",
+          "move-order-shortcut",
+        ]),
+      )
+      .min(1)
+      .max(6)
+      .optional(),
     budget: replacementBudgetEnvelopeSchema.optional(),
     engine: replacementEngineEnvelopeSchema.optional(),
     coverage: replacementCoverageEnvelopeSchema.optional(),
@@ -1282,7 +1626,11 @@ server.tool(
   async ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    const validation = validateToolArguments("suggest_replacement_line", { repertoire_id, ...rawArgs }, "mcp");
+    const validation = validateToolArguments(
+      "suggest_replacement_line",
+      { repertoire_id, ...rawArgs },
+      "mcp",
+    );
     if (!validation.ok) return ok(validation);
     const result = composeReplacementToolV2(e.tree, rawArgs as unknown as ReplacementToolV2Input, {
       signal: extra.signal,

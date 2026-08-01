@@ -29,12 +29,13 @@ export type ConceptHeatmapReport = Pick<
   | "findings"
 >;
 
-export const CONCEPT_HEATMAP_MASTERY_LABELS: Readonly<Record<ConceptHeatmapMasteryState, string>> = {
-  observed: "Observed",
-  stale: "Stale",
-  untrained: "Untrained",
-  unavailable: "No training data",
-};
+export const CONCEPT_HEATMAP_MASTERY_LABELS: Readonly<Record<ConceptHeatmapMasteryState, string>> =
+  {
+    observed: "Observed",
+    stale: "Stale",
+    untrained: "Untrained",
+    unavailable: "No training data",
+  };
 
 export const CONCEPT_HEATMAP_INTENT_LABELS: Readonly<Record<ConceptHeatmapIntentState, string>> = {
   preferred: "Preferred",
@@ -85,9 +86,10 @@ export function conceptHeatmapCellKey(cohortId: string, conceptId: string): stri
 
 function masteryText(column: ConceptHeatmapColumn): string {
   if (column.mastery.value === null) return CONCEPT_HEATMAP_MASTERY_LABELS[column.mastery.state];
-  const label = column.mastery.state === "observed"
-    ? `${percent(column.mastery.value)}%`
-    : `${percent(column.mastery.value)}% (${CONCEPT_HEATMAP_MASTERY_LABELS[column.mastery.state]})`;
+  const label =
+    column.mastery.state === "observed"
+      ? `${percent(column.mastery.value)}%`
+      : `${percent(column.mastery.value)}% (${CONCEPT_HEATMAP_MASTERY_LABELS[column.mastery.state]})`;
   return label;
 }
 
@@ -104,14 +106,16 @@ export function sortConceptHeatmapColumns(
         : 0;
   const sorted = [...columns];
   if (mode === "frequency") {
-    sorted.sort((left, right) =>
-      right.column.max_expected_frequency - left.column.max_expected_frequency ||
-      byConcept(left, right)
+    sorted.sort(
+      (left, right) =>
+        right.column.max_expected_frequency - left.column.max_expected_frequency ||
+        byConcept(left, right),
     );
   } else if (mode === "mastery") {
-    sorted.sort((left, right) =>
-      (right.column.mastery.value ?? -1) - (left.column.mastery.value ?? -1) ||
-      byConcept(left, right)
+    sorted.sort(
+      (left, right) =>
+        (right.column.mastery.value ?? -1) - (left.column.mastery.value ?? -1) ||
+        byConcept(left, right),
     );
   } else {
     sorted.sort(byConcept);
@@ -132,7 +136,9 @@ export function buildConceptHeatmapViewModel(
     mastery: options.mastery,
   });
   const cohortName = options.cohortName ?? ((cohortId: string) => cohortId);
-  const cohortNames = new Map(projection.rows.map((row) => [row.cohort_id, cohortName(row.cohort_id)]));
+  const cohortNames = new Map(
+    projection.rows.map((row) => [row.cohort_id, cohortName(row.cohort_id)]),
+  );
   const columns: ConceptHeatmapViewColumn[] = projection.columns.map((column) => ({
     column,
     mastery_text: masteryText(column),
@@ -140,29 +146,39 @@ export function buildConceptHeatmapViewModel(
     header_label: `${column.label}. Mastery ${masteryText(column)}. Intent ${CONCEPT_HEATMAP_INTENT_LABELS[column.intent]}.`,
   }));
   const columnsById = new Map(columns.map((view) => [view.column.concept_id, view]));
-  const cells = new Map(projection.cells.map((cell) => {
-    const column = columnsById.get(cell.concept_id)!;
-    const name = cohortNames.get(cell.cohort_id) ?? cell.cohort_id;
-    const findingNote = cell.finding_ids.length === 0
-      ? "No findings"
-      : `${cell.finding_ids.length} ${cell.finding_ids.length === 1 ? "finding" : "findings"}`;
-    return [conceptHeatmapCellKey(cell.cohort_id, cell.concept_id), {
-      cell,
-      intensity: cell.expected_frequency,
-      frequency_percent: percent(cell.expected_frequency),
-      confidence_percent: percent(cell.confidence),
-      aria_label: `${column.column.label} in ${name}: expected in ${percent(cell.expected_frequency)}% of cohort games,` +
-        ` classifier confidence ${percent(cell.confidence)}%, mastery ${column.mastery_text},` +
-        ` intent ${column.intent_text}. ${findingNote}.`,
-    } satisfies ConceptHeatmapViewCell];
-  }));
-  const untrainedCount = projection.columns.filter((column) => column.mastery.value === null).length;
-  const summary = projection.state === "unavailable"
-    ? `Concept heatmap unavailable. ${projection.reason ?? ""}`.trim()
-    : `Concept heatmap with ${projection.rows.length} ${projection.rows.length === 1 ? "cohort" : "cohorts"}` +
-      ` and ${projection.columns.length} ${projection.columns.length === 1 ? "concept" : "concepts"}.` +
-      ` ${untrainedCount} ${untrainedCount === 1 ? "concept has" : "concepts have"} no observed mastery.` +
-      ` ${projection.exclusions.length} ${projection.exclusions.length === 1 ? "branch is" : "branches are"} excluded.`;
+  const cells = new Map(
+    projection.cells.map((cell) => {
+      const column = columnsById.get(cell.concept_id)!;
+      const name = cohortNames.get(cell.cohort_id) ?? cell.cohort_id;
+      const findingNote =
+        cell.finding_ids.length === 0
+          ? "No findings"
+          : `${cell.finding_ids.length} ${cell.finding_ids.length === 1 ? "finding" : "findings"}`;
+      return [
+        conceptHeatmapCellKey(cell.cohort_id, cell.concept_id),
+        {
+          cell,
+          intensity: cell.expected_frequency,
+          frequency_percent: percent(cell.expected_frequency),
+          confidence_percent: percent(cell.confidence),
+          aria_label:
+            `${column.column.label} in ${name}: expected in ${percent(cell.expected_frequency)}% of cohort games,` +
+            ` classifier confidence ${percent(cell.confidence)}%, mastery ${column.mastery_text},` +
+            ` intent ${column.intent_text}. ${findingNote}.`,
+        } satisfies ConceptHeatmapViewCell,
+      ];
+    }),
+  );
+  const untrainedCount = projection.columns.filter(
+    (column) => column.mastery.value === null,
+  ).length;
+  const summary =
+    projection.state === "unavailable"
+      ? `Concept heatmap unavailable. ${projection.reason ?? ""}`.trim()
+      : `Concept heatmap with ${projection.rows.length} ${projection.rows.length === 1 ? "cohort" : "cohorts"}` +
+        ` and ${projection.columns.length} ${projection.columns.length === 1 ? "concept" : "concepts"}.` +
+        ` ${untrainedCount} ${untrainedCount === 1 ? "concept has" : "concepts have"} no observed mastery.` +
+        ` ${projection.exclusions.length} ${projection.exclusions.length === 1 ? "branch is" : "branches are"} excluded.`;
   return {
     projection,
     columns,
@@ -183,11 +199,13 @@ export default function ConceptHeatmap(props: {
   const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [gridExpanded, setGridExpanded] = createSignal(false);
 
-  const model = createMemo(() => buildConceptHeatmapViewModel(props.report, {
-    cohortName: props.cohortName,
-    findings: props.completeFindings,
-    mastery: props.mastery ?? null,
-  }));
+  const model = createMemo(() =>
+    buildConceptHeatmapViewModel(props.report, {
+      cohortName: props.cohortName,
+      findings: props.completeFindings,
+      mastery: props.mastery ?? null,
+    }),
+  );
   const allColumns = createMemo(() => sortConceptHeatmapColumns(model().columns, sortMode()));
   /**
    * The grid is cohorts times concepts, so both axes are capped. The cap follows the active sort,
@@ -196,10 +214,10 @@ export default function ConceptHeatmap(props: {
    */
   const expanded = createMemo(() => gridExpanded() || strategicFitPrintExportMode());
   const columnWindow = createMemo(() =>
-    boundedWindow(allColumns(), VISUALIZATION_RENDER_LIMITS.heatmap_columns, expanded())
+    boundedWindow(allColumns(), VISUALIZATION_RENDER_LIMITS.heatmap_columns, expanded()),
   );
   const rowWindow = createMemo(() =>
-    boundedWindow(model().projection.rows, VISUALIZATION_RENDER_LIMITS.heatmap_rows, expanded())
+    boundedWindow(model().projection.rows, VISUALIZATION_RENDER_LIMITS.heatmap_rows, expanded()),
   );
   /**
    * Task 12.3 — the grid keeps both Task 10.4 windows and their disclosure, and mounts them through
@@ -234,14 +252,12 @@ export default function ConceptHeatmap(props: {
     if (view === undefined) return null;
     return {
       view,
-      column: model().columns.find((column) =>
-        column.column.concept_id === view.cell.concept_id
-      )!,
+      column: model().columns.find((column) => column.column.concept_id === view.cell.concept_id)!,
       cohort_name: model().cohort_names.get(view.cell.cohort_id) ?? view.cell.cohort_id,
     };
   });
   const selectCell = (key: string) => {
-    setSelectedKey((current) => current === key ? null : key);
+    setSelectedKey((current) => (current === key ? null : key));
   };
 
   return (
@@ -259,28 +275,34 @@ export default function ConceptHeatmap(props: {
       data-heatmap-print-export={strategicFitPrintExportMode() ? "true" : "false"}
     >
       <h3 class="concept-heatmap-title">Concept heatmap</h3>
-      <p class="sr-only" data-heatmap-screen-reader-summary>{model().screen_reader_summary}</p>
+      <p class="sr-only" data-heatmap-screen-reader-summary>
+        {model().screen_reader_summary}
+      </p>
 
       <Show
         when={model().projection.state !== "unavailable"}
-        fallback={(
+        fallback={
           <div class="concept-heatmap-unavailable" data-heatmap-unavailable>
             <strong>Concept heatmap unavailable</strong>
             <p>{model().projection.reason}</p>
             <Show when={model().projection.exclusions.length > 0}>
               <details>
-                <summary>Why branches are excluded ({model().projection.exclusions.length})</summary>
+                <summary>
+                  Why branches are excluded ({model().projection.exclusions.length})
+                </summary>
                 <ul>
-                  <For each={model().projection.exclusions}>{(exclusion) => (
-                    <li data-heatmap-exclusion={exclusion.route_id}>
-                      <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
-                    </li>
-                  )}</For>
+                  <For each={model().projection.exclusions}>
+                    {(exclusion) => (
+                      <li data-heatmap-exclusion={exclusion.route_id}>
+                        <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
+                      </li>
+                    )}
+                  </For>
                 </ul>
               </details>
             </Show>
           </div>
-        )}
+        }
       >
         <div class="concept-heatmap-controls">
           <label>
@@ -304,13 +326,16 @@ export default function ConceptHeatmap(props: {
 
         <Show when={!columnWindow().complete || !rowWindow().complete}>
           <p class="concept-heatmap-note" data-heatmap-window>
-            Showing {columnWindow().shown} of {columnWindow().total} concepts and
-            {" "}{rowWindow().shown} of {rowWindow().total} cohorts, ordered by the sort above.
+            Showing {columnWindow().shown} of {columnWindow().total} concepts and{" "}
+            {rowWindow().shown} of {rowWindow().total} cohorts, ordered by the sort above.
             <button type="button" onClick={() => setGridExpanded(true)} data-heatmap-show-all>
               Show the complete grid
             </button>
           </p>
-          <details class="concept-heatmap-withheld" open={strategicFitPrintExportMode() || undefined}>
+          <details
+            class="concept-heatmap-withheld"
+            open={strategicFitPrintExportMode() || undefined}
+          >
             <summary>Concepts not shown ({columnWindow().withheld})</summary>
             <div
               class="strategic-fit-virtual-scroll"
@@ -325,15 +350,17 @@ export default function ConceptHeatmap(props: {
                   "padding-bottom": `${withheldRows.window().trail}px`,
                 }}
               >
-                <For each={withheldRows.window().items}>{(view, index) => (
-                  <li
-                    data-heatmap-withheld-concept={view.column.concept_id}
-                    aria-setsize={withheldRows.window().total}
-                    aria-posinset={withheldRows.window().start + index() + 1}
-                  >
-                    {view.column.label} — mastery {view.mastery_text}
-                  </li>
-                )}</For>
+                <For each={withheldRows.window().items}>
+                  {(view, index) => (
+                    <li
+                      data-heatmap-withheld-concept={view.column.concept_id}
+                      aria-setsize={withheldRows.window().total}
+                      aria-posinset={withheldRows.window().start + index() + 1}
+                    >
+                      {view.column.label} — mastery {view.mastery_text}
+                    </li>
+                  )}
+                </For>
               </ul>
             </div>
           </details>
@@ -341,11 +368,16 @@ export default function ConceptHeatmap(props: {
 
         <div
           class="concept-heatmap-scroll strategic-fit-virtual-scroll"
-          data-virtualized={gridRows.window().complete && gridColumns.window().complete ? "false" : "true"}
+          data-virtualized={
+            gridRows.window().complete && gridColumns.window().complete ? "false" : "true"
+          }
           tabindex="0"
           role="group"
           aria-label="Concept heatmap table"
-          ref={(element) => { gridRows.attach(element); gridColumns.attach(element); }}
+          ref={(element) => {
+            gridRows.attach(element);
+            gridColumns.attach(element);
+          }}
         >
           <table
             class="concept-heatmap-table"
@@ -359,28 +391,38 @@ export default function ConceptHeatmap(props: {
               <tr>
                 <th scope="col">Cohort</th>
                 <Show when={gridColumns.window().lead > 0}>
-                  <th scope="col" aria-hidden="true" style={{ width: `${gridColumns.window().lead}px` }} />
-                </Show>
-                <For each={sortedColumns()}>{(view) => (
                   <th
                     scope="col"
-                    data-heatmap-column={view.column.concept_id}
-                    data-heatmap-mastery-state={view.column.mastery.state}
-                    data-heatmap-intent={view.column.intent}
-                  >
-                    <span class="concept-heatmap-concept-label">{view.column.label}</span>
-                    <span class="concept-heatmap-column-meta">
-                      <span data-heatmap-mastery>{view.mastery_text}</span>
-                      <Show when={view.column.intent !== "not-declared"}>
-                        <span class="concept-heatmap-intent" data-heatmap-intent-label>
-                          {view.intent_text}
-                        </span>
-                      </Show>
-                    </span>
-                  </th>
-                )}</For>
+                    aria-hidden="true"
+                    style={{ width: `${gridColumns.window().lead}px` }}
+                  />
+                </Show>
+                <For each={sortedColumns()}>
+                  {(view) => (
+                    <th
+                      scope="col"
+                      data-heatmap-column={view.column.concept_id}
+                      data-heatmap-mastery-state={view.column.mastery.state}
+                      data-heatmap-intent={view.column.intent}
+                    >
+                      <span class="concept-heatmap-concept-label">{view.column.label}</span>
+                      <span class="concept-heatmap-column-meta">
+                        <span data-heatmap-mastery>{view.mastery_text}</span>
+                        <Show when={view.column.intent !== "not-declared"}>
+                          <span class="concept-heatmap-intent" data-heatmap-intent-label>
+                            {view.intent_text}
+                          </span>
+                        </Show>
+                      </span>
+                    </th>
+                  )}
+                </For>
                 <Show when={gridColumns.window().trail > 0}>
-                  <th scope="col" aria-hidden="true" style={{ width: `${gridColumns.window().trail}px` }} />
+                  <th
+                    scope="col"
+                    aria-hidden="true"
+                    style={{ width: `${gridColumns.window().trail}px` }}
+                  />
                 </Show>
               </tr>
             </thead>
@@ -390,60 +432,69 @@ export default function ConceptHeatmap(props: {
                   <td style={{ height: `${gridRows.window().lead}px` }} />
                 </tr>
               </Show>
-              <For each={gridRows.window().items}>{(row, rowIndex) => (
-                <tr
-                  data-heatmap-row={row.cohort_id}
-                  aria-rowindex={gridRows.window().start + rowIndex() + 1}
-                >
-                  <th scope="row">
-                    {model().cohort_names.get(row.cohort_id)}
-                    <span class="concept-heatmap-route-count">
-                      {row.route_count} {row.route_count === 1 ? "branch" : "branches"}
-                    </span>
-                  </th>
-                  <Show when={gridColumns.window().lead > 0}>
-                    <td aria-hidden="true" />
-                  </Show>
-                  <For each={sortedColumns()}>{(columnView) => {
-                    const key = conceptHeatmapCellKey(row.cohort_id, columnView.column.concept_id);
-                    const cellView = () => model().cells.get(key);
-                    return (
-                      <td>
-                        <Show
-                          when={cellView()}
-                          fallback={(
-                            <span class="concept-heatmap-empty-cell" data-heatmap-absent={key}>
-                              <span aria-hidden="true">—</span>
-                              <span class="sr-only">
-                                {columnView.column.label} not observed in this cohort.
-                              </span>
-                            </span>
-                          )}
-                        >
-                          {(view) => (
-                            <button
-                              type="button"
-                              class="concept-heatmap-cell"
-                              classList={{ "concept-heatmap-cell-selected": selectedKey() === key }}
-                              style={{ "--heatmap-alpha": `${0.08 + 0.62 * view().intensity}` }}
-                              aria-label={view().aria_label}
-                              aria-pressed={selectedKey() === key}
-                              data-heatmap-cell={key}
-                              data-heatmap-cell-findings={view().cell.finding_ids.length}
-                              onClick={() => selectCell(key)}
+              <For each={gridRows.window().items}>
+                {(row, rowIndex) => (
+                  <tr
+                    data-heatmap-row={row.cohort_id}
+                    aria-rowindex={gridRows.window().start + rowIndex() + 1}
+                  >
+                    <th scope="row">
+                      {model().cohort_names.get(row.cohort_id)}
+                      <span class="concept-heatmap-route-count">
+                        {row.route_count} {row.route_count === 1 ? "branch" : "branches"}
+                      </span>
+                    </th>
+                    <Show when={gridColumns.window().lead > 0}>
+                      <td aria-hidden="true" />
+                    </Show>
+                    <For each={sortedColumns()}>
+                      {(columnView) => {
+                        const key = conceptHeatmapCellKey(
+                          row.cohort_id,
+                          columnView.column.concept_id,
+                        );
+                        const cellView = () => model().cells.get(key);
+                        return (
+                          <td>
+                            <Show
+                              when={cellView()}
+                              fallback={
+                                <span class="concept-heatmap-empty-cell" data-heatmap-absent={key}>
+                                  <span aria-hidden="true">—</span>
+                                  <span class="sr-only">
+                                    {columnView.column.label} not observed in this cohort.
+                                  </span>
+                                </span>
+                              }
                             >
-                              {view().frequency_percent}%
-                            </button>
-                          )}
-                        </Show>
-                      </td>
-                    );
-                  }}</For>
-                  <Show when={gridColumns.window().trail > 0}>
-                    <td aria-hidden="true" />
-                  </Show>
-                </tr>
-              )}</For>
+                              {(view) => (
+                                <button
+                                  type="button"
+                                  class="concept-heatmap-cell"
+                                  classList={{
+                                    "concept-heatmap-cell-selected": selectedKey() === key,
+                                  }}
+                                  style={{ "--heatmap-alpha": `${0.08 + 0.62 * view().intensity}` }}
+                                  aria-label={view().aria_label}
+                                  aria-pressed={selectedKey() === key}
+                                  data-heatmap-cell={key}
+                                  data-heatmap-cell-findings={view().cell.finding_ids.length}
+                                  onClick={() => selectCell(key)}
+                                >
+                                  {view().frequency_percent}%
+                                </button>
+                              )}
+                            </Show>
+                          </td>
+                        );
+                      }}
+                    </For>
+                    <Show when={gridColumns.window().trail > 0}>
+                      <td aria-hidden="true" />
+                    </Show>
+                  </tr>
+                )}
+              </For>
               <Show when={gridRows.window().trail > 0}>
                 <tr class="strategic-fit-virtual-spacer" aria-hidden="true">
                   <td style={{ height: `${gridRows.window().trail}px` }} />
@@ -455,11 +506,16 @@ export default function ConceptHeatmap(props: {
 
         <Show when={selected()}>
           {(selection) => (
-            <div class="concept-heatmap-detail" data-heatmap-detail={conceptHeatmapCellKey(
-              selection().view.cell.cohort_id,
-              selection().view.cell.concept_id,
-            )}>
-              <h4>{selection().column.column.label} in {selection().cohort_name}</h4>
+            <div
+              class="concept-heatmap-detail"
+              data-heatmap-detail={conceptHeatmapCellKey(
+                selection().view.cell.cohort_id,
+                selection().view.cell.concept_id,
+              )}
+            >
+              <h4>
+                {selection().column.column.label} in {selection().cohort_name}
+              </h4>
               <dl>
                 <div>
                   <dt>Expected frequency</dt>
@@ -480,26 +536,32 @@ export default function ConceptHeatmap(props: {
                 <div>
                   <dt>Supporting branches</dt>
                   <dd>
-                    <For each={selection().view.cell.route_ids}>{(routeId) => (
-                      <code data-heatmap-detail-route={routeId}>{shortRouteId(routeId)}</code>
-                    )}</For>
+                    <For each={selection().view.cell.route_ids}>
+                      {(routeId) => (
+                        <code data-heatmap-detail-route={routeId}>{shortRouteId(routeId)}</code>
+                      )}
+                    </For>
                   </dd>
                 </div>
               </dl>
               <Show
                 when={selection().view.cell.finding_ids.length > 0}
-                fallback={<p data-heatmap-detail-no-findings>No findings reference these branches.</p>}
+                fallback={
+                  <p data-heatmap-detail-no-findings>No findings reference these branches.</p>
+                }
               >
                 <div class="concept-heatmap-detail-findings">
-                  <For each={selection().view.cell.finding_ids}>{(findingId) => (
-                    <button
-                      type="button"
-                      onClick={() => props.onOpenFinding(findingId)}
-                      data-heatmap-open-finding={findingId}
-                    >
-                      Open finding {findingId.slice(-8)}
-                    </button>
-                  )}</For>
+                  <For each={selection().view.cell.finding_ids}>
+                    {(findingId) => (
+                      <button
+                        type="button"
+                        onClick={() => props.onOpenFinding(findingId)}
+                        data-heatmap-open-finding={findingId}
+                      >
+                        Open finding {findingId.slice(-8)}
+                      </button>
+                    )}
+                  </For>
                 </div>
               </Show>
             </div>
@@ -507,14 +569,21 @@ export default function ConceptHeatmap(props: {
         </Show>
 
         <Show when={model().projection.exclusions.length > 0}>
-          <details class="concept-heatmap-exclusions" open={strategicFitPrintExportMode() || undefined}>
-            <summary>Branches without heatmap cells ({model().projection.exclusions.length})</summary>
+          <details
+            class="concept-heatmap-exclusions"
+            open={strategicFitPrintExportMode() || undefined}
+          >
+            <summary>
+              Branches without heatmap cells ({model().projection.exclusions.length})
+            </summary>
             <ul>
-              <For each={model().projection.exclusions}>{(exclusion) => (
-                <li data-heatmap-exclusion={exclusion.route_id}>
-                  <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
-                </li>
-              )}</For>
+              <For each={model().projection.exclusions}>
+                {(exclusion) => (
+                  <li data-heatmap-exclusion={exclusion.route_id}>
+                    <code>{shortRouteId(exclusion.route_id)}</code> — {exclusion.explanation}
+                  </li>
+                )}
+              </For>
             </ul>
           </details>
         </Show>

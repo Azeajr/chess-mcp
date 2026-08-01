@@ -30,10 +30,12 @@ const OPTIONS: AnalyzeStrategicFitOptions = {
   repertoireRevision: "revision:explanations",
 };
 
-const report: StrategicFitReport = completeStrategicFitReport(analyzeStrategicFit(
-  parseStrategicFitFixture(BROAD_ECO_FIXTURE),
-  strategicFitCompleteAnalysisOptions(OPTIONS),
-));
+const report: StrategicFitReport = completeStrategicFitReport(
+  analyzeStrategicFit(
+    parseStrategicFitFixture(BROAD_ECO_FIXTURE),
+    strategicFitCompleteAnalysisOptions(OPTIONS),
+  ),
+);
 const findingId = report.findings[0]!.finding_id;
 const base = {
   report_id: report.report_id,
@@ -66,8 +68,7 @@ function resolvesInView(view: WorkflowGroundedQuery["view"], path: string): bool
     return findingView.retrieval === "strategic-fit-finding" && resolves(findingView.finding, path);
   }
   if (findingsView.retrieval !== "strategic-fit-findings") return false;
-  return resolves(findingsView, path) ||
-    findingsView.findings.every((row) => resolves(row, path));
+  return resolves(findingsView, path) || findingsView.findings.every((row) => resolves(row, path));
 }
 
 function retrievalArguments(query: WorkflowGroundedQuery, host: WorkflowHost) {
@@ -84,7 +85,10 @@ test("the guidance covers exactly the four canonical explanation depths", () => 
   const ids = STRATEGIC_FIT_EXPLANATIONS.levels.map((level) => level.id);
   assert.deepEqual(ids, ["intermediate", "expert", "concise", "training"]);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(STRATEGIC_FIT_EXPLANATIONS.levels.every((level) => level.cite.length > 0), true);
+  assert.equal(
+    STRATEGIC_FIT_EXPLANATIONS.levels.every((level) => level.cite.length > 0),
+    true,
+  );
 });
 
 test("every explanation level cites fields the finding retrieval actually returns", () => {
@@ -105,7 +109,11 @@ test("every grounded question cites fields its own retrieval view returns", () =
   );
   for (const view of ["summary", "findings", "finding"] as const) {
     assert.equal(resolvesInView(view, "invented_field"), false, `${view} rejects an unknown field`);
-    assert.equal(resolvesInView(view, "evidence.invented"), false, `${view} rejects a nested guess`);
+    assert.equal(
+      resolvesInView(view, "evidence.invented"),
+      false,
+      `${view} rejects a nested guess`,
+    );
   }
   for (const query of STRATEGIC_FIT_EXPLANATIONS.queries) {
     // A question the report does not own still names the classification it may quote.

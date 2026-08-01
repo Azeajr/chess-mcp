@@ -31,7 +31,9 @@ function fixture(source = "1. e4 {must keep this line} e5 *") {
     state: createStrategicFitIntentCommentState(boundary),
     metadata: () => metadata,
     tree: () => tree,
-    replaceTree: (sourcePgn: string) => { tree = GameTree.fromPgn(sourcePgn); },
+    replaceTree: (sourcePgn: string) => {
+      tree = GameTree.fromPgn(sourcePgn);
+    },
     replacements: () => replacements,
   };
 }
@@ -44,7 +46,10 @@ test("rejection is durable for unchanged text while an edited comment becomes pe
 
   assert.equal(rejected.disposition, "rejected");
   assert.equal(subject.state.suggestions()[0]?.disposition, "rejected");
-  assert.equal(createStrategicFitIntentCommentState(subject.boundary).suggestions()[0]?.disposition, "rejected");
+  assert.equal(
+    createStrategicFitIntentCommentState(subject.boundary).suggestions()[0]?.disposition,
+    "rejected",
+  );
   assert.equal(subject.tree().toPgn(), beforePgn);
   assert.deepEqual(subject.metadata().profile, createDefaultStrategicFitDocumentMetadata().profile);
 
@@ -52,7 +57,11 @@ test("rejection is durable for unchanged text while an edited comment becomes pe
   const edited = subject.state.suggestions()[0]!;
   assert.notEqual(edited.suggestion_id, suggestion.suggestion_id);
   assert.equal(edited.disposition, null);
-  assert.equal(subject.metadata().comment_intents.length, 1, "the old rejection remains portable history");
+  assert.equal(
+    subject.metadata().comment_intents.length,
+    1,
+    "the old rejection remains portable history",
+  );
 });
 
 test("confirmation records structured metadata with exact source/path and preserves the PGN", () => {
@@ -68,9 +77,10 @@ test("confirmation records structured metadata with exact source/path and preser
   assert.deepEqual(confirmed.source_san_path, ["e4"]);
   assert.deepEqual(confirmed.references.source_san_paths, [["e4"]]);
   assert.equal(subject.tree().toPgn(), beforePgn);
-  assert.equal(normalizeStrategicFitDocumentMetadata(
-    JSON.parse(JSON.stringify(subject.metadata())),
-  ).state, "valid");
+  assert.equal(
+    normalizeStrategicFitDocumentMetadata(JSON.parse(JSON.stringify(subject.metadata()))).state,
+    "valid",
+  );
   assert.equal(subject.replacements(), 1);
 });
 

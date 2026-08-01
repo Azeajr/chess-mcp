@@ -24,9 +24,10 @@ function MetricDelta(props: { metric: StrategicFitReviewMetricDelta }) {
     <div data-review-metric={props.metric.metric_id} data-metric-state={props.metric.state}>
       <dt>{props.metric.label}</dt>
       <dd>
-        <Show when={props.metric.state === "available"} fallback={(
-          <span>Unavailable · {props.metric.reason}</span>
-        )}>
+        <Show
+          when={props.metric.state === "available"}
+          fallback={<span>Unavailable · {props.metric.reason}</span>}
+        >
           {metricValue(props.metric.before, props.metric.unit)} →{" "}
           {metricValue(props.metric.after, props.metric.unit)} ({props.metric.delta! > 0 ? "+" : ""}
           {metricValue(props.metric.delta, props.metric.unit)})
@@ -67,80 +68,117 @@ export default function ReviewSummary() {
       <p aria-live="polite">{strategicFitReview().message}</p>
 
       <Show when={strategicFitReview().status === "incomplete"}>
-        <p class="strategic-fit-review-incomplete" data-unreviewed-count={
-          strategicFitReview().unreviewed_semantic_finding_ids.length
-        }>
+        <p
+          class="strategic-fit-review-incomplete"
+          data-unreviewed-count={strategicFitReview().unreviewed_semantic_finding_ids.length}
+        >
           No completion record will be created while a current finding is unreviewed.
         </p>
       </Show>
       <Show when={strategicFitReview().status === "ready"}>
-        <button type="button" onClick={complete}>Complete review</button>
+        <button type="button" onClick={complete}>
+          Complete review
+        </button>
       </Show>
 
-      <Show when={strategicFitReview().current_summary}>{(summary) => (
-        <div class="strategic-fit-review-completed" data-review-summary-id={summary().summary_id}>
-          <dl class="strategic-fit-review-counts">
-            <div><dt>Edits made</dt><dd>{summary().edits_made_semantic_finding_ids.length}</dd></div>
-            <div><dt>Exceptions retained</dt><dd>{summary().retained_exception_semantic_finding_ids.length}</dd></div>
-            <div><dt>Training items</dt><dd>{summary().training_item_ids.length}</dd></div>
-            <div><dt>Deferred</dt><dd>{summary().deferred_semantic_finding_ids.length}</dd></div>
-            <div><dt>Uncertain</dt><dd>{summary().uncertain_semantic_finding_ids.length}</dd></div>
-          </dl>
+      <Show when={strategicFitReview().current_summary}>
+        {(summary) => (
+          <div class="strategic-fit-review-completed" data-review-summary-id={summary().summary_id}>
+            <dl class="strategic-fit-review-counts">
+              <div>
+                <dt>Edits made</dt>
+                <dd>{summary().edits_made_semantic_finding_ids.length}</dd>
+              </div>
+              <div>
+                <dt>Exceptions retained</dt>
+                <dd>{summary().retained_exception_semantic_finding_ids.length}</dd>
+              </div>
+              <div>
+                <dt>Training items</dt>
+                <dd>{summary().training_item_ids.length}</dd>
+              </div>
+              <div>
+                <dt>Deferred</dt>
+                <dd>{summary().deferred_semantic_finding_ids.length}</dd>
+              </div>
+              <div>
+                <dt>Uncertain</dt>
+                <dd>{summary().uncertain_semantic_finding_ids.length}</dd>
+              </div>
+            </dl>
 
-          <h4>Before / after metrics</h4>
-          <dl class="strategic-fit-review-metrics">
-            <For each={summary().metric_deltas}>{(metric) => <MetricDelta metric={metric} />}</For>
-          </dl>
+            <h4>Before / after metrics</h4>
+            <dl class="strategic-fit-review-metrics">
+              <For each={summary().metric_deltas}>
+                {(metric) => <MetricDelta metric={metric} />}
+              </For>
+            </dl>
 
-          <p class="strategic-fit-review-provenance">
-            Bound to report <code>{summary().report_id}</code>, revision{" "}
-            <code>{summary().repertoire_revision}</code>, analysis{" "}
-            <code>{summary().analysis_version}</code>.
-          </p>
+            <p class="strategic-fit-review-provenance">
+              Bound to report <code>{summary().report_id}</code>, revision{" "}
+              <code>{summary().repertoire_revision}</code>, analysis{" "}
+              <code>{summary().analysis_version}</code>.
+            </p>
 
-          <Show when={summary().resolutions.length > 0}>
-            <h4>Reopen a decision</h4>
-            <ul class="strategic-fit-review-resolutions">
-              <For each={summary().resolutions}>{(resolution) => (
-                <li>
-                  <span>{STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS[resolution.state]}</span>
-                  <code>{resolution.semantic_finding_id}</code>
-                  <button
-                    type="button"
-                    onClick={() => reopen(summary().summary_id, resolution.semantic_finding_id)}
-                  >Reopen {resolution.semantic_finding_id}</button>
-                </li>
-              )}</For>
-            </ul>
-          </Show>
-          <button type="button" onClick={() => exportSummary(summary().summary_id)}>
-            Save review summary JSON
-          </button>
-        </div>
-      )}</Show>
+            <Show when={summary().resolutions.length > 0}>
+              <h4>Reopen a decision</h4>
+              <ul class="strategic-fit-review-resolutions">
+                <For each={summary().resolutions}>
+                  {(resolution) => (
+                    <li>
+                      <span>{STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS[resolution.state]}</span>
+                      <code>{resolution.semantic_finding_id}</code>
+                      <button
+                        type="button"
+                        onClick={() => reopen(summary().summary_id, resolution.semantic_finding_id)}
+                      >
+                        Reopen {resolution.semantic_finding_id}
+                      </button>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+            <button type="button" onClick={() => exportSummary(summary().summary_id)}>
+              Save review summary JSON
+            </button>
+          </div>
+        )}
+      </Show>
 
-      <Show when={strategicFitReview().history.length > 0 && strategicFitReview().current_summary === null}>
+      <Show
+        when={
+          strategicFitReview().history.length > 0 && strategicFitReview().current_summary === null
+        }
+      >
         <details class="strategic-fit-review-history">
           <summary>Review history ({strategicFitReview().history.length})</summary>
           <ol>
-            <For each={[...strategicFitReview().history].reverse()}>{(entry) => (
-              <li data-history-state={entry.state}>
-                <strong>{entry.state === "completed" ? "Completed" : "Reopened"}</strong>{" "}
-                revision <code>{entry.repertoire_revision}</code> · {entry.completed_at}
-                <button type="button" onClick={() => exportSummary(entry.summary_id)}>
-                  Save history JSON
-                </button>
-              </li>
-            )}</For>
+            <For each={[...strategicFitReview().history].reverse()}>
+              {(entry) => (
+                <li data-history-state={entry.state}>
+                  <strong>{entry.state === "completed" ? "Completed" : "Reopened"}</strong> revision{" "}
+                  <code>{entry.repertoire_revision}</code> · {entry.completed_at}
+                  <button type="button" onClick={() => exportSummary(entry.summary_id)}>
+                    Save history JSON
+                  </button>
+                </li>
+              )}
+            </For>
           </ol>
         </details>
       </Show>
 
-      <Show when={feedback()?.message}>{(message) => (
-        <p class="strategic-fit-review-feedback" role={feedback()?.state === "blocked" ? "alert" : "status"}>
-          {message()}
-        </p>
-      )}</Show>
+      <Show when={feedback()?.message}>
+        {(message) => (
+          <p
+            class="strategic-fit-review-feedback"
+            role={feedback()?.state === "blocked" ? "alert" : "status"}
+          >
+            {message()}
+          </p>
+        )}
+      </Show>
     </section>
   );
 }

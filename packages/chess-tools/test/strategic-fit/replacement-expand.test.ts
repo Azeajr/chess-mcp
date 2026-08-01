@@ -83,15 +83,24 @@ function routeBeginning(graph: RepertoireGraph, prefix: string): RepertoireGraph
   return route;
 }
 
-function decisionAt(graph: RepertoireGraph, route: RepertoireGraphRoute, san: string): RepertoireGraphDecision {
+function decisionAt(
+  graph: RepertoireGraph,
+  route: RepertoireGraphRoute,
+  san: string,
+): RepertoireGraphDecision {
   const index = route.san_moves.indexOf(san);
   assert.notEqual(index, -1);
-  const decision = graph.decisions.find((candidate) => candidate.decision_id === route.decision_ids[index]);
+  const decision = graph.decisions.find(
+    (candidate) => candidate.decision_id === route.decision_ids[index],
+  );
   assert.ok(decision);
   return decision;
 }
 
-function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecision): CausalAttribution {
+function attribution(
+  route: RepertoireGraphRoute,
+  decision: RepertoireGraphDecision,
+): CausalAttribution {
   const ply = route.decision_ids.indexOf(decision.decision_id) + 1;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -100,15 +109,17 @@ function attribution(route: RepertoireGraphRoute, decision: RepertoireGraphDecis
     player_contribution: 0.9,
     opponent_contribution: 0.1,
     likely_causal_decision_ids: [decision.decision_id],
-    timeline: [{
-      event_id: `event:${decision.decision_id}`,
-      kind: "player-decision",
-      ply,
-      position_id: route.position_ids[ply - 1]!,
-      decision_id: decision.decision_id,
-      san: decision.san,
-      explanation: "Expansion fixture pivot.",
-    }],
+    timeline: [
+      {
+        event_id: `event:${decision.decision_id}`,
+        kind: "player-decision",
+        ply,
+        position_id: route.position_ids[ply - 1]!,
+        decision_id: decision.decision_id,
+        san: decision.san,
+        explanation: "Expansion fixture pivot.",
+      },
+    ],
     explanation: "Expansion fixture causality.",
   };
 }
@@ -215,7 +226,11 @@ async function setup(
   };
   const pivotResult = selectReplacementPivot({ request, finding, cohort, graph });
   assert.equal(pivotResult.status, "selected");
-  const candidateGeneration = generateReplacementCandidates({ request, graph, pivot_result: pivotResult });
+  const candidateGeneration = generateReplacementCandidates({
+    request,
+    graph,
+    pivot_result: pivotResult,
+  });
   const rootUci = color === "white" ? "d2d4" : "e7e5";
   const rootProvider: ReplacementEngineProvider = {
     identity: engineIdentity,
@@ -240,7 +255,12 @@ async function setup(
   };
 }
 
-function reply(id: string, san: string, uci: string, probability: number): ReplacementExplorerReplyEvidence {
+function reply(
+  id: string,
+  san: string,
+  uci: string,
+  probability: number,
+): ReplacementExplorerReplyEvidence {
   return {
     move_id: id,
     san,
@@ -293,12 +313,25 @@ function continuationProvider(
   return {
     identity: engineIdentity,
     async analyse(request) {
-      const uci = firstLegalUci(request.position.fen, ["g1f3", "d1d4", "c2c3", "b8c6", "g8f6", "f1b5"]);
-      const evidence = engineEvidence(request, [uci], `engine-expand:${request.position.position_id}`);
+      const uci = firstLegalUci(request.position.fen, [
+        "g1f3",
+        "d1d4",
+        "c2c3",
+        "b8c6",
+        "g8f6",
+        "f1b5",
+      ]);
+      const evidence = engineEvidence(
+        request,
+        [uci],
+        `engine-expand:${request.position.position_id}`,
+      );
       if (options.malformedPv) {
         return { ...evidence, lines: evidence.lines.map((line) => ({ ...line, pv: ["a1a8"] })) };
       }
-      return options.reverseLines ? { ...evidence, lines: [...evidence.lines].reverse() } : evidence;
+      return options.reverseLines
+        ? { ...evidence, lines: [...evidence.lines].reverse() }
+        : evidence;
     },
   };
 }
@@ -330,18 +363,32 @@ test("popular replies and rare forcing replies form a bounded legal subtree at c
   assert.deepEqual(opponentEdges.map((edge) => edge.san).sort(), ["Bb4+", "Nc6", "exd4"]);
   assert.equal(opponentEdges.find((edge) => edge.san === "exd4")?.forcing, true);
   assert.equal(opponentEdges.find((edge) => edge.san === "Nc6")?.forcing, false);
-  assert.ok(expansion.omissions.some((item) => item.san === "a6" && item.reason === "popularity-filtered"));
-  assert.ok(expansion.subtree.nodes.length <= input.request.budget.maximum_subtree_nodes_per_candidate);
-  assert.ok(expansion.subtree.routes.every((route) => {
-    const node = expansion.subtree.nodes.find((candidate) => candidate.node_id === route.terminal_node_id)!;
-    return route.termination === "existing-preparation" || route.termination === "terminal-position" ||
-      node.ply === input.request.budget.strategic_horizon_ply;
-  }));
+  assert.ok(
+    expansion.omissions.some((item) => item.san === "a6" && item.reason === "popularity-filtered"),
+  );
+  assert.ok(
+    expansion.subtree.nodes.length <= input.request.budget.maximum_subtree_nodes_per_candidate,
+  );
+  assert.ok(
+    expansion.subtree.routes.every((route) => {
+      const node = expansion.subtree.nodes.find(
+        (candidate) => candidate.node_id === route.terminal_node_id,
+      )!;
+      return (
+        route.termination === "existing-preparation" ||
+        route.termination === "terminal-position" ||
+        node.ply === input.request.budget.strategic_horizon_ply
+      );
+    }),
+  );
 });
 
 test("forcing classification is deterministic and independent of explorer claims", async () => {
   const input = await setup();
-  const falseClaims = WHITE_REPLIES.map((item) => ({ ...item, forcing: false })) as unknown as readonly ReplacementExplorerReplyEvidence[];
+  const falseClaims = WHITE_REPLIES.map((item) => ({
+    ...item,
+    forcing: false,
+  })) as unknown as readonly ReplacementExplorerReplyEvidence[];
   const first = await expandReplacementCandidates({
     ...input,
     explorer_provider: explorerProvider(falseClaims),
@@ -352,7 +399,10 @@ test("forcing classification is deterministic and independent of explorer claims
     explorer_provider: explorerProvider([...falseClaims].reverse()),
     engine_provider: continuationProvider(),
   });
-  assert.equal(first.candidates[0]!.subtree?.edges.find((edge) => edge.san === "exd4")?.forcing, true);
+  assert.equal(
+    first.candidates[0]!.subtree?.edges.find((edge) => edge.san === "exd4")?.forcing,
+    true,
+  );
   assert.deepEqual(first, second);
 });
 
@@ -368,10 +418,16 @@ test("subtree-node budget exhaustion records every omitted required reply and tr
   assert.equal(candidate.status, "budget-exhausted");
   assert.equal(candidate.subtree?.status, "truncated");
   assert.ok(candidate.subtree!.truncation_reasons.includes("subtree-node-budget-exhausted"));
-  assert.ok(candidate.omissions.some((item) => item.reason === "subtree-node-budget-exhausted" &&
-    (item.important || item.forcing)));
-  assert.ok(candidate.unresolved_risks.some((item) => item.kind === "unresolved-forcing-reply" ||
-    item.kind === "incomplete-expansion"));
+  assert.ok(
+    candidate.omissions.some(
+      (item) => item.reason === "subtree-node-budget-exhausted" && (item.important || item.forcing),
+    ),
+  );
+  assert.ok(
+    candidate.unresolved_risks.some(
+      (item) => item.kind === "unresolved-forcing-reply" || item.kind === "incomplete-expansion",
+    ),
+  );
 });
 
 test("engine, explorer, popularity, and reply-policy budgets stop scheduling deterministically", async () => {
@@ -409,7 +465,9 @@ test("engine, explorer, popularity, and reply-policy budgets stop scheduling det
   assert.equal(result.explorer_queries_scheduled, 0);
   assert.equal(result.engine_positions_scheduled, 1);
   assert.ok(candidate.omissions.some((item) => item.reason === "explorer-query-budget-exhausted"));
-  assert.ok(candidate.omissions.some((item) => item.reason === "reply-policy-excluded" && item.forcing));
+  assert.ok(
+    candidate.omissions.some((item) => item.reason === "reply-policy-excluded" && item.forcing),
+  );
   assert.ok(candidate.subtree?.truncation_reasons.includes("explorer-query-budget-exhausted"));
   assert.ok(candidate.subtree?.truncation_reasons.includes("forcing-reply-policy"));
 
@@ -428,14 +486,19 @@ test("engine, explorer, popularity, and reply-policy budgets stop scheduling det
   });
   assert.equal(engineCalls, 0);
   assert.equal(engineLimited.engine_positions_scheduled, 1);
-  assert.ok(engineLimited.omissions.some((item) => item.reason === "engine-position-budget-exhausted"));
+  assert.ok(
+    engineLimited.omissions.some((item) => item.reason === "engine-position-budget-exhausted"),
+  );
 });
 
 test("canonical positions join existing preparation by transposition", async () => {
-  const games = [...WHITE_GAMES, `[Event "Prepared move order"]
+  const games = [
+    ...WHITE_GAMES,
+    `[Event "Prepared move order"]
 [Result "*"]
 
-1. e4 e5 2. Nf3 Nc6 3. d4 *`];
+1. e4 e5 2. Nf3 Nc6 3. d4 *`,
+  ];
   const input = await setup({ games });
   const result = await expandReplacementCandidates({
     ...input,
@@ -443,10 +506,13 @@ test("canonical positions join existing preparation by transposition", async () 
     engine_provider: continuationProvider(),
   });
   const candidate = result.candidates[0]!;
-  const joined = candidate.subtree?.nodes.find((node) => node.kind === "transposition" &&
-    node.transposition_target_position_id !== null);
+  const joined = candidate.subtree?.nodes.find(
+    (node) => node.kind === "transposition" && node.transposition_target_position_id !== null,
+  );
   assert.ok(joined);
-  assert.ok(candidate.subtree?.routes.some((route) => route.termination === "existing-preparation"));
+  assert.ok(
+    candidate.subtree?.routes.some((route) => route.termination === "existing-preparation"),
+  );
 });
 
 test("illegal and malformed explorer/engine PV evidence remains per-item and never throws", async () => {
@@ -462,11 +528,21 @@ test("illegal and malformed explorer/engine PV evidence remains per-item and nev
     engine_provider: continuationProvider({ malformedPv: true }),
   });
   assert.equal(result.status, "partial");
-  assert.ok(result.evidence_item_results.some((item) => item.provider_kind === "explorer" && item.status === "illegal"));
-  assert.ok(result.evidence_item_results.some((item) => item.provider_kind === "explorer" &&
-    item.error_code === "malformed-pv"));
-  assert.ok(result.evidence_item_results.some((item) => item.provider_kind === "engine" &&
-    item.error_code === "malformed-pv"));
+  assert.ok(
+    result.evidence_item_results.some(
+      (item) => item.provider_kind === "explorer" && item.status === "illegal",
+    ),
+  );
+  assert.ok(
+    result.evidence_item_results.some(
+      (item) => item.provider_kind === "explorer" && item.error_code === "malformed-pv",
+    ),
+  );
+  assert.ok(
+    result.evidence_item_results.some(
+      (item) => item.provider_kind === "engine" && item.error_code === "malformed-pv",
+    ),
+  );
   assert.ok(result.candidates[0]!.seed.engine_evidence_ids.includes("engine-evidence:task-8-4"));
 });
 
@@ -490,12 +566,16 @@ test("optional explorer PV, duplicate replies, and malformed raw items remain st
   const candidate = result.candidates[0]!;
   assert.equal(candidate.subtree?.important_reply_count, 1);
   assert.equal(candidate.subtree?.covered_important_reply_count, 1);
-  const explorerItems = result.evidence_item_results.filter((item) => item.provider_kind === "explorer");
+  const explorerItems = result.evidence_item_results.filter(
+    (item) => item.provider_kind === "explorer",
+  );
   const optionalPv = explorerItems.find((item) => item.item_id === "a-nc6");
   assert.equal(optionalPv?.status, "complete");
   assert.deepEqual(optionalPv?.canonical_pv_san, []);
-  assert.equal(explorerItems.find((item) => item.item_id === "z-duplicate-nc6")?.error_code,
-    "malformed-evidence");
+  assert.equal(
+    explorerItems.find((item) => item.item_id === "z-duplicate-nc6")?.error_code,
+    "malformed-evidence",
+  );
   assert.ok(explorerItems.some((item) => item.item_id === null && item.status === "malformed"));
 });
 
@@ -510,8 +590,11 @@ test("malformed explorer and engine provenance is structural rather than excepti
     engine_provider: continuationProvider(),
   });
   assert.equal(malformedExplorer.status, "unavailable");
-  assert.ok(malformedExplorer.evidence_item_results.some((item) => item.provider_kind === "explorer" &&
-    item.error_code === "malformed-evidence"));
+  assert.ok(
+    malformedExplorer.evidence_item_results.some(
+      (item) => item.provider_kind === "explorer" && item.error_code === "malformed-evidence",
+    ),
+  );
 
   const engine = continuationProvider();
   const malformedEngine = await expandReplacementCandidates({
@@ -530,8 +613,11 @@ test("malformed explorer and engine provenance is structural rather than excepti
     },
   });
   assert.equal(malformedEngine.status, "partial");
-  assert.ok(malformedEngine.evidence_item_results.some((item) => item.provider_kind === "engine" &&
-    item.error_code === "malformed-evidence"));
+  assert.ok(
+    malformedEngine.evidence_item_results.some(
+      (item) => item.provider_kind === "engine" && item.error_code === "malformed-evidence",
+    ),
+  );
 });
 
 test("wider compatible engine cache is reused even after the provider budget is exhausted", async () => {
@@ -547,7 +633,11 @@ test("wider compatible engine cache is reused even after the provider budget is 
     requested_multipv: 2,
     lines: [
       ...structuredClone(entry.lines),
-      { ...structuredClone(entry.lines[0]!), line_id: `${entry.evidence_id}:surplus`, multipv_rank: 2 },
+      {
+        ...structuredClone(entry.lines[0]!),
+        line_id: `${entry.evidence_id}:surplus`,
+        multipv_rank: 2,
+      },
     ],
   }));
   const budgetLimitedInput = await setup({ budget: { maximum_engine_positions: 1 } });
@@ -569,8 +659,11 @@ test("wider compatible engine cache is reused even after the provider budget is 
   assert.equal(result.status, "complete");
   assert.equal(engineCalls, 0);
   assert.equal(result.engine_positions_scheduled, 1);
-  assert.ok(result.source_results.filter((item) => item.provider_kind === "engine")
-    .every((item) => item.cache?.status === "hit"));
+  assert.ok(
+    result.source_results
+      .filter((item) => item.provider_kind === "engine")
+      .every((item) => item.cache?.status === "hit"),
+  );
 });
 
 test("shallow, incomplete, and malformed engine lines cannot masquerade as complete", async () => {
@@ -578,7 +671,14 @@ test("shallow, incomplete, and malformed engine lines cannot masquerade as compl
   const provider: ReplacementEngineProvider = {
     identity: engineIdentity,
     async analyse(request) {
-      const uci = firstLegalUci(request.position.fen, ["g1f3", "d1d4", "c2c3", "b8c6", "g8f6", "f1b5"]);
+      const uci = firstLegalUci(request.position.fen, [
+        "g1f3",
+        "d1d4",
+        "c2c3",
+        "b8c6",
+        "g8f6",
+        "f1b5",
+      ]);
       const evidence = engineEvidence(request, [uci], `shallow:${request.position.position_id}`);
       return {
         ...evidence,
@@ -597,12 +697,21 @@ test("shallow, incomplete, and malformed engine lines cannot masquerade as compl
   });
 
   assert.equal(result.status, "partial");
-  assert.ok(result.source_results.filter((item) => item.provider_kind === "engine")
-    .every((item) => item.state === "partial"));
-  assert.ok(result.evidence_item_results.some((item) => item.provider_kind === "engine" &&
-    item.error_code === "stale-request"));
-  assert.ok(result.evidence_item_results.some((item) => item.provider_kind === "engine" &&
-    item.status === "malformed"));
+  assert.ok(
+    result.source_results
+      .filter((item) => item.provider_kind === "engine")
+      .every((item) => item.state === "partial"),
+  );
+  assert.ok(
+    result.evidence_item_results.some(
+      (item) => item.provider_kind === "engine" && item.error_code === "stale-request",
+    ),
+  );
+  assert.ok(
+    result.evidence_item_results.some(
+      (item) => item.provider_kind === "engine" && item.status === "malformed",
+    ),
+  );
   assert.notEqual(result.candidates[0]!.status, "complete");
 });
 
@@ -624,8 +733,16 @@ test("unavailable explorer and engine retain usable seed, source evidence, and e
   const candidate = result.candidates[0]!;
   assert.equal(candidate.seed.candidate_id, input.engine_generation.candidates[0]!.candidate_id);
   assert.equal(candidate.subtree?.status, "truncated");
-  assert.ok(candidate.source_results.some((item) => item.provider_kind === "explorer" && item.state === "unavailable"));
-  assert.ok(candidate.source_results.some((item) => item.provider_kind === "engine" && item.state === "unavailable"));
+  assert.ok(
+    candidate.source_results.some(
+      (item) => item.provider_kind === "explorer" && item.state === "unavailable",
+    ),
+  );
+  assert.ok(
+    candidate.source_results.some(
+      (item) => item.provider_kind === "engine" && item.state === "unavailable",
+    ),
+  );
   assert.ok(result.task_8_4_engine_item_results.length > 0);
   assert.ok(result.unresolved_risks.some((item) => item.kind === "engine-unverified"));
 });
@@ -705,11 +822,19 @@ test("Black repertoire ownership and White/repertoire POV labels remain distinct
   assert.equal(candidate.seed.repertoire_color, "black");
   assert.equal(candidate.seed.objective_quality.white_pov_evaluation_cp, 24);
   assert.equal(candidate.seed.objective_quality.repertoire_pov_evaluation_cp, -24);
-  assert.ok(candidate.subtree?.edges.some((edge) => edge.san === "Nf3" && edge.owner === "opponent" &&
-    edge.mover_color === "white"));
-  assert.ok(candidate.subtree?.edges.some((edge) => edge.san === "Nc6" && edge.owner === "repertoire" &&
-    edge.mover_color === "black"));
-  const continuation = result.evidence_item_results.find((item) => item.provider_kind === "engine" && item.included);
+  assert.ok(
+    candidate.subtree?.edges.some(
+      (edge) => edge.san === "Nf3" && edge.owner === "opponent" && edge.mover_color === "white",
+    ),
+  );
+  assert.ok(
+    candidate.subtree?.edges.some(
+      (edge) => edge.san === "Nc6" && edge.owner === "repertoire" && edge.mover_color === "black",
+    ),
+  );
+  const continuation = result.evidence_item_results.find(
+    (item) => item.provider_kind === "engine" && item.included,
+  );
   assert.equal(continuation?.white_pov_evaluation_cp, 24);
   assert.equal(continuation?.repertoire_pov_evaluation_cp, -24);
 });
@@ -746,18 +871,23 @@ test("versions, provenance, source states, provider evidence, cache, and inputs 
     engine_cache_evidence: cache,
   });
   assert.doesNotThrow(() => JSON.parse(JSON.stringify(result)));
-  assert.equal(JSON.stringify({
-    request: input.request,
-    graph: input.graph,
-    pivot: input.pivot_result,
-    candidates: input.candidate_generation,
-    engine: input.engine_generation,
-    cache,
-  }), before);
+  assert.equal(
+    JSON.stringify({
+      request: input.request,
+      graph: input.graph,
+      pivot: input.pivot_result,
+      candidates: input.candidate_generation,
+      engine: input.engine_generation,
+      cache,
+    }),
+    before,
+  );
   assert.equal(result.schema_version, STRATEGIC_FIT_SCHEMA_VERSION);
   assert.equal(result.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);
   assert.equal(result.replacement_schema_version, STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION);
-  assert.ok(result.provenance.some((item) => item.source_id === "strategic-fit:replacement-expand"));
+  assert.ok(
+    result.provenance.some((item) => item.source_id === "strategic-fit:replacement-expand"),
+  );
   assert.ok(result.source_results.every((item) => item.evidence !== null));
   assert.equal(result.source_graph_unchanged, true);
   assert.equal(result.engine_generation_unchanged, true);

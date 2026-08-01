@@ -124,7 +124,9 @@ export function createStrategicFitPlanSynthesisState(
 
   const find = (planId: string) => plans().find((entry) => entry.plan_id === planId);
   const update = (planId: string, status: StrategicFitPlanStatus) =>
-    setPlans((all) => all.map((entry) => (entry.plan_id === planId ? { ...entry, status } : entry)));
+    setPlans((all) =>
+      all.map((entry) => (entry.plan_id === planId ? { ...entry, status } : entry)),
+    );
 
   const evidence = (subject: StrategicFitPlanSubject): StrategicFitPlanEvidence => {
     let basis: StrategicFitPlanEvidence | null = null;
@@ -146,7 +148,8 @@ export function createStrategicFitPlanSynthesisState(
         kind: "strategic_fit_plan_basis",
         ...evidence(subject),
         persisted: false,
-        next_step: "Nothing is saved. Write the plan from exactly these concepts, checkpoints, drills, and moves, and say that anything omitted here was withheld rather than absent.",
+        next_step:
+          "Nothing is saved. Write the plan from exactly these concepts, checkpoints, drills, and moves, and say that anything omitted here was withheld rather than absent.",
       };
     },
 
@@ -175,7 +178,8 @@ export function createStrategicFitPlanSynthesisState(
         sections: card.sections,
         persisted: false,
         scope: "training-metadata-only",
-        next_step: "Nothing has been saved. Summarize the plan and let the user accept or reject it in the application; never state that it was saved, or that the exception is now trained, until they accept.",
+        next_step:
+          "Nothing has been saved. Summarize the plan and let the user accept or reject it in the application; never state that it was saved, or that the exception is now trained, until they accept.",
       };
     },
 
@@ -198,7 +202,8 @@ export function createStrategicFitPlanSynthesisState(
           reason: `${reason} Write the plan again against the current evidence so the user confirms what is actually supported.`,
         };
       };
-      if (staged.document_id !== boundary.currentDocumentId()) return stale("A different document is open.");
+      if (staged.document_id !== boundary.currentDocumentId())
+        return stale("A different document is open.");
       if (staged.repertoire_revision !== boundary.currentRevision()) {
         return stale("The repertoire changed after this plan was written.");
       }
@@ -206,7 +211,11 @@ export function createStrategicFitPlanSynthesisState(
       try {
         identity = strategicFitPlanEvidenceIdentity(evidence(staged.subject));
       } catch (error) {
-        return stale(error instanceof StrategicFitPlanError ? error.message : "The evidence for this finding is unavailable.");
+        return stale(
+          error instanceof StrategicFitPlanError
+            ? error.message
+            : "The evidence for this finding is unavailable.",
+        );
       }
       if (identity !== staged.evidence_identity) {
         return stale("The deterministic evidence behind this plan changed after it was written.");
@@ -244,7 +253,13 @@ export function createStrategicFitPlanSynthesisState(
         };
       }
       update(planId, "rejected");
-      return { ok: true, plan_id: planId, status: "rejected", training_id: null, artifact_id: null };
+      return {
+        ok: true,
+        plan_id: planId,
+        status: "rejected",
+        training_id: null,
+        artifact_id: null,
+      };
     },
   };
 }
@@ -252,7 +267,8 @@ export function createStrategicFitPlanSynthesisState(
 const missingWriter = (): StrategicFitTrainingCreationResult => ({
   state: "blocked",
   code: "strategic_fit_plan_evidence_unavailable",
-  message: "Training state is not loaded in this session, so there is nothing to ground or save a plan card with.",
+  message:
+    "Training state is not loaded in this session, so there is nothing to ground or save a plan card with.",
   record: null,
   artifact_id: null,
 });
@@ -262,7 +278,8 @@ const browserPlanSynthesis = createStrategicFitPlanSynthesisState({
   currentRevision: version,
   planEvidence: (subject) => currentStrategicFitTrainingWriter()?.planEvidence(subject) ?? null,
   saveTraining: (subject, card) =>
-    currentStrategicFitTrainingWriter()?.createItem({ ...subject, plan_card: card }) ?? missingWriter(),
+    currentStrategicFitTrainingWriter()?.createItem({ ...subject, plan_card: card }) ??
+    missingWriter(),
   now: () => new Date().toISOString(),
 });
 
@@ -277,7 +294,10 @@ export function proposeStrategicFitPlan(input: {
   readonly finding_id: string;
   readonly semantic_finding_id: string;
   readonly plan?: StrategicFitPlanCardInput;
-}): StrategicFitPlanBasisResult | StrategicFitPlanProposalResult | { readonly error: string; readonly reason: string } {
+}):
+  | StrategicFitPlanBasisResult
+  | StrategicFitPlanProposalResult
+  | { readonly error: string; readonly reason: string } {
   const subject: StrategicFitPlanSubject = {
     report_id: input.report_id,
     finding_id: input.finding_id,

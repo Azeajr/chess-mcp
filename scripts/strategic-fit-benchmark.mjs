@@ -75,7 +75,7 @@ async function visualizationLimits() {
   } catch (error) {
     throw new Error(
       "The benchmark reads the UI's exported render bounds directly, which needs a Node release " +
-      `that strips TypeScript types (this repository's CI runs Node 26; this is ${process.version}).`,
+        `that strips TypeScript types (this repository's CI runs Node 26; this is ${process.version}).`,
       { cause: error },
     );
   }
@@ -240,23 +240,31 @@ function measureMainThread(report, limits) {
   let pages = 0;
   let widestPage = 0;
   for (;;) {
-    const request = cursor === null
-      ? { limit: STRATEGIC_FIT_MAX_PAGE_SIZE }
-      : { limit: STRATEGIC_FIT_MAX_PAGE_SIZE, cursor };
-    const { ms, value } = timed(() => projectStrategicFitReport(report, {
-      kind: "page",
-      expected_repertoire_revision: report.repertoire_revision,
-      sort: "replacement-priority",
-      page: request,
-    }));
+    const request =
+      cursor === null
+        ? { limit: STRATEGIC_FIT_MAX_PAGE_SIZE }
+        : { limit: STRATEGIC_FIT_MAX_PAGE_SIZE, cursor };
+    const { ms, value } = timed(() =>
+      projectStrategicFitReport(report, {
+        kind: "page",
+        expected_repertoire_revision: report.repertoire_revision,
+        sort: "replacement-priority",
+        page: request,
+      }),
+    );
     pages++;
     worstPage = Math.max(worstPage, ms);
     widestPage = Math.max(widestPage, value.report.findings.length);
     cursor = value.next_cursor;
     if (cursor === null) break;
-    if (pages > report.findings.length) throw new Error("strategic_fit_benchmark_cursor_did_not_terminate");
+    if (pages > report.findings.length)
+      throw new Error("strategic_fit_benchmark_cursor_did_not_terminate");
   }
-  operations.push({ id: "page-projection", worst_ms: worstPage, detail: `one of ${pages} cursor pages` });
+  operations.push({
+    id: "page-projection",
+    worst_ms: worstPage,
+    detail: `one of ${pages} cursor pages`,
+  });
   bounds.push({
     id: "page-findings",
     actual: widestPage,
@@ -265,11 +273,13 @@ function measureMainThread(report, limits) {
     detail: "no cursor page exceeds the exported maximum page size",
   });
 
-  const conversation = timed(() => projectStrategicFitConversation(report, {
-    view: "findings",
-    ...identity,
-    page: { limit: STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum },
-  }));
+  const conversation = timed(() =>
+    projectStrategicFitConversation(report, {
+      view: "findings",
+      ...identity,
+      page: { limit: STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum },
+    }),
+  );
   operations.push({
     id: "conversation-projection",
     worst_ms: conversation.ms,
@@ -287,11 +297,13 @@ function measureMainThread(report, limits) {
   let worstWindow = 0;
   let mounted = 0;
   for (let offset = 0; offset <= rows.length * 32; offset += 32 * 17) {
-    const { ms, value } = timed(() => limits.virtualWindow(rows, {
-      rowSize: 32,
-      viewportSize: 640,
-      scrollOffset: offset,
-    }));
+    const { ms, value } = timed(() =>
+      limits.virtualWindow(rows, {
+        rowSize: 32,
+        viewportSize: 640,
+        scrollOffset: offset,
+      }),
+    );
     worstWindow = Math.max(worstWindow, ms);
     mounted = Math.max(mounted, value.mounted);
   }
@@ -308,12 +320,14 @@ function measureMainThread(report, limits) {
     detail: "however long the list, a mounted window stays inside the exported row cap",
   });
 
-  const grid = timed(() => limits.virtualWindow(report.cohorts, {
-    rowSize: 28,
-    viewportSize: 560,
-    scrollOffset: 0,
-    maximumMounted: limits.VISUALIZATION_RENDER_LIMITS.virtual_grid_rows,
-  }));
+  const grid = timed(() =>
+    limits.virtualWindow(report.cohorts, {
+      rowSize: 28,
+      viewportSize: 560,
+      scrollOffset: 0,
+      maximumMounted: limits.VISUALIZATION_RENDER_LIMITS.virtual_grid_rows,
+    }),
+  );
   operations.push({
     id: "virtual-grid",
     worst_ms: grid.ms,
@@ -322,7 +336,8 @@ function measureMainThread(report, limits) {
   bounds.push({
     id: "mounted-grid-cells",
     actual: grid.value.mounted * limits.VISUALIZATION_RENDER_LIMITS.virtual_columns,
-    limit: limits.VISUALIZATION_RENDER_LIMITS.virtual_grid_rows *
+    limit:
+      limits.VISUALIZATION_RENDER_LIMITS.virtual_grid_rows *
       limits.VISUALIZATION_RENDER_LIMITS.virtual_columns,
     unit: "cells",
     detail: "mounted heatmap cells stay inside the exported row and column caps",
@@ -345,8 +360,8 @@ function affectedCohortScope(previous, previousPgn, currentPgn, color) {
   const current = new Set(
     buildRepertoireGraph(GameTree.fromPgn(currentPgn), color).routes.map((route) => route.route_id),
   );
-  const removed = buildRepertoireGraph(GameTree.fromPgn(previousPgn), color).routes
-    .map((route) => route.route_id)
+  const removed = buildRepertoireGraph(GameTree.fromPgn(previousPgn), color)
+    .routes.map((route) => route.route_id)
     .filter((routeId) => !current.has(routeId));
   const cohortIds = previous.cohorts
     .filter((cohort) => cohort.route_ids.some((routeId) => removed.includes(routeId)))
@@ -473,11 +488,12 @@ async function main() {
   }
 
   const requested = option("scale");
-  const selected = requested !== undefined
-    ? [requested]
-    : flag("all")
-      ? STRATEGIC_FIT_BENCHMARK_SCALES.map((target) => target.id)
-      : GATED_SCALES;
+  const selected =
+    requested !== undefined
+      ? [requested]
+      : flag("all")
+        ? STRATEGIC_FIT_BENCHMARK_SCALES.map((target) => target.id)
+        : GATED_SCALES;
   const targets = selected.map((id) => {
     const target = STRATEGIC_FIT_BENCHMARK_SCALES.find((candidate) => candidate.id === id);
     if (target === undefined) throw new Error(`unknown scale: ${id}`);
@@ -485,7 +501,9 @@ async function main() {
   });
 
   const limits = await visualizationLimits();
-  const referenceScale = STRATEGIC_FIT_BENCHMARK_SCALES.find((target) => target.id === REFERENCE_SCALE);
+  const referenceScale = STRATEGIC_FIT_BENCHMARK_SCALES.find(
+    (target) => target.id === REFERENCE_SCALE,
+  );
   const referenceFixture = generateStrategicFitBenchmarkRepertoire(referenceScale);
   const referenceTree = GameTree.fromPgn(referenceFixture.pgn);
   const referenceOptions = analysisOptions(referenceFixture, "benchmark:reference");

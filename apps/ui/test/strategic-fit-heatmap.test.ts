@@ -56,7 +56,9 @@ function analyze(pgn: string, revision = "revision:heatmap"): StrategicFitAnalys
 
 test("the heatmap view model shows deterministic frequency, confidence, mastery, and intent", () => {
   const report = analyze(HEATMAP_PGN);
-  const first = buildConceptHeatmapViewModel(report, { cohortName: (id) => `Cohort ${id.slice(-4)}` });
+  const first = buildConceptHeatmapViewModel(report, {
+    cohortName: (id) => `Cohort ${id.slice(-4)}`,
+  });
   const second = buildConceptHeatmapViewModel(analyze(HEATMAP_PGN), {
     cohortName: (id) => `Cohort ${id.slice(-4)}`,
   });
@@ -65,8 +67,16 @@ test("the heatmap view model shows deterministic frequency, confidence, mastery,
   assert.ok(first.columns.length > 0);
   assert.ok(first.cells.size > 0);
   assert.deepEqual(
-    [...first.cells.entries()].map(([key, view]) => [key, view.frequency_percent, view.confidence_percent]),
-    [...second.cells.entries()].map(([key, view]) => [key, view.frequency_percent, view.confidence_percent]),
+    [...first.cells.entries()].map(([key, view]) => [
+      key,
+      view.frequency_percent,
+      view.confidence_percent,
+    ]),
+    [...second.cells.entries()].map(([key, view]) => [
+      key,
+      view.frequency_percent,
+      view.confidence_percent,
+    ]),
   );
   for (const view of first.cells.values()) {
     assert.ok(view.frequency_percent >= 0 && view.frequency_percent <= 100);
@@ -150,7 +160,10 @@ test("column sorting is deterministic for every mode and never loses a concept",
   const conceptIds = model.columns.map((column) => column.column.concept_id).sort();
 
   const byConcept = sortConceptHeatmapColumns(model.columns, "concept");
-  assert.deepEqual(byConcept.map((column) => column.column.concept_id), conceptIds);
+  assert.deepEqual(
+    byConcept.map((column) => column.column.concept_id),
+    conceptIds,
+  );
 
   const byFrequency = sortConceptHeatmapColumns(model.columns, "frequency");
   assert.deepEqual([...byFrequency.map((c) => c.column.concept_id)].sort(), conceptIds);
@@ -159,8 +172,8 @@ test("column sorting is deterministic for every mode and never loses a concept",
     const current = byFrequency[index]!.column;
     assert.ok(
       previous.max_expected_frequency > current.max_expected_frequency ||
-      previous.max_expected_frequency === current.max_expected_frequency &&
-        previous.concept_id < current.concept_id,
+        (previous.max_expected_frequency === current.max_expected_frequency &&
+          previous.concept_id < current.concept_id),
     );
   }
 

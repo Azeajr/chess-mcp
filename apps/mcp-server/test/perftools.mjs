@@ -31,7 +31,11 @@ for (const fen of [
   ok(someLegal(pos, () => true) === all.length > 0, `someLegal(any) parity @ ${fen}`);
   ok(someLegal(pos, () => false) === false, `someLegal(none) parity @ ${fen}`);
   const target = all.length ? makeUci(all[all.length - 1].move) : null;
-  if (target) ok(someLegal(pos, (m) => makeUci(m.move) === target), "someLegal finds the last enumerated move");
+  if (target)
+    ok(
+      someLegal(pos, (m) => makeUci(m.move) === target),
+      "someLegal finds the last enumerated move",
+    );
 }
 
 // --- P8: structural clone preserves data; edits stay clone-on-write ---
@@ -44,10 +48,16 @@ for (const fen of [
   clone.appendSan(clone.indexPathOfSan(["e4", "e5", "Nf3"]), "Nc6");
   ok(tree.toPgn() === before, "mutating the clone leaves the source untouched");
   const edited = tree.edit("prune", ["e4", "e5", "Nf3"]);
-  ok(edited.tree !== null && tree.toPgn() === before, "edit still clone-on-write via structural copy");
+  ok(
+    edited.tree !== null && tree.toPgn() === before,
+    "edit still clone-on-write via structural copy",
+  );
   ok(!edited.tree.toPgn().includes("Nf3"), "prune applied on the edited copy");
   const reorder = tree.edit("reorder", ["e4"], { promoteMove: "c5" });
-  ok(reorder.tree.toPgn().indexOf("c5") < reorder.tree.toPgn().indexOf("e5"), "reorder works on the copy");
+  ok(
+    reorder.tree.toPgn().indexOf("c5") < reorder.tree.toPgn().indexOf("e5"),
+    "reorder works on the copy",
+  );
 }
 
 // --- P5: prune-scan pre-pass cache — chunked calls match a full call; appendSan invalidates ---
@@ -60,11 +70,21 @@ for (const fen of [
   const full = await tree.pruneTranspositions("white", {}, analyse);
   ok(full.totalLeaves === 2 && full.partial === false, "full scan covers both leaves");
   const reroutes = full.suggestions.map((s) => s.rerouteMove).sort();
-  ok(reroutes.includes("Nc3") && reroutes.includes("Nf3"), `both cross-line re-routes found (got ${reroutes})`);
+  ok(
+    reroutes.includes("Nc3") && reroutes.includes("Nf3"),
+    `both cross-line re-routes found (got ${reroutes})`,
+  );
 
   const chunk1 = await tree.pruneTranspositions("white", { leafStart: 0, leafCount: 1 }, analyse);
-  const chunk2 = await tree.pruneTranspositions("white", { leafStart: chunk1.nextLeaf, leafCount: 1 }, analyse);
-  ok(chunk1.partial === true && chunk1.nextLeaf === 1 && chunk2.nextLeaf === null, "cursor bookkeeping across chunks");
+  const chunk2 = await tree.pruneTranspositions(
+    "white",
+    { leafStart: chunk1.nextLeaf, leafCount: 1 },
+    analyse,
+  );
+  ok(
+    chunk1.partial === true && chunk1.nextLeaf === 1 && chunk2.nextLeaf === null,
+    "cursor bookkeeping across chunks",
+  );
   ok(
     chunk1.suggestions.length + chunk2.suggestions.length === full.suggestions.length,
     "chunked union equals the full scan (cached pre-pass, same results)",
@@ -88,7 +108,10 @@ for (const fen of [
   const map = rep.moveMap();
   const w = walkGameVsRepertoire(map, "white", "1. d4 d5 2. c4 e6 3. Nf3 Nf6 *");
   ok(w.in_book_plies === 0, "in_book_plies still counts consecutive-from-start");
-  ok(w.player_deviations.length === 2, `both deviations reported (got ${w.player_deviations.length})`);
+  ok(
+    w.player_deviations.length === 2,
+    `both deviations reported (got ${w.player_deviations.length})`,
+  );
   ok(
     w.player_deviations[0]?.played === "d4" && w.player_deviations[1]?.played === "Nf3",
     "departures carry the played move in game order",
@@ -97,21 +120,35 @@ for (const fen of [
 
   // Opponent novelty still reported on a clean game.
   const w2 = walkGameVsRepertoire(map, "white", "1. c4 c5 *");
-  ok(w2.uncovered_opponents.length === 1 && w2.uncovered_opponents[0].played === "c5", "uncovered opponent move reported");
+  ok(
+    w2.uncovered_opponents.length === 1 && w2.uncovered_opponents[0].played === "c5",
+    "uncovered opponent move reported",
+  );
   ok(w2.in_book_plies === 1, "in-book plies before the novelty counted");
 }
 
 // --- T5: structural position search over leaves ---
 {
   const tree = GameTree.fromPgn("1. e4 e6 2. d4 d5 3. e5 (3. exd5 exd5) *"); // French advance + exchange
-  const leaves = tree.leaves().map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
+  const leaves = tree
+    .leaves()
+    .map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
   ok(leaves.length === 2, "fixture has two leaves");
   const french = searchStructures(leaves, "white", { structure: "french" });
-  ok(french.length === 1 && french[0].path.includes("e5"), "case-insensitive named-structure query hits the advance line");
+  ok(
+    french.length === 1 && french[0].path.includes("e5"),
+    "case-insensitive named-structure query hits the advance line",
+  );
   const locked = searchStructures(leaves, "white", { center: "locked" });
   // Both leaves lock the d-file pawn pair; the advance line additionally carries the French label.
-  ok(locked.length === 2 && locked.some((l) => l.structure_class === "French"), "center query returns classifier context");
-  ok(searchStructures(leaves, "white", { structure: "IQP" }).length === 0, "non-matching structure returns empty");
+  ok(
+    locked.length === 2 && locked.some((l) => l.structure_class === "French"),
+    "center query returns classifier context",
+  );
+  ok(
+    searchStructures(leaves, "white", { structure: "IQP" }).length === 0,
+    "non-matching structure returns empty",
+  );
   ok(
     searchStructures(leaves, "white", { structure: "French", minConfidence: 0.99 }).length === 0,
     "minConfidence gates a structure match",
@@ -129,7 +166,8 @@ for (const fen of [
   const analyse = async (fen, mpv, depth) => {
     if (mpv === 1) return [{ uci: "", cp: 0, mate: null, depth, pv: [] }];
     const turn = fen.split(" ")[1];
-    const moves = turn === "w" ? ["a2a3", "h2h3", "b2b3", "g2g3"] : ["a7a6", "h7h6", "b7b6", "g7g6"];
+    const moves =
+      turn === "w" ? ["a2a3", "h2h3", "b2b3", "g2g3"] : ["a7a6", "h7h6", "b7b6", "g7g6"];
     return moves.slice(0, mpv).map((uci, i) => ({
       uci,
       cp: (turn === "w" ? 1 : -1) * (i === 0 ? 200 : 0),
@@ -139,11 +177,26 @@ for (const fen of [
     }));
   };
   const table = parseOpeningsTsv("eco\tname\tpgn\n");
-  const res = await annotateRepertoire(tree, "white", { repertoireRevision: "perftools:annotation" }, analyse, table);
+  const res = await annotateRepertoire(
+    tree,
+    "white",
+    { repertoireRevision: "perftools:annotation" },
+    analyse,
+    table,
+  );
   ok(!("error" in res), "annotate runs clean");
-  ok(res.annotated.audit === 2, `audit annotations on both prescribed moves (got ${res.annotated.audit})`);
-  ok(res.annotated.only_moves === 2, `only-move annotations on both your-turn nodes (got ${res.annotated.only_moves})`);
-  ok(res.annotated.gaps >= 1, `gap annotation for the uncovered near-best reply (got ${res.annotated.gaps})`);
+  ok(
+    res.annotated.audit === 2,
+    `audit annotations on both prescribed moves (got ${res.annotated.audit})`,
+  );
+  ok(
+    res.annotated.only_moves === 2,
+    `only-move annotations on both your-turn nodes (got ${res.annotated.only_moves})`,
+  );
+  ok(
+    res.annotated.gaps >= 1,
+    `gap annotation for the uncovered near-best reply (got ${res.annotated.gaps})`,
+  );
   ok(res.pgn.includes("audit: mistake") && res.pgn.includes("$2"), "audit comment + NAG embedded");
   ok(res.pgn.includes("only move: next best -200cp"), "only-move comment embedded");
   ok(res.pgn.includes("gap: a6 not covered"), "gap comment embedded at the owed node");
@@ -155,7 +208,10 @@ for (const fen of [
     analyse,
     table,
   );
-  ok(auditOnly.annotated.only_moves === 0 && auditOnly.annotated.gaps === 0, "include filters the sources");
+  ok(
+    auditOnly.annotated.only_moves === 0 && auditOnly.annotated.gaps === 0,
+    "include filters the sources",
+  );
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

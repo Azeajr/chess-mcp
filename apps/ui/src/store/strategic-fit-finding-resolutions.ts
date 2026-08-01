@@ -117,7 +117,9 @@ export interface StrategicFitFindingResolutionState {
   transition(
     input: StrategicFitFindingResolutionTransitionInput,
   ): StrategicFitFindingResolutionTransitionResult;
-  reopen(input: StrategicFitFindingResolutionReopenInput): StrategicFitFindingResolutionTransitionResult;
+  reopen(
+    input: StrategicFitFindingResolutionReopenInput,
+  ): StrategicFitFindingResolutionTransitionResult;
 }
 
 const initialSnapshot = (): StrategicFitResolutionReviewSnapshot => ({
@@ -133,19 +135,27 @@ function activeResolution(
   metadata: StrategicFitDocumentMetadata,
   semanticFindingId: string,
 ): StrategicFitPersistedResolution | null {
-  return metadata.resolutions.find((resolution) =>
-    resolution.record_state === "active" &&
-    resolution.semantic_finding_id === semanticFindingId
-  ) ?? null;
+  return (
+    metadata.resolutions.find(
+      (resolution) =>
+        resolution.record_state === "active" &&
+        resolution.semantic_finding_id === semanticFindingId,
+    ) ?? null
+  );
 }
 
-function sameSnapshot(left: StrategicFitRequestSnapshot, right: StrategicFitRequestSnapshot): boolean {
-  return left.document_id === right.document_id &&
+function sameSnapshot(
+  left: StrategicFitRequestSnapshot,
+  right: StrategicFitRequestSnapshot,
+): boolean {
+  return (
+    left.document_id === right.document_id &&
     left.repertoire_revision === right.repertoire_revision &&
     left.repertoire_pgn === right.repertoire_pgn &&
     left.repertoire_color === right.repertoire_color &&
     left.profile_identity === right.profile_identity &&
-    left.settings_identity === right.settings_identity;
+    left.settings_identity === right.settings_identity
+  );
 }
 
 function missingSemanticReference(
@@ -157,7 +167,8 @@ function missingSemanticReference(
     references.position_ids.length === 0 &&
     references.decision_ids.length === 0 &&
     references.route_ids.length === 0
-  ) return "The finding has no canonical position, decision, or route identity.";
+  )
+    return "The finding has no canonical position, decision, or route identity.";
   const positions = new Set(graph.positions.map((position) => position.position_id));
   const decisions = new Set(graph.decisions.map((decision) => decision.decision_id));
   const routes = new Set(graph.routes.map((route) => route.route_id));
@@ -196,12 +207,15 @@ export function createStrategicFitFindingResolutionState(
 
   const displayed = (finding: StrategicFinding): StrategicFitDisplayedResolutionState => {
     const current = review();
-    const projection = current.report_id === boundary.currentReport()?.report_id
-      ? current.projections[finding.semantic_finding_id]
-      : undefined;
+    const projection =
+      current.report_id === boundary.currentReport()?.report_id
+        ? current.projections[finding.semantic_finding_id]
+        : undefined;
     if (projection !== undefined) return projection.state;
-    return activeResolution(boundary.currentMetadata(), finding.semantic_finding_id)?.state ??
-      finding.resolution_state;
+    return (
+      activeResolution(boundary.currentMetadata(), finding.semantic_finding_id)?.state ??
+      finding.resolution_state
+    );
   };
 
   const blocked = (
@@ -209,7 +223,13 @@ export function createStrategicFitFindingResolutionState(
     code: string,
     message: string,
   ): StrategicFitFindingResolutionTransitionResult => {
-    setReview((previous) => ({ ...previous, status: "blocked", code, message, finding_id: findingId }));
+    setReview((previous) => ({
+      ...previous,
+      status: "blocked",
+      code,
+      message,
+      finding_id: findingId,
+    }));
     return { state: "blocked", code, message, resolution: "unresolved" };
   };
 
@@ -231,7 +251,8 @@ export function createStrategicFitFindingResolutionState(
       return {
         available: false,
         code: "strategic_fit_resolution_stale_context",
-        message: "Resolution actions are blocked because the document, revision, profile, or analysis settings changed.",
+        message:
+          "Resolution actions are blocked because the document, revision, profile, or analysis settings changed.",
         finding: null,
       };
     }
@@ -244,7 +265,8 @@ export function createStrategicFitFindingResolutionState(
       return {
         available: false,
         code: "strategic_fit_resolution_stale_finding",
-        message: "Resolution actions are blocked because the finding identity is no longer current.",
+        message:
+          "Resolution actions are blocked because the finding identity is no longer current.",
         finding: null,
       };
     }
@@ -255,7 +277,8 @@ export function createStrategicFitFindingResolutionState(
       return {
         available: false,
         code: "strategic_fit_resolution_semantic_graph_unavailable",
-        message: "Resolution actions are blocked because canonical repertoire identities are unavailable.",
+        message:
+          "Resolution actions are blocked because canonical repertoire identities are unavailable.",
         finding,
       };
     }
@@ -278,9 +301,11 @@ export function createStrategicFitFindingResolutionState(
     message: string,
   ) => {
     setReview((previous) => {
-      const baseline = previous.report_id === reportId
-        ? previous.projections[finding.semantic_finding_id]?.baseline_state ?? finding.resolution_state
-        : finding.resolution_state;
+      const baseline =
+        previous.report_id === reportId
+          ? (previous.projections[finding.semantic_finding_id]?.baseline_state ??
+            finding.resolution_state)
+          : finding.resolution_state;
       return {
         report_id: reportId,
         status: "updated",
@@ -299,32 +324,36 @@ export function createStrategicFitFindingResolutionState(
     snapshot: review,
     synchronize(reportId) {
       if (review().report_id === reportId) return;
-      setReview(reportId === null
-        ? initialSnapshot()
-        : { ...initialSnapshot(), report_id: reportId, status: "ready" });
+      setReview(
+        reportId === null
+          ? initialSnapshot()
+          : { ...initialSnapshot(), report_id: reportId, status: "ready" },
+      );
     },
     availability,
     displayState: displayed,
     unresolvedCount(report) {
       const current = review();
-      const projectedDelta = current.report_id !== report.report_id
-        ? 0
-        : Object.values(current.projections).reduce((total, projection) =>
-          total + (projection.state === "unresolved" ? 1 : 0) -
-            (projection.baseline_state === "unresolved" ? 1 : 0), 0);
-      const projectedIds = new Set(current.report_id === report.report_id
-        ? Object.keys(current.projections)
-        : []);
+      const projectedDelta =
+        current.report_id !== report.report_id
+          ? 0
+          : Object.values(current.projections).reduce(
+              (total, projection) =>
+                total +
+                (projection.state === "unresolved" ? 1 : 0) -
+                (projection.baseline_state === "unresolved" ? 1 : 0),
+              0,
+            );
+      const projectedIds = new Set(
+        current.report_id === report.report_id ? Object.keys(current.projections) : [],
+      );
       const persistedDelta = report.findings.reduce((total, finding) => {
         if (projectedIds.has(finding.semantic_finding_id)) return total;
         const persisted = activeResolution(boundary.currentMetadata(), finding.semantic_finding_id);
         if (persisted === null) return total;
         return total - (finding.resolution_state === "unresolved" ? 1 : 0);
       }, 0);
-      return Math.max(
-        0,
-        report.summary.unresolved_finding_count + projectedDelta + persistedDelta,
-      );
+      return Math.max(0, report.summary.unresolved_finding_count + projectedDelta + persistedDelta);
     },
     transition(input) {
       const allowed = new Set<StrategicFitPersistedResolutionState>([
@@ -332,16 +361,20 @@ export function createStrategicFitFindingResolutionState(
         "train-as-exception",
       ]);
       if (!allowed.has(input.state)) {
-        return blocked(input.finding_id, "strategic_fit_resolution_invalid_transition", "That resolution transition is not supported.");
+        return blocked(
+          input.finding_id,
+          "strategic_fit_resolution_invalid_transition",
+          "That resolution transition is not supported.",
+        );
       }
       const checked = availability(input.report_id, input.finding_id, input.semantic_finding_id);
       if (!checked.available || checked.finding === null) {
         return blocked(input.finding_id, checked.code!, checked.message!);
       }
       const note = input.note?.trim() || null;
-      const linkedTrainingIds = [...new Set(
-        (input.linked_training_ids ?? []).map((id) => id.trim()).filter(Boolean),
-      )].sort();
+      const linkedTrainingIds = [
+        ...new Set((input.linked_training_ids ?? []).map((id) => id.trim()).filter(Boolean)),
+      ].sort();
       if (input.state === "train-as-exception" && linkedTrainingIds.length === 0) {
         return blocked(
           input.finding_id,
@@ -349,9 +382,8 @@ export function createStrategicFitFindingResolutionState(
           "Create a semantic training record before accepting this training resolution.",
         );
       }
-      const intentionalReason = input.state === "keep-intentionally"
-        ? input.intentional_reason ?? null
-        : null;
+      const intentionalReason =
+        input.state === "keep-intentionally" ? (input.intentional_reason ?? null) : null;
       if (intentionalReason === "custom" && note === null) {
         return blocked(
           input.finding_id,
@@ -366,11 +398,15 @@ export function createStrategicFitFindingResolutionState(
           "Resolution actions are blocked because the completed report is no longer available for review.",
         );
       }
-      const existing = activeResolution(boundary.currentMetadata(), checked.finding.semantic_finding_id);
+      const existing = activeResolution(
+        boundary.currentMetadata(),
+        checked.finding.semantic_finding_id,
+      );
       let result: StrategicFitSettingsMutationResult;
       try {
         result = boundary.upsertResolution({
-          resolution_id: existing?.resolution_id ??
+          resolution_id:
+            existing?.resolution_id ??
             `strategic-fit-resolution:${checked.finding.semantic_finding_id}`,
           finding_id: checked.finding.finding_id,
           semantic_finding_id: checked.finding.semantic_finding_id,
@@ -401,7 +437,10 @@ export function createStrategicFitFindingResolutionState(
       if (!checked.available || checked.finding === null) {
         return blocked(input.finding_id, checked.code!, checked.message!);
       }
-      const existing = activeResolution(boundary.currentMetadata(), checked.finding.semantic_finding_id);
+      const existing = activeResolution(
+        boundary.currentMetadata(),
+        checked.finding.semantic_finding_id,
+      );
       if (existing === null) {
         return blocked(
           input.finding_id,
@@ -467,11 +506,14 @@ const browserFindingResolutionState = createStrategicFitFindingResolutionState({
   reopenResolution: reopenStrategicFitResolution,
   prepareReport: prepareCompletedStrategicFitReportForResolution,
   retainReport: retainCompletedStrategicFitReportAfterResolution,
-  reanalyze: (cohortId) => scheduleStrategicFitReanalysis(affectedCohortReanalysisRequest(
-    "resolution-change",
-    [cohortId],
-    "A finding resolution changed the analyzer projection for this cohort.",
-  )),
+  reanalyze: (cohortId) =>
+    scheduleStrategicFitReanalysis(
+      affectedCohortReanalysisRequest(
+        "resolution-change",
+        [cohortId],
+        "A finding resolution changed the analyzer projection for this cohort.",
+      ),
+    ),
 });
 
 export const strategicFitFindingResolutionReview = () => browserFindingResolutionState.snapshot();

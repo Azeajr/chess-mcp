@@ -17,7 +17,12 @@ import {
   type StrategicFitWorkspaceStage,
 } from "../src/store/ui.ts";
 
-const REGIONS: readonly StrategicFitWorkspaceStage[] = ["overview", "findings", "evidence", "resolution"];
+const REGIONS: readonly StrategicFitWorkspaceStage[] = [
+  "overview",
+  "findings",
+  "evidence",
+  "resolution",
+];
 
 function resetWorkspaceChrome() {
   setStrategicFitWorkspaceOpen(false);
@@ -63,7 +68,10 @@ test("overview queue intents stay report-bound and carry an explicit future filt
 
 test("presentational loading and error states remain region-scoped", () => {
   resetWorkspaceChrome();
-  setStrategicFitWorkspaceRegionState("overview", { status: "loading", message: "Loading fixture" });
+  setStrategicFitWorkspaceRegionState("overview", {
+    status: "loading",
+    message: "Loading fixture",
+  });
   setStrategicFitWorkspaceRegionState("findings", { status: "error", message: "Error fixture" });
 
   assert.deepEqual(strategicFitWorkspaceRegions(), {
@@ -92,12 +100,15 @@ test("opening and closing workspace chrome cannot change the working document or
   setStrategicFitWorkspaceOpen(true);
   setStrategicFitWorkspaceOpen(false);
 
-  assert.deepEqual({
-    pgn: actions.toPgn(),
-    documentId: documentId(),
-    revision: version(),
-    path: [...currentPath()],
-    color: color(),
-    commands: structuredClone(commandStates()),
-  }, before);
+  assert.deepEqual(
+    {
+      pgn: actions.toPgn(),
+      documentId: documentId(),
+      revision: version(),
+      path: [...currentPath()],
+      color: color(),
+      commands: structuredClone(commandStates()),
+    },
+    before,
+  );
 });

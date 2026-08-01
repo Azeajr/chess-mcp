@@ -31,7 +31,9 @@ const TRAJECTORY_STATE_LABELS: Readonly<Record<StrategicTrajectory["state"], str
   terminal: "Terminal trajectory",
 };
 
-const COMPARABILITY_LABELS: Readonly<Record<StrategicSnapshot["checkpoint"]["comparability"], string>> = {
+const COMPARABILITY_LABELS: Readonly<
+  Record<StrategicSnapshot["checkpoint"]["comparability"], string>
+> = {
   comparable: "Comparable",
   incomplete: "Incomplete",
   "not-comparable": "Not comparable",
@@ -102,16 +104,20 @@ function milestoneLabel(key: string, snapshot: StrategicSnapshot | null): string
   if (kind === null) return "Unavailable milestone";
   if (kind !== "configured-ply") return CHECKPOINT_LABELS[kind];
   const ply = snapshot?.checkpoint.ply ?? Number(key.split(":")[1]);
-  return Number.isFinite(ply) ? `${CHECKPOINT_LABELS[kind]} at ply ${ply}` : CHECKPOINT_LABELS[kind];
+  return Number.isFinite(ply)
+    ? `${CHECKPOINT_LABELS[kind]} at ply ${ply}`
+    : CHECKPOINT_LABELS[kind];
 }
 
 function compareMilestoneKeys(left: string, right: string): number {
   const leftKind = kindFromKey(left);
   const rightKind = kindFromKey(right);
   if (leftKind === null || rightKind === null) return left.localeCompare(right);
-  return CHECKPOINT_ORDER[leftKind] - CHECKPOINT_ORDER[rightKind] ||
+  return (
+    CHECKPOINT_ORDER[leftKind] - CHECKPOINT_ORDER[rightKind] ||
     (Number(left.split(":")[1]) || 0) - (Number(right.split(":")[1]) || 0) ||
-    left.localeCompare(right);
+    left.localeCompare(right)
+  );
 }
 
 function routePresentations(
@@ -125,14 +131,21 @@ function routePresentations(
       route_id: routeId,
       label: `${role} route ${index + 1}`,
       state: trajectory?.state ?? "unavailable",
-      state_label: trajectory ? TRAJECTORY_STATE_LABELS[trajectory.state] : "Trajectory unavailable",
+      state_label: trajectory
+        ? TRAJECTORY_STATE_LABELS[trajectory.state]
+        : "Trajectory unavailable",
       trajectory,
     };
   });
 }
 
-function missingReason(trajectory: StrategicTrajectory | null, kind: StrategicCheckpointKind): string | null {
-  return trajectory?.missing_checkpoints.find((checkpoint) => checkpoint.kind === kind)?.reason ?? null;
+function missingReason(
+  trajectory: StrategicTrajectory | null,
+  kind: StrategicCheckpointKind,
+): string | null {
+  return (
+    trajectory?.missing_checkpoints.find((checkpoint) => checkpoint.kind === kind)?.reason ?? null
+  );
 }
 
 function buildMilestones(
@@ -140,16 +153,18 @@ function buildMilestones(
   baseline: StrategicTrajectory | null,
 ): ComparisonMilestonePresentation[] {
   if (affected === null && baseline === null) {
-    return [{
-      key: "unavailable",
-      kind: null,
-      label: "Comparison milestone unavailable",
-      state: "unavailable",
-      status_label: "Comparison unavailable",
-      explanation: "Neither selected route has a trajectory in the current report.",
-      affected_snapshot: null,
-      baseline_snapshot: null,
-    }];
+    return [
+      {
+        key: "unavailable",
+        kind: null,
+        label: "Comparison milestone unavailable",
+        state: "unavailable",
+        status_label: "Comparison unavailable",
+        explanation: "Neither selected route has a trajectory in the current report.",
+        affected_snapshot: null,
+        baseline_snapshot: null,
+      },
+    ];
   }
   const affectedSnapshots = new Map(
     (affected?.snapshots ?? []).map((snapshot) => [checkpointKey(snapshot), snapshot]),
@@ -158,8 +173,10 @@ function buildMilestones(
     (baseline?.snapshots ?? []).map((snapshot) => [checkpointKey(snapshot), snapshot]),
   );
   const keys = new Set([...affectedSnapshots.keys(), ...baselineSnapshots.keys()]);
-  const missingKinds = [...(affected?.missing_checkpoints ?? []), ...(baseline?.missing_checkpoints ?? [])]
-    .map((checkpoint) => checkpoint.kind);
+  const missingKinds = [
+    ...(affected?.missing_checkpoints ?? []),
+    ...(baseline?.missing_checkpoints ?? []),
+  ].map((checkpoint) => checkpoint.kind);
   for (const kind of missingKinds) {
     if (kind === "configured-ply") {
       if (![...keys].some((key) => key.startsWith("configured-ply:"))) {
@@ -190,10 +207,10 @@ function buildMilestones(
     }
     if (affectedSnapshot === null || baselineSnapshot === null) {
       const missingSide = affectedSnapshot === null ? "affected branch" : "typical cohort";
-      const reason = affectedSnapshot === null
-        ? missingReason(affected, kind)
-        : missingReason(baseline, kind);
-      const incomplete = reason !== null || affected?.state === "incomplete" || baseline?.state === "incomplete";
+      const reason =
+        affectedSnapshot === null ? missingReason(affected, kind) : missingReason(baseline, kind);
+      const incomplete =
+        reason !== null || affected?.state === "incomplete" || baseline?.state === "incomplete";
       return {
         key,
         kind,
@@ -202,7 +219,8 @@ function buildMilestones(
         status_label: incomplete
           ? `Incomplete checkpoint — ${missingSide} is missing`
           : `Checkpoint mismatch — ${missingSide} is missing`,
-        explanation: reason ?? `The selected ${missingSide} has no ${label.toLowerCase()} snapshot.`,
+        explanation:
+          reason ?? `The selected ${missingSide} has no ${label.toLowerCase()} snapshot.`,
         affected_snapshot: affectedSnapshot,
         baseline_snapshot: baselineSnapshot,
       };
@@ -218,7 +236,9 @@ function buildMilestones(
         label,
         state: "incomplete",
         status_label: "Incomplete checkpoint evidence",
-        explanation: [affectedSnapshot.checkpoint.reason, baselineSnapshot.checkpoint.reason].join(" "),
+        explanation: [affectedSnapshot.checkpoint.reason, baselineSnapshot.checkpoint.reason].join(
+          " ",
+        ),
         affected_snapshot: affectedSnapshot,
         baseline_snapshot: baselineSnapshot,
       };
@@ -230,7 +250,9 @@ function buildMilestones(
         label,
         state: "not-comparable",
         status_label: "Checkpoint not comparable",
-        explanation: [affectedSnapshot.checkpoint.reason, baselineSnapshot.checkpoint.reason].join(" "),
+        explanation: [affectedSnapshot.checkpoint.reason, baselineSnapshot.checkpoint.reason].join(
+          " ",
+        ),
         affected_snapshot: affectedSnapshot,
         baseline_snapshot: baselineSnapshot,
       };
@@ -255,7 +277,9 @@ export function buildComparisonBoardsPresentation(
   selectedAffectedRouteId?: string | null,
   selectedBaselineRouteId?: string | null,
 ): ComparisonBoardsPresentation {
-  const trajectoriesById = new Map(trajectories.map((trajectory) => [trajectory.route_id, trajectory]));
+  const trajectoriesById = new Map(
+    trajectories.map((trajectory) => [trajectory.route_id, trajectory]),
+  );
   const affectedRoutes = routePresentations(
     finding.references.route_ids,
     trajectoriesById,
@@ -266,26 +290,37 @@ export function buildComparisonBoardsPresentation(
     trajectoriesById,
     "Typical",
   );
-  const affectedRoute = affectedRoutes.find((route) => route.route_id === selectedAffectedRouteId) ??
-    affectedRoutes[0] ?? null;
-  const baselineRoute = baselineRoutes.find((route) => route.route_id === selectedBaselineRouteId) ??
-    baselineRoutes[0] ?? null;
-  const milestones = buildMilestones(affectedRoute?.trajectory ?? null, baselineRoute?.trajectory ?? null);
+  const affectedRoute =
+    affectedRoutes.find((route) => route.route_id === selectedAffectedRouteId) ??
+    affectedRoutes[0] ??
+    null;
+  const baselineRoute =
+    baselineRoutes.find((route) => route.route_id === selectedBaselineRouteId) ??
+    baselineRoutes[0] ??
+    null;
+  const milestones = buildMilestones(
+    affectedRoute?.trajectory ?? null,
+    baselineRoute?.trajectory ?? null,
+  );
   return {
     orientation,
     affected_routes: affectedRoutes,
     baseline_routes: baselineRoutes,
     source_paths: finding.references.source_san_paths.map((path, index) => ({
       index,
-      label: path.length === 0 ? `Source line ${index + 1} · Start position` :
-        `Source line ${index + 1} · ${path.join(" ")}`,
+      label:
+        path.length === 0
+          ? `Source line ${index + 1} · Start position`
+          : `Source line ${index + 1} · ${path.join(" ")}`,
       path,
     })),
     affected_route: affectedRoute,
     baseline_route: baselineRoute,
     milestones,
-    preferred_milestone_key: milestones.find((milestone) => milestone.state === "matched")?.key ??
-      milestones[0]?.key ?? null,
+    preferred_milestone_key:
+      milestones.find((milestone) => milestone.state === "matched")?.key ??
+      milestones[0]?.key ??
+      null,
   };
 }
 
@@ -308,12 +343,15 @@ function BoardCard(props: {
         <h5 id={titleId}>{props.title}</h5>
         <span>{props.route?.label ?? "Route unavailable"}</span>
       </header>
-      <Show when={props.snapshot} fallback={(
-        <div class="strategic-fit-comparison-board-missing">
-          <strong>Board unavailable at this milestone</strong>
-          <p>{props.missing}</p>
-        </div>
-      )}>
+      <Show
+        when={props.snapshot}
+        fallback={
+          <div class="strategic-fit-comparison-board-missing">
+            <strong>Board unavailable at this milestone</strong>
+            <p>{props.missing}</p>
+          </div>
+        }
+      >
         {(snapshot) => (
           <>
             <ReadOnlyBoard
@@ -322,7 +360,10 @@ function BoardCard(props: {
               label={`${props.title} at ${CHECKPOINT_LABELS[snapshot().checkpoint.kind]}, ply ${snapshot().checkpoint.ply}`}
             />
             <dl>
-              <div><dt>Ply</dt><dd>{snapshot().checkpoint.ply}</dd></div>
+              <div>
+                <dt>Ply</dt>
+                <dd>{snapshot().checkpoint.ply}</dd>
+              </div>
               <div>
                 <dt>Evidence</dt>
                 <dd>{COMPARABILITY_LABELS[snapshot().checkpoint.comparability]}</dd>
@@ -349,24 +390,28 @@ export default function ComparisonBoards(props: {
   const [milestoneKey, setMilestoneKey] = createSignal<string | null>(null);
   const [sourcePathIndex, setSourcePathIndex] = createSignal(0);
   const [navigationMessage, setNavigationMessage] = createSignal<string | null>(null);
-  const presentation = createMemo(() => buildComparisonBoardsPresentation(
-    props.finding,
-    props.trajectories,
-    props.repertoireColor,
-    affectedRouteId(),
-    baselineRouteId(),
-  ));
+  const presentation = createMemo(() =>
+    buildComparisonBoardsPresentation(
+      props.finding,
+      props.trajectories,
+      props.repertoireColor,
+      affectedRouteId(),
+      baselineRouteId(),
+    ),
+  );
 
-  createEffect(on(
-    () => `${props.reportId}\u0000${props.finding.finding_id}`,
-    () => {
-      setAffectedRouteId(null);
-      setBaselineRouteId(null);
-      setMilestoneKey(null);
-      setSourcePathIndex(0);
-      setNavigationMessage(null);
-    },
-  ));
+  createEffect(
+    on(
+      () => `${props.reportId}\u0000${props.finding.finding_id}`,
+      () => {
+        setAffectedRouteId(null);
+        setBaselineRouteId(null);
+        setMilestoneKey(null);
+        setSourcePathIndex(0);
+        setNavigationMessage(null);
+      },
+    ),
+  );
   createEffect(() => {
     const current = milestoneKey();
     const options = presentation().milestones;
@@ -378,8 +423,10 @@ export default function ComparisonBoards(props: {
     if (sourcePathIndex() >= presentation().source_paths.length) setSourcePathIndex(0);
   });
 
-  const milestone = () => presentation().milestones.find((item) => item.key === milestoneKey()) ??
-    presentation().milestones[0] ?? null;
+  const milestone = () =>
+    presentation().milestones.find((item) => item.key === milestoneKey()) ??
+    presentation().milestones[0] ??
+    null;
   const sourcePath = () => presentation().source_paths[sourcePathIndex()] ?? null;
   const pairLabel = () => {
     const affected = presentation().affected_route;
@@ -391,9 +438,11 @@ export default function ComparisonBoards(props: {
     const source = sourcePath();
     if (!source) return;
     const navigated = props.onGoToLine(source.path);
-    setNavigationMessage(navigated
-      ? `Navigated to ${source.path.length === 0 ? "the repertoire start" : source.path.join(" ")}.`
-      : "This source line is no longer valid for the current report.");
+    setNavigationMessage(
+      navigated
+        ? `Navigated to ${source.path.length === 0 ? "the repertoire start" : source.path.join(" ")}.`
+        : "This source line is no longer valid for the current report.",
+    );
   };
 
   return (
@@ -405,7 +454,8 @@ export default function ComparisonBoards(props: {
       <header>
         <h4 id="strategic-fit-boards-title">Matched position comparison</h4>
         <p id="strategic-fit-boards-help">
-          Both boards use report snapshots. Changing these controls does not navigate or edit the repertoire.
+          Both boards use report snapshots. Changing these controls does not navigate or edit the
+          repertoire.
         </p>
       </header>
       <div class="strategic-fit-comparison-controls">
@@ -419,9 +469,13 @@ export default function ComparisonBoards(props: {
               setNavigationMessage(null);
             }}
           >
-            <For each={presentation().affected_routes}>{(route) => (
-              <option value={route.route_id}>{route.label} · {route.state_label}</option>
-            )}</For>
+            <For each={presentation().affected_routes}>
+              {(route) => (
+                <option value={route.route_id}>
+                  {route.label} · {route.state_label}
+                </option>
+              )}
+            </For>
           </select>
         </label>
         <label>
@@ -434,9 +488,13 @@ export default function ComparisonBoards(props: {
               setNavigationMessage(null);
             }}
           >
-            <For each={presentation().baseline_routes}>{(route) => (
-              <option value={route.route_id}>{route.label} · {route.state_label}</option>
-            )}</For>
+            <For each={presentation().baseline_routes}>
+              {(route) => (
+                <option value={route.route_id}>
+                  {route.label} · {route.state_label}
+                </option>
+              )}
+            </For>
           </select>
         </label>
         <label>
@@ -449,26 +507,32 @@ export default function ComparisonBoards(props: {
               setNavigationMessage(null);
             }}
           >
-            <For each={presentation().milestones}>{(item) => (
-              <option value={item.key}>{item.label} · {item.status_label}</option>
-            )}</For>
+            <For each={presentation().milestones}>
+              {(item) => (
+                <option value={item.key}>
+                  {item.label} · {item.status_label}
+                </option>
+              )}
+            </For>
           </select>
         </label>
       </div>
 
-      <Show when={milestone()}>{(current) => (
-        <div
-          class="strategic-fit-comparison-sync-status"
-          role="status"
-          aria-atomic="true"
-          data-milestone-key={current().key}
-          data-milestone-state={current().state}
-        >
-          <strong>{current().status_label}</strong>
-          <span>{pairLabel()}</span>
-          <p>{current().explanation}</p>
-        </div>
-      )}</Show>
+      <Show when={milestone()}>
+        {(current) => (
+          <div
+            class="strategic-fit-comparison-sync-status"
+            role="status"
+            aria-atomic="true"
+            data-milestone-key={current().key}
+            data-milestone-state={current().state}
+          >
+            <strong>{current().status_label}</strong>
+            <span>{pairLabel()}</span>
+            <p>{current().explanation}</p>
+          </div>
+        )}
+      </Show>
 
       <div class="strategic-fit-comparison-board-grid">
         <BoardCard
@@ -498,14 +562,19 @@ export default function ComparisonBoards(props: {
               setNavigationMessage(null);
             }}
           >
-            <For each={presentation().source_paths}>{(source) => (
-              <option value={String(source.index)}>{source.label}</option>
-            )}</For>
+            <For each={presentation().source_paths}>
+              {(source) => <option value={String(source.index)}>{source.label}</option>}
+            </For>
           </select>
         </label>
-        <Show when={sourcePath()} fallback={(
-          <p class="strategic-fit-evidence-unavailable">No source line is available for navigation.</p>
-        )}>
+        <Show
+          when={sourcePath()}
+          fallback={
+            <p class="strategic-fit-evidence-unavailable">
+              No source line is available for navigation.
+            </p>
+          }
+        >
           {(source) => (
             <>
               <code id="strategic-fit-selected-source-line">
@@ -516,7 +585,9 @@ export default function ComparisonBoards(props: {
                 disabled={!props.canNavigateToLine(source().path)}
                 aria-describedby="strategic-fit-selected-source-line"
                 onClick={navigate}
-              >Go to line</button>
+              >
+                Go to line
+              </button>
               <Show when={!props.canNavigateToLine(source().path)}>
                 <p>This retained report path is not present in the current repertoire.</p>
               </Show>

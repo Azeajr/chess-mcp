@@ -91,9 +91,7 @@ const PGN = `[Event "Current Ruy"]
 
 1. e4 e5 2. Nf3 Nf6 3. Nxe5 d6 4. Nf3 Nxe4 5. d4 d5 6. Bd3 Bd6 7. O-O O-O *`;
 
-function profile(
-  overrides: Partial<StrategicFitProfile["preferences"]> = {},
-): StrategicFitProfile {
+function profile(overrides: Partial<StrategicFitProfile["preferences"]> = {}): StrategicFitProfile {
   return {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     mode: "custom",
@@ -128,7 +126,11 @@ function routeStarting(graph: RepertoireGraph, prefix: string): RepertoireGraphR
   return route;
 }
 
-function decisionAt(graph: RepertoireGraph, route: RepertoireGraphRoute, ply: number): RepertoireGraphDecision {
+function decisionAt(
+  graph: RepertoireGraph,
+  route: RepertoireGraphRoute,
+  ply: number,
+): RepertoireGraphDecision {
   const id = route.decision_ids[ply - 1];
   const decision = graph.decisions.find((item) => item.decision_id === id);
   assert.ok(decision);
@@ -237,23 +239,27 @@ function contextFixture(
     decision_scope_ids: [pivotDecision.decision_id],
     route_ids: graph.routes.map((route) => route.route_id).sort(),
     excluded_route_ids: [],
-    route_weights: graph.routes.map((route) => ({
-      route_id: route.route_id,
-      normalized_weight: 1 / graph.routes.length,
-    })).sort((left, right) => left.route_id.localeCompare(right.route_id)),
+    route_weights: graph.routes
+      .map((route) => ({
+        route_id: route.route_id,
+        normalized_weight: 1 / graph.routes.length,
+      }))
+      .sort((left, right) => left.route_id.localeCompare(right.route_id)),
     effective_sample_size: graph.routes.length,
-    modes: [{
-      analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-      mode_id: "mode:score",
-      cohort_id: "cohort:score",
-      representative_route_id: modeRoute.route_id,
-      supporting_route_ids: [modeRoute.route_id],
-      concept_ids: modeConcepts.concepts.map((concept) => concept.concept_id).sort(),
-      normalized_weight: 1,
-      effective_sample_size: 1,
-      source: "explicit-target",
-      provenance: [source],
-    }],
+    modes: [
+      {
+        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+        mode_id: "mode:score",
+        cohort_id: "cohort:score",
+        representative_route_id: modeRoute.route_id,
+        supporting_route_ids: [modeRoute.route_id],
+        concept_ids: modeConcepts.concepts.map((concept) => concept.concept_id).sort(),
+        normalized_weight: 1,
+        effective_sample_size: 1,
+        source: "explicit-target",
+        provenance: [source],
+      },
+    ],
     override_ids: [],
     provenance: [source],
   };
@@ -295,12 +301,16 @@ function completeCandidate(
   loss: number,
   popularity: number,
 ): ReplacementCompleteCandidateExpansion {
-  const rootPosition = fixture.graph.positions.find((position) => position.position_id === fixture.pivot.position_id)!;
-  const decision = fixture.graph.decisions.find((item) =>
-    item.from_position_id === fixture.pivot.position_id && item.san === san
+  const rootPosition = fixture.graph.positions.find(
+    (position) => position.position_id === fixture.pivot.position_id,
+  )!;
+  const decision = fixture.graph.decisions.find(
+    (item) => item.from_position_id === fixture.pivot.position_id && item.san === san,
   );
   assert.ok(decision, san);
-  const outcome = fixture.graph.positions.find((position) => position.position_id === decision.to_position_id)!;
+  const outcome = fixture.graph.positions.find(
+    (position) => position.position_id === decision.to_position_id,
+  )!;
   const sourceRecord = candidateSource(candidateId, decision);
   const objective = quality(loss, 40 - loss);
   const seed: ReplacementEngineCandidateSeed = {
@@ -359,51 +369,58 @@ function completeCandidate(
       subtree_id: `subtree:${candidateId}`,
       root_position_id: rootPosition.position_id,
       root_node_id: rootNodeId,
-      nodes: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        node_id: rootNodeId,
-        kind: "root",
-        position_id: rootPosition.position_id,
-        fen: rootPosition.fen,
-        ply: fixture.pivot.ply - 1,
-        outgoing_edge_ids: [edgeId],
-        source_san_paths: rootPosition.source_san_paths,
-        transposition_target_position_id: null,
-      }, {
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        node_id: outcomeNodeId,
-        kind: "transposition",
-        position_id: outcome.position_id,
-        fen: outcome.fen,
-        ply: fixture.pivot.ply,
-        outgoing_edge_ids: [],
-        source_san_paths: outcome.source_san_paths,
-        transposition_target_position_id: outcome.position_id,
-      }],
-      edges: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        edge_id: edgeId,
-        from_node_id: rootNodeId,
-        to_node_id: outcomeNodeId,
-        decision_id: decision.decision_id,
-        san: decision.san,
-        uci: decision.uci,
-        mover_color: decision.mover_color,
-        owner: decision.owner,
-        forcing: false,
-        expected_opponent_frequency: null,
-        source_san_paths: decision.source_san_paths,
-        annotation_text: [],
-      }],
-      routes: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        route_id: routeId,
-        node_ids: [rootNodeId, outcomeNodeId],
-        edge_ids: [edgeId],
-        terminal_node_id: outcomeNodeId,
-        termination: "existing-preparation",
-        expected_opponent_frequency: 1,
-      }],
+      nodes: [
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          node_id: rootNodeId,
+          kind: "root",
+          position_id: rootPosition.position_id,
+          fen: rootPosition.fen,
+          ply: fixture.pivot.ply - 1,
+          outgoing_edge_ids: [edgeId],
+          source_san_paths: rootPosition.source_san_paths,
+          transposition_target_position_id: null,
+        },
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          node_id: outcomeNodeId,
+          kind: "transposition",
+          position_id: outcome.position_id,
+          fen: outcome.fen,
+          ply: fixture.pivot.ply,
+          outgoing_edge_ids: [],
+          source_san_paths: outcome.source_san_paths,
+          transposition_target_position_id: outcome.position_id,
+        },
+      ],
+      edges: [
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          edge_id: edgeId,
+          from_node_id: rootNodeId,
+          to_node_id: outcomeNodeId,
+          decision_id: decision.decision_id,
+          san: decision.san,
+          uci: decision.uci,
+          mover_color: decision.mover_color,
+          owner: decision.owner,
+          forcing: false,
+          expected_opponent_frequency: null,
+          source_san_paths: decision.source_san_paths,
+          annotation_text: [],
+        },
+      ],
+      routes: [
+        {
+          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+          route_id: routeId,
+          node_ids: [rootNodeId, outcomeNodeId],
+          edge_ids: [edgeId],
+          terminal_node_id: outcomeNodeId,
+          termination: "existing-preparation",
+          expected_opponent_frequency: 1,
+        },
+      ],
       strategic_horizon_ply: 14,
       important_reply_count: 0,
       covered_important_reply_count: 0,
@@ -440,11 +457,16 @@ function branchedCandidate(
   const subtree = complete.subtree;
   const outcome = subtree.nodes[1]!;
   const replies = fixture.graph.decisions
-    .filter((decision) => decision.from_position_id === outcome.position_id && decision.owner === "opponent")
+    .filter(
+      (decision) =>
+        decision.from_position_id === outcome.position_id && decision.owner === "opponent",
+    )
     .sort((left, right) => left.san.localeCompare(right.san));
   assert.equal(replies.length, 2);
   const replyNodes = replies.map((decision, index) => {
-    const position = fixture.graph.positions.find((item) => item.position_id === decision.to_position_id)!;
+    const position = fixture.graph.positions.find(
+      (item) => item.position_id === decision.to_position_id,
+    )!;
     return {
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       node_id: `node:${complete.candidate_id}:reply:${index}`,
@@ -478,12 +500,16 @@ function branchedCandidate(
     subtree: {
       ...subtree,
       subtree_id: `${subtree.subtree_id}:branched`,
-      nodes: [subtree.nodes[0]!, {
-        ...outcome,
-        kind: "repertoire-decision",
-        outgoing_edge_ids: replyEdges.map((edge) => edge.edge_id),
-        transposition_target_position_id: null,
-      }, ...replyNodes],
+      nodes: [
+        subtree.nodes[0]!,
+        {
+          ...outcome,
+          kind: "repertoire-decision",
+          outgoing_edge_ids: replyEdges.map((edge) => edge.edge_id),
+          transposition_target_position_id: null,
+        },
+        ...replyNodes,
+      ],
       edges: [firstEdge, ...replyEdges],
       routes: replyEdges.map((edge, index) => ({
         analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -493,7 +519,7 @@ function branchedCandidate(
         terminal_node_id: replyNodes[index]!.node_id,
         termination: "existing-preparation" as const,
         expected_opponent_frequency: index === 0 ? 0.8 : 0.2,
-      })) as [typeof subtree.routes[number], ...typeof subtree.routes[number][]],
+      })) as [(typeof subtree.routes)[number], ...(typeof subtree.routes)[number][]],
       important_reply_count: 2,
       covered_important_reply_count: 2,
       completion: {
@@ -509,10 +535,7 @@ function convergentCandidate(
   fixture: FixtureContext,
   complete: ReplacementCompleteCandidateExpansion,
 ): ReplacementCompleteCandidateExpansion {
-  const prefixes = [
-    "e4 e5 Nf3 Nc6 Bc4 Bc5 d3 Nf6",
-    "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Bc5",
-  ];
+  const prefixes = ["e4 e5 Nf3 Nc6 Bc4 Bc5 d3 Nf6", "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Bc5"];
   const frequencies = [0.8, 0.2];
   const outcome = complete.subtree.nodes[1]!;
   const rootEdge = complete.subtree.edges[0]!;
@@ -525,11 +548,25 @@ function convergentCandidate(
     let fromNodeId = outcome.node_id;
     for (const ply of [6, 7, 8]) {
       const decision = decisionAt(fixture.graph, graphRoute, ply);
-      const position = fixture.graph.positions.find((item) => item.position_id === decision.to_position_id)!;
-      const node = makeBranchNode(complete.candidate_id, branchIndex, ply, position,
-        ply === 8 ? position.position_id : null);
-      const edge = makeBranchEdge(complete.candidate_id, branchIndex, ply, fromNodeId, node.node_id,
-        decision, ply === 6 ? frequencies[branchIndex]! : ply === 8 ? 1 : null);
+      const position = fixture.graph.positions.find(
+        (item) => item.position_id === decision.to_position_id,
+      )!;
+      const node = makeBranchNode(
+        complete.candidate_id,
+        branchIndex,
+        ply,
+        position,
+        ply === 8 ? position.position_id : null,
+      );
+      const edge = makeBranchEdge(
+        complete.candidate_id,
+        branchIndex,
+        ply,
+        fromNodeId,
+        node.node_id,
+        decision,
+        ply === 6 ? frequencies[branchIndex]! : ply === 8 ? 1 : null,
+      );
       branchNodes.push(node);
       branchEdges.push(edge);
       nodeIds.push(node.node_id);
@@ -552,22 +589,27 @@ function convergentCandidate(
     values.push(edge.edge_id);
     outgoing.set(edge.from_node_id, values);
   }
-  const firstReplyIds = branchEdges.filter((edge) => edge.from_node_id === outcome.node_id)
+  const firstReplyIds = branchEdges
+    .filter((edge) => edge.from_node_id === outcome.node_id)
     .map((edge) => edge.edge_id);
   return {
     ...complete,
     subtree: {
       ...complete.subtree,
       subtree_id: `${complete.subtree.subtree_id}:convergent`,
-      nodes: [complete.subtree.nodes[0]!, {
-        ...outcome,
-        kind: "repertoire-decision",
-        outgoing_edge_ids: firstReplyIds,
-        transposition_target_position_id: null,
-      }, ...branchNodes.map((node) => ({
-        ...node,
-        outgoing_edge_ids: outgoing.get(node.node_id) ?? [],
-      }))],
+      nodes: [
+        complete.subtree.nodes[0]!,
+        {
+          ...outcome,
+          kind: "repertoire-decision",
+          outgoing_edge_ids: firstReplyIds,
+          transposition_target_position_id: null,
+        },
+        ...branchNodes.map((node) => ({
+          ...node,
+          outgoing_edge_ids: outgoing.get(node.node_id) ?? [],
+        })),
+      ],
       edges: [rootEdge, ...branchEdges],
       routes: routes as typeof complete.subtree.routes,
       important_reply_count: 2,
@@ -591,8 +633,11 @@ function makeBranchNode(
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     node_id: `node:${candidateId}:convergent:${branchIndex}:${ply}`,
-    kind: (ply === 8 ? "transposition" : ply % 2 === 0 ? "opponent-reply" : "repertoire-decision") as
-      "transposition" | "opponent-reply" | "repertoire-decision",
+    kind: (ply === 8
+      ? "transposition"
+      : ply % 2 === 0
+        ? "opponent-reply"
+        : "repertoire-decision") as "transposition" | "opponent-reply" | "repertoire-decision",
     position_id: position.position_id,
     fen: position.fen,
     ply,
@@ -654,7 +699,8 @@ function expansionResult(
     minimum_reply_popularity: fixture.request.budget.minimum_reply_popularity,
     include_all_forcing_replies: fixture.request.budget.include_all_forcing_replies,
     discovered_candidate_count: candidates.length,
-    expanded_candidate_count: candidates.filter((candidate) => candidate.status === "complete").length,
+    expanded_candidate_count: candidates.filter((candidate) => candidate.status === "complete")
+      .length,
     engine_positions_scheduled: 0,
     explorer_queries_scheduled: 0,
     visited_position_count: candidates.length,
@@ -739,9 +785,16 @@ function completeFixture(requestProfile = profile()) {
 function allCandidateConceptMastery(
   first: ReturnType<typeof scoreReplacementCandidates>,
 ): StrategicTrainingMetricEvidence {
-  const conceptIds = [...new Set(first.candidates.flatMap((candidate) =>
-    candidate.concept_dictionary?.routes.flatMap((route) => route.concepts.map((concept) => concept.concept_id)) ?? []
-  ))].sort();
+  const conceptIds = [
+    ...new Set(
+      first.candidates.flatMap(
+        (candidate) =>
+          candidate.concept_dictionary?.routes.flatMap((route) =>
+            route.concepts.map((concept) => concept.concept_id),
+          ) ?? [],
+      ),
+    ),
+  ].sort();
   return {
     concept_mastery: conceptIds.map((conceptId) => ({
       concept_id: conceptId,
@@ -756,18 +809,29 @@ function fullyScoredFixture(requestProfile = profile()) {
   const values = completeFixture(requestProfile);
   const first = scoreReplacementCandidates(input(values.fixture, values.candidates));
   const training = allCandidateConceptMastery(first);
-  return { ...values, training, result: scoreReplacementCandidates(input(values.fixture, values.candidates, training)) };
+  return {
+    ...values,
+    training,
+    result: scoreReplacementCandidates(input(values.fixture, values.candidates, training)),
+  };
 }
 
 test("hand-built Pareto frontier retains tradeoffs, dominated candidate, and exact dominator IDs", () => {
   const { result } = fullyScoredFixture();
   assert.equal(result.error_code, null);
-  assert.ok(result.pareto_candidate_ids.length >= 1, JSON.stringify(result.candidates.map((candidate) => ({
-    id: candidate.candidate_id,
-    state: candidate.state,
-    axes: candidate.strategic_score.contributions.map((item) => [item.axis, item.state]),
-  }))));
-  const dominated = result.candidates.find((candidate) => candidate.candidate_id === "candidate:dominated")!;
+  assert.ok(
+    result.pareto_candidate_ids.length >= 1,
+    JSON.stringify(
+      result.candidates.map((candidate) => ({
+        id: candidate.candidate_id,
+        state: candidate.state,
+        axes: candidate.strategic_score.contributions.map((item) => [item.axis, item.state]),
+      })),
+    ),
+  );
+  const dominated = result.candidates.find(
+    (candidate) => candidate.candidate_id === "candidate:dominated",
+  )!;
   assert.equal(dominated.pareto.status, "dominated");
   assert.deepEqual(dominated.pareto.dominated_by_candidate_ids, ["candidate:familiar"]);
   assert.ok(result.candidates.some((candidate) => candidate.pareto.status === "pareto-optimal"));
@@ -787,9 +851,9 @@ test("profile feature weights deterministically change full-trajectory score and
       },
       concepts: {
         ...sourceFixture.concepts,
-        routes: sourceFixture.concepts.routes.map((route) => route.route_id === modeRouteId
-          ? { ...route, concepts: [] }
-          : route),
+        routes: sourceFixture.concepts.routes.map((route) =>
+          route.route_id === modeRouteId ? { ...route, concepts: [] } : route,
+        ),
       },
     };
     const candidates = [
@@ -798,30 +862,45 @@ test("profile feature weights deterministically change full-trajectory score and
     ];
     const first = scoreReplacementCandidates(input(fixture, candidates));
     const training = allCandidateConceptMastery(first);
-    return { fixture, candidates, training, result: scoreReplacementCandidates(input(fixture, candidates, training)) };
+    return {
+      fixture,
+      candidates,
+      training,
+      result: scoreReplacementCandidates(input(fixture, candidates, training)),
+    };
   };
-  const pawn = scoreProfile(profile({
-    feature_family_weights: {
-      "pawn-topology": 20,
-      "center-dynamics": 20,
-      "king-and-piece-setup": 0,
-      "space-and-files": 0,
-      "dynamic-character": 0,
-      "learning-concepts": 0,
-    },
-  }));
-  const king = scoreProfile(profile({
-    feature_family_weights: {
-      "pawn-topology": 0,
-      "center-dynamics": 0,
-      "king-and-piece-setup": 20,
-      "space-and-files": 0,
-      "dynamic-character": 0,
-      "learning-concepts": 0,
-    },
-  }));
-  const pawnScores = pawn.result.candidates.map((candidate) => [candidate.candidate_id, candidate.strategic_score.strategic_fit_score]);
-  const kingScores = king.result.candidates.map((candidate) => [candidate.candidate_id, candidate.strategic_score.strategic_fit_score]);
+  const pawn = scoreProfile(
+    profile({
+      feature_family_weights: {
+        "pawn-topology": 20,
+        "center-dynamics": 20,
+        "king-and-piece-setup": 0,
+        "space-and-files": 0,
+        "dynamic-character": 0,
+        "learning-concepts": 0,
+      },
+    }),
+  );
+  const king = scoreProfile(
+    profile({
+      feature_family_weights: {
+        "pawn-topology": 0,
+        "center-dynamics": 0,
+        "king-and-piece-setup": 20,
+        "space-and-files": 0,
+        "dynamic-character": 0,
+        "learning-concepts": 0,
+      },
+    }),
+  );
+  const pawnScores = pawn.result.candidates.map((candidate) => [
+    candidate.candidate_id,
+    candidate.strategic_score.strategic_fit_score,
+  ]);
+  const kingScores = king.result.candidates.map((candidate) => [
+    candidate.candidate_id,
+    candidate.strategic_score.strategic_fit_score,
+  ]);
   assert.notDeepEqual(pawnScores, kingScores);
   assert.deepEqual(
     scoreReplacementCandidates(input(pawn.fixture, pawn.candidates, pawn.training)).candidates,
@@ -832,8 +911,9 @@ test("profile feature weights deterministically change full-trajectory score and
     king.result.candidates.map((candidate) => [candidate.candidate_id, candidate.pareto.status]),
     JSON.stringify({ pawnScores, kingScores }),
   );
-  const preferredConceptId = pawn.result.candidates[0]!.concept_dictionary!.routes
-    .flatMap((route) => route.concepts.map((concept) => concept.concept_id))[0]!;
+  const preferredConceptId = pawn.result.candidates[0]!.concept_dictionary!.routes.flatMap(
+    (route) => route.concepts.map((concept) => concept.concept_id),
+  )[0]!;
   const preferred = scoreProfile(profile({ preferred_concept_ids: [preferredConceptId] }));
   const avoided = scoreProfile(profile({ avoided_concept_ids: [preferredConceptId] }));
   assert.notDeepEqual(
@@ -844,10 +924,22 @@ test("profile feature weights deterministically change full-trajectory score and
 
 test("immediate-position candidates use complete prepared continuations, cohort modes, and expected frequencies", () => {
   const { result } = fullyScoredFixture();
-  const familiar = result.candidates.find((candidate) => candidate.candidate_id === "candidate:familiar")!;
-  const qualityCandidate = result.candidates.find((candidate) => candidate.candidate_id === "candidate:quality")!;
-  assert.ok(familiar.trajectory_report!.trajectories[0]!.snapshots.some((snapshot) => snapshot.checkpoint.ply >= 12));
-  assert.ok(qualityCandidate.trajectory_report!.trajectories[0]!.snapshots.some((snapshot) => snapshot.checkpoint.ply >= 12));
+  const familiar = result.candidates.find(
+    (candidate) => candidate.candidate_id === "candidate:familiar",
+  )!;
+  const qualityCandidate = result.candidates.find(
+    (candidate) => candidate.candidate_id === "candidate:quality",
+  )!;
+  assert.ok(
+    familiar.trajectory_report!.trajectories[0]!.snapshots.some(
+      (snapshot) => snapshot.checkpoint.ply >= 12,
+    ),
+  );
+  assert.ok(
+    qualityCandidate.trajectory_report!.trajectories[0]!.snapshots.some(
+      (snapshot) => snapshot.checkpoint.ply >= 12,
+    ),
+  );
   assert.notEqual(
     familiar.strategic_score.strategic_fit_score,
     qualityCandidate.strategic_score.strategic_fit_score,
@@ -861,9 +953,12 @@ test("expected-frequency weighting spans every continuation without leaf-count b
   const values = completeFixture();
   const branched = branchedCandidate(values.fixture, values.candidates[0]!);
   const first = scoreReplacementCandidates(input(values.fixture, [branched]));
-  const result = scoreReplacementCandidates(input(values.fixture, [branched], allCandidateConceptMastery(first)));
-  const weights = result.candidates[0]!.route_weighting!.routes
-    .map((route) => route.normalized_weight).sort((left, right) => left - right);
+  const result = scoreReplacementCandidates(
+    input(values.fixture, [branched], allCandidateConceptMastery(first)),
+  );
+  const weights = result.candidates[0]!.route_weighting!.routes.map(
+    (route) => route.normalized_weight,
+  ).sort((left, right) => left - right);
   assert.deepEqual(weights, [0.2, 0.8]);
   assert.equal(result.candidates[0]!.strategic_score.expected_opponent_coverage, 1);
   assert.equal(result.candidates[0]!.trajectory_report!.trajectories.length, 2);
@@ -873,10 +968,17 @@ test("transpositions and navigation paths never manufacture theory or trajectory
   const { result } = fullyScoredFixture();
   for (const candidate of result.candidates) {
     assert.equal(candidate.strategic_score.theory_nodes_added, 0);
-    assert.deepEqual(candidate.strategic_score.transposition_position_ids, [candidate.expansion.seed.outcome_position_id]);
-    const routeIds = candidate.trajectory_report!.trajectories.map((trajectory) => trajectory.route_id);
+    assert.deepEqual(candidate.strategic_score.transposition_position_ids, [
+      candidate.expansion.seed.outcome_position_id,
+    ]);
+    const routeIds = candidate.trajectory_report!.trajectories.map(
+      (trajectory) => trajectory.route_id,
+    );
     assert.equal(new Set(routeIds).size, routeIds.length);
-    assert.equal(new Set(candidate.strategic_score.trajectory_ids).size, candidate.strategic_score.trajectory_ids.length);
+    assert.equal(
+      new Set(candidate.strategic_score.trajectory_ids).size,
+      candidate.strategic_score.trajectory_ids.length,
+    );
   }
 });
 
@@ -892,7 +994,10 @@ test("distinct expected-game routes retain coverage when they converge by transp
 test("all nine strategic axes emit complete inspectable contribution metadata and keep objective quality separate", () => {
   const { result } = fullyScoredFixture();
   for (const candidate of result.candidates) {
-    assert.deepEqual(candidate.strategic_score.contributions.map((item) => item.axis), REPLACEMENT_STRATEGIC_SCORE_AXES);
+    assert.deepEqual(
+      candidate.strategic_score.contributions.map((item) => item.axis),
+      REPLACEMENT_STRATEGIC_SCORE_AXES,
+    );
     for (const item of candidate.strategic_score.contributions) {
       assert.ok(REPLACEMENT_SCORE_STATES.includes(item.state));
       assert.equal(typeof item.unit, "string");
@@ -904,9 +1009,15 @@ test("all nine strategic axes emit complete inspectable contribution metadata an
         assert.equal(typeof item.normalized_score, "number");
       }
     }
-    assert.equal(candidate.strategic_score.contributions.some((item) => item.axis === "objective-quality"), false);
+    assert.equal(
+      candidate.strategic_score.contributions.some((item) => item.axis === "objective-quality"),
+      false,
+    );
     assert.ok(candidate.pareto.axis_ids.includes("objective-quality"));
-    assert.equal(candidate.objective_quality.white_pov_evaluation_cp, candidate.expansion.seed.objective_quality.white_pov_evaluation_cp);
+    assert.equal(
+      candidate.objective_quality.white_pov_evaluation_cp,
+      candidate.expansion.seed.objective_quality.white_pov_evaluation_cp,
+    );
   }
 });
 
@@ -925,11 +1036,19 @@ test("missing metadata remains null and explicit and cannot improve or dominate"
       },
     },
   };
-  const result = scoreReplacementCandidates(input(values.fixture, [values.candidates[0]!, missing], null));
+  const result = scoreReplacementCandidates(
+    input(values.fixture, [values.candidates[0]!, missing], null),
+  );
   const candidate = result.candidates.find((item) => item.candidate_id === missing.candidate_id)!;
   assert.equal(candidate.strategic_score.popularity, null);
-  assert.equal(candidate.strategic_score.contributions.find((item) => item.axis === "popularity")!.state, "unavailable");
-  assert.equal(candidate.strategic_score.contributions.find((item) => item.axis === "popularity")!.raw_value, null);
+  assert.equal(
+    candidate.strategic_score.contributions.find((item) => item.axis === "popularity")!.state,
+    "unavailable",
+  );
+  assert.equal(
+    candidate.strategic_score.contributions.find((item) => item.axis === "popularity")!.raw_value,
+    null,
+  );
   assert.equal(candidate.pareto.status, "unscored");
   assert.deepEqual(candidate.pareto.dominated_by_candidate_ids, []);
 });
@@ -942,19 +1061,24 @@ test("missing route frequency stays null and its partial axes cannot enter Paret
     ...branched,
     subtree: {
       ...branched.subtree,
-      edges: branched.subtree.edges.map((edge) => edge.edge_id === missingEdgeId
-        ? { ...edge, expected_opponent_frequency: null }
-        : edge) as typeof branched.subtree.edges,
-      routes: branched.subtree.routes.map((route, index) => index === 1
-        ? { ...route, expected_opponent_frequency: null }
-        : route) as typeof branched.subtree.routes,
+      edges: branched.subtree.edges.map((edge) =>
+        edge.edge_id === missingEdgeId ? { ...edge, expected_opponent_frequency: null } : edge,
+      ) as typeof branched.subtree.edges,
+      routes: branched.subtree.routes.map((route, index) =>
+        index === 1 ? { ...route, expected_opponent_frequency: null } : route,
+      ) as typeof branched.subtree.routes,
     },
   };
   const first = scoreReplacementCandidates(input(values.fixture, [partial]));
-  const result = scoreReplacementCandidates(input(values.fixture, [partial], allCandidateConceptMastery(first)));
+  const result = scoreReplacementCandidates(
+    input(values.fixture, [partial], allCandidateConceptMastery(first)),
+  );
   const candidate = result.candidates[0]!;
   assert.equal(candidate.route_weighting, null);
-  assert.equal(candidate.strategic_score.contributions.find((item) => item.axis === "strategic-fit")!.state, "partial");
+  assert.equal(
+    candidate.strategic_score.contributions.find((item) => item.axis === "strategic-fit")!.state,
+    "partial",
+  );
   assert.equal(candidate.pareto.axis_ids.includes("strategic-fit"), false);
   assert.deepEqual(candidate.pareto.dominated_by_candidate_ids, []);
 });
@@ -966,10 +1090,13 @@ test("forged complete and stale incomplete Task 8.5 identities fail the scoring 
     ...complete,
     subtree: {
       ...complete.subtree,
-      nodes: [complete.subtree.nodes[0]!, {
-        ...complete.subtree.nodes[1]!,
-        position_id: "position:forged",
-      }] as typeof complete.subtree.nodes,
+      nodes: [
+        complete.subtree.nodes[0]!,
+        {
+          ...complete.subtree.nodes[1]!,
+          position_id: "position:forged",
+        },
+      ] as typeof complete.subtree.nodes,
     },
   };
   const malformed = scoreReplacementCandidates(input(values.fixture, [forged]));
@@ -981,10 +1108,13 @@ test("forged complete and stale incomplete Task 8.5 identities fail the scoring 
     ...complete,
     subtree: {
       ...complete.subtree,
-      nodes: [complete.subtree.nodes[0]!, {
-        ...complete.subtree.nodes[1]!,
-        transposition_target_position_id: null,
-      }] as typeof complete.subtree.nodes,
+      nodes: [
+        complete.subtree.nodes[0]!,
+        {
+          ...complete.subtree.nodes[1]!,
+          transposition_target_position_id: null,
+        },
+      ] as typeof complete.subtree.nodes,
     },
   };
   const falseJoinResult = scoreReplacementCandidates(input(values.fixture, [falseJoin]));
@@ -1012,9 +1142,13 @@ test("duplicate or out-of-range training mastery is rejected independently of ev
   const runtimeNull = {
     concept_mastery: [{ concept_id: "concept:null", mastery: null }],
   } as unknown as StrategicTrainingMetricEvidence;
-  for (const training of [duplicate, {
-    concept_mastery: [{ concept_id: "concept:invalid", mastery: 1.1 }],
-  } satisfies StrategicTrainingMetricEvidence, runtimeNull]) {
+  for (const training of [
+    duplicate,
+    {
+      concept_mastery: [{ concept_id: "concept:invalid", mastery: 1.1 }],
+    } satisfies StrategicTrainingMetricEvidence,
+    runtimeNull,
+  ]) {
     const result = scoreReplacementCandidates(input(values.fixture, values.candidates, training));
     assert.equal(result.status, "invalid-request");
     assert.equal(result.error_code, "invalid-training-evidence");
@@ -1025,10 +1159,18 @@ test("duplicate or out-of-range training mastery is rejected independently of ev
     ...validProfile,
     preferences: { ...validProfile.preferences, additional_memorization_tolerance: null },
   };
-  const invalidProfileResult = scoreReplacementCandidates(input({
-    ...values.fixture,
-    request: { ...values.fixture.request, profile: nullProfile as unknown as StrategicFitProfile },
-  }, values.candidates));
+  const invalidProfileResult = scoreReplacementCandidates(
+    input(
+      {
+        ...values.fixture,
+        request: {
+          ...values.fixture.request,
+          profile: nullProfile as unknown as StrategicFitProfile,
+        },
+      },
+      values.candidates,
+    ),
+  );
   assert.equal(invalidProfileResult.status, "invalid-request");
   assert.equal(invalidProfileResult.error_code, "invalid-profile");
 });
@@ -1045,7 +1187,9 @@ test("partial, truncated, and blocked Task 8.5 boundary remains explicit and uns
       truncation_reasons: ["provider-unavailable"] as [string, ...string[]],
     },
   };
-  const result = scoreReplacementCandidates(input(values.fixture, [values.candidates[2]!, truncated, blocked], null, "partial"));
+  const result = scoreReplacementCandidates(
+    input(values.fixture, [values.candidates[2]!, truncated, blocked], null, "partial"),
+  );
   assert.equal(result.status, "partial");
   for (const id of [truncated.candidate_id, blocked.candidate_id]) {
     const candidate = result.candidates.find((item) => item.candidate_id === id)!;
@@ -1063,10 +1207,16 @@ test("ordering is deterministic across candidate, subtree, source, and evidence 
     ...candidate,
     seed: {
       ...candidate.seed,
-      objective_quality: { ...candidate.seed.objective_quality, provenance: [source, profileSource] },
+      objective_quality: {
+        ...candidate.seed.objective_quality,
+        provenance: [source, profileSource],
+      },
       source_san_paths: [["z-path"], ["a-path"]],
       database_evidence_ids: ["evidence:z", "evidence:a"],
-      provenance: candidate.seed.provenance.map((item) => ({ ...item, provenance: [source, profileSource] })),
+      provenance: candidate.seed.provenance.map((item) => ({
+        ...item,
+        provenance: [source, profileSource],
+      })),
     },
     subtree: {
       ...candidate.subtree,
@@ -1079,41 +1229,52 @@ test("ordering is deterministic across candidate, subtree, source, and evidence 
         source_san_paths: [["z-path"], ["a-path"]],
         annotation_text: ["z-note", "a-note"],
       })) as typeof candidate.subtree.edges,
-      provenance: candidate.subtree.provenance.map((item) => ({ ...item, provenance: [source, profileSource] })),
-    },
-  }));
-  const trainingFirst = allCandidateConceptMastery(scoreReplacementCandidates(input(values.fixture, ordered)));
-  const reversed = ordered.slice().reverse().map((candidate) => ({
-    ...candidate,
-    seed: {
-      ...candidate.seed,
-      objective_quality: { ...candidate.seed.objective_quality, provenance: [...candidate.seed.objective_quality.provenance].reverse() },
-      source_san_paths: [...candidate.seed.source_san_paths].reverse(),
-      database_evidence_ids: [...candidate.seed.database_evidence_ids].reverse(),
-      provenance: [...candidate.seed.provenance].reverse().map((item) => ({
+      provenance: candidate.subtree.provenance.map((item) => ({
         ...item,
-        provenance: [...item.provenance].reverse(),
-      })),
-    },
-    subtree: {
-      ...candidate.subtree,
-      nodes: [...candidate.subtree.nodes].reverse().map((node) => ({
-        ...node,
-        outgoing_edge_ids: [...node.outgoing_edge_ids].reverse(),
-        source_san_paths: [...node.source_san_paths].reverse(),
-      })) as typeof candidate.subtree.nodes,
-      edges: [...candidate.subtree.edges].reverse().map((edge) => ({
-        ...edge,
-        source_san_paths: [...edge.source_san_paths].reverse(),
-        annotation_text: [...edge.annotation_text].reverse(),
-      })) as typeof candidate.subtree.edges,
-      routes: [...candidate.subtree.routes].reverse() as typeof candidate.subtree.routes,
-      provenance: [...candidate.subtree.provenance].reverse().map((item) => ({
-        ...item,
-        provenance: [...item.provenance].reverse(),
+        provenance: [source, profileSource],
       })),
     },
   }));
+  const trainingFirst = allCandidateConceptMastery(
+    scoreReplacementCandidates(input(values.fixture, ordered)),
+  );
+  const reversed = ordered
+    .slice()
+    .reverse()
+    .map((candidate) => ({
+      ...candidate,
+      seed: {
+        ...candidate.seed,
+        objective_quality: {
+          ...candidate.seed.objective_quality,
+          provenance: [...candidate.seed.objective_quality.provenance].reverse(),
+        },
+        source_san_paths: [...candidate.seed.source_san_paths].reverse(),
+        database_evidence_ids: [...candidate.seed.database_evidence_ids].reverse(),
+        provenance: [...candidate.seed.provenance].reverse().map((item) => ({
+          ...item,
+          provenance: [...item.provenance].reverse(),
+        })),
+      },
+      subtree: {
+        ...candidate.subtree,
+        nodes: [...candidate.subtree.nodes].reverse().map((node) => ({
+          ...node,
+          outgoing_edge_ids: [...node.outgoing_edge_ids].reverse(),
+          source_san_paths: [...node.source_san_paths].reverse(),
+        })) as typeof candidate.subtree.nodes,
+        edges: [...candidate.subtree.edges].reverse().map((edge) => ({
+          ...edge,
+          source_san_paths: [...edge.source_san_paths].reverse(),
+          annotation_text: [...edge.annotation_text].reverse(),
+        })) as typeof candidate.subtree.edges,
+        routes: [...candidate.subtree.routes].reverse() as typeof candidate.subtree.routes,
+        provenance: [...candidate.subtree.provenance].reverse().map((item) => ({
+          ...item,
+          provenance: [...item.provenance].reverse(),
+        })),
+      },
+    }));
   const firstBase = input(values.fixture, ordered, {
     ...trainingFirst,
     provenance: [source, profileSource],
@@ -1127,14 +1288,20 @@ test("ordering is deterministic across candidate, subtree, source, and evidence 
     ...firstBase,
     metrics: {
       ...firstBase.metrics,
-      strategic_entropy: { ...firstBase.metrics.strategic_entropy, provenance: [source, profileSource] },
+      strategic_entropy: {
+        ...firstBase.metrics.strategic_entropy,
+        provenance: [source, profileSource],
+      },
     },
   };
   const secondInput: ScoreReplacementCandidatesInput = {
     ...secondBase,
     metrics: {
       ...secondBase.metrics,
-      strategic_entropy: { ...secondBase.metrics.strategic_entropy, provenance: [profileSource, source] },
+      strategic_entropy: {
+        ...secondBase.metrics.strategic_entropy,
+        provenance: [profileSource, source],
+      },
     },
   };
   const first = scoreReplacementCandidates(firstInput);
@@ -1190,7 +1357,13 @@ test("identity, provenance, versions, source-state evidence, and inputs serializ
 test("score, Pareto, result, and error enums are exhaustive and duplicate-free", () => {
   assert.deepEqual(REPLACEMENT_SCORE_STATES, ["available", "partial", "unavailable"]);
   assert.deepEqual(REPLACEMENT_PARETO_STATUSES, ["unscored", "pareto-optimal", "dominated"]);
-  assert.deepEqual(REPLACEMENT_SCORING_RESULT_STATUSES, ["complete", "partial", "unavailable", "stale", "invalid-request"]);
+  assert.deepEqual(REPLACEMENT_SCORING_RESULT_STATUSES, [
+    "complete",
+    "partial",
+    "unavailable",
+    "stale",
+    "invalid-request",
+  ]);
   assert.deepEqual(REPLACEMENT_SCORING_ERROR_CODES, [
     "request-expansion-mismatch",
     "expansion-not-current",
@@ -1209,5 +1382,6 @@ test("score, Pareto, result, and error enums are exhaustive and duplicate-free",
     REPLACEMENT_PARETO_STATUSES,
     REPLACEMENT_SCORING_RESULT_STATUSES,
     REPLACEMENT_SCORING_ERROR_CODES,
-  ]) assert.equal(new Set(values).size, values.length);
+  ])
+    assert.equal(new Set(values).size, values.length);
 });

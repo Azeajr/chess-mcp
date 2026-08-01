@@ -35,6 +35,8 @@ if (existsSync(openingsSrc)) {
   copyFileSync(openingsSrc, join(publicDir, "openings.tsv"));
   console.log(`[copy-engine] copied ${FILES.length} engine files + openings.tsv → public/`);
 } else {
-  console.warn(`[copy-engine] openings.tsv not found at ${openingsSrc} — identify_opening will degrade`);
+  console.warn(
+    `[copy-engine] openings.tsv not found at ${openingsSrc} — identify_opening will degrade`,
+  );
   console.log(`[copy-engine] copied ${FILES.length} engine files → public/engine/`);
 }

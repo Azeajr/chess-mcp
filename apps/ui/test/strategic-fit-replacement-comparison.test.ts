@@ -54,7 +54,11 @@ function contribution(
   normalized: number | null,
   state: "available" | "partial" | "unavailable" = "available",
 ) {
-  const lower = axis.includes("burden") || axis.includes("cost") || axis === "theory-size" || axis === "new-concepts";
+  const lower =
+    axis.includes("burden") ||
+    axis.includes("cost") ||
+    axis === "theory-size" ||
+    axis === "new-concepts";
   return {
     analysis_version: "2.0.0",
     axis,
@@ -63,7 +67,10 @@ function contribution(
     raw_value: raw,
     unit: axis === "new-concepts" ? "concepts" : axis === "theory-size" ? "nodes" : "fraction",
     higher_is_better: !lower,
-    reason: state === "available" ? "Canonical available evidence." : "Canonical evidence missing or partial.",
+    reason:
+      state === "available"
+        ? "Canonical available evidence."
+        : "Canonical evidence missing or partial.",
     provenance: [source],
   } as const;
 }
@@ -98,7 +105,14 @@ function scoredCandidate(options: {
   const nodes = Array.from({ length: edgeCount + 1 }, (_, index) => ({
     analysis_version: "2.0.0",
     node_id: `node:${options.id}:${index}`,
-    kind: index === 0 ? "root" : index === edgeCount ? "terminal" : index % 2 === 0 ? "repertoire-decision" : "opponent-reply",
+    kind:
+      index === 0
+        ? "root"
+        : index === edgeCount
+          ? "terminal"
+          : index % 2 === 0
+            ? "repertoire-decision"
+            : "opponent-reply",
     position_id: `position:${options.id}:${index}`,
     fen: "8/8/8/8/8/8/8/K6k w - - 0 1",
     ply: index,
@@ -114,15 +128,17 @@ function scoredCandidate(options: {
     root_node_id: `node:${options.id}:0`,
     nodes,
     edges,
-    routes: [{
-      analysis_version: "2.0.0",
-      route_id: `route:${options.id}:complete`,
-      node_ids: nodes.map((node) => node.node_id),
-      edge_ids: edges.map((edge) => edge.edge_id),
-      terminal_node_id: nodes.at(-1)!.node_id,
-      termination: expansionStatus === "complete" ? "existing-preparation" : "budget-exhausted",
-      expected_opponent_frequency: expansionStatus === "complete" ? 1 : null,
-    }],
+    routes: [
+      {
+        analysis_version: "2.0.0",
+        route_id: `route:${options.id}:complete`,
+        node_ids: nodes.map((node) => node.node_id),
+        edge_ids: edges.map((edge) => edge.edge_id),
+        terminal_node_id: nodes.at(-1)!.node_id,
+        termination: expansionStatus === "complete" ? "existing-preparation" : "budget-exhausted",
+        expected_opponent_frequency: expansionStatus === "complete" ? 1 : null,
+      },
+    ],
     strategic_horizon_ply: 48,
     important_reply_count: 4,
     covered_important_reply_count: expansionStatus === "complete" ? 4 : 2,
@@ -131,13 +147,15 @@ function scoredCandidate(options: {
     unresolved_risk_ids: expansionStatus === "complete" ? [] : [`risk:${options.id}`],
     provenance: [candidateSource],
     status: expansionStatus === "complete" ? "complete" : "truncated",
-    completion: expansionStatus === "complete"
-      ? { kind: "immediate-transposition", target_position_id: "position:prepared" }
-      : null,
+    completion:
+      expansionStatus === "complete"
+        ? { kind: "immediate-transposition", target_position_id: "position:prepared" }
+        : null,
     truncation_reasons: expansionStatus === "complete" ? [] : ["subtree-node-budget-exhausted"],
   };
   const axes = REPLACEMENT_STRATEGIC_SCORE_AXES.map((axis, index) => {
-    if (axis === "popularity" && options.missingPopularity) return contribution(axis, null, null, "unavailable");
+    if (axis === "popularity" && options.missingPopularity)
+      return contribution(axis, null, null, "unavailable");
     if (expansionStatus !== "complete") return contribution(axis, null, null, "partial");
     return contribution(axis, 0.9 - index * 0.05, 0.9 - index * 0.05);
   });
@@ -194,27 +212,42 @@ function scoredCandidate(options: {
         objective_quality: {},
         engine_evidence_ids: [],
       },
-      evidence_item_results: expansionStatus === "complete" ? [] : [{
-        error_code: "subtree-node-budget-exhausted",
-        status: "budget-exhausted",
-        explanation: "Long subtree hit bounded node budget.",
-      }],
+      evidence_item_results:
+        expansionStatus === "complete"
+          ? []
+          : [
+              {
+                error_code: "subtree-node-budget-exhausted",
+                status: "budget-exhausted",
+                explanation: "Long subtree hit bounded node budget.",
+              },
+            ],
       source_results: [],
-      omissions: expansionStatus === "complete" ? [] : [{
-        omission_id: `omission:${options.id}`,
-        reason: "subtree-node-budget-exhausted",
-        explanation: "Remaining continuation is unavailable.",
-      }],
-      unresolved_risks: expansionStatus === "complete" ? [] : [{
-        analysis_version: "2.0.0",
-        risk_id: `risk:${options.id}`,
-        kind: "incomplete-expansion",
-        status: "open",
-        explanation: "Candidate subtree is partial.",
-        affected_position_ids: [`position:${options.id}:1`],
-        affected_route_ids: [`route:${options.id}:complete`],
-        provenance: [source],
-      }],
+      omissions:
+        expansionStatus === "complete"
+          ? []
+          : [
+              {
+                omission_id: `omission:${options.id}`,
+                reason: "subtree-node-budget-exhausted",
+                explanation: "Remaining continuation is unavailable.",
+              },
+            ],
+      unresolved_risks:
+        expansionStatus === "complete"
+          ? []
+          : [
+              {
+                analysis_version: "2.0.0",
+                risk_id: `risk:${options.id}`,
+                kind: "incomplete-expansion",
+                status: "open",
+                explanation: "Candidate subtree is partial.",
+                affected_position_ids: [`position:${options.id}:1`],
+                affected_route_ids: [`route:${options.id}:complete`],
+                provenance: [source],
+              },
+            ],
       status: expansionStatus,
       subtree,
     },
@@ -267,13 +300,17 @@ function scoredCandidate(options: {
     pareto: {
       ...version,
       status: options.pareto,
-      axis_ids: options.pareto === "unscored" ? [] : ["objective-quality", ...REPLACEMENT_STRATEGIC_SCORE_AXES],
+      axis_ids:
+        options.pareto === "unscored"
+          ? []
+          : ["objective-quality", ...REPLACEMENT_STRATEGIC_SCORE_AXES],
       dominated_by_candidate_ids: options.dominatedBy ?? [],
-      reason: options.pareto === "pareto-optimal"
-        ? "Canonical tradeoff; no single best candidate is inferred."
-        : options.pareto === "dominated"
-          ? "Canonical dominator IDs retained."
-          : "Missing or incomplete evidence cannot enter frontier.",
+      reason:
+        options.pareto === "pareto-optimal"
+          ? "Canonical tradeoff; no single best candidate is inferred."
+          : options.pareto === "dominated"
+            ? "Canonical dominator IDs retained."
+            : "Missing or incomplete evidence cannot enter frontier.",
     },
     trajectory_report: null,
     concept_dictionary: null,
@@ -281,10 +318,14 @@ function scoredCandidate(options: {
   } as unknown as ReplacementScoredCandidate;
 }
 
-function scoring(candidates: readonly ReplacementScoredCandidate[]): ReplacementCandidateScoringResult {
+function scoring(
+  candidates: readonly ReplacementScoredCandidate[],
+): ReplacementCandidateScoringResult {
   return {
     ...version,
-    status: candidates.some((candidate) => candidate.state !== "available") ? "partial" : "complete",
+    status: candidates.some((candidate) => candidate.state !== "available")
+      ? "partial"
+      : "complete",
     error_code: null,
     explanation: "Canonical fixture result.",
     request_id: "request:comparison",
@@ -296,9 +337,15 @@ function scoring(candidates: readonly ReplacementScoredCandidate[]): Replacement
     repertoire_color: candidates[0]?.repertoire_color ?? "white",
     pivot_id: "pivot:comparison",
     candidates,
-    pareto_candidate_ids: candidates.filter((candidate) => candidate.pareto.status === "pareto-optimal").map((candidate) => candidate.candidate_id),
-    dominated_candidate_ids: candidates.filter((candidate) => candidate.pareto.status === "dominated").map((candidate) => candidate.candidate_id),
-    unscored_candidate_ids: candidates.filter((candidate) => candidate.pareto.status === "unscored").map((candidate) => candidate.candidate_id),
+    pareto_candidate_ids: candidates
+      .filter((candidate) => candidate.pareto.status === "pareto-optimal")
+      .map((candidate) => candidate.candidate_id),
+    dominated_candidate_ids: candidates
+      .filter((candidate) => candidate.pareto.status === "dominated")
+      .map((candidate) => candidate.candidate_id),
+    unscored_candidate_ids: candidates
+      .filter((candidate) => candidate.pareto.status === "unscored")
+      .map((candidate) => candidate.candidate_id),
     context: {},
     expansion: {},
     provenance: [source],
@@ -324,19 +371,41 @@ test("comparison consumes canonical Pareto frontier, ties, and dominated candida
   const rows = buildCandidateComparisonRows(result);
   assert.equal(rows.length, 3);
   assert.equal(rows.filter((row) => row.pareto_status === "pareto-optimal").length, 2);
-  assert.equal(rows.find((row) => row.candidate_id === "candidate:dominated")?.pareto_status, "dominated");
-  assert.equal(rows.find((row) => row.candidate_id === "candidate:dominated")?.dominated_by_candidate_ids.length, 2);
-  assert.equal(rows.some((row) => Object.hasOwn(row, "best")), false);
+  assert.equal(
+    rows.find((row) => row.candidate_id === "candidate:dominated")?.pareto_status,
+    "dominated",
+  );
+  assert.equal(
+    rows.find((row) => row.candidate_id === "candidate:dominated")?.dominated_by_candidate_ids
+      .length,
+    2,
+  );
+  assert.equal(
+    rows.some((row) => Object.hasOwn(row, "best")),
+    false,
+  );
   assert.equal(Object.hasOwn(result, "best_candidate_id"), false);
   assert.equal(JSON.stringify(result), before);
 });
 
 test("chart and table resolve one stable candidate identity and retain every Pareto state", () => {
-  const rows = buildCandidateComparisonRows(scoring([
-    scoredCandidate({ id: "candidate:a", san: "Bc4", pareto: "pareto-optimal" }),
-    scoredCandidate({ id: "candidate:b", san: "d4", pareto: "dominated", dominatedBy: ["candidate:a"] }),
-    scoredCandidate({ id: "candidate:c", san: "Nc3", pareto: "unscored", expansionStatus: "unavailable" }),
-  ]));
+  const rows = buildCandidateComparisonRows(
+    scoring([
+      scoredCandidate({ id: "candidate:a", san: "Bc4", pareto: "pareto-optimal" }),
+      scoredCandidate({
+        id: "candidate:b",
+        san: "d4",
+        pareto: "dominated",
+        dominatedBy: ["candidate:a"],
+      }),
+      scoredCandidate({
+        id: "candidate:c",
+        san: "Nc3",
+        pareto: "unscored",
+        expansionStatus: "unavailable",
+      }),
+    ]),
+  );
   const points = buildReplacementParetoPoints(rows);
   const selectedFromChart = resolveCandidateSelection(rows, points[1]!.candidate_id);
   const selectedFromTable = resolveCandidateSelection(rows, rows[1]!.candidate_id);
@@ -358,14 +427,20 @@ test("chart and table resolve one stable candidate identity and retain every Par
 });
 
 test("Pareto memory ring uses canonical normalized orientation for unbounded burden points", () => {
-  const candidate = scoredCandidate({ id: "candidate:burden", san: "Bc4", pareto: "pareto-optimal" });
+  const candidate = scoredCandidate({
+    id: "candidate:burden",
+    san: "Bc4",
+    pareto: "pareto-optimal",
+  });
   const changed = {
     ...candidate,
     strategic_score: {
       ...candidate.strategic_score,
-      contributions: candidate.strategic_score.contributions.map((item) => item.axis === "memorization-burden"
-        ? { ...item, raw_value: 42, normalized_score: 0.25, unit: "burden-points" }
-        : item),
+      contributions: candidate.strategic_score.contributions.map((item) =>
+        item.axis === "memorization-burden"
+          ? { ...item, raw_value: 42, normalized_score: 0.25, unit: "burden-points" }
+          : item,
+      ),
     },
   } as ReplacementScoredCandidate;
   const point = buildReplacementParetoPoints(buildCandidateComparisonRows(scoring([changed])))[0]!;
@@ -374,7 +449,12 @@ test("Pareto memory ring uses canonical normalized orientation for unbounded bur
 });
 
 test("Black repertoire POV, White-POV transport, identities, versions, and provenance stay distinct", () => {
-  const candidate = scoredCandidate({ id: "candidate:black", san: "Nf6", pareto: "pareto-optimal", color: "black" });
+  const candidate = scoredCandidate({
+    id: "candidate:black",
+    san: "Nf6",
+    pareto: "pareto-optimal",
+    color: "black",
+  });
   const rows = buildCandidateComparisonRows(scoring([candidate]));
   const row = rows[0]!;
   assert.equal(row.repertoire_pov_evaluation, "-37 cp");
@@ -387,7 +467,10 @@ test("Black repertoire POV, White-POV transport, identities, versions, and prove
   assert.equal(row.repertoire_revision, "browser:42");
   assert.equal(row.analysis_version, "2.0.0");
   assert.equal(row.axes[0]!.provenance_source_ids[0], source.source_id);
-  assert.equal(row.candidate.expansion.seed.provenance[0]?.snapshot, "snapshot:comparison:immutable");
+  assert.equal(
+    row.candidate.expansion.seed.provenance[0]?.snapshot,
+    "snapshot:comparison:immutable",
+  );
 });
 
 test("missing axes remain unavailable and partial candidates retain errors, risks, and long complete route evidence", () => {
@@ -407,7 +490,10 @@ test("missing axes remain unavailable and partial candidates retain errors, risk
   assert.equal(popularity.raw_value, null);
   assert.equal(row.status, "truncated");
   assert.equal(row.pareto_status, "unscored");
-  assert.equal(row.candidate.expansion.evidence_item_results[0]?.error_code, "subtree-node-budget-exhausted");
+  assert.equal(
+    row.candidate.expansion.evidence_item_results[0]?.error_code,
+    "subtree-node-budget-exhausted",
+  );
   assert.equal(row.candidate.expansion.omissions.length, 1);
   assert.equal(row.candidate.expansion.unresolved_risks.length, 1);
   const routes = buildCandidateSubtreeRoutes(row);
@@ -419,8 +505,20 @@ test("missing axes remain unavailable and partial candidates retain errors, risk
 });
 
 test("canonical value formatting never converts missing or partial evidence to zero", () => {
-  assert.equal(formatCanonicalAxisValue({ state: "unavailable", raw_value: null, unit: "fraction" }), "Unavailable");
-  assert.equal(formatCanonicalAxisValue({ state: "partial", raw_value: null, unit: "fraction" }), "Unavailable (partial evidence)");
-  assert.equal(formatCanonicalAxisValue({ state: "available", raw_value: 0, unit: "fraction" }), "0%");
-  assert.equal(formatCanonicalAxisValue({ state: "partial", raw_value: 0.5, unit: "fraction" }), "50% (partial)");
+  assert.equal(
+    formatCanonicalAxisValue({ state: "unavailable", raw_value: null, unit: "fraction" }),
+    "Unavailable",
+  );
+  assert.equal(
+    formatCanonicalAxisValue({ state: "partial", raw_value: null, unit: "fraction" }),
+    "Unavailable (partial evidence)",
+  );
+  assert.equal(
+    formatCanonicalAxisValue({ state: "available", raw_value: 0, unit: "fraction" }),
+    "0%",
+  );
+  assert.equal(
+    formatCanonicalAxisValue({ state: "partial", raw_value: 0.5, unit: "fraction" }),
+    "50% (partial)",
+  );
 });

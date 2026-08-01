@@ -194,7 +194,13 @@ const POOL_SIZE = (() => {
  */
 type SearchOutcome = { lines: MultiLine[]; stopped: boolean } | null;
 
-function runSearch(ep: UciEndpoint, fen: string, multipv: number, depth: number, movetime?: number): Promise<SearchOutcome> {
+function runSearch(
+  ep: UciEndpoint,
+  fen: string,
+  multipv: number,
+  depth: number,
+  movetime?: number,
+): Promise<SearchOutcome> {
   const sign = fen.split(" ")[1] === "b" ? -1 : 1;
   return new Promise<SearchOutcome>((resolve) => {
     const lines = new Map<number, MultiLine>();
@@ -206,11 +212,14 @@ function runSearch(ep: UciEndpoint, fen: string, multipv: number, depth: number,
       ep.setHandler(null);
       resolve(out);
     };
-    const wd = setTimeout(() => {
-      stopped = true;
-      ep.send("stop");
-      graceTimer = setTimeout(() => finish(null), GRACE_MS);
-    }, movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS);
+    const wd = setTimeout(
+      () => {
+        stopped = true;
+        ep.send("stop");
+        graceTimer = setTimeout(() => finish(null), GRACE_MS);
+      },
+      movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS,
+    );
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
         const idx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
@@ -228,7 +237,10 @@ function runSearch(ep: UciEndpoint, fen: string, multipv: number, depth: number,
           mate: mate ? sign * Number(mate[1]) : null,
         });
       } else if (line.startsWith("bestmove")) {
-        finish({ lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v), stopped });
+        finish({
+          lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v),
+          stopped,
+        });
       }
     });
     // multipv is a clamped integer (zod min/max); fen is always either chessops-generated
@@ -251,7 +263,11 @@ type PoolChild = {
 };
 
 function enginePath(): string {
-  return join(dirname(require.resolve("stockfish/package.json")), "bin", "stockfish-18-lite-single.js");
+  return join(
+    dirname(require.resolve("stockfish/package.json")),
+    "bin",
+    "stockfish-18-lite-single.js",
+  );
 }
 
 /** Spawn + UCI handshake (uci → uciok, ucinewgame once per child — P2 warmth — isready → readyok). */
@@ -410,7 +426,12 @@ async function runOnChild(pc: PoolChild, job: Job): Promise<void> {
   }
 }
 
-function poolSearch(fen: string, multipv: number, depth: number, movetime?: number): Promise<SearchOutcome> {
+function poolSearch(
+  fen: string,
+  multipv: number,
+  depth: number,
+  movetime?: number,
+): Promise<SearchOutcome> {
   return new Promise((resolve) => {
     if (liveChildren === 0 && bootFailures >= MAX_BOOT_FAILURES) {
       resolve(null);
@@ -491,7 +512,12 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function inProcessSearch(fen: string, multipv: number, depth: number, movetime?: number): Promise<SearchOutcome> {
+function inProcessSearch(
+  fen: string,
+  multipv: number,
+  depth: number,
+  movetime?: number,
+): Promise<SearchOutcome> {
   return serial(async () => {
     const engine = await getEngine();
     if (!engine) return null;
@@ -504,7 +530,11 @@ function inProcessSearch(fen: string, multipv: number, depth: number, movetime?:
       // Grace expired with no bestmove: this engine is wedged. Unlike a pool child it can't be
       // killed, so quit it and drop the cached instance — without this, `enginePromise` kept
       // serving the same hung engine forever, so one true hang failed every later fallback search.
-      try { engine.sendCommand("quit"); } catch { /* best effort */ }
+      try {
+        engine.sendCommand("quit");
+      } catch {
+        /* best effort */
+      }
       enginePromise = null;
     }
     return outcome;
@@ -519,7 +549,12 @@ function inProcessSearch(fen: string, multipv: number, depth: number, movetime?:
 const inFlight = new Map<string, { depth: number; promise: Promise<MultiLine[] | null> }>();
 
 /** Top-`multipv` lines for `fen` to `depth`. White-POV cp/mate. null if engine unavailable. */
-export function analyseMulti(fen: string, multipv = 1, depth = 20, movetime?: number): Promise<MultiLine[] | null> {
+export function analyseMulti(
+  fen: string,
+  multipv = 1,
+  depth = 20,
+  movetime?: number,
+): Promise<MultiLine[] | null> {
   // movetime is a soft effort target (time, not depth-deterministic) — any cached eval for this
   // position is acceptable (get at depth 0); we store the depth actually reached so depth requests
   // can still reuse it.
@@ -536,7 +571,8 @@ export function analyseMulti(fen: string, multipv = 1, depth = 20, movetime?: nu
       : await inProcessSearch(fen, multipv, depth, movetime);
     if (outcome === null) return null;
     if (!outcome.stopped) {
-      const reached = movetime != null ? outcome.lines.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
+      const reached =
+        movetime != null ? outcome.lines.reduce((m, l) => Math.max(m, l.depth), 0) : depth;
       evalCache.put(fen, multipv, reached, outcome.lines);
     }
     return outcome.lines;

@@ -14,8 +14,7 @@ export const STRATEGIC_FIT_COMMENT_INTENT_KINDS = [
   "tournament-weapon",
   "avoid-concept",
 ] as const;
-export type StrategicFitCommentIntentKind =
-  (typeof STRATEGIC_FIT_COMMENT_INTENT_KINDS)[number];
+export type StrategicFitCommentIntentKind = (typeof STRATEGIC_FIT_COMMENT_INTENT_KINDS)[number];
 
 export const STRATEGIC_FIT_COMMENT_INTENT_DETECTIONS = ["tag", "phrase"] as const;
 export type StrategicFitCommentIntentDetection =
@@ -43,14 +42,19 @@ interface CandidateMatch {
   readonly text: string;
 }
 
-const TAG_PATTERN = /\[%strategic-fit\s+(?:intent\s*=\s*)?(keep|must-keep|tournament-weapon|avoid-queenless-(?:middlegame|endgame))\s*\]/giu;
+const TAG_PATTERN =
+  /\[%strategic-fit\s+(?:intent\s*=\s*)?(keep|must-keep|tournament-weapon|avoid-queenless-(?:middlegame|endgame))\s*\]/giu;
 const PHRASE_PATTERNS: readonly {
   readonly pattern: RegExp;
   readonly kind: StrategicFitCommentIntentKind;
   readonly value: string;
 }[] = [
   { pattern: /\bmust\s+keep\b/giu, kind: "retain-line", value: "keep-intentionally" },
-  { pattern: /\btournament\s+weapon\b/giu, kind: "tournament-weapon", value: "tournament-specific" },
+  {
+    pattern: /\btournament\s+weapon\b/giu,
+    kind: "tournament-weapon",
+    value: "tournament-specific",
+  },
   {
     pattern: /\bavoid\s+(?:the\s+)?queenless\s+(?:middle\s*game|endgame)\b/giu,
     kind: "avoid-concept",
@@ -82,11 +86,14 @@ function pathStartsWith(path: readonly string[], prefix: readonly string[]): boo
 }
 
 function referencesForPath(graph: RepertoireGraph, path: readonly string[]): SemanticReferences {
-  const positionIds = path.length === 0
-    ? [graph.root_position_id]
-    : graph.positions
-      .filter((position) => position.source_san_paths.some((candidate) => samePath(candidate, path)))
-      .map((position) => position.position_id);
+  const positionIds =
+    path.length === 0
+      ? [graph.root_position_id]
+      : graph.positions
+          .filter((position) =>
+            position.source_san_paths.some((candidate) => samePath(candidate, path)),
+          )
+          .map((position) => position.position_id);
   const decisionIds = graph.decisions
     .filter((decision) => decision.source_san_paths.some((candidate) => samePath(candidate, path)))
     .map((decision) => decision.decision_id);
@@ -137,8 +144,11 @@ function matchesInComment(comment: string): CandidateMatch[] {
       });
     }
   }
-  return matches.sort((left, right) =>
-    left.start - right.start || compareStrings(left.kind, right.kind) || compareStrings(left.text, right.text)
+  return matches.sort(
+    (left, right) =>
+      left.start - right.start ||
+      compareStrings(left.kind, right.kind) ||
+      compareStrings(left.text, right.text),
   );
 }
 
@@ -188,10 +198,14 @@ export function suggestStrategicFitIntentFromComments(
   };
   for (const child of tree.game.moves.children) visitNode(child, []);
 
-  return suggestions.sort((left, right) =>
-    compareStrings(left.source_san_path.join(ID_SEPARATOR), right.source_san_path.join(ID_SEPARATOR)) ||
-    left.source_comment_index - right.source_comment_index ||
-    left.source_match_index - right.source_match_index ||
-    compareStrings(left.suggestion_id, right.suggestion_id)
+  return suggestions.sort(
+    (left, right) =>
+      compareStrings(
+        left.source_san_path.join(ID_SEPARATOR),
+        right.source_san_path.join(ID_SEPARATOR),
+      ) ||
+      left.source_comment_index - right.source_comment_index ||
+      left.source_match_index - right.source_match_index ||
+      compareStrings(left.suggestion_id, right.suggestion_id),
   );
 }

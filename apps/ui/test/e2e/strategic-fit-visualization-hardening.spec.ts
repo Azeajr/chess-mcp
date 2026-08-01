@@ -7,18 +7,50 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
-const FIRST = ["a6", "b6", "c6", "d5", "d6", "h6", "h5", "g6", "a5", "b5", "c5", "f5", "Na6", "Nc6"];
+const FIRST = [
+  "a6",
+  "b6",
+  "c6",
+  "d5",
+  "d6",
+  "h6",
+  "h5",
+  "g6",
+  "a5",
+  "b5",
+  "c5",
+  "f5",
+  "Na6",
+  "Nc6",
+];
 const FIFTH = [
-  "Bg5", "Bf4", "Qc2", "a3", "Nd2", "g3", "h3", "Rb1",
-  "Bd2", "Qb3", "h4", "a4", "Qd3", "Rg1", "Ne5", "Qd2",
+  "Bg5",
+  "Bf4",
+  "Qc2",
+  "a3",
+  "Nd2",
+  "g3",
+  "h3",
+  "Rb1",
+  "Bd2",
+  "Qb3",
+  "h4",
+  "a4",
+  "Qd3",
+  "Rg1",
+  "Ne5",
+  "Qd2",
 ];
 
 /** 416 legal branches: comfortably past the 300-point map drawing limit. */
@@ -30,8 +62,8 @@ function largeRepertoire(): string {
         if (black === "h6" && (first === "h6" || first === "h5")) continue;
         games.push(
           `[Event "Large ${first} ${fifth} ${black}"]\n[Result "*"]\n\n` +
-          `1. d4 ${first} 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. ${fifth} ${black} ` +
-          `6. e3 Ne4 7. Be2 Nxc3 8. bxc3 *`,
+            `1. d4 ${first} 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. ${fifth} ${black} ` +
+            `6. e3 Ne4 7. Be2 Nxc3 8. bxc3 *`,
         );
       }
     }
@@ -74,11 +106,12 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 15_000
   return dialog;
 }
 
-const horizontalOverflow = (page: Page) => page.evaluate(() =>
-  document.documentElement.scrollWidth - document.documentElement.clientWidth
-);
+const horizontalOverflow = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-test("a large fixture aggregates the map, bounds the branch list, and stays interactive", async ({ page }) => {
+test("a large fixture aggregates the map, bounds the branch list, and stays interactive", async ({
+  page,
+}) => {
   test.slow();
   const dialog = await bootstrap(page, LARGE_REPERTOIRE, "hardening-large.pgn", 25_000);
   const before = await chess(page, (api) => api.toPgn());
@@ -122,7 +155,9 @@ test("a large fixture aggregates the map, bounds the branch list, and stays inte
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("the decision flow scales to its container on resize without overflowing the page", async ({ page }) => {
+test("the decision flow scales to its container on resize without overflowing the page", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-resize.pgn");
   const scroll = dialog.locator(".decision-flow-scroll");
   await expect(scroll).toBeVisible();
@@ -134,7 +169,9 @@ test("the decision flow scales to its container on resize without overflowing th
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 
   await page.setViewportSize({ width: 420, height: 900 });
-  await expect.poll(async () => Number(await scroll.getAttribute("data-flow-scale"))).toBeLessThanOrEqual(wide);
+  await expect
+    .poll(async () => Number(await scroll.getAttribute("data-flow-scale")))
+    .toBeLessThanOrEqual(wide);
   const narrow = Number(await scroll.getAttribute("data-flow-scale"));
   expect(narrow).toBeGreaterThanOrEqual(0.6);
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
@@ -143,7 +180,9 @@ test("the decision flow scales to its container on resize without overflowing th
   await expect(dialog.locator("[data-flow-outline] tbody tr").first()).toBeVisible();
 });
 
-test("reduced motion leaves every visualization without animation or transition", async ({ page }) => {
+test("reduced motion leaves every visualization without animation or transition", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-motion.pgn");
 
@@ -171,7 +210,9 @@ test("reduced motion leaves every visualization without animation or transition"
   }
 });
 
-test("the phone layout keeps table equivalents, touch targets, and no page overflow", async ({ page }) => {
+test("the phone layout keeps table equivalents, touch targets, and no page overflow", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-mobile.pgn");
 
@@ -186,13 +227,15 @@ test("the phone layout keeps table equivalents, touch targets, and no page overf
   expect(box!.height).toBeGreaterThanOrEqual(44);
 
   // A wide table scrolls inside its own container rather than pushing the page sideways.
-  const heatmapScrolls = await dialog.locator(".concept-heatmap-scroll").evaluate((element) =>
-    element.scrollWidth >= element.clientWidth
-  );
+  const heatmapScrolls = await dialog
+    .locator(".concept-heatmap-scroll")
+    .evaluate((element) => element.scrollWidth >= element.clientWidth);
   expect(heatmapScrolls).toBe(true);
 });
 
-test("keyboard reaches the chart marks, the outline, and the print and export toggle", async ({ page }) => {
+test("keyboard reaches the chart marks, the outline, and the print and export toggle", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-keyboard.pgn");
   const map = dialog.locator(".strategic-map");
 
@@ -216,7 +259,9 @@ test("keyboard reaches the chart marks, the outline, and the print and export to
   await expect(printToggle).toHaveAttribute("aria-pressed", "false");
 });
 
-test("print and export view completes every table equivalent and keeps a stable print snapshot", async ({ page }) => {
+test("print and export view completes every table equivalent and keeps a stable print snapshot", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-print.pgn");
   const map = dialog.locator(".strategic-map");
 

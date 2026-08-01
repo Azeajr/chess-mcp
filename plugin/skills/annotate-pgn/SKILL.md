@@ -10,6 +10,7 @@ description: >-
 Use the `chess-analysis` MCP to create the artifact; never hand-author its chess content.
 
 <!-- BEGIN GENERATED WORKFLOW GUIDANCE -->
+
 ## Shared grounding contract
 
 - Validate user-pasted FEN or PGN before analysis. Stop on invalid input; never repair it silently. An already parsed host document needs no redundant validation call.
@@ -33,6 +34,7 @@ Create a saveable annotated game or repertoire artifact without model-authored P
 
 - Name the artifact and summarize what was annotated.
 - Keep the artifact identifier/path available for saving; do not echo full PGN.
+
 <!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation

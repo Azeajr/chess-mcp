@@ -116,10 +116,7 @@ export function createStrategicFitSidecar(
 }
 
 /** Deterministic bytes for download, cache identity, and round-trip tests. */
-export function serializeStrategicFitSidecar(
-  documentId: string,
-  metadata: unknown,
-): string {
+export function serializeStrategicFitSidecar(documentId: string, metadata: unknown): string {
   return `${stableJson(createStrategicFitSidecar(documentId, metadata))}\n`;
 }
 
@@ -148,13 +145,14 @@ function completePartialMetadata(value: RecordLike): {
     candidate: {
       ...value,
       profile: presence.profile ? value.profile : defaults.profile,
-      manual_weights: manualSupplied && manual === null
-        ? value.manual_weights
-        : {
-            ...(manual ?? {}),
-            route_weights: presence.route_weights ? manual!.route_weights : [],
-            decision_weights: presence.decision_weights ? manual!.decision_weights : [],
-          },
+      manual_weights:
+        manualSupplied && manual === null
+          ? value.manual_weights
+          : {
+              ...(manual ?? {}),
+              route_weights: presence.route_weights ? manual!.route_weights : [],
+              decision_weights: presence.decision_weights ? manual!.decision_weights : [],
+            },
       cohort_overrides: presence.cohort_overrides ? value.cohort_overrides : [],
       exclusions: presence.exclusions ? value.exclusions : [],
       cohort_labels: presence.cohort_labels ? value.cohort_labels : [],
@@ -185,12 +183,22 @@ export function parseStrategicFitSidecar(
     return error("invalid-envelope", "$", "The Strategic Fit sidecar must be an object.");
   }
   const allowed = new Set(["sidecar_kind", "sidecar_version", "document_id", "metadata"]);
-  const unknown = Object.keys(value).sort().find((key) => !allowed.has(key));
+  const unknown = Object.keys(value)
+    .sort()
+    .find((key) => !allowed.has(key));
   if (unknown !== undefined) {
-    return error("invalid-envelope", `$.${unknown}`, "The sidecar contains a non-whitelisted field.");
+    return error(
+      "invalid-envelope",
+      `$.${unknown}`,
+      "The sidecar contains a non-whitelisted field.",
+    );
   }
   if (value.sidecar_kind !== STRATEGIC_FIT_SIDECAR_KIND) {
-    return error("invalid-envelope", "$.sidecar_kind", "The sidecar kind is missing or incompatible.");
+    return error(
+      "invalid-envelope",
+      "$.sidecar_kind",
+      "The sidecar kind is missing or incompatible.",
+    );
   }
   if (value.sidecar_version !== STRATEGIC_FIT_SIDECAR_VERSION) {
     return error(
@@ -199,19 +207,33 @@ export function parseStrategicFitSidecar(
       `Unsupported Strategic Fit sidecar version: ${String(value.sidecar_version)}`,
     );
   }
-  if (typeof value.document_id !== "string" || value.document_id.trim().length === 0 ||
-    value.document_id.length > 256) {
+  if (
+    typeof value.document_id !== "string" ||
+    value.document_id.trim().length === 0 ||
+    value.document_id.length > 256
+  ) {
     return error("invalid-document-id", "$.document_id", "The sidecar document ID is invalid.");
   }
   if (!isRecord(value.metadata)) {
     return error("invalid-metadata", "$.metadata", "The sidecar metadata must be an object.");
   }
   const allowedMetadata = new Set([
-    "metadata_kind", "metadata_version", "profile", "manual_weights", "cohort_overrides",
-    "exclusions", "cohort_labels", "resolutions", "archive_references", "training_references",
-    "comment_intents", "provenance",
+    "metadata_kind",
+    "metadata_version",
+    "profile",
+    "manual_weights",
+    "cohort_overrides",
+    "exclusions",
+    "cohort_labels",
+    "resolutions",
+    "archive_references",
+    "training_references",
+    "comment_intents",
+    "provenance",
   ]);
-  const unknownMetadata = Object.keys(value.metadata).sort().find((key) => !allowedMetadata.has(key));
+  const unknownMetadata = Object.keys(value.metadata)
+    .sort()
+    .find((key) => !allowedMetadata.has(key));
   if (unknownMetadata !== undefined) {
     return error(
       "invalid-metadata",
@@ -220,7 +242,11 @@ export function parseStrategicFitSidecar(
     );
   }
   if (value.metadata.metadata_kind !== STRATEGIC_FIT_DOCUMENT_METADATA_KIND) {
-    return error("invalid-metadata", "$.metadata.metadata_kind", "The metadata kind is incompatible.");
+    return error(
+      "invalid-metadata",
+      "$.metadata.metadata_kind",
+      "The metadata kind is incompatible.",
+    );
   }
   const { candidate, presence } = completePartialMetadata(value.metadata);
   const normalized = normalizeStrategicFitDocumentMetadata(candidate);
@@ -293,7 +319,9 @@ function mergedRecords<T>(
   for (const [id, entry] of incomingById) records.set(id, entry);
   const incomingIds = [...incomingById.keys()].sort();
   return {
-    records: [...records.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, entry]) => entry),
+    records: [...records.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, entry]) => entry),
     preview: {
       added: incomingIds.filter((id) => !localById.has(id)),
       replaced: incomingIds.filter((id) => localById.has(id)),
@@ -384,7 +412,8 @@ export function previewStrategicFitSidecarMerge(
     document_id_mismatch: parsed.sidecar.document_id !== targetDocumentId,
     profile: {
       supplied: parsed.presence.profile,
-      changed: parsed.presence.profile && stableJson(incoming.profile) !== stableJson(local.profile),
+      changed:
+        parsed.presence.profile && stableJson(incoming.profile) !== stableJson(local.profile),
       local: local.profile,
       incoming: parsed.presence.profile ? incoming.profile : null,
     },
@@ -419,7 +448,8 @@ export interface StrategicFitIntentPgnExport {
 }
 
 function commentText(value: string, maximum: number): string {
-  const safe = value.replace(/[{}]/g, (character) => character === "{" ? "(" : ")")
+  const safe = value
+    .replace(/[{}]/g, (character) => (character === "{" ? "(" : ")"))
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -473,16 +503,19 @@ export function exportStrategicFitIntentPgn(
       resolution.intentional_reason ? `intent=${resolution.intentional_reason}` : null,
       resolution.reason ? `reason=${resolution.reason}` : null,
       resolution.note ? `note=${resolution.note}` : null,
-    ].filter((entry): entry is string => entry !== null).join("; ");
+    ]
+      .filter((entry): entry is string => entry !== null)
+      .join("; ");
     const text = commentText(
       `Strategic Fit resolution [metadata=${metadata.metadata_version}; ` +
         `semantic_finding=${resolution.semantic_finding_id}; resolution=${resolution.resolution_id}; ` +
         `state=${resolution.state}; status=active]${detail ? `: ${detail}` : "."}`,
       maximum,
     );
-    const paths = resolution.references.source_san_paths.length > 0
-      ? resolution.references.source_san_paths
-      : [[]];
+    const paths =
+      resolution.references.source_san_paths.length > 0
+        ? resolution.references.source_san_paths
+        : [[]];
     for (const path of paths) {
       if (addComment(clone, path, text)) resolutionComments++;
       else skippedPaths++;

@@ -23,7 +23,11 @@ import type {
   ReplacementSafetySimulationResult,
 } from "./replacement-safety.js";
 import type { ReplacementToolV2Item } from "./replacement-tool.js";
-import type { ReplacementParetoStatus, ReplacementSafetyCheckKind, ReplacementSafetyCheckStatus } from "./replacement-types.js";
+import type {
+  ReplacementParetoStatus,
+  ReplacementSafetyCheckKind,
+  ReplacementSafetyCheckStatus,
+} from "./replacement-types.js";
 import type { StrategicFitProfile } from "./types.js";
 
 export const STRATEGIC_FIT_PORTFOLIO_VERSION = "1.0.0";
@@ -70,8 +74,7 @@ export const STRATEGIC_FIT_PORTFOLIO_ERROR_CODES = [
   "strategic_fit_portfolio_stale",
   "strategic_fit_portfolio_not_pending",
 ] as const;
-export type StrategicFitPortfolioErrorCode =
-  (typeof STRATEGIC_FIT_PORTFOLIO_ERROR_CODES)[number];
+export type StrategicFitPortfolioErrorCode = (typeof STRATEGIC_FIT_PORTFOLIO_ERROR_CODES)[number];
 
 export class StrategicFitPortfolioError extends Error {
   readonly code: StrategicFitPortfolioErrorCode;
@@ -89,7 +92,8 @@ export interface StrategicFitPortfolioErrorResult {
 
 /** Shared host mapping from a validation failure to one structured, code-bearing result. */
 export function strategicFitPortfolioErrorResult(error: unknown): StrategicFitPortfolioErrorResult {
-  if (error instanceof StrategicFitPortfolioError) return { error: error.code, reason: error.message };
+  if (error instanceof StrategicFitPortfolioError)
+    return { error: error.code, reason: error.message };
   throw error;
 }
 
@@ -217,7 +221,10 @@ export function resolveStrategicFitPortfolioConstraints(
     );
   }
   if (entries.length > STRATEGIC_FIT_PORTFOLIO_LIMITS.constraints) {
-    invalidValue("constraints", `must contain at most ${STRATEGIC_FIT_PORTFOLIO_LIMITS.constraints} bounds`);
+    invalidValue(
+      "constraints",
+      `must contain at most ${STRATEGIC_FIT_PORTFOLIO_LIMITS.constraints} bounds`,
+    );
   }
   const constraints: StrategicFitPortfolioConstraint[] = [];
   for (const kind of STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS) {
@@ -285,9 +292,9 @@ function stableHash(value: string): string {
 export function strategicFitPortfolioConstraintIdentity(
   set: StrategicFitPortfolioConstraintSet,
 ): string {
-  return `strategic-fit-portfolio-constraints:${stableHash(JSON.stringify(
-    set.constraints.map((constraint) => [constraint.kind, constraint.value]),
-  ))}`;
+  return `strategic-fit-portfolio-constraints:${stableHash(
+    JSON.stringify(set.constraints.map((constraint) => [constraint.kind, constraint.value])),
+  )}`;
 }
 
 export interface StrategicFitPortfolioConflict {
@@ -326,18 +333,24 @@ export function detectStrategicFitPortfolioConflicts(
       source: "declared-preference",
       constraint_kinds: ["maximum_engine_loss_cp"],
       explanation: `The request accepts up to ${requestedLoss} centipawns of loss, but the confirmed profile allows at most ${declaredLoss}.`,
-      question: "Should this redesign use the wider tolerance just this once, or should the profile's evaluation tolerance change?",
+      question:
+        "Should this redesign use the wider tolerance just this once, or should the profile's evaluation tolerance change?",
     });
   }
 
   const declaredCoverage = context.profile.preferences.minimum_opponent_coverage;
   const requestedCoverage = value("minimum_expected_opponent_coverage");
-  if (declaredCoverage != null && requestedCoverage !== null && requestedCoverage < declaredCoverage) {
+  if (
+    declaredCoverage != null &&
+    requestedCoverage !== null &&
+    requestedCoverage < declaredCoverage
+  ) {
     conflicts.push({
       source: "declared-preference",
       constraint_kinds: ["minimum_expected_opponent_coverage"],
       explanation: `The request keeps only ${requestedCoverage} expected opponent coverage, but the confirmed profile requires at least ${declaredCoverage}.`,
-      question: "Should this redesign drop below the declared coverage floor, or should the floor itself change?",
+      question:
+        "Should this redesign drop below the declared coverage floor, or should the floor itself change?",
     });
   }
 
@@ -359,7 +372,8 @@ export function detectStrategicFitPortfolioConflicts(
       source: "requested-constraints",
       constraint_kinds: ["maximum_new_concept_count", "minimum_strategic_fit_delta"],
       explanation: `The request allows no new strategic concept while requiring strategic fit to improve by at least ${fitDelta}. An alternative that changes nothing conceptual rarely moves the fit measurement.`,
-      question: "Should a redesign be allowed to introduce a concept, or should the fit target come down?",
+      question:
+        "Should a redesign be allowed to introduce a concept, or should the fit target come down?",
     });
   }
 
@@ -461,19 +475,21 @@ export function strategicFitPortfolioEvidenceIdentity(
   candidate: ReplacementCandidateSafetySimulation,
   item: ReplacementToolV2Item,
 ): string {
-  return `strategic-fit-portfolio-evidence:${stableHash(JSON.stringify({
-    request_id: safety.request_id,
-    report_id: safety.report_id,
-    finding_id: safety.finding_id,
-    semantic_finding_id: safety.semantic_finding_id,
-    repertoire_revision: safety.repertoire_revision,
-    candidate_id: candidate.candidate_id,
-    action: candidate.action,
-    status: candidate.status,
-    simulated_graph_id: candidate.simulated_graph_id,
-    change_set_id: item.change_set?.change_set_id ?? null,
-    item_status: item.status,
-  }))}`;
+  return `strategic-fit-portfolio-evidence:${stableHash(
+    JSON.stringify({
+      request_id: safety.request_id,
+      report_id: safety.report_id,
+      finding_id: safety.finding_id,
+      semantic_finding_id: safety.semantic_finding_id,
+      repertoire_revision: safety.repertoire_revision,
+      candidate_id: candidate.candidate_id,
+      action: candidate.action,
+      status: candidate.status,
+      simulated_graph_id: candidate.simulated_graph_id,
+      change_set_id: item.change_set?.change_set_id ?? null,
+      item_status: item.status,
+    }),
+  )}`;
 }
 
 const measurementReason = (metric: string): string =>
@@ -490,7 +506,8 @@ function measurementsFor(
     maximum_engine_loss_cp: objective.repertoire_pov_loss_from_best_cp,
     minimum_expected_opponent_coverage: strategic.expected_opponent_coverage,
     maximum_added_theory_nodes: strategic.theory_nodes_added,
-    maximum_new_concept_count: strategic.state === "unavailable" ? null : strategic.new_concept_ids.length,
+    maximum_new_concept_count:
+      strategic.state === "unavailable" ? null : strategic.new_concept_ids.length,
     maximum_homogenization_cost: strategic.homogenization_cost,
     maximum_memorization_burden: strategic.memorization_burden,
     minimum_strategic_fit_delta: strategic.strategic_fit_delta,
@@ -508,11 +525,13 @@ function measurementsFor(
       state: available ? "available" : "unavailable",
       reason: available ? null : measurementReason(definition.label),
       constraint_value: constraint?.value ?? null,
-      satisfies_constraint: constraint === null
-        ? null
-        : available && (definition.direction === "maximum"
-          ? (value as number) <= constraint.value
-          : (value as number) >= constraint.value),
+      satisfies_constraint:
+        constraint === null
+          ? null
+          : available &&
+            (definition.direction === "maximum"
+              ? (value as number) <= constraint.value
+              : (value as number) >= constraint.value),
     } satisfies StrategicFitPortfolioMeasurement;
   });
 }
@@ -530,7 +549,13 @@ export function buildStrategicFitPortfolio(
   input: StrategicFitPortfolioInput,
 ): StrategicFitPortfolioResult {
   const { constraint_set: set, safety, previews } = input;
-  const limit = Math.max(1, Math.min(input.limit ?? STRATEGIC_FIT_PORTFOLIO_LIMITS.options, STRATEGIC_FIT_PORTFOLIO_LIMITS.options));
+  const limit = Math.max(
+    1,
+    Math.min(
+      input.limit ?? STRATEGIC_FIT_PORTFOLIO_LIMITS.options,
+      STRATEGIC_FIT_PORTFOLIO_LIMITS.options,
+    ),
+  );
   const constraintIdentity = strategicFitPortfolioConstraintIdentity(set);
   const base = {
     portfolio_version: STRATEGIC_FIT_PORTFOLIO_VERSION,
@@ -554,7 +579,8 @@ export function buildStrategicFitPortfolio(
   const soleFailures = new Map<StrategicFitPortfolioConstraintKind, number>();
 
   for (const candidate of [...safety.candidates].sort((left, right) =>
-    compareStrings(left.candidate_id, right.candidate_id))) {
+    compareStrings(left.candidate_id, right.candidate_id),
+  )) {
     if (candidate.status === "blocked") {
       eliminations.push({
         candidate_id: candidate.candidate_id,
@@ -590,7 +616,8 @@ export function buildStrategicFitPortfolio(
       (measurement) => measurement.constraint_value !== null && measurement.state === "unavailable",
     );
     const failed = measurements.filter(
-      (measurement) => measurement.satisfies_constraint === false && measurement.state === "available",
+      (measurement) =>
+        measurement.satisfies_constraint === false && measurement.state === "available",
     );
     const offending = [...unavailable, ...failed].map((measurement) => measurement.kind);
     if (offending.length > 0) {
@@ -601,12 +628,15 @@ export function buildStrategicFitPortfolio(
         candidate_id: candidate.candidate_id,
         reason: unavailable.length > 0 ? "unavailable-evidence" : "constraint-not-met",
         constraint_kinds: offending,
-        explanation: unavailable.length > 0
-          ? `${unavailable.map((measurement) => measurement.label).join(", ")} could not be measured for this candidate, so the bound cannot be shown to hold.`
-          : failed
-            .map((measurement) =>
-              `${measurement.label} is ${measurement.value} ${measurement.unit}, outside the requested ${measurement.constraint_value}.`)
-            .join(" "),
+        explanation:
+          unavailable.length > 0
+            ? `${unavailable.map((measurement) => measurement.label).join(", ")} could not be measured for this candidate, so the bound cannot be shown to hold.`
+            : failed
+                .map(
+                  (measurement) =>
+                    `${measurement.label} is ${measurement.value} ${measurement.unit}, outside the requested ${measurement.constraint_value}.`,
+                )
+                .join(" "),
       });
       continue;
     }
@@ -619,7 +649,10 @@ export function buildStrategicFitPortfolio(
       pareto_status: candidate.scored_candidate.pareto.status,
       dominated_by_candidate_ids: candidate.scored_candidate.pareto.dominated_by_candidate_ids,
       measurements,
-      safety_checks: candidate.safety_checks.map((check) => ({ kind: check.kind, status: check.status })),
+      safety_checks: candidate.safety_checks.map((check) => ({
+        kind: check.kind,
+        status: check.status,
+      })),
       unresolved_risk_count: candidate.safety_checks.reduce(
         (total, check) => total + check.risk_ids.length,
         0,
@@ -629,12 +662,15 @@ export function buildStrategicFitPortfolio(
   }
 
   const ordered = [...admitted].sort((left, right) => {
-    const rank = (option: StrategicFitPortfolioOption) => (option.pareto_status === "pareto-optimal" ? 0 : 1);
+    const rank = (option: StrategicFitPortfolioOption) =>
+      option.pareto_status === "pareto-optimal" ? 0 : 1;
     return rank(left) - rank(right) || compareStrings(left.candidate_id, right.candidate_id);
   });
   const options = ordered.slice(0, limit);
   const boundedEliminations = eliminations.slice(0, STRATEGIC_FIT_PORTFOLIO_LIMITS.eliminations);
-  const binding = STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.filter((kind) => (soleFailures.get(kind) ?? 0) > 0);
+  const binding = STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS.filter(
+    (kind) => (soleFailures.get(kind) ?? 0) > 0,
+  );
 
   if (options.length > 0) {
     return {
@@ -652,7 +688,8 @@ export function buildStrategicFitPortfolio(
     return {
       ...base,
       status: "unavailable",
-      explanation: "No candidates were generated for this finding, so there is nothing to build a portfolio from. Say the evidence is unavailable rather than describing alternatives from chess knowledge.",
+      explanation:
+        "No candidates were generated for this finding, so there is nothing to build a portfolio from. Say the evidence is unavailable rather than describing alternatives from chess knowledge.",
       options: [],
       omitted_option_count: 0,
       eliminations: boundedEliminations,
@@ -663,11 +700,15 @@ export function buildStrategicFitPortfolio(
   return {
     ...base,
     status: "infeasible",
-    explanation: binding.length > 0
-      ? `No candidate satisfies every requested bound. ${binding
-          .map((kind) => `${CONSTRAINT_DEFINITIONS[kind].label} alone excluded ${soleFailures.get(kind)} candidate(s)`)
-          .join("; ")}. Ask the user which bound to move; do not relax one on their behalf.`
-      : "No candidate satisfies every requested bound, and no single bound is responsible: each remaining candidate misses several at once, was blocked by a safety check, or has no validated change set. Report what eliminated them rather than proposing an alternative of your own.",
+    explanation:
+      binding.length > 0
+        ? `No candidate satisfies every requested bound. ${binding
+            .map(
+              (kind) =>
+                `${CONSTRAINT_DEFINITIONS[kind].label} alone excluded ${soleFailures.get(kind)} candidate(s)`,
+            )
+            .join("; ")}. Ask the user which bound to move; do not relax one on their behalf.`
+        : "No candidate satisfies every requested bound, and no single bound is responsible: each remaining candidate misses several at once, was blocked by a safety check, or has no validated change set. Report what eliminated them rather than proposing an alternative of your own.",
     options: [],
     omitted_option_count: 0,
     eliminations: boundedEliminations,

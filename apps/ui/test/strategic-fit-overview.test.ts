@@ -70,7 +70,12 @@ function report(): StrategicOverviewReport {
           null,
           "Familiarity-adjusted coverage requires calibrated concept-mastery evidence.",
         ),
-        training_adjusted_workload: metric("training-adjusted-workload", "score", "unavailable", null),
+        training_adjusted_workload: metric(
+          "training-adjusted-workload",
+          "score",
+          "unavailable",
+          null,
+        ),
         repertoire_regret: metric("repertoire-regret", "score", "unavailable", null),
         move_order_resilience: metric("move-order-resilience", "fraction", "available", 0.7),
         concept_centrality: metric("concept-centrality", "composite", "available", []),
@@ -102,7 +107,10 @@ test("overview presentation uses canonical summary values, metric states, and un
     ],
   );
   assert.equal(byId(presentation, "concept-reuse").state, "partial");
-  assert.match(byId(presentation, "concept-reuse").reason ?? "", /missing evidence is not counted as zero/i);
+  assert.match(
+    byId(presentation, "concept-reuse").reason ?? "",
+    /missing evidence is not counted as zero/i,
+  );
   assert.deepEqual(byId(presentation, "forced-diversity-floor").review_filter, {
     kind: "classification",
     classification: "forced-diversity",
@@ -209,7 +217,8 @@ test("unsafe blocked route enumeration withholds the incomplete-branch sentinel"
       value: "Unavailable",
       report_value: "",
       state: "unavailable",
-      reason: "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.",
+      reason:
+        "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.",
       review_filter: null,
     },
   );

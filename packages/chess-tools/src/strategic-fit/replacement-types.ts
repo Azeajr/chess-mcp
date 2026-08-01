@@ -67,13 +67,13 @@ export type ReplacementPivotSelectionKind = (typeof REPLACEMENT_PIVOT_SELECTION_
 
 export type ReplacementPivotSelection =
   | {
-    readonly kind: "automatic";
-    readonly decision_id: null;
-  }
+      readonly kind: "automatic";
+      readonly decision_id: null;
+    }
   | {
-    readonly kind: "user-selected";
-    readonly decision_id: string;
-  };
+      readonly kind: "user-selected";
+      readonly decision_id: string;
+    };
 
 export interface ReplacementGenerationBudget {
   readonly maximum_candidates: number;
@@ -228,25 +228,29 @@ export type ReplacementSubtreeCompletionKind =
 
 export type ReplacementSubtreeCompletion =
   | {
-    readonly kind: "expanded-opponent-replies";
-    readonly opponent_reply_edge_ids: readonly [string, ...string[]];
-    readonly comparable_strategic_horizon_reached: true;
-  }
+      readonly kind: "expanded-opponent-replies";
+      readonly opponent_reply_edge_ids: readonly [string, ...string[]];
+      readonly comparable_strategic_horizon_reached: true;
+    }
   | {
-    readonly kind: "immediate-transposition";
-    readonly target_position_id: string;
-  }
+      readonly kind: "immediate-transposition";
+      readonly target_position_id: string;
+    }
   | {
-    readonly kind: "terminal-position";
-    readonly terminal_node_id: string;
-  };
+      readonly kind: "terminal-position";
+      readonly terminal_node_id: string;
+    };
 
 interface ReplacementCandidateSubtreeBase extends StrategicFitReplacementVersioned {
   readonly subtree_id: string;
   readonly root_position_id: string;
   readonly root_node_id: string;
   /** Root plus at least one reached position. */
-  readonly nodes: readonly [ReplacementSubtreeNode, ReplacementSubtreeNode, ...ReplacementSubtreeNode[]];
+  readonly nodes: readonly [
+    ReplacementSubtreeNode,
+    ReplacementSubtreeNode,
+    ...ReplacementSubtreeNode[],
+  ];
   readonly edges: readonly [ReplacementSubtreeEdge, ...ReplacementSubtreeEdge[]];
   readonly routes: readonly [ReplacementSubtreeRoute, ...ReplacementSubtreeRoute[]];
   readonly strategic_horizon_ply: number;
@@ -282,7 +286,11 @@ export type ReplacementCandidateSubtree =
   | ReplacementTruncatedCandidateSubtree
   | ReplacementBlockedCandidateSubtree;
 
-export const REPLACEMENT_OBJECTIVE_QUALITY_STATES = ["available", "partial", "unavailable"] as const;
+export const REPLACEMENT_OBJECTIVE_QUALITY_STATES = [
+  "available",
+  "partial",
+  "unavailable",
+] as const;
 export type ReplacementObjectiveQualityState =
   (typeof REPLACEMENT_OBJECTIVE_QUALITY_STATES)[number];
 
@@ -293,8 +301,7 @@ export const REPLACEMENT_REPERTOIRE_POV_VERDICTS = [
   "forced-mate-for-repertoire",
   "forced-mate-against-repertoire",
 ] as const;
-export type ReplacementRepertoirePovVerdict =
-  (typeof REPLACEMENT_REPERTOIRE_POV_VERDICTS)[number];
+export type ReplacementRepertoirePovVerdict = (typeof REPLACEMENT_REPERTOIRE_POV_VERDICTS)[number];
 
 /**
  * Engine transport exposes both orientations by name. Positive centipawns favor the named side;
@@ -375,8 +382,7 @@ export interface ReplacementStrategicScore extends StrategicFitReplacementVersio
 }
 
 export const REPLACEMENT_COVERAGE_EFFECT_STATES = ["available", "partial", "unavailable"] as const;
-export type ReplacementCoverageEffectState =
-  (typeof REPLACEMENT_COVERAGE_EFFECT_STATES)[number];
+export type ReplacementCoverageEffectState = (typeof REPLACEMENT_COVERAGE_EFFECT_STATES)[number];
 
 export interface ReplacementCoverageReplyEffect extends AnalysisVersioned {
   readonly state: ReplacementCoverageEffectState;
@@ -470,23 +476,23 @@ export type ReplacementPruneChoice = (typeof REPLACEMENT_PRUNE_CHOICES)[number];
 /** Pruning is valid only after explicit confirmation and an archive choice. */
 export type ReplacementRetentionChoices =
   | {
-    readonly archive: "keep-active";
-    readonly prune: "retain";
-    readonly prune_explicitly_confirmed: false;
-    readonly archive_before_prune: true;
-  }
+      readonly archive: "keep-active";
+      readonly prune: "retain";
+      readonly prune_explicitly_confirmed: false;
+      readonly archive_before_prune: true;
+    }
   | {
-    readonly archive: "archive";
-    readonly prune: "retain";
-    readonly prune_explicitly_confirmed: false;
-    readonly archive_before_prune: true;
-  }
+      readonly archive: "archive";
+      readonly prune: "retain";
+      readonly prune_explicitly_confirmed: false;
+      readonly archive_before_prune: true;
+    }
   | {
-    readonly archive: "archive";
-    readonly prune: "prune";
-    readonly prune_explicitly_confirmed: true;
-    readonly archive_before_prune: true;
-  };
+      readonly archive: "archive";
+      readonly prune: "prune";
+      readonly prune_explicitly_confirmed: true;
+      readonly archive_before_prune: true;
+    };
 
 export const REPLACEMENT_CANDIDATE_STATUSES = [
   "viable",
@@ -619,7 +625,12 @@ export const REPLACEMENT_SAFETY_CHECK_KINDS = [
 ] as const;
 export type ReplacementSafetyCheckKind = (typeof REPLACEMENT_SAFETY_CHECK_KINDS)[number];
 
-export const REPLACEMENT_SAFETY_CHECK_STATUSES = ["passed", "warning", "blocked", "unavailable"] as const;
+export const REPLACEMENT_SAFETY_CHECK_STATUSES = [
+  "passed",
+  "warning",
+  "blocked",
+  "unavailable",
+] as const;
 export type ReplacementSafetyCheckStatus = (typeof REPLACEMENT_SAFETY_CHECK_STATUSES)[number];
 
 export interface ReplacementSafetyCheck extends AnalysisVersioned {
@@ -757,9 +768,7 @@ export interface ReplacementChangeSetFailure extends ReplacementChangeSetResultB
   };
 }
 
-export type ReplacementChangeSetResult =
-  | ReplacementChangeSetSuccess
-  | ReplacementChangeSetFailure;
+export type ReplacementChangeSetResult = ReplacementChangeSetSuccess | ReplacementChangeSetFailure;
 
 export const REPLACEMENT_CHANGE_SET_RESULT_STATUSES = [
   "previewed",

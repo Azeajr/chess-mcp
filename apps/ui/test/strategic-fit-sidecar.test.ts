@@ -44,15 +44,17 @@ function metadata(label: string): StrategicFitDocumentMetadata {
       },
     },
     manual_weights: {
-      route_weights: [{
-        route_id: "route:shared",
-        weight: label === "incoming" ? 8 : 2,
-        record_state: "active",
-        stale_reasons: [],
-        reason: label,
-        updated_at: "2026-07-17T12:00:00.000Z",
-        provenance: [SOURCE],
-      }],
+      route_weights: [
+        {
+          route_id: "route:shared",
+          weight: label === "incoming" ? 8 : 2,
+          record_state: "active",
+          stale_reasons: [],
+          reason: label,
+          updated_at: "2026-07-17T12:00:00.000Z",
+          provenance: [SOURCE],
+        },
+      ],
       decision_weights: [],
     },
   };
@@ -76,8 +78,12 @@ function harness() {
       current = result.metadata;
       return result;
     },
-    invalidateReports: () => { invalidations++; },
-    flush: async () => { flushes++; },
+    invalidateReports: () => {
+      invalidations++;
+    },
+    flush: async () => {
+      flushes++;
+    },
   });
   return {
     state,
@@ -85,9 +91,15 @@ function harness() {
     writes: () => writes,
     invalidations: () => invalidations,
     flushes: () => flushes,
-    changeDocument: () => { documentId = OTHER_ID; },
-    changeRevision: () => { revision++; },
-    changeMetadata: () => { current = metadata("changed-after-preview"); },
+    changeDocument: () => {
+      documentId = OTHER_ID;
+    },
+    changeRevision: () => {
+      revision++;
+    },
+    changeMetadata: () => {
+      current = metadata("changed-after-preview");
+    },
   };
 }
 
@@ -179,16 +191,18 @@ test("canonical browser exports create bounded JSON and legal PGN artifacts with
     currentStrategicFitAnalysisSettings: () => ({ identity: "{}", inputs: {} }),
     openings: async () => new Map(),
     strategicFitReport: async (pgn: string, options: Parameters<typeof analyzeStrategicFit>[1]) =>
-      completeStrategicFitReport(analyzeStrategicFit(
-        GameTree.fromPgn(pgn),
-        strategicFitCompleteAnalysisOptions(options),
-      )),
+      completeStrategicFitReport(
+        analyzeStrategicFit(GameTree.fromPgn(pgn), strategicFitCompleteAnalysisOptions(options)),
+      ),
     createArtifact,
   };
 
-  const jsonResult = await executeDirectBrowserCommand(
-    "export_strategic_fit_metadata", {}, {}, dependencies,
-  ) as Record<string, unknown>;
+  const jsonResult = (await executeDirectBrowserCommand(
+    "export_strategic_fit_metadata",
+    {},
+    {},
+    dependencies,
+  )) as Record<string, unknown>;
   assert.equal(jsonResult.format, "json");
   assert.equal(jsonResult.media_type, "application/json");
   assert.equal(jsonResult.name, "my-repertoire-strategic-fit.json");
@@ -197,14 +211,20 @@ test("canonical browser exports create bounded JSON and legal PGN artifacts with
   assert.ok(jsonArtifact);
   assert.equal(jsonArtifact.bytes, new Blob([jsonArtifact.content]).size);
   assert.doesNotMatch(jsonArtifact.content, /token|credential|secret/i);
-  const chatJson = await runTool("export_strategic_fit_metadata", {}, {}, dependencies) as Record<string, unknown>;
+  const chatJson = (await runTool("export_strategic_fit_metadata", {}, {}, dependencies)) as Record<
+    string,
+    unknown
+  >;
   assert.equal(chatJson.format, "json");
   assert.equal(chatJson.name, jsonResult.name);
   assert.equal("content" in chatJson, false);
 
-  const pgnResult = await executeDirectBrowserCommand(
-    "export_strategic_fit_intent_pgn", { max_findings: 2, max_resolutions: 2 }, {}, dependencies,
-  ) as Record<string, unknown>;
+  const pgnResult = (await executeDirectBrowserCommand(
+    "export_strategic_fit_intent_pgn",
+    { max_findings: 2, max_resolutions: 2 },
+    {},
+    dependencies,
+  )) as Record<string, unknown>;
   assert.equal(pgnResult.format, "pgn");
   assert.equal(pgnResult.media_type, "application/x-chess-pgn");
   assert.equal(pgnResult.name, "my-repertoire-strategic-fit-intent.pgn");

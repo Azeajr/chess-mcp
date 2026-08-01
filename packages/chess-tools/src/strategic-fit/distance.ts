@@ -121,13 +121,14 @@ interface FeatureAggregate {
 
 const ID_SEPARATOR = "\u001f";
 const EPSILON = 1e-12;
-const CHECKPOINT_ORDER: Readonly<Record<Exclude<StrategicCheckpointKind, "final-valid-position">, number>> =
-  Object.freeze({
-    "opening-exit": 0,
-    "central-resolution": 1,
-    "irreversible-transformation": 2,
-    "configured-ply": 3,
-  });
+const CHECKPOINT_ORDER: Readonly<
+  Record<Exclude<StrategicCheckpointKind, "final-valid-position">, number>
+> = Object.freeze({
+  "opening-exit": 0,
+  "central-resolution": 1,
+  "irreversible-transformation": 2,
+  "configured-ply": 3,
+});
 const TIMING_AND_TRANSPORT_KEYS = new Set([
   "analysis_version",
   "at_ply",
@@ -143,7 +144,12 @@ const TIMING_AND_TRANSPORT_KEYS = new Set([
 const ORDINAL_VALUES: Readonly<Record<string, Readonly<Record<string, number>>>> = Object.freeze({
   "center-dynamics.openness": Object.freeze({ closed: 0, "semi-open": 0.5, open: 1 }),
   "center-dynamics.fixity": Object.freeze({ fixed: 0, "partially-fixed": 0.5, unfixed: 1 }),
-  "center-dynamics.fluidity": Object.freeze({ fixed: 0, limited: 1 / 3, fluid: 2 / 3, resolved: 1 }),
+  "center-dynamics.fluidity": Object.freeze({
+    fixed: 0,
+    limited: 1 / 3,
+    fluid: 2 / 3,
+    resolved: 1,
+  }),
 });
 
 const CORE_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
@@ -172,12 +178,19 @@ function sortedUnique(values: readonly string[]): string[] {
 }
 
 function compareCheckpointKeys(left: string, right: string): number {
-  const leftKind = left.split(":", 1)[0] as Exclude<StrategicCheckpointKind, "final-valid-position">;
-  const rightKind = right.split(":", 1)[0] as Exclude<StrategicCheckpointKind, "final-valid-position">;
+  const leftKind = left.split(":", 1)[0] as Exclude<
+    StrategicCheckpointKind,
+    "final-valid-position"
+  >;
+  const rightKind = right.split(":", 1)[0] as Exclude<
+    StrategicCheckpointKind,
+    "final-valid-position"
+  >;
   const kindOrder = CHECKPOINT_ORDER[leftKind] - CHECKPOINT_ORDER[rightKind];
   if (kindOrder !== 0) return kindOrder;
   if (leftKind === "configured-ply" && rightKind === "configured-ply") {
-    const plyOrder = Number(left.slice(left.indexOf(":") + 1)) - Number(right.slice(right.indexOf(":") + 1));
+    const plyOrder =
+      Number(left.slice(left.indexOf(":") + 1)) - Number(right.slice(right.indexOf(":") + 1));
     if (plyOrder !== 0) return plyOrder;
   }
   return compareStrings(left, right);
@@ -190,9 +203,10 @@ function isObject(value: JsonValue): value is { readonly [key: string]: JsonValu
 function stableSerialize(value: JsonValue): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   if (isObject(value)) {
-    return `{${Object.keys(value).sort(compareStrings).map((key) =>
-      `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`
-    ).join(",")}}`;
+    return `{${Object.keys(value)
+      .sort(compareStrings)
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -222,7 +236,9 @@ function ordinalDistance(featureId: string, left: string, right: string): number
   const values = ORDINAL_VALUES[featureId];
   const leftValue = values?.[left];
   const rightValue = values?.[right];
-  return leftValue === undefined || rightValue === undefined ? null : Math.abs(leftValue - rightValue);
+  return leftValue === undefined || rightValue === undefined
+    ? null
+    : Math.abs(leftValue - rightValue);
 }
 
 /** A bounded symmetric JSON distance. Object keys absent on either side are missing evidence. */
@@ -251,9 +267,13 @@ function mixedValueDistance(left: JsonValue, right: JsonValue, featureId: string
       .filter((key) => Object.hasOwn(normalizedRight, key))
       .sort(compareStrings);
     if (sharedKeys.length === 0) return 0;
-    return sharedKeys.reduce((sum, key) =>
-      sum + mixedValueDistance(normalizedLeft[key]!, normalizedRight[key]!, featureId), 0
-    ) / sharedKeys.length;
+    return (
+      sharedKeys.reduce(
+        (sum, key) =>
+          sum + mixedValueDistance(normalizedLeft[key]!, normalizedRight[key]!, featureId),
+        0,
+      ) / sharedKeys.length
+    );
   }
   return stableSerialize(normalizedLeft) === stableSerialize(normalizedRight) ? 0 : 1;
 }
@@ -271,18 +291,21 @@ function comparableSnapshots(trajectory: StrategicTrajectory): Map<string, Strat
     if (
       snapshot.checkpoint.comparability !== "comparable" ||
       snapshot.checkpoint.kind === "final-valid-position"
-    ) continue;
+    )
+      continue;
     const key = checkpointKey(snapshot);
-    if (result.has(key)) throw new Error(`strategic_fit_distance_duplicate_checkpoint: ${trajectory.route_id} ${key}`);
+    if (result.has(key))
+      throw new Error(`strategic_fit_distance_duplicate_checkpoint: ${trajectory.route_id} ${key}`);
     result.set(key, snapshot);
   }
   return result;
 }
 
 function signalSlot(signal: StrategicSignal): string {
-  const subject = isObject(signal.value) && typeof signal.value.subject === "string"
-    ? signal.value.subject
-    : null;
+  const subject =
+    isObject(signal.value) && typeof signal.value.subject === "string"
+      ? signal.value.subject
+      : null;
   return subject === null ? signal.feature_id : `${signal.feature_id}:${subject}`;
 }
 
@@ -291,7 +314,10 @@ function stableSignals(snapshot: StrategicSnapshot): Map<string, StrategicSignal
   for (const signal of snapshot.signals) {
     if (signal.persistence !== "stable" && signal.persistence !== "irreversible") continue;
     const slot = signalSlot(signal);
-    if (result.has(slot)) throw new Error(`strategic_fit_distance_duplicate_signal_slot: ${snapshot.snapshot_id} ${slot}`);
+    if (result.has(slot))
+      throw new Error(
+        `strategic_fit_distance_duplicate_signal_slot: ${snapshot.snapshot_id} ${slot}`,
+      );
     result.set(slot, signal);
   }
   return result;
@@ -327,16 +353,23 @@ function observations(
 } {
   const leftSnapshots = comparableSnapshots(left);
   const rightSnapshots = comparableSnapshots(right);
-  const matched = [...leftSnapshots.keys()].filter((key) => rightSnapshots.has(key)).sort(compareCheckpointKeys);
+  const matched = [...leftSnapshots.keys()]
+    .filter((key) => rightSnapshots.has(key))
+    .sort(compareCheckpointKeys);
   const values: FeatureObservation[] = [];
   for (const key of matched) {
     const leftSignals = stableSignals(leftSnapshots.get(key)!);
     const rightSignals = stableSignals(rightSnapshots.get(key)!);
-    const slots = [...leftSignals.keys()].filter((slot) => rightSignals.has(slot)).sort(compareStrings);
+    const slots = [...leftSignals.keys()]
+      .filter((slot) => rightSignals.has(slot))
+      .sort(compareStrings);
     for (const slot of slots) {
       const leftSignal = leftSignals.get(slot)!;
       const rightSignal = rightSignals.get(slot)!;
-      if (leftSignal.family !== rightSignal.family || leftSignal.feature_id !== rightSignal.feature_id) {
+      if (
+        leftSignal.family !== rightSignal.family ||
+        leftSignal.feature_id !== rightSignal.feature_id
+      ) {
         throw new Error(`strategic_fit_distance_signal_slot_collision: ${slot}`);
       }
       values.push({
@@ -352,8 +385,12 @@ function observations(
   return {
     values,
     matched,
-    leftOnly: [...leftSnapshots.keys()].filter((key) => !rightSnapshots.has(key)).sort(compareCheckpointKeys),
-    rightOnly: [...rightSnapshots.keys()].filter((key) => !leftSnapshots.has(key)).sort(compareCheckpointKeys),
+    leftOnly: [...leftSnapshots.keys()]
+      .filter((key) => !rightSnapshots.has(key))
+      .sort(compareCheckpointKeys),
+    rightOnly: [...rightSnapshots.keys()]
+      .filter((key) => !leftSnapshots.has(key))
+      .sort(compareCheckpointKeys),
   };
 }
 
@@ -365,16 +402,20 @@ function aggregateFeatures(values: readonly FeatureObservation[]): FeatureAggreg
     group.push(value);
     groups.set(key, group);
   }
-  return [...groups.values()].map((group) => ({
-    family: group[0]!.family,
-    featureId: group[0]!.featureId,
-    distance: clamp(group.reduce((sum, item) => sum + item.distance, 0) / group.length),
-    matchedEvidenceCount: group.length,
-    matchedCheckpointKeys: sortedUnique(group.map((item) => item.checkpointKey)),
-  })).sort((left, right) =>
-    STRATEGIC_SIGNAL_FAMILIES.indexOf(left.family) - STRATEGIC_SIGNAL_FAMILIES.indexOf(right.family) ||
-    compareStrings(left.featureId, right.featureId)
-  );
+  return [...groups.values()]
+    .map((group) => ({
+      family: group[0]!.family,
+      featureId: group[0]!.featureId,
+      distance: clamp(group.reduce((sum, item) => sum + item.distance, 0) / group.length),
+      matchedEvidenceCount: group.length,
+      matchedCheckpointKeys: sortedUnique(group.map((item) => item.checkpointKey)),
+    }))
+    .sort(
+      (left, right) =>
+        STRATEGIC_SIGNAL_FAMILIES.indexOf(left.family) -
+          STRATEGIC_SIGNAL_FAMILIES.indexOf(right.family) ||
+        compareStrings(left.featureId, right.featureId),
+    );
 }
 
 function resolvedWeights(options: StrategicDistanceOptions): StrategicDistanceFeatureFamilyWeights {
@@ -384,13 +425,15 @@ function resolvedWeights(options: StrategicDistanceOptions): StrategicDistanceFe
       throw new Error(`strategic_fit_distance_unknown_family: ${family}`);
     }
   }
-  const weights = Object.fromEntries(STRATEGIC_SIGNAL_FAMILIES.map((family) => {
-    const value = overrides[family] ?? DEFAULT_STRATEGIC_DISTANCE_FEATURE_FAMILY_WEIGHTS[family];
-    if (!Number.isFinite(value) || value < 0) {
-      throw new Error(`strategic_fit_distance_invalid_weight: ${family} ${String(value)}`);
-    }
-    return [family, value];
-  })) as unknown as StrategicDistanceFeatureFamilyWeights;
+  const weights = Object.fromEntries(
+    STRATEGIC_SIGNAL_FAMILIES.map((family) => {
+      const value = overrides[family] ?? DEFAULT_STRATEGIC_DISTANCE_FEATURE_FAMILY_WEIGHTS[family];
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`strategic_fit_distance_invalid_weight: ${family} ${String(value)}`);
+      }
+      return [family, value];
+    }),
+  ) as unknown as StrategicDistanceFeatureFamilyWeights;
   if (STRATEGIC_SIGNAL_FAMILIES.every((family) => weights[family] === 0)) {
     throw new Error("strategic_fit_distance_all_weights_zero");
   }
@@ -449,10 +492,12 @@ function reconcileContributions<T extends { readonly contribution: number }>(
       adjustedIndex--;
     }
   }
-  if (adjustedIndex < 0) throw new Error("strategic_fit_distance_contribution_reconciliation_failed");
-  return values.map((value, index) => index === adjustedIndex
-    ? { ...value, contribution: round(value.contribution + adjustment) }
-    : value
+  if (adjustedIndex < 0)
+    throw new Error("strategic_fit_distance_contribution_reconciliation_failed");
+  return values.map((value, index) =>
+    index === adjustedIndex
+      ? { ...value, contribution: round(value.contribution + adjustment) }
+      : value,
   );
 }
 
@@ -475,7 +520,10 @@ export function computeStrategicTrajectoryDistance(
   if (left.route_id !== leftConcepts.route_id || right.route_id !== rightConcepts.route_id) {
     throw new Error("strategic_fit_distance_concept_route_mismatch");
   }
-  if (left.trajectory_id !== leftConcepts.trajectory_id || right.trajectory_id !== rightConcepts.trajectory_id) {
+  if (
+    left.trajectory_id !== leftConcepts.trajectory_id ||
+    right.trajectory_id !== rightConcepts.trajectory_id
+  ) {
     throw new Error("strategic_fit_distance_concept_trajectory_mismatch");
   }
   const weights = resolvedWeights(options);
@@ -500,7 +548,7 @@ export function computeStrategicTrajectoryDistance(
     );
   }
   const availableFamilies = STRATEGIC_SIGNAL_FAMILIES.filter((family) =>
-    weightedAggregates.some((aggregate) => aggregate.family === family)
+    weightedAggregates.some((aggregate) => aggregate.family === family),
   );
   const availableWeight = availableFamilies.reduce((sum, family) => sum + weights[family], 0);
   const rawFamilyContributions: StrategicDistanceFamilyContribution[] = [];
@@ -509,7 +557,8 @@ export function computeStrategicTrajectoryDistance(
   for (const family of availableFamilies) {
     const features = weightedAggregates.filter((aggregate) => aggregate.family === family);
     const normalizedFamilyWeight = weights[family] / availableWeight;
-    const familyDistance = features.reduce((sum, feature) => sum + feature.distance, 0) / features.length;
+    const familyDistance =
+      features.reduce((sum, feature) => sum + feature.distance, 0) / features.length;
     rawDistance += normalizedFamilyWeight * familyDistance;
     rawFamilyContributions.push({
       family,
@@ -572,7 +621,10 @@ function requireCompatibleReports(
   if (modes.graph_id !== trajectories.graph_id || modes.graph_id !== concepts.graph_id) {
     throw new Error("strategic_fit_distance_report_graph_mismatch");
   }
-  const modeRouteIds = modes.cohorts.flatMap((cohort) => [...cohort.route_ids, ...cohort.excluded_route_ids]);
+  const modeRouteIds = modes.cohorts.flatMap((cohort) => [
+    ...cohort.route_ids,
+    ...cohort.excluded_route_ids,
+  ]);
   const trajectoryRouteIds = trajectories.trajectories.map((trajectory) => trajectory.route_id);
   const conceptRouteIds = concepts.routes.map((route) => route.route_id);
   if (!sameIds(modeRouteIds, trajectoryRouteIds) || !sameIds(modeRouteIds, conceptRouteIds)) {
@@ -594,9 +646,13 @@ export function calculateStrategicDistances(
   );
   const conceptsByRoute = new Map(conceptDictionary.routes.map((route) => [route.route_id, route]));
   const comparisons: StrategicRouteModeDistance[] = [];
-  for (const cohort of [...modeReport.cohorts].sort((left, right) => compareStrings(left.cohort_id, right.cohort_id))) {
+  for (const cohort of [...modeReport.cohorts].sort((left, right) =>
+    compareStrings(left.cohort_id, right.cohort_id),
+  )) {
     for (const routeId of [...cohort.route_ids].sort(compareStrings)) {
-      for (const mode of [...cohort.modes].sort((left, right) => compareStrings(left.mode_id, right.mode_id))) {
+      for (const mode of [...cohort.modes].sort((left, right) =>
+        compareStrings(left.mode_id, right.mode_id),
+      )) {
         const pair = computeStrategicTrajectoryDistance(
           trajectoryByRoute.get(routeId)!,
           trajectoryByRoute.get(mode.representative_route_id)!,

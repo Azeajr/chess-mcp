@@ -49,36 +49,42 @@ export const OPENING_DATABASE_EVIDENCE_FIXTURE = {
     position_key: "pivot-key",
     fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
   },
-  moves: [{
-    move_id: "database-move:Nf3",
-    san: "Nf3",
-    uci: "g1f3",
-    popularity: {
-      games: 100,
-      played_pct: 50,
-      white_pct: 40,
-      draw_pct: 30,
-      black_pct: 30,
-      average_rating: 1900,
+  moves: [
+    {
+      move_id: "database-move:Nf3",
+      san: "Nf3",
+      uci: "g1f3",
+      popularity: {
+        games: 100,
+        played_pct: 50,
+        white_pct: 40,
+        draw_pct: 30,
+        black_pct: 30,
+        average_rating: 1900,
+      },
+      provenance: [
+        {
+          source_id: "opening-explorer:fixture-move",
+          kind: "opening-explorer",
+          state: "available",
+          version: "fixture-v1",
+          snapshot: "2026-07-27T00:00:00Z",
+          reason: null,
+        },
+      ],
     },
-    provenance: [{
-      source_id: "opening-explorer:fixture-move",
+  ],
+  reason: null,
+  provenance: [
+    {
+      source_id: "opening-explorer:fixture",
       kind: "opening-explorer",
       state: "available",
       version: "fixture-v1",
       snapshot: "2026-07-27T00:00:00Z",
       reason: null,
-    }],
-  }],
-  reason: null,
-  provenance: [{
-    source_id: "opening-explorer:fixture",
-    kind: "opening-explorer",
-    state: "available",
-    version: "fixture-v1",
-    snapshot: "2026-07-27T00:00:00Z",
-    reason: null,
-  }],
+    },
+  ],
 } satisfies ReplacementOpeningDatabaseEvidence;
 
 const evidenceStates: Record<ReplacementDatabaseEvidenceState, true> = {
@@ -144,13 +150,20 @@ declare const seed: ReplacementCandidateSeed;
 // @ts-expect-error Candidate seeds cannot satisfy Task 8.1 full-subtree candidates.
 const invalidFinishedCandidate: ReplacementCandidate = seed;
 
-const stateValues: readonly ReplacementDatabaseEvidenceState[] = REPLACEMENT_DATABASE_EVIDENCE_STATES;
-const seedStatusValues: readonly ReplacementCandidateSeedStatus[] = REPLACEMENT_CANDIDATE_SEED_STATUSES;
-const memoryValues: readonly ReplacementCandidateMemoryClass[] = REPLACEMENT_CANDIDATE_MEMORY_CLASSES;
-const itemStatusValues: readonly ReplacementDatabaseItemResultStatus[] = REPLACEMENT_DATABASE_ITEM_RESULT_STATUSES;
-const itemErrorValues: readonly ReplacementDatabaseItemErrorCode[] = REPLACEMENT_DATABASE_ITEM_ERROR_CODES;
-const resultStatusValues: readonly ReplacementCandidateGenerationStatus[] = REPLACEMENT_CANDIDATE_GENERATION_STATUSES;
-const resultErrorValues: readonly ReplacementCandidateGenerationErrorCode[] = REPLACEMENT_CANDIDATE_GENERATION_ERROR_CODES;
+const stateValues: readonly ReplacementDatabaseEvidenceState[] =
+  REPLACEMENT_DATABASE_EVIDENCE_STATES;
+const seedStatusValues: readonly ReplacementCandidateSeedStatus[] =
+  REPLACEMENT_CANDIDATE_SEED_STATUSES;
+const memoryValues: readonly ReplacementCandidateMemoryClass[] =
+  REPLACEMENT_CANDIDATE_MEMORY_CLASSES;
+const itemStatusValues: readonly ReplacementDatabaseItemResultStatus[] =
+  REPLACEMENT_DATABASE_ITEM_RESULT_STATUSES;
+const itemErrorValues: readonly ReplacementDatabaseItemErrorCode[] =
+  REPLACEMENT_DATABASE_ITEM_ERROR_CODES;
+const resultStatusValues: readonly ReplacementCandidateGenerationStatus[] =
+  REPLACEMENT_CANDIDATE_GENERATION_STATUSES;
+const resultErrorValues: readonly ReplacementCandidateGenerationErrorCode[] =
+  REPLACEMENT_CANDIDATE_GENERATION_ERROR_CODES;
 
 void evidenceStates;
 void seedStatuses;

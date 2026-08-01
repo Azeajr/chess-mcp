@@ -37,8 +37,16 @@ import { strategicFitProfile, strategicFitProfileIdentity } from "./strategic-fi
 import { strategicFitAnalysisSettingsIdentity } from "./strategic-fit-resolutions";
 
 export type StrategicFitCohortAdjustmentDraft =
-  | { readonly kind: "merge"; readonly route_ids: readonly string[]; readonly reason?: string | null }
-  | { readonly kind: "split"; readonly route_ids: readonly string[]; readonly reason?: string | null }
+  | {
+      readonly kind: "merge";
+      readonly route_ids: readonly string[];
+      readonly reason?: string | null;
+    }
+  | {
+      readonly kind: "split";
+      readonly route_ids: readonly string[];
+      readonly reason?: string | null;
+    }
   | {
       readonly kind: "exclude";
       readonly route_ids?: readonly string[];
@@ -112,7 +120,9 @@ export interface StrategicFitCohortAdjustmentBoundary {
     args: Record<string, unknown>,
     options: BrowserCommandExecutionOptions,
   ): Promise<unknown>;
-  upsertOverride(input: StrategicFitCohortOverrideMutationInput): StrategicFitSettingsMutationResult;
+  upsertOverride(
+    input: StrategicFitCohortOverrideMutationInput,
+  ): StrategicFitSettingsMutationResult;
   removeOverride(overrideId: string): StrategicFitSettingsMutationResult;
   upsertLabel(input: StrategicFitCohortLabelMutationInput): StrategicFitSettingsMutationResult;
   removeLabel(labelId: string): StrategicFitSettingsMutationResult;
@@ -163,13 +173,18 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function sameSnapshot(left: StrategicFitRequestSnapshot, right: StrategicFitRequestSnapshot): boolean {
-  return left.document_id === right.document_id &&
+function sameSnapshot(
+  left: StrategicFitRequestSnapshot,
+  right: StrategicFitRequestSnapshot,
+): boolean {
+  return (
+    left.document_id === right.document_id &&
     left.repertoire_revision === right.repertoire_revision &&
     left.repertoire_pgn === right.repertoire_pgn &&
     left.repertoire_color === right.repertoire_color &&
     left.profile_identity === right.profile_identity &&
-    left.settings_identity === right.settings_identity;
+    left.settings_identity === right.settings_identity
+  );
 }
 
 function available(ids: readonly string[]): StrategicFitCohortAdjustmentImpactList {
@@ -214,59 +229,63 @@ function impactedFindings(
   cohortIds: ReadonlySet<string>,
   routeIds: ReadonlySet<string>,
 ): string[] {
-  return findings.filter((finding) =>
-    cohortIds.has(finding.evidence.cohort_id) ||
-    finding.references.route_ids.some((routeId) => routeIds.has(routeId))
-  ).map((finding) => finding.finding_id).sort(compareStrings);
+  return findings
+    .filter(
+      (finding) =>
+        cohortIds.has(finding.evidence.cohort_id) ||
+        finding.references.route_ids.some((routeId) => routeIds.has(routeId)),
+    )
+    .map((finding) => finding.finding_id)
+    .sort(compareStrings);
 }
 
 function impactFromReports(
   current: StrategicFitAnalysisResult,
   currentFindings: readonly StrategicFinding[],
   proposed: StrategicFitAnalysisResult,
-): Omit<StrategicFitCohortAdjustmentPreview,
-  "preview_id" | "report_id" | "draft" | "override_id" | "label_id" | "summary" | "binding"> {
+): Omit<
+  StrategicFitCohortAdjustmentPreview,
+  "preview_id" | "report_id" | "draft" | "override_id" | "label_id" | "summary" | "binding"
+> {
   const currentByRoute = routeCohortSignatures(current.cohorts);
   const proposedByRoute = routeCohortSignatures(proposed.cohorts);
   const routeIds = sortedUnique([...currentByRoute.keys(), ...proposedByRoute.keys()]);
-  const affectedRouteIds = routeIds.filter((routeId) =>
-    currentByRoute.get(routeId) !== proposedByRoute.get(routeId)
+  const affectedRouteIds = routeIds.filter(
+    (routeId) => currentByRoute.get(routeId) !== proposedByRoute.get(routeId),
   );
   const affectedRouteSet = new Set(affectedRouteIds);
   const currentCohorts = current.cohorts.filter((cohort) =>
-    allCohortRoutes(cohort).some((routeId) => affectedRouteSet.has(routeId))
+    allCohortRoutes(cohort).some((routeId) => affectedRouteSet.has(routeId)),
   );
   const proposedCohorts = proposed.cohorts.filter((cohort) =>
-    allCohortRoutes(cohort).some((routeId) => affectedRouteSet.has(routeId))
+    allCohortRoutes(cohort).some((routeId) => affectedRouteSet.has(routeId)),
   );
   const currentCohortIds = new Set(currentCohorts.map((cohort) => cohort.cohort_id));
   const proposedCohortIds = new Set(proposedCohorts.map((cohort) => cohort.cohort_id));
-  const currentBaselines = sortedUnique(currentCohorts.flatMap((cohort) =>
-    cohort.modes.map((mode) => mode.representative_route_id)
-  ));
-  const proposedBaselines = sortedUnique(proposedCohorts.flatMap((cohort) =>
-    cohort.modes.map((mode) => mode.representative_route_id)
-  ));
+  const currentBaselines = sortedUnique(
+    currentCohorts.flatMap((cohort) => cohort.modes.map((mode) => mode.representative_route_id)),
+  );
+  const proposedBaselines = sortedUnique(
+    proposedCohorts.flatMap((cohort) => cohort.modes.map((mode) => mode.representative_route_id)),
+  );
   return {
     current_cohorts: available([...currentCohortIds]),
     proposed_cohorts: available([...proposedCohortIds]),
     affected_routes: available(affectedRouteIds),
-    current_baselines: currentBaselines.length === 0
-      ? unavailable("The current affected cohorts have no supported baseline mode.")
-      : available(currentBaselines),
-    proposed_baselines: proposedBaselines.length === 0
-      ? unavailable("The proposed affected cohorts have no supported baseline mode.")
-      : available(proposedBaselines),
-    current_findings: available(impactedFindings(
-      currentFindings,
-      currentCohortIds,
-      affectedRouteSet,
-    )),
-    proposed_findings: available(impactedFindings(
-      proposed.findings,
-      proposedCohortIds,
-      affectedRouteSet,
-    )),
+    current_baselines:
+      currentBaselines.length === 0
+        ? unavailable("The current affected cohorts have no supported baseline mode.")
+        : available(currentBaselines),
+    proposed_baselines:
+      proposedBaselines.length === 0
+        ? unavailable("The proposed affected cohorts have no supported baseline mode.")
+        : available(proposedBaselines),
+    current_findings: available(
+      impactedFindings(currentFindings, currentCohortIds, affectedRouteSet),
+    ),
+    proposed_findings: available(
+      impactedFindings(proposed.findings, proposedCohortIds, affectedRouteSet),
+    ),
   };
 }
 
@@ -276,7 +295,8 @@ function renameImpact(
   cohortId: string,
 ): ReturnType<typeof impactFromReports> {
   const cohort = report.cohorts.find((candidate) => candidate.cohort_id === cohortId);
-  if (cohort === undefined) throw new Error(`strategic_fit_cohort_adjustment_unknown_cohort: ${cohortId}`);
+  if (cohort === undefined)
+    throw new Error(`strategic_fit_cohort_adjustment_unknown_cohort: ${cohortId}`);
   const routes = allCohortRoutes(cohort);
   const baselines = cohort.modes.map((mode) => mode.representative_route_id);
   const affectedFindings = impactedFindings(findings, new Set([cohortId]), new Set(routes));
@@ -284,12 +304,14 @@ function renameImpact(
     current_cohorts: available([cohortId]),
     proposed_cohorts: available([cohortId]),
     affected_routes: available(routes),
-    current_baselines: baselines.length === 0
-      ? unavailable("This cohort has no supported baseline mode.")
-      : available(baselines),
-    proposed_baselines: baselines.length === 0
-      ? unavailable("This cohort has no supported baseline mode.")
-      : available(baselines),
+    current_baselines:
+      baselines.length === 0
+        ? unavailable("This cohort has no supported baseline mode.")
+        : available(baselines),
+    proposed_baselines:
+      baselines.length === 0
+        ? unavailable("This cohort has no supported baseline mode.")
+        : available(baselines),
     current_findings: available(affectedFindings),
     proposed_findings: available(affectedFindings),
   };
@@ -304,18 +326,25 @@ function validReportPage(
   if (typeof value !== "object" || value === null) {
     throw new Error("strategic_fit_cohort_preview_invalid_report");
   }
-  const candidate = value as Partial<StrategicFitAnalysisResult> & { error?: unknown; reason?: unknown };
+  const candidate = value as Partial<StrategicFitAnalysisResult> & {
+    error?: unknown;
+    reason?: unknown;
+  };
   if (typeof candidate.error === "string") {
     throw new Error(typeof candidate.reason === "string" ? candidate.reason : candidate.error);
   }
   const page = candidate.finding_page;
   if (
-    typeof candidate.report_id !== "string" || !Array.isArray(candidate.findings) ||
-    !Array.isArray(candidate.cohorts) || page === undefined || page.offset !== expectedOffset ||
+    typeof candidate.report_id !== "string" ||
+    !Array.isArray(candidate.findings) ||
+    !Array.isArray(candidate.cohorts) ||
+    page === undefined ||
+    page.offset !== expectedOffset ||
     page.returned_count !== candidate.findings.length ||
     (expectedReportId !== null && candidate.report_id !== expectedReportId) ||
     (expectedTotal !== null && page.total_count !== expectedTotal)
-  ) throw new Error("strategic_fit_cohort_preview_inconsistent_report");
+  )
+    throw new Error("strategic_fit_cohort_preview_inconsistent_report");
   return candidate as StrategicFitAnalysisResult;
 }
 
@@ -330,11 +359,15 @@ async function loadProposedReport(
   let first: StrategicFitAnalysisResult | null = null;
   const findings: StrategicFinding[] = [];
   do {
-    const value = await boundary.execute("analyze_repertoire_congruence", {
-      cohort_overrides: overrides,
-      sort: "finding-id",
-      page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
-    }, { signal: controller.signal });
+    const value = await boundary.execute(
+      "analyze_repertoire_congruence",
+      {
+        cohort_overrides: overrides,
+        sort: "finding-id",
+        page: { offset, limit: STRATEGIC_FIT_MAX_PAGE_SIZE },
+      },
+      { signal: controller.signal },
+    );
     if (controller.signal.aborted) throw new DOMException("Preview cancelled", "AbortError");
     const page = validReportPage(value, offset, reportId, total);
     first ??= page;
@@ -363,20 +396,22 @@ async function loadProposedReport(
 function activeOverrides(metadata: StrategicFitDocumentMetadata): StrategicCohortOverride[] {
   return [...metadata.cohort_overrides, ...metadata.exclusions]
     .filter((entry) => entry.record_state === "active")
-    .map((entry) => entry.kind === "exclude"
-      ? {
-          override_id: entry.override_id,
-          kind: "exclude" as const,
-          route_ids: [...(entry.route_ids ?? [])],
-          decision_ids: [...(entry.decision_ids ?? [])],
-          provenance: entry.provenance,
-        }
-      : {
-          override_id: entry.override_id,
-          kind: entry.kind,
-          route_ids: [...entry.route_ids],
-          provenance: entry.provenance,
-        })
+    .map((entry) =>
+      entry.kind === "exclude"
+        ? {
+            override_id: entry.override_id,
+            kind: "exclude" as const,
+            route_ids: [...(entry.route_ids ?? [])],
+            decision_ids: [...(entry.decision_ids ?? [])],
+            provenance: entry.provenance,
+          }
+        : {
+            override_id: entry.override_id,
+            kind: entry.kind,
+            route_ids: [...entry.route_ids],
+            provenance: entry.provenance,
+          },
+    )
     .sort((left, right) => compareStrings(left.override_id, right.override_id));
 }
 
@@ -412,11 +447,13 @@ function proposedMutation(
         label: null,
         removeOverrideId: target.override_id,
         removeLabelId: null,
-        analyzerOverrides: currentOverrides.filter((entry) => entry.override_id !== target.override_id),
+        analyzerOverrides: currentOverrides.filter(
+          (entry) => entry.override_id !== target.override_id,
+        ),
       };
     }
-    const target = metadata.cohort_labels.find((entry) =>
-      entry.record_state === "active" && entry.label_id === draft.target_id
+    const target = metadata.cohort_labels.find(
+      (entry) => entry.record_state === "active" && entry.label_id === draft.target_id,
     );
     if (target === undefined) throw new Error("strategic_fit_cohort_adjustment_missing_label");
     return {
@@ -448,10 +485,14 @@ function proposedMutation(
       analyzerOverrides: currentOverrides,
     };
   }
-  const selectedRouteIds = normalizedIds(draft.route_ids, "strategic_fit_cohort_adjustment_duplicate_route");
-  const selectedDecisionIds = draft.kind === "exclude"
-    ? normalizedIds(draft.decision_ids, "strategic_fit_cohort_adjustment_duplicate_decision")
-    : [];
+  const selectedRouteIds = normalizedIds(
+    draft.route_ids,
+    "strategic_fit_cohort_adjustment_duplicate_route",
+  );
+  const selectedDecisionIds =
+    draft.kind === "exclude"
+      ? normalizedIds(draft.decision_ids, "strategic_fit_cohort_adjustment_duplicate_decision")
+      : [];
   if (selectedRouteIds.some((id) => !routeIds.has(id))) {
     throw new Error("strategic_fit_cohort_adjustment_unknown_route");
   }
@@ -461,7 +502,11 @@ function proposedMutation(
   if (draft.kind !== "exclude" && selectedRouteIds.length === 0) {
     throw new Error(`strategic_fit_cohort_adjustment_empty_${draft.kind}`);
   }
-  if (draft.kind === "exclude" && selectedRouteIds.length === 0 && selectedDecisionIds.length === 0) {
+  if (
+    draft.kind === "exclude" &&
+    selectedRouteIds.length === 0 &&
+    selectedDecisionIds.length === 0
+  ) {
     throw new Error("strategic_fit_cohort_adjustment_empty_exclude");
   }
   const identity = stableSerialize({
@@ -477,14 +522,15 @@ function proposedMutation(
     ...(draft.kind === "exclude" ? { decision_ids: selectedDecisionIds } : {}),
     reason: draft.reason ?? `Strategic Fit ${draft.kind} adjustment.`,
   };
-  const analyzerOverride: StrategicCohortOverride = draft.kind === "exclude"
-    ? {
-        override_id: overrideId,
-        kind: "exclude",
-        route_ids: selectedRouteIds,
-        decision_ids: selectedDecisionIds,
-      }
-    : { override_id: overrideId, kind: draft.kind, route_ids: selectedRouteIds };
+  const analyzerOverride: StrategicCohortOverride =
+    draft.kind === "exclude"
+      ? {
+          override_id: overrideId,
+          kind: "exclude",
+          route_ids: selectedRouteIds,
+          decision_ids: selectedDecisionIds,
+        }
+      : { override_id: overrideId, kind: draft.kind, route_ids: selectedRouteIds };
   return {
     override,
     label: null,
@@ -509,12 +555,18 @@ function friendlyError(error: unknown): { code: string; message: string } {
       "A route cannot belong to overlapping merge or split overrides.",
     strategic_fit_cohort_adjustment_empty_merge: "Choose routes from the cohorts to merge.",
     strategic_fit_cohort_adjustment_empty_split: "Choose a proper subset of routes to split.",
-    strategic_fit_cohort_adjustment_empty_exclude: "Choose a semantic route or decision subtree to exclude.",
-    strategic_fit_cohort_adjustment_duplicate_route: "The same semantic route cannot be selected twice.",
-    strategic_fit_cohort_adjustment_duplicate_decision: "The same semantic decision cannot be selected twice.",
-    strategic_fit_cohort_adjustment_unknown_route: "A selected semantic route is no longer current.",
-    strategic_fit_cohort_adjustment_unknown_decision: "A selected semantic decision is no longer current.",
-    strategic_fit_cohort_adjustment_unknown_cohort: "The selected semantic cohort is no longer current.",
+    strategic_fit_cohort_adjustment_empty_exclude:
+      "Choose a semantic route or decision subtree to exclude.",
+    strategic_fit_cohort_adjustment_duplicate_route:
+      "The same semantic route cannot be selected twice.",
+    strategic_fit_cohort_adjustment_duplicate_decision:
+      "The same semantic decision cannot be selected twice.",
+    strategic_fit_cohort_adjustment_unknown_route:
+      "A selected semantic route is no longer current.",
+    strategic_fit_cohort_adjustment_unknown_decision:
+      "A selected semantic decision is no longer current.",
+    strategic_fit_cohort_adjustment_unknown_cohort:
+      "The selected semantic cohort is no longer current.",
     strategic_fit_cohort_adjustment_empty_name: "Enter a user-facing cohort name.",
     strategic_fit_cohort_adjustment_name_too_long: "Cohort names must be 120 characters or fewer.",
     strategic_fit_cohort_adjustment_missing_override: "That cohort override is no longer active.",
@@ -580,29 +632,40 @@ export function createStrategicFitCohortAdjustmentState(
       const controller = new AbortController();
       activeController = controller;
       const requestSequence = ++sequence;
-      setState({ report_id: reportId, status: "previewing", code: null, message: "Calculating exact cohort impact…", preview: null });
+      setState({
+        report_id: reportId,
+        status: "previewing",
+        code: null,
+        message: "Calculating exact cohort impact…",
+        preview: null,
+      });
       try {
         const context = currentContext(reportId);
         const metadata = boundary.currentMetadata();
         const graph = boundary.currentGraph();
         const mutation = proposedMutation(draft, metadata, graph, context.current.result);
-        const proposed = draft.kind === "rename" || draft.kind === "reset" && draft.target === "rename"
-          ? context.current.result
-          : await loadProposedReport(boundary, mutation.analyzerOverrides, controller);
+        const proposed =
+          draft.kind === "rename" || (draft.kind === "reset" && draft.target === "rename")
+            ? context.current.result
+            : await loadProposedReport(boundary, mutation.analyzerOverrides, controller);
         if (controller.signal.aborted || requestSequence !== sequence) return null;
-        if (!sameSnapshot(context.current.request_snapshot, boundary.currentSnapshot()) ||
-          JSON.stringify(metadata) !== JSON.stringify(boundary.currentMetadata())) {
+        if (
+          !sameSnapshot(context.current.request_snapshot, boundary.currentSnapshot()) ||
+          JSON.stringify(metadata) !== JSON.stringify(boundary.currentMetadata())
+        ) {
           throw new Error("strategic_fit_cohort_adjustment_stale_preview");
         }
-        const impact = draft.kind === "rename"
-          ? renameImpact(context.current.result, context.findings, draft.cohort_id.trim())
-          : draft.kind === "reset" && draft.target === "rename"
-            ? renameImpact(
-                context.current.result,
-                context.findings,
-                metadata.cohort_labels.find((entry) => entry.label_id === draft.target_id)!.cohort_id,
-              )
-            : impactFromReports(context.current.result, context.findings, proposed);
+        const impact =
+          draft.kind === "rename"
+            ? renameImpact(context.current.result, context.findings, draft.cohort_id.trim())
+            : draft.kind === "reset" && draft.target === "rename"
+              ? renameImpact(
+                  context.current.result,
+                  context.findings,
+                  metadata.cohort_labels.find((entry) => entry.label_id === draft.target_id)!
+                    .cohort_id,
+                )
+              : impactFromReports(context.current.result, context.findings, proposed);
         const binding = {
           request_snapshot: context.current.request_snapshot,
           metadata_identity: JSON.stringify(metadata),
@@ -641,9 +704,10 @@ export function createStrategicFitCohortAdjustmentState(
     },
     async confirm(previewId) {
       const currentState = state();
-      const preview = currentState.status === "ready" && currentState.preview?.preview_id === previewId
-        ? currentState.preview
-        : null;
+      const preview =
+        currentState.status === "ready" && currentState.preview?.preview_id === previewId
+          ? currentState.preview
+          : null;
       if (preview === null) {
         block(currentState.report_id, new Error("strategic_fit_cohort_adjustment_missing_preview"));
         return false;
@@ -654,29 +718,38 @@ export function createStrategicFitCohortAdjustmentState(
           !sameSnapshot(preview.binding.request_snapshot, context.current.request_snapshot) ||
           !sameSnapshot(preview.binding.request_snapshot, boundary.currentSnapshot()) ||
           preview.binding.metadata_identity !== JSON.stringify(boundary.currentMetadata())
-        ) throw new Error("strategic_fit_cohort_adjustment_stale_confirmation");
+        )
+          throw new Error("strategic_fit_cohort_adjustment_stale_confirmation");
         const mutation = proposedMutation(
           preview.draft,
           boundary.currentMetadata(),
           boundary.currentGraph(),
           context.current.result,
         );
-        setState({ ...currentState, status: "applying", message: "Saving metadata and starting a fresh full analysis…" });
+        setState({
+          ...currentState,
+          status: "applying",
+          message: "Saving metadata and starting a fresh full analysis…",
+        });
         if (mutation.override !== null) boundary.upsertOverride(mutation.override);
         else if (mutation.label !== null) boundary.upsertLabel(mutation.label);
-        else if (mutation.removeOverrideId !== null) boundary.removeOverride(mutation.removeOverrideId);
+        else if (mutation.removeOverrideId !== null)
+          boundary.removeOverride(mutation.removeOverrideId);
         else if (mutation.removeLabelId !== null) boundary.removeLabel(mutation.removeLabelId);
         else throw new Error("strategic_fit_cohort_adjustment_missing_mutation");
-        await boundary.analyze(affectedCohortReanalysisRequest(
-          "cohort-override",
-          [...preview.current_cohorts.ids, ...preview.proposed_cohorts.ids],
-          "A confirmed cohort adjustment changed these current or proposed cohort identities.",
-        ));
+        await boundary.analyze(
+          affectedCohortReanalysisRequest(
+            "cohort-override",
+            [...preview.current_cohorts.ids, ...preview.proposed_cohorts.ids],
+            "A confirmed cohort adjustment changed these current or proposed cohort identities.",
+          ),
+        );
         setState({
           report_id: boundary.currentReport()?.report_id ?? null,
           status: "applied",
           code: null,
-          message: "Cohort metadata saved. A fresh canonical analysis completed or reported its current state.",
+          message:
+            "Cohort metadata saved. A fresh canonical analysis completed or reported its current state.",
           preview: null,
         });
         return true;
@@ -726,11 +799,15 @@ const browserCohortAdjustments = createStrategicFitCohortAdjustmentState({
   removeOverride: removeStrategicFitCohortOverride,
   upsertLabel: upsertStrategicFitCohortLabel,
   removeLabel: removeStrategicFitCohortLabel,
-  analyze: (request) => reanalyzeStrategicFit(request ?? affectedCohortReanalysisRequest(
-    "cohort-override",
-    [],
-    "A cohort adjustment did not provide an affected cohort identity.",
-  )),
+  analyze: (request) =>
+    reanalyzeStrategicFit(
+      request ??
+        affectedCohortReanalysisRequest(
+          "cohort-override",
+          [],
+          "A cohort adjustment did not provide an affected cohort identity.",
+        ),
+    ),
 });
 
 export const strategicFitCohortAdjustment = () => browserCohortAdjustments.snapshot();
@@ -745,7 +822,9 @@ export const confirmStrategicFitCohortAdjustment = (previewId: string) =>
 export const cancelStrategicFitCohortAdjustment = () => browserCohortAdjustments.cancel();
 
 export function strategicFitCohortDisplayName(cohortId: string, fallback: string): string {
-  return strategicFitMetadata().cohort_labels.find((entry) =>
-    entry.record_state === "active" && entry.cohort_id === cohortId
-  )?.display_name ?? fallback;
+  return (
+    strategicFitMetadata().cohort_labels.find(
+      (entry) => entry.record_state === "active" && entry.cohort_id === cohortId,
+    )?.display_name ?? fallback
+  );
 }

@@ -24,10 +24,13 @@ import {
 
 const MAX = Number(process.env.MAX_REPERTOIRES ?? 16);
 const TTL_MS = Number(process.env.REPERTOIRE_TTL_S ?? 3600) * 1000;
-const configuredStrategicFitReports = Number(process.env.MAX_STRATEGIC_FIT_REPORTS_PER_REPERTOIRE ?? 4);
-const MAX_STRATEGIC_FIT_REPORTS = Number.isSafeInteger(configuredStrategicFitReports) && configuredStrategicFitReports > 0
-  ? configuredStrategicFitReports
-  : 4;
+const configuredStrategicFitReports = Number(
+  process.env.MAX_STRATEGIC_FIT_REPORTS_PER_REPERTOIRE ?? 4,
+);
+const MAX_STRATEGIC_FIT_REPORTS =
+  Number.isSafeInteger(configuredStrategicFitReports) && configuredStrategicFitReports > 0
+    ? configuredStrategicFitReports
+    : 4;
 /** Explicit per-handle bound on indexed graph/signal/trajectory entries; the LRU never exceeds it. */
 const STRATEGIC_FIT_INDEX_ENTRIES_PER_REPERTOIRE = 256;
 
@@ -124,24 +127,31 @@ export function getOrCreateStrategicFitReport(
   const compatibility = strategicFitJobCompatibility(entry.contentKey, completeOptions);
   // A call that threw — a cancelled scan, a dropped client — leaves its checkpoint on the handle;
   // the next call for the same content, revision, settings, and generation continues that job.
-  entry.strategicFitRecovery = entry.strategicFitCheckpoint === null
-    ? strategicFitColdJobRecovery("The handle held no interrupted analysis, so this one ran cold.")
-    : restoreStrategicFitJobCheckpoint(
-        entry.strategicFitIndex,
-        entry.strategicFitCheckpoint,
-        compatibility,
-      );
+  entry.strategicFitRecovery =
+    entry.strategicFitCheckpoint === null
+      ? strategicFitColdJobRecovery(
+          "The handle held no interrupted analysis, so this one ran cold.",
+        )
+      : restoreStrategicFitJobCheckpoint(
+          entry.strategicFitIndex,
+          entry.strategicFitCheckpoint,
+          compatibility,
+        );
   if (entry.strategicFitRecovery.state === "discarded") entry.strategicFitCheckpoint = null;
   const record = createStrategicFitJobRecorder({
     compatibility,
-    save: (checkpoint) => { entry.strategicFitCheckpoint = checkpoint; },
+    save: (checkpoint) => {
+      entry.strategicFitCheckpoint = checkpoint;
+    },
   });
 
-  const report = completeStrategicFitReport(analyze({
-    ...completeOptions,
-    index: entry.strategicFitIndex,
-    onCheckpoint: record,
-  }));
+  const report = completeStrategicFitReport(
+    analyze({
+      ...completeOptions,
+      index: entry.strategicFitIndex,
+      onCheckpoint: record,
+    }),
+  );
   // The job settled, so its checkpoint stops being a job; the report itself is now the answer.
   entry.strategicFitCheckpoint = null;
   entry.strategicFitReports.set(key, report);

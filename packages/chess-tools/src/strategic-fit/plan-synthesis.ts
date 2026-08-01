@@ -180,20 +180,22 @@ function stableHash(value: string): string {
  * changed a drill invalidates a card the user is still looking at.
  */
 export function strategicFitPlanEvidenceIdentity(evidence: StrategicFitPlanEvidence): string {
-  return `strategic-fit-plan-evidence:${stableHash(JSON.stringify({
-    report_id: evidence.report_id,
-    finding_id: evidence.finding_id,
-    semantic_finding_id: evidence.semantic_finding_id,
-    repertoire_revision: evidence.repertoire_revision,
-    training_id: evidence.training_id,
-    concept_ids: [...evidence.concept_ids].sort(compareStrings),
-    checkpoint_ids: evidence.checkpoints.map((entry) => entry.checkpoint_id).sort(compareStrings),
-    drills: [...evidence.drills]
-      .map((entry) => `${entry.drill_id}${entry.expected_san}`)
-      .sort(compareStrings),
-    causal_move_san: evidence.causal_move_san,
-    moves: [...evidence.moves].sort(compareStrings),
-  }))}`;
+  return `strategic-fit-plan-evidence:${stableHash(
+    JSON.stringify({
+      report_id: evidence.report_id,
+      finding_id: evidence.finding_id,
+      semantic_finding_id: evidence.semantic_finding_id,
+      repertoire_revision: evidence.repertoire_revision,
+      training_id: evidence.training_id,
+      concept_ids: [...evidence.concept_ids].sort(compareStrings),
+      checkpoint_ids: evidence.checkpoints.map((entry) => entry.checkpoint_id).sort(compareStrings),
+      drills: [...evidence.drills]
+        .map((entry) => `${entry.drill_id}${entry.expected_san}`)
+        .sort(compareStrings),
+      causal_move_san: evidence.causal_move_san,
+      moves: [...evidence.moves].sort(compareStrings),
+    }),
+  )}`;
 }
 
 const SAN_PATTERN =
@@ -232,9 +234,13 @@ function anchorList(
   hint: string,
 ): string[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) invalidValue(field, "must be an array of identities the evidence returned");
+  if (!Array.isArray(value))
+    invalidValue(field, "must be an array of identities the evidence returned");
   if (value.length > STRATEGIC_FIT_PLAN_LIMITS.section_anchors) {
-    invalidValue(field, `must contain at most ${STRATEGIC_FIT_PLAN_LIMITS.section_anchors} identities`);
+    invalidValue(
+      field,
+      `must contain at most ${STRATEGIC_FIT_PLAN_LIMITS.section_anchors} identities`,
+    );
   }
   const resolved: string[] = [];
   for (const entry of value) {
@@ -371,13 +377,19 @@ export function resolveStrategicFitPlanCard(
     );
   }
   if (input.sections.length > STRATEGIC_FIT_PLAN_LIMITS.sections) {
-    invalidValue("plan.sections", `must contain at most ${STRATEGIC_FIT_PLAN_LIMITS.sections} sections`);
+    invalidValue(
+      "plan.sections",
+      `must contain at most ${STRATEGIC_FIT_PLAN_LIMITS.sections} sections`,
+    );
   }
   if (typeof input.title !== "string") invalidValue("plan.title", "must be a string");
   const title = input.title.trim();
   if (title.length === 0) invalidValue("plan.title", "must not be blank");
   if (title.length > STRATEGIC_FIT_PLAN_LIMITS.title_characters) {
-    invalidValue("plan.title", `must be at most ${STRATEGIC_FIT_PLAN_LIMITS.title_characters} characters`);
+    invalidValue(
+      "plan.title",
+      `must be at most ${STRATEGIC_FIT_PLAN_LIMITS.title_characters} characters`,
+    );
   }
   if (GAME_YEAR_PATTERN.test(title) || GAME_PAIRING_PATTERN.test(title)) {
     throw new StrategicFitPlanError(
@@ -396,7 +408,8 @@ export function resolveStrategicFitPlanCard(
     );
   }
   const sections = input.sections.map((entry, index) =>
-    section(entry, index, evidence, concepts, checkpoints, drills, moves));
+    section(entry, index, evidence, concepts, checkpoints, drills, moves),
+  );
   const titleMention = strategicFitPlanMoveMentions(title).find((mention) => !moves.has(mention));
   if (titleMention !== undefined) {
     throw new StrategicFitPlanError(

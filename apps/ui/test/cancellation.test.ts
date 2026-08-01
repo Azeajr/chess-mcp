@@ -1,26 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GameTree, auditRepertoireMoves, compareMoves, findOnlyMoves, theoryDepth } from "@chess-mcp/chess-tools";
+import {
+  GameTree,
+  auditRepertoireMoves,
+  compareMoves,
+  findOnlyMoves,
+  theoryDepth,
+} from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../src/application/browser-commands/client.ts";
 import { defaultBrowserCommandDependencies } from "../src/application/browser-commands/default-context.ts";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 async function boundedCancellation(operation: "audit" | "only") {
-  const tree = GameTree.fromPgn("1. e4 (1. d4 d5 2. c4 e6 3. Nc3) e5 2. Nf3 (2. Nc3 Nf6 3. f4) Nc6 3. Bb5 (3. Bc4 Nf6 4. d3) a6 4. Ba4 *");
+  const tree = GameTree.fromPgn(
+    "1. e4 (1. d4 d5 2. c4 e6 3. Nc3) e5 2. Nf3 (2. Nc3 Nf6 3. f4) Nc6 3. Bb5 (3. Bc4 Nf6 4. d3) a6 4. Ba4 *",
+  );
   let cancelled = false;
   let started = 0;
   const pending: ((lines: []) => void)[] = [];
   const progress: { done: number; total: number }[] = [];
-  const analyse = async () => new Promise<[]>((resolve) => { started++; pending.push(resolve); });
+  const analyse = async () =>
+    new Promise<[]>((resolve) => {
+      started++;
+      pending.push(resolve);
+    });
   const controls = {
     concurrency: 2,
     shouldCancel: () => cancelled,
     onProgress: (done: number, total: number) => progress.push({ done, total }),
   };
-  const resultPromise = operation === "audit"
-    ? auditRepertoireMoves(tree, "white", { ...controls, maxPositions: 20 }, analyse)
-    : findOnlyMoves(tree, "white", { ...controls, maxPositions: 20 }, analyse);
+  const resultPromise =
+    operation === "audit"
+      ? auditRepertoireMoves(tree, "white", { ...controls, maxPositions: 20 }, analyse)
+      : findOnlyMoves(tree, "white", { ...controls, maxPositions: 20 }, analyse);
   await tick();
   assert.equal(started, 2, `${operation} schedules only the configured concurrency`);
   cancelled = true;
@@ -28,8 +41,14 @@ async function boundedCancellation(operation: "audit" | "only") {
   const result = await resultPromise;
   assert.deepEqual(result, { cancelled: true });
   assert.equal(started, 2, `${operation} starts no new analysis after cancellation`);
-  assert.equal(progress.every((item, index) => index === 0 || item.done >= progress[index - 1]!.done), true);
-  assert.equal(progress.every((item) => item.done >= 0 && item.done <= item.total), true);
+  assert.equal(
+    progress.every((item, index) => index === 0 || item.done >= progress[index - 1]!.done),
+    true,
+  );
+  assert.equal(
+    progress.every((item) => item.done >= 0 && item.done <= item.total),
+    true,
+  );
 }
 
 test("audit and only-move scans use bounded, cancellation-aware scheduling", async () => {
@@ -45,7 +64,11 @@ test("candidate comparison and explorer walks stop scheduling cooperatively", as
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     ["e4", "d4", "Nf3", "c4"],
     12,
-    async () => new Promise<[]>((resolve) => { compareStarted++; comparePending.push(resolve); }),
+    async () =>
+      new Promise<[]>((resolve) => {
+        compareStarted++;
+        comparePending.push(resolve);
+      }),
     { concurrency: 2, shouldCancel: () => compareCancelled },
   );
   await tick();
@@ -61,7 +84,11 @@ test("candidate comparison and explorer walks stop scheduling cooperatively", as
   const explorer = theoryDepth(
     GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *"),
     { shouldCancel: () => explorerCancelled },
-    async () => new Promise((resolve) => { explorerStarted++; releaseExplorer = resolve; }) as never,
+    async () =>
+      new Promise((resolve) => {
+        explorerStarted++;
+        releaseExplorer = resolve;
+      }) as never,
   );
   await tick();
   assert.equal(explorerStarted, 1);
@@ -73,7 +100,9 @@ test("candidate comparison and explorer walks stop scheduling cooperatively", as
 });
 
 test("browser command cancellation prevents a repertoire artifact and settles as cancellation", async () => {
-  const tree = GameTree.fromPgn("1. e4 (1. d4 d5 2. c4 e6 3. Nc3) e5 2. Nf3 (2. Nc3 Nf6 3. f4) Nc6 3. Bb5 a6 *");
+  const tree = GameTree.fromPgn(
+    "1. e4 (1. d4 d5 2. c4 e6 3. Nc3) e5 2. Nf3 (2. Nc3 Nf6 3. f4) Nc6 3. Bb5 a6 *",
+  );
   const controller = new AbortController();
   let started = 0;
   let artifacts = 0;
@@ -84,8 +113,17 @@ test("browser command cancellation prevents a repertoire artifact and settles as
     currentPgn: () => tree.toPgn(),
     currentColor: () => "white" as const,
     openings: async () => new Map(),
-    createArtifact: () => { artifacts++; return { kind: "artifact" }; },
-    analyse: async (_fen: string, _multipv: number, _depth: number, _movetime?: number, signal?: AbortSignal) =>
+    createArtifact: () => {
+      artifacts++;
+      return { kind: "artifact" };
+    },
+    analyse: async (
+      _fen: string,
+      _multipv: number,
+      _depth: number,
+      _movetime?: number,
+      signal?: AbortSignal,
+    ) =>
       new Promise<never>((_resolve, reject) => {
         started++;
         const abort = () => reject(new DOMException("Cancelled", "AbortError"));
@@ -105,7 +143,10 @@ test("browser command cancellation prevents a repertoire artifact and settles as
   await assert.rejects(pending, { name: "AbortError" });
   assert.equal(started, 4, "the command starts no further analyses after abort");
   assert.equal(artifacts, 0, "cancelled annotation cannot create an artifact");
-  assert.equal(progress.every((item, index) => index === 0 || item.done >= progress[index - 1]!.done), true);
+  assert.equal(
+    progress.every((item, index) => index === 0 || item.done >= progress[index - 1]!.done),
+    true,
+  );
 });
 
 test("engine queue removes queued jobs, stops exclusive work, and preserves shared searches", async () => {
@@ -126,10 +167,14 @@ test("engine queue removes queued jobs, stops exclusive work, and preserves shar
     }
     finish() {
       counters.completed++;
-      this.onmessage?.({ data: "info depth 12 multipv 1 score cp 20 pv e2e4 e7e5" } as MessageEvent);
+      this.onmessage?.({
+        data: "info depth 12 multipv 1 score cp 20 pv e2e4 e7e5",
+      } as MessageEvent);
       this.onmessage?.({ data: "bestmove e2e4" } as MessageEvent);
     }
-    terminate() { clearTimeout(this.timer); }
+    terminate() {
+      clearTimeout(this.timer);
+    }
   }
   Object.defineProperty(globalThis, "Worker", { configurable: true, value: FakeWorker });
   const { analyseMulti } = await import("../src/engine/stockfish.ts");
@@ -141,7 +186,9 @@ test("engine queue removes queued jobs, stops exclusive work, and preserves shar
     "rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1",
   ];
   const controllers = fens.map(() => new AbortController());
-  const calls = fens.map((fen, index) => analyseMulti(fen, 1, 12, undefined, controllers[index]!.signal));
+  const calls = fens.map((fen, index) =>
+    analyseMulti(fen, 1, 12, undefined, controllers[index]!.signal),
+  );
   await tick();
   const initiallyStarted = counters.started;
   assert.ok(initiallyStarted >= 1 && initiallyStarted < calls.length);
@@ -152,13 +199,23 @@ test("engine queue removes queued jobs, stops exclusive work, and preserves shar
   await Promise.all(calls.slice(0, -1));
 
   const exclusiveController = new AbortController();
-  const exclusive = analyseMulti("8/8/8/8/8/8/4K3/7k w - - 1 60", 1, 13, undefined, exclusiveController.signal);
+  const exclusive = analyseMulti(
+    "8/8/8/8/8/8/4K3/7k w - - 1 60",
+    1,
+    13,
+    undefined,
+    exclusiveController.signal,
+  );
   await tick();
   const stopsBeforeExclusive = counters.stopped;
   exclusiveController.abort();
   await assert.rejects(exclusive, { name: "AbortError" });
   await tick();
-  assert.equal(counters.stopped, stopsBeforeExclusive + 1, "exclusive in-flight abort issues UCI stop");
+  assert.equal(
+    counters.stopped,
+    stopsBeforeExclusive + 1,
+    "exclusive in-flight abort issues UCI stop",
+  );
 
   const first = new AbortController();
   const second = new AbortController();

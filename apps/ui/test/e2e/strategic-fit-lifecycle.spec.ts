@@ -58,25 +58,29 @@ const REPERTOIRE = `1. e4 e5 (1... c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6) 2. Nf3 N
 3. Bb5 a6 (3... Nf6 4. O-O Nxe4 5. d4 Nd6) 4. Ba4 Nf6 5. O-O Be7
 6. Re1 b5 (6... d6 7. c3 O-O 8. h3) 7. Bb3 d6 8. c3 O-O *`;
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
-const appSnapshot = (page: Page) => chess(page, (api) => ({
-  pgn: api.toPgn(),
-  document_id: api.documentId(),
-  revision: api.version(),
-  path: [...api.currentPath()],
-  color: api.color(),
-  dirty: api.dirty(),
-  file_name: api.fileName(),
-  preview: api.preview(),
-  commands: api.commandStates(),
-}));
+const appSnapshot = (page: Page) =>
+  chess(page, (api) => ({
+    pgn: api.toPgn(),
+    document_id: api.documentId(),
+    revision: api.version(),
+    path: [...api.currentPath()],
+    color: api.color(),
+    dirty: api.dirty(),
+    file_name: api.fileName(),
+    preview: api.preview(),
+    commands: api.commandStates(),
+  }));
 
 type WorkerMode = "native" | "stall-second" | "fail-first";
 
@@ -109,12 +113,14 @@ async function bootstrap(page: Page, mode: WorkerMode = "native") {
           postMessage(message: unknown) {
             controlledMessages.push(message);
             if (shouldFail && (message as { type?: string }).type === "analyze") {
-              queueMicrotask(() => controlled.onerror?.({
-                message: "Synthetic worker failure",
-                filename: "strategic-fit.worker.ts",
-                lineno: 1,
-                colno: 1,
-              } as ErrorEvent));
+              queueMicrotask(() =>
+                controlled.onerror?.({
+                  message: "Synthetic worker failure",
+                  filename: "strategic-fit.worker.ts",
+                  lineno: 1,
+                  colno: 1,
+                } as ErrorEvent),
+              );
             }
           },
           terminate() {
@@ -131,9 +137,13 @@ async function bootstrap(page: Page, mode: WorkerMode = "native") {
 }
 
 async function loadExplicitProfile(page: Page) {
-  await chess(page, (api, pgn) => {
-    api.loadPgn(pgn, "lifecycle.pgn");
-  }, REPERTOIRE);
+  await chess(
+    page,
+    (api, pgn) => {
+      api.loadPgn(pgn, "lifecycle.pgn");
+    },
+    REPERTOIRE,
+  );
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
 }
@@ -145,11 +155,14 @@ async function openWorkspace(page: Page) {
   return dialog;
 }
 
-const workerStarts = (page: Page) => page.evaluate(() =>
-  [...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? [])],
-);
+const workerStarts = (page: Page) =>
+  page.evaluate(() => [
+    ...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? []),
+  ]);
 
-test("opening workspace and completing setup remain idle until the explicit Analyze action", async ({ page }) => {
+test("opening workspace and completing setup remain idle until the explicit Analyze action", async ({
+  page,
+}) => {
   await bootstrap(page);
   await chess(page, (api, pgn) => api.loadPgn(pgn, "explicit-start.pgn"), REPERTOIRE);
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
@@ -163,17 +176,27 @@ test("opening workspace and completing setup remain idle until the explicit Anal
   expect(await appSnapshot(page)).toEqual(before);
 
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
-  const beforeProfile = await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id);
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
+  const beforeProfile = await chess(
+    page,
+    (api) => api.strategicFitLifecycle().current_result?.report_id,
+  );
   await chess(page, (api) => api.applyInferredStrategicFitProfile("versatile"));
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("profile-change");
-  expect(await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id))
-    .not.toBe(beforeProfile);
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("profile-change");
+  expect(
+    await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id),
+  ).not.toBe(beforeProfile);
 });
 
-test("real canonical analysis stays current through navigation and refreshes profile and document changes", async ({ page }) => {
+test("real canonical analysis stays current through navigation and refreshes profile and document changes", async ({
+  page,
+}) => {
   await bootstrap(page);
   await loadExplicitProfile(page);
   await chess(page, (api) => {
@@ -183,61 +206,90 @@ test("real canonical analysis stays current through navigation and refreshes pro
   const dialog = await openWorkspace(page);
 
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   const first = await chess(page, (api) => api.strategicFitLifecycle());
   expect(first.current_result?.report_id).toBeTruthy();
   expect(first.last_completed?.report_id).toBe(first.current_result?.report_id);
-  expect((await workerStarts(page)).some((source) => source.includes("strategic-fit.worker"))).toBe(true);
+  expect((await workerStarts(page)).some((source) => source.includes("strategic-fit.worker"))).toBe(
+    true,
+  );
   expect(await appSnapshot(page)).toEqual(before);
 
   await chess(page, (api) => api.goto([0]));
-  await expect.poll(() => chess(page, (api) => api.strategicFitLifecycle().status)).toBe("completed");
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status))
+    .toBe("completed");
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("profile-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("profile-change");
   const profileRefreshed = await chess(page, (api) => api.strategicFitLifecycle());
   expect(profileRefreshed.current_result?.report_id).not.toBe(first.current_result?.report_id);
 
   const routeId = profileRefreshed.current_result?.result.trajectories[0]?.route_id;
   expect(routeId).toBeTruthy();
-  await chess(page, (api, targetId) => api.upsertStrategicFitRouteWeight({
-    target_id: targetId,
-    weight: 3,
-  }), routeId!);
+  await chess(
+    page,
+    (api, targetId) =>
+      api.upsertStrategicFitRouteWeight({
+        target_id: targetId,
+        weight: 3,
+      }),
+    routeId!,
+  );
   await expect(dialog.locator("[data-analysis-state='stale']")).toBeVisible();
   await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
 
-  const edited = await chess(page, (api) => api.applyEdit("add", [], { addMoves: ["d4", "d5"] })) as {
+  const edited = (await chess(page, (api) =>
+    api.applyEdit("add", [], { addMoves: ["d4", "d5"] }),
+  )) as {
     ok: boolean;
   };
   expect(edited.ok).toBe(true);
   const currentRevision = await chess(page, (api) => api.version());
-  await expect.poll(() => chess(page, (api) =>
-    api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null
-  )).toBe("document-change");
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("document-change");
   const refreshed = await chess(page, (api) => api.strategicFitLifecycle());
   expect(refreshed.request_snapshot?.repertoire_revision).toBe(currentRevision);
   expect(refreshed.current_result?.report_id).not.toBe(first.current_result?.report_id);
 });
 
-test("cancelling an active canonical command aborts its Worker and retains the last report as previous", async ({ page }) => {
+test("cancelling an active canonical command aborts its Worker and retains the last report as previous", async ({
+  page,
+}) => {
   await bootstrap(page, "stall-second");
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   const completed = await chess(page, (api) => api.strategicFitLifecycle());
   const firstReportId = completed.current_result?.report_id;
   expect(firstReportId).toBeTruthy();
 
   await chess(page, (api) => api.setColor("black"));
-  await expect.poll(() => page.evaluate(() =>
-    ((window as unknown as { __strategicFitControlledMessages: Array<{ type?: string }> })
-      .__strategicFitControlledMessages ?? []).some((message) => message.type === "analyze"),
-  )).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          (window as unknown as { __strategicFitControlledMessages: Array<{ type?: string }> })
+            .__strategicFitControlledMessages ?? []
+        ).some((message) => message.type === "analyze"),
+      ),
+    )
+    .toBe(true);
   await expect(dialog.getByRole("button", { name: "Cancel analysis" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel analysis" }).click();
 
@@ -246,17 +298,26 @@ test("cancelling an active canonical command aborts its Worker and retains the l
   const cancelled = await chess(page, (api) => api.strategicFitLifecycle());
   expect(cancelled.current_result).toBeNull();
   expect(cancelled.last_completed?.report_id).toBe(firstReportId);
-  expect(await page.evaluate(() =>
-    (window as unknown as { __strategicFitControlledTerminations: number })
-      .__strategicFitControlledTerminations,
-  )).toBe(1);
-  expect(await page.evaluate(() =>
-    ((window as unknown as { __strategicFitControlledMessages: Array<{ type?: string }> })
-      .__strategicFitControlledMessages ?? []).some((message) => message.type === "cancel"),
-  )).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __strategicFitControlledTerminations: number })
+          .__strategicFitControlledTerminations,
+    ),
+  ).toBe(1);
+  expect(
+    await page.evaluate(() =>
+      (
+        (window as unknown as { __strategicFitControlledMessages: Array<{ type?: string }> })
+          .__strategicFitControlledMessages ?? []
+      ).some((message) => message.type === "cancel"),
+    ),
+  ).toBe(true);
 });
 
-test("worker failure is explicit and retry executes a fresh current-color snapshot", async ({ page }) => {
+test("worker failure is explicit and retry executes a fresh current-color snapshot", async ({
+  page,
+}) => {
   await bootstrap(page, "fail-first");
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
@@ -268,23 +329,30 @@ test("worker failure is explicit and retry executes a fresh current-color snapsh
 
   await chess(page, (api) => api.setColor("black"));
   await dialog.getByRole("button", { name: "Retry analysis" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   const retried = await chess(page, (api) => api.strategicFitLifecycle());
   expect(retried.request_snapshot?.repertoire_color).toBe("black");
   expect(retried.current_result?.report_id).toBeTruthy();
 });
 
-test("offline opening data completes as native degraded evidence rather than a fabricated verdict", async ({ page }) => {
+test("offline opening data completes as native degraded evidence rather than a fabricated verdict", async ({
+  page,
+}) => {
   await page.route("**/openings.tsv", (route) => route.abort());
   await bootstrap(page);
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
 
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   const lifecycle = await chess(page, (api) => api.strategicFitLifecycle());
   expect(lifecycle.current_result?.result.preflight.state).toBe("degraded");
-  expect(lifecycle.current_result?.result.preflight.issues.map((issue) => issue.code))
-    .toContain("missing-opening-classification");
+  expect(lifecycle.current_result?.result.preflight.issues.map((issue) => issue.code)).toContain(
+    "missing-opening-classification",
+  );
   await expect(dialog.getByText(/consistent/i)).toHaveCount(0);
 });

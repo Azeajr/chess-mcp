@@ -37,7 +37,10 @@ function modeFixture(routes: readonly RouteFixture[]) {
   }));
   const unitWeights = new Map<string, number>();
   for (const route of normalized) {
-    unitWeights.set(route.weightingUnitId, (unitWeights.get(route.weightingUnitId) ?? 0) + route.weight);
+    unitWeights.set(
+      route.weightingUnitId,
+      (unitWeights.get(route.weightingUnitId) ?? 0) + route.weight,
+    );
   }
   const effectiveSampleSize = calculateEffectiveSampleSize([...unitWeights.values()]);
   const trajectories: StrategicTrajectoryReport = {
@@ -49,34 +52,38 @@ function modeFixture(routes: readonly RouteFixture[]) {
       trajectory_id: `trajectory:${route.routeId}`,
       route_id: route.routeId,
       state: "complete",
-      snapshots: [{
-        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-        snapshot_id: `snapshot:${route.routeId}`,
-        route_id: route.routeId,
-        position_id: `position:${route.routeId}`,
-        fen: "8/8/8/8/8/8/8/K6k w - - 0 1",
-        checkpoint: {
+      snapshots: [
+        {
           analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-          checkpoint_id: `checkpoint:${route.routeId}:12`,
-          kind: "configured-ply",
-          ply: 12,
-          reason: "Matched test checkpoint",
-          comparability: "comparable",
-        },
-        signals: (Array.isArray(route.profile) ? route.profile : [route.profile]).map((value, index) => ({
-          analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-          signal_id: `signal:${route.routeId}:${index}`,
-          family: "center-dynamics" as const,
-          feature_id: `center-dynamics.feature-${index}`,
-          kind: "observation" as const,
-          value,
-          confidence: 1,
-          persistence: "stable" as const,
+          snapshot_id: `snapshot:${route.routeId}`,
+          route_id: route.routeId,
+          position_id: `position:${route.routeId}`,
+          fen: "8/8/8/8/8/8/8/K6k w - - 0 1",
+          checkpoint: {
+            analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+            checkpoint_id: `checkpoint:${route.routeId}:12`,
+            kind: "configured-ply",
+            ply: 12,
+            reason: "Matched test checkpoint",
+            comparability: "comparable",
+          },
+          signals: (Array.isArray(route.profile) ? route.profile : [route.profile]).map(
+            (value, index) => ({
+              analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+              signal_id: `signal:${route.routeId}:${index}`,
+              family: "center-dynamics" as const,
+              feature_id: `center-dynamics.feature-${index}`,
+              kind: "observation" as const,
+              value,
+              confidence: 1,
+              persistence: "stable" as const,
+              provenance: [SOURCE],
+            }),
+          ),
+          classifier_confidence: 1,
           provenance: [SOURCE],
-        })),
-        classifier_confidence: 1,
-        provenance: [SOURCE],
-      }],
+        },
+      ],
       missing_checkpoints: [],
       evidence_coverage: 1,
       stable_signal_ids: (Array.isArray(route.profile) ? route.profile : [route.profile]).map(
@@ -108,7 +115,9 @@ function modeFixture(routes: readonly RouteFixture[]) {
     weighting_units: [...unitWeights.entries()].map(([unitId, weight]) => ({
       weighting_unit_id: unitId,
       terminal_position_id: `position:${unitId}`,
-      route_ids: normalized.filter((route) => route.weightingUnitId === unitId).map((route) => route.routeId),
+      route_ids: normalized
+        .filter((route) => route.weightingUnitId === unitId)
+        .map((route) => route.routeId),
       normalized_weight: weight,
     })),
     effective_sample_size: effectiveSampleSize,
@@ -123,39 +132,43 @@ function modeFixture(routes: readonly RouteFixture[]) {
     graph_id: "graph:modes",
     taxonomy_version: "1.0.0",
     weighting_version: "1.0.0",
-    containers: [{
-      container_id: "opening-container:test",
-      taxonomy_id: "opening:test",
-      taxonomy_level: "family",
-      label: "Test opening",
-      route_ids: normalized.map((route) => route.routeId),
-      included_route_ids: normalized.map((route) => route.routeId),
-      excluded_route_ids: [],
-      cohort_ids: [cohortId],
-    }],
-    cohorts: [{
-      analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
-      cohort_id: cohortId,
-      state: "actionable",
-      opening_scope_ids: ["opening:test"],
-      decision_scope_ids: ["decision:test"],
-      route_ids: normalized.map((route) => route.routeId),
-      excluded_route_ids: [],
-      route_weights: normalized.map((route) => ({
-        route_id: route.routeId,
-        normalized_weight: route.weight,
-      })),
-      effective_sample_size: effectiveSampleSize,
-      modes: [],
-      override_ids: [],
-      provenance: [SOURCE],
-      opening_container_ids: ["opening-container:test"],
-      shared_strategic_ancestor_position_ids: ["position:ancestor"],
-      transposition_position_ids: [],
-      comparable_checkpoint_kinds: ["configured-ply"],
-      common_stable_signal_families: ["center-dynamics"],
-      insufficiency_reasons: [],
-    }],
+    containers: [
+      {
+        container_id: "opening-container:test",
+        taxonomy_id: "opening:test",
+        taxonomy_level: "family",
+        label: "Test opening",
+        route_ids: normalized.map((route) => route.routeId),
+        included_route_ids: normalized.map((route) => route.routeId),
+        excluded_route_ids: [],
+        cohort_ids: [cohortId],
+      },
+    ],
+    cohorts: [
+      {
+        analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
+        cohort_id: cohortId,
+        state: "actionable",
+        opening_scope_ids: ["opening:test"],
+        decision_scope_ids: ["decision:test"],
+        route_ids: normalized.map((route) => route.routeId),
+        excluded_route_ids: [],
+        route_weights: normalized.map((route) => ({
+          route_id: route.routeId,
+          normalized_weight: route.weight,
+        })),
+        effective_sample_size: effectiveSampleSize,
+        modes: [],
+        override_ids: [],
+        provenance: [SOURCE],
+        opening_container_ids: ["opening-container:test"],
+        shared_strategic_ancestor_position_ids: ["position:ancestor"],
+        transposition_position_ids: [],
+        comparable_checkpoint_kinds: ["configured-ply"],
+        common_stable_signal_families: ["center-dynamics"],
+        insufficiency_reasons: [],
+      },
+    ],
     data_quality: {
       total_route_count: normalized.length,
       included_route_count: normalized.length,
@@ -193,7 +206,9 @@ test("a two-route 50/50 tie is a mixed profile, never an arbitrary outlier", () 
     [0.5, 0.5],
   );
   assert.equal(
-    report.cohorts[0]!.modes.every((mode) => report.cohorts[0]!.route_ids.includes(mode.representative_route_id)),
+    report.cohorts[0]!.modes.every((mode) =>
+      report.cohorts[0]!.route_ids.includes(mode.representative_route_id),
+    ),
     true,
   );
 });
@@ -268,10 +283,7 @@ test("the weighted medoid minimizes explainable distance instead of selecting th
 });
 
 test("two meaningfully weighted strategic modes are both preserved", () => {
-  const fixture = modeFixture([
-    ...routes(6, "open"),
-    ...routes(4, "closed", 6),
-  ]);
+  const fixture = modeFixture([...routes(6, "open"), ...routes(4, "closed", 6)]);
   const report = detectStrategicModes(fixture.cohorts, fixture.trajectories, fixture.weights);
 
   assert.equal(report.cohorts[0]!.state, "mixed-profile");
@@ -294,13 +306,15 @@ test("explicit profile intent overrides an inferred 90/10 medoid", () => {
     kind: "user-profile",
   };
   const report = detectStrategicModes(fixture.cohorts, fixture.trajectories, fixture.weights, {
-    explicit_targets: [{
-      target_id: "target:closed",
-      cohort_id: fixture.cohortId,
-      representative_route_id: "route:09",
-      concept_ids: ["setup-family.closed-center"],
-      provenance: [explicitSource],
-    }],
+    explicit_targets: [
+      {
+        target_id: "target:closed",
+        cohort_id: fixture.cohortId,
+        representative_route_id: "route:09",
+        concept_ids: ["setup-family.closed-center"],
+        provenance: [explicitSource],
+      },
+    ],
   });
   const mode = report.cohorts[0]!.modes[0]!;
 
@@ -309,7 +323,10 @@ test("explicit profile intent overrides an inferred 90/10 medoid", () => {
   assert.equal(mode.representative_route_id, "route:09");
   assert.equal(mode.source, "explicit-target");
   assert.deepEqual(mode.concept_ids, ["setup-family.closed-center"]);
-  assert.equal(mode.provenance.some((source) => source.source_id === "profile:confirmed"), true);
+  assert.equal(
+    mode.provenance.some((source) => source.source_id === "profile:confirmed"),
+    true,
+  );
 });
 
 test("route and PGN child reordering cannot change selected modes", () => {
@@ -321,11 +338,13 @@ test("route and PGN child reordering cannot change selected modes", () => {
   const reversed = {
     cohorts: {
       ...ordered.cohorts,
-      cohorts: [{
-        ...ordered.cohorts.cohorts[0]!,
-        route_ids: reversedRoutes,
-        route_weights: [...ordered.cohorts.cohorts[0]!.route_weights].reverse(),
-      }],
+      cohorts: [
+        {
+          ...ordered.cohorts.cohorts[0]!,
+          route_ids: reversedRoutes,
+          route_weights: [...ordered.cohorts.cohorts[0]!.route_weights].reverse(),
+        },
+      ],
     },
     trajectories: {
       ...ordered.trajectories,

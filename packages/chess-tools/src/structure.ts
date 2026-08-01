@@ -105,7 +105,7 @@ export function halfOpenFiles(board: Board, color: Color): string[] {
 function wingCounts(board: Board, color: Color): [number, number] {
   let qs = 0;
   let ks = 0;
-  for (const sq of pawns(board, color)) (QUEENSIDE.has(squareFile(sq)) ? qs++ : ks++);
+  for (const sq of pawns(board, color)) QUEENSIDE.has(squareFile(sq)) ? qs++ : ks++;
   return [qs, ks];
 }
 function wingMajority(board: Board, color: Color): "queenside" | "kingside" | null {
@@ -128,7 +128,8 @@ function minorityAttack(board: Board, color: Color): boolean {
 function colorComplex(board: Board, color: Color): "light" | "dark" | null {
   let light = 0;
   let dark = 0;
-  for (const sq of pawns(board, color)) ((squareFile(sq) + squareRank(sq)) % 2 === 0 ? dark++ : light++);
+  for (const sq of pawns(board, color))
+    (squareFile(sq) + squareRank(sq)) % 2 === 0 ? dark++ : light++;
   if (dark - light >= 3) return "light";
   if (light - dark >= 3) return "dark";
   return null;
@@ -170,13 +171,19 @@ export function themes(board: Board, color: Color): Themes {
 function themesUncached(board: Board, color: Color): Themes {
   const wb = new Set(board.pieces("white", "bishop"));
   const bb = new Set(board.pieces("black", "bishop"));
-  const wCenter = pawns(board, "white").filter((sq) => squareFile(sq) === 3 || squareFile(sq) === 4).length;
-  const bCenter = pawns(board, "black").filter((sq) => squareFile(sq) === 3 || squareFile(sq) === 4).length;
+  const wCenter = pawns(board, "white").filter(
+    (sq) => squareFile(sq) === 3 || squareFile(sq) === 4,
+  ).length;
+  const bCenter = pawns(board, "black").filter(
+    (sq) => squareFile(sq) === 3 || squareFile(sq) === 4,
+  ).length;
   return {
     fianchetto_white: wb.has(14) || wb.has(9),
     fianchetto_black: bb.has(54) || bb.has(49),
-    space_white: pawns(board, "white").filter((sq) => squareRank(sq) >= 3 && squareRank(sq) <= 5).length,
-    space_black: pawns(board, "black").filter((sq) => squareRank(sq) >= 2 && squareRank(sq) <= 4).length,
+    space_white: pawns(board, "white").filter((sq) => squareRank(sq) >= 3 && squareRank(sq) <= 5)
+      .length,
+    space_black: pawns(board, "black").filter((sq) => squareRank(sq) >= 2 && squareRank(sq) <= 4)
+      .length,
     wing_majority_white: wingMajority(board, "white"),
     wing_majority_black: wingMajority(board, "black"),
     minority_attack_white: minorityAttack(board, "white"),
@@ -207,25 +214,32 @@ function centerStateUncached(board: Board): "tense" | "locked" | "open" | "semi-
   for (const sq of wCentral) {
     const f = squareFile(sq);
     const r = squareRank(sq);
-    if (r + 1 <= 7) for (const nf of [f - 1, f + 1]) if (nf >= 0 && nf <= 7 && black.has(nf + (r + 1) * 8)) return "tense";
+    if (r + 1 <= 7)
+      for (const nf of [f - 1, f + 1])
+        if (nf >= 0 && nf <= 7 && black.has(nf + (r + 1) * 8)) return "tense";
   }
   for (const sq of bCentral) {
     const f = squareFile(sq);
     const r = squareRank(sq);
-    if (r - 1 >= 0) for (const nf of [f - 1, f + 1]) if (nf >= 0 && nf <= 7 && white.has(nf + (r - 1) * 8)) return "tense";
+    if (r - 1 >= 0)
+      for (const nf of [f - 1, f + 1])
+        if (nf >= 0 && nf <= 7 && white.has(nf + (r - 1) * 8)) return "tense";
   }
   for (const f of central) {
     const wRanks = [...white].filter((sq) => squareFile(sq) === f).map(squareRank);
     const bRanks = [...black].filter((sq) => squareFile(sq) === f).map(squareRank);
-    if (wRanks.length && bRanks.length && Math.min(...bRanks) - Math.max(...wRanks) === 1) return "locked";
+    if (wRanks.length && bRanks.length && Math.min(...bRanks) - Math.max(...wRanks) === 1)
+      return "locked";
   }
   if (!wCentral.length || !bCentral.length) return "open";
   return "semi-open";
 }
 
 // --- named-structure classifier (port of the 19 _*_confidence scorers + classify_structure) ---
-const nameSet = (board: Board, color: Color): Set<string> => new Set(pawns(board, color).map(makeSquare));
-const fileSet = (board: Board, color: Color): Set<number> => new Set(pawns(board, color).map(squareFile));
+const nameSet = (board: Board, color: Color): Set<string> =>
+  new Set(pawns(board, color).map(makeSquare));
+const fileSet = (board: Board, color: Color): Set<number> =>
+  new Set(pawns(board, color).map(squareFile));
 const subset = (a: Iterable<string>, b: Set<string>): boolean => [...a].every((x) => b.has(x));
 const b2n = (x: boolean): number => (x ? 1 : 0);
 
@@ -236,7 +250,8 @@ function graded(coreOk: boolean, bonus: number, base: number, cap: number, step 
 }
 const mirrorName = (n: string): string => makeSquare(parseSquare(n)! ^ 56);
 /** White-relative names, rank-mirrored for Black so one spec serves both orientations. */
-const rel = (color: Color, ...names: string[]): string[] => (color === "white" ? names : names.map(mirrorName));
+const rel = (color: Color, ...names: string[]): string[] =>
+  color === "white" ? names : names.map(mirrorName);
 
 const BISHOP = (n: string) => parseSquare(n)!;
 
@@ -282,22 +297,37 @@ function stonewall(board: Board): number {
 function kid(board: Board): number {
   const wn = nameSet(board, "white");
   const bn = nameSet(board, "black");
-  if (subset(["d5", "e4"], wn) && subset(["e5", "d6"], bn)) return graded(true, b2n(wn.has("c4")) + b2n(bn.has("g6")), 0.7, 0.85, 0.075);
-  if (subset(["d4", "e5"], bn) && subset(["e4", "d3"], wn)) return graded(true, b2n(bn.has("c5")) + b2n(wn.has("g3")), 0.45, 0.6, 0.075);
+  if (subset(["d5", "e4"], wn) && subset(["e5", "d6"], bn))
+    return graded(true, b2n(wn.has("c4")) + b2n(bn.has("g6")), 0.7, 0.85, 0.075);
+  if (subset(["d4", "e5"], bn) && subset(["e4", "d3"], wn))
+    return graded(true, b2n(bn.has("c5")) + b2n(wn.has("g3")), 0.45, 0.6, 0.075);
   return 0;
 }
 function benoni(board: Board): number {
   const wn = nameSet(board, "white");
   const bn = nameSet(board, "black");
-  if (subset(["d5", "e4"], wn) && subset(["c5", "d6"], bn) && !fileSet(board, "black").has(4)) return 0.85;
-  if (subset(["d4", "e5"], bn) && subset(["c4", "d3"], wn) && !fileSet(board, "white").has(4)) return 0.6;
+  if (subset(["d5", "e4"], wn) && subset(["c5", "d6"], bn) && !fileSet(board, "black").has(4))
+    return 0.85;
+  if (subset(["d4", "e5"], bn) && subset(["c4", "d3"], wn) && !fileSet(board, "white").has(4))
+    return 0.6;
   return 0;
 }
 function closedSicilian(board: Board, color: Color): number {
   const own = nameSet(board, color);
   const opp = nameSet(board, other(color));
-  if (color === "white") return graded(subset(["e4", "f4"], own) && opp.has("c5"), b2n(own.has("d3")) + b2n(opp.has("d6")), 0.6, 0.7);
-  return graded(subset(["e5", "f5"], own) && opp.has("c4"), b2n(own.has("d6")) + b2n(opp.has("d3")), 0.5, 0.65);
+  if (color === "white")
+    return graded(
+      subset(["e4", "f4"], own) && opp.has("c5"),
+      b2n(own.has("d3")) + b2n(opp.has("d6")),
+      0.6,
+      0.7,
+    );
+  return graded(
+    subset(["e5", "f5"], own) && opp.has("c4"),
+    b2n(own.has("d6")) + b2n(opp.has("d3")),
+    0.5,
+    0.65,
+  );
 }
 function hangingPawns(board: Board, color: Color): number {
   const files = fileSet(board, color);
@@ -323,7 +353,11 @@ function slav(board: Board): number {
 }
 function grunfeldCenter(board: Board): number {
   const wn = nameSet(board, "white");
-  const coreOk = wn.has("c3") && !wn.has("c4") && wn.has("d4") && new Set(halfOpenFiles(board, "white")).has("b");
+  const coreOk =
+    wn.has("c3") &&
+    !wn.has("c4") &&
+    wn.has("d4") &&
+    new Set(halfOpenFiles(board, "white")).has("b");
   return graded(coreOk, b2n(wn.has("e4")), 0.7, 0.82, 0.08);
 }
 function nimzoGrunfeld(board: Board): number {
@@ -341,13 +375,27 @@ function hedgehog(board: Board, color: Color): number {
 function najdorf(board: Board, color: Color): number {
   const own = nameSet(board, color);
   const opp = nameSet(board, other(color));
-  if (!(subset(rel(color, "e4"), own) && !fileSet(board, color).has(3) && subset(rel(color, "d6", "e5"), opp))) return 0;
+  if (
+    !(
+      subset(rel(color, "e4"), own) &&
+      !fileSet(board, color).has(3) &&
+      subset(rel(color, "d6", "e5"), opp)
+    )
+  )
+    return 0;
   return graded(true, b2n(!fileSet(board, other(color)).has(2)), 0.72, 0.8);
 }
 function scheveningen(board: Board, color: Color): number {
   const own = nameSet(board, color);
   const opp = nameSet(board, other(color));
-  if (!(subset(rel(color, "e4"), own) && !fileSet(board, color).has(3) && subset(rel(color, "d6", "e6"), opp))) return 0;
+  if (
+    !(
+      subset(rel(color, "e4"), own) &&
+      !fileSet(board, color).has(3) &&
+      subset(rel(color, "d6", "e6"), opp)
+    )
+  )
+    return 0;
   return graded(true, b2n(!fileSet(board, other(color)).has(2)), 0.7, 0.78);
 }
 function symmetricBenoni(board: Board): number {
@@ -443,7 +491,10 @@ export function profileStructureShares(boards: Board[]): Record<string, number> 
 }
 
 /** Classify the named pawn structure directly from a FEN (chessops stays internal). */
-export function classifyStructureFromFen(fen: string): { structure_class: string; confidence: number } {
+export function classifyStructureFromFen(fen: string): {
+  structure_class: string;
+  confidence: number;
+} {
   return classifyStructure(parseFen(fen).unwrap().board);
 }
 
@@ -522,7 +573,13 @@ export function positionProfile(board: Board, color: Color, fen: string) {
   };
 }
 
-const BOOL_THEMES = ["fianchetto_white", "fianchetto_black", "minority_attack_white", "minority_attack_black", "flank_vs_center"] as const;
+const BOOL_THEMES = [
+  "fianchetto_white",
+  "fianchetto_black",
+  "minority_attack_white",
+  "minority_attack_black",
+  "flank_vs_center",
+] as const;
 
 /** Aggregate structural fingerprint over a set of leaf boards (port of aggregate_profile). */
 export function aggregateProfile(boards: Board[], color: Color) {
@@ -558,7 +615,11 @@ export function aggregateProfile(boards: Board[], color: Color) {
   }
 
   const structures = [...structCounts.entries()]
-    .map(([structure_class, [count, conf]]) => ({ structure_class, count, avg_confidence: Math.round((conf / count) * 100) / 100 }))
+    .map(([structure_class, [count, conf]]) => ({
+      structure_class,
+      count,
+      avg_confidence: Math.round((conf / count) * 100) / 100,
+    }))
     .sort((a, b) => b.count - a.count || a.structure_class.localeCompare(b.structure_class));
   const themesOut: Record<string, number> = {};
   for (const k of [...themeTally.keys()].sort()) themesOut[k] = themeTally.get(k)!;
@@ -570,8 +631,14 @@ export function aggregateProfile(boards: Board[], color: Color) {
     structures,
     themes: themesOut,
     center_distribution: Object.fromEntries(centerCounts),
-    common_open_files: [...openTally.entries()].filter(([, c]) => c / denom >= 0.5).map(([f]) => f).sort(),
-    common_half_open_files: [...halfTally.entries()].filter(([, c]) => c / denom >= 0.5).map(([f]) => f).sort(),
+    common_open_files: [...openTally.entries()]
+      .filter(([, c]) => c / denom >= 0.5)
+      .map(([f]) => f)
+      .sort(),
+    common_half_open_files: [...halfTally.entries()]
+      .filter(([, c]) => c / denom >= 0.5)
+      .map(([f]) => f)
+      .sort(),
   };
 }
 
@@ -636,7 +703,11 @@ export function searchStructures(
   const out: StructureMatch[] = [];
   for (const leaf of leaves) {
     const cls = classifyStructure(leaf.board);
-    if (want !== undefined && (cls.structure_class.toLowerCase() !== want || cls.confidence < (q.minConfidence ?? 0))) continue;
+    if (
+      want !== undefined &&
+      (cls.structure_class.toLowerCase() !== want || cls.confidence < (q.minConfidence ?? 0))
+    )
+      continue;
     const center = centerState(leaf.board);
     if (q.center !== undefined && center !== q.center) continue;
     if (q.themes?.length || q.colorComplex !== undefined) {
@@ -644,7 +715,13 @@ export function searchStructures(
       if (q.themes?.some((name) => !t[name])) continue;
       if (q.colorComplex !== undefined && t.color_complex !== q.colorComplex) continue;
     }
-    out.push({ path: leaf.path, fen: leaf.fen, structure_class: cls.structure_class, confidence: cls.confidence, center });
+    out.push({
+      path: leaf.path,
+      fen: leaf.fen,
+      structure_class: cls.structure_class,
+      confidence: cls.confidence,
+      center,
+    });
   }
   return out;
 }

@@ -68,13 +68,19 @@ function replaceDocument(
     setDirty(false);
     setFileName(name ?? null);
     setDocumentId(nextDocumentId);
-    if (Number.isSafeInteger(restoredRevision) && restoredRevision! >= 0) setVersion(restoredRevision!);
+    if (Number.isSafeInteger(restoredRevision) && restoredRevision! >= 0)
+      setVersion(restoredRevision!);
     else bump();
   });
 }
 
 /** Restore is the sole path allowed to resume an existing document identity. */
-export function restoreDocument(pgn: string, name: string | undefined, savedDocumentId: unknown, savedRevision?: number) {
+export function restoreDocument(
+  pgn: string,
+  name: string | undefined,
+  savedDocumentId: unknown,
+  savedRevision?: number,
+) {
   const nextTree = GameTree.fromPgn(pgn);
   replaceDocument(
     nextTree,
@@ -113,13 +119,18 @@ export const actions = {
     opts: { addMoves?: string[]; promoteMove?: string } = {},
     expectedRevision?: number,
   ): { ok: true; revision: number } | { ok: false; error: string } {
-    if (expectedRevision != null && expectedRevision !== version()) return { ok: false, error: "stale_revision" };
+    if (expectedRevision != null && expectedRevision !== version())
+      return { ok: false, error: "stale_revision" };
     const result = tree().edit(action, sanPath, opts);
     if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
     setTree(result.tree);
-    const destination = action === "add"
-      ? result.tree.indexPathOfSan([...(result.added?.from ?? sanPath), ...(result.added?.moves ?? [])])
-      : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
+    const destination =
+      action === "add"
+        ? result.tree.indexPathOfSan([
+            ...(result.added?.from ?? sanPath),
+            ...(result.added?.moves ?? []),
+          ])
+        : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
     if (destination) setPath(destination);
     setDirty(true);
     bump();
@@ -131,7 +142,9 @@ export const actions = {
     nextTree: GameTree,
     nextPath: Path,
     expectedRevision: number,
-  ): { ok: true; revision: number } | { ok: false; error: "stale_revision" | "invalid_navigation" } {
+  ):
+    | { ok: true; revision: number }
+    | { ok: false; error: "stale_revision" | "invalid_navigation" } {
     if (expectedRevision !== version()) return { ok: false, error: "stale_revision" };
     try {
       nextTree.fenAt(nextPath);

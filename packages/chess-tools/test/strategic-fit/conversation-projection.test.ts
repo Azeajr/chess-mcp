@@ -21,10 +21,12 @@ const OPTIONS: AnalyzeStrategicFitOptions = {
 };
 
 function completeReport(options: AnalyzeStrategicFitOptions = OPTIONS): StrategicFitReport {
-  return completeStrategicFitReport(analyzeStrategicFit(
-    parseStrategicFitFixture(BROAD_ECO_FIXTURE),
-    strategicFitCompleteAnalysisOptions(options),
-  ));
+  return completeStrategicFitReport(
+    analyzeStrategicFit(
+      parseStrategicFitFixture(BROAD_ECO_FIXTURE),
+      strategicFitCompleteAnalysisOptions(options),
+    ),
+  );
 }
 
 const request = (report: StrategicFitReport) => ({
@@ -44,7 +46,8 @@ test("summary retrieval carries report identity and state without findings or pr
   assert.equal(summary.preflight.state, report.preflight.state);
   assert.equal(summary.preflight.route_count, report.preflight.route_count);
   assert.equal(
-    summary.preflight.issue_counts.blocking + summary.preflight.issue_counts.degraded +
+    summary.preflight.issue_counts.blocking +
+      summary.preflight.issue_counts.degraded +
       summary.preflight.issue_counts.informational,
     report.preflight.issues.length,
   );
@@ -53,12 +56,12 @@ test("summary retrieval carries report identity and state without findings or pr
     summary.preflight.omitted_issue_count,
     report.preflight.issues.length - summary.preflight.issues.length,
   );
-  assert.equal(
-    summary.summary.unresolved_finding_count,
-    report.summary.unresolved_finding_count,
-  );
+  assert.equal(summary.summary.unresolved_finding_count, report.summary.unresolved_finding_count);
   assert.equal(summary.metrics.length, 10);
-  assert.equal(summary.metrics.every((metric) => metric.value === null || typeof metric.value === "number"), true);
+  assert.equal(
+    summary.metrics.every((metric) => metric.value === null || typeof metric.value === "number"),
+    true,
+  );
 
   const serialized = JSON.stringify(summary);
   for (const excluded of ["provenance", "findings", "manifest", "snapshot", "preferences"]) {
@@ -85,10 +88,17 @@ test("finding pages are bounded, ordered, and navigable by cursor", () => {
   );
   for (const row of first.findings) {
     assert.ok(row.source_san_paths.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.san_paths);
-    assert.ok(row.source_san_paths.every((path) =>
-      path.san.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.san_path_plies));
+    assert.ok(
+      row.source_san_paths.every(
+        (path) => path.san.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.san_path_plies,
+      ),
+    );
     assert.equal(row.total_san_path_count >= row.source_san_paths.length, true);
-    assert.equal("explanation" in row, false, "list rows stay compact; explanations need the finding view");
+    assert.equal(
+      "explanation" in row,
+      false,
+      "list rows stay compact; explanations need the finding view",
+    );
     assert.equal("evidence" in row, false);
   }
 
@@ -102,11 +112,12 @@ test("finding pages are bounded, ordered, and navigable by cursor", () => {
   assert.equal(second.page.offset, 2);
 
   assert.throws(
-    () => projectStrategicFitConversation(report, {
-      view: "findings",
-      ...request(report),
-      page: { limit: STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum + 1 },
-    }),
+    () =>
+      projectStrategicFitConversation(report, {
+        view: "findings",
+        ...request(report),
+        page: { limit: STRATEGIC_FIT_CONVERSATION_LIMITS.findings_page_maximum + 1 },
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_invalid_page_limit",
@@ -126,16 +137,23 @@ test("finding retrieval adds bounded evidence and navigable paths without full r
   const finding = projection.finding;
   assert.equal(finding.finding_id, selected.finding_id);
   assert.equal(finding.semantic_finding_id, selected.semantic_finding_id);
-  assert.equal(finding.explanation.text.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 1, true);
+  assert.equal(
+    finding.explanation.text.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 1,
+    true,
+  );
   assert.equal(finding.evidence.cohort_id, selected.evidence.cohort_id);
-  assert.ok(finding.evidence.dimensions.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.evidence_dimensions);
+  assert.ok(
+    finding.evidence.dimensions.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.evidence_dimensions,
+  );
   assert.equal(
     finding.evidence.omitted_dimension_count,
     selected.evidence.dimensions.length - finding.evidence.dimensions.length,
   );
   assert.equal(
-    finding.evidence.dimensions.every((dimension) =>
-      dimension.typical_value === null || typeof dimension.typical_value !== "object"),
+    finding.evidence.dimensions.every(
+      (dimension) =>
+        dimension.typical_value === null || typeof dimension.typical_value !== "object",
+    ),
     true,
     "composite dimension values are disclosed as omitted rather than inlined",
   );
@@ -143,18 +161,30 @@ test("finding retrieval adds bounded evidence and navigable paths without full r
     finding.evidence.data_quality_issue_count,
     selected.evidence.data_quality_issue_ids.length,
   );
-  assert.ok(finding.references.route_ids.ids.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.identity_list);
+  assert.ok(
+    finding.references.route_ids.ids.length <= STRATEGIC_FIT_CONVERSATION_LIMITS.identity_list,
+  );
   assert.equal(finding.references.route_ids.total_count, selected.references.route_ids.length);
   assert.deepEqual(
     finding.source_san_paths[0]?.san,
-    selected.references.source_san_paths[0]?.slice(0, STRATEGIC_FIT_CONVERSATION_LIMITS.san_path_plies),
+    selected.references.source_san_paths[0]?.slice(
+      0,
+      STRATEGIC_FIT_CONVERSATION_LIMITS.san_path_plies,
+    ),
   );
 
   const serialized = JSON.stringify(projection);
   for (const excluded of ["provenance", "timeline", "components", "manifest"]) {
-    assert.equal(serialized.includes(`"${excluded}"`), false, `finding view must exclude ${excluded}`);
+    assert.equal(
+      serialized.includes(`"${excluded}"`),
+      false,
+      `finding view must exclude ${excluded}`,
+    );
   }
-  assert.ok(serialized.length < 8_000, `finding view stays compact (${serialized.length} characters)`);
+  assert.ok(
+    serialized.length < 8_000,
+    `finding view stays compact (${serialized.length} characters)`,
+  );
 });
 
 test("truncated text and paths disclose that they were shortened", () => {
@@ -163,11 +193,13 @@ test("truncated text and paths disclose that they were shortened", () => {
   const longPath = Array.from({ length: 40 }, (_, index) => `move${index}`);
   const stretched: StrategicFitReport = {
     ...report,
-    findings: [{
-      ...selected,
-      explanation: "x".repeat(STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 50),
-      references: { ...selected.references, source_san_paths: [longPath] },
-    }],
+    findings: [
+      {
+        ...selected,
+        explanation: "x".repeat(STRATEGIC_FIT_CONVERSATION_LIMITS.text_characters + 50),
+        references: { ...selected.references, source_san_paths: [longPath] },
+      },
+    ],
   };
   const projection = projectStrategicFitConversation(stretched, {
     view: "finding",
@@ -175,7 +207,8 @@ test("truncated text and paths disclose that they were shortened", () => {
     expected_repertoire_revision: stretched.repertoire_revision,
     finding_id: selected.finding_id,
   });
-  if (projection.retrieval !== "strategic-fit-finding") return assert.fail("expected a finding view");
+  if (projection.retrieval !== "strategic-fit-finding")
+    return assert.fail("expected a finding view");
   assert.equal(projection.finding.explanation.truncated, true);
   assert.equal(
     projection.finding.explanation.text.length,
@@ -193,12 +226,51 @@ test("stale reports, revisions, and finding identities fail closed with structur
   const report = completeReport();
   const other = completeReport({ ...OPTIONS, repertoireRevision: "revision:other" });
   for (const [candidate, code] of [
-    [{ view: "summary", report_id: "strategic-fit-report:stale", expected_repertoire_revision: report.repertoire_revision }, "strategic_fit_stale_report"],
-    [{ view: "summary", report_id: report.report_id, expected_repertoire_revision: "revision:stale" }, "strategic_fit_stale_revision"],
-    [{ view: "findings", report_id: other.report_id, expected_repertoire_revision: report.repertoire_revision }, "strategic_fit_stale_report"],
-    [{ view: "finding", report_id: report.report_id, expected_repertoire_revision: report.repertoire_revision, finding_id: "finding:missing" }, "strategic_fit_finding_not_found"],
-    [{ view: "finding", report_id: report.report_id, expected_repertoire_revision: report.repertoire_revision }, "strategic_fit_missing_finding_identity"],
-    [{ view: "summary", report_id: "", expected_repertoire_revision: report.repertoire_revision }, "strategic_fit_missing_report_identity"],
+    [
+      {
+        view: "summary",
+        report_id: "strategic-fit-report:stale",
+        expected_repertoire_revision: report.repertoire_revision,
+      },
+      "strategic_fit_stale_report",
+    ],
+    [
+      {
+        view: "summary",
+        report_id: report.report_id,
+        expected_repertoire_revision: "revision:stale",
+      },
+      "strategic_fit_stale_revision",
+    ],
+    [
+      {
+        view: "findings",
+        report_id: other.report_id,
+        expected_repertoire_revision: report.repertoire_revision,
+      },
+      "strategic_fit_stale_report",
+    ],
+    [
+      {
+        view: "finding",
+        report_id: report.report_id,
+        expected_repertoire_revision: report.repertoire_revision,
+        finding_id: "finding:missing",
+      },
+      "strategic_fit_finding_not_found",
+    ],
+    [
+      {
+        view: "finding",
+        report_id: report.report_id,
+        expected_repertoire_revision: report.repertoire_revision,
+      },
+      "strategic_fit_missing_finding_identity",
+    ],
+    [
+      { view: "summary", report_id: "", expected_repertoire_revision: report.repertoire_revision },
+      "strategic_fit_missing_report_identity",
+    ],
   ] as const) {
     assert.throws(
       () => projectStrategicFitConversation(report, candidate),
@@ -211,13 +283,18 @@ test("stale reports, revisions, and finding identities fail closed with structur
           try {
             projectStrategicFitConversation(report, candidate);
             return null;
-          } catch (error) { return error; }
+          } catch (error) {
+            return error;
+          }
         })(),
       ).error,
       code,
     );
   }
 
-  assert.deepEqual(strategicFitReportUnavailableResult("strategic-fit-report:gone").error, "strategic_fit_report_unavailable");
+  assert.deepEqual(
+    strategicFitReportUnavailableResult("strategic-fit-report:gone").error,
+    "strategic_fit_report_unavailable",
+  );
   assert.throws(() => strategicFitConversationErrorResult(new Error("unrelated")), /unrelated/);
 });

@@ -7,13 +7,16 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "balanced"): unknown;
 };
 
-const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) => page.evaluate(
-  ({ source, arg }) => Function("api", "arg", `return (${source})(api, arg)`)(
-    (window as unknown as { __chess: ChessHarness }).__chess,
-    arg,
-  ),
-  { source: fn.toString(), arg },
-);
+const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ChessHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 
 const FLOW_REPERTOIRE = `[Event "Flow: move order A"]
 [Result "*"]
@@ -44,11 +47,15 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   await page.getByRole("button", { name: "Open workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
   return dialog;
 }
 
-test("the decision flow shows weighted player and opponent steps with an outline equivalent", async ({ page }) => {
+test("the decision flow shows weighted player and opponent steps with an outline equivalent", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, FLOW_REPERTOIRE, "flow-complete.pgn");
   const before = await chess(page, (api) => api.toPgn());
   const flow = dialog.locator(".decision-flow");
@@ -71,8 +78,12 @@ test("the decision flow shows weighted player and opponent steps with an outline
   const mountedOutlineRows = Number(await outline.getAttribute("data-flow-outline-mounted"));
   expect(mountedOutlineRows).toBeLessThanOrEqual(60);
   await expect(outlineRows).toHaveCount(Math.min(nodeCount, mountedOutlineRows));
-  await expect(outline.locator("[data-flow-outline-actor='player']").first()).toContainText("You play");
-  await expect(outline.locator("[data-flow-outline-actor='opponent']").first()).toContainText("Opponent plays");
+  await expect(outline.locator("[data-flow-outline-actor='player']").first()).toContainText(
+    "You play",
+  );
+  await expect(outline.locator("[data-flow-outline-actor='opponent']").first()).toContainText(
+    "Opponent plays",
+  );
 
   const startNode = flow.locator("[data-flow-node-kind='start']");
   await startNode.click();
@@ -95,23 +106,29 @@ test("selecting a flow step with findings opens the canonical finding queue", as
   const findingId = await openFinding.getAttribute("data-flow-open-finding");
   await openFinding.click();
 
-  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute("data-stage", "findings");
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
   const findings = dialog.locator("#strategic-fit-pane-findings");
   await expect(findings.getByRole("status")).toContainText("Findings for the selected flow step");
-  await expect(
-    findings.locator(`[data-finding-id='${findingId}']`),
-  ).toHaveAttribute("data-finding-selected", "true");
+  await expect(findings.locator(`[data-finding-id='${findingId}']`)).toHaveAttribute(
+    "data-finding-selected",
+    "true",
+  );
 });
 
-test("uncertain causal ownership is written out and the keyboard reaches every step", async ({ page }) => {
+test("uncertain causal ownership is written out and the keyboard reaches every step", async ({
+  page,
+}) => {
   const dialog = await bootstrap(page, FLOW_REPERTOIRE, "flow-causality.pgn");
   const flow = dialog.locator(".decision-flow");
 
   const outlineCausality = flow.locator("[data-flow-outline-causality]").first();
   await expect(outlineCausality).toBeVisible();
-  const labels = await flow.locator("[data-flow-outline-causality]").evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("data-flow-outline-causality"))
-  );
+  const labels = await flow
+    .locator("[data-flow-outline-causality]")
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-flow-outline-causality")));
   expect(labels.every((label) => label !== null && label.length > 0)).toBe(true);
   await expect(flow.locator("[data-flow-causality='not-referenced']").first()).toBeVisible();
 
@@ -136,8 +153,8 @@ test("the flow stays contained and legible on a phone viewport", async ({ page }
   const scroll = flow.locator(".decision-flow-scroll");
   const overflow = await scroll.evaluate((element) => getComputedStyle(element).overflowX);
   expect(["auto", "scroll"]).toContain(overflow);
-  const contained = await scroll.evaluate((element) =>
-    element.clientWidth <= (element.closest(".decision-flow")?.clientWidth ?? 0) + 1
+  const contained = await scroll.evaluate(
+    (element) => element.clientWidth <= (element.closest(".decision-flow")?.clientWidth ?? 0) + 1,
   );
   expect(contained).toBe(true);
 

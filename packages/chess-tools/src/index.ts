@@ -5,11 +5,35 @@
  * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
  * Shared domain layer for the Node MCP host and SolidJS PWA (see docs/ARCHITECTURE.md).
  */
-export { GameTree, isPrefix, buildKeyIndex, landsInCrossBranchPrep, enumerateLegal, iterateLegal, someLegal, pruneTailPath } from "./pgn.js";
-export type { Path, PlayResult, KeyIndex, ExtendedBridge, PruneSuggestion, PruneScanResult, PruneEngineLine } from "./pgn.js";
+export {
+  GameTree,
+  isPrefix,
+  buildKeyIndex,
+  landsInCrossBranchPrep,
+  enumerateLegal,
+  iterateLegal,
+  someLegal,
+  pruneTailPath,
+} from "./pgn.js";
+export type {
+  Path,
+  PlayResult,
+  KeyIndex,
+  ExtendedBridge,
+  PruneSuggestion,
+  PruneScanResult,
+  PruneEngineLine,
+} from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
-export { decisionNodes, turnNodes, gapSeverity, moveSan, medianLineLength, SEVERITY_RANK } from "./gaps.js";
+export {
+  decisionNodes,
+  turnNodes,
+  gapSeverity,
+  moveSan,
+  medianLineLength,
+  SEVERITY_RANK,
+} from "./gaps.js";
 export type { DecisionNode, Severity } from "./gaps.js";
 export {
   positionProfile,
@@ -65,9 +89,28 @@ export type {
   TheoryDepthResult,
   TheoryLine,
 } from "./explorer.js";
-export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsRepertoire } from "./game.js";
-export type { MainlineMove, MoveClass, GameRecord, GameWalk, PlayerDeviation, UncoveredOpponent, RepertoireMoveMap } from "./game.js";
-export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
+export {
+  mainline,
+  classifyCpLoss,
+  moveAccuracy,
+  aggregateGames,
+  walkGameVsRepertoire,
+} from "./game.js";
+export type {
+  MainlineMove,
+  MoveClass,
+  GameRecord,
+  GameWalk,
+  PlayerDeviation,
+  UncoveredOpponent,
+  RepertoireMoveMap,
+} from "./game.js";
+export {
+  parseOpeningsTsv,
+  identifyAt,
+  identifyDeepest,
+  identifyDeepestFromMoves,
+} from "./openings.js";
 export type { OpeningEntry, OpeningTable } from "./openings.js";
 export {
   analyzeMainline,

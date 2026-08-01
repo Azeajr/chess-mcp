@@ -26,17 +26,24 @@ function completeReport(
   repertoireColor: "white" | "black",
   repertoireRevision: string,
 ) {
-  return completeStrategicFitReport(analyzeStrategicFit(tree, strategicFitCompleteAnalysisOptions({
-    repertoireColor,
-    repertoireRevision,
-  })));
+  return completeStrategicFitReport(
+    analyzeStrategicFit(
+      tree,
+      strategicFitCompleteAnalysisOptions({
+        repertoireColor,
+        repertoireRevision,
+      }),
+    ),
+  );
 }
 
 test("multi-path V2 findings annotate every relevant source SAN path", async () => {
   const tree = parseStrategicFitFixture(WHITE_TRANSPOSITION_FIXTURE);
   const revision = "annotation:multi-path";
   const report = completeReport(tree, WHITE_TRANSPOSITION_FIXTURE.repertoireColor, revision);
-  const multiPath = report.findings.find((finding) => finding.references.source_san_paths.length > 1);
+  const multiPath = report.findings.find(
+    (finding) => finding.references.source_san_paths.length > 1,
+  );
   assert.ok(multiPath, "transposition fixture must produce a multi-path finding");
 
   const result = await annotateRepertoire(
@@ -49,11 +56,16 @@ test("multi-path V2 findings annotate every relevant source SAN path", async () 
   );
   assert.ok(!("error" in result) && !("cancelled" in result));
 
-  const expectedTargets = strategicFitPortableAnnotations(report)
-    .reduce((count, annotation) => count + annotation.source_san_paths.length, 0);
+  const expectedTargets = strategicFitPortableAnnotations(report).reduce(
+    (count, annotation) => count + annotation.source_san_paths.length,
+    0,
+  );
   assert.equal(result.annotated.congruence, expectedTargets);
   const findingMarker = `finding=${multiPath.finding_id}`;
-  assert.equal(result.pgn.split(findingMarker).length - 1, multiPath.references.source_san_paths.length);
+  assert.equal(
+    result.pgn.split(findingMarker).length - 1,
+    multiPath.references.source_san_paths.length,
+  );
 });
 
 test("uncertain observations are clearly exported as evidence only, never as defects", async () => {
@@ -118,7 +130,11 @@ test("annotation exports mutate only the clone and reject stale injected evidenc
   });
   assert.equal(tree.toPgn(), before);
 
-  const cloneReport = completeReport(tree, SHALLOW_LINES_FIXTURE.repertoireColor, "annotation:clone");
+  const cloneReport = completeReport(
+    tree,
+    SHALLOW_LINES_FIXTURE.repertoireColor,
+    "annotation:clone",
+  );
   const exported = await annotateRepertoire(
     tree,
     SHALLOW_LINES_FIXTURE.repertoireColor,
@@ -135,7 +151,11 @@ test("annotation exports mutate only the clone and reject stale injected evidenc
 
 test("direct Strategic Fit annotation cancellation returns without an artifact", async () => {
   const tree = parseStrategicFitFixture(SHALLOW_LINES_FIXTURE);
-  const report = completeReport(tree, SHALLOW_LINES_FIXTURE.repertoireColor, "annotation:cancelled");
+  const report = completeReport(
+    tree,
+    SHALLOW_LINES_FIXTURE.repertoireColor,
+    "annotation:cancelled",
+  );
   let cancelled = false;
   const result = await annotateRepertoire(
     tree,
@@ -144,7 +164,9 @@ test("direct Strategic Fit annotation cancellation returns without an artifact",
       include: ["congruence"],
       repertoireRevision: "annotation:cancelled",
       shouldCancel: () => cancelled,
-      onProgress: () => { cancelled = true; },
+      onProgress: () => {
+        cancelled = true;
+      },
     },
     noEngine,
     undefined,

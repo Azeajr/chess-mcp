@@ -1,7 +1,11 @@
 /** Shared direct-analysis client. Buttons and chat both execute the application command; this store owns only
  * direct-UI lifecycle (progress, cancellation, and the last typed result). */
 import { createSignal } from "solid-js";
-import { executeBrowserCommand, type BrowserCommandDependencies, type BrowserCommandExecutionOptions } from "../application/browser-commands/client";
+import {
+  executeBrowserCommand,
+  type BrowserCommandDependencies,
+  type BrowserCommandExecutionOptions,
+} from "../application/browser-commands/client";
 import type { BrowserCommandName } from "../application/browser-commands/types";
 import { executionOutcome, type ExecutionStatus } from "../application/execution-status";
 
@@ -48,7 +52,10 @@ const controllers = new Map<DirectCommand, AbortController>();
 export function cancelCommand(command: DirectCommand) {
   controllers.get(command)?.abort();
   controllers.delete(command);
-  setCommandStates((all) => ({ ...all, [command]: { ...all[command], status: "cancelled", progress: undefined } }));
+  setCommandStates((all) => ({
+    ...all,
+    [command]: { ...all[command], status: "cancelled", progress: undefined },
+  }));
 }
 
 export async function executeCommand(command: DirectCommand, args: Record<string, unknown> = {}) {
@@ -59,18 +66,33 @@ export async function executeCommand(command: DirectCommand, args: Record<string
   try {
     const value = await executeDirectBrowserCommand(command, args, {
       signal: controller.signal,
-      onProgress: (done, total, detail) => setCommandStates((all) => ({
-        ...all,
-        [command]: all[command].status === "running" ? { ...all[command], progress: { done, total, detail } } : all[command],
-      })),
+      onProgress: (done, total, detail) =>
+        setCommandStates((all) => ({
+          ...all,
+          [command]:
+            all[command].status === "running"
+              ? { ...all[command], progress: { done, total, detail } }
+              : all[command],
+        })),
     });
     if (controller.signal.aborted) return;
     const result = value as Record<string, unknown>;
     const error = typeof result?.error === "string" ? result.error : undefined;
-    setCommandStates((all) => ({ ...all, [command]: error ? { status: executionOutcome(false, true), result, error } : { status: executionOutcome(false), result } }));
+    setCommandStates((all) => ({
+      ...all,
+      [command]: error
+        ? { status: executionOutcome(false, true), result, error }
+        : { status: executionOutcome(false), result },
+    }));
   } catch (error) {
     if (controller.signal.aborted) return;
-    setCommandStates((all) => ({ ...all, [command]: { status: "failed", error: error instanceof Error ? error.message : String(error) } }));
+    setCommandStates((all) => ({
+      ...all,
+      [command]: {
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    }));
   } finally {
     if (controllers.get(command) === controller) controllers.delete(command);
   }

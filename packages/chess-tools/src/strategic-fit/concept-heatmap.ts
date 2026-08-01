@@ -195,25 +195,24 @@ function conceptMastery(
       value: null,
       state: "untrained",
       attempt_count: 0,
-      reason: "No training target references this concept, so mastery is untrained rather than zero.",
+      reason:
+        "No training target references this concept, so mastery is untrained rather than zero.",
     };
   }
   return {
     value: statistic.mastery,
     state: statistic.state,
     attempt_count: statistic.attempt_count,
-    reason: statistic.state === "stale"
-      ? "The training targets behind this concept no longer match the current repertoire graph."
-      : statistic.state === "untrained"
-        ? "Training targets exist but no attempt has been recorded, so mastery is untrained rather than zero."
-        : null,
+    reason:
+      statistic.state === "stale"
+        ? "The training targets behind this concept no longer match the current repertoire graph."
+        : statistic.state === "untrained"
+          ? "Training targets exist but no attempt has been recorded, so mastery is untrained rather than zero."
+          : null,
   };
 }
 
-function conceptIntent(
-  conceptId: string,
-  profile: StrategicFitProfile,
-): ConceptHeatmapIntentState {
+function conceptIntent(conceptId: string, profile: StrategicFitProfile): ConceptHeatmapIntentState {
   if (profile.preferences.preferred_concept_ids.includes(conceptId)) return "preferred";
   if (profile.preferences.avoided_concept_ids.includes(conceptId)) return "avoided";
   return "not-declared";
@@ -261,7 +260,7 @@ export function buildConceptHeatmapProjection(
     input.trajectories.map((trajectory) => [trajectory.route_id, trajectory]),
   );
   const sortedCohorts = [...input.cohorts].sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id)
+    compareStrings(left.cohort_id, right.cohort_id),
   );
   const exclusions: ConceptHeatmapExclusion[] = [];
   const labels = new Map<string, StrategicConceptLabel>();
@@ -275,7 +274,8 @@ export function buildConceptHeatmapProjection(
         route_id: routeId,
         cohort_id: cohort.cohort_id,
         reason: "excluded-from-cohort",
-        explanation: "This route is excluded from its cohort's analysis, so it contributes no cells.",
+        explanation:
+          "This route is excluded from its cohort's analysis, so it contributes no cells.",
       });
     }
     if (cohort.state === "excluded") {
@@ -300,7 +300,8 @@ export function buildConceptHeatmapProjection(
           route_id: routeId,
           cohort_id: cohort.cohort_id,
           reason: "missing-trajectory",
-          explanation: "The report retains no trajectory for this route, so its concepts cannot be derived.",
+          explanation:
+            "The report retains no trajectory for this route, so its concepts cannot be derived.",
         });
         continue;
       }
@@ -331,8 +332,10 @@ export function buildConceptHeatmapProjection(
     if (routeCount > 0) rows.push({ cohort_id: cohort.cohort_id, route_count: routeCount });
   }
 
-  exclusions.sort((left, right) =>
-    compareStrings(left.cohort_id, right.cohort_id) || compareStrings(left.route_id, right.route_id)
+  exclusions.sort(
+    (left, right) =>
+      compareStrings(left.cohort_id, right.cohort_id) ||
+      compareStrings(left.route_id, right.route_id),
   );
 
   if (rows.length === 0) {
@@ -362,27 +365,31 @@ export function buildConceptHeatmapProjection(
   }
 
   const cells: ConceptHeatmapCell[] = [...cellsByCohort.entries()]
-    .flatMap(([cohortId, cohortCells]) => [...cohortCells.entries()]
-      .map(([conceptId, cell]) => ({ cohortId, conceptId, cell })))
+    .flatMap(([cohortId, cohortCells]) =>
+      [...cohortCells.entries()].map(([conceptId, cell]) => ({ cohortId, conceptId, cell })),
+    )
     .map(({ cohortId, conceptId, cell }) => {
       const routeIds = [...new Set(cell.routeIds)].sort(compareStrings);
-      const findingIds = [...new Set(routeIds.flatMap((routeId) =>
-        findingsByRoute.get(routeId) ?? []
-      ))].sort(compareStrings);
+      const findingIds = [
+        ...new Set(routeIds.flatMap((routeId) => findingsByRoute.get(routeId) ?? [])),
+      ].sort(compareStrings);
       return {
         cohort_id: cohortId,
         concept_id: conceptId,
         expected_frequency: round(Math.min(cell.expectedFrequency, 1)),
-        confidence: round(cell.confidenceWeight > 0
-          ? cell.weightedConfidence / cell.confidenceWeight
-          : cell.unweightedConfidenceSum / cell.observationCount),
+        confidence: round(
+          cell.confidenceWeight > 0
+            ? cell.weightedConfidence / cell.confidenceWeight
+            : cell.unweightedConfidenceSum / cell.observationCount,
+        ),
         route_ids: routeIds,
         finding_ids: findingIds,
       };
     })
-    .sort((left, right) =>
-      compareStrings(left.cohort_id, right.cohort_id) ||
-      compareStrings(left.concept_id, right.concept_id)
+    .sort(
+      (left, right) =>
+        compareStrings(left.cohort_id, right.cohort_id) ||
+        compareStrings(left.concept_id, right.concept_id),
     );
 
   const columns: ConceptHeatmapColumn[] = [...labels.values()]

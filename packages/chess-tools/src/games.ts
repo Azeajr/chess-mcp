@@ -24,7 +24,8 @@ export interface GameMeta {
   pgn?: string;
 }
 
-const num = (s: string | null): number | null => (s == null || s === "" ? null : Number.isNaN(Number(s)) ? null : Number(s));
+const num = (s: string | null): number | null =>
+  s == null || s === "" ? null : Number.isNaN(Number(s)) ? null : Number(s);
 
 function metaFromGame(game: Game<PgnNodeData>, username: string, includePgn: boolean): GameMeta {
   const h = (k: string) => game.headers.get(k) ?? null;
@@ -32,7 +33,8 @@ function metaFromGame(game: Game<PgnNodeData>, username: string, includePgn: boo
   const black = h("Black") ?? "?";
   const result = h("Result") ?? "*";
   const u = username.toLowerCase();
-  const userColor = white.toLowerCase() === u ? "white" : black.toLowerCase() === u ? "black" : null;
+  const userColor =
+    white.toLowerCase() === u ? "white" : black.toLowerCase() === u ? "black" : null;
   let userResult: GameMeta["user_result"] = null;
   if (userColor) {
     if (result === "1/2-1/2") userResult = "draw";

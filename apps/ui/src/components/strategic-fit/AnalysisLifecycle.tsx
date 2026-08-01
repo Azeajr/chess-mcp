@@ -9,15 +9,16 @@ import {
 import AnalysisProgress from "./AnalysisProgress";
 import PreflightResults from "./PreflightResults";
 
-export const STRATEGIC_FIT_LIFECYCLE_LABELS: Readonly<Record<StrategicFitLifecycleStatus, string>> = {
-  idle: "Analysis not started",
-  running: "Analysis starting",
-  provisional: "Analysis in progress",
-  completed: "Analysis complete",
-  cancelled: "Analysis cancelled",
-  failed: "Analysis failed",
-  stale: "Analysis out of date",
-};
+export const STRATEGIC_FIT_LIFECYCLE_LABELS: Readonly<Record<StrategicFitLifecycleStatus, string>> =
+  {
+    idle: "Analysis not started",
+    running: "Analysis starting",
+    provisional: "Analysis in progress",
+    completed: "Analysis complete",
+    cancelled: "Analysis cancelled",
+    failed: "Analysis failed",
+    stale: "Analysis out of date",
+  };
 
 const isActive = (status: StrategicFitLifecycleStatus) =>
   status === "running" || status === "provisional";
@@ -67,12 +68,14 @@ export default function AnalysisLifecycle() {
                 data-reanalysis-scope={summary().scope.kind}
                 data-resolving-revision={summary().resolving_revision}
               >
-                Reconciled {summary().scope.kind === "full-scan"
+                Reconciled{" "}
+                {summary().scope.kind === "full-scan"
                   ? "the full report"
-                  : `${summary().scope.cohort_ids.length} affected cohort(s)`} at revision{" "}
-                <code>{summary().resolving_revision}</code>: {summary().auto_resolved_semantic_finding_ids.length}{" "}
-                disappeared finding(s) resolved, {summary().changed_evidence_semantic_finding_ids.length}{" "}
-                changed-evidence finding(s) reopened, and {summary().reappeared_semantic_finding_ids.length}{" "}
+                  : `${summary().scope.cohort_ids.length} affected cohort(s)`}{" "}
+                at revision <code>{summary().resolving_revision}</code>:{" "}
+                {summary().auto_resolved_semantic_finding_ids.length} disappeared finding(s)
+                resolved, {summary().changed_evidence_semantic_finding_ids.length} changed-evidence
+                finding(s) reopened, and {summary().reappeared_semantic_finding_ids.length}{" "}
                 finding(s) reappeared.
               </span>
             )}
@@ -84,7 +87,9 @@ export default function AnalysisLifecycle() {
             <span role="alert">{state().error!.message}</span>
           </Show>
           <Show when={state().status === "stale"}>
-            <span>{state().stale_reason ?? "The previous report no longer matches current inputs."}</span>
+            <span>
+              {state().stale_reason ?? "The previous report no longer matches current inputs."}
+            </span>
           </Show>
 
           <Show when={state().last_completed && state().current_result !== state().last_completed}>
@@ -95,11 +100,14 @@ export default function AnalysisLifecycle() {
         </div>
 
         <div class="strategic-fit-analysis-actions">
-          <Show when={isActive(state().status)} fallback={(
-            <button type="button" data-strategic-fit-analysis-action onClick={run}>
-              {actionLabel(state().status)}
-            </button>
-          )}>
+          <Show
+            when={isActive(state().status)}
+            fallback={
+              <button type="button" data-strategic-fit-analysis-action onClick={run}>
+                {actionLabel(state().status)}
+              </button>
+            }
+          >
             <button
               type="button"
               class="secondary"

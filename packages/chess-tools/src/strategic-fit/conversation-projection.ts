@@ -226,14 +226,15 @@ function paths(finding: StrategicFinding): readonly StrategicFitConversationPath
 }
 
 function scalar(value: JsonValue): number | string | boolean | null {
-  return value === null || typeof value === "number" || typeof value === "string" ||
-      typeof value === "boolean"
+  return value === null ||
+    typeof value === "number" ||
+    typeof value === "string" ||
+    typeof value === "boolean"
     ? value
     : null;
 }
 
-const isComposite = (value: JsonValue): boolean =>
-  value !== null && typeof value === "object";
+const isComposite = (value: JsonValue): boolean => value !== null && typeof value === "object";
 
 function dimension(item: EvidenceComparisonDimension) {
   const composite = isComposite(item.typical_value) || isComposite(item.affected_value);
@@ -283,11 +284,18 @@ function summaryProjection(report: StrategicFitReport): StrategicFitConversation
     (counts, issue) => ({ ...counts, [issue.severity]: counts[issue.severity] + 1 }),
     { blocking: 0, degraded: 0, informational: 0 },
   );
-  const issues = report.preflight.issues.slice(0, STRATEGIC_FIT_CONVERSATION_LIMITS.preflight_issues);
-  const metrics = Object.values(report.summary.metrics as unknown as Readonly<Record<string, unknown>>)
+  const issues = report.preflight.issues.slice(
+    0,
+    STRATEGIC_FIT_CONVERSATION_LIMITS.preflight_issues,
+  );
+  const metrics = Object.values(
+    report.summary.metrics as unknown as Readonly<Record<string, unknown>>,
+  )
     // `metrics` also carries the analysis version; only the metric records are projected.
-    .filter((metric): metric is StrategicFitMetric<unknown> =>
-      typeof metric === "object" && metric !== null && "metric_id" in metric)
+    .filter(
+      (metric): metric is StrategicFitMetric<unknown> =>
+        typeof metric === "object" && metric !== null && "metric_id" in metric,
+    )
     .map((metric) => ({
       metric_id: metric.metric_id,
       state: metric.state,
@@ -414,9 +422,8 @@ function findingProjection(
       applied_caps: finding.confidence.applied_caps
         .slice(0, STRATEGIC_FIT_CONVERSATION_LIMITS.confidence_caps)
         .map((cap) => ({ reason: cap.reason, maximum_score: cap.maximum_score })),
-      objective_reason: finding.objective_quality.reason === null
-        ? null
-        : text(finding.objective_quality.reason),
+      objective_reason:
+        finding.objective_quality.reason === null ? null : text(finding.objective_quality.reason),
       evidence: {
         cohort_id: finding.evidence.cohort_id,
         comparison_basis: {

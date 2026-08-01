@@ -34,11 +34,7 @@ import {
 import { documentId, version } from "./game";
 import { strategicFitProfile } from "./strategic-fit-profile";
 
-export type StrategicFitPortfolioConstraintStatus =
-  | "pending"
-  | "confirmed"
-  | "rejected"
-  | "stale";
+export type StrategicFitPortfolioConstraintStatus = "pending" | "confirmed" | "rejected" | "stale";
 
 export interface StrategicFitStagedConstraintSet {
   readonly constraint_set_id: string;
@@ -51,10 +47,7 @@ export interface StrategicFitStagedConstraintSet {
   readonly created_at: string;
 }
 
-export type StrategicFitPortfolioSelectionStatus =
-  | "staged"
-  | "superseded"
-  | "failed";
+export type StrategicFitPortfolioSelectionStatus = "staged" | "superseded" | "failed";
 
 export interface StrategicFitPortfolioSelection {
   readonly constraint_set_id: string;
@@ -127,8 +120,14 @@ export interface StrategicFitPortfolioState {
   /** Throws `StrategicFitPortfolioError`; hosts map it to a structured result. */
   portfolio(constraintSetId: string): StrategicFitPortfolioViewResult;
   select(constraintSetId: string, optionId: string): Promise<StrategicFitPortfolioSelectionResult>;
-  confirm(constraintSetId: string): { readonly ok: boolean; readonly status: StrategicFitPortfolioConstraintStatus };
-  reject(constraintSetId: string): { readonly ok: boolean; readonly status: StrategicFitPortfolioConstraintStatus };
+  confirm(constraintSetId: string): {
+    readonly ok: boolean;
+    readonly status: StrategicFitPortfolioConstraintStatus;
+  };
+  reject(constraintSetId: string): {
+    readonly ok: boolean;
+    readonly status: StrategicFitPortfolioConstraintStatus;
+  };
 }
 
 const evidenceUnavailable = (): StrategicFitPortfolioError =>
@@ -146,7 +145,9 @@ export function createStrategicFitPortfolioState(
 
   const find = (id: string) => sets().find((entry) => entry.constraint_set_id === id);
   const update = (id: string, status: StrategicFitPortfolioConstraintStatus) =>
-    setSets((all) => all.map((entry) => (entry.constraint_set_id === id ? { ...entry, status } : entry)));
+    setSets((all) =>
+      all.map((entry) => (entry.constraint_set_id === id ? { ...entry, status } : entry)),
+    );
 
   const evidence = (): StrategicFitPortfolioEvidence => {
     let current: StrategicFitPortfolioEvidence | null = null;
@@ -176,8 +177,10 @@ export function createStrategicFitPortfolioState(
           : `These bounds were ${staged.status}. State the bounds again rather than reusing a set the user did not confirm.`,
       );
     }
-    if (staged.document_id !== boundary.currentDocumentId() ||
-        staged.repertoire_revision !== boundary.currentRevision()) {
+    if (
+      staged.document_id !== boundary.currentDocumentId() ||
+      staged.repertoire_revision !== boundary.currentRevision()
+    ) {
       update(constraintSetId, "stale");
       throw new StrategicFitPortfolioError(
         "strategic_fit_portfolio_stale",
@@ -204,7 +207,9 @@ export function createStrategicFitPortfolioState(
 
     propose(input) {
       const set = resolveStrategicFitPortfolioConstraints(input);
-      const conflicts = detectStrategicFitPortfolioConflicts(set, { profile: boundary.currentProfile() });
+      const conflicts = detectStrategicFitPortfolioConflicts(set, {
+        profile: boundary.currentProfile(),
+      });
       const staged: StrategicFitStagedConstraintSet = {
         constraint_set_id: `strategic-fit-portfolio-constraints:${nextId++}`,
         status: "pending",
@@ -226,9 +231,10 @@ export function createStrategicFitPortfolioState(
         conflicts,
         persisted: false,
         scope: "one-redesign-only",
-        next_step: conflicts.length > 0
-          ? "Nothing is bound. Put each contradiction to the user as a question and let them decide; do not drop, relax, or reconcile a bound yourself. Once they confirm the bounds in the application, ask for the portfolio with this constraint_set_id."
-          : "Nothing is bound and no preference was saved. Once the user confirms these bounds in the application, ask for the portfolio with this constraint_set_id.",
+        next_step:
+          conflicts.length > 0
+            ? "Nothing is bound. Put each contradiction to the user as a question and let them decide; do not drop, relax, or reconcile a bound yourself. Once they confirm the bounds in the application, ask for the portfolio with this constraint_set_id."
+            : "Nothing is bound and no preference was saved. Once the user confirms these bounds in the application, ask for the portfolio with this constraint_set_id.",
       };
     },
 
@@ -240,9 +246,10 @@ export function createStrategicFitPortfolioState(
         constraint_set_id: constraintSetId,
         ...result,
         persisted: false,
-        next_step: result.status === "available"
-          ? "Nothing is selected and nothing is applied. Present the options with the measured values behind each bound, say which are Pareto-optimal and which are dominated, and let the user choose; then select that option to stage its existing change set for their confirmation."
-          : "No portfolio option exists. Report the bound that excluded the candidates and ask the user which bound to move; never propose a line of your own instead.",
+        next_step:
+          result.status === "available"
+            ? "Nothing is selected and nothing is applied. Present the options with the measured values behind each bound, say which are Pareto-optimal and which are dominated, and let the user choose; then select that option to stage its existing change set for their confirmation."
+            : "No portfolio option exists. Report the bound that excluded the candidates and ask the user which bound to move; never propose a line of your own instead.",
       };
     },
 
@@ -302,7 +309,8 @@ export function createStrategicFitPortfolioState(
         stage_id: outcome.stage_id,
         applied: false,
         persisted: false,
-        next_step: "The change is staged, not applied. Summarize what it adds and costs from the review evidence and let the user confirm or reject it in the application; never state that the repertoire changed until they confirm.",
+        next_step:
+          "The change is staged, not applied. Summarize what it adds and costs from the review evidence and let the user confirm or reject it in the application; never state that the repertoire changed until they confirm.",
       };
     },
 
@@ -311,8 +319,10 @@ export function createStrategicFitPortfolioState(
       if (!staged || staged.status !== "pending") {
         return { ok: false, status: staged?.status ?? "stale" };
       }
-      if (staged.document_id !== boundary.currentDocumentId() ||
-          staged.repertoire_revision !== boundary.currentRevision()) {
+      if (
+        staged.document_id !== boundary.currentDocumentId() ||
+        staged.repertoire_revision !== boundary.currentRevision()
+      ) {
         update(constraintSetId, "stale");
         return { ok: false, status: "stale" };
       }
@@ -358,7 +368,8 @@ const browserPortfolio = createStrategicFitPortfolioState({
 });
 
 export const strategicFitPortfolioConstraintSets = () => browserPortfolio.constraintSets();
-export const strategicFitPortfolioConstraintSet = (id: string) => browserPortfolio.constraintSet(id);
+export const strategicFitPortfolioConstraintSet = (id: string) =>
+  browserPortfolio.constraintSet(id);
 export const strategicFitPortfolioSelection = () => browserPortfolio.selection();
 export const confirmStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.confirm(id);
 export const rejectStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.reject(id);

@@ -21,10 +21,12 @@ const OPTIONS: AnalyzeStrategicFitOptions = {
 };
 
 function completeReport(options: AnalyzeStrategicFitOptions = OPTIONS): StrategicFitReport {
-  return completeStrategicFitReport(analyzeStrategicFit(
-    parseStrategicFitFixture(BROAD_ECO_FIXTURE),
-    strategicFitCompleteAnalysisOptions(options),
-  ));
+  return completeStrategicFitReport(
+    analyzeStrategicFit(
+      parseStrategicFitFixture(BROAD_ECO_FIXTURE),
+      strategicFitCompleteAnalysisOptions(options),
+    ),
+  );
 }
 
 test("summary, page, finding, and full projections preserve stable report identities", () => {
@@ -94,12 +96,13 @@ test("page projections are bounded and cursors cannot cross reports or sort orde
   assert.equal(page.report.finding_page.limit, STRATEGIC_FIT_MAX_PAGE_SIZE);
 
   assert.throws(
-    () => projectStrategicFitReport(report, {
-      kind: "page",
-      expected_repertoire_revision: report.repertoire_revision,
-      sort: "training-priority",
-      page: { cursor: page.cursor },
-    }),
+    () =>
+      projectStrategicFitReport(report, {
+        kind: "page",
+        expected_repertoire_revision: report.repertoire_revision,
+        sort: "training-priority",
+        page: { cursor: page.cursor },
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_stale_page_cursor",
@@ -107,11 +110,12 @@ test("page projections are bounded and cursors cannot cross reports or sort orde
 
   const another = completeReport({ ...OPTIONS, repertoireRevision: "revision:another" });
   assert.throws(
-    () => projectStrategicFitReport(another, {
-      kind: "page",
-      expected_repertoire_revision: another.repertoire_revision,
-      page: { cursor: page.cursor },
-    }),
+    () =>
+      projectStrategicFitReport(another, {
+        kind: "page",
+        expected_repertoire_revision: another.repertoire_revision,
+        page: { cursor: page.cursor },
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_stale_page_cursor",
@@ -121,19 +125,28 @@ test("page projections are bounded and cursors cannot cross reports or sort orde
 test("stale revisions, report IDs, and missing findings fail closed", () => {
   const report = completeReport();
   for (const [request, code] of [
-    [{ kind: "summary", expected_repertoire_revision: "revision:stale" }, "strategic_fit_stale_revision"],
-    [{
-      kind: "finding",
-      expected_repertoire_revision: report.repertoire_revision,
-      expected_report_id: "strategic-fit-report:stale",
-      finding_id: report.findings[0]!.finding_id,
-    }, "strategic_fit_stale_report"],
-    [{
-      kind: "finding",
-      expected_repertoire_revision: report.repertoire_revision,
-      expected_report_id: report.report_id,
-      finding_id: "finding:missing",
-    }, "strategic_fit_finding_not_found"],
+    [
+      { kind: "summary", expected_repertoire_revision: "revision:stale" },
+      "strategic_fit_stale_revision",
+    ],
+    [
+      {
+        kind: "finding",
+        expected_repertoire_revision: report.repertoire_revision,
+        expected_report_id: "strategic-fit-report:stale",
+        finding_id: report.findings[0]!.finding_id,
+      },
+      "strategic_fit_stale_report",
+    ],
+    [
+      {
+        kind: "finding",
+        expected_repertoire_revision: report.repertoire_revision,
+        expected_report_id: report.report_id,
+        finding_id: "finding:missing",
+      },
+      "strategic_fit_finding_not_found",
+    ],
   ] as const) {
     assert.throws(
       () => projectStrategicFitReport(report, request),
@@ -155,28 +168,30 @@ test("finding lookup requires the exact report after same-revision settings chan
   });
   assert.notEqual(previous.report_id, current.report_id);
   const sharedFinding = previous.findings.find((finding) =>
-    current.findings.some((candidate) => candidate.finding_id === finding.finding_id)
+    current.findings.some((candidate) => candidate.finding_id === finding.finding_id),
   );
   assert.ok(sharedFinding, "the fixture retains a semantic finding across profile settings");
 
   assert.throws(
-    () => projectStrategicFitReport(current, {
-      kind: "finding",
-      expected_repertoire_revision: current.repertoire_revision,
-      expected_report_id: previous.report_id,
-      finding_id: sharedFinding.finding_id,
-    }),
+    () =>
+      projectStrategicFitReport(current, {
+        kind: "finding",
+        expected_repertoire_revision: current.repertoire_revision,
+        expected_report_id: previous.report_id,
+        finding_id: sharedFinding.finding_id,
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_stale_report",
   );
 
   assert.throws(
-    () => projectStrategicFitReport(current, {
-      kind: "finding",
-      expected_repertoire_revision: current.repertoire_revision,
-      finding_id: sharedFinding.finding_id,
-    } as Parameters<typeof projectStrategicFitReport>[1]),
+    () =>
+      projectStrategicFitReport(current, {
+        kind: "finding",
+        expected_repertoire_revision: current.repertoire_revision,
+        finding_id: sharedFinding.finding_id,
+      } as Parameters<typeof projectStrategicFitReport>[1]),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_missing_report_identity",
@@ -185,52 +200,68 @@ test("finding lookup requires the exact report after same-revision settings chan
 
 test("cache identity ignores projections but changes with content, revision, color, manifest settings, and profile", () => {
   const base = strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, OPTIONS);
-  assert.equal(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
-    ...OPTIONS,
-    sort: "opening-scope",
-    page: { offset: 20, limit: 3 },
-  }));
-  assert.equal(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
-    ...OPTIONS,
-    generatedAt: "2026-07-17T12:00:00.000Z",
-  }), "generation time is report provenance, not an analysis setting");
+  assert.equal(
+    base,
+    strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
+      ...OPTIONS,
+      sort: "opening-scope",
+      page: { offset: 20, limit: 3 },
+    }),
+  );
+  assert.equal(
+    base,
+    strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
+      ...OPTIONS,
+      generatedAt: "2026-07-17T12:00:00.000Z",
+    }),
+    "generation time is report provenance, not an analysis setting",
+  );
   assert.notEqual(base, strategicFitReportCacheKey(`${BROAD_ECO_FIXTURE.pgn}\n`, OPTIONS));
-  assert.notEqual(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
-    ...OPTIONS,
-    repertoireRevision: "revision:changed",
-  }));
-  assert.notEqual(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
-    ...OPTIONS,
-    repertoireColor: "black",
-  }));
-  assert.notEqual(base, strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
-    ...OPTIONS,
-    profile: {
-      schema_version: "2.0.0",
-      mode: "familiar-plans",
-      source: "explicit",
-      provisional: false,
-      preferences: {
-        maximum_engine_loss_cp: null,
-        opponent_popularity_importance: 0,
-        personal_game_frequency_importance: 0,
-        manual_weight_importance: 0,
-        additional_memorization_tolerance: 0.5,
-        preferred_concept_ids: [],
-        avoided_concept_ids: [],
-        preferred_tactical_character: [],
-        minimum_opponent_coverage: null,
-        feature_family_weights: {
-          "pawn-topology": 1,
-          "center-dynamics": 1,
-          "king-and-piece-setup": 1,
-          "space-and-files": 1,
-          "dynamic-character": 1,
-          "learning-concepts": 1,
+  assert.notEqual(
+    base,
+    strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
+      ...OPTIONS,
+      repertoireRevision: "revision:changed",
+    }),
+  );
+  assert.notEqual(
+    base,
+    strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
+      ...OPTIONS,
+      repertoireColor: "black",
+    }),
+  );
+  assert.notEqual(
+    base,
+    strategicFitReportCacheKey(BROAD_ECO_FIXTURE.pgn, {
+      ...OPTIONS,
+      profile: {
+        schema_version: "2.0.0",
+        mode: "familiar-plans",
+        source: "explicit",
+        provisional: false,
+        preferences: {
+          maximum_engine_loss_cp: null,
+          opponent_popularity_importance: 0,
+          personal_game_frequency_importance: 0,
+          manual_weight_importance: 0,
+          additional_memorization_tolerance: 0.5,
+          preferred_concept_ids: [],
+          avoided_concept_ids: [],
+          preferred_tactical_character: [],
+          minimum_opponent_coverage: null,
+          feature_family_weights: {
+            "pawn-topology": 1,
+            "center-dynamics": 1,
+            "king-and-piece-setup": 1,
+            "space-and-files": 1,
+            "dynamic-character": 1,
+            "learning-concepts": 1,
+          },
         },
       },
-    },
-  }));
+    }),
+  );
 });
 
 test("incomplete cache inputs and oversized full projections are rejected", () => {
@@ -254,10 +285,11 @@ test("incomplete cache inputs and oversized full projections are rejected", () =
     ),
   };
   assert.throws(
-    () => projectStrategicFitReport(oversized, {
-      kind: "full",
-      expected_repertoire_revision: report.repertoire_revision,
-    }),
+    () =>
+      projectStrategicFitReport(oversized, {
+        kind: "full",
+        expected_repertoire_revision: report.repertoire_revision,
+      }),
     (error: unknown) =>
       error instanceof StrategicFitReportProjectionError &&
       error.code === "strategic_fit_full_projection_too_large",

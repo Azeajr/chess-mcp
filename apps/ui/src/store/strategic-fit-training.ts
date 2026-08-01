@@ -59,8 +59,7 @@ import { invalidateCachedStrategicFitReports } from "../application/strategic-fi
 import { registerStrategicFitTrainingEvidenceProvider } from "../application/strategic-fit-training-evidence";
 import { registerStrategicFitTrainingWriter } from "../application/strategic-fit-training-writer";
 
-export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND =
-  "chess-mcp/strategic-fit-basic-drill";
+export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND = "chess-mcp/strategic-fit-basic-drill";
 /** 1.2.0 adds the optional confirmed plan card; 1.1.0 added the semantic decision identity. */
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.2.0";
 
@@ -192,7 +191,8 @@ const sortedUnique = (values: readonly string[]): string[] =>
 function sortedPaths(paths: readonly (readonly string[])[]): string[][] {
   const unique = new Map<string, string[]>();
   for (const path of paths) unique.set(JSON.stringify(path), [...path]);
-  return [...unique.entries()].sort(([left], [right]) => compareStrings(left, right))
+  return [...unique.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
     .map(([, path]) => path);
 }
 
@@ -213,9 +213,11 @@ function routeDecision(
   const decisionId = route.decision_ids[ply];
   const positionId = route.position_ids[ply];
   if (decisionId === undefined || positionId === undefined) return null;
-  return graph.decisions.find((decision) =>
-    decision.decision_id === decisionId && decision.from_position_id === positionId
-  ) ?? null;
+  return (
+    graph.decisions.find(
+      (decision) => decision.decision_id === decisionId && decision.from_position_id === positionId,
+    ) ?? null
+  );
 }
 
 function trainingRoute(
@@ -224,9 +226,15 @@ function trainingRoute(
   graph: RepertoireGraph,
 ): RepertoireGraphRoute | null {
   const trajectories = new Set(report.trajectories.map((trajectory) => trajectory.route_id));
-  return [...finding.references.route_ids].sort(compareStrings)
-    .map((routeId) => graph.routes.find((route) => route.route_id === routeId))
-    .find((route): route is RepertoireGraphRoute => route !== undefined && trajectories.has(route.route_id)) ?? null;
+  return (
+    [...finding.references.route_ids]
+      .sort(compareStrings)
+      .map((routeId) => graph.routes.find((route) => route.route_id === routeId))
+      .find(
+        (route): route is RepertoireGraphRoute =>
+          route !== undefined && trajectories.has(route.route_id),
+      ) ?? null
+  );
 }
 
 function conceptIds(
@@ -234,13 +242,19 @@ function conceptIds(
   finding: StrategicFinding,
   routeId: string,
 ): string[] {
-  const fromSignals = report.trajectories.find((trajectory) => trajectory.route_id === routeId)
-    ?.snapshots.flatMap((snapshot) => snapshot.signals
-      .filter((signal) => signal.family === "learning-concepts")
-      .map((signal) => signal.feature_id)) ?? [];
-  const fromModes = report.cohorts.find((cohort) => cohort.cohort_id === finding.evidence.cohort_id)
-    ?.modes.filter((mode) => mode.supporting_route_ids.includes(routeId))
-    .flatMap((mode) => mode.concept_ids) ?? [];
+  const fromSignals =
+    report.trajectories
+      .find((trajectory) => trajectory.route_id === routeId)
+      ?.snapshots.flatMap((snapshot) =>
+        snapshot.signals
+          .filter((signal) => signal.family === "learning-concepts")
+          .map((signal) => signal.feature_id),
+      ) ?? [];
+  const fromModes =
+    report.cohorts
+      .find((cohort) => cohort.cohort_id === finding.evidence.cohort_id)
+      ?.modes.filter((mode) => mode.supporting_route_ids.includes(routeId))
+      .flatMap((mode) => mode.concept_ids) ?? [];
   return sortedUnique([...fromSignals, ...fromModes]);
 }
 
@@ -252,7 +266,7 @@ function causalMove(
   const candidateIds = sortedUnique([
     ...finding.evidence.causality.likely_causal_decision_ids,
     ...finding.evidence.causality.timeline.flatMap((event) =>
-      event.kind === "player-decision" && event.decision_id !== null ? [event.decision_id] : []
+      event.kind === "player-decision" && event.decision_id !== null ? [event.decision_id] : [],
     ),
   ]);
   for (const decisionId of candidateIds) {
@@ -335,26 +349,34 @@ export function buildStrategicFitTrainingRecord(
   createdAt: string,
   planCard?: StrategicFitPlanCard | null,
 ): StrategicFitTrainingRecord {
-  const staleRoute = finding.references.route_ids.find((routeId) =>
-    !graph.routes.some((route) => route.route_id === routeId)
+  const staleRoute = finding.references.route_ids.find(
+    (routeId) => !graph.routes.some((route) => route.route_id === routeId),
   );
   if (staleRoute !== undefined) throw new Error("strategic_fit_training_stale_route");
   const route = trainingRoute(report, finding, graph);
   if (route === null) throw new Error("strategic_fit_training_route_evidence_unavailable");
   const trajectory = report.trajectories.find((entry) => entry.route_id === route.route_id)!;
   const checkpoints = trajectory.snapshots
-    .filter((snapshot) => graph.positions.some((position) =>
-      position.position_id === snapshot.position_id && position.fen === snapshot.fen
-    ))
-    .map((snapshot): StrategicFitTrainingCheckpoint => ({
-      checkpoint_id: snapshot.checkpoint.checkpoint_id,
-      kind: snapshot.checkpoint.kind,
-      ply: snapshot.checkpoint.ply,
-      position_id: snapshot.position_id,
-      fen: snapshot.fen,
-      comparability: snapshot.checkpoint.comparability,
-    }))
-    .sort((left, right) => left.ply - right.ply || compareStrings(left.checkpoint_id, right.checkpoint_id));
+    .filter((snapshot) =>
+      graph.positions.some(
+        (position) =>
+          position.position_id === snapshot.position_id && position.fen === snapshot.fen,
+      ),
+    )
+    .map(
+      (snapshot): StrategicFitTrainingCheckpoint => ({
+        checkpoint_id: snapshot.checkpoint.checkpoint_id,
+        kind: snapshot.checkpoint.kind,
+        ply: snapshot.checkpoint.ply,
+        position_id: snapshot.position_id,
+        fen: snapshot.fen,
+        comparability: snapshot.checkpoint.comparability,
+      }),
+    )
+    .sort(
+      (left, right) =>
+        left.ply - right.ply || compareStrings(left.checkpoint_id, right.checkpoint_id),
+    );
   if (checkpoints.length === 0) throw new Error("strategic_fit_training_checkpoint_unavailable");
 
   const concepts = conceptIds(report, finding, route.route_id);
@@ -371,7 +393,8 @@ export function buildStrategicFitTrainingRecord(
   ) => {
     if (!legalSan(fen, san)) return;
     const identity = `${positionId}\u001f${san}`;
-    if (drills.some((drill) => `${drill.position_id}\u001f${drill.expected_san}` === identity)) return;
+    if (drills.some((drill) => `${drill.position_id}\u001f${drill.expected_san}` === identity))
+      return;
     drills.push({
       drill_id: `strategic-fit-drill:${stableHash(identity)}`,
       position_id: positionId,
@@ -426,12 +449,14 @@ export function buildStrategicFitTrainingRecord(
     route_ids: [route.route_id],
     source_san_paths: sortedPaths(route.source_san_paths),
   };
-  const trainingId = `strategic-fit-training:${stableHash(JSON.stringify({
-    semantic_finding_id: finding.semantic_finding_id,
-    route_id: route.route_id,
-    position_ids: semanticPositionIds,
-    causal_decision_id: causal?.decision_id ?? null,
-  }))}`;
+  const trainingId = `strategic-fit-training:${stableHash(
+    JSON.stringify({
+      semantic_finding_id: finding.semantic_finding_id,
+      route_id: route.route_id,
+      position_ids: semanticPositionIds,
+      causal_decision_id: causal?.decision_id ?? null,
+    }),
+  )}`;
   const record: StrategicFitTrainingRecord = {
     schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
     training_id: trainingId,
@@ -447,14 +472,17 @@ export function buildStrategicFitTrainingRecord(
     user_notes: userNotes?.trim() || null,
     plan_card: null,
     created_at: createdAt,
-    provenance: [{
-      source_id: "strategic-fit:basic-training-drill",
-      kind: "training-metadata",
-      state: "available",
-      version: STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION,
-      snapshot: report.report_id,
-      reason: "Deterministic training item created from Strategic Fit report evidence without AI.",
-    }],
+    provenance: [
+      {
+        source_id: "strategic-fit:basic-training-drill",
+        kind: "training-metadata",
+        state: "available",
+        version: STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION,
+        snapshot: report.report_id,
+        reason:
+          "Deterministic training item created from Strategic Fit report evidence without AI.",
+      },
+    ],
   };
   if (planCard === undefined || planCard === null) return record;
   // The writer, not only the staged proposal, is where support is proved: a card handed to it
@@ -466,14 +494,18 @@ export function buildStrategicFitTrainingRecord(
   return {
     ...record,
     plan_card: card,
-    provenance: [...record.provenance, {
-      source_id: `strategic-fit:plan-card:${card.evidence_identity}`,
-      kind: "training-metadata",
-      state: "available",
-      version: card.plan_card_version,
-      snapshot: report.report_id,
-      reason: "Plan card written by the assistant, validated against this finding's deterministic evidence and confirmed by the user.",
-    }],
+    provenance: [
+      ...record.provenance,
+      {
+        source_id: `strategic-fit:plan-card:${card.evidence_identity}`,
+        kind: "training-metadata",
+        state: "available",
+        version: card.plan_card_version,
+        snapshot: report.report_id,
+        reason:
+          "Plan card written by the assistant, validated against this finding's deterministic evidence and confirmed by the user.",
+      },
+    ],
   };
 }
 
@@ -518,7 +550,10 @@ function friendlyBuildError(error: unknown): { code: string; message: string } {
     strategic_fit_training_legal_drill_unavailable:
       "Training is blocked because no checkpoint has a legal next SAN move to practice.",
   };
-  return { code, message: messages[code] ?? "The training item could not be created from current evidence." };
+  return {
+    code,
+    message: messages[code] ?? "The training item could not be created from current evidence.",
+  };
 }
 
 /**
@@ -535,17 +570,25 @@ function trainingResolutionNote(record: StrategicFitTrainingRecord): string | nu
 }
 
 export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBoundary) {
-  const buildCurrent = (input: StrategicFitTrainingCreationInput): StrategicFitTrainingRecord | null => {
+  const buildCurrent = (
+    input: StrategicFitTrainingCreationInput,
+  ): StrategicFitTrainingRecord | null => {
     const report = boundary.currentReport();
     const finding = boundary.currentFinding(input.report_id, input.finding_id);
     if (
-      report === null || report.report_id !== input.report_id || finding === null ||
+      report === null ||
+      report.report_id !== input.report_id ||
+      finding === null ||
       finding.semantic_finding_id !== input.semantic_finding_id
-    ) return null;
-    const existing = boundary.currentMetadata().training_references.find((reference) =>
-      reference.finding_id === finding.finding_id &&
-      reference.repertoire_revision === finding.repertoire_revision
-    );
+    )
+      return null;
+    const existing = boundary
+      .currentMetadata()
+      .training_references.find(
+        (reference) =>
+          reference.finding_id === finding.finding_id &&
+          reference.repertoire_revision === finding.repertoire_revision,
+      );
     return buildStrategicFitTrainingRecord(
       report.result,
       finding,
@@ -581,9 +624,9 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
         const failure = friendlyBuildError(error);
         return { state: "blocked", ...failure, record: null, artifact_id: null };
       }
-      const hadReference = boundary.currentMetadata().training_references.some((reference) =>
-        reference.training_id === record.training_id
-      );
+      const hadReference = boundary
+        .currentMetadata()
+        .training_references.some((reference) => reference.training_id === record.training_id);
       const reference = boundary.upsertTrainingReference({
         training_id: record.training_id,
         finding_id: record.finding_id,
@@ -619,11 +662,13 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
         `${record.training_id.replace(/[^a-z0-9-]+/gi, "-")}.json`,
       );
       return {
-        state: reference.state === "unchanged" && resolution.state === "unchanged"
-          ? "unchanged"
-          : "created",
+        state:
+          reference.state === "unchanged" && resolution.state === "unchanged"
+            ? "unchanged"
+            : "created",
         code: null,
-        message: "Training item created. The repertoire was not changed, and the finding remains visible.",
+        message:
+          "Training item created. The repertoire was not changed, and the finding remains visible.",
         record,
         artifact_id: artifactId(artifact),
       };
@@ -705,17 +750,23 @@ export function createStrategicFitTrainingPerformanceState(
       };
     },
 
-    recordAttempt(input: StrategicFitTrainingAttemptInput): StrategicFitTrainingPerformanceMutationResult {
+    recordAttempt(
+      input: StrategicFitTrainingAttemptInput,
+    ): StrategicFitTrainingPerformanceMutationResult {
       const before = boundary.currentData();
       try {
         const next = recordStrategicFitTrainingAttempt(before, input);
-        if (next === before) return unchanged(before, "This exact training attempt was already recorded.");
+        if (next === before)
+          return unchanged(before, "This exact training attempt was already recorded.");
         const generatedAt = boundary.now();
         const graph = boundary.currentGraph();
         const beforeMastery = deriveStrategicFitTrainingMastery(before, graph, generatedAt);
         const nextMastery = deriveStrategicFitTrainingMastery(next, graph, generatedAt);
         boundary.replaceData(next);
-        if (JSON.stringify(beforeMastery.metric_evidence) !== JSON.stringify(nextMastery.metric_evidence)) {
+        if (
+          JSON.stringify(beforeMastery.metric_evidence) !==
+          JSON.stringify(nextMastery.metric_evidence)
+        ) {
           boundary.onMetricEvidenceChanged?.();
         }
         return {
@@ -800,7 +851,10 @@ export function createStrategicFitTrainingPerformanceState(
       const beforeMastery = deriveStrategicFitTrainingMastery(before, graph, generatedAt);
       const nextMastery = deriveStrategicFitTrainingMastery(next, graph, generatedAt);
       boundary.replaceData(next);
-      if (JSON.stringify(beforeMastery.metric_evidence) !== JSON.stringify(nextMastery.metric_evidence)) {
+      if (
+        JSON.stringify(beforeMastery.metric_evidence) !==
+        JSON.stringify(nextMastery.metric_evidence)
+      ) {
         boundary.onMetricEvidenceChanged?.();
       }
       return {
@@ -849,10 +903,13 @@ const [browserPerformanceSnapshot, setBrowserPerformanceSnapshot] =
 const [performanceRestoreSettled, setPerformanceRestoreSettled] = createSignal(false);
 const browserPerformanceStorage = createIndexedDbStrategicFitTrainingPerformanceStorage();
 const performanceWriteTails = new Map<string, Promise<void>>();
-const pendingPerformanceWrites = new Map<string, {
-  readonly data: StrategicFitTrainingPerformanceData;
-  timer: ReturnType<typeof setTimeout> | null;
-}>();
+const pendingPerformanceWrites = new Map<
+  string,
+  {
+    readonly data: StrategicFitTrainingPerformanceData;
+    timer: ReturnType<typeof setTimeout> | null;
+  }
+>();
 let performanceActivation = 0;
 let performanceEffectStarted = false;
 let performanceActiveLoad: Promise<void> = Promise.resolve();
@@ -863,7 +920,8 @@ function executePendingPerformanceWrite(id: string): Promise<void> {
   if (pending.timer !== null) clearTimeout(pending.timer);
   pendingPerformanceWrites.delete(id);
   const previous = performanceWriteTails.get(id) ?? Promise.resolve();
-  const next = previous.catch(() => undefined)
+  const next = previous
+    .catch(() => undefined)
     .then(() => browserPerformanceStorage.set(id, pending.data))
     .catch(() => {
       const snapshot = browserPerformanceSnapshot();
@@ -887,11 +945,18 @@ function replaceBrowserTrainingPerformance(data: StrategicFitTrainingPerformance
   // An explicit attempt/import wins over any older IndexedDB read still in flight.
   performanceActivation += 1;
   performanceActiveLoad = Promise.resolve();
-  setBrowserPerformanceSnapshot({ document_id: id, status: "ready", data: parsed.data, warning: null });
+  setBrowserPerformanceSnapshot({
+    document_id: id,
+    status: "ready",
+    data: parsed.data,
+    warning: null,
+  });
   const pending = pendingPerformanceWrites.get(id);
   if (pending?.timer !== null && pending?.timer !== undefined) clearTimeout(pending.timer);
   const next = { data: parsed.data, timer: null as ReturnType<typeof setTimeout> | null };
-  next.timer = setTimeout(() => { void executePendingPerformanceWrite(id); }, 400);
+  next.timer = setTimeout(() => {
+    void executePendingPerformanceWrite(id);
+  }, 400);
   pendingPerformanceWrites.set(id, next);
 }
 
@@ -923,7 +988,10 @@ function activateBrowserTrainingPerformance(id: string): Promise<void> {
         document_id: id,
         status: "ready",
         data: "ok" in parsed ? parsed.data : createStrategicFitTrainingPerformanceData(id),
-        warning: "ok" in parsed ? null : "Saved Strategic Fit training performance was invalid and was not loaded.",
+        warning:
+          "ok" in parsed
+            ? null
+            : "Saved Strategic Fit training performance was invalid and was not loaded.",
       });
     } catch {
       if (token !== performanceActivation || documentId() !== id) return;
@@ -967,7 +1035,9 @@ export function strategicFitTrainingPerformanceWarning(): string | null {
   return snapshot.document_id === id ? snapshot.warning : null;
 }
 
-export async function flushStrategicFitTrainingPerformance(targetDocumentId?: string): Promise<void> {
+export async function flushStrategicFitTrainingPerformance(
+  targetDocumentId?: string,
+): Promise<void> {
   if (targetDocumentId !== undefined) {
     await executePendingPerformanceWrite(targetDocumentId);
     await (performanceWriteTails.get(targetDocumentId) ?? Promise.resolve());
@@ -999,8 +1069,9 @@ const browserTrainingPerformance = createStrategicFitTrainingPerformanceState({
   },
 });
 
-export const recordStrategicFitTrainingPerformanceAttempt = (input: StrategicFitTrainingAttemptInput) =>
-  browserTrainingPerformance.recordAttempt(input);
+export const recordStrategicFitTrainingPerformanceAttempt = (
+  input: StrategicFitTrainingAttemptInput,
+) => browserTrainingPerformance.recordAttempt(input);
 export const strategicFitTrainingMastery = () => browserTrainingPerformance.mastery();
 registerStrategicFitTrainingEvidenceProvider(() => {
   const evidence = strategicFitTrainingMastery().metric_evidence;
@@ -1026,7 +1097,9 @@ const browserTraining = createStrategicFitTrainingState({
   upsertTrainingReference: upsertStrategicFitTrainingReference,
   removeTrainingReference: removeStrategicFitTrainingReference,
   transitionResolution: transitionStrategicFitFindingResolution,
-  upsertPerformanceTargets: (record) => { browserTrainingPerformance.register(record); },
+  upsertPerformanceTargets: (record) => {
+    browserTrainingPerformance.register(record);
+  },
   createArtifact,
   now: () => new Date().toISOString(),
 });

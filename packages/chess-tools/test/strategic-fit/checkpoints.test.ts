@@ -23,7 +23,8 @@ function milestone(
   requestedPly: number | null = null,
 ): StrategicCheckpointMilestone {
   const found = selection.milestones.find((candidate) => {
-    const candidateKind = candidate.state === "selected" ? candidate.checkpoint.kind : candidate.kind;
+    const candidateKind =
+      candidate.state === "selected" ? candidate.checkpoint.kind : candidate.kind;
     return candidateKind === kind && candidate.requested_ply === requestedPly;
   });
   assert.ok(found, `${kind} ${requestedPly ?? ""}`);
@@ -148,7 +149,8 @@ test("Black checkpoints are selected after Black moves", () => {
 
   for (const route of result.routes) {
     const comparable = route.milestones.filter(
-      (candidate) => candidate.state === "selected" && candidate.checkpoint.comparability === "comparable",
+      (candidate) =>
+        candidate.state === "selected" && candidate.checkpoint.comparability === "comparable",
     );
     assert.ok(comparable.length > 0);
     for (const candidate of comparable) {
