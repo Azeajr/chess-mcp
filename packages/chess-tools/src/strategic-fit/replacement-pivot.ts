@@ -7,6 +7,7 @@
  */
 import type { Color } from "../congruence.js";
 import { validateLine } from "../validate.js";
+import { assertDefined } from "../assert.js";
 import type { StrategicComparableCohort } from "./cohorts.js";
 import type { RepertoireGraph, RepertoireGraphDecision } from "./graph.js";
 import {
@@ -318,8 +319,7 @@ function pivotCandidates(
     .flatMap((decisionId): PivotCandidate[] => {
       const decision = decisions.get(decisionId);
       if (
-        !decision ||
-        decision.owner !== "repertoire" ||
+        decision?.owner !== "repertoire" ||
         decision.mover_color !== repertoireColor ||
         !findingDecisions.has(decisionId)
       )
@@ -695,7 +695,7 @@ export function selectReplacementPivot(
     return nonActionableResult(input, "no-supported-causal-pivot", provenance);
   }
 
-  const coversEveryAffectedRoute = candidates[0]!.unsupportedRouteIds.length === 0;
+  const coversEveryAffectedRoute = assertDefined(candidates[0]).unsupportedRouteIds.length === 0;
   if (
     causality.label === "shared-or-uncertain" ||
     candidates.length > 1 ||
@@ -714,7 +714,7 @@ export function selectReplacementPivot(
     };
   }
 
-  const pivot = actionableEvidence(candidates[0]!, [], request, finding, cohort, provenance);
+  const pivot = actionableEvidence(assertDefined(candidates[0]), [], request, finding, cohort, provenance);
   return {
     ...resultBase(request, provenance),
     status: "selected",

@@ -15,7 +15,7 @@
  * consumes that scope and never re-derives a second diffing rule.
  */
 import type { Color } from "../congruence.js";
-import type { OpeningTable } from "../openings.js";
+import type { OpeningEntry, OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
 import type { PawnSignalReport } from "./pawn-signals.js";
 import type { StrategicRoutePositionSignals } from "./position-signals.js";
@@ -180,7 +180,7 @@ export function strategicFitIndexSettings(
   return {
     repertoire_color: options.repertoireColor,
     trajectory: options.trajectory ?? null,
-    opening_table: [...(options.openingTable ?? new Map()).entries()]
+    opening_table: [...(options.openingTable ?? new Map<string, OpeningEntry>()).entries()]
       .sort(([left], [right]) => compareStrings(left, right))
       .map(([positionKey, entry]) => [positionKey, entry.eco, entry.name]),
   };

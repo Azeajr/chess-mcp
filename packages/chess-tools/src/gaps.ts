@@ -12,6 +12,7 @@ import type { Node, PgnNodeData } from "chessops/pgn";
 import type { GameTree} from "./pgn.js";
 import { buildKeyIndex, type Path } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
+import { assertDefined } from "./assert.js";
 
 export type Severity = "low" | "medium" | "high";
 export const SEVERITY_RANK: Record<Severity, number> = { low: 0, medium: 1, high: 2 };
@@ -111,7 +112,9 @@ export function medianLineLength(tree: GameTree): number {
     .sort((a, b) => a - b);
   if (!depths.length) return 0;
   const mid = Math.floor(depths.length / 2);
-  return depths.length % 2 ? depths[mid]! : Math.round((depths[mid - 1]! + depths[mid]!) / 2);
+  return depths.length % 2
+    ? assertDefined(depths[mid])
+    : Math.round((assertDefined(depths[mid - 1]) + assertDefined(depths[mid])) / 2);
 }
 
 /** SAN of a UCI move at `fen` (for comparing engine moves to the covered SAN set). */

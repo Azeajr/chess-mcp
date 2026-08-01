@@ -280,7 +280,14 @@ function preferencePatch(value: unknown): Partial<StrategicFitProfilePreferences
 export function resolveStrategicFitIntentPatch(
   input: StrategicFitIntentProposalInput,
 ): StrategicFitIntentPatch {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+  if (
+    typeof input !== "object" ||
+    // input's declared type promises an object, but this is a model-authored proposal from an
+    // untrusted external caller at runtime — this revalidates it.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    input === null ||
+    Array.isArray(input)
+  ) {
     invalidValue("proposal", "must be an object");
   }
   if (input.mode === undefined && input.preferences === undefined) {

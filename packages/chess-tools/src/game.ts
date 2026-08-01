@@ -11,6 +11,7 @@ import { parsePgn } from "chessops/pgn";
 import { makeUci } from "chessops/util";
 import { positionKey, type Color } from "./congruence.js";
 import { rejectFenSetup } from "./pgn.js";
+import { assertDefined } from "./assert.js";
 
 export interface MainlineMove {
   ply: number;
@@ -31,7 +32,7 @@ export function mainline(pgn: string): MainlineMove[] {
   let node = game.moves;
   let ply = 0;
   while (node.children.length) {
-    const child = node.children[0]!;
+    const child = assertDefined(node.children[0]);
     const move = parseSan(pos, child.data.san);
     if (!move) break;
     const fenBefore = makeFen(pos.toSetup());

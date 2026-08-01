@@ -275,23 +275,23 @@ const COMMENT_INTENT_KINDS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_KINDS)
 const COMMENT_INTENT_DETECTIONS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_DETECTIONS);
 
 /** Stable canonical profile snapshot for persisted `profile-changed` invalidation. */
-export function strategicFitProfileSnapshot(profile: StrategicFitProfile): string {
+export function strategicFitProfileSnapshot(input: StrategicFitProfile): string {
   return JSON.stringify({
-    schema_version: profile.schema_version,
-    mode: profile.mode,
-    source: profile.source,
-    provisional: profile.provisional,
+    schema_version: input.schema_version,
+    mode: input.mode,
+    source: input.source,
+    provisional: input.provisional,
     preferences: {
-      maximum_engine_loss_cp: profile.preferences.maximum_engine_loss_cp,
-      opponent_popularity_importance: profile.preferences.opponent_popularity_importance,
-      personal_game_frequency_importance: profile.preferences.personal_game_frequency_importance,
-      manual_weight_importance: profile.preferences.manual_weight_importance,
-      additional_memorization_tolerance: profile.preferences.additional_memorization_tolerance,
-      preferred_concept_ids: [...profile.preferences.preferred_concept_ids],
-      avoided_concept_ids: [...profile.preferences.avoided_concept_ids],
-      preferred_tactical_character: [...profile.preferences.preferred_tactical_character],
-      minimum_opponent_coverage: profile.preferences.minimum_opponent_coverage,
-      feature_family_weights: { ...profile.preferences.feature_family_weights },
+      maximum_engine_loss_cp: input.preferences.maximum_engine_loss_cp,
+      opponent_popularity_importance: input.preferences.opponent_popularity_importance,
+      personal_game_frequency_importance: input.preferences.personal_game_frequency_importance,
+      manual_weight_importance: input.preferences.manual_weight_importance,
+      additional_memorization_tolerance: input.preferences.additional_memorization_tolerance,
+      preferred_concept_ids: [...input.preferences.preferred_concept_ids],
+      avoided_concept_ids: [...input.preferences.avoided_concept_ids],
+      preferred_tactical_character: [...input.preferences.preferred_tactical_character],
+      minimum_opponent_coverage: input.preferences.minimum_opponent_coverage,
+      feature_family_weights: { ...input.preferences.feature_family_weights },
     },
   });
 }
@@ -575,7 +575,7 @@ function profilePreferences(
     (minimumCoverage === null && value.minimum_opponent_coverage !== null) ||
     familyWeights === null ||
     Object.values(familyWeights).some((weight) => weight === null) ||
-    (familyWeights !== null && Object.values(familyWeights).every((weight) => weight === 0))
+    Object.values(familyWeights).every((weight) => weight === 0)
   ) {
     issue(
       context,
@@ -1544,7 +1544,9 @@ function migratedResolutions(value: unknown, profileValue: unknown): unknown[] {
     if (!isRecord(entry)) return entry;
     const rules = Array.isArray(entry.invalidation_rules) ? entry.invalidation_rules : [];
     const hasSemanticFindingId = nonEmptyString(entry.semantic_finding_id) !== null;
-    const staleReasons = Array.isArray(entry.stale_reasons) ? entry.stale_reasons : [];
+    const staleReasons = Array.isArray(entry.stale_reasons)
+      ? (entry.stale_reasons as readonly unknown[])
+      : [];
     return {
       ...entry,
       semantic_finding_id: hasSemanticFindingId ? entry.semantic_finding_id : null,
@@ -1829,24 +1831,24 @@ export interface StrategicFitMetadataAnalysisInputs {
 }
 
 function resolutionRouteIds(
-  resolution: StrategicFitPersistedResolution,
+  record: StrategicFitPersistedResolution,
   graph: RepertoireGraph,
 ): string[] {
   const available = new Set(graph.routes.map((route) => route.route_id));
-  const direct = resolution.references.route_ids.filter((routeId) => available.has(routeId));
+  const direct = record.references.route_ids.filter((routeId) => available.has(routeId));
   if (direct.length > 0) return [...new Set(direct)].sort();
-  if (resolution.references.decision_ids.length > 0) {
+  if (record.references.decision_ids.length > 0) {
     return graph.routes
       .filter((route) =>
-        resolution.references.decision_ids.every((id) => route.decision_ids.includes(id)),
+        record.references.decision_ids.every((id) => route.decision_ids.includes(id)),
       )
       .map((route) => route.route_id)
       .sort();
   }
-  if (resolution.references.position_ids.length > 0) {
+  if (record.references.position_ids.length > 0) {
     return graph.routes
       .filter((route) =>
-        resolution.references.position_ids.every((id) => route.position_ids.includes(id)),
+        record.references.position_ids.every((id) => route.position_ids.includes(id)),
       )
       .map((route) => route.route_id)
       .sort();
@@ -1893,17 +1895,17 @@ export function strategicFitAnalysisInputsFromMetadata(
         record.state !== "automatically-resolved-by-another-edit",
     )
     .sort(compareResolutionPrecedence);
-  for (const resolution of resolutions) {
-    const semanticFindingId = resolution.semantic_finding_id;
+  for (const record of resolutions) {
+    const semanticFindingId = record.semantic_finding_id;
     if (semanticFindingId === null) continue;
-    for (const routeId of resolutionRouteIds(resolution, graph)) {
+    for (const routeId of resolutionRouteIds(record, graph)) {
       const assessmentId = `${routeId}\u001f${semanticFindingId}`;
       assessmentByFindingRoute.set(assessmentId, {
         route_id: routeId,
         semantic_finding_id: semanticFindingId,
-        matches_declared_objective: resolution.state === "keep-intentionally",
+        matches_declared_objective: record.state === "keep-intentionally",
         resolution_state:
-          resolution.state === "invalid-comparison" ? "insufficient-evidence" : resolution.state,
+          record.state === "invalid-comparison" ? "insufficient-evidence" : record.state,
       });
     }
   }

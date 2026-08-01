@@ -15,6 +15,7 @@ import { makeSan } from "chessops/san";
 import type { Color } from "chessops/types";
 
 import { GameTree, enumerateLegal, type Path } from "../pgn.js";
+import { assertDefined } from "../assert.js";
 
 export interface StrategicFitBenchmarkScale {
   readonly id: string;
@@ -131,14 +132,14 @@ function grow(target: StrategicFitBenchmarkScale, seed: number): GameTree {
   let nodes = 0;
   let cursor = 0;
   while (cursor < frontier.length && nodes < target.target_nodes) {
-    const frame = frontier[cursor++]!;
+    const frame = assertDefined(frontier[cursor++]);
     if (frame.ply >= target.maximum_ply) continue;
     const repertoireTurn = (frame.ply % 2 === 0) === (target.repertoire_color === "white");
     const legal = sortedLegal(frame.position);
     if (legal.length === 0) continue;
     const width = repertoireTurn ? 1 : Math.min(target.replies, legal.length);
     for (let index = 0; index < width && nodes < target.target_nodes; index++) {
-      const reply = legal[nextValue() % legal.length]!;
+      const reply = assertDefined(legal[nextValue() % legal.length]);
       const appended = tree.appendSan(frame.path, reply.san);
       if (!appended.appended) continue;
       nodes++;
@@ -205,7 +206,7 @@ function replaceOneReply(target: StrategicFitBenchmarkScale, tree: GameTree): bo
   let cursor = 0;
   let site: EditSite | null = null;
   while (cursor < frontier.length) {
-    const frame = frontier[cursor++]!;
+    const frame = assertDefined(frontier[cursor++]);
     const node = tree.nodeAt(frame.path);
     if (node.children.length === 0) continue;
     const legal = sortedLegal(frame.position);

@@ -20,6 +20,7 @@ import type {
 } from "./types.js";
 import type { RepertoireGraph, RepertoireGraphPosition, RepertoireGraphRoute } from "./graph.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const DEFAULT_STRATEGIC_FIT_CHECKPOINT_PLIES = Object.freeze([12, 16, 20, 24] as const);
 /** A profile may replace the defaults, but cannot create an unbounded number of snapshots. */
@@ -238,7 +239,7 @@ function moveFacts(
 } {
   const before = chessAt(context, ply - 1);
   const after = chessAt(context, ply);
-  const uci = context.route.uci_moves[ply - 1]!;
+  const uci = assertDefined(context.route.uci_moves[ply - 1]);
   const from = parseSquare(uci.slice(0, 2));
   const to = parseSquare(uci.slice(2, 4));
   if (from === undefined || to === undefined) {
@@ -277,7 +278,7 @@ function firstCentralResolution(context: RouteContext): EventObservation | null 
     // checkpoint is meaningful only after an observable central tension existed.
     const centerLocked = facts.beforeCenter === "tense" && facts.afterCenter === "locked";
     if (facts.centralPawnCapture || tensionResolved || centerLocked) {
-      const san = context.route.san_moves[ply - 1]!;
+      const san = assertDefined(context.route.san_moves[ply - 1]);
       const cause = facts.centralPawnCapture
         ? "central pawn capture"
         : centerLocked
@@ -299,7 +300,7 @@ function firstIrreversibleTransformation(context: RouteContext): EventObservatio
       facts.promotion ||
       centerLocked
     ) {
-      const san = context.route.san_moves[ply - 1]!;
+      const san = assertDefined(context.route.san_moves[ply - 1]);
       return {
         ply,
         reason: `First irreversible pawn-topology transformation: ${san}.`,
@@ -321,7 +322,7 @@ function selectOpeningExit(context: RouteContext): StrategicCheckpointMilestone 
 
   let deepestHit = -1;
   for (let ply = 0; ply < context.route.position_ids.length; ply++) {
-    const position = context.positions.get(context.route.position_ids[ply]!);
+    const position = context.positions.get(assertDefined(context.route.position_ids[ply]));
     if (position && context.openingTable.has(position.position_key)) deepestHit = ply;
   }
   if (deepestHit < 0) {

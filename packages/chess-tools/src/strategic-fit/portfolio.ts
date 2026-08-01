@@ -29,6 +29,7 @@ import type {
   ReplacementSafetyCheckStatus,
 } from "./replacement-types.js";
 import type { StrategicFitProfile } from "./types.js";
+import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_FIT_PORTFOLIO_VERSION = "1.0.0";
 
@@ -203,7 +204,14 @@ function invalidValue(field: string, requirement: string): never {
 export function resolveStrategicFitPortfolioConstraints(
   input: StrategicFitPortfolioConstraintInput,
 ): StrategicFitPortfolioConstraintSet {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+  if (
+    typeof input !== "object" ||
+    // input's declared type promises an object, but this is a model-authored request from an
+    // untrusted external caller at runtime — this revalidates it.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    input === null ||
+    Array.isArray(input)
+  ) {
     invalidValue("request", "must be an object with constraints");
   }
   const raw = input.constraints;
@@ -600,7 +608,7 @@ export function buildStrategicFitPortfolio(
       continue;
     }
     const item = previewById.get(candidate.candidate_id);
-    if (!item || item.status !== "previewed" || item.change_set === null) {
+    if (item?.status !== "previewed" || item.change_set === null) {
       eliminations.push({
         candidate_id: candidate.candidate_id,
         reason: "no-validated-change-set",
@@ -622,7 +630,8 @@ export function buildStrategicFitPortfolio(
     const offending = [...unavailable, ...failed].map((measurement) => measurement.kind);
     if (offending.length > 0) {
       if (offending.length === 1) {
-        soleFailures.set(offending[0]!, (soleFailures.get(offending[0]!) ?? 0) + 1);
+        const offendingKind = assertDefined(offending[0]);
+        soleFailures.set(offendingKind, (soleFailures.get(offendingKind) ?? 0) + 1);
       }
       eliminations.push({
         candidate_id: candidate.candidate_id,

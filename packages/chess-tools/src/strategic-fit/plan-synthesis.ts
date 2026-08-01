@@ -367,7 +367,14 @@ export function resolveStrategicFitPlanCard(
   input: StrategicFitPlanCardInput,
   evidence: StrategicFitPlanEvidence,
 ): StrategicFitPlanCard {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+  if (
+    typeof input !== "object" ||
+    // input's declared type promises an object, but this is a model-authored plan card from an
+    // untrusted external caller at runtime — this revalidates it.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    input === null ||
+    Array.isArray(input)
+  ) {
     invalidValue("plan", "must be an object with a title and sections");
   }
   if (!Array.isArray(input.sections) || input.sections.length === 0) {
@@ -438,6 +445,9 @@ export function assertStrategicFitPlanCardSupported(
   card: StrategicFitPlanCard,
   evidence: StrategicFitPlanEvidence,
 ): StrategicFitPlanCard {
+  // card's declared type pins plan_card_version to the current literal, but this function exists
+  // precisely to revalidate cards handed in directly rather than through the staged proposal.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (card.plan_card_version !== STRATEGIC_FIT_PLAN_CARD_VERSION) {
     throw new StrategicFitPlanError(
       "strategic_fit_plan_invalid_value",

@@ -12,6 +12,7 @@ import type { GameMeta } from "../games.js";
 import type { RepertoireGraph, RepertoireGraphDecision, RepertoireMoveOwner } from "./graph.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
+import { assertDefined } from "../assert.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightingOptions } from "./weights.js";
 
 /** Population-equivalent observations in the empirical-Bayes prior at each opponent decision. */
@@ -204,7 +205,9 @@ function opponentGroups(graph: RepertoireGraph): RepertoireGraphDecision[][] {
     .map((siblings) =>
       siblings.sort((left, right) => compareStrings(left.decision_id, right.decision_id)),
     )
-    .sort((left, right) => compareStrings(left[0]!.from_position_id, right[0]!.from_position_id));
+    .sort((left, right) =>
+      compareStrings(assertDefined(left[0]).from_position_id, assertDefined(right[0]).from_position_id),
+    );
 }
 
 function blendedDecisionWeights(
@@ -253,7 +256,7 @@ function blendedDecisionWeights(
       result.push({
         decision_id: decision.decision_id,
         weight:
-          priorProbabilities[index]! * STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES +
+          assertDefined(priorProbabilities[index]) * STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES +
           (counts.get(decision.decision_id) ?? 0),
         provenance: mergeProvenance(populationWeight?.provenance ?? [], [personalSource]),
       });
@@ -330,7 +333,9 @@ export function collectStrategicPersonalHistoryWeights(
   );
   const decisionsByPosition = new Map<string, Map<string, RepertoireGraphDecision>>();
   for (const decision of graph.decisions) {
-    const byUci = decisionsByPosition.get(decision.from_position_id) ?? new Map();
+    const byUci =
+      decisionsByPosition.get(decision.from_position_id) ??
+      new Map<string, RepertoireGraphDecision>();
     byUci.set(decision.uci, decision);
     decisionsByPosition.set(decision.from_position_id, byUci);
   }
@@ -466,7 +471,7 @@ export function collectStrategicPersonalHistoryWeights(
       .sort((left, right) => compareStrings(left.position_id, right.position_id)),
     decision_frequencies: [...decisionCounts.entries()]
       .map(([decisionId, count]): StrategicPersonalDecisionFrequency => {
-        const decision = frequencyByDecision.get(decisionId)!;
+        const decision = assertDefined(frequencyByDecision.get(decisionId));
         return {
           decision_id: decisionId,
           from_position_id: decision.from_position_id,

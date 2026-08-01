@@ -1,5 +1,6 @@
 /** Dependency-free application contract consumed by the MCP and browser hosts. */
 import { EXPLORER_RATING_BUCKETS, EXPLORER_SPEEDS } from "./explorer.js";
+import { assertDefined } from "./assert.js";
 import { STRATEGIC_FIT_PLAN_SECTION_KINDS } from "./strategic-fit/plan-synthesis.js";
 import { STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS } from "./strategic-fit/portfolio.js";
 
@@ -1600,10 +1601,11 @@ function strategicFitPlanArgumentsError(value: Record<string, unknown>): string 
   }
   const plan = value.plan as Record<string, unknown> | undefined;
   if (plan === undefined) return null;
-  const sections = plan.sections as readonly Record<string, unknown>[] | undefined;
-  if (!Array.isArray(sections) || sections.length === 0) {
+  const rawSections = plan.sections as readonly Record<string, unknown>[] | undefined;
+  if (!Array.isArray(rawSections) || rawSections.length === 0) {
     return "plan.sections must contain at least one section";
   }
+  const sections = rawSections as readonly Record<string, unknown>[];
   for (const [index, section] of sections.entries()) {
     const anchors = ["concept_ids", "checkpoint_ids", "drill_ids"].flatMap((key) =>
       Array.isArray(section[key]) ? (section[key] as readonly unknown[]) : [],
@@ -1659,7 +1661,7 @@ function explorerPopulationArgumentsError(
   path: string,
 ): string | null {
   if (!filters) return null;
-  const db = filters.db ?? "lichess";
+  const db = (filters.db as string | undefined) ?? "lichess";
   const ratings = filters.ratings as readonly unknown[] | undefined;
   if (
     ratings?.some(
@@ -1676,7 +1678,7 @@ function explorerPopulationArgumentsError(
   for (const key of ["since", "until"] as const) {
     const candidate = filters[key];
     if (typeof candidate === "string" && !pattern.test(candidate)) {
-      return `${path}.${key} has an invalid format for ${String(db)}`;
+      return `${path}.${key} has an invalid format for ${db}`;
     }
   }
   if (
@@ -1708,7 +1710,7 @@ function replacementArgumentsError(value: Record<string, unknown>): string | nul
   ])
     if (!(key in value)) return `missing required V2 argument: ${key}`;
   const record = (key: string) => value[key] as Record<string, unknown>;
-  const object = (candidate: unknown): candidate is Record<string, unknown> =>
+  const isObjectLike = (candidate: unknown): candidate is Record<string, unknown> =>
     candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);
   for (const key of [
     "replacement_request",
@@ -1720,7 +1722,7 @@ function replacementArgumentsError(value: Record<string, unknown>): string | nul
     "coverage",
     "safety",
   ]) {
-    if (!object(value[key])) return `${key} must be an object`;
+    if (!isObjectLike(value[key])) return `${key} must be an object`;
   }
   if (
     !Array.isArray(value.sources) ||
@@ -1746,9 +1748,9 @@ function replacementArgumentsError(value: Record<string, unknown>): string | nul
   }
   if (
     !["white", "black"].includes(String(request.repertoire_color)) ||
-    !object(request.pivot_selection) ||
-    !object(request.profile) ||
-    !object(request.budget) ||
+    !isObjectLike(request.pivot_selection) ||
+    !isObjectLike(request.profile) ||
+    !isObjectLike(request.budget) ||
     !Array.isArray(request.candidate_sources) ||
     !Array.isArray(request.user_candidate_san_lines) ||
     !Array.isArray(request.provenance)
@@ -1797,7 +1799,7 @@ function replacementArgumentsError(value: Record<string, unknown>): string | nul
   }
   for (const [index, entry] of (value.retention as readonly Record<string, unknown>[]).entries()) {
     if (
-      !object(entry) ||
+      !isObjectLike(entry) ||
       !id(entry.candidate_id) ||
       !["add-alternative", "replace"].includes(String(entry.action)) ||
       (entry.action === "replace" && entry.prune_explicitly_confirmed !== true) ||
@@ -1812,7 +1814,7 @@ function replacementArgumentsError(value: Record<string, unknown>): string | nul
   if (!id(record("safety").request_id)) return "safety.request_id is required";
   const safety = record("safety");
   if (
-    !object(safety.request) ||
+    !isObjectLike(safety.request) ||
     !Array.isArray(safety.candidates) ||
     !Array.isArray(safety.provenance) ||
     !id(safety.repertoire_revision) ||
@@ -1828,7 +1830,7 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
     return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
   const contract = TOOL_CONTRACT_BY_NAME.get(name);
   if (!contract) return { ok: false, error: "invalid_arguments", reason: `unknown tool: ${name}` };
-  if (!(contract.hosts as readonly ToolHost[]).includes(host))
+  if (!contract.hosts.includes(host))
     return {
       ok: false,
       error: "invalid_arguments",
@@ -1836,7 +1838,7 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
     };
   if (!contract.input) return { ok: true, value: raw as Record<string, unknown> };
   const value = raw as Record<string, unknown>;
-  const schema = jsonSchemaForTool(name, host)!;
+  const schema = assertDefined(jsonSchemaForTool(name, host));
   const properties = schema.properties as Record<string, InputField>;
   for (const key of (schema.required as string[] | undefined) ?? [])
     if (!(key in value))

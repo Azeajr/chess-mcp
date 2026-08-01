@@ -35,7 +35,7 @@ export async function cloudEval(fen: string, signal?: AbortSignal): Promise<Clou
     undefined,
     signal,
   );
-  const pv = data?.pvs?.[0];
+  const pv = data?.pvs[0];
   if (!data || !pv) return null;
   return {
     cp: pv.cp ?? null,

@@ -5,6 +5,7 @@ logs/
 node_modules/
 dist/
 *.tsbuildinfo
+.eslintcache
 .vite/
 apps/ui/test-results/
 apps/ui/playwright-report/

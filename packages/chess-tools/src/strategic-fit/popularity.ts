@@ -16,6 +16,7 @@ import {
 import type { RepertoireGraph, RepertoireGraphDecision, RepertoireGraphPosition } from "./graph.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
+import { assertDefined } from "../assert.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightingOptions } from "./weights.js";
 
 export const STRATEGIC_POPULARITY_DEFAULT_QUERY_BUDGET = 60;
@@ -92,7 +93,7 @@ function relevantOpponentDecisions(graph: RepertoireGraph): OpponentDecisionGrou
   return [...byPosition.entries()]
     .filter(([, decisions]) => decisions.length > 1)
     .map(([positionId, decisions]) => ({
-      position: positionById.get(positionId)!,
+      position: assertDefined(positionById.get(positionId)),
       decisions: decisions.sort((left, right) =>
         compareStrings(left.decision_id, right.decision_id),
       ),

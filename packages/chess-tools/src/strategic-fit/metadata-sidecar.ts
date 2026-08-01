@@ -17,6 +17,7 @@ import {
   type StrategicFitPersistedResolution,
 } from "./metadata.js";
 import type { StrategicFinding, StrategicFitProfile } from "./types.js";
+import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_FIT_SIDECAR_KIND = "chess-mcp/strategic-fit-sidecar";
 export const STRATEGIC_FIT_SIDECAR_VERSION = "1.0.0";
@@ -150,8 +151,10 @@ function completePartialMetadata(value: RecordLike): {
           ? value.manual_weights
           : {
               ...(manual ?? {}),
-              route_weights: presence.route_weights ? manual!.route_weights : [],
-              decision_weights: presence.decision_weights ? manual!.decision_weights : [],
+              route_weights: presence.route_weights ? assertDefined(manual).route_weights : [],
+              decision_weights: presence.decision_weights
+                ? assertDefined(manual).decision_weights
+                : [],
             },
       cohort_overrides: presence.cohort_overrides ? value.cohort_overrides : [],
       exclusions: presence.exclusions ? value.exclusions : [],
@@ -169,7 +172,7 @@ function completePartialMetadata(value: RecordLike): {
 
 /** Strictly parse untrusted JSON/structured data without mutating or falling back silently. */
 export function parseStrategicFitSidecar(
-  input: string | unknown,
+  input: unknown,
 ): ParsedStrategicFitSidecar | StrategicFitSidecarError {
   let value: unknown = input;
   if (typeof input === "string") {
@@ -450,6 +453,8 @@ export interface StrategicFitIntentPgnExport {
 function commentText(value: string, maximum: number): string {
   const safe = value
     .replace(/[{}]/g, (character) => (character === "{" ? "(" : ")"))
+    // Control characters are the literal target here, not an accidental escape.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

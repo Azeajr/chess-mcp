@@ -10,6 +10,7 @@ import { makeUci, parseSquare } from "chessops/util";
 import { chessgroundDests } from "chessops/compat";
 import { parsePgn } from "chessops/pgn";
 import type { NormalMove } from "chessops/types";
+import { assertDefined } from "./assert.js";
 
 export interface LineCheck {
   ok: boolean;
@@ -28,7 +29,7 @@ export function validateLine(fen: string, sans: readonly string[]): LineCheck {
   const canonical: string[] = [];
   let firstUci: string | undefined;
   for (let i = 0; i < sans.length; i++) {
-    const move = parseSan(pos, sans[i]!);
+    const move = parseSan(pos, assertDefined(sans[i]));
     if (!move) return { ok: false, canonical, badIndex: i };
     if (i === 0 && "from" in move) firstUci = makeUci(move); // makeUci keeps a promotion suffix; a from+to concat dropped it
     canonical.push(makeSan(pos, move));

@@ -23,6 +23,7 @@ import type {
   StrategicFinding,
   StrategicFitSourceProvenance,
 } from "./types.js";
+import { assertDefined } from "../assert.js";
 
 /** Bump when node, link, or weight semantics change so compared flows never mix silently. */
 export const DECISION_FLOW_PROJECTION_VERSION = "1.0.0";
@@ -321,7 +322,7 @@ function layerCohort(flow: CohortFlow): Map<string, number> | null {
   }
   for (const link of flow.links.values()) {
     incoming.set(link.to_node_id, (incoming.get(link.to_node_id) ?? 0) + 1);
-    outgoing.get(link.from_node_id)!.push(link.to_node_id);
+    assertDefined(outgoing.get(link.from_node_id)).push(link.to_node_id);
   }
   const depth = new Map<string, number>();
   const ready = [...incoming.entries()]
@@ -331,9 +332,9 @@ function layerCohort(flow: CohortFlow): Map<string, number> | null {
   for (const nodeId of ready) depth.set(nodeId, 0);
   let index = 0;
   while (index < ready.length) {
-    const nodeId = ready[index]!;
+    const nodeId = assertDefined(ready[index]);
     index += 1;
-    for (const nextId of [...outgoing.get(nodeId)!].sort(compareStrings)) {
+    for (const nextId of [...assertDefined(outgoing.get(nodeId))].sort(compareStrings)) {
       depth.set(nextId, Math.max(depth.get(nextId) ?? 0, (depth.get(nodeId) ?? 0) + 1));
       const remaining = (incoming.get(nextId) ?? 0) - 1;
       incoming.set(nextId, remaining);
@@ -383,8 +384,8 @@ function causalityFor(
       reason: `Findings disagree about who controls this decision (${labels.join(", ")}), so ownership stays uncertain.`,
     };
   }
-  const label = labels[0]!;
-  const single = attributing.length === 1 ? attributing[0]! : null;
+  const label = assertDefined(labels[0]);
+  const single = attributing.length === 1 ? assertDefined(attributing[0]) : null;
   const controllability = single === null ? null : single.evidence.causality.controllability;
   const uncertainLabel = label === "shared-or-uncertain" || label === "unknown";
   const reasons: string[] = [];

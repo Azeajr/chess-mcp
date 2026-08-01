@@ -208,10 +208,11 @@ export function calculateFindingConfidence(input: StrategicConfidenceInput): Fin
       strictest === null || cap.maximum_score < strictest.maximum_score ? cap : strictest,
     null,
   );
+  const capitalizedLabel = `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
   const explanation =
     strictestCap === null
-      ? `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the seven evidence components combine to ${score}.`
-      : `${label[0]!.toUpperCase()}${label.slice(1)} confidence: the geometric component score of ${uncappedScore} is capped at ${score}. ${strictestCap.explanation}`;
+      ? `${capitalizedLabel} confidence: the seven evidence components combine to ${score}.`
+      : `${capitalizedLabel} confidence: the geometric component score of ${uncappedScore} is capped at ${score}. ${strictestCap.explanation}`;
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     score,
@@ -269,7 +270,13 @@ export function scoreStrategicDifferenceMagnitude(
     stability_depth:
       input.stable_from_ply === null ? 0 : Math.max(0, 1 - input.stable_from_ply / horizon),
   };
-  const score = round(Object.values(components).reduce((sum, value) => sum + value, 0) / 4);
+  const score = round(
+    (components.strategic_distance +
+      components.temporal_persistence +
+      components.concept_novelty +
+      components.stability_depth) /
+      4,
+  );
   return {
     score,
     magnitude: classifyDifferenceMagnitude(score),

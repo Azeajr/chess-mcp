@@ -8,6 +8,7 @@ import { parseSan } from "chessops/san";
 import { makeFen } from "chessops/fen";
 import { parsePgn } from "chessops/pgn";
 import { positionKey } from "./congruence.js";
+import { assertDefined } from "./assert.js";
 
 /** Like identifyDeepest but over a SAN move list (for addressing a tree leaf by its path). */
 export function identifyDeepestFromMoves(
@@ -66,7 +67,7 @@ export function identifyDeepest(
   let node = game.moves;
   let ply = 0;
   while (node.children.length) {
-    const child = node.children[0]!;
+    const child = assertDefined(node.children[0]);
     const move = parseSan(pos, child.data.san);
     if (!move) break;
     pos.play(move);

@@ -22,6 +22,7 @@ import type {
   StrategicTrajectory,
 } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 /** Bump when cell semantics change so persisted or compared heatmaps never mix silently. */
 export const CONCEPT_HEATMAP_PROJECTION_VERSION = "1.0.0";
@@ -399,7 +400,7 @@ export function buildConceptHeatmapProjection(
       return {
         concept_id: label.concept_id,
         label: label.label,
-        category: categories.get(label.concept_id)!,
+        category: assertDefined(categories.get(label.concept_id)),
         intent: conceptIntent(label.concept_id, input.profile),
         mastery: conceptMastery(label.concept_id, mastery),
         cohort_count: conceptCells.length,

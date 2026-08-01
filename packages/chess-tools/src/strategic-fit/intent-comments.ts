@@ -124,7 +124,7 @@ function matchesInComment(comment: string): CandidateMatch[] {
   for (const match of comment.matchAll(TAG_PATTERN)) {
     const text = match[0];
     const rawValue = match[1];
-    if (text === undefined || rawValue === undefined || match.index === undefined) continue;
+    if (rawValue === undefined) continue;
     const meaning = tagMeaning(rawValue.toLocaleLowerCase("en-US"));
     taggedRanges.push({ start: match.index, end: match.index + text.length });
     matches.push({ ...meaning, detection: "tag", start: match.index, text });
@@ -132,7 +132,6 @@ function matchesInComment(comment: string): CandidateMatch[] {
   for (const definition of PHRASE_PATTERNS) {
     for (const match of comment.matchAll(definition.pattern)) {
       const text = match[0];
-      if (text === undefined || match.index === undefined) continue;
       const end = match.index + text.length;
       if (taggedRanges.some((range) => match.index < range.end && end > range.start)) continue;
       matches.push({

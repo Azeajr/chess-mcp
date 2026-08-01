@@ -6,6 +6,7 @@
  * project mastery for targets that still exist in the current repertoire graph.
  */
 import type { RepertoireGraph } from "./graph.js";
+import { assertDefined } from "../assert.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_SOURCE_KINDS, STRATEGIC_FIT_SOURCE_STATES } from "./types.js";
 import type { StrategicConceptMasteryInput, StrategicTrainingMetricEvidence } from "./metrics.js";
@@ -185,9 +186,10 @@ function provenance(
   path: string,
 ): readonly StrategicFitSourceProvenance[] | StrategicFitTrainingPerformanceError {
   if (!Array.isArray(value)) return error("invalid-field", path, "Expected a provenance array.");
+  const items = value as readonly unknown[];
   const result: StrategicFitSourceProvenance[] = [];
-  for (let index = 0; index < value.length; index++) {
-    const entry = value[index];
+  for (let index = 0; index < items.length; index++) {
+    const entry = items[index];
     if (!isRecord(entry))
       return error("invalid-field", `${path}[${index}]`, "Expected a provenance object.");
     const allowed = new Set(["source_id", "kind", "state", "version", "snapshot", "reason"]);
@@ -251,7 +253,7 @@ export function createStrategicFitTrainingPerformanceData(
 }
 
 export function parseStrategicFitTrainingPerformance(
-  input: string | unknown,
+  input: unknown,
 ): ParsedStrategicFitTrainingPerformance | StrategicFitTrainingPerformanceError {
   let value: unknown = input;
   if (typeof input === "string") {
@@ -296,13 +298,15 @@ export function parseStrategicFitTrainingPerformance(
     return error("invalid-field", "$.targets", "Expected a target array.");
   if (!Array.isArray(value.attempts))
     return error("invalid-field", "$.attempts", "Expected an attempt array.");
+  const rawTargets = value.targets as readonly unknown[];
+  const rawAttempts = value.attempts as readonly unknown[];
   const rootProvenance = provenance(value.provenance, "$.provenance");
   if ("error" in rootProvenance) return rootProvenance;
 
   const targets: StrategicFitTrainingTarget[] = [];
   const targetIds = new Set<string>();
-  for (let index = 0; index < value.targets.length; index++) {
-    const entry = value.targets[index];
+  for (let index = 0; index < rawTargets.length; index++) {
+    const entry = rawTargets[index];
     const path = `$.targets[${index}]`;
     if (!isRecord(entry)) return error("invalid-field", path, "Expected a training target object.");
     const allowed = new Set([
@@ -361,8 +365,8 @@ export function parseStrategicFitTrainingPerformance(
 
   const attempts: StrategicFitTrainingAttempt[] = [];
   const attemptIds = new Set<string>();
-  for (let index = 0; index < value.attempts.length; index++) {
-    const entry = value.attempts[index];
+  for (let index = 0; index < rawAttempts.length; index++) {
+    const entry = rawAttempts[index];
     const path = `$.attempts[${index}]`;
     if (!isRecord(entry))
       return error("invalid-field", path, "Expected a training attempt object.");
@@ -627,7 +631,10 @@ function masteryStatistic(
       const calibratedConfidence =
         attemptsWithConfidence.reduce(
           (sum, attempt) =>
-            sum + (attempt.recalled ? attempt.confidence! : 1 - attempt.confidence!),
+            sum +
+            (attempt.recalled
+              ? assertDefined(attempt.confidence)
+              : 1 - assertDefined(attempt.confidence)),
           0,
         ) / attemptsWithConfidence.length;
       weightedScore += calibratedConfidence * 0.1;
