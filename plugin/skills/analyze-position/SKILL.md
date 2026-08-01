@@ -35,9 +35,7 @@ Evaluate one position and compare legal candidate moves without drifting into wh
 
 - Lead with the position verdict and favored side.
 - Compare the top candidates with labeled scores.
-- State only validated continuations.
-
-<!-- END GENERATED WORKFLOW GUIDANCE -->
+- State only validated continuations.<!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation
 

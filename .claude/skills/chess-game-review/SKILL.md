@@ -35,9 +35,7 @@ Review one game's mainline, identify turning points, and explain only engine-gro
 ## Shared report contract
 
 - Lead with accuracy and one to three turning points.
-- For each mistake: played move, labeled swing, grounded best move, validated line, and one plain-language reason.
-
-<!-- END GENERATED WORKFLOW GUIDANCE -->
+- For each mistake: played move, labeled swing, grounded best move, validated line, and one plain-language reason.<!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation
 

@@ -18,8 +18,10 @@ for (const [id, item] of Object.entries(packages)) {
     if (!state.gates[gate]) errors.push(`${id}: unknown gate ${gate}`);
   }
   for (const foundation of item.prerequisites ?? []) {
-    if (!foundations[foundation]) errors.push(`${id}: unknown prerequisite foundation ${foundation}`);
-    if (!state.foundations?.[foundation]) errors.push(`${id}: missing prerequisite foundation state ${foundation}`);
+    if (!foundations[foundation])
+      errors.push(`${id}: unknown prerequisite foundation ${foundation}`);
+    if (!state.foundations?.[foundation])
+      errors.push(`${id}: missing prerequisite foundation state ${foundation}`);
   }
 }
 
@@ -32,7 +34,8 @@ const visit = (id, trail = []) => {
   }
   if (visited.has(id)) return;
   visiting.add(id);
-  for (const dependency of packages[id].dependencies) if (packages[dependency]) visit(dependency, [...trail, id]);
+  for (const dependency of packages[id].dependencies)
+    if (packages[dependency]) visit(dependency, [...trail, id]);
   visiting.delete(id);
   visited.add(id);
 };
@@ -40,7 +43,8 @@ for (const id of ids) visit(id);
 
 const owners = new Map();
 for (const [id, item] of Object.entries(packages)) {
-  for (const finding of item.ownedAuditFindings) owners.set(finding, [...(owners.get(finding) ?? []), id]);
+  for (const finding of item.ownedAuditFindings)
+    owners.set(finding, [...(owners.get(finding) ?? []), id]);
 }
 for (let number = 1; number <= 48; number += 1) {
   const finding = `UX-${String(number).padStart(3, "0")}`;
@@ -50,17 +54,20 @@ for (let number = 1; number <= 48; number += 1) {
 const criteria = new Set();
 for (const [id, item] of Object.entries(packages)) {
   for (const criterion of item.acceptanceCriteria) {
-    if (criteria.has(criterion.id)) errors.push(`${id}: duplicate acceptance criterion ${criterion.id}`);
+    if (criteria.has(criterion.id))
+      errors.push(`${id}: duplicate acceptance criterion ${criterion.id}`);
     criteria.add(criterion.id);
   }
   const packageState = state.packages[id];
   if (!packageState) errors.push(`${id}: missing state record`);
   if (packageState?.status === "ready") {
     for (const dependency of item.dependencies) {
-      if (state.packages[dependency]?.status !== "completed") errors.push(`${id}: ready with unresolved dependency ${dependency}`);
+      if (state.packages[dependency]?.status !== "completed")
+        errors.push(`${id}: ready with unresolved dependency ${dependency}`);
     }
     for (const gate of item.blockingGates) {
-      if (state.gates[gate]?.status !== "resolved") errors.push(`${id}: ready with unresolved gate ${gate}`);
+      if (state.gates[gate]?.status !== "resolved")
+        errors.push(`${id}: ready with unresolved gate ${gate}`);
     }
     for (const foundation of item.prerequisites ?? []) {
       if (state.foundations?.[foundation]?.status !== "completed") {
@@ -80,7 +87,8 @@ if (!pullRequests.length) {
       errors.push(`${id}: must appear exactly once in structured pull-request accounting`);
     }
   }
-  if (pullRequests.length !== 33) errors.push(`structured pull-request count is ${pullRequests.length}, expected 33`);
+  if (pullRequests.length !== 33)
+    errors.push(`structured pull-request count is ${pullRequests.length}, expected 33`);
 }
 
 if (errors.length) {
@@ -88,5 +96,7 @@ if (errors.length) {
   for (const error of errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log(`UI/UX remediation plan check passed: ${ids.length} packages, ${criteria.size} acceptance criteria, 48 findings.`);
+  console.log(
+    `UI/UX remediation plan check passed: ${ids.length} packages, ${criteria.size} acceptance criteria, 48 findings.`,
+  );
 }

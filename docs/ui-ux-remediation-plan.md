@@ -10,7 +10,7 @@
 
 ### Scope
 
-39 work packages (`WP-000`–`WP-038`) closing all 48 audit findings across `apps/ui`. `packages/chess-tools` is touched only to read the existing `tool-contract` for user-facing labels; `apps/mcp-server` is not touched at all.
+The work packages (`WP-000`–`WP-038`) close all 48 audit findings across `apps/ui`. `packages/chess-tools` is touched only to read the existing `tool-contract` for user-facing labels; `apps/mcp-server` is not touched at all.
 
 ### Overall strategy
 
@@ -338,7 +338,7 @@ WP-000 Baseline harness + UI CI job
 ├── WP-021 Chat rail until configured
 ├── WP-023 Strategic Fit entry point
 └── WP-024 Content registry foundation
-    ├── WP-025 Tool label mapping + navigation labels
+    ├── WP-025: Tool label mapping + navigation labels
     │   └── WP-026 Chat card tiers + technical-details policy
     │       └── WP-027 Chat context, run history, per-tool cancel
     │           └── WP-028 Result-to-board back-references

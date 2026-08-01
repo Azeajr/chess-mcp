@@ -85,13 +85,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRisk is CI flakiness blocking unrelated work. Detection: three-run soak. Mitigation: mark engine-backed specs `test.slow()` and, if WebKit proves unstable for engine tests, restrict WebKit to layout and dialog specs and record that narrowing here. Rollback: make the job non-required; do not delete it."
     },
     "WP-001": {
-      "dependencies": [
-        "WP-000"
-      ],
+      "dependencies": ["WP-000"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-001"
-      ],
+      "ownedAuditFindings": ["UX-001"],
       "primaryFiles": [
         "styles.css:279–330",
         "apps/ui/src/styles.css",
@@ -127,9 +123,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-layout.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
         "description": "`core-layout.spec.ts`: baseline check 1 flips from `fixme` to passing; add the 360×740/390×844 no-regression assertions with recorded baseline numbers as a fixture constant."
       },
@@ -141,13 +135,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the pinned-board layout starts scrolling at normal phone heights, which would feel broken. Detection: the ±2 px baseline assertions. Rollback: revert one CSS hunk; no data implications."
     },
     "WP-002": {
-      "dependencies": [
-        "WP-000"
-      ],
+      "dependencies": ["WP-000"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-002"
-      ],
+      "ownedAuditFindings": ["UX-002"],
       "primaryFiles": [
         "styles.css:77–88",
         "styles.css:331–333",
@@ -189,9 +179,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-layout.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
         "description": "`core-layout.spec.ts`: baseline check 2 flips to passing. Add a one-row assertion at 1280×800 to catch over-wrapping."
       },
@@ -203,18 +191,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the bar wraps to two rows at widths where it previously fit, costing vertical space. Detection: the 1280×800 one-row assertion. Rollback: single CSS revert.\n\n---"
     },
     "WP-003": {
-      "dependencies": [
-        "WP-000",
-        "WP-007"
-      ],
-      "blockingGates": [
-        "PD-1"
-      ],
-      "ownedAuditFindings": [
-        "UX-006",
-        "UX-029",
-        "UX-032"
-      ],
+      "dependencies": ["WP-000", "WP-007"],
+      "blockingGates": ["PD-1"],
+      "ownedAuditFindings": ["UX-006", "UX-029", "UX-032"],
       "primaryFiles": [
         "TopBar.tsx:34–44",
         "files.ts:94",
@@ -274,9 +253,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-document.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-document.spec.ts"],
         "commands": [],
         "description": "`core-document.spec.ts`: clean-document `New` guarded; three-action dialog contents; save-then-continue; escape leaves PGN identical; denial branch message (mock `queryPermission`/`requestPermission` through a dev-only seam or a Playwright route stub). Store test for `changesSinceExport()` increment/reset."
       },
@@ -288,16 +265,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a dialog appears where users expect none, or the resume callback fires twice. Detection: the byte-identical assertions and a store test that `resume` runs at most once. Rollback: revert; no persisted state is created by this package.\n\n---"
     },
     "WP-004": {
-      "dependencies": [
-        "WP-000",
-        "WP-003"
-      ],
-      "blockingGates": [
-        "PD-2"
-      ],
-      "ownedAuditFindings": [
-        "UX-006"
-      ],
+      "dependencies": ["WP-000", "WP-003"],
+      "blockingGates": ["PD-2"],
+      "ownedAuditFindings": ["UX-006"],
       "primaryFiles": [
         "persist.ts",
         "strategic-fit-changes.ts:754",
@@ -374,18 +344,9 @@
       "rollbackRule": "**Planned risk.** Medium — writes to the store holding the only copy of user data\n\nHighest-risk regression is a snapshot write corrupting or blocking the live slot. Detection: the pause-respect and forward/backward-compat tests, plus the DEV diagnostics. Rollback: revert the commit — the extra keys become inert data the old build ignores; **no user data is lost by reverting**. Do not delete snapshot keys on rollback.\n\n---"
     },
     "WP-005": {
-      "dependencies": [
-        "WP-000",
-        "WP-004",
-        "WP-007",
-        "WP-009"
-      ],
-      "blockingGates": [
-        "PD-3"
-      ],
-      "ownedAuditFindings": [
-        "UX-005"
-      ],
+      "dependencies": ["WP-000", "WP-004", "WP-007", "WP-009"],
+      "blockingGates": ["PD-3"],
+      "ownedAuditFindings": ["UX-005"],
       "primaryFiles": [
         "App.tsx:56–59",
         "game.ts:177–190",
@@ -469,10 +430,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/history.test.ts",
-          "apps/ui/test/e2e/core-keyboard.spec.ts"
-        ],
+        "files": ["apps/ui/test/history.test.ts", "apps/ui/test/e2e/core-keyboard.spec.ts"],
         "commands": [],
         "description": "`test/history.test.ts`: round trips per mutation kind, revision monotonicity, clear-on-replace, eviction, byte cap, Strategic-Fit refusal. Playwright `core-keyboard.spec.ts`: baseline check 6 flips to passing; arrow-key-in-text-field regression; delete confirmation and toast."
       },
@@ -484,16 +442,9 @@
       "rollbackRule": "**Planned risk.** Medium — touches every tree mutation\n\nRegression modes: a wrong inverse silently altering the tree; Chessground desync after undo; staged cards not going stale. Detection: the round-trip suite runs on every mutation kind; add an invariant assertion in DEV that `history.undo()` produces a PGN equal to the recorded `beforePgn`. Rollback: revert; history is in-memory so nothing persists. Note that reverting restores the destructive `Ctrl+Z` — if `WP-005` is reverted, also revert `WP-014` if merged.\n\n---"
     },
     "WP-006": {
-      "dependencies": [
-        "WP-000"
-      ],
+      "dependencies": ["WP-000"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-025",
-        "UX-026",
-        "UX-027",
-        "UX-014"
-      ],
+      "ownedAuditFindings": ["UX-025", "UX-026", "UX-027", "UX-014"],
       "primaryFiles": [
         "styles.css:4872",
         "Board.tsx:39",
@@ -547,9 +498,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-a11y.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-a11y.spec.ts"],
         "commands": [],
         "description": "`core-a11y.spec.ts` using the extended `helpers/accessibility.ts`; Playwright emulation for `reducedMotion` and `forcedColors`; a selection test using `page.evaluate` over `getSelection()`; the density guard as a measured assertion with baseline constants."
       },
@@ -561,18 +510,9 @@
       "rollbackRule": "**Planned risk.** Low, with one touch-regression watch item\n\nRegression modes: touch drag broken by the selection inversion; panels visibly taller from the target floors. Detection: the drag test and the density guard. Rollback: the selection inversion and the target floors are separate CSS hunks and can be reverted independently — keep them as separate commits within the PR.\n\n---"
     },
     "WP-007": {
-      "dependencies": [
-        "WP-000",
-        "WP-006"
-      ],
-      "blockingGates": [
-        "AG-1"
-      ],
-      "ownedAuditFindings": [
-        "UX-007",
-        "UX-019",
-        "UX-045"
-      ],
+      "dependencies": ["WP-000", "WP-006"],
+      "blockingGates": ["AG-1"],
+      "ownedAuditFindings": ["UX-007", "UX-019", "UX-045"],
       "primaryFiles": [
         "SettingsDrawer.tsx",
         "PromotionModal.tsx",
@@ -665,13 +605,9 @@
       "rollbackRule": "**Planned risk.** Medium — focus behaviour regressions are easy to introduce and hard to see\n\nRegression modes: focus lost to `<body>` on close; the Strategic Fit trap double-handling `Escape` after the scope change; the promotion revert breaking. Detection: the contract suite plus the untouched Strategic Fit specs. Rollback: revert; the three overlays return to their current (broken but familiar) behaviour with no data impact.\n\n---"
     },
     "WP-008": {
-      "dependencies": [
-        "WP-007"
-      ],
+      "dependencies": ["WP-007"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-044"
-      ],
+      "ownedAuditFindings": ["UX-044"],
       "primaryFiles": [
         "App.tsx:45–65",
         "src/components/ShortcutHelpDialog.tsx",
@@ -713,20 +649,12 @@
         "Registering the help shortcut must not shadow `?` typed into the chat textarea or any input."
       ],
       "rollbackRule": "**Planned risk.** Low\n\nLow risk; revert removes the dialog and the `?` registration.\n\n---",
-      "prerequisites": [
-        "content-label-foundation"
-      ]
+      "prerequisites": ["content-label-foundation"]
     },
     "WP-009": {
-      "dependencies": [
-        "WP-000"
-      ],
-      "blockingGates": [
-        "AG-5"
-      ],
-      "ownedAuditFindings": [
-        "UX-012"
-      ],
+      "dependencies": ["WP-000"],
+      "blockingGates": ["AG-5"],
+      "ownedAuditFindings": ["UX-012"],
       "primaryFiles": [
         "App.tsx",
         "TopBar.tsx:71",
@@ -788,16 +716,9 @@
       "rollbackRule": "**Planned risk.** Low, with an over-announcement watch item\n\nRegression mode: announcement storms during scans. Detection: the \"no message per progress tick\" assertion. Rollback: revert; no persisted state.\n\n---"
     },
     "WP-010": {
-      "dependencies": [
-        "WP-000",
-        "WP-009"
-      ],
+      "dependencies": ["WP-000", "WP-009"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-011",
-        "UX-040",
-        "UX-012"
-      ],
+      "ownedAuditFindings": ["UX-011", "UX-040", "UX-012"],
       "primaryFiles": [
         "gaps.ts:38",
         "repertoire.ts:27",
@@ -857,10 +778,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/operations.test.ts",
-          "apps/ui/test/cancellation.test.ts"
-        ],
+        "files": ["apps/ui/test/operations.test.ts", "apps/ui/test/cancellation.test.ts"],
         "commands": [],
         "description": "`test/operations.test.ts` for registration, settle, linger, eviction. Extend `test/cancellation.test.ts` with registry assertions. Playwright: a running scan appears in `operations()` via `window.__chess` (extend the dev handle with `operations`)."
       },
@@ -872,18 +790,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a store forgets to settle, leaving a permanent \"running\" entry. Detection: an operations test per store plus a DEV warning if an operation exceeds 10 minutes. Rollback: per-store revert is possible because migration is store-by-store.\n\n---"
     },
     "WP-011": {
-      "dependencies": [
-        "WP-000",
-        "WP-006"
-      ],
-      "blockingGates": [
-        "DV-2",
-        "AG-3"
-      ],
-      "ownedAuditFindings": [
-        "UX-004",
-        "UX-014"
-      ],
+      "dependencies": ["WP-000", "WP-006"],
+      "blockingGates": ["DV-2", "AG-3"],
+      "ownedAuditFindings": ["UX-004", "UX-014"],
       "primaryFiles": [
         "RepertoirePanel.tsx",
         "MoveTree.tsx:67–76",
@@ -947,9 +856,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-keyboard.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-keyboard.spec.ts"],
         "commands": [],
         "description": "`core-keyboard.spec.ts` (baseline check 4 flips to passing); a move-tree traversal spec with a branching fixture; density guard assertions; a DOM validity assertion for nested buttons."
       },
@@ -961,14 +868,9 @@
       "rollbackRule": "**Planned risk.** Medium — nine call sites and a density-regression risk\n\nRegression modes: row click handlers that relied on event bubbling from a child; the collapse toggle firing row navigation; panels growing too tall. Detection: the density guard, the nested-button assertion, and per-section click tests. Rollback: `MoveTree` and `RepertoirePanel` migrations should be separate commits so either can be reverted alone.\n\n---"
     },
     "WP-012": {
-      "dependencies": [
-        "WP-000",
-        "WP-006"
-      ],
+      "dependencies": ["WP-000", "WP-006"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-013"
-      ],
+      "ownedAuditFindings": ["UX-013"],
       "primaryFiles": [
         "Divider.tsx",
         "styles.css:192–229",
@@ -1010,9 +912,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-keyboard.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-keyboard.spec.ts"],
         "commands": [],
         "description": "`core-keyboard.spec.ts`: focus, each key, bounds, reset, persistence across reload. A pointer-drag regression test asserting the existing clamp behaviour."
       },
@@ -1024,17 +924,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the enlarged hit area intercepting clicks meant for adjacent panels. Detection: a click-through test on the first row of each adjacent panel. Rollback: single-file revert.\n\n---"
     },
     "WP-013": {
-      "dependencies": [
-        "WP-000",
-        "WP-009",
-        "WP-010"
-      ],
-      "blockingGates": [
-        "AG-2"
-      ],
-      "ownedAuditFindings": [
-        "UX-011"
-      ],
+      "dependencies": ["WP-000", "WP-009", "WP-010"],
+      "blockingGates": ["AG-2"],
+      "ownedAuditFindings": ["UX-011"],
       "primaryFiles": [
         "MobileTabs.tsx",
         "styles.css:318–330",
@@ -1080,9 +972,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-status.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-status.spec.ts"],
         "commands": [],
         "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; a tablist keyboard spec; element-identity assertions for mount preservation."
       },
@@ -1094,19 +984,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression modes: the wrapper elements changing the compact layout; the strip eating panel height. Detection: the `WP-001` height assertions re-run here. Rollback: single revert.\n\n---"
     },
     "WP-014": {
-      "dependencies": [
-        "WP-000",
-        "WP-005",
-        "WP-007",
-        "WP-009"
-      ],
-      "blockingGates": [
-        "DV-1",
-        "AG-4"
-      ],
-      "ownedAuditFindings": [
-        "UX-003"
-      ],
+      "dependencies": ["WP-000", "WP-005", "WP-007", "WP-009"],
+      "blockingGates": ["DV-1", "AG-4"],
+      "ownedAuditFindings": ["UX-003"],
       "primaryFiles": [
         "Board.tsx:92–95",
         "Board.tsx:32–37",
@@ -1164,9 +1044,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-keyboard.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-keyboard.spec.ts"],
         "commands": [],
         "description": "`core-keyboard.spec.ts` full journey; a pointer non-regression suite (drag, click-move, touch drag); a promotion-by-keyboard test; an orientation test with the board flipped."
       },
@@ -1178,14 +1056,9 @@
       "rollbackRule": "**Planned risk.** High — a new interaction surface over Chessground's pointer handling\n\nHighest-risk regression is pointer interference. Detection: the pointer non-regression suite runs in all three browsers. Rollback: the layer is a single additive component; reverting removes it and restores today's (inaccessible) board without any other change.\n\n---"
     },
     "WP-015": {
-      "dependencies": [
-        "WP-000",
-        "WP-011"
-      ],
+      "dependencies": ["WP-000", "WP-011"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-010"
-      ],
+      "ownedAuditFindings": ["UX-010"],
       "primaryFiles": [
         "App.tsx:106–110",
         "styles.css:415–424",
@@ -1227,9 +1100,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-layout.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
         "description": "`core-layout.spec.ts` position assertions at three viewports; a default-tab assertion."
       },
@@ -1241,16 +1112,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the analysis panel pushed below the fold instead. Detection: the analysis-visible assertion. Rollback: reorder back.\n\n---"
     },
     "WP-016": {
-      "dependencies": [
-        "WP-000",
-        "WP-024"
-      ],
+      "dependencies": ["WP-000", "WP-024"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-009",
-        "UX-008",
-        "UX-022"
-      ],
+      "ownedAuditFindings": ["UX-009", "UX-008", "UX-022"],
       "primaryFiles": [
         "analysis.ts:39",
         "AnalysisPanel.tsx:44",
@@ -1328,9 +1192,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-analysis.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-analysis.spec.ts"],
         "commands": [],
         "description": "Playwright `core-analysis.spec.ts` covering the four states, the eval-bar name, the depth-notice persistence, and the depth propagation to a direct command. Store test for `analysisState()`."
       },
@@ -1342,17 +1204,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: depth no longer reaching engine-backed commands. Detection: the propagation assertion. Rollback: revert; controls return to the top bar.\n\n---"
     },
     "WP-017": {
-      "dependencies": [
-        "WP-002",
-        "WP-016",
-        "WP-018"
-      ],
-      "blockingGates": [
-        "DV-3"
-      ],
-      "ownedAuditFindings": [
-        "UX-008"
-      ],
+      "dependencies": ["WP-002", "WP-016", "WP-018"],
+      "blockingGates": ["DV-3"],
+      "ownedAuditFindings": ["UX-008"],
       "primaryFiles": [
         "TopBar.tsx:19–76",
         "TopBar.tsx",
@@ -1398,9 +1252,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-layout.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
         "description": "`core-layout.spec.ts` height assertions; a menu keyboard spec; the overflow sweep re-run."
       },
@@ -1412,19 +1264,9 @@
       "rollbackRule": "**Planned risk.** Medium — it is the most visible surface in the app\n\nRegression mode: users cannot find Save or New. Detection: DV-3 and the ≤2-interaction criterion. Rollback: single-file revert.\n\n---"
     },
     "WP-018": {
-      "dependencies": [
-        "WP-004",
-        "WP-009",
-        "WP-024"
-      ],
-      "blockingGates": [
-        "PD-1"
-      ],
-      "ownedAuditFindings": [
-        "UX-031",
-        "UX-029",
-        "UX-032"
-      ],
+      "dependencies": ["WP-004", "WP-009", "WP-024"],
+      "blockingGates": ["PD-1"],
+      "ownedAuditFindings": ["UX-031", "UX-029", "UX-032"],
       "primaryFiles": [
         "TopBar.tsx:21–23",
         "files.ts:140",
@@ -1474,9 +1316,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/core-document.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/core-document.spec.ts"],
         "commands": [],
         "description": "`core-document.spec.ts`: indicator text across linked/download/none states, change-count reset, restore toast, denial message. Store test for `fileLinkState`."
       },
@@ -1488,22 +1328,11 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: announcement noise from the change counter. Detection: the announcement-count assertion. Rollback: single revert.\n\n---"
     },
     "WP-019": {
-      "dependencies": [
-        "WP-009",
-        "WP-010"
-      ],
+      "dependencies": ["WP-009", "WP-010"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-041"
-      ],
-      "primaryFiles": [
-        "vite.config.ts:25",
-        "src/pwa/updates.ts"
-      ],
-      "relevantSymbols": [
-        "vite.config.ts:25",
-        "src/pwa/updates.ts"
-      ],
+      "ownedAuditFindings": ["UX-041"],
+      "primaryFiles": ["vite.config.ts:25", "src/pwa/updates.ts"],
+      "relevantSymbols": ["vite.config.ts:25", "src/pwa/updates.ts"],
       "acceptanceCriteria": [
         {
           "id": "WP-019 AC-1",
@@ -1539,22 +1368,11 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: switching from `autoUpdate` to `prompt` leaves users on a stale build if the toast fails to render. Detection: the toast test plus a manual post-deploy check. Rollback: revert to `autoUpdate` — a one-line change.\n\n---"
     },
     "WP-020": {
-      "dependencies": [
-        "WP-001",
-        "WP-002"
-      ],
+      "dependencies": ["WP-001", "WP-002"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-024"
-      ],
-      "primaryFiles": [
-        "styles.css",
-        "store/layout.ts"
-      ],
-      "relevantSymbols": [
-        "styles.css",
-        "store/layout.ts"
-      ],
+      "ownedAuditFindings": ["UX-024"],
+      "primaryFiles": ["styles.css", "store/layout.ts"],
+      "relevantSymbols": ["styles.css", "store/layout.ts"],
       "acceptanceCriteria": [
         {
           "id": "WP-020 AC-1",
@@ -1579,9 +1397,7 @@
       ],
       "requiredTests": {
         "files": [],
-        "commands": [
-          "node --test"
-        ],
+        "commands": ["node --test"],
         "description": "A continuous-resize sweep asserting the cliff bound and the minimums; a `styles.css` lint-style assertion (a small `node --test` script) that raw breakpoint literals appear only in the tier block."
       },
       "requiredManualValidation": "Drag a browser window across 1100 px and confirm the transition is not visually jarring.",
@@ -1592,28 +1408,11 @@
       "rollbackRule": "**Planned risk.** Medium — touches every media query\n\nRegression mode: the seeding logic fighting the persisted widths, producing drift on every transition. Detection: a test that crossing the boundary twice returns to the original widths. Rollback: revert the store change alone; the CSS reorganisation is independently safe.\n\n---"
     },
     "WP-021": {
-      "dependencies": [
-        "WP-000",
-        "WP-024"
-      ],
-      "blockingGates": [
-        "PD-4"
-      ],
-      "ownedAuditFindings": [
-        "UX-028"
-      ],
-      "primaryFiles": [
-        "store/settings.ts",
-        "App.tsx",
-        "store/layout.ts",
-        "ChatPanel.tsx"
-      ],
-      "relevantSymbols": [
-        "store/settings.ts",
-        "App.tsx",
-        "store/layout.ts",
-        "ChatPanel.tsx"
-      ],
+      "dependencies": ["WP-000", "WP-024"],
+      "blockingGates": ["PD-4"],
+      "ownedAuditFindings": ["UX-028"],
+      "primaryFiles": ["store/settings.ts", "App.tsx", "store/layout.ts", "ChatPanel.tsx"],
+      "relevantSymbols": ["store/settings.ts", "App.tsx", "store/layout.ts", "ChatPanel.tsx"],
       "acceptanceCriteria": [
         {
           "id": "WP-021 AC-1",
@@ -1649,17 +1448,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width lost on collapse. Detection: the restore assertion. Rollback: single revert.\n\n---"
     },
     "WP-022": {
-      "dependencies": [
-        "WP-011",
-        "WP-024"
-      ],
-      "blockingGates": [
-        "DV-4"
-      ],
-      "ownedAuditFindings": [
-        "UX-021",
-        "UX-035"
-      ],
+      "dependencies": ["WP-011", "WP-024"],
+      "blockingGates": ["DV-4"],
+      "ownedAuditFindings": ["UX-021", "UX-035"],
       "primaryFiles": [
         "RepertoirePanel.tsx:144–404",
         "RepertoirePanel.tsx",
@@ -1715,13 +1506,9 @@
       "rollbackRule": "**Planned risk.** Medium — the panel is the app's densest surface\n\nRegression mode: a tool losing an argument during the move. Detection: the argument-equivalence spec, which must be written **before** the refactor and pass against the current code first. Rollback: revert; the decomposition is one PR.\n\n---"
     },
     "WP-023": {
-      "dependencies": [
-        "WP-024"
-      ],
+      "dependencies": ["WP-024"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-035"
-      ],
+      "ownedAuditFindings": ["UX-035"],
       "primaryFiles": [
         "RepertoirePanel.tsx:148–160",
         "content/strategicFit.ts",
@@ -1751,9 +1538,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/e2e/strategic-fit-workspace.spec.ts"
-        ],
+        "files": ["apps/ui/test/e2e/strategic-fit-workspace.spec.ts"],
         "commands": [],
         "description": "A copy assertion and the no-analysis assertion in `strategic-fit-workspace.spec.ts`."
       },
@@ -1765,12 +1550,8 @@
       "rollbackRule": "**Planned risk.** Low\n\nNot specified."
     },
     "WP-024": {
-      "dependencies": [
-        "WP-000"
-      ],
-      "blockingGates": [
-        "PD-1"
-      ],
+      "dependencies": ["WP-000"],
+      "blockingGates": ["PD-1"],
       "ownedAuditFindings": [
         "UX-015",
         "UX-016",
@@ -1835,9 +1616,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/content.test.ts"
-        ],
+        "files": ["apps/ui/test/content.test.ts"],
         "commands": [],
         "description": "The unchanged-text proof is the existing suite. Add `test/content.test.ts` asserting formatter output parity against fixtures captured from the current implementations, and a check-script self-test."
       },
@@ -1849,13 +1628,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a subtle wording change slipping in during the move. Detection: the zero-text-change requirement on the existing suite. Rollback: revert; no behaviour depends on the registry until later packages.\n\n---"
     },
     "WP-025": {
-      "dependencies": [
-        "WP-024"
-      ],
+      "dependencies": ["WP-024"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-015"
-      ],
+      "ownedAuditFindings": ["UX-015"],
       "primaryFiles": [
         "ChatPanel.tsx:85",
         "ChatPanel.tsx:91",
@@ -1905,16 +1680,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nNot specified."
     },
     "WP-026": {
-      "dependencies": [
-        "WP-024",
-        "WP-025"
-      ],
+      "dependencies": ["WP-024", "WP-025"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-015",
-        "UX-020",
-        "UX-034"
-      ],
+      "ownedAuditFindings": ["UX-015", "UX-020", "UX-034"],
       "primaryFiles": [
         "ToolResult.tsx:783",
         "ToolResult.tsx",
@@ -1978,17 +1746,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: hiding `Raw JSON` removes a debugging affordance developers rely on. Mitigation: the setting is discoverable in Settings and defaults on in DEV builds. Rollback: revert the gating condition alone.\n\n---"
     },
     "WP-027": {
-      "dependencies": [
-        "WP-010",
-        "WP-024",
-        "WP-026"
-      ],
+      "dependencies": ["WP-010", "WP-024", "WP-026"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-046",
-        "UX-040",
-        "UX-047"
-      ],
+      "ownedAuditFindings": ["UX-046", "UX-040", "UX-047"],
       "primaryFiles": [
         "chat.ts:52–59",
         "chat.ts:143–165",
@@ -2052,9 +1812,7 @@
         }
       ],
       "requiredTests": {
-        "files": [
-          "apps/ui/test/chat.test.ts"
-        ],
+        "files": ["apps/ui/test/chat.test.ts"],
         "commands": [],
         "description": "Extend `test/chat.test.ts` with per-call cancellation (a fake executor that blocks on the second call), run-history persistence across turns, and context-summary parity with `systemMessage()`. Playwright for the chip and the cancel control."
       },
@@ -2066,23 +1824,11 @@
       "rollbackRule": "**Planned risk.** Medium — touches the chat turn loop\n\nRegression mode: the child-controller wiring leaking so a per-run cancel aborts the turn. Detection: the blocking-executor test. Rollback: revert; run history returns to per-turn.\n\n---"
     },
     "WP-028": {
-      "dependencies": [
-        "WP-027"
-      ],
+      "dependencies": ["WP-027"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-038"
-      ],
-      "primaryFiles": [
-        "AnalysisPanel.tsx:62–84",
-        "store/suggestions.ts",
-        "store/ui.ts"
-      ],
-      "relevantSymbols": [
-        "AnalysisPanel.tsx:62–84",
-        "store/suggestions.ts",
-        "store/ui.ts"
-      ],
+      "ownedAuditFindings": ["UX-038"],
+      "primaryFiles": ["AnalysisPanel.tsx:62–84", "store/suggestions.ts", "store/ui.ts"],
+      "relevantSymbols": ["AnalysisPanel.tsx:62–84", "store/suggestions.ts", "store/ui.ts"],
       "acceptanceCriteria": [
         {
           "id": "WP-028 AC-1",
@@ -2110,18 +1856,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nNot specified."
     },
     "WP-029": {
-      "dependencies": [
-        "WP-011",
-        "WP-022",
-        "WP-024"
-      ],
+      "dependencies": ["WP-011", "WP-022", "WP-024"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-036",
-        "UX-037",
-        "UX-039",
-        "UX-042"
-      ],
+      "ownedAuditFindings": ["UX-036", "UX-037", "UX-039", "UX-042"],
       "primaryFiles": [
         "RepertoirePanel.tsx:246",
         "content/repertoire.ts",
@@ -2175,15 +1912,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: an evidence field lost under the disclosure refactor. Detection: the field-presence spec. Rollback: per-tool revert is possible because `WP-022` split them into separate components.\n\n---"
     },
     "WP-030": {
-      "dependencies": [
-        "WP-024"
-      ],
-      "blockingGates": [
-        "PD-6"
-      ],
-      "ownedAuditFindings": [
-        "UX-016"
-      ],
+      "dependencies": ["WP-024"],
+      "blockingGates": ["PD-6"],
+      "ownedAuditFindings": ["UX-016"],
       "primaryFiles": [
         "src/store/strategic-fit-names.ts",
         "chat.ts",
@@ -2237,16 +1968,9 @@
       "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a name derived from too few findings being misleading. Mitigation: fall back to `Comparison group N (k lines)` when the dominant opening covers under half the cohort. Rollback: revert; ids return.\n\n---"
     },
     "WP-031": {
-      "dependencies": [
-        "WP-024",
-        "WP-030"
-      ],
-      "blockingGates": [
-        "PD-7"
-      ],
-      "ownedAuditFindings": [
-        "UX-017"
-      ],
+      "dependencies": ["WP-024", "WP-030"],
+      "blockingGates": ["PD-7"],
+      "ownedAuditFindings": ["UX-017"],
       "primaryFiles": [
         "AnalysisLifecycle.tsx:16",
         "store/strategic-fit.ts",
@@ -2302,13 +2026,9 @@
       "rollbackRule": "**Planned risk.** Low — additive presentation over an unchanged analysis\n\nRegression mode: the terminal state hiding findings that were in fact useful. Mitigation: it triggers only on `comparable_route_count === 0`, and the raw report stays available under technical details. Rollback: revert.\n\n---"
     },
     "WP-032": {
-      "dependencies": [
-        "WP-031"
-      ],
+      "dependencies": ["WP-031"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-018"
-      ],
+      "ownedAuditFindings": ["UX-018"],
       "primaryFiles": [
         "AnalysisLifecycle.tsx:115",
         "AnalysisLifecycle.tsx",
@@ -2360,25 +2080,11 @@
       "rollbackRule": "**Planned risk.** Low\n\nNot specified."
     },
     "WP-033": {
-      "dependencies": [
-        "WP-007",
-        "WP-031"
-      ],
-      "blockingGates": [
-        "DV-5",
-        "AG-1"
-      ],
-      "ownedAuditFindings": [
-        "UX-033"
-      ],
-      "primaryFiles": [
-        "styles.css:1711–1713",
-        "strategic-fit-accessibility.spec.ts"
-      ],
-      "relevantSymbols": [
-        "styles.css:1711–1713",
-        "strategic-fit-accessibility.spec.ts"
-      ],
+      "dependencies": ["WP-007", "WP-031"],
+      "blockingGates": ["DV-5", "AG-1"],
+      "ownedAuditFindings": ["UX-033"],
+      "primaryFiles": ["styles.css:1711–1713", "strategic-fit-accessibility.spec.ts"],
+      "relevantSymbols": ["styles.css:1711–1713", "strategic-fit-accessibility.spec.ts"],
       "acceptanceCriteria": [
         {
           "id": "WP-033 AC-1",
@@ -2418,16 +2124,9 @@
       "rollbackRule": "**Planned risk.** Medium — the app's best-tested surface\n\nHighest risk in the Strategic Fit workstream. Mitigation: split into two PRs — (a) de-duplicate the resolution block and add the stage strip, (b) migrate to `Dialog` — so a focus regression can be reverted without losing the stage work.\n\n---"
     },
     "WP-034": {
-      "dependencies": [
-        "WP-024",
-        "WP-030"
-      ],
-      "blockingGates": [
-        "PD-8"
-      ],
-      "ownedAuditFindings": [
-        "UX-043"
-      ],
+      "dependencies": ["WP-024", "WP-030"],
+      "blockingGates": ["PD-8"],
+      "ownedAuditFindings": ["UX-043"],
       "primaryFiles": [
         "ResolutionProof.tsx:9–20",
         "content/strategicFit.ts",
@@ -2481,22 +2180,11 @@
       "rollbackRule": "**Planned risk.** Low\n\nNot specified."
     },
     "WP-035": {
-      "dependencies": [
-        "WP-031",
-        "WP-032",
-        "WP-033"
-      ],
-      "blockingGates": [
-        "PD-5"
-      ],
+      "dependencies": ["WP-031", "WP-032", "WP-033"],
+      "blockingGates": ["PD-5"],
       "ownedAuditFindings": [],
-      "primaryFiles": [
-        "docs/"
-      ],
-      "relevantSymbols": [
-        "PD-5 study",
-        "written recommendation"
-      ],
+      "primaryFiles": ["docs/"],
+      "relevantSymbols": ["PD-5 study", "written recommendation"],
       "acceptanceCriteria": [
         {
           "id": "WP-035 AC-1",
@@ -2510,28 +2198,15 @@
       },
       "requiredManualValidation": "Not specified.",
       "riskLevel": "Low as a study; XL if the split proceeds",
-      "preservedBehaviorContracts": [
-        "Not specified."
-      ],
+      "preservedBehaviorContracts": ["Not specified."],
       "rollbackRule": "**Planned risk.** Low as a study; XL if the split proceeds\n\nNot specified."
     },
     "WP-036": {
-      "dependencies": [
-        "WP-006"
-      ],
+      "dependencies": ["WP-006"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-030",
-        "UX-048"
-      ],
-      "primaryFiles": [
-        "styles.css",
-        "styles.css:1–4"
-      ],
-      "relevantSymbols": [
-        "styles.css",
-        "styles.css:1–4"
-      ],
+      "ownedAuditFindings": ["UX-030", "UX-048"],
+      "primaryFiles": ["styles.css", "styles.css:1–4"],
+      "relevantSymbols": ["styles.css", "styles.css:1–4"],
       "acceptanceCriteria": [
         {
           "id": "WP-036 AC-1",
@@ -2575,13 +2250,9 @@
       "rollbackRule": "**Planned risk.** Medium — touches `styles.css` globally\n\nRegression mode: the type floor breaking dense analytical layouts. Mitigation: step 2 is a separate commit; the density guard fails before merge. Rollback: revert step 2 alone, keeping the tokens.\n\n---"
     },
     "WP-037": {
-      "dependencies": [
-        "WP-036"
-      ],
+      "dependencies": ["WP-036"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-048"
-      ],
+      "ownedAuditFindings": ["UX-048"],
       "primaryFiles": [
         "ChatPanel.tsx:117",
         "RepertoirePanel.tsx:237",
@@ -2635,14 +2306,9 @@
       "rollbackRule": "**Planned risk.** Medium — broad but mechanical\n\nMechanical but broad. Mitigation: one primitive per commit, each independently revertible.\n\n---"
     },
     "WP-038": {
-      "dependencies": [
-        "WP-024",
-        "WP-037"
-      ],
+      "dependencies": ["WP-024", "WP-037"],
       "blockingGates": [],
-      "ownedAuditFindings": [
-        "UX-023"
-      ],
+      "ownedAuditFindings": ["UX-023"],
       "primaryFiles": [
         "analysis.ts:32",
         "Board.tsx:74–87",
@@ -2708,207 +2374,135 @@
   "pullRequests": [
     {
       "id": "PR-01",
-      "packages": [
-        "WP-000"
-      ]
+      "packages": ["WP-000"]
     },
     {
       "id": "PR-02",
-      "packages": [
-        "WP-001"
-      ]
+      "packages": ["WP-001"]
     },
     {
       "id": "PR-03",
-      "packages": [
-        "WP-002"
-      ]
+      "packages": ["WP-002"]
     },
     {
       "id": "PR-04",
-      "packages": [
-        "WP-006"
-      ]
+      "packages": ["WP-006"]
     },
     {
       "id": "PR-05",
-      "packages": [
-        "WP-007"
-      ]
+      "packages": ["WP-007"]
     },
     {
       "id": "PR-06",
-      "packages": [
-        "WP-003"
-      ]
+      "packages": ["WP-003"]
     },
     {
       "id": "PR-07",
-      "packages": [
-        "WP-004"
-      ]
+      "packages": ["WP-004"]
     },
     {
       "id": "PR-08",
-      "packages": [
-        "WP-005"
-      ]
+      "packages": ["WP-005"]
     },
     {
       "id": "PR-09",
-      "packages": [
-        "WP-009"
-      ]
+      "packages": ["WP-009"]
     },
     {
       "id": "PR-10",
-      "packages": [
-        "WP-010"
-      ]
+      "packages": ["WP-010"]
     },
     {
       "id": "PR-11",
-      "packages": [
-        "WP-011"
-      ]
+      "packages": ["WP-011"]
     },
     {
       "id": "PR-12",
-      "packages": [
-        "WP-012"
-      ]
+      "packages": ["WP-012"]
     },
     {
       "id": "PR-13",
-      "packages": [
-        "WP-013"
-      ]
+      "packages": ["WP-013"]
     },
     {
       "id": "PR-14",
-      "packages": [
-        "WP-008"
-      ]
+      "packages": ["WP-008"]
     },
     {
       "id": "PR-15",
-      "packages": [
-        "WP-014"
-      ]
+      "packages": ["WP-014"]
     },
     {
       "id": "PR-16",
-      "packages": [
-        "WP-024"
-      ]
+      "packages": ["WP-024"]
     },
     {
       "id": "PR-17",
-      "packages": [
-        "WP-015",
-        "WP-016"
-      ]
+      "packages": ["WP-015", "WP-016"]
     },
     {
       "id": "PR-18",
-      "packages": [
-        "WP-018"
-      ]
+      "packages": ["WP-018"]
     },
     {
       "id": "PR-19",
-      "packages": [
-        "WP-019"
-      ]
+      "packages": ["WP-019"]
     },
     {
       "id": "PR-20",
-      "packages": [
-        "WP-020"
-      ]
+      "packages": ["WP-020"]
     },
     {
       "id": "PR-21",
-      "packages": [
-        "WP-021"
-      ]
+      "packages": ["WP-021"]
     },
     {
       "id": "PR-22",
-      "packages": [
-        "WP-022",
-        "WP-023"
-      ]
+      "packages": ["WP-022", "WP-023"]
     },
     {
       "id": "PR-23",
-      "packages": [
-        "WP-025",
-        "WP-026"
-      ]
+      "packages": ["WP-025", "WP-026"]
     },
     {
       "id": "PR-24",
-      "packages": [
-        "WP-027",
-        "WP-028"
-      ]
+      "packages": ["WP-027", "WP-028"]
     },
     {
       "id": "PR-25",
-      "packages": [
-        "WP-029"
-      ]
+      "packages": ["WP-029"]
     },
     {
       "id": "PR-26",
-      "packages": [
-        "WP-030",
-        "WP-034"
-      ]
+      "packages": ["WP-030", "WP-034"]
     },
     {
       "id": "PR-27",
-      "packages": [
-        "WP-031",
-        "WP-032"
-      ]
+      "packages": ["WP-031", "WP-032"]
     },
     {
       "id": "PR-28",
-      "packages": [
-        "WP-033"
-      ]
+      "packages": ["WP-033"]
     },
     {
       "id": "PR-29",
-      "packages": [
-        "WP-036"
-      ]
+      "packages": ["WP-036"]
     },
     {
       "id": "PR-30",
-      "packages": [
-        "WP-037"
-      ]
+      "packages": ["WP-037"]
     },
     {
       "id": "PR-31",
-      "packages": [
-        "WP-038"
-      ]
+      "packages": ["WP-038"]
     },
     {
       "id": "PR-32",
-      "packages": [
-        "WP-017"
-      ]
+      "packages": ["WP-017"]
     },
     {
       "id": "PR-33",
-      "packages": [
-        "WP-035"
-      ]
+      "packages": ["WP-035"]
     }
   ]
 }

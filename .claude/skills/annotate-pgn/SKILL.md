@@ -33,9 +33,7 @@ Create a saveable annotated game or repertoire artifact without model-authored P
 ## Shared report contract
 
 - Name the artifact and summarize what was annotated.
-- Keep the artifact identifier/path available for saving; do not echo full PGN.
-
-<!-- END GENERATED WORKFLOW GUIDANCE -->
+- Keep the artifact identifier/path available for saving; do not echo full PGN.<!-- END GENERATED WORKFLOW GUIDANCE -->
 
 ## MCP adaptation
 

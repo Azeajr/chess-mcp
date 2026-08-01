@@ -31,7 +31,7 @@ for (const [family, workflow] of Object.entries(WORKFLOW_CONTRACTS)) {
 for (const [directory, family] of Object.entries(skills)) {
   const url = new URL(`.claude/skills/${directory}/SKILL.md`, root);
   const source = await readFile(url, "utf8");
-  const generated = `${begin}\n${renderWorkflowGuidance(family, "mcp")}\n${end}`;
+  const generated = `${begin}\n\n${renderWorkflowGuidance(family, "mcp").trimEnd()}${end}`;
   const pattern = new RegExp(`${begin}[\\s\\S]*?${end}`);
   if (!pattern.test(source)) throw new Error(`${directory}: missing generated workflow markers`);
   const next = source.replace(pattern, generated);
