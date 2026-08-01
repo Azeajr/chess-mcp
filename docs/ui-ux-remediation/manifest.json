@@ -1,0 +1,2914 @@
+{
+  "version": 1,
+  "sourcePlan": "docs/ui-ux-remediation-plan.md",
+  "corrections": [
+    "WP-005 additionally depends on WP-009 so Toast is introduced with the live-region infrastructure before its first planned consumer.",
+    "WP-008 remains dependent on WP-024; dependency order is authoritative over the earlier phase/PR placement."
+  ],
+  "packages": {
+    "WP-000": {
+      "dependencies": [],
+      "blockingGates": [],
+      "ownedAuditFindings": [],
+      "primaryFiles": [
+        "ci.yml",
+        "playwright.config.ts",
+        "test/e2e/helpers/accessibility.ts",
+        "apps/ui/test/e2e/helpers/app.ts",
+        ".claude/skills/run-ui/driver.mjs",
+        "apps/ui/test/e2e/helpers/viewports.ts",
+        "helpers/accessibility.ts",
+        "core-layout.spec.ts",
+        "core-keyboard.spec.ts",
+        "core-dialogs.spec.ts",
+        "core-document.spec.ts",
+        "core-status.spec.ts",
+        "pnpm exec playwright test --config apps/ui/playwright.config.ts",
+        "AGENTS.md",
+        "helpers/viewports.ts"
+      ],
+      "relevantSymbols": [
+        "ci.yml",
+        "playwright.config.ts",
+        "test/e2e/helpers/accessibility.ts",
+        "apps/ui/test/e2e/helpers/app.ts",
+        ".claude/skills/run-ui/driver.mjs",
+        "apps/ui/test/e2e/helpers/viewports.ts",
+        "helpers/accessibility.ts",
+        "core-layout.spec.ts",
+        "core-keyboard.spec.ts",
+        "core-dialogs.spec.ts",
+        "core-document.spec.ts",
+        "core-status.spec.ts",
+        "pnpm exec playwright test --config apps/ui/playwright.config.ts",
+        "AGENTS.md",
+        "helpers/viewports.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-000 AC-1",
+          "text": "- CI runs `pnpm lint` and `pnpm format:check`; `ci.yml` also contains a job that runs `test:chat` and Playwright on Chromium, Firefox, and WebKit, and it is required for merge."
+        },
+        {
+          "id": "WP-000 AC-2",
+          "text": "- The existing 22 Strategic Fit specs pass on Chromium in CI."
+        },
+        {
+          "id": "WP-000 AC-3",
+          "text": "- `helpers/viewports.ts` exports exactly the 16 viewports listed in §11."
+        },
+        {
+          "id": "WP-000 AC-4",
+          "text": "- Ten baseline checks exist, each named with the finding ID it guards, each currently `test.fixme` where the audit measured a failure and passing where it measured correct behaviour:\n  1. `UX-001` no core panel (`.side-panel`, `.chat-wrap`, `.mobile-tabs`) has zero rendered height at 640×400, 360×640, 720×500.\n  2. `UX-002` `documentElement.scrollWidth === clientWidth` at every 5 px step from 320 to 2560 with `LONG_FILENAME` loaded.\n  3. `UX-014` `touchTargetViolations(app, 24)` is empty at 1280×800 and `touchTargetViolations(app, 44)` is empty with `hasTouch: true`.\n  4. `UX-003`/`UX-004` `keyboardReachable` reports zero unreachable elements for board squares, `.move`, and `.rep-row`.\n  5. `UX-007` for each of the three overlays: focus enters, Tab cycles inside, `Escape` closes, focus returns, `ArrowRight` leaves `currentPath()` unchanged.\n  6. `UX-005` for each mutation kind, `apply → undo → redo` returns the exact PGN at each step.\n  7. `UX-012` each operation in the §3 inventory produces exactly one live-region message.\n  8. `UX-015`/`UX-016` `rawIdentifierViolations` is empty for the chat log and the Strategic Fit workspace.\n  9. `UX-011` a running Gaps scan remains visible after switching to the Chat tab at 390×844.\n  10. Strategic Fit strengths: staged-proposal copy, `pending`/`stale` transitions, preflight counts, finding-queue filters, chart/table fallback, and print/export complete-list mode each have at least one asserting spec (extend existing specs where they already cover it; add where they do not)."
+        },
+        {
+          "id": "WP-000 AC-5",
+          "text": "- No `test.fixme` remains without a finding ID in its title."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills"
+        ],
+        "description": "This package _is_ the tests. Fixtures: `RICH_PGN` must produce ≥1 comparable Strategic Fit route so `WP-031`'s terminal-state test has a positive control."
+      },
+      "requiredManualValidation": "Confirm the WebKit and Firefox runs are not flaky over three consecutive CI runs before making the job required.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "All 22 Strategic Fit specs and all 43 store suites must pass unchanged on the new CI job — they are the regression protection for every Strategic Fit strength the plan must not weaken. The dev-server `webServer` config must stay (`window.__chess` is dev-only)."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRisk is CI flakiness blocking unrelated work. Detection: three-run soak. Mitigation: mark engine-backed specs `test.slow()` and, if WebKit proves unstable for engine tests, restrict WebKit to layout and dialog specs and record that narrowing here. Rollback: make the job non-required; do not delete it."
+    },
+    "WP-001": {
+      "dependencies": [
+        "WP-000"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-001"
+      ],
+      "primaryFiles": [
+        "styles.css:279–330",
+        "apps/ui/src/styles.css",
+        "store/layout.ts",
+        "core-layout.spec.ts"
+      ],
+      "relevantSymbols": [
+        "styles.css:279–330",
+        "apps/ui/src/styles.css",
+        "store/layout.ts",
+        "core-layout.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-001 AC-1",
+          "text": "- At 640×400, 360×640, 720×500, and 800×450: `.side-panel` (or `.chat-wrap` when the Chat tab is active) has rendered height ≥ 192 px, and `.mobile-tabs` is fully within the viewport."
+        },
+        {
+          "id": "WP-001 AC-2",
+          "text": "- At 360×740 and 390×844 the rendered heights of `.topbar`, `.board-wrap`, `.side-panel`, and `.mobile-tabs` are unchanged from the pre-change baseline (±2 px)."
+        },
+        {
+          "id": "WP-001 AC-3",
+          "text": "- At 640×400 the page reaches the bottom of the Analysis panel by scrolling `.workspace`, with no horizontal scroll."
+        },
+        {
+          "id": "WP-001 AC-4",
+          "text": "- `document.documentElement.scrollWidth === clientWidth` at all four short viewports."
+        },
+        {
+          "id": "WP-001 AC-5",
+          "text": "- Switching mobile tabs at 640×400 does not remount Chessground (assert the board element's identity is stable)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-layout.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-layout.spec.ts`: baseline check 1 flips from `fixme` to passing; add the 360×740/390×844 no-regression assertions with recorded baseline numbers as a fixture constant."
+      },
+      "requiredManualValidation": "Real iOS Safari at 200% text zoom and in landscape on a small phone; confirm the board does not jump while the URL bar shows and hides (`100dvh` interaction).",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The pinned-board phone layout at normal phone heights (360×740, 390×844) must be pixel-identical to today. Panels stay mounted across tab switches. The dragged `--board-size` continues to win over the default and continues to be capped to the container width. `overscroll-behavior` must remain suppressed on `body`."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the pinned-board layout starts scrolling at normal phone heights, which would feel broken. Detection: the ±2 px baseline assertions. Rollback: revert one CSS hunk; no data implications."
+    },
+    "WP-002": {
+      "dependencies": [
+        "WP-000"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-002"
+      ],
+      "primaryFiles": [
+        "styles.css:77–88",
+        "styles.css:331–333",
+        "TopBar.tsx:24–26",
+        "styles.css",
+        "TopBar.tsx",
+        "styles.css:342–351",
+        "core-layout.spec.ts"
+      ],
+      "relevantSymbols": [
+        "styles.css:77–88",
+        "styles.css:331–333",
+        "TopBar.tsx:24–26",
+        "styles.css",
+        "TopBar.tsx",
+        "styles.css:342–351",
+        "core-layout.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-002 AC-1",
+          "text": "- `documentElement.scrollWidth === clientWidth` at every 5 px step from 320 px to 2560 px, with a 120-character filename loaded, on Chromium, Firefox, and WebKit."
+        },
+        {
+          "id": "WP-002 AC-2",
+          "text": "- At 768×1024 every top-bar control and every repertoire-section action button has a bounding box fully inside the viewport."
+        },
+        {
+          "id": "WP-002 AC-3",
+          "text": "- The filename element's rendered width never exceeds 40% of the viewport width; its `title` equals the full filename."
+        },
+        {
+          "id": "WP-002 AC-4",
+          "text": "- The top bar renders on one row at 1280×800 with a 20-character filename (no gratuitous wrapping at normal widths)."
+        },
+        {
+          "id": "WP-002 AC-5",
+          "text": "- `touchTargetViolations(topbar, 44)` under `hasTouch: true` remains empty."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-layout.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-layout.spec.ts`: baseline check 2 flips to passing. Add a one-row assertion at 1280×800 to catch over-wrapping."
+      },
+      "requiredManualValidation": "None beyond CI; this is a pure layout change with full automated coverage.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "All nine controls remain present and in the same order. The `pointer: coarse` 44 px minimums on `.topbar button/select/input` (`styles.css:342–351`) still apply. Safe-area padding on `.topbar` is unchanged. `Cmd/Ctrl+S` behaviour is untouched."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the bar wraps to two rows at widths where it previously fit, costing vertical space. Detection: the 1280×800 one-row assertion. Rollback: single CSS revert.\n\n---"
+    },
+    "WP-003": {
+      "dependencies": [
+        "WP-000",
+        "WP-007"
+      ],
+      "blockingGates": [
+        "PD-1"
+      ],
+      "ownedAuditFindings": [
+        "UX-006",
+        "UX-029",
+        "UX-032"
+      ],
+      "primaryFiles": [
+        "TopBar.tsx:34–44",
+        "files.ts:94",
+        "persist.ts:46",
+        "files.ts:134–141",
+        "src/components/DocumentCloseDialog.tsx",
+        "store/files.ts",
+        "TopBar.tsx",
+        "store/game.ts",
+        "files.ts:154–161",
+        "core-document.spec.ts"
+      ],
+      "relevantSymbols": [
+        "TopBar.tsx:34–44",
+        "files.ts:94",
+        "persist.ts:46",
+        "files.ts:134–141",
+        "src/components/DocumentCloseDialog.tsx",
+        "store/files.ts",
+        "TopBar.tsx",
+        "store/game.ts",
+        "files.ts:154–161",
+        "core-document.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-003 AC-1",
+          "text": "- With `dirty() === false` and a document loaded, clicking `New` opens a dialog; the tree is unchanged until an action is chosen."
+        },
+        {
+          "id": "WP-003 AC-2",
+          "text": "- With `dirty() === true`, the dialog offers `Keep working`, `Save to file first`, and `Discard and start new`, and names the file and the number of unexported changes."
+        },
+        {
+          "id": "WP-003 AC-3",
+          "text": "- `Save to file first` writes the file and then completes the original intent; if the save is cancelled, the document is unchanged and the dialog remains open."
+        },
+        {
+          "id": "WP-003 AC-4",
+          "text": "- `Open PGN` and `Reopen` present the same guard."
+        },
+        {
+          "id": "WP-003 AC-5",
+          "text": "- Choosing `Keep working` or pressing `Escape` leaves `window.__chess.toPgn()` byte-identical."
+        },
+        {
+          "id": "WP-003 AC-6",
+          "text": "- After a download-fallback save, a message states that the browser cannot re-link the file and names the downloaded filename."
+        },
+        {
+          "id": "WP-003 AC-7",
+          "text": "- When `reopenLast()` permission is denied, a message is shown naming the file and offering `Open PGN`."
+        },
+        {
+          "id": "WP-003 AC-8",
+          "text": "- The dialog satisfies the full `Dialog` contract (WP-007 acceptance criteria) — focus, Tab cycling, `Escape`, restoration, inert background, no board navigation."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-document.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-document.spec.ts`: clean-document `New` guarded; three-action dialog contents; save-then-continue; escape leaves PGN identical; denial branch message (mock `queryPermission`/`requestPermission` through a dev-only seam or a Playwright route stub). Store test for `changesSinceExport()` increment/reset."
+      },
+      "requiredManualValidation": "Firefox and WebKit (no File System Access): confirm the download path message. Chromium with a real handle: confirm `Save to file first` writes to the same file.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The colour-picker flow after a successful open (`ColorPickerModal`, `pendingLoad`, `detectColorFromPgn`, the in-modal parse error) is unchanged — `WP-003` only gates entry into `openFile()`. `clearHandle()` must still run on `New`. Autosave must not be paused or reordered by this package."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a dialog appears where users expect none, or the resume callback fires twice. Detection: the byte-identical assertions and a store test that `resume` runs at most once. Rollback: revert; no persisted state is created by this package.\n\n---"
+    },
+    "WP-004": {
+      "dependencies": [
+        "WP-000",
+        "WP-003"
+      ],
+      "blockingGates": [
+        "PD-2"
+      ],
+      "ownedAuditFindings": [
+        "UX-006"
+      ],
+      "primaryFiles": [
+        "persist.ts",
+        "strategic-fit-changes.ts:754",
+        "strategic-fit-sidecar.ts:231",
+        "store/idb.ts",
+        "store/persist.ts",
+        "src/components/RecoverDialog.tsx",
+        "strategic-fit-changes.ts:740–800",
+        "strategic-fit-changes.test.ts",
+        "strategic-fit-resumable.test.ts",
+        "test/persist-snapshots.test.ts",
+        "core-document.spec.ts"
+      ],
+      "relevantSymbols": [
+        "persist.ts",
+        "strategic-fit-changes.ts:754",
+        "strategic-fit-sidecar.ts:231",
+        "store/idb.ts",
+        "store/persist.ts",
+        "src/components/RecoverDialog.tsx",
+        "strategic-fit-changes.ts:740–800",
+        "strategic-fit-changes.test.ts",
+        "strategic-fit-resumable.test.ts",
+        "test/persist-snapshots.test.ts",
+        "core-document.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-004 AC-1",
+          "text": "- After `New` on a document with content, a snapshot exists containing that document's PGN, and `Recover` lists it with a timestamp, filename, move count, and line count."
+        },
+        {
+          "id": "WP-004 AC-2",
+          "text": "- Restoring a snapshot loads its exact PGN and assigns a new `documentId`."
+        },
+        {
+          "id": "WP-004 AC-3",
+          "text": "- The ring never holds more than five snapshots; the sixth capture evicts the oldest."
+        },
+        {
+          "id": "WP-004 AC-4",
+          "text": "- A snapshot payload that fails `GameTree.fromPgn` is listed as \"Couldn't read this snapshot\" and does not throw or prevent the other entries rendering."
+        },
+        {
+          "id": "WP-004 AC-5",
+          "text": "- Simulated `QuotaExceededError` on a snapshot write leaves `workingRepertoire` written correctly and sets a visible \"snapshot history unavailable\" state."
+        },
+        {
+          "id": "WP-004 AC-6",
+          "text": "- Snapshot writes do not occur while `autosavePauseDepth > 0`."
+        },
+        {
+          "id": "WP-004 AC-7",
+          "text": "- Loading a `workingRepertoire` record written by the pre-change build restores identically."
+        },
+        {
+          "id": "WP-004 AC-8",
+          "text": "- Loading a post-change store in the pre-change build restores identically (extra keys ignored)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/persist-snapshots.test.ts",
+          "apps/ui/test/e2e/core-document.spec.ts"
+        ],
+        "commands": [],
+        "description": "Store suite `test/persist-snapshots.test.ts`: ring eviction, atomic write (assert both keys present or neither), corrupt payload, quota degradation, pause respect, forward/backward record compatibility. Playwright `core-document.spec.ts`: `New` → `Recover` → restore round trip asserting PGN equality."
+      },
+      "requiredManualValidation": "Fill storage near quota in a real browser and confirm graceful degradation. Confirm behaviour in a private/incognito window where IndexedDB may be ephemeral.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "The `workingRepertoire` record keeps its exact current shape and key so a rollback to today's build reads it unchanged. The pause/flush protocol and `autosavePauseDepth` semantics are untouched; snapshot writes respect the pause. `restoreWorking()`'s path-probing (`probePath`) and its `finally { setReady(true) }` guarantee are unchanged. Strategic Fit's document-transaction pause/rollback contract (`strategic-fit-changes.ts:740–800`) must still work — verify with the existing `strategic-fit-changes.test.ts` and `strategic-fit-resumable.test.ts`."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — writes to the store holding the only copy of user data\n\nHighest-risk regression is a snapshot write corrupting or blocking the live slot. Detection: the pause-respect and forward/backward-compat tests, plus the DEV diagnostics. Rollback: revert the commit — the extra keys become inert data the old build ignores; **no user data is lost by reverting**. Do not delete snapshot keys on rollback.\n\n---"
+    },
+    "WP-005": {
+      "dependencies": [
+        "WP-000",
+        "WP-004",
+        "WP-007",
+        "WP-009"
+      ],
+      "blockingGates": [
+        "PD-3"
+      ],
+      "ownedAuditFindings": [
+        "UX-005"
+      ],
+      "primaryFiles": [
+        "App.tsx:56–59",
+        "game.ts:177–190",
+        "Board.tsx:35",
+        "PromotionModal.tsx:29",
+        "suggestions.ts:92",
+        "suggestions.ts:181",
+        "strategic-fit-changes.ts:779",
+        "strategic-fit-changes.ts:794",
+        "src/store/history.ts",
+        "store/game.ts",
+        "store/shortcuts.ts",
+        "App.tsx:55",
+        "strategic-fit-changes.test.ts",
+        "strategic-fit-resumable.test.ts",
+        "test/history.test.ts",
+        "core-keyboard.spec.ts"
+      ],
+      "relevantSymbols": [
+        "App.tsx:56–59",
+        "game.ts:177–190",
+        "Board.tsx:35",
+        "PromotionModal.tsx:29",
+        "suggestions.ts:92",
+        "suggestions.ts:181",
+        "strategic-fit-changes.ts:779",
+        "strategic-fit-changes.ts:794",
+        "src/store/history.ts",
+        "store/game.ts",
+        "store/shortcuts.ts",
+        "App.tsx:55",
+        "strategic-fit-changes.test.ts",
+        "strategic-fit-resumable.test.ts",
+        "test/history.test.ts",
+        "core-keyboard.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-005 AC-1",
+          "text": "- For each of `play` (board drag), `play` with promotion, `acceptStagedEdit`, `acceptPreview`, and `deleteLine`: `apply → Ctrl+Z` restores the exact pre-change PGN and path; `Ctrl+Shift+Z` restores the exact post-change PGN and path."
+        },
+        {
+          "id": "WP-005 AC-2",
+          "text": "- `version()` strictly increases across apply, undo, and redo (never decreases)."
+        },
+        {
+          "id": "WP-005 AC-3",
+          "text": "- `Ctrl+Z` with an empty stack does nothing and announces nothing; it never changes `currentPath()`."
+        },
+        {
+          "id": "WP-005 AC-4",
+          "text": "- `ArrowLeft`/`ArrowRight` never create a history entry."
+        },
+        {
+          "id": "WP-005 AC-5",
+          "text": "- After `loadPgn`, `newGame`, or `restoreDocument`, `canUndo()` is false."
+        },
+        {
+          "id": "WP-005 AC-6",
+          "text": "- A staged edit created at revision _r_, followed by an unrelated mutation and an undo, is reported `stale` and cannot be accepted."
+        },
+        {
+          "id": "WP-005 AC-7",
+          "text": "- `Ctrl+Z` on a Strategic-Fit-authored revision does not change the tree and announces the Lab-pointing message."
+        },
+        {
+          "id": "WP-005 AC-8",
+          "text": "- Deleting a subtree of ≥2 nodes shows a confirmation naming the first move and the number of continuations; deleting a single leaf does not."
+        },
+        {
+          "id": "WP-005 AC-9",
+          "text": "- After a delete, a toast offers `Undo`; activating it restores the exact subtree."
+        },
+        {
+          "id": "WP-005 AC-10",
+          "text": "- History does not survive a page reload (`canUndo()` is false after reload) and the document is restored from autosave as before."
+        },
+        {
+          "id": "WP-005 AC-11",
+          "text": "- The 51st recorded mutation evicts the first; total retained PGN bytes stay under 2 MB."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/history.test.ts",
+          "apps/ui/test/e2e/core-keyboard.spec.ts"
+        ],
+        "commands": [],
+        "description": "`test/history.test.ts`: round trips per mutation kind, revision monotonicity, clear-on-replace, eviction, byte cap, Strategic-Fit refusal. Playwright `core-keyboard.spec.ts`: baseline check 6 flips to passing; arrow-key-in-text-field regression; delete confirmation and toast."
+      },
+      "requiredManualValidation": "Drag-play a long sequence and undo repeatedly, watching for Chessground desync (the board syncs from `fen()` via `createEffect`, so this should hold, but it is the most likely visual regression).",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "The arrow-key text-field guard (`App.tsx:55`) — reimplemented as a registry rule, with a test proving arrow keys inside the Settings model field still move the caret and not the board. `Mod+S` continues to fire inside text fields. Staged-edit revision binding and the `pending`/`accepted`/`rejected`/`stale` state machine are unchanged. The Replacement Lab's own undo and resolution-proof flow is untouched. `restoreStrategicFitSnapshot` must remain outside the stack, and `strategic-fit-changes.test.ts` and `strategic-fit-resumable.test.ts` must pass unchanged."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — touches every tree mutation\n\nRegression modes: a wrong inverse silently altering the tree; Chessground desync after undo; staged cards not going stale. Detection: the round-trip suite runs on every mutation kind; add an invariant assertion in DEV that `history.undo()` produces a PGN equal to the recorded `beforePgn`. Rollback: revert; history is in-memory so nothing persists. Note that reverting restores the destructive `Ctrl+Z` — if `WP-005` is reverted, also revert `WP-014` if merged.\n\n---"
+    },
+    "WP-006": {
+      "dependencies": [
+        "WP-000"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-025",
+        "UX-026",
+        "UX-027",
+        "UX-014"
+      ],
+      "primaryFiles": [
+        "styles.css:4872",
+        "Board.tsx:39",
+        "styles.css:20–31",
+        "styles.css",
+        "Board.tsx",
+        "core-a11y.spec.ts",
+        "helpers/accessibility.ts"
+      ],
+      "relevantSymbols": [
+        "styles.css:4872",
+        "Board.tsx:39",
+        "styles.css:20–31",
+        "styles.css",
+        "Board.tsx",
+        "core-a11y.spec.ts",
+        "helpers/accessibility.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-006 AC-1",
+          "text": "- Every focusable element in the app renders a 2 px accent outline on keyboard focus, verified at a sample of ten elements across the top bar, panels, chat, and Strategic Fit."
+        },
+        {
+          "id": "WP-006 AC-2",
+          "text": "- With `prefers-reduced-motion: reduce` emulated, playing a move produces no piece animation and no CSS transition is active on `.divider`, `.eval-bar .fill`, or `.strategic-fit-region-spinner`."
+        },
+        {
+          "id": "WP-006 AC-3",
+          "text": "- With `forced-colors: active` emulated, gap severity, engine-line fit, mobile tab selection, and scan progress are each distinguishable without colour."
+        },
+        {
+          "id": "WP-006 AC-4",
+          "text": "- `window.getSelection()` can select text inside `.result-card`, `.chat-log .msg`, `.analysis .line`, `.rep-row`, `.chat-error`, and the Strategic Fit evidence panel; a `document.execCommand`-free copy of a FEN string succeeds."
+        },
+        {
+          "id": "WP-006 AC-5",
+          "text": "- Text selection is **not** possible by dragging on `.cg-wrap`."
+        },
+        {
+          "id": "WP-006 AC-6",
+          "text": "- Dragging a piece on a touch emulation still moves it and does not open a callout."
+        },
+        {
+          "id": "WP-006 AC-7",
+          "text": "- `touchTargetViolations(app, 24)` is empty at 1280×800; `touchTargetViolations(app, 44)` is empty under `hasTouch: true` — **except** for elements listed in an explicit, reviewed exclusion list which must be empty for this package to pass (i.e. no exclusions granted)."
+        },
+        {
+          "id": "WP-006 AC-8",
+          "text": "- Panel heights at 1280×800 grow by no more than 15% versus baseline (density guard)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-a11y.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-a11y.spec.ts` using the extended `helpers/accessibility.ts`; Playwright emulation for `reducedMotion` and `forcedColors`; a selection test using `page.evaluate` over `getSelection()`; the density guard as a measured assertion with baseline constants."
+      },
+      "requiredManualValidation": "Real iOS Safari: piece drag, long-press over a piece, and text selection in the chat log. Windows High Contrast mode: the core status indicators.",
+      "riskLevel": "Low, with one touch-regression watch item",
+      "preservedBehaviorContracts": [
+        "Board dragging on touch must be unaffected — the `-webkit-user-drag` and callout suppressions are why long-press does not open a context menu over a piece. `overscroll-behavior: none` on `body` stays. Strategic Fit's own reduced-motion, forced-colors, and focus rules keep working (they will be redundant, not contradictory). The 16 px font floor on `.chat-input textarea` and `.field input` (iOS zoom prevention) stays."
+      ],
+      "rollbackRule": "**Planned risk.** Low, with one touch-regression watch item\n\nRegression modes: touch drag broken by the selection inversion; panels visibly taller from the target floors. Detection: the drag test and the density guard. Rollback: the selection inversion and the target floors are separate CSS hunks and can be reverted independently — keep them as separate commits within the PR.\n\n---"
+    },
+    "WP-007": {
+      "dependencies": [
+        "WP-000",
+        "WP-006"
+      ],
+      "blockingGates": [
+        "AG-1"
+      ],
+      "ownedAuditFindings": [
+        "UX-007",
+        "UX-019",
+        "UX-045"
+      ],
+      "primaryFiles": [
+        "SettingsDrawer.tsx",
+        "PromotionModal.tsx",
+        "ColorPickerModal.tsx",
+        "StrategicFitWorkspace.tsx:347–408",
+        "App.tsx:70–74",
+        "StrategicFitWorkspace.tsx:417",
+        "App.tsx:45–65",
+        "src/components/primitives/Dialog.tsx",
+        "StrategicFitWorkspace.tsx",
+        "src/store/shortcuts.ts",
+        "App.tsx",
+        "styles.css",
+        "strategic-fit-accessibility.spec.ts",
+        "strategic-fit-workspace.spec.ts",
+        "Board.tsx:55",
+        "core-dialogs.spec.ts",
+        "shortcuts.ts"
+      ],
+      "relevantSymbols": [
+        "SettingsDrawer.tsx",
+        "PromotionModal.tsx",
+        "ColorPickerModal.tsx",
+        "StrategicFitWorkspace.tsx:347–408",
+        "App.tsx:70–74",
+        "StrategicFitWorkspace.tsx:417",
+        "App.tsx:45–65",
+        "src/components/primitives/Dialog.tsx",
+        "StrategicFitWorkspace.tsx",
+        "src/store/shortcuts.ts",
+        "App.tsx",
+        "styles.css",
+        "strategic-fit-accessibility.spec.ts",
+        "strategic-fit-workspace.spec.ts",
+        "Board.tsx:55",
+        "core-dialogs.spec.ts",
+        "shortcuts.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-007 AC-1",
+          "text": "- For each of Settings, Promotion, and Colour picker: opening moves focus to the dialog's first interactive control or its heading; `Tab` and `Shift+Tab` cycle within it; `Escape` closes it; closing restores focus to the invoking control; `.app-main` has `inert` and `aria-hidden=\"true\"` while it is open."
+        },
+        {
+          "id": "WP-007 AC-2",
+          "text": "- While any dialog is open, `ArrowLeft`/`ArrowRight` leave `window.__chess.currentPath()` unchanged, and `Mod+Z` leaves `toPgn()` unchanged."
+        },
+        {
+          "id": "WP-007 AC-3",
+          "text": "- `Mod+S` from inside the chat textarea still saves and does not clear the textarea."
+        },
+        {
+          "id": "WP-007 AC-4",
+          "text": "- Each promotion button exposes an accessible name of the form \"Promote to <piece>\"."
+        },
+        {
+          "id": "WP-007 AC-5",
+          "text": "- A backdrop click on the colour picker does **not** discard the pending load; `Cancel` does."
+        },
+        {
+          "id": "WP-007 AC-6",
+          "text": "- Dismissing the promotion dialog reverts the optimistic board move."
+        },
+        {
+          "id": "WP-007 AC-7",
+          "text": "- When the Replacement Lab is open, `.strategic-fit-workspace` has both `inert` and `aria-hidden=\"true\"`."
+        },
+        {
+          "id": "WP-007 AC-8",
+          "text": "- `basicAccessibilityViolations` returns an empty array for each dialog root."
+        },
+        {
+          "id": "WP-007 AC-9",
+          "text": "- All 22 pre-existing Strategic Fit specs pass unchanged."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-dialogs.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-dialogs.spec.ts` — one parameterised contract suite over the three overlays (baseline check 5 flips to passing). Store test for `shortcuts.ts` scope stacking and the text-field rule. Extend `strategic-fit-accessibility.spec.ts` with the `inert` assertion for `UX-045`."
+      },
+      "requiredManualValidation": "VoiceOver (macOS/iOS) and NVDA (Windows): confirm the dialog is announced as a dialog with its name, and that the background is not reachable by virtual-cursor navigation. This is an accessibility review gate (§13, gate AG-1).",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "The Strategic Fit workspace's current focus behaviour must be byte-for-byte equivalent after the scope change — `strategic-fit-accessibility.spec.ts` and `strategic-fit-workspace.spec.ts` must pass unchanged. `Mod+S` must still fire from inside the chat textarea. The colour-picker's detection, hint text, and in-modal parse error must all survive. The promotion flow's board revert (the `pendingPromo()` dependency in `Board.tsx:55`) must still work when the modal is dismissed."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — focus behaviour regressions are easy to introduce and hard to see\n\nRegression modes: focus lost to `<body>` on close; the Strategic Fit trap double-handling `Escape` after the scope change; the promotion revert breaking. Detection: the contract suite plus the untouched Strategic Fit specs. Rollback: revert; the three overlays return to their current (broken but familiar) behaviour with no data impact.\n\n---"
+    },
+    "WP-008": {
+      "dependencies": [
+        "WP-007"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-044"
+      ],
+      "primaryFiles": [
+        "App.tsx:45–65",
+        "src/components/ShortcutHelpDialog.tsx",
+        "store/shortcuts.ts",
+        "content/index.ts"
+      ],
+      "relevantSymbols": [
+        "App.tsx:45–65",
+        "src/components/ShortcutHelpDialog.tsx",
+        "store/shortcuts.ts",
+        "content/index.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-008 AC-1",
+          "text": "- Pressing `?` with focus on the document body opens the shortcut dialog; pressing `?` inside the chat textarea types a question mark and does not open it."
+        },
+        {
+          "id": "WP-008 AC-2",
+          "text": "- The dialog lists at minimum: save, undo, redo, previous move, next move, help — each with a human label and the platform-correct key."
+        },
+        {
+          "id": "WP-008 AC-3",
+          "text": "- Shortcuts registered by a modal scope are not listed while no modal is open."
+        },
+        {
+          "id": "WP-008 AC-4",
+          "text": "- The dialog satisfies the `Dialog` contract."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Playwright: `?` behaviour in and out of a text field; list contents assertion; contract suite inclusion."
+      },
+      "requiredManualValidation": "None beyond CI.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "Registering the help shortcut must not shadow `?` typed into the chat textarea or any input."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nLow risk; revert removes the dialog and the `?` registration.\n\n---",
+      "prerequisites": [
+        "content-label-foundation"
+      ]
+    },
+    "WP-009": {
+      "dependencies": [
+        "WP-000"
+      ],
+      "blockingGates": [
+        "AG-5"
+      ],
+      "ownedAuditFindings": [
+        "UX-012"
+      ],
+      "primaryFiles": [
+        "App.tsx",
+        "TopBar.tsx:71",
+        "RepertoirePanel.tsx:162",
+        "src/store/announce.ts",
+        "src/components/AppLiveRegion.tsx",
+        "src/components/primitives/Toast.tsx"
+      ],
+      "relevantSymbols": [
+        "App.tsx",
+        "TopBar.tsx:71",
+        "RepertoirePanel.tsx:162",
+        "src/store/announce.ts",
+        "src/components/AppLiveRegion.tsx",
+        "Toast",
+        "announce()",
+        "AppLiveRegion"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-009 AC-1",
+          "text": "- The polite and assertive regions exist at the app root, outside any element that receives `inert`."
+        },
+        {
+          "id": "WP-009 AC-2",
+          "text": "- Saving a file produces exactly one polite message naming the file."
+        },
+        {
+          "id": "WP-009 AC-3",
+          "text": "- Restoring from autosave on load produces exactly one polite message."
+        },
+        {
+          "id": "WP-009 AC-4",
+          "text": "- Starting and completing a repertoire scan produce exactly one message each; intermediate progress updates produce none."
+        },
+        {
+          "id": "WP-009 AC-5",
+          "text": "- Two identical messages within 500 ms produce one announcement."
+        },
+        {
+          "id": "WP-009 AC-6",
+          "text": "- Streaming chat text produces no announcements."
+        },
+        {
+          "id": "WP-009 AC-7",
+          "text": "- Errors route to the assertive region; everything else to the polite region. The package also introduces the single reusable `Toast` primitive, mirrored to the live region, for WP-005, WP-018, and WP-019 to consume."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Playwright reads the live-region text content after each triggering action and asserts message counts (baseline check 7). Store test for de-duplication and rate limiting. Toast primitive ownership and its live-region mirroring are covered here; consumers test their own actions."
+      },
+      "requiredManualValidation": "NVDA and VoiceOver: confirm messages are spoken once and are not interrupted by the next one. Gate AG-5.",
+      "riskLevel": "Low, with an over-announcement watch item",
+      "preservedBehaviorContracts": [
+        "The existing `role=\"alert\"` metadata warnings stay — they are visible text, not duplicated announcements; ensure they are not also pushed through `announce()`."
+      ],
+      "rollbackRule": "**Planned risk.** Low, with an over-announcement watch item\n\nRegression mode: announcement storms during scans. Detection: the \"no message per progress tick\" assertion. Rollback: revert; no persisted state.\n\n---"
+    },
+    "WP-010": {
+      "dependencies": [
+        "WP-000",
+        "WP-009"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-011",
+        "UX-040",
+        "UX-012"
+      ],
+      "primaryFiles": [
+        "gaps.ts:38",
+        "repertoire.ts:27",
+        "commands.ts:35",
+        "chat.ts:19",
+        "chat.ts:172",
+        "analysis.ts:37",
+        "application/execution-status.ts",
+        "chat.ts",
+        "commands.ts",
+        "src/store/operations.ts",
+        "gaps.ts",
+        "repertoire.ts",
+        "test/cancellation.test.ts",
+        "test/operations.test.ts"
+      ],
+      "relevantSymbols": [
+        "gaps.ts:38",
+        "repertoire.ts:27",
+        "commands.ts:35",
+        "chat.ts:19",
+        "chat.ts:172",
+        "analysis.ts:37",
+        "application/execution-status.ts",
+        "chat.ts",
+        "commands.ts",
+        "src/store/operations.ts",
+        "gaps.ts",
+        "repertoire.ts",
+        "test/cancellation.test.ts",
+        "test/operations.test.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-010 AC-1",
+          "text": "- `operations()` contains an entry for each of: a running Gaps scan, a running direct command, a running chat tool call, and a live analysis pass."
+        },
+        {
+          "id": "WP-010 AC-2",
+          "text": "- Cancelling through each existing control removes the operation from the running set within 200 ms and marks it `cancelled`."
+        },
+        {
+          "id": "WP-010 AC-3",
+          "text": "- A completed operation remains listed for 8 s with status `completed`, then disappears."
+        },
+        {
+          "id": "WP-010 AC-4",
+          "text": "- No `*scanning` boolean remains exported from `gaps.ts` or `repertoire.ts` after migration; `grep -c \"Scanning\" src/store` returns 0."
+        },
+        {
+          "id": "WP-010 AC-5",
+          "text": "- Existing cancellation tests (`test/cancellation.test.ts`) pass unchanged."
+        },
+        {
+          "id": "WP-010 AC-6",
+          "text": "- Announcements fire once per operation start and once per settle."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/operations.test.ts",
+          "apps/ui/test/cancellation.test.ts"
+        ],
+        "commands": [],
+        "description": "`test/operations.test.ts` for registration, settle, linger, eviction. Extend `test/cancellation.test.ts` with registry assertions. Playwright: a running scan appears in `operations()` via `window.__chess` (extend the dev handle with `operations`)."
+      },
+      "requiredManualValidation": "None.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "Every existing cancel path keeps working: `gaps.cancelScan`, `repertoire.cancelPrune`, `commands.cancelCommand`, `chat.stop`. `commands.ts`'s `AbortController` map and its `if (controllers.get(command) === controller)` guard stay in the owning store. `chat.ts`'s per-turn `toolRuns` reset semantics are preserved until `WP-027` deliberately changes them."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a store forgets to settle, leaving a permanent \"running\" entry. Detection: an operations test per store plus a DEV warning if an operation exceeds 10 minutes. Rollback: per-store revert is possible because migration is store-by-store.\n\n---"
+    },
+    "WP-011": {
+      "dependencies": [
+        "WP-000",
+        "WP-006"
+      ],
+      "blockingGates": [
+        "DV-2",
+        "AG-3"
+      ],
+      "ownedAuditFindings": [
+        "UX-004",
+        "UX-014"
+      ],
+      "primaryFiles": [
+        "RepertoirePanel.tsx",
+        "MoveTree.tsx:67–76",
+        "styles.css:834–842",
+        "ToolResult.tsx:83",
+        "src/components/primitives/InteractiveRow.tsx",
+        "src/components/primitives/MoveButton.tsx",
+        "RepertoirePanel.tsx:341",
+        "MoveTree.tsx",
+        "MoveTree.tsx:64",
+        "styles.css",
+        "MoveTree.tsx:95",
+        "core-keyboard.spec.ts"
+      ],
+      "relevantSymbols": [
+        "RepertoirePanel.tsx",
+        "MoveTree.tsx:67–76",
+        "styles.css:834–842",
+        "ToolResult.tsx:83",
+        "src/components/primitives/InteractiveRow.tsx",
+        "src/components/primitives/MoveButton.tsx",
+        "RepertoirePanel.tsx:341",
+        "MoveTree.tsx",
+        "MoveTree.tsx:64",
+        "styles.css",
+        "MoveTree.tsx:95",
+        "core-keyboard.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-011 AC-1",
+          "text": "- `keyboardReachable` reports zero unreachable elements among `.rep-row` equivalents and move items."
+        },
+        {
+          "id": "WP-011 AC-2",
+          "text": "- `Enter` and `Space` on a repertoire row perform the same action as a click (navigate, or stage a preview)."
+        },
+        {
+          "id": "WP-011 AC-3",
+          "text": "- The move tree has exactly one tab stop; entering it focuses the current move; `↑ ↓ ← → Home End` traverse without changing the board; `Enter` navigates the board and appends the chat focus marker."
+        },
+        {
+          "id": "WP-011 AC-4",
+          "text": "- The current move exposes `aria-current=\"true\"`; branch toggles expose `aria-expanded` matching their state."
+        },
+        {
+          "id": "WP-011 AC-5",
+          "text": "- `touchTargetViolations(repertoirePanel, 24)` and `touchTargetViolations(moveTree, 24)` are empty at 1280×800; both are empty at 44 px under `hasTouch: true`."
+        },
+        {
+          "id": "WP-011 AC-6",
+          "text": "- The repertoire panel's rendered height at 1280×800 with Gaps expanded and 8 rows grows by no more than 15% versus baseline."
+        },
+        {
+          "id": "WP-011 AC-7",
+          "text": "- No `<button>` is nested inside another `<button>` anywhere in the app."
+        },
+        {
+          "id": "WP-011 AC-8",
+          "text": "- `basicAccessibilityViolations(sidePanel)` is empty."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-keyboard.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-keyboard.spec.ts` (baseline check 4 flips to passing); a move-tree traversal spec with a branching fixture; density guard assertions; a DOM validity assertion for nested buttons."
+      },
+      "requiredManualValidation": "Screen-reader pass over the move tree — tree semantics are frequently mis-announced and this is accessibility gate AG-3. Touch pass on a real phone for row activation.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "Row content and one-line density (`severity · line · eval`) exactly as today — the audit explicitly calls this productive density. Branch collapse state (session-only, keyed by parent index path) and the \"never collapse a branch containing the current node\" rule (`MoveTree.tsx:95`). The current-line strip and its horizontal scrolling. `previewedKeys()` glow highlighting. `stagePreviewLine` staging from fill rows and Extend rows. The gold preview arrow."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — nine call sites and a density-regression risk\n\nRegression modes: row click handlers that relied on event bubbling from a child; the collapse toggle firing row navigation; panels growing too tall. Detection: the density guard, the nested-button assertion, and per-section click tests. Rollback: `MoveTree` and `RepertoirePanel` migrations should be separate commits so either can be reverted alone.\n\n---"
+    },
+    "WP-012": {
+      "dependencies": [
+        "WP-000",
+        "WP-006"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-013"
+      ],
+      "primaryFiles": [
+        "Divider.tsx",
+        "styles.css:192–229",
+        "store/layout.ts",
+        "styles.css",
+        "core-keyboard.spec.ts"
+      ],
+      "relevantSymbols": [
+        "Divider.tsx",
+        "styles.css:192–229",
+        "store/layout.ts",
+        "styles.css",
+        "core-keyboard.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-012 AC-1",
+          "text": "- Each visible divider is reachable by `Tab` and reports `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, and an accessible name."
+        },
+        {
+          "id": "WP-012 AC-2",
+          "text": "- `ArrowLeft`/`ArrowRight` change the adjacent panel width by 16 px per press and persist on keyup; `Shift` modifies by 64 px; `Home`/`End` reach the clamped bounds."
+        },
+        {
+          "id": "WP-012 AC-3",
+          "text": "- `Enter` and double-click both restore the default widths."
+        },
+        {
+          "id": "WP-012 AC-4",
+          "text": "- The panel width never goes below 240 px or above 800 px by any input path."
+        },
+        {
+          "id": "WP-012 AC-5",
+          "text": "- `touchTargetViolations` treats the divider hit area as ≥24 px wide (44 px under `hasTouch`)."
+        },
+        {
+          "id": "WP-012 AC-6",
+          "text": "- Pointer dragging behaves exactly as before, including pointer capture when the cursor leaves the element."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-keyboard.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-keyboard.spec.ts`: focus, each key, bounds, reset, persistence across reload. A pointer-drag regression test asserting the existing clamp behaviour."
+      },
+      "requiredManualValidation": "Touch drag on a real phone for the horizontal board resizer.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The 240 px minimum panel width (`MIN_PX`) and the `BOARD_MIN` floor — the audit calls these out as an existing strength preventing unrecoverable collapse. The single-write-per-gesture `persistLayout()` on pointerup. The phone board resizer's clamping to the container width."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the enlarged hit area intercepting clicks meant for adjacent panels. Detection: a click-through test on the first row of each adjacent panel. Rollback: single-file revert.\n\n---"
+    },
+    "WP-013": {
+      "dependencies": [
+        "WP-000",
+        "WP-009",
+        "WP-010"
+      ],
+      "blockingGates": [
+        "AG-2"
+      ],
+      "ownedAuditFindings": [
+        "UX-011"
+      ],
+      "primaryFiles": [
+        "MobileTabs.tsx",
+        "styles.css:318–330",
+        "StrategicFitWorkspace.tsx:325–342",
+        "App.tsx",
+        "src/components/ActivityStrip.tsx",
+        "styles.css",
+        "core-status.spec.ts"
+      ],
+      "relevantSymbols": [
+        "MobileTabs.tsx",
+        "styles.css:318–330",
+        "StrategicFitWorkspace.tsx:325–342",
+        "App.tsx",
+        "src/components/ActivityStrip.tsx",
+        "styles.css",
+        "core-status.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-013 AC-1",
+          "text": "- Each tab has a unique `id` and an `aria-controls` referencing an element with `role=\"tabpanel\"` and a matching `aria-labelledby`."
+        },
+        {
+          "id": "WP-013 AC-2",
+          "text": "- Exactly one tab has `tabindex=\"0\"`; `←`/`→` wrap; `Home`/`End` jump; the arrow keys do not change the chess position."
+        },
+        {
+          "id": "WP-013 AC-3",
+          "text": "- With a Gaps scan running, switching to the Chat tab keeps a visible indicator on the Analysis tab and the activity strip names the running scan with a working cancel control (baseline check 9 flips to passing)."
+        },
+        {
+          "id": "WP-013 AC-4",
+          "text": "- Switching tabs does not remount Chessground (board element identity stable) and preserves the chat log scroll position."
+        },
+        {
+          "id": "WP-013 AC-5",
+          "text": "- `basicAccessibilityViolations(workspace)` is empty at 390×844."
+        },
+        {
+          "id": "WP-013 AC-6",
+          "text": "- The activity strip occupies no vertical space when nothing is running."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-status.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; a tablist keyboard spec; element-identity assertions for mount preservation."
+      },
+      "requiredManualValidation": "Screen reader on a real phone — tab patterns are commonly mis-announced (gate AG-2).",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "Panels stay mounted; the `display`-toggling mechanism is not replaced by conditional rendering. Chessground is never re-initialised on a tab switch. The chat log keeps its scroll position across switches."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression modes: the wrapper elements changing the compact layout; the strip eating panel height. Detection: the `WP-001` height assertions re-run here. Rollback: single revert.\n\n---"
+    },
+    "WP-014": {
+      "dependencies": [
+        "WP-000",
+        "WP-005",
+        "WP-007",
+        "WP-009"
+      ],
+      "blockingGates": [
+        "DV-1",
+        "AG-4"
+      ],
+      "ownedAuditFindings": [
+        "UX-003"
+      ],
+      "primaryFiles": [
+        "Board.tsx:92–95",
+        "Board.tsx:32–37",
+        "src/components/BoardKeyboardLayer.tsx",
+        "src/store/board-cursor.ts",
+        "content/analysis.ts",
+        "Board.tsx:74–87",
+        "core-keyboard.spec.ts"
+      ],
+      "relevantSymbols": [
+        "Board.tsx:92–95",
+        "Board.tsx:32–37",
+        "src/components/BoardKeyboardLayer.tsx",
+        "src/store/board-cursor.ts",
+        "content/analysis.ts",
+        "Board.tsx:74–87",
+        "core-keyboard.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-014 AC-1",
+          "text": "- The board is exactly one tab stop; entering it announces the position summary and places a visible cursor."
+        },
+        {
+          "id": "WP-014 AC-2",
+          "text": "- Arrow keys move the cursor one square in the direction shown on screen, in both orientations."
+        },
+        {
+          "id": "WP-014 AC-3",
+          "text": "- Selecting a piece announces its legal destination count; only legal destinations are selectable; an illegal target is refused with an announcement and no state change."
+        },
+        {
+          "id": "WP-014 AC-4",
+          "text": "- Playing a move by keyboard produces the same tree mutation, the same history entry, and the same `dirty` state as the equivalent drag."
+        },
+        {
+          "id": "WP-014 AC-5",
+          "text": "- A keyboard promotion opens the promotion dialog with focus inside it, and completing it plays the promotion."
+        },
+        {
+          "id": "WP-014 AC-6",
+          "text": "- `Escape` clears the selection without changing the position."
+        },
+        {
+          "id": "WP-014 AC-7",
+          "text": "- With the layer unfocused, pointer drag, click-to-move, and touch drag are byte-identical to the pre-change behaviour (assert via an interaction test on all three)."
+        },
+        {
+          "id": "WP-014 AC-8",
+          "text": "- The board cursor does not fire while any dialog is open."
+        },
+        {
+          "id": "WP-014 AC-9",
+          "text": "- A keyboard-only user completes: open a PGN → navigate to move 6 → add a variation → save (this is the milestone `M-2` journey)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-keyboard.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-keyboard.spec.ts` full journey; a pointer non-regression suite (drag, click-move, touch drag); a promotion-by-keyboard test; an orientation test with the board flipped."
+      },
+      "requiredManualValidation": "Mandatory screen-reader session (NVDA + VoiceOver) — accessibility gate AG-4. Mandatory prototype validation before implementation (DV-1).",
+      "riskLevel": "High",
+      "preservedBehaviorContracts": [
+        "Pointer and touch dragging, `showDests` highlighting, the last-move highlight, check highlighting, all four arrow overlays (repertoire green, engine fit-coloured, suggestion blue, preview gold) and their de-duplication logic (`Board.tsx:74–87`), the promotion revert, and the board re-sync effect. Engine-worker scheduling must be untouched."
+      ],
+      "rollbackRule": "**Planned risk.** High — a new interaction surface over Chessground's pointer handling\n\nHighest-risk regression is pointer interference. Detection: the pointer non-regression suite runs in all three browsers. Rollback: the layer is a single additive component; reverting removes it and restores today's (inaccessible) board without any other change.\n\n---"
+    },
+    "WP-015": {
+      "dependencies": [
+        "WP-000",
+        "WP-011"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-010"
+      ],
+      "primaryFiles": [
+        "App.tsx:106–110",
+        "styles.css:415–424",
+        "App.tsx",
+        "styles.css:421–423",
+        "store/ui.ts",
+        "styles.css:319–330",
+        "core-layout.spec.ts"
+      ],
+      "relevantSymbols": [
+        "App.tsx:106–110",
+        "styles.css:415–424",
+        "App.tsx",
+        "styles.css:421–423",
+        "store/ui.ts",
+        "styles.css:319–330",
+        "core-layout.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-015 AC-1",
+          "text": "- At 1024×600, 1280×800, and 1440×900, the move tree's top edge is within the viewport without scrolling `.side-panel`, and at least three move rows are visible."
+        },
+        {
+          "id": "WP-015 AC-2",
+          "text": "- The analysis panel's engine-lines area is visible without scrolling at 1280×800."
+        },
+        {
+          "id": "WP-015 AC-3",
+          "text": "- At 390×844 the default tab on first load is `Moves`."
+        },
+        {
+          "id": "WP-015 AC-4",
+          "text": "- Mobile tab switching shows exactly one panel group, unchanged from before."
+        },
+        {
+          "id": "WP-015 AC-5",
+          "text": "- No horizontal overflow at any matrix viewport."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-layout.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-layout.spec.ts` position assertions at three viewports; a default-tab assertion."
+      },
+      "requiredManualValidation": "None.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The side panel's single scroll container at ≥1101 px and its `overscroll-behavior: contain`. Mobile panel mounting. The Gaps section's `open` default."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the analysis panel pushed below the fold instead. Detection: the analysis-visible assertion. Rollback: reorder back.\n\n---"
+    },
+    "WP-016": {
+      "dependencies": [
+        "WP-000",
+        "WP-024"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-009",
+        "UX-008",
+        "UX-022"
+      ],
+      "primaryFiles": [
+        "analysis.ts:39",
+        "AnalysisPanel.tsx:44",
+        "analysis.ts:38",
+        "TopBar.tsx:52–68",
+        "TopBar.tsx:13–17",
+        "AnalysisPanel.tsx:30–36",
+        "EvalBar.tsx",
+        "TopBar.tsx",
+        "SettingsDrawer.tsx",
+        "src/components/AnalysisSettings.tsx",
+        "analysis.ts",
+        "content/analysis.ts",
+        "store/engine-settings.ts",
+        "RepertoirePanel.tsx:86",
+        "analysis.ts:77",
+        "SettingsDrawer.tsx:87–90",
+        "core-analysis.spec.ts"
+      ],
+      "relevantSymbols": [
+        "analysis.ts:39",
+        "AnalysisPanel.tsx:44",
+        "analysis.ts:38",
+        "TopBar.tsx:52–68",
+        "TopBar.tsx:13–17",
+        "AnalysisPanel.tsx:30–36",
+        "EvalBar.tsx",
+        "TopBar.tsx",
+        "SettingsDrawer.tsx",
+        "src/components/AnalysisSettings.tsx",
+        "analysis.ts",
+        "content/analysis.ts",
+        "store/engine-settings.ts",
+        "RepertoirePanel.tsx:86",
+        "analysis.ts:77",
+        "SettingsDrawer.tsx:87–90",
+        "core-analysis.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-016 AC-1",
+          "text": "- With evaluation off, the analysis panel shows \"Engine evaluation is off\" and a button that turns it on; activating it produces engine lines within 10 s at depth 20."
+        },
+        {
+          "id": "WP-016 AC-2",
+          "text": "- With evaluation on and the first search pending, the panel shows a distinct \"starting\" state, not the \"off\" copy."
+        },
+        {
+          "id": "WP-016 AC-3",
+          "text": "- With the engine offline, the panel shows the offline copy and a reload action."
+        },
+        {
+          "id": "WP-016 AC-4",
+          "text": "- The eval bar exposes an accessible name that differs between \"off\" and a live evaluation."
+        },
+        {
+          "id": "WP-016 AC-5",
+          "text": "- Setting depth to 30 shows helper text; changing to 20 and back to 30 shows it again with no dismiss control and no notice element in the top bar."
+        },
+        {
+          "id": "WP-016 AC-6",
+          "text": "- The top bar no longer contains an eval toggle or depth control; the analysis panel does."
+        },
+        {
+          "id": "WP-016 AC-7",
+          "text": "- The effective depth is visible in the analysis panel header without opening the disclosure."
+        },
+        {
+          "id": "WP-016 AC-8",
+          "text": "- Every existing depth-consuming command still receives the same value (assert via `window.__chess.commandStates` after a scan)."
+        },
+        {
+          "id": "WP-016 AC-9",
+          "text": "- The cloud-eval privacy note text is unchanged."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-analysis.spec.ts"
+        ],
+        "commands": [],
+        "description": "Playwright `core-analysis.spec.ts` covering the four states, the eval-bar name, the depth-notice persistence, and the depth propagation to a direct command. Store test for `analysisState()`."
+      },
+      "requiredManualValidation": "Confirm the disclosure does not cause layout shift when opened on a 1280×800 laptop.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "`analysisDepth`'s clamp (1–30) and its use by `audit_repertoire_moves`, `find_only_moves`, and `export_annotated_repertoire` (`RepertoirePanel.tsx:86`). The live-worker debounce (`analysis.ts:77`, 180 ms) and its cancellation via `onCleanup`. The `engineOffline` sticky-then-clear behaviour. Cloud eval's opt-in default and its privacy note copy (`SettingsDrawer.tsx:87–90`) — the note moves with the control, unchanged."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: depth no longer reaching engine-backed commands. Detection: the propagation assertion. Rollback: revert; controls return to the top bar.\n\n---"
+    },
+    "WP-017": {
+      "dependencies": [
+        "WP-002",
+        "WP-016",
+        "WP-018"
+      ],
+      "blockingGates": [
+        "DV-3"
+      ],
+      "ownedAuditFindings": [
+        "UX-008"
+      ],
+      "primaryFiles": [
+        "TopBar.tsx:19–76",
+        "TopBar.tsx",
+        "src/components/DocumentMenu.tsx",
+        "styles.css",
+        "core-layout.spec.ts"
+      ],
+      "relevantSymbols": [
+        "TopBar.tsx:19–76",
+        "TopBar.tsx",
+        "src/components/DocumentMenu.tsx",
+        "styles.css",
+        "core-layout.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-017 AC-1",
+          "text": "- At 360×740 the top bar's rendered height is ≤ 96 px with a 40-character filename."
+        },
+        {
+          "id": "WP-017 AC-2",
+          "text": "- At 1280×800 it is a single row with a 20-character filename."
+        },
+        {
+          "id": "WP-017 AC-3",
+          "text": "- Every action available before the change is reachable in ≤ 2 interactions, and `Save to file` in ≤ 1."
+        },
+        {
+          "id": "WP-017 AC-4",
+          "text": "- The document menu is keyboard-operable: `Enter`/`Space` opens, arrows traverse, `Escape` closes and restores focus, `aria-expanded` reflects state."
+        },
+        {
+          "id": "WP-017 AC-5",
+          "text": "- The three groups have distinct accessible group labels."
+        },
+        {
+          "id": "WP-017 AC-6",
+          "text": "- No horizontal overflow at any matrix viewport with a 120-character filename."
+        },
+        {
+          "id": "WP-017 AC-7",
+          "text": "- `Cmd/Ctrl+S` still saves from a text field."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-layout.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-layout.spec.ts` height assertions; a menu keyboard spec; the overflow sweep re-run."
+      },
+      "requiredManualValidation": "DV-3 task with two existing users before implementation; post-implementation check that `Save` is still found within 5 s by a first-time user.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "`Cmd/Ctrl+S` continues to save regardless of the menu. The `Reopen <name>` affordance still appears only when a stored handle exists. The colour select still drives `actions.setColor` and board orientation. Safe-area padding."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — it is the most visible surface in the app\n\nRegression mode: users cannot find Save or New. Detection: DV-3 and the ≤2-interaction criterion. Rollback: single-file revert.\n\n---"
+    },
+    "WP-018": {
+      "dependencies": [
+        "WP-004",
+        "WP-009",
+        "WP-024"
+      ],
+      "blockingGates": [
+        "PD-1"
+      ],
+      "ownedAuditFindings": [
+        "UX-031",
+        "UX-029",
+        "UX-032"
+      ],
+      "primaryFiles": [
+        "TopBar.tsx:21–23",
+        "files.ts:140",
+        "src/components/DocumentStatus.tsx",
+        "store/files.ts",
+        "content/document.ts",
+        "App.tsx",
+        "core-document.spec.ts"
+      ],
+      "relevantSymbols": [
+        "TopBar.tsx:21–23",
+        "files.ts:140",
+        "src/components/DocumentStatus.tsx",
+        "store/files.ts",
+        "content/document.ts",
+        "App.tsx",
+        "core-document.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-018 AC-1",
+          "text": "- With a file linked and unexported changes, both indicators are visible and the file indicator names the file and the change count."
+        },
+        {
+          "id": "WP-018 AC-2",
+          "text": "- After `Save to file`, the change count reads zero within 500 ms."
+        },
+        {
+          "id": "WP-018 AC-3",
+          "text": "- After a download-fallback save, the file indicator states the browser cannot re-link, and no `Reopen` button is shown."
+        },
+        {
+          "id": "WP-018 AC-4",
+          "text": "- The browser indicator shows a timestamp that advances after an edit and the autosave debounce elapses."
+        },
+        {
+          "id": "WP-018 AC-5",
+          "text": "- On load with a restored document, a toast appears naming the last-change time and is dismissible; it does not reappear on the next navigation within the session."
+        },
+        {
+          "id": "WP-018 AC-6",
+          "text": "- When `reopenLast()` permission is denied, a message names the file and offers `Open PGN`."
+        },
+        {
+          "id": "WP-018 AC-7",
+          "text": "- Both indicators are announced once on change through the polite region, not on every keystroke."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/core-document.spec.ts"
+        ],
+        "commands": [],
+        "description": "`core-document.spec.ts`: indicator text across linked/download/none states, change-count reset, restore toast, denial message. Store test for `fileLinkState`."
+      },
+      "requiredManualValidation": "Firefox and WebKit for the download-only state.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "`dirty()`'s existing semantics and every consumer of it (`TopBar`, `openFile`'s guard, `persist`'s autosave record) — this package **adds** a second concept, it does not redefine `dirty`. The Strategic Fit metadata warning banner. `markSaved()` timing."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: announcement noise from the change counter. Detection: the announcement-count assertion. Rollback: single revert.\n\n---"
+    },
+    "WP-019": {
+      "dependencies": [
+        "WP-009",
+        "WP-010"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-041"
+      ],
+      "primaryFiles": [
+        "vite.config.ts:25",
+        "src/pwa/updates.ts"
+      ],
+      "relevantSymbols": [
+        "vite.config.ts:25",
+        "src/pwa/updates.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-019 AC-1",
+          "text": "- Triggering the simulated update shows a toast with `Reload` and `Later`; neither the page nor the SW activates until `Reload` is chosen."
+        },
+        {
+          "id": "WP-019 AC-2",
+          "text": "- With a running operation, the toast does not appear until the operation settles."
+        },
+        {
+          "id": "WP-019 AC-3",
+          "text": "- `Later` dismisses for the session; the toast re-appears on the next load if the update is still pending."
+        },
+        {
+          "id": "WP-019 AC-4",
+          "text": "- A production build still precaches the wasm and remains installable (assert `manifest` and precache manifest presence in `dist`)."
+        },
+        {
+          "id": "WP-019 AC-5",
+          "text": "- The update message is announced once through the polite region."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion in CI that `dist/manifest.webmanifest` and the wasm precache entry exist."
+      },
+      "requiredManualValidation": "Deploy to a preview, install the PWA on iOS and Android, deploy again, and confirm the toast appears and `Reload` picks up the new build. This is the one item that cannot be validated without a real deploy (D13).",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "Offline precaching of the app shell and the Stockfish wasm. Installability (`manifest` unchanged). Static-hosting compatibility — no server-side change."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: switching from `autoUpdate` to `prompt` leaves users on a stale build if the toast fails to render. Detection: the toast test plus a manual post-deploy check. Rollback: revert to `autoUpdate` — a one-line change.\n\n---"
+    },
+    "WP-020": {
+      "dependencies": [
+        "WP-001",
+        "WP-002"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-024"
+      ],
+      "primaryFiles": [
+        "styles.css",
+        "store/layout.ts"
+      ],
+      "relevantSymbols": [
+        "styles.css",
+        "store/layout.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-020 AC-1",
+          "text": "- Board width at 1101 px is within 15 % of its width at 1100 px."
+        },
+        {
+          "id": "WP-020 AC-2",
+          "text": "- Resizing continuously from 320 px to 2560 px produces no viewport at which a panel is narrower than 240 px or shorter than 12 rem."
+        },
+        {
+          "id": "WP-020 AC-3",
+          "text": "- `styles.css` contains a documented tier block, and no raw `720px`/`1100px` literal appears outside it (the 820 px Strategic Fit query is explicitly annotated as workspace-local)."
+        },
+        {
+          "id": "WP-020 AC-4",
+          "text": "- All 22 Strategic Fit specs pass unchanged."
+        },
+        {
+          "id": "WP-020 AC-5",
+          "text": "- Persisted layout widths written by the pre-change build are honoured."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [
+          "node --test"
+        ],
+        "description": "A continuous-resize sweep asserting the cliff bound and the minimums; a `styles.css` lint-style assertion (a small `node --test` script) that raw breakpoint literals appear only in the tier block."
+      },
+      "requiredManualValidation": "Drag a browser window across 1100 px and confirm the transition is not visually jarring.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "The 240 px `MIN_PX` and `BOARD_MIN` clamps and the `reflow()` window-resize handler. The single-write-per-gesture persistence. Panel mounting across tiers. All Strategic Fit compact-tier behaviour, verified by its existing specs."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — touches every media query\n\nRegression mode: the seeding logic fighting the persisted widths, producing drift on every transition. Detection: a test that crossing the boundary twice returns to the original widths. Rollback: revert the store change alone; the CSS reorganisation is independently safe.\n\n---"
+    },
+    "WP-021": {
+      "dependencies": [
+        "WP-000",
+        "WP-024"
+      ],
+      "blockingGates": [
+        "PD-4"
+      ],
+      "ownedAuditFindings": [
+        "UX-028"
+      ],
+      "primaryFiles": [
+        "store/settings.ts",
+        "App.tsx",
+        "store/layout.ts",
+        "ChatPanel.tsx"
+      ],
+      "relevantSymbols": [
+        "store/settings.ts",
+        "App.tsx",
+        "store/layout.ts",
+        "ChatPanel.tsx"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-021 AC-1",
+          "text": "- With no API key at 1440×900, `.chat-wrap` is ≤ 56 px wide and the board and side panel absorb the released width."
+        },
+        {
+          "id": "WP-021 AC-2",
+          "text": "- The rail control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field."
+        },
+        {
+          "id": "WP-021 AC-3",
+          "text": "- Adding a key restores the chat column to its previously persisted width (assert the exact stored value)."
+        },
+        {
+          "id": "WP-021 AC-4",
+          "text": "- At 390×844 the Chat tab is present and shows the setup card."
+        },
+        {
+          "id": "WP-021 AC-5",
+          "text": "- The side│chat divider is not focusable and not draggable while collapsed."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Playwright: collapsed width, restore-to-persisted-width, focus target, mobile tab presence."
+      },
+      "requiredManualValidation": "PD-4 task before implementation.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The persisted chat width must be restored unchanged when a key is added — collapsing must not overwrite it. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width lost on collapse. Detection: the restore assertion. Rollback: single revert.\n\n---"
+    },
+    "WP-022": {
+      "dependencies": [
+        "WP-011",
+        "WP-024"
+      ],
+      "blockingGates": [
+        "DV-4"
+      ],
+      "ownedAuditFindings": [
+        "UX-021",
+        "UX-035"
+      ],
+      "primaryFiles": [
+        "RepertoirePanel.tsx:144–404",
+        "RepertoirePanel.tsx",
+        "content/repertoire.ts",
+        "RepertoirePanel.tsx:86"
+      ],
+      "relevantSymbols": [
+        "RepertoirePanel.tsx:144–404",
+        "RepertoirePanel.tsx",
+        "content/repertoire.ts",
+        "RepertoirePanel.tsx:86"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-022 AC-1",
+          "text": "- The panel renders exactly four groups with the agreed titles; no `Advanced` label remains."
+        },
+        {
+          "id": "WP-022 AC-2",
+          "text": "- Each of the ten tools is present, and every tool's action produces the same command with the same arguments as before (assert via `window.__chess.commandStates` and store spies for the scan stores)."
+        },
+        {
+          "id": "WP-022 AC-3",
+          "text": "- The depth statement appears exactly once in the panel."
+        },
+        {
+          "id": "WP-022 AC-4",
+          "text": "- A collapsed group whose tool has a result shows a one-line summary including a count and a relative time."
+        },
+        {
+          "id": "WP-022 AC-5",
+          "text": "- Keyboard: each group summary is a `<summary>` reachable by `Tab`, `Enter`/`Space` toggles it, `aria-expanded` reflects state."
+        },
+        {
+          "id": "WP-022 AC-6",
+          "text": "- `touchTargetViolations(repertoirePanel, 24)` empty at 1280×800."
+        },
+        {
+          "id": "WP-022 AC-7",
+          "text": "- Panel height with all groups collapsed is no greater than today's height with all sections collapsed."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "A per-tool argument-equivalence spec (the strongest guard against a regrouping regression); group summary assertions; keyboard toggling."
+      },
+      "requiredManualValidation": "DV-4 card sort before implementation.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "Every tool's arguments, depth passing (`RepertoirePanel.tsx:86`), cancellation, progress rendering, result rows, staging behaviour (`stagePreviewLine`, `acceptPreview`), the covered-by-transposition muted rows, the `best eval`/`best fit` fill pair, the Shorten inspect panel's data, the `usersTurn()` guard on Extend, and the artifact save flow. Gaps stays open by default. `StrategicFitTransfer` keeps its current behaviour and moves into \"Prepare and export\"."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — the panel is the app's densest surface\n\nRegression mode: a tool losing an argument during the move. Detection: the argument-equivalence spec, which must be written **before** the refactor and pass against the current code first. Rollback: revert; the decomposition is one PR.\n\n---"
+    },
+    "WP-023": {
+      "dependencies": [
+        "WP-024"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-035"
+      ],
+      "primaryFiles": [
+        "RepertoirePanel.tsx:148–160",
+        "content/strategicFit.ts",
+        "strategic-fit-workspace.spec.ts"
+      ],
+      "relevantSymbols": [
+        "RepertoirePanel.tsx:148–160",
+        "content/strategicFit.ts",
+        "strategic-fit-workspace.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-023 AC-1",
+          "text": "- The card's first line is a question naming the user's problem, not a description of the UI."
+        },
+        {
+          "id": "WP-023 AC-2",
+          "text": "- The card states that opening it does not analyse or change the repertoire."
+        },
+        {
+          "id": "WP-023 AC-3",
+          "text": "- The button label reads `Open Strategic Fit`."
+        },
+        {
+          "id": "WP-023 AC-4",
+          "text": "- Opening still triggers no analysis (assert `strategicFitLifecycle().status === \"idle\"` after opening)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-workspace.spec.ts"
+        ],
+        "commands": [],
+        "description": "A copy assertion and the no-analysis assertion in `strategic-fit-workspace.spec.ts`."
+      },
+      "requiredManualValidation": "None.\n\n---",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The no-side-effects sentence must survive verbatim in meaning — it is the reassurance the audit identifies as correct. The `setStrategicFitWorkspaceOpen(true)` call and the focus behaviour on open."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    },
+    "WP-024": {
+      "dependencies": [
+        "WP-000"
+      ],
+      "blockingGates": [
+        "PD-1"
+      ],
+      "ownedAuditFindings": [
+        "UX-015",
+        "UX-016",
+        "UX-020",
+        "UX-023",
+        "UX-034",
+        "UX-036",
+        "UX-037",
+        "UX-039",
+        "UX-043"
+      ],
+      "primaryFiles": [
+        "AnalysisPanel.tsx:14",
+        "RepertoirePanel.tsx:57",
+        "ToolResult.tsx:86",
+        "ToolResult.tsx:639–685",
+        "content/format.ts",
+        "content/errors.ts",
+        "content/tools.ts",
+        "scripts/check-content.mjs",
+        "errors.ts",
+        "AnalysisLifecycle.tsx",
+        "StrategicFitWorkspace.tsx:436",
+        "content/strategicFit.ts",
+        "test/content.test.ts"
+      ],
+      "relevantSymbols": [
+        "AnalysisPanel.tsx:14",
+        "RepertoirePanel.tsx:57",
+        "ToolResult.tsx:86",
+        "ToolResult.tsx:639–685",
+        "content/format.ts",
+        "content/errors.ts",
+        "content/tools.ts",
+        "scripts/check-content.mjs",
+        "errors.ts",
+        "AnalysisLifecycle.tsx",
+        "StrategicFitWorkspace.tsx:436",
+        "content/strategicFit.ts",
+        "test/content.test.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-024 AC-1",
+          "text": "- `grep -rn '\"[A-Z][a-z].* .*\"' src/components` returns no user-facing sentence outside `src/content/` (allowing class names, ARIA role values, and test ids) — enforced by a review checklist, not a brittle script."
+        },
+        {
+          "id": "WP-024 AC-2",
+          "text": "- Every formatter has exactly one implementation; the nine duplicates are gone."
+        },
+        {
+          "id": "WP-024 AC-3",
+          "text": "- `pnpm check:content` exists, is wired into CI, and fails when a browser tool lacks a label (verified by temporarily adding a fake contract entry in a test)."
+        },
+        {
+          "id": "WP-024 AC-4",
+          "text": "- The full Playwright suite passes with zero snapshot or text-assertion changes — proving the migration changed no rendered text."
+        },
+        {
+          "id": "WP-024 AC-5",
+          "text": "- `pnpm -r typecheck` passes with `content/` fully typed (no `any`, no string-keyed lookups without an exhaustive record type)."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/content.test.ts"
+        ],
+        "commands": [],
+        "description": "The unchanged-text proof is the existing suite. Add `test/content.test.ts` asserting formatter output parity against fixtures captured from the current implementations, and a check-script self-test."
+      },
+      "requiredManualValidation": "None.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "Every string's current rendered text, exactly, in this package. Strategic Fit's existing label maps stay where they are for now if they are typed against chess-tools enums (`STRATEGIC_FIT_LIFECYCLE_LABELS` is exported from `AnalysisLifecycle.tsx` and consumed by `StrategicFitWorkspace.tsx:436`); re-export them through `content/strategicFit.ts` rather than moving them, to avoid a circular import."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a subtle wording change slipping in during the move. Detection: the zero-text-change requirement on the existing suite. Rollback: revert; no behaviour depends on the registry until later packages.\n\n---"
+    },
+    "WP-025": {
+      "dependencies": [
+        "WP-024"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-015"
+      ],
+      "primaryFiles": [
+        "ChatPanel.tsx:85",
+        "ChatPanel.tsx:91",
+        "ToolResult.tsx:62–84",
+        "ChatPanel.tsx",
+        "ToolResult.tsx",
+        "content/tools.ts",
+        "content/format.ts"
+      ],
+      "relevantSymbols": [
+        "ChatPanel.tsx:85",
+        "ChatPanel.tsx:91",
+        "ToolResult.tsx:62–84",
+        "ChatPanel.tsx",
+        "ToolResult.tsx",
+        "content/tools.ts",
+        "content/format.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-025 AC-1",
+          "text": "- No chat message, chip, or result header displays a string matching any `contractsForHost(\"browser\")` name (`rawIdentifierViolations` empty for the chat log)."
+        },
+        {
+          "id": "WP-025 AC-2",
+          "text": "- Every navigation row label is either a chess description or an ordinal; none contains an underscore or a raw JSON key."
+        },
+        {
+          "id": "WP-025 AC-3",
+          "text": "- Navigation targets still resolve to the same board positions as before (assert path equality for a fixture result)."
+        },
+        {
+          "id": "WP-025 AC-4",
+          "text": "- `pnpm check:content` passes with all browser tools labelled."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "A chat spec injecting fixture tool results through `appendToolResultForTesting` and asserting labels and navigation targets; baseline check 8 partially flips (chat half).\n\n---"
+      },
+      "requiredManualValidation": "Not specified.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "`NavigationRows`' traversal bounds (8 rows, 12 array items), its `indexPathOfSan` validity check before offering navigation, and the `navigateFen` fallback. The typed renderer registry (`byOperation`, `byKind`) and its dispatch order."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    },
+    "WP-026": {
+      "dependencies": [
+        "WP-024",
+        "WP-025"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-015",
+        "UX-020",
+        "UX-034"
+      ],
+      "primaryFiles": [
+        "ToolResult.tsx:783",
+        "ToolResult.tsx",
+        "store/settings.ts",
+        "content/chat.ts",
+        "content/format.ts",
+        "content/errors.ts",
+        "styles.css",
+        "strategic-fit-chat.spec.ts",
+        "strategic-fit-plan.spec.ts",
+        "strategic-fit-portfolio.spec.ts"
+      ],
+      "relevantSymbols": [
+        "ToolResult.tsx:783",
+        "ToolResult.tsx",
+        "store/settings.ts",
+        "content/chat.ts",
+        "content/format.ts",
+        "content/errors.ts",
+        "styles.css",
+        "strategic-fit-chat.spec.ts",
+        "strategic-fit-plan.spec.ts",
+        "strategic-fit-portfolio.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-026 AC-1",
+          "text": "- With `Show technical details` off, no `Raw JSON` disclosure and no raw error code appears anywhere in the chat log; with it on, both appear."
+        },
+        {
+          "id": "WP-026 AC-2",
+          "text": "- A mutating card is visually distinguishable from an informational card by a non-colour cue (border weight or a badge), verified under `forced-colors: active`."
+        },
+        {
+          "id": "WP-026 AC-3",
+          "text": "- A staged-edit card states the change in moves and lines, states that acceptance affects the working repertoire in this browser, and states that it can be undone."
+        },
+        {
+          "id": "WP-026 AC-4",
+          "text": "- An `engine_unavailable` error card offers a working `Retry`; an `explorer_auth_required` card offers `Add Lichess token` that opens Settings focused on the token field."
+        },
+        {
+          "id": "WP-026 AC-5",
+          "text": "- Every existing staged-mutation sentence listed above is still present (assert by text match in the Strategic Fit chat spec)."
+        },
+        {
+          "id": "WP-026 AC-6",
+          "text": "- The Strategic Fit chat specs (`strategic-fit-chat.spec.ts`, `strategic-fit-plan.spec.ts`, `strategic-fit-portfolio.spec.ts`) pass with only the technical-details toggle accounted for."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Fixture-driven card-tier spec; a technical-details on/off spec; an error-action spec per action kind; text-preservation assertions for the staged-mutation copy."
+      },
+      "requiredManualValidation": "Forced-colors check of the tier differentiation.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The typed renderer registry and every specialised renderer (`StrategicFitResult`, `StrategicFitRetrievalResult`, `StrategicFitProposalResult`, `StrategicFitPlanBasisResult`, `StrategicFitPlanCardResult`, `StrategicFitPortfolioConstraintsResult`, `StrategicFitPortfolioResultCard`, `StagedEditResult`, `ArtifactResult`). **All staged-mutation copy must survive verbatim in meaning**: \"Nothing is saved until you accept…\", \"Withheld evidence exists; it is not absent…\", \"Nothing is bound and no preference was saved…\". The `pending`/`stale`/`unavailable` status rendering and its exact messages. `findArtifactMetadata` and the artifact save flow."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: hiding `Raw JSON` removes a debugging affordance developers rely on. Mitigation: the setting is discoverable in Settings and defaults on in DEV builds. Rollback: revert the gating condition alone.\n\n---"
+    },
+    "WP-027": {
+      "dependencies": [
+        "WP-010",
+        "WP-024",
+        "WP-026"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-046",
+        "UX-040",
+        "UX-047"
+      ],
+      "primaryFiles": [
+        "chat.ts:52–59",
+        "chat.ts:143–165",
+        "chat.ts:172",
+        "ChatPanel.tsx:106–122",
+        "engine/stockfish.ts",
+        "chat.ts:146",
+        "chat.ts",
+        "src/components/ChatContextChip.tsx",
+        "ChatPanel.tsx",
+        "content/chat.ts",
+        "chat.ts:188–193",
+        "test/chat.test.ts",
+        "test/cancellation.test.ts",
+        "chat.test.ts"
+      ],
+      "relevantSymbols": [
+        "chat.ts:52–59",
+        "chat.ts:143–165",
+        "chat.ts:172",
+        "ChatPanel.tsx:106–122",
+        "engine/stockfish.ts",
+        "chat.ts:146",
+        "chat.ts",
+        "src/components/ChatContextChip.tsx",
+        "ChatPanel.tsx",
+        "content/chat.ts",
+        "chat.ts:188–193",
+        "test/chat.test.ts",
+        "test/cancellation.test.ts",
+        "chat.test.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-027 AC-1",
+          "text": "- The context chip shows the current position in SAN, the repertoire colour, the document name, and the line count; expanding it shows text equal to the block `systemMessage()` injects."
+        },
+        {
+          "id": "WP-027 AC-2",
+          "text": "- After two consecutive turns, the first turn's tool runs are still visible under their message."
+        },
+        {
+          "id": "WP-027 AC-3",
+          "text": "- A running tool exposes a `Cancel` control; activating it marks that run `cancelled`, leaves earlier completed runs intact, and allows the turn to continue to the next call."
+        },
+        {
+          "id": "WP-027 AC-4",
+          "text": "- `Stop this request` cancels the in-flight call and the turn; already-completed runs stay `completed`."
+        },
+        {
+          "id": "WP-027 AC-5",
+          "text": "- `Send again` re-sends the last user message and its accessible description says so."
+        },
+        {
+          "id": "WP-027 AC-6",
+          "text": "- Strategic Fit identities survive compaction unchanged (existing `chat.test.ts` compaction assertions pass)."
+        },
+        {
+          "id": "WP-027 AC-7",
+          "text": "- Each chat tool run appears in `operations()` while running."
+        }
+      ],
+      "requiredTests": {
+        "files": [
+          "apps/ui/test/chat.test.ts"
+        ],
+        "commands": [],
+        "description": "Extend `test/chat.test.ts` with per-call cancellation (a fake executor that blocks on the second call), run-history persistence across turns, and context-summary parity with `systemMessage()`. Playwright for the chip and the cancel control."
+      },
+      "requiredManualValidation": "A real OpenRouter turn with a long-running tool, to confirm cancel latency is acceptable.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "`MAX_ROUNDS = 12` and the round-limit summary turn (`chat.ts:188–193`) with its exact message. The abnormal-finish handling. `compactMessages`/`compactToolResult` and the `REFERENCE_KEYS` pinning of Strategic Fit identities — **this is the mechanism that keeps `report_id`/`finding_id` valid across compaction and must not be disturbed**. The `focus` message role and `focusLine`. `clearChat`'s semantics. The existing `test/chat.test.ts` and `test/cancellation.test.ts` must pass."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — touches the chat turn loop\n\nRegression mode: the child-controller wiring leaking so a per-run cancel aborts the turn. Detection: the blocking-executor test. Rollback: revert; run history returns to per-turn.\n\n---"
+    },
+    "WP-028": {
+      "dependencies": [
+        "WP-027"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-038"
+      ],
+      "primaryFiles": [
+        "AnalysisPanel.tsx:62–84",
+        "store/suggestions.ts",
+        "store/ui.ts"
+      ],
+      "relevantSymbols": [
+        "AnalysisPanel.tsx:62–84",
+        "store/suggestions.ts",
+        "store/ui.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-028 AC-1",
+          "text": "- Activating a `Go to line` button marks that card `Showing on board`; activating another moves the marker."
+        },
+        {
+          "id": "WP-028 AC-2",
+          "text": "- The suggestion block's source link scrolls the chat log to the originating message and focuses it."
+        },
+        {
+          "id": "WP-028 AC-3",
+          "text": "- Navigating by any other means (move tree, arrow keys) clears the marker."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Playwright: marker set, moved, and cleared; source link scroll target.\n\n---"
+      },
+      "requiredManualValidation": "Not specified.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "`acceptSuggestion`/`rejectSuggestion` semantics, the blue suggestion arrows and their `pathEq` gating, `previewedKeys()` highlighting."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    },
+    "WP-029": {
+      "dependencies": [
+        "WP-011",
+        "WP-022",
+        "WP-024"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-036",
+        "UX-037",
+        "UX-039",
+        "UX-042"
+      ],
+      "primaryFiles": [
+        "RepertoirePanel.tsx:246",
+        "content/repertoire.ts",
+        "RepertoirePanel.tsx:264–267"
+      ],
+      "relevantSymbols": [
+        "RepertoirePanel.tsx:246",
+        "content/repertoire.ts",
+        "RepertoirePanel.tsx:264–267"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-029 AC-1",
+          "text": "- Before any Gaps scan the section shows a call to action naming what the scan does; after a scan finding nothing it shows a distinct success message; the two strings differ."
+        },
+        {
+          "id": "WP-029 AC-2",
+          "text": "- A failed scan renders an error treatment distinguishable from an empty state without colour, with a retry that re-runs the same command and arguments."
+        },
+        {
+          "id": "WP-029 AC-3",
+          "text": "- Creating a drill deck is one button; it shows progress and then downloads, with no second button appearing."
+        },
+        {
+          "id": "WP-029 AC-4",
+          "text": "- Creating an annotated repertoire is one button with the same pattern."
+        },
+        {
+          "id": "WP-029 AC-5",
+          "text": "- The Shorten inspect panel's first line is a verdict sentence; every numeric field listed above is present under a disclosure; `↓` and `★` each have a visible text label."
+        },
+        {
+          "id": "WP-029 AC-6",
+          "text": "- `margin` values render as a plain reading with the centipawn value available as expert text."
+        },
+        {
+          "id": "WP-029 AC-7",
+          "text": "- No analytical field present before the change is absent after it (assert by a field-presence spec over a fixture inspect result)."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "A field-presence spec written before the change and passing against current code; state-distinction specs per tool; a single-action export spec asserting exactly one button and one download."
+      },
+      "requiredManualValidation": "Forced-colors check of the error-versus-empty distinction.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "**All analytical data and its meaning.** Every field currently shown must still be reachable — `evalDelta`, `fitStay`, `fitTranspose`, `structureStay`, `structureTranspose`, `basis`, `eval_disagrees_with_fit`, `introduces_gap`, `new_gaps.length`, `bestSavings`, `bestEval`, `evalConfirmed`, `savedPlies` — moved under a disclosure, never removed. The covered-by-transposition muted rows. The `best eval`/`best fit`/`alt` labelling logic (`RepertoirePanel.tsx:264–267`). The artifact `saveArtifact` flow and its `artifactById` availability check."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: an evidence field lost under the disclosure refactor. Detection: the field-presence spec. Rollback: per-tool revert is possible because `WP-022` split them into separate components.\n\n---"
+    },
+    "WP-030": {
+      "dependencies": [
+        "WP-024"
+      ],
+      "blockingGates": [
+        "PD-6"
+      ],
+      "ownedAuditFindings": [
+        "UX-016"
+      ],
+      "primaryFiles": [
+        "src/store/strategic-fit-names.ts",
+        "chat.ts",
+        "strategic-fit-cohort-adjustments.ts",
+        "strategic-fit-retrieval.test.ts",
+        "strategic-fit-chat.spec.ts"
+      ],
+      "relevantSymbols": [
+        "src/store/strategic-fit-names.ts",
+        "chat.ts",
+        "strategic-fit-cohort-adjustments.ts",
+        "strategic-fit-retrieval.test.ts",
+        "strategic-fit-chat.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-030 AC-1",
+          "text": "- `rawIdentifierViolations(strategicFitWorkspace)` is empty with `Show technical details` off (baseline check 8 fully flips)."
+        },
+        {
+          "id": "WP-030 AC-2",
+          "text": "- Every cohort selector option, finding card, evidence header, and map/heatmap axis label shows a name plus a count, not a hash."
+        },
+        {
+          "id": "WP-030 AC-3",
+          "text": "- Two cohorts resolving to the same opening name are disambiguated visibly."
+        },
+        {
+          "id": "WP-030 AC-4",
+          "text": "- With `Show technical details` on, the underlying `cohort_id` is visible in a detail row."
+        },
+        {
+          "id": "WP-030 AC-5",
+          "text": "- Chat retrieval results still contain exact `report_id`, `finding_id`, and `cohort_id` values (existing `strategic-fit-retrieval.test.ts` and `strategic-fit-chat.spec.ts` pass unchanged)."
+        },
+        {
+          "id": "WP-030 AC-6",
+          "text": "- Cohort override, finding resolution, and training-exception flows still round-trip by id (existing store suites pass unchanged)."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "A name-derivation store test including the collision case and a cohort with no findings; the raw-identifier sweep; the unchanged existing suites."
+      },
+      "requiredManualValidation": "Review with a chess-literate reader that the derived names are recognisable.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "**The identifiers themselves must remain exact everywhere the assistant or the retrieval projection uses them.** `chat.ts`'s `REFERENCE_KEYS` pinning of `cohort_id`, `report_id`, `finding_id` is untouched. The `BROWSER_ADAPTATION` prompt rule \"preserve report_id and finding_id exactly in follow-up discussion\" stays true. Cohort override and editing flows (`CohortEditor`, `strategic-fit-cohort-adjustments.ts`) keep operating on ids."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: a name derived from too few findings being misleading. Mitigation: fall back to `Comparison group N (k lines)` when the dominant opening covers under half the cohort. Rollback: revert; ids return.\n\n---"
+    },
+    "WP-031": {
+      "dependencies": [
+        "WP-024",
+        "WP-030"
+      ],
+      "blockingGates": [
+        "PD-7"
+      ],
+      "ownedAuditFindings": [
+        "UX-017"
+      ],
+      "primaryFiles": [
+        "AnalysisLifecycle.tsx:16",
+        "store/strategic-fit.ts",
+        "src/components/strategic-fit/InsufficientEvidence.tsx",
+        "content/strategicFit.ts",
+        "strategic-fit-preflight.spec.ts",
+        "strategic-fit-preflight-presentation.test.ts"
+      ],
+      "relevantSymbols": [
+        "AnalysisLifecycle.tsx:16",
+        "store/strategic-fit.ts",
+        "src/components/strategic-fit/InsufficientEvidence.tsx",
+        "content/strategicFit.ts",
+        "strategic-fit-preflight.spec.ts",
+        "strategic-fit-preflight-presentation.test.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-031 AC-1",
+          "text": "- With `comparable_route_count === 0`: the header does not read `Analysis complete`; the findings, evidence, and resolution regions render one terminal state naming the current route counts and at least two remedies; `Analyze again` is present and works."
+        },
+        {
+          "id": "WP-031 AC-2",
+          "text": "- With `comparable_route_count > 0` and `preflight.state === \"degraded\"`: findings render as today plus a persistent limited-evidence banner, and the header reads the limited-evidence label."
+        },
+        {
+          "id": "WP-031 AC-3",
+          "text": "- With a full-evidence report, the header reads `Analysis complete` and no banner appears."
+        },
+        {
+          "id": "WP-031 AC-4",
+          "text": "- The preflight counts and issue list are unchanged in all three cases."
+        },
+        {
+          "id": "WP-031 AC-5",
+          "text": "- A positive-control fixture (the `RICH_PGN` from `WP-000`, ≥12 routes past ply 12) produces a full-evidence report and reaches the resolution step."
+        },
+        {
+          "id": "WP-031 AC-6",
+          "text": "- `strategic-fit-preflight.spec.ts` and the preflight presentation test pass unchanged."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Three-state spec driven by fixture reports through `window.__chess.setResolutionProofForTesting`-style seams or a fixture lifecycle result; a positive-control end-to-end run."
+      },
+      "requiredManualValidation": "Confirm with a chess reader that the remedies are actionable (\"extend your main lines past move 12\" must be something a user can actually do).",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "**The analysis itself, the preflight payload, and every honest bounded-evidence statement.** `PreflightResults` keeps its counts and issue list. The finding cards' `Insufficient evidence` labels remain when findings render. The \"no cohort produced a strategic mode\" style explanations stay — they are correct and the audit calls them a strength; they simply stop being the only thing the user sees. All existing Strategic Fit specs, especially `strategic-fit-preflight.spec.ts` and `strategic-fit-preflight-presentation.test.ts`, must pass."
+      ],
+      "rollbackRule": "**Planned risk.** Low — additive presentation over an unchanged analysis\n\nRegression mode: the terminal state hiding findings that were in fact useful. Mitigation: it triggers only on `comparable_route_count === 0`, and the raw report stays available under technical details. Rollback: revert.\n\n---"
+    },
+    "WP-032": {
+      "dependencies": [
+        "WP-031"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-018"
+      ],
+      "primaryFiles": [
+        "AnalysisLifecycle.tsx:115",
+        "AnalysisLifecycle.tsx",
+        "store/ui.ts:37",
+        "StrategicFitWorkspace.tsx:393–396",
+        "strategic-fit-lifecycle.spec.ts",
+        "strategic-fit-preflight.spec.ts"
+      ],
+      "relevantSymbols": [
+        "AnalysisLifecycle.tsx:115",
+        "AnalysisLifecycle.tsx",
+        "store/ui.ts:37",
+        "StrategicFitWorkspace.tsx:393–396",
+        "strategic-fit-lifecycle.spec.ts",
+        "strategic-fit-preflight.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-032 AC-1",
+          "text": "- After a completed analysis at 1280×800, the first finding card's top edge is within the viewport without scrolling the findings pane."
+        },
+        {
+          "id": "WP-032 AC-2",
+          "text": "- The phase list renders at full size while `status` is `running` or `provisional`."
+        },
+        {
+          "id": "WP-032 AC-3",
+          "text": "- The collapsed phase line and preflight summary each expand on activation and are keyboard operable with `aria-expanded`."
+        },
+        {
+          "id": "WP-032 AC-4",
+          "text": "- In print/export mode and under `window.print()`, both blocks render fully expanded (assert via the existing print-mode test pattern)."
+        },
+        {
+          "id": "WP-032 AC-5",
+          "text": "- `strategic-fit-lifecycle.spec.ts` and `strategic-fit-preflight.spec.ts` pass unchanged apart from the collapse state."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "A viewport assertion for first-finding visibility; a print-mode expansion assertion.\n\n---"
+      },
+      "requiredManualValidation": "Not specified.",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "**Print and export mode must still render everything.** `strategicFitPrintExportMode()` (`store/ui.ts:37`) and the `beforeprint`/`afterprint` handlers (`StrategicFitWorkspace.tsx:393–396`) must force both blocks open — this is the same contract the visualisation components already honour. The running-state progress display is unchanged. `PreflightResults`' counts and issues are unchanged when expanded."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    },
+    "WP-033": {
+      "dependencies": [
+        "WP-007",
+        "WP-031"
+      ],
+      "blockingGates": [
+        "DV-5",
+        "AG-1"
+      ],
+      "ownedAuditFindings": [
+        "UX-033"
+      ],
+      "primaryFiles": [
+        "styles.css:1711–1713",
+        "strategic-fit-accessibility.spec.ts"
+      ],
+      "relevantSymbols": [
+        "styles.css:1711–1713",
+        "strategic-fit-accessibility.spec.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-033 AC-1",
+          "text": "- A stage indicator is visible at 390×844, 820×1000, 1101×800, and 1440×900, showing the current stage."
+        },
+        {
+          "id": "WP-033 AC-2",
+          "text": "- `ResolutionActions`, `TrainException`, and `CohortEditor` each appear exactly once in the DOM at every width."
+        },
+        {
+          "id": "WP-033 AC-3",
+          "text": "- The stale-report resolution-blocked message appears at every width."
+        },
+        {
+          "id": "WP-033 AC-4",
+          "text": "- The compact tier's tablist keyboard behaviour (`←`/`→`/`Home`/`End`, roving tabindex, `aria-selected`) is unchanged."
+        },
+        {
+          "id": "WP-033 AC-5",
+          "text": "- The workspace uses the `Dialog` primitive and satisfies its full contract; the Replacement Lab still nests correctly with `Escape` closing the Lab first."
+        },
+        {
+          "id": "WP-033 AC-6",
+          "text": "- All 22 Strategic Fit specs pass, including `strategic-fit-accessibility.spec.ts`."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Duplicate-render assertions; stage-indicator presence at four widths; the existing suite as the regression gate; the `Dialog` contract suite extended to the workspace and the Lab."
+      },
+      "requiredManualValidation": "Screen-reader pass after the `Dialog` migration (gate AG-1 re-run).",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "Every Strategic Fit accessibility behaviour verified today: focus trap, `Escape`, focus restoration, `inert` + `aria-hidden` on `.app-main`, the roving-tabindex tablist with `Home`/`End` in the compact tier, print/export mode, reduced motion, forced colors, and the chart/table fallbacks. The 22 existing specs are the gate. The resolution-blocked message when the report is `stale` (`StrategicFitWorkspace.tsx:224–233, 651–655`)."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — the app's best-tested surface\n\nHighest risk in the Strategic Fit workstream. Mitigation: split into two PRs — (a) de-duplicate the resolution block and add the stage strip, (b) migrate to `Dialog` — so a focus regression can be reverted without losing the stage work.\n\n---"
+    },
+    "WP-034": {
+      "dependencies": [
+        "WP-024",
+        "WP-030"
+      ],
+      "blockingGates": [
+        "PD-8"
+      ],
+      "ownedAuditFindings": [
+        "UX-043"
+      ],
+      "primaryFiles": [
+        "ResolutionProof.tsx:9–20",
+        "content/strategicFit.ts",
+        "packages/chess-tools/src/workflow-contract.ts"
+      ],
+      "relevantSymbols": [
+        "ResolutionProof.tsx:9–20",
+        "content/strategicFit.ts",
+        "packages/chess-tools/src/workflow-contract.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-034 AC-1",
+          "text": "- `Pareto` does not appear as a primary label; it appears only as expert text."
+        },
+        {
+          "id": "WP-034 AC-2",
+          "text": "- `preflight` does not appear as a primary label."
+        },
+        {
+          "id": "WP-034 AC-3",
+          "text": "- `resolution proof` and `training exception` do not appear as primary labels (subject to `PD-8`)."
+        },
+        {
+          "id": "WP-034 AC-4",
+          "text": "- `strategic distance` is defined in prose before its first use on any surface where it appears."
+        },
+        {
+          "id": "WP-034 AC-5",
+          "text": "- The four advanced-preference fields share one definition and have distinct, non-repeated help text."
+        },
+        {
+          "id": "WP-034 AC-6",
+          "text": "- Each of the five preserved statements listed above is still present, verbatim or with a reviewer-approved equivalent, asserted by text match."
+        },
+        {
+          "id": "WP-034 AC-7",
+          "text": "- `packages/chess-tools` is unmodified."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Text-presence assertions for the preserved statements; a vocabulary sweep asserting the retired primary labels are absent from rendered text."
+      },
+      "requiredManualValidation": "A chess-literate reviewer confirms the rewordings do not change meaning — this is the merge gate for this package.\n\n---",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "**Every bounded-evidence and staged-mutation statement's meaning.** Specifically: \"Withheld evidence exists; it is not absent, and it cannot be cited in a plan\", \"Nothing is saved until you accept\", \"Nothing is bound and no preference was saved\", \"This route shares no supported comparable evidence with an anchor route, so a position would be fabricated rather than measured\", and the \"Analysis in progress / Nothing is current until the report completes\" copy. These may be shortened only if the reviewer confirms the meaning is intact. The profile wizard's structure, `RECOMMENDED` badge, consequence statement, and `Skip for now` are preserved exactly."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    },
+    "WP-035": {
+      "dependencies": [
+        "WP-031",
+        "WP-032",
+        "WP-033"
+      ],
+      "blockingGates": [
+        "PD-5"
+      ],
+      "ownedAuditFindings": [],
+      "primaryFiles": [
+        "docs/"
+      ],
+      "relevantSymbols": [
+        "PD-5 study",
+        "written recommendation"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-035 AC-1",
+          "text": "- A written recommendation in `docs/` with the measurements, a recommendation, and — if the split is recommended — a scoped follow-up package proposal. No production code changes in this package.\n\n---"
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Not specified."
+      },
+      "requiredManualValidation": "Not specified.",
+      "riskLevel": "Low as a study; XL if the split proceeds",
+      "preservedBehaviorContracts": [
+        "Not specified."
+      ],
+      "rollbackRule": "**Planned risk.** Low as a study; XL if the split proceeds\n\nNot specified."
+    },
+    "WP-036": {
+      "dependencies": [
+        "WP-006"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-030",
+        "UX-048"
+      ],
+      "primaryFiles": [
+        "styles.css",
+        "styles.css:1–4"
+      ],
+      "relevantSymbols": [
+        "styles.css",
+        "styles.css:1–4"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-036 AC-1",
+          "text": "- A documented `:root` token block exists covering all nine categories."
+        },
+        {
+          "id": "WP-036 AC-2",
+          "text": "- No rendered body text is below 12 px; uppercase micro-labels may be as small as 11.2 px and are explicitly listed."
+        },
+        {
+          "id": "WP-036 AC-3",
+          "text": "- No hard-coded hex colour remains in the core-app region of `styles.css` (the Strategic Fit region may retain hexes not yet migrated, listed explicitly)."
+        },
+        {
+          "id": "WP-036 AC-4",
+          "text": "- `z-index` literals appear only in the token block."
+        },
+        {
+          "id": "WP-036 AC-5",
+          "text": "- Step 1 produces a zero-pixel visual diff across the Strategic Fit snapshot suite."
+        },
+        {
+          "id": "WP-036 AC-6",
+          "text": "- After step 2, no panel's rendered height at 1280×800 grows by more than 15% versus the pre-change baseline."
+        },
+        {
+          "id": "WP-036 AC-7",
+          "text": "- Any snapshot update is accompanied by a reviewer note stating what changed and why."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "The existing Strategic Fit visual snapshots as the primary gate; the density guard assertions; a stylesheet assertion that raw hexes and `z-index` literals do not appear outside allowed regions."
+      },
+      "requiredManualValidation": "A side-by-side review of the type migration at 1280×800 and 390×844 before merge.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "Chessground's imported theme CSS (`styles.css:1–4`) is untouched. The 16 px input floor for iOS. All Strategic Fit visual behaviour verified by its screenshot-backed specs (`strategic-fit-map.spec.ts-snapshots`, `strategic-fit-findings.spec.ts-snapshots`, `strategic-fit-visualization-hardening.spec.ts-snapshots`) — **these snapshots are the regression gate for this package and must be reviewed, not blanket-updated.**"
+      ],
+      "rollbackRule": "**Planned risk.** Medium — touches `styles.css` globally\n\nRegression mode: the type floor breaking dense analytical layouts. Mitigation: step 2 is a separate commit; the density guard fails before merge. Rollback: revert step 2 alone, keeping the tokens.\n\n---"
+    },
+    "WP-037": {
+      "dependencies": [
+        "WP-036"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-048"
+      ],
+      "primaryFiles": [
+        "ChatPanel.tsx:117",
+        "RepertoirePanel.tsx:237",
+        "StrategicFitWorkspace.tsx:94"
+      ],
+      "relevantSymbols": [
+        "ChatPanel.tsx:117",
+        "RepertoirePanel.tsx:237",
+        "StrategicFitWorkspace.tsx:94"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-037 AC-1",
+          "text": "- Exactly one progress component renders in the app; `grep` finds no `.scan-bar-fill` or `.scan-meter` class."
+        },
+        {
+          "id": "WP-037 AC-2",
+          "text": "- Exactly one status component; the five class families are gone or are thin aliases of it."
+        },
+        {
+          "id": "WP-037 AC-3",
+          "text": "- Every panel uses `PanelHeader`; `.outcome-label` and `.panel-head` no longer both appear on the same panel."
+        },
+        {
+          "id": "WP-037 AC-4",
+          "text": "- Buttons expose exactly three variants plus `danger`; a reviewer can state which variant every button in the app uses."
+        },
+        {
+          "id": "WP-037 AC-5",
+          "text": "- No panel's rendered height grows by more than 10% versus the `WP-036` baseline."
+        },
+        {
+          "id": "WP-037 AC-6",
+          "text": "- All Strategic Fit snapshots pass or have reviewed, justified updates."
+        },
+        {
+          "id": "WP-037 AC-7",
+          "text": "- `basicAccessibilityViolations` is empty for every migrated surface."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "Class-absence assertions; density guards; the snapshot suite; the accessibility helper across core-app roots."
+      },
+      "requiredManualValidation": "Visual review at 390×844, 1280×800, and 1440×900 before merge.",
+      "riskLevel": "Medium",
+      "preservedBehaviorContracts": [
+        "Productive density: the one-line `severity · line · eval` row, the engine-line row, and the finding-card layout must not grow. Strategic Fit's existing `RegionState` behaviour and its `role=\"alert\"`/`role=\"status\"` mapping. The chart/table fallbacks and print/export mode."
+      ],
+      "rollbackRule": "**Planned risk.** Medium — broad but mechanical\n\nMechanical but broad. Mitigation: one primitive per commit, each independently revertible.\n\n---"
+    },
+    "WP-038": {
+      "dependencies": [
+        "WP-024",
+        "WP-037"
+      ],
+      "blockingGates": [],
+      "ownedAuditFindings": [
+        "UX-023"
+      ],
+      "primaryFiles": [
+        "analysis.ts:32",
+        "Board.tsx:74–87",
+        "AnalysisPanel.tsx:12",
+        "src/components/ArrowLegend.tsx",
+        "Board.tsx:44–49",
+        "content/analysis.ts"
+      ],
+      "relevantSymbols": [
+        "analysis.ts:32",
+        "Board.tsx:74–87",
+        "AnalysisPanel.tsx:12",
+        "src/components/ArrowLegend.tsx",
+        "Board.tsx:44–49",
+        "content/analysis.ts"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "WP-038 AC-1",
+          "text": "- A legend is reachable from the analysis panel, explains all three fit colours and all three thickness bands, and distinguishes repertoire arrows from engine arrows."
+        },
+        {
+          "id": "WP-038 AC-2",
+          "text": "- Repertoire arrows and engine `in-book` arrows are visually distinguishable on the board."
+        },
+        {
+          "id": "WP-038 AC-3",
+          "text": "- Fit labels read as words; the abbreviations remain available as expert text."
+        },
+        {
+          "id": "WP-038 AC-4",
+          "text": "- The weight swatch has a text equivalent readable by a screen reader."
+        },
+        {
+          "id": "WP-038 AC-5",
+          "text": "- Arrow de-duplication behaviour is unchanged (assert overlapping-arrow counts for a fixture position)."
+        },
+        {
+          "id": "WP-038 AC-6",
+          "text": "- The legend's collapsed/expanded state persists across reloads."
+        }
+      ],
+      "requiredTests": {
+        "files": [],
+        "commands": [],
+        "description": "An arrow-count assertion for a position with overlapping repertoire and engine suggestions; a legend content assertion; a persistence assertion."
+      },
+      "requiredManualValidation": "Confirm the repertoire/engine distinction is visible at the smallest board size (160 px) and under forced colors.\n\n---",
+      "riskLevel": "Low",
+      "preservedBehaviorContracts": [
+        "The arrow de-duplication order (gold > book > engine) and the `pathEq` gating on suggestion and preview arrows. The `weightFor` classification from chess-tools. `classifyUciMove`'s fit semantics."
+      ],
+      "rollbackRule": "**Planned risk.** Low\n\nNot specified."
+    }
+  },
+  "foundations": {
+    "content-label-foundation": {
+      "owner": "WP-008",
+      "scope": "Only the six shortcut labels and platform-key formatter needed by ShortcutHelpDialog; it is later absorbed by WP-024.",
+      "absorbedBy": "WP-024"
+    }
+  },
+  "pullRequests": [
+    {
+      "id": "PR-01",
+      "packages": [
+        "WP-000"
+      ]
+    },
+    {
+      "id": "PR-02",
+      "packages": [
+        "WP-001"
+      ]
+    },
+    {
+      "id": "PR-03",
+      "packages": [
+        "WP-002"
+      ]
+    },
+    {
+      "id": "PR-04",
+      "packages": [
+        "WP-006"
+      ]
+    },
+    {
+      "id": "PR-05",
+      "packages": [
+        "WP-007"
+      ]
+    },
+    {
+      "id": "PR-06",
+      "packages": [
+        "WP-003"
+      ]
+    },
+    {
+      "id": "PR-07",
+      "packages": [
+        "WP-004"
+      ]
+    },
+    {
+      "id": "PR-08",
+      "packages": [
+        "WP-005"
+      ]
+    },
+    {
+      "id": "PR-09",
+      "packages": [
+        "WP-009"
+      ]
+    },
+    {
+      "id": "PR-10",
+      "packages": [
+        "WP-010"
+      ]
+    },
+    {
+      "id": "PR-11",
+      "packages": [
+        "WP-011"
+      ]
+    },
+    {
+      "id": "PR-12",
+      "packages": [
+        "WP-012"
+      ]
+    },
+    {
+      "id": "PR-13",
+      "packages": [
+        "WP-013"
+      ]
+    },
+    {
+      "id": "PR-14",
+      "packages": [
+        "WP-008"
+      ]
+    },
+    {
+      "id": "PR-15",
+      "packages": [
+        "WP-014"
+      ]
+    },
+    {
+      "id": "PR-16",
+      "packages": [
+        "WP-024"
+      ]
+    },
+    {
+      "id": "PR-17",
+      "packages": [
+        "WP-015",
+        "WP-016"
+      ]
+    },
+    {
+      "id": "PR-18",
+      "packages": [
+        "WP-018"
+      ]
+    },
+    {
+      "id": "PR-19",
+      "packages": [
+        "WP-019"
+      ]
+    },
+    {
+      "id": "PR-20",
+      "packages": [
+        "WP-020"
+      ]
+    },
+    {
+      "id": "PR-21",
+      "packages": [
+        "WP-021"
+      ]
+    },
+    {
+      "id": "PR-22",
+      "packages": [
+        "WP-022",
+        "WP-023"
+      ]
+    },
+    {
+      "id": "PR-23",
+      "packages": [
+        "WP-025",
+        "WP-026"
+      ]
+    },
+    {
+      "id": "PR-24",
+      "packages": [
+        "WP-027",
+        "WP-028"
+      ]
+    },
+    {
+      "id": "PR-25",
+      "packages": [
+        "WP-029"
+      ]
+    },
+    {
+      "id": "PR-26",
+      "packages": [
+        "WP-030",
+        "WP-034"
+      ]
+    },
+    {
+      "id": "PR-27",
+      "packages": [
+        "WP-031",
+        "WP-032"
+      ]
+    },
+    {
+      "id": "PR-28",
+      "packages": [
+        "WP-033"
+      ]
+    },
+    {
+      "id": "PR-29",
+      "packages": [
+        "WP-036"
+      ]
+    },
+    {
+      "id": "PR-30",
+      "packages": [
+        "WP-037"
+      ]
+    },
+    {
+      "id": "PR-31",
+      "packages": [
+        "WP-038"
+      ]
+    },
+    {
+      "id": "PR-32",
+      "packages": [
+        "WP-017"
+      ]
+    },
+    {
+      "id": "PR-33",
+      "packages": [
+        "WP-035"
+      ]
+    }
+  ]
+}

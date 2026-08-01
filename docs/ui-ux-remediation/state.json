@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "packages": {
+    "WP-000": {
+      "status": "not-started"
+    },
+    "WP-001": {
+      "status": "not-started"
+    },
+    "WP-002": {
+      "status": "not-started"
+    },
+    "WP-003": {
+      "status": "not-started"
+    },
+    "WP-004": {
+      "status": "not-started"
+    },
+    "WP-005": {
+      "status": "not-started"
+    },
+    "WP-006": {
+      "status": "not-started"
+    },
+    "WP-007": {
+      "status": "not-started"
+    },
+    "WP-008": {
+      "status": "not-started"
+    },
+    "WP-009": {
+      "status": "not-started"
+    },
+    "WP-010": {
+      "status": "not-started"
+    },
+    "WP-011": {
+      "status": "not-started"
+    },
+    "WP-012": {
+      "status": "not-started"
+    },
+    "WP-013": {
+      "status": "not-started"
+    },
+    "WP-014": {
+      "status": "not-started"
+    },
+    "WP-015": {
+      "status": "not-started"
+    },
+    "WP-016": {
+      "status": "not-started"
+    },
+    "WP-017": {
+      "status": "not-started"
+    },
+    "WP-018": {
+      "status": "not-started"
+    },
+    "WP-019": {
+      "status": "not-started"
+    },
+    "WP-020": {
+      "status": "not-started"
+    },
+    "WP-021": {
+      "status": "not-started"
+    },
+    "WP-022": {
+      "status": "not-started"
+    },
+    "WP-023": {
+      "status": "not-started"
+    },
+    "WP-024": {
+      "status": "not-started"
+    },
+    "WP-025": {
+      "status": "not-started"
+    },
+    "WP-026": {
+      "status": "not-started"
+    },
+    "WP-027": {
+      "status": "not-started"
+    },
+    "WP-028": {
+      "status": "not-started"
+    },
+    "WP-029": {
+      "status": "not-started"
+    },
+    "WP-030": {
+      "status": "not-started"
+    },
+    "WP-031": {
+      "status": "not-started"
+    },
+    "WP-032": {
+      "status": "not-started"
+    },
+    "WP-033": {
+      "status": "not-started"
+    },
+    "WP-034": {
+      "status": "not-started"
+    },
+    "WP-035": {
+      "status": "not-started"
+    },
+    "WP-036": {
+      "status": "not-started"
+    },
+    "WP-037": {
+      "status": "not-started"
+    },
+    "WP-038": {
+      "status": "not-started"
+    }
+  },
+  "gates": {
+    "AG-1": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-2": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-3": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-4": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-5": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-6": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "AG-7": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "DV-1": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "DV-2": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "DV-3": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "DV-4": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "DV-5": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-1": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-2": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-3": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-4": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-5": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-6": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-7": {
+      "status": "unresolved",
+      "evidence": null
+    },
+    "PD-8": {
+      "status": "unresolved",
+      "evidence": null
+    }
+  },
+  "foundations": {
+    "content-label-foundation": {
+      "status": "not-started"
+    }
+  }
+}
