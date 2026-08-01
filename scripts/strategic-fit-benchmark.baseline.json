@@ -1,0 +1,299 @@
+{
+  "benchmark": "strategic-fit",
+  "format_version": 1,
+  "environment": {
+    "node": "26.2.0",
+    "node_major": 26,
+    "v8": "14.6.202.34-node.20",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu_model": "AMD Ryzen 5 PRO 6650H with Radeon Graphics",
+    "cpu_count": 12
+  },
+  "manifest": {
+    "schema_version": "2.0.0",
+    "analysis_version": "2.0.0",
+    "components": {
+      "graph": "1.0.0",
+      "taxonomy": "1.0.0",
+      "checkpoints": "1.0.0",
+      "pawn-signals": "1.0.0",
+      "position-signals": "1.0.0",
+      "trajectory": "1.0.0",
+      "concepts": "1.0.0",
+      "weights": "1.1.0",
+      "popularity": "1.0.0",
+      "personal-history": "1.0.0",
+      "training-performance": "1.0.0",
+      "cohorts": "1.0.0",
+      "modes": "1.0.0",
+      "distance": "1.1.0",
+      "confidence": "1.0.0",
+      "causality": "1.0.0",
+      "findings": "1.0.0",
+      "metrics": "1.1.0"
+    }
+  },
+  "index": {
+    "default_maximum_entries": 512
+  },
+  "reference": {
+    "scale": "small",
+    "runs": [
+      497.848,
+      207.206,
+      200.874
+    ]
+  },
+  "reference_ms": 207.20633099999998,
+  "scales": [
+    {
+      "id": "small",
+      "fixture": {
+        "nodes": 250,
+        "leaves": 89,
+        "max_depth": 10,
+        "pgn_bytes": 2118,
+        "digest": "b27690a9a08035da",
+        "regenerated_digest": "b27690a9a08035da",
+        "edited_digest": "5ea6140319a20839"
+      },
+      "findings": 89,
+      "routes": 89,
+      "cohorts": 89,
+      "determinism": {
+        "indexed_matches_cold": true,
+        "incremental_matches_cold": true
+      },
+      "scan": {
+        "cold_ms": 184.63875400000006,
+        "warm_ms": 112.90426200000002,
+        "incremental_ms": 148.12903300000016,
+        "graph_rebuild_ms": 3.6835369999998875
+      },
+      "recomputation": {
+        "mode": "incremental",
+        "scoped_cohort_ids": 1,
+        "recomputed_cohort_ids": 1,
+        "reused_route_ids": 88
+      },
+      "cancellation": {
+        "worst_phase_ms": 90.54974399999992,
+        "observed_ms": 0.13629600000012942,
+        "phases": [
+          {
+            "phase": "normalizing-move-orders",
+            "ms": 7.643
+          },
+          {
+            "phase": "identifying-comparable-branches",
+            "ms": 69.654
+          },
+          {
+            "phase": "extracting-strategic-patterns",
+            "ms": 0.819
+          },
+          {
+            "phase": "measuring-learning-burden",
+            "ms": 0.147
+          },
+          {
+            "phase": "attributing-differences-to-decisions",
+            "ms": 90.55
+          },
+          {
+            "phase": "ranking-findings",
+            "ms": 10.691
+          }
+        ]
+      },
+      "memory": {
+        "peak_heap_mb": 85.47650146484375,
+        "conversation_bytes": 20829
+      },
+      "main_thread": [
+        {
+          "id": "page-projection",
+          "worst_ms": 0.205,
+          "detail": "one of 2 cursor pages"
+        },
+        {
+          "id": "conversation-projection",
+          "worst_ms": 0.347,
+          "detail": "the widest chat findings page"
+        },
+        {
+          "id": "virtual-window",
+          "worst_ms": 0.072,
+          "detail": "one mounted window over the complete finding list"
+        },
+        {
+          "id": "virtual-grid",
+          "worst_ms": 0.018,
+          "detail": "one mounted heatmap row window"
+        }
+      ],
+      "bounds": [
+        {
+          "id": "page-findings",
+          "actual": 50,
+          "limit": 50,
+          "unit": "findings",
+          "detail": "no cursor page exceeds the exported maximum page size"
+        },
+        {
+          "id": "conversation-findings",
+          "actual": 25,
+          "limit": 25,
+          "unit": "findings",
+          "detail": "the chat projection stays inside its own exported page bound"
+        },
+        {
+          "id": "mounted-rows",
+          "actual": 33,
+          "limit": 60,
+          "unit": "rows",
+          "detail": "however long the list, a mounted window stays inside the exported row cap"
+        },
+        {
+          "id": "mounted-grid-cells",
+          "actual": 576,
+          "limit": 576,
+          "unit": "cells",
+          "detail": "mounted heatmap cells stay inside the exported row and column caps"
+        },
+        {
+          "id": "index-entries",
+          "actual": 185,
+          "limit": 512,
+          "unit": "entries",
+          "detail": "the incremental index stays inside the bound it declares"
+        }
+      ]
+    },
+    {
+      "id": "standard",
+      "fixture": {
+        "nodes": 1000,
+        "leaves": 437,
+        "max_depth": 12,
+        "pgn_bytes": 8634,
+        "digest": "1bd3a28f5f5615d4",
+        "regenerated_digest": "1bd3a28f5f5615d4",
+        "edited_digest": "566cb75ab841725a"
+      },
+      "findings": 437,
+      "routes": 437,
+      "cohorts": 437,
+      "determinism": {
+        "indexed_matches_cold": true,
+        "incremental_matches_cold": true
+      },
+      "scan": {
+        "cold_ms": 1334.486765,
+        "warm_ms": 869.8229230000006,
+        "incremental_ms": 1259.937684999999,
+        "graph_rebuild_ms": 17.26655699999901
+      },
+      "recomputation": {
+        "mode": "incremental",
+        "scoped_cohort_ids": 1,
+        "recomputed_cohort_ids": 1,
+        "reused_route_ids": 436
+      },
+      "cancellation": {
+        "worst_phase_ms": 568.5923830000002,
+        "observed_ms": 0.060002999999596796,
+        "phases": [
+          {
+            "phase": "normalizing-move-orders",
+            "ms": 28.767
+          },
+          {
+            "phase": "identifying-comparable-branches",
+            "ms": 466.845
+          },
+          {
+            "phase": "extracting-strategic-patterns",
+            "ms": 5.923
+          },
+          {
+            "phase": "measuring-learning-burden",
+            "ms": 0.544
+          },
+          {
+            "phase": "attributing-differences-to-decisions",
+            "ms": 568.592
+          },
+          {
+            "phase": "ranking-findings",
+            "ms": 176.786
+          }
+        ]
+      },
+      "memory": {
+        "peak_heap_mb": 213.333740234375,
+        "conversation_bytes": 21361
+      },
+      "main_thread": [
+        {
+          "id": "page-projection",
+          "worst_ms": 0.173,
+          "detail": "one of 9 cursor pages"
+        },
+        {
+          "id": "conversation-projection",
+          "worst_ms": 0.129,
+          "detail": "the widest chat findings page"
+        },
+        {
+          "id": "virtual-window",
+          "worst_ms": 0.017,
+          "detail": "one mounted window over the complete finding list"
+        },
+        {
+          "id": "virtual-grid",
+          "worst_ms": 0.008,
+          "detail": "one mounted heatmap row window"
+        }
+      ],
+      "bounds": [
+        {
+          "id": "page-findings",
+          "actual": 50,
+          "limit": 50,
+          "unit": "findings",
+          "detail": "no cursor page exceeds the exported maximum page size"
+        },
+        {
+          "id": "conversation-findings",
+          "actual": 25,
+          "limit": 25,
+          "unit": "findings",
+          "detail": "the chat projection stays inside its own exported page bound"
+        },
+        {
+          "id": "mounted-rows",
+          "actual": 33,
+          "limit": 60,
+          "unit": "rows",
+          "detail": "however long the list, a mounted window stays inside the exported row cap"
+        },
+        {
+          "id": "mounted-grid-cells",
+          "actual": 576,
+          "limit": 576,
+          "unit": "cells",
+          "detail": "mounted heatmap cells stay inside the exported row and column caps"
+        },
+        {
+          "id": "index-entries",
+          "actual": 512,
+          "limit": 512,
+          "unit": "entries",
+          "detail": "the incremental index stays inside the bound it declares"
+        }
+      ]
+    }
+  ]
+}

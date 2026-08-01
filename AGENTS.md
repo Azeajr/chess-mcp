@@ -12,6 +12,7 @@ pnpm --filter @chess-mcp/chess-tools build
 pnpm -r typecheck
 pnpm docs:check
 pnpm check:skills
+pnpm bench:strategic-fit         # --record to rebaseline; --scale large needs a raised heap
 node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
@@ -23,7 +24,8 @@ pnpm mcp
 ```
 
 CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not engine/local paths.
-`EVAL_CACHE_DIR=0` disables the persistent evaluation cache.
+`EVAL_CACHE_DIR=0` disables the persistent evaluation cache. `pnpm bench:strategic-fit` reads the
+UI's exported render bounds from source, so it needs a Node release that strips TypeScript types.
 
 ## Boundaries and sources of truth
 
@@ -74,6 +76,13 @@ CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not 
 - Browser chat sends the complete canonical browser schema on every tool-capable round. Presets
   change guidance only; do not reintroduce keyword routing or capability expansion.
 - Preserve structured error codes and per-item illegal results from `compare_moves`.
+- Strategic Fit performance budgets live in `scripts/lib/strategic-fit-benchmark.mjs` and are gated by
+  `scripts/strategic-fit-benchmark.mjs`. The benchmark observes analysis and never changes it: it
+  scans generated deterministic repertoires through the ordinary entry points, proves each scan
+  returns what an unmeasured run returns, and asserts paging, mounted-window, and cache limits
+  against the constants the product already exports. Costs that depend on the machine are budgeted as
+  ratios; a recorded baseline is compared only when its environment, analysis manifest, and fixture
+  digests match.
 
 ## Working conventions
 

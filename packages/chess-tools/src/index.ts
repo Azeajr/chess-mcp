@@ -124,6 +124,7 @@ export * from "./strategic-fit/checkpoints.js";
 export * from "./strategic-fit/pawn-signals.js";
 export * from "./strategic-fit/position-signals.js";
 export * from "./strategic-fit/index-cache.js";
+export * from "./strategic-fit/benchmark-fixtures.js";
 export * from "./strategic-fit/trajectory.js";
 export * from "./strategic-fit/concepts.js";
 export * from "./strategic-fit/weights.js";
