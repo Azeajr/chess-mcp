@@ -16,3 +16,6 @@ apps/ui/public/openings.tsv
 # personal repertoire working data — not repo material. A clean smoke fixture
 # lives in apps/mcp-server/test/fixtures/repertoires/ instead.
 /repertoires/
+
+# agent worktree checkouts
+.claude/worktrees/

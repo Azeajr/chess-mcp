@@ -303,7 +303,7 @@ function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | n
     if (
       !simulated ||
       simulated.action !== entry.action ||
-      (entry.action === "replace" && entry.prune_explicitly_confirmed !== true)
+      (entry.action === "replace" && !entry.prune_explicitly_confirmed)
     )
       return "retention-mismatch";
   }

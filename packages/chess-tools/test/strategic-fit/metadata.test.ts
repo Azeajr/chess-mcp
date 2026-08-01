@@ -333,6 +333,7 @@ test("the 1.3.0 migration adds empty PGN comment intent decisions", () => {
 
 test("the 1.4.0 migration adds equal feature-family weights without losing profile intent", () => {
   const supported = supportedMetadata();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test-only arbitrary JSON mutation to probe the migration
   const legacy = structuredClone(supported) as unknown as Record<string, any>;
   legacy.metadata_version = "1.4.0";
   delete legacy.profile.preferences.feature_family_weights;
@@ -468,6 +469,7 @@ test("cohort override identities stay unique across structural overrides and exc
 
 test("unknown future fields are ignored while every supported field survives", () => {
   const supported = supportedMetadata();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test-only arbitrary JSON mutation to probe the normalizer
   const input = structuredClone(supported) as unknown as Record<string, any>;
   input.future_summary = { format: 2 };
   input.profile.future_profile_setting = true;
@@ -497,6 +499,7 @@ test("defaults and normalized metadata are JSON and structured-clone safe", () =
 
 test("explicit whitelists prevent credentials and secret-bearing fields from surviving normalization", () => {
   const secret = "secret-value-that-must-not-survive";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test-only arbitrary JSON mutation to probe the normalizer
   const input = structuredClone(supportedMetadata()) as unknown as Record<string, any>;
   input.api_key = secret;
   input.token = secret;

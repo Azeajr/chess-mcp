@@ -968,12 +968,15 @@ function mergeRawCandidates(raw: readonly RawCandidate[]): RawCandidate[] {
       const popularity = matches.flatMap((candidate) =>
         candidate.popularity === null ? [] : [candidate.popularity],
       );
+      const memoryClass: ReplacementCandidateMemoryClass = matches.some(
+        (candidate) => candidate.memoryClass === "low",
+      )
+        ? "low"
+        : "unknown";
       return {
         ...canonical,
         existingPreparation: matches.some((candidate) => candidate.existingPreparation),
-        memoryClass: (matches.some((candidate) => candidate.memoryClass === "low")
-          ? "low"
-          : "unknown") as ReplacementCandidateMemoryClass,
+        memoryClass,
         sourcePaths: sortedPaths(matches.flatMap((candidate) => candidate.sourcePaths)),
         sources: mergeCandidateSources(matches.flatMap((candidate) => candidate.sources)),
         databaseEvidenceIds: sortedUnique(

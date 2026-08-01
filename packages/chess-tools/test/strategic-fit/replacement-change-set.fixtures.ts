@@ -106,7 +106,7 @@ export function expandedNovelLine(
   const root = subtree.nodes[0]!;
   const outcome = subtree.nodes[1]!;
   const sans = ["Be7", "O-O", "Nf6", "d3", "O-O", "Nc3", "d6", "Re1", "a6"];
-  let chess = Chess.fromSetup(parseFen(outcome.fen).unwrap()).unwrap();
+  const chess = Chess.fromSetup(parseFen(outcome.fen).unwrap()).unwrap();
   let fromNodeId = outcome.node_id;
   const nodes: Array<(typeof subtree.nodes)[number]> = [];
   const edges: Array<(typeof subtree.edges)[number]> = [];

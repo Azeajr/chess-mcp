@@ -912,7 +912,7 @@ function cohortOverride(
       kind,
       route_ids: routeIds,
       ...lifecycle,
-    } as StrategicFitPersistedStructuralCohortOverride;
+    };
   }
   unknownFields(
     value,

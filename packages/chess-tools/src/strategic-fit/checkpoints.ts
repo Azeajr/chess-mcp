@@ -253,7 +253,7 @@ function moveFacts(
   const capturedPawn =
     destinationPiece?.role === "pawn" ||
     (enPassantCapture &&
-      before.board.get(to + (movingPiece!.color === "white" ? -8 : 8))?.role === "pawn");
+      before.board.get(to + (movingPiece.color === "white" ? -8 : 8))?.role === "pawn");
   const centralPawnCapture =
     capture &&
     (movingPawn || capturedPawn) &&

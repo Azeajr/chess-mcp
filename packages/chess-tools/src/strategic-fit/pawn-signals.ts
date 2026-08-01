@@ -510,9 +510,9 @@ function centerTensionPairs(board: Board, repertoireColor: Color): CenterTension
     }
   }
   return [...pairs.values()]
-    .map((pair) => {
-      const whiteSubject = repertoireColor === "white" ? "repertoire" : "opponent";
-      const blackSubject = repertoireColor === "black" ? "repertoire" : "opponent";
+    .map((pair): CenterTensionPair => {
+      const whiteSubject: PawnSignalSubject = repertoireColor === "white" ? "repertoire" : "opponent";
+      const blackSubject: PawnSignalSubject = repertoireColor === "black" ? "repertoire" : "opponent";
       return {
         repertoire_pawn: makeSquare(repertoireColor === "white" ? pair.white : pair.black),
         opponent_pawn: makeSquare(repertoireColor === "white" ? pair.black : pair.white),
@@ -522,7 +522,7 @@ function centerTensionPairs(board: Board, repertoireColor: Color): CenterTension
             : pair.whiteAttacks
               ? whiteSubject
               : blackSubject,
-      } as CenterTensionPair;
+      };
     })
     .sort((left, right) =>
       `${left.repertoire_pawn}:${left.opponent_pawn}`.localeCompare(

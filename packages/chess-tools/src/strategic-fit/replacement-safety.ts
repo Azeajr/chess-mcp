@@ -7,7 +7,7 @@
  * archive payloads, staged edits, or an applied tree.
  */
 import type { Color } from "../congruence.js";
-import { GameTree } from "../pgn.js";
+import type { GameTree } from "../pgn.js";
 import { buildRepertoireGraph, type RepertoireGraph } from "./graph.js";
 import { calculateStrategicFamiliarityAdjustedCoverage } from "./metrics.js";
 import { buildStrategicConceptDictionary } from "./concepts.js";
@@ -609,7 +609,7 @@ function popularityByDecision(
     }));
     if (
       weighted.some(
-        (item) => item.weight === undefined || !Number.isFinite(item.weight) || item.weight! < 0,
+        (item) => item.weight === undefined || !Number.isFinite(item.weight) || item.weight < 0,
       )
     )
       continue;

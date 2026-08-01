@@ -61,8 +61,8 @@ async function fetchRaw(
   const ctrl = new AbortController();
   // Bounds time-to-headers only: the timer is cleared once the Response resolves, so a slow body
   // stream (e.g. a bulk Lichess PGN export) is never aborted mid-read.
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  const abort = () => ctrl.abort();
+  const timer = setTimeout(() => { ctrl.abort(); }, TIMEOUT_MS);
+  const abort = () => { ctrl.abort(); };
   signal?.addEventListener("abort", abort, { once: true });
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers });

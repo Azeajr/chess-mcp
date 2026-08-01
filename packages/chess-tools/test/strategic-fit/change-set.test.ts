@@ -9,8 +9,6 @@ import {
   REPLACEMENT_CHANGE_OPERATION_KINDS,
   REPLACEMENT_OPERATION_RESULT_STATUSES,
   STRATEGIC_FIT_ANALYSIS_VERSION,
-  STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
-  STRATEGIC_FIT_SCHEMA_VERSION,
   TASK_8_8_CHANGE_OPERATION_KINDS,
   applyReplacementChangeSet,
   buildRepertoireGraph,
@@ -26,7 +24,6 @@ import {
 } from "../../src/index.ts";
 import {
   addOnlyFixture,
-  expandedNovelLine,
   replacementFixture,
   scoredFixture,
 } from "./replacement-change-set.fixtures.ts";

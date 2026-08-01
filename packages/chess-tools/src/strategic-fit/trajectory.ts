@@ -89,7 +89,7 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function isObject(value: JsonValue): value is { readonly [key: string]: JsonValue } {
+function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -133,7 +133,7 @@ function persistenceValue(signal: StrategicSignal): JsonValue {
 
 function pairHas(
   value: JsonValue,
-  predicate: (side: { readonly [key: string]: JsonValue }) => boolean,
+  predicate: (side: Readonly<Record<string, JsonValue>>) => boolean,
 ): boolean {
   if (!isObject(value)) return false;
   for (const side of [value.repertoire, value.opponent]) {

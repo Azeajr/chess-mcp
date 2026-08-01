@@ -151,12 +151,12 @@ export function classifyOpeningName(name: string): OpeningTaxonomyNameParts | nu
   };
 }
 
-function nodeSpecs(parts: OpeningTaxonomyNameParts): Array<{
+function nodeSpecs(parts: OpeningTaxonomyNameParts): {
   level: OpeningTaxonomyLevel;
   label: string;
   pathLabels: string[];
-}> {
-  const specs: Array<{ level: OpeningTaxonomyLevel; label: string; pathLabels: string[] }> = [];
+}[] {
+  const specs: { level: OpeningTaxonomyLevel; label: string; pathLabels: string[] }[] = [];
   const pathLabels = [parts.family];
   specs.push({ level: "family", label: parts.family, pathLabels: [...pathLabels] });
   if (parts.system) {

@@ -270,7 +270,7 @@ function preferencePatch(value: unknown): Partial<StrategicFitProfilePreferences
       );
     }
   }
-  return patch as Partial<StrategicFitProfilePreferences>;
+  return patch;
 }
 
 /**

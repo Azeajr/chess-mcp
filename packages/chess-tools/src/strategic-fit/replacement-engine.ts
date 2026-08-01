@@ -31,6 +31,7 @@ import {
 } from "./replacement-types.js";
 import type { JsonValue, StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const REPLACEMENT_ENGINE_EVIDENCE_STATES = [
   "available",
@@ -350,7 +351,15 @@ function jsonKey(value: JsonValue): string {
   const record = value as Readonly<Record<string, JsonValue>>;
   return `{${Object.keys(record)
     .sort(compareStrings)
-    .map((key) => `${JSON.stringify(key)}:${jsonKey(record[key]!)}`)
+    .map((key) => {
+      // record[key] can legitimately be `null` (JsonValue includes it) — only the
+      // noUncheckedIndexedAccess `| undefined` from the index signature is the artifact to rule out.
+      const item = record[key];
+      if (item === undefined) {
+        throw new Error("strategic_fit_replacement_engine_json_key_missing");
+      }
+      return `${JSON.stringify(key)}:${jsonKey(item)}`;
+    })
     .join(",")}}`;
 }
 
@@ -360,6 +369,12 @@ function cloneJson<T>(value: T): T {
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Plain boolean (no `arg is any[]` type predicate) so a readonly-typed array reference doesn't get
+ *  narrowed and widened to `any[]` for every subsequent reference in the same scope. */
+function isPlainArray(value: unknown): boolean {
+  return Array.isArray(value);
 }
 
 function safeStrategicProvenance(value: unknown): StrategicFitSourceProvenance[] {
@@ -401,7 +416,7 @@ function isJsonValue(value: unknown, ancestors = new Set<object>()): value is Js
         )
       );
     }
-    const prototype = Object.getPrototypeOf(value);
+    const prototype = Object.getPrototypeOf(value) as object | null;
     if (prototype !== Object.prototype && prototype !== null) return false;
     return Reflect.ownKeys(value).every(
       (key) =>
@@ -485,7 +500,7 @@ function mergeCandidateSources(
   return [...groups.entries()]
     .sort(([left], [right]) => compareStrings(left, right))
     .map(([, matches]) => {
-      const first = matches[0]!;
+      const first = assertDefined(matches[0]);
       const details = new Map<string, Readonly<Record<string, JsonValue>>>();
       for (const match of matches) details.set(jsonKey(match.details), cloneJson(match.details));
       return {
@@ -573,10 +588,14 @@ function compatibleCacheEvidence(
         typeof entry.evidence_id !== "string"
       )
         return false;
+      // entry is caller/cache-supplied and only structurally checked above (isRecord); the version
+      // fields are declared literal-typed but must be revalidated at runtime, not trusted from the type.
+      /* eslint-disable @typescript-eslint/no-unnecessary-condition */
       return (
         entry.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
         entry.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
         entry.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION &&
+        /* eslint-enable @typescript-eslint/no-unnecessary-condition */
         entry.state === "available" &&
         entry.position.position_id === position.position_id &&
         entry.position.position_key === position.position_key &&
@@ -593,7 +612,7 @@ function compatibleCacheEvidence(
     })
     .sort(
       (left, right) =>
-        left.reached_depth! - right.reached_depth! ||
+        assertDefined(left.reached_depth) - assertDefined(right.reached_depth) ||
         left.requested_multipv - right.requested_multipv ||
         compareStrings(left.evidence_id, right.evidence_id),
     );
@@ -708,7 +727,11 @@ function compatibilityError(
       "Maximum repertoire-POV loss must be null or a finite non-negative number.",
     ];
   }
+  // pivotResult/pivot are caller-supplied Task 8.2 evidence; their status/version/owner fields are
+  // declared literal-typed but must be revalidated at runtime, not trusted from the static type.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     return [
       "non-actionable",
       "pivot-not-selected",
@@ -716,6 +739,7 @@ function compatibilityError(
     ];
   }
   const pivot = pivotResult.pivot;
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     pivotResult.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     pivotResult.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
@@ -729,6 +753,7 @@ function compatibilityError(
     pivotResult.repertoire_color !== request.repertoire_color ||
     pivot.repertoire_color !== request.repertoire_color ||
     pivot.owner !== "repertoire"
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   ) {
     return [
       "stale",
@@ -764,8 +789,7 @@ function compatibilityError(
   }
   const decision = graph.decisions.find((candidate) => candidate.decision_id === pivot.decision_id);
   if (
-    !decision ||
-    decision.from_position_id !== pivot.position_id ||
+    decision?.from_position_id !== pivot.position_id ||
     decision.san !== pivot.san ||
     decision.uci !== pivot.uci ||
     decision.owner !== "repertoire" ||
@@ -777,10 +801,14 @@ function compatibilityError(
       "Semantic pivot decision no longer matches the current graph.",
     ];
   }
+  // generation is caller-supplied Task 8.3 evidence; version fields are declared literal-typed but
+  // must be revalidated at runtime, not trusted from the static type.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     generation.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     generation.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
     generation.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION ||
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     generation.request_id !== request.request_id ||
     generation.report_id !== request.report_id ||
     generation.finding_id !== request.finding_id ||
@@ -888,7 +916,7 @@ function validatePv(
   line: ReplacementEngineLineEvidence,
 ): { san: string; uci: string; pvSan: string[]; outcomeFen: string } | null {
   if (
-    !Array.isArray(line.pv) ||
+    !isPlainArray(line.pv) ||
     line.pv.length === 0 ||
     line.pv.some((move) => typeof move !== "string") ||
     line.pv[0] !== line.uci
@@ -1376,7 +1404,7 @@ export async function generateReplacementEngineCandidates(
   }
 
   const pivot = input.pivot_result.pivot as ReplacementActionablePivotEvidence;
-  const graphPosition = pivotPosition(input.graph, pivot)!;
+  const graphPosition = assertDefined(pivotPosition(input.graph, pivot));
   const position: ReplacementEnginePositionEvidence = {
     position_id: graphPosition.position_id,
     position_key: graphPosition.position_key,
@@ -1558,6 +1586,9 @@ export async function generateReplacementEngineCandidates(
         input.signal,
       );
     } catch (error) {
+      // Genuine boolean OR-of-conditions, not a nullish-default: each operand can be a meaningful
+      // `false`, and `??` would short-circuit on that `false` instead of checking the next signal.
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       const cancelled = input.signal?.aborted || input.shouldCancel?.() || aborted(error);
       return nonEngineResult(
         input,
@@ -1611,7 +1642,7 @@ export async function generateReplacementEngineCandidates(
     typeof evidence.evidence_id !== "string" ||
     !Array.isArray(evidence.lines) ||
     !REPLACEMENT_ENGINE_EVIDENCE_STATES.includes(
-      evidence.state as ReplacementEngineEvidenceState,
+      evidence.state,
     ) ||
     (evidence.reason !== null && typeof evidence.reason !== "string") ||
     !finiteInteger(evidence.requested_depth) ||
@@ -1653,10 +1684,14 @@ export async function generateReplacementEngineCandidates(
     evidence.requested_depth < input.request.budget.engine_depth ||
     evidence.requested_multipv < input.request.budget.engine_multipv;
   const identityMismatch = !sameIdentity(evidence.engine, identity);
+  // evidence is caller/cache-supplied; version fields are declared literal-typed but must be
+  // revalidated at runtime, not trusted from the static type.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   const versionMismatch =
     evidence.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     evidence.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
     evidence.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION;
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   const terminalState = evidencePositionStale
     ? ("stale" as const)
     : requestStale
@@ -1972,7 +2007,7 @@ export async function generateReplacementEngineCandidates(
           "No valid engine best line was available.",
           evidenceProvenance,
         );
-    const canonical = canonicalByOutcome.get(line.outcomePositionKey)!;
+    const canonical = assertDefined(canonicalByOutcome.get(line.outcomePositionKey));
     const assessment = best
       ? verdict(
           { cp: line.repertoireCp, mate: line.repertoireMate },
@@ -2109,13 +2144,15 @@ export async function generateReplacementEngineCandidates(
   }
   for (const [outcomeKey, lines] of acceptedByOutcome) {
     if (combined.has(outcomeKey)) continue;
-    const canonical = [...lines].sort(
-      (left, right) =>
-        compareStrings(left.uci, right.uci) ||
-        compareStrings(left.san, right.san) ||
-        left.line.multipv_rank - right.line.multipv_rank ||
-        compareStrings(left.line.line_id, right.line.line_id),
-    )[0]!;
+    const canonical = assertDefined(
+      [...lines].sort(
+        (left, right) =>
+          compareStrings(left.uci, right.uci) ||
+          compareStrings(left.san, right.san) ||
+          left.line.multipv_rank - right.line.multipv_rank ||
+          compareStrings(left.line.line_id, right.line.line_id),
+      )[0],
+    );
     combined.set(outcomeKey, {
       ...versioned(),
       candidate_id: candidateId(pivot.position_id, outcomeKey),
@@ -2151,7 +2188,7 @@ export async function generateReplacementEngineCandidates(
         reason:
           "Task 8.5 must expand this engine seed into bounded coverage-aware opponent replies before it can become a ReplacementCandidate.",
       },
-      objective_quality: cloneJson(qualities.get(outcomeKey)!),
+      objective_quality: cloneJson(assertDefined(qualities.get(outcomeKey))),
       engine_evidence_ids: sortedUnique(
         evidenceIdsByOutcome.get(outcomeKey) ?? [evidence.evidence_id],
       ),

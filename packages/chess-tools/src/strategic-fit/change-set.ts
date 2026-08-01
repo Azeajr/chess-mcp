@@ -7,7 +7,7 @@
  */
 import type { PgnNodeData } from "chessops/pgn";
 
-import { GameTree } from "../pgn.js";
+import type { GameTree } from "../pgn.js";
 import { buildRepertoireGraph, type RepertoireGraph } from "./graph.js";
 import type { ReplacementCompleteCandidateExpansion } from "./replacement-expand.js";
 import {
@@ -44,6 +44,7 @@ import {
 } from "./replacement-types.js";
 import type { SemanticReferences, StrategicFitSourceProvenance } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const REPLACEMENT_CHANGE_SET_ERROR_CODES = [
   "stale-revision",
@@ -214,7 +215,8 @@ function stableJson(value: unknown): string {
 
 function canonicalBoundary<T>(value: T, field: string | null = null): T {
   if (Array.isArray(value)) {
-    const items = value.map((item) => canonicalBoundary(item));
+    const arr = value as unknown as unknown[];
+    const items = arr.map((item) => canonicalBoundary(item));
     const setLike =
       field === "provenance" ||
       field === "source_san_paths" ||
@@ -270,6 +272,9 @@ function sameVersions(value: StrategicFitReplacementVersioned): boolean {
   return (
     value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
     value.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
+    // replacement_schema_version's declared type is the literal STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
+    // but `value` may be caller-supplied stale/untrusted evidence at runtime — this revalidates it.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
   );
 }
@@ -301,6 +306,9 @@ function currentSafety(
       explanation: "Current repertoire revision does not match Task 8.7 safety evidence.",
     };
   }
+  // The *_unchanged flags are declared `true`-literal, but `safety` is caller-supplied evidence that
+  // may be stale/tampered at runtime — these revalidate it rather than trust the static type.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     !sameVersions(safety) ||
     !sameVersions(safety.request) ||
@@ -312,6 +320,7 @@ function currentSafety(
     !safety.evidence_unchanged ||
     !safety.inputs_unchanged
   ) {
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     return {
       code: "safety-not-current",
       explanation: "Task 8.7 versions or immutable evidence flags are not current.",
@@ -373,10 +382,14 @@ function currentSafety(
     !suppliedApplicable ||
     supplied.error_code !== null ||
     supplied.safety_checks.some((check) => check.status === "blocked") ||
+    // supplied is caller-supplied Task 8.7 evidence — these *_unchanged flags are declared `true`-literal
+    // but must be revalidated at runtime, not trusted from the static type.
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !supplied.source_tree_unchanged ||
     !supplied.scored_candidate_unchanged ||
     !supplied.evidence_unchanged ||
     !supplied.inputs_unchanged
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   ) {
     return {
       code: "safety-candidate-not-safe",
@@ -434,7 +447,7 @@ function targetAt(graph: RepertoireGraph, path: readonly string[]): ReplacementC
 
 function targetMatches(graph: RepertoireGraph, target: ReplacementChangeTarget): boolean {
   const current = targetAt(graph, target.source_san_path);
-  if (!current || current.position_id !== target.position_id) return false;
+  if (current?.position_id !== target.position_id) return false;
   return target.decision_id === null || current.decision_id === target.decision_id;
 }
 
@@ -487,8 +500,8 @@ function subtreeOccurrences(
       const path = [...parent];
       const rootId = route.node_ids[0];
       if (rootId) occurrences.set(rootId, sortedPaths([...(occurrences.get(rootId) ?? []), path]));
-      for (let index = 0; index < route.edge_ids.length; index++) {
-        const edge = edges.get(route.edge_ids[index]!);
+      for (const edgeId of route.edge_ids) {
+        const edge = edges.get(edgeId);
         if (!edge) continue;
         path.push(edge.san);
         occurrences.set(
@@ -506,11 +519,11 @@ function subtreeOccurrences(
 }
 
 function operationId(
-  changeSetId: string,
+  changeId: string,
   kind: ReplacementChangeOperationKind,
   key: string,
 ): string {
-  return `operation:${changeSetId}:${kind}:${stableHash(key)}`;
+  return `operation:${changeId}:${kind}:${stableHash(key)}`;
 }
 
 function withSequences(
@@ -604,7 +617,7 @@ function annotationOperations(
 
 function structuralClone(current: CurrentSafety, source: GameTree): GameTree | null {
   const expansion = current.scored.expansion as ReplacementCompleteCandidateExpansion;
-  let clone = source.clone();
+  const clone = source.clone();
   for (const decisionPath of pivotDecisionPaths(current)) {
     const parent = decisionPath.slice(0, -1);
     const parentIndex = clone.indexPathOfSan(parent);
@@ -621,7 +634,7 @@ function structuralClone(current: CurrentSafety, source: GameTree): GameTree | n
       const index = clone.indexPathOfSan(path);
       if (index === null || index.length === 0) return null;
       const parent = clone.nodeAt(index.slice(0, -1));
-      parent.children.splice(index.at(-1)!, 1);
+      parent.children.splice(assertDefined(index.at(-1)), 1);
     }
   }
   return clone;
@@ -638,11 +651,15 @@ function constructOperations(
   );
   const expansion = current.scored.expansion as ReplacementCompleteCandidateExpansion;
   const decisionPaths = pivotDecisionPaths(current);
+  // The cast above assumes a complete expansion; these re-verify that assumption at runtime rather
+  // than trust it, since `current.scored.expansion`'s true (union) status isn't provably complete here.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     decisionPaths.length === 0 ||
     expansion.status !== "complete" ||
     expansion.subtree.status !== "complete"
   ) {
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     return {
       code: "candidate-subtree-mismatch",
       explanation: "Safe candidate lacks a complete subtree or current pivot path.",
@@ -699,9 +716,7 @@ function constructOperations(
     provenance,
   );
   const archives: Omit<ReplacementArchiveSubtreeOperation, "sequence">[] = [];
-  const prunes: Array<
-    Omit<ReplacementPruneSubtreeOperation, "sequence"> & { archive_operation_id: string }
-  > = [];
+  const prunes: (Omit<ReplacementPruneSubtreeOperation, "sequence"> & { archive_operation_id: string })[] = [];
   if (current.candidate.action === "replace") {
     for (const path of decisionPaths) {
       const target = targetAt(current.graph, path);
@@ -749,7 +764,7 @@ function constructOperations(
       };
     const graph = buildRepertoireGraph(simulated, input.safety.repertoire_color);
     const firstEdge = expansion.subtree.edges.find(
-      (edge) => edge.from_node_id === expansion.subtree.nodes[0]?.node_id,
+      (edge) => edge.from_node_id === expansion.subtree.nodes[0].node_id,
     );
     if (!firstEdge)
       return {
@@ -772,7 +787,7 @@ function constructOperations(
       compareStrings(left.positionId, right.positionId),
     )) {
       const position = graph.positions.find((item) => item.position_id === parent.positionId);
-      if (!position || !position.outgoing_decision_ids.includes(firstEdge.decision_id)) {
+      if (!position?.outgoing_decision_ids.includes(firstEdge.decision_id)) {
         return {
           code: "reorder-boundary-mismatch",
           explanation: "Candidate decision is absent from reorder parent.",
@@ -946,22 +961,30 @@ function validateChangeSet(
       explanation: "Change-set request, candidate, revision, or deterministic identity is stale.",
     };
   }
-  if (changeSet.status !== "validated" || changeSet.atomic !== true || changeSet.staged !== true) {
+  // changeSet is caller-supplied; atomic/staged are declared `true`-literal but must be revalidated
+  // at runtime rather than trusted from the static type.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+  if (changeSet.status !== "validated" || !changeSet.atomic || !changeSet.staged) {
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     return {
       code: "change-set-not-validated",
       explanation: "Only a validated atomic domain proposal can be applied to a clone.",
     };
   }
   const replace = current.candidate.action === "replace";
+  // Each branch's fields narrow to a single literal combination given the declared retention union,
+  // but changeSet is caller-supplied — this revalidates the combination against actual runtime data.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   const validRetention = replace
     ? changeSet.retention.archive === "archive" &&
       changeSet.retention.prune === "prune" &&
-      changeSet.retention.prune_explicitly_confirmed === true &&
-      changeSet.retention.archive_before_prune === true
+      changeSet.retention.prune_explicitly_confirmed &&
+      changeSet.retention.archive_before_prune
     : changeSet.retention.archive === "keep-active" &&
       changeSet.retention.prune === "retain" &&
-      changeSet.retention.prune_explicitly_confirmed === false &&
-      changeSet.retention.archive_before_prune === true;
+      !changeSet.retention.prune_explicitly_confirmed &&
+      changeSet.retention.archive_before_prune;
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   if (!validRetention)
     return {
       code: "invalid-retention",
@@ -1003,7 +1026,7 @@ function validateChangeSet(
     operations.some((operation, index) => operation.sequence !== index) ||
     operations.some(
       (operation, index) =>
-        index > 0 && kindRank(operation.kind) < kindRank(operations[index - 1]!.kind),
+        index > 0 && kindRank(operation.kind) < kindRank(assertDefined(operations[index - 1]).kind),
     )
   ) {
     return {
@@ -1213,7 +1236,7 @@ function applyAnnotation(
   diff: MutableDiff,
 ): { failure: OperationFailure | null; count: number } {
   if (
-    operation.semantic_equivalence_verified !== true ||
+    !operation.semantic_equivalence_verified ||
     !targetMatches(graph, operation.source) ||
     !targetMatches(graph, operation.target) ||
     operation.source.position_id !== operation.target.position_id
@@ -1297,18 +1320,18 @@ function subtreeSanPaths(tree: GameTree, targetPath: readonly string[]): string[
   const targetIndex = tree.indexPathOfSan(targetPath);
   if (targetIndex === null) return null;
   const paths: string[][] = [];
-  const pending: Array<{ indexPath: number[]; sanPath: string[] }> = [
+  const pending: { indexPath: number[]; sanPath: string[] }[] = [
     {
       indexPath: [...targetIndex],
       sanPath: [...targetPath],
     },
   ];
   while (pending.length > 0) {
-    const current = pending.pop()!;
+    const current = assertDefined(pending.pop());
     paths.push(current.sanPath);
     const node = tree.nodeAt(current.indexPath);
     for (let index = node.children.length - 1; index >= 0; index--) {
-      const child = node.children[index]!;
+      const child = assertDefined(node.children[index]);
       pending.push({
         indexPath: [...current.indexPath, index],
         sanPath: [...current.sanPath, child.data.san],
@@ -1325,7 +1348,10 @@ function applyPrune(
   archivedTargets: ReadonlyMap<string, ReplacementChangeTarget>,
   diff: MutableDiff,
 ): OperationFailure | null {
-  if (operation.explicitly_confirmed !== true)
+  // explicitly_confirmed is declared `true`-literal, but operation is caller-supplied and must be
+  // revalidated at runtime rather than trusted from the static type.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (!operation.explicitly_confirmed)
     return { code: "prune-not-confirmed", explanation: "Pruning requires literal confirmation." };
   const archivedTarget = archivedTargets.get(operation.archive_operation_id);
   if (!archivedTarget || !sameTarget(archivedTarget, operation.target)) {
@@ -1349,7 +1375,7 @@ function applyPrune(
   if (removedPaths === null)
     return { code: "stale-semantic-path", explanation: "Prune subtree paths are unavailable." };
   const parent = tree.nodeAt(index.slice(0, -1));
-  parent.children.splice(index.at(-1)!, 1);
+  parent.children.splice(assertDefined(index.at(-1)), 1);
   diff.removed_paths.push(...removedPaths);
   return null;
 }

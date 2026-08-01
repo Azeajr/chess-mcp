@@ -134,7 +134,7 @@ function matchesInComment(comment: string): CandidateMatch[] {
       const text = match[0];
       if (text === undefined || match.index === undefined) continue;
       const end = match.index + text.length;
-      if (taggedRanges.some((range) => match.index! < range.end && end > range.start)) continue;
+      if (taggedRanges.some((range) => match.index < range.end && end > range.start)) continue;
       matches.push({
         kind: definition.kind,
         value: definition.value,

@@ -14,12 +14,12 @@ import type { GameMeta } from "./games.js";
 import { identifyDeepest, type OpeningTable } from "./openings.js";
 import { toolDefault } from "./tool-contract.js";
 import { aggregateProfile, positionProfile } from "./structure.js";
-import { GameTree } from "./pgn.js";
+import type { GameTree } from "./pgn.js";
 import { makeFen } from "chessops/fen";
 import { makePgn, parsePgn } from "chessops/pgn";
 
-export type PositionError = { error: "invalid_fen"; reason: string };
-export type GroundedPosition = { fen: string; turn: "white" | "black"; legal_moves: string[] };
+export interface PositionError { error: "invalid_fen"; reason: string }
+export interface GroundedPosition { fen: string; turn: "white" | "black"; legal_moves: string[] }
 
 /** Shared validation and result shaping for position-grounding host adapters. */
 export function groundPosition(rawFen: string): GroundedPosition | PositionError {

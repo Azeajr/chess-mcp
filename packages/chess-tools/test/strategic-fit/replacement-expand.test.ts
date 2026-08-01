@@ -3,7 +3,6 @@ import test from "node:test";
 
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
-import { makeSan } from "chessops/san";
 import { parseUci } from "chessops/util";
 
 import {

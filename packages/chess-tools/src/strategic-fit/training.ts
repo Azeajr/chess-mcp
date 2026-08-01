@@ -212,9 +212,9 @@ function provenance(
       source_id: sourceId,
       kind: entry.kind as StrategicFitSourceProvenance["kind"],
       state: entry.state as StrategicFitSourceProvenance["state"],
-      version: entry.version as string | null,
-      snapshot: entry.snapshot as string | null,
-      reason: entry.reason as string | null,
+      version: entry.version,
+      snapshot: entry.snapshot,
+      reason: entry.reason,
     });
   }
   return result.sort(

@@ -210,6 +210,16 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+/** Thrown when a projection invariant that upstream validation should already guarantee doesn't
+ *  hold — caught at the projection boundary and treated as an unprojectable candidate, never
+ *  a crash. */
+class ProjectionInvariantError extends Error {}
+
+function assertDefined<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined) throw new ProjectionInvariantError();
+  return value;
+}
+
 function stableHash(value: string): string {
   let hash = 0xcbf29ce484222325n;
   for (let index = 0; index < value.length; index++) {
@@ -259,11 +269,13 @@ function canonicalProvenanceFields<T>(value: T): T {
   if (Array.isArray(value)) return value.map(canonicalProvenanceFields) as T;
   if (value === null || typeof value !== "object") return value;
   const result: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) {
-    const canonical = canonicalProvenanceFields(item);
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    const canonical: unknown = canonicalProvenanceFields(item);
     result[key] =
       key === "provenance" && Array.isArray(canonical)
-        ? [...canonical].sort((left, right) => compareStrings(stableJson(left), stableJson(right)))
+        ? [...(canonical as unknown[])].sort((left, right) =>
+            compareStrings(stableJson(left), stableJson(right)),
+          )
         : canonical;
   }
   return result as T;
@@ -271,7 +283,7 @@ function canonicalProvenanceFields<T>(value: T): T {
 
 function canonicalSetLikeFields<T>(value: T, field: string | null = null): T {
   if (Array.isArray(value)) {
-    const items = value.map((item) => canonicalSetLikeFields(item));
+    const items: unknown[] = (value as unknown[]).map((item) => canonicalSetLikeFields(item));
     const ordered =
       field === "source_san_paths" ||
       field === "annotation_text" ||
@@ -524,7 +536,7 @@ function canonicalCandidateExpansion<T extends ReplacementCandidateExpansion>(va
     omissions: sortedJson(candidate.omissions),
     unresolved_risks: sortedJson(candidate.unresolved_risks),
     subtree,
-  } as T;
+  };
 }
 
 function canonicalExpansionResult(
@@ -730,7 +742,12 @@ function validCandidateIdentity(
     seed.mover_color !== request.repertoire_color ||
     seed.pivot.pivot_id !== expectedPivotId ||
     seed.pivot.repertoire_color !== request.repertoire_color ||
+    // These fields are typed as single literals because every construction path sets them that
+    // way — but this function's job is revalidating an expansion that may have crossed a
+    // checkpoint/cache boundary, so recheck them as real values rather than trust the type.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     seed.pivot.status !== "actionable" ||
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     seed.pivot.owner !== "repertoire"
   )
     return false;
@@ -777,8 +794,13 @@ function validCompleteExpansion(
     !sameVersions(expansion.subtree) ||
     expansion.subtree.root_position_id !== expansion.seed.pivot.position_id ||
     expansion.subtree.strategic_horizon_ply !== expectedHorizonPly ||
+    // Revalidating a boundary-crossed value against its claimed shape, not internal construction —
+    // see the matching note in validCandidateIdentity above.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     expansion.subtree.status !== "complete" ||
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     expansion.subtree.completion === null ||
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     expansion.subtree.truncation_reasons.length !== 0 ||
     expansion.subtree.nodes.length < 2 ||
     expansion.subtree.edges.length < 1 ||
@@ -812,12 +834,13 @@ function validCompleteExpansion(
     return false;
   const rootEdges = expansion.subtree.edges.filter((edge) => edge.from_node_id === root.node_id);
   const candidateOutcomeKey = positionKey(expansion.seed.outcome_fen);
+  const rootEdge = rootEdges[0];
   if (
     rootEdges.length !== 1 ||
-    rootEdges[0]!.san !== expansion.seed.san ||
-    rootEdges[0]!.uci !== expansion.seed.uci ||
-    rootEdges[0]!.mover_color !== expansion.seed.mover_color ||
-    nodes.get(rootEdges[0]!.to_node_id)?.position_id !== expansion.seed.outcome_position_id ||
+    rootEdge?.san !== expansion.seed.san ||
+    rootEdge.uci !== expansion.seed.uci ||
+    rootEdge.mover_color !== expansion.seed.mover_color ||
+    nodes.get(rootEdge.to_node_id)?.position_id !== expansion.seed.outcome_position_id ||
     expansion.seed.outcome_position_key !== candidateOutcomeKey
   )
     return false;
@@ -886,7 +909,8 @@ function validCompleteExpansion(
     )
       return false;
     for (let index = 0; index < route.edge_ids.length; index++) {
-      const edge = edges.get(route.edge_ids[index]!);
+      const edgeId = route.edge_ids[index];
+      const edge = edgeId === undefined ? undefined : edges.get(edgeId);
       if (
         !edge ||
         edge.from_node_id !== route.node_ids[index] ||
@@ -894,7 +918,8 @@ function validCompleteExpansion(
       )
         return false;
     }
-    const terminal = nodes.get(route.terminal_node_id)!;
+    const terminal = nodes.get(route.terminal_node_id);
+    if (!terminal) return false;
     if (route.termination === "existing-preparation") {
       const target =
         terminal.transposition_target_position_id === null
@@ -931,8 +956,9 @@ function validCompleteExpansion(
     if (
       !graph.positions.some((position) => position.position_id === completion.target_position_id) ||
       !expansion.subtree.routes.every((route) => {
-        const terminal = nodes.get(route.terminal_node_id)!;
+        const terminal = nodes.get(route.terminal_node_id);
         return (
+          terminal !== undefined &&
           route.termination === "existing-preparation" &&
           terminal.transposition_target_position_id === completion.target_position_id
         );
@@ -994,6 +1020,10 @@ function compatibilityFailure(input: ScoreReplacementCandidatesInput): Compatibi
     expansion.strategic_horizon_ply !== request.budget.strategic_horizon_ply ||
     expansion.minimum_reply_popularity !== request.budget.minimum_reply_popularity ||
     expansion.include_all_forcing_replies !== request.budget.include_all_forcing_replies ||
+    // These "unchanged" flags are typed `true` because every construction path sets them that
+    // way, but this function revalidates an expansion crossing a checkpoint/cache boundary — see
+    // the matching note in validCandidateIdentity above.
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !expansion.source_repertoire_unchanged ||
     !expansion.source_graph_unchanged ||
     !expansion.pivot_result_unchanged ||
@@ -1002,6 +1032,7 @@ function compatibilityFailure(input: ScoreReplacementCandidatesInput): Compatibi
     !expansion.providers_unchanged ||
     !expansion.cache_inputs_unchanged ||
     !expansion.evidence_unchanged
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   ) {
     return {
       status: "stale",
@@ -1188,13 +1219,25 @@ function projectedRoutes(
   for (const subtreeRoute of [...subtree.routes].sort((left, right) =>
     compareStrings(left.route_id, right.route_id),
   )) {
-    const routeNodes = subtreeRoute.node_ids.map((id) => nodeById.get(id)!);
-    const routeEdges = subtreeRoute.edge_ids.map((id) => edgeById.get(id)!);
+    const routeNodes = subtreeRoute.node_ids.flatMap((id) => {
+      const node = nodeById.get(id);
+      return node ? [node] : [];
+    });
+    const routeEdges = subtreeRoute.edge_ids.flatMap((id) => {
+      const edge = edgeById.get(id);
+      return edge ? [edge] : [];
+    });
+    if (
+      routeNodes.length !== subtreeRoute.node_ids.length ||
+      routeEdges.length !== subtreeRoute.edge_ids.length
+    )
+      continue;
     const positionIds = [...basePositions, ...routeNodes.slice(1).map((node) => node.position_id)];
     const decisionIds = [...baseDecisions, ...routeEdges.map((edge) => edge.decision_id)];
     const sanMoves = [...baseSan, ...routeEdges.map((edge) => edge.san)];
     const uciMoves = [...baseUci, ...routeEdges.map((edge) => edge.uci)];
-    const terminal = routeNodes.at(-1)!;
+    const terminal = routeNodes.at(-1);
+    if (!terminal) continue;
     const continuations =
       subtreeRoute.termination === "existing-preparation" &&
       terminal.transposition_target_position_id
@@ -1254,18 +1297,22 @@ function projectedRoutes(
   }
   return [...deduplicated.entries()]
     .sort(([left], [right]) => compareStrings(left, right))
-    .map(([, values]) => {
+    .flatMap(([, values]) => {
+      const first = values[0];
+      if (!first) return [];
       const known = values
         .map((value) => value.expectedFrequency)
         .filter((value): value is number => value !== null);
-      return {
-        ...values[0]!,
-        expectedFrequency:
-          known.length === values.length
-            ? round(known.reduce((sum, value) => sum + value, 0) / known.length)
-            : null,
-        sourcePaths: values.flatMap((value) => value.sourcePaths),
-      };
+      return [
+        {
+          ...first,
+          expectedFrequency:
+            known.length === values.length
+              ? round(known.reduce((sum, value) => sum + value, 0) / known.length)
+              : null,
+          sourcePaths: values.flatMap((value) => value.sourcePaths),
+        },
+      ];
     });
 }
 
@@ -1276,6 +1323,19 @@ function projectCandidate(
 ): CandidateProjection | null {
   const rawRoutes = projectedRoutes(source, cohort, expansion);
   if (!rawRoutes || rawRoutes.length === 0) return null;
+  try {
+    return projectCandidateFromRoutes(source, expansion, rawRoutes);
+  } catch (err) {
+    if (err instanceof ProjectionInvariantError) return null;
+    throw err;
+  }
+}
+
+function projectCandidateFromRoutes(
+  source: RepertoireGraph,
+  expansion: ReplacementCompleteCandidateExpansion,
+  rawRoutes: readonly RawProjectedRoute[],
+): CandidateProjection {
   const graphId = `replacement-score-graph:${stableHash(
     [
       source.graph_id,
@@ -1306,7 +1366,8 @@ function projectCandidate(
   const moveOrders: RepertoireGraphMoveOrder[] = [];
   const routes: RepertoireGraphRoute[] = [];
   rawRoutes.forEach((raw, routeIndex) => {
-    const routeId = routeIds[routeIndex]!;
+    const routeId = routeIds[routeIndex];
+    if (routeId === undefined) return;
     const moveOrderIds: string[] = [];
     raw.positionIds.forEach((positionId) => {
       const ids = positionRouteIds.get(positionId) ?? new Set<string>();
@@ -1314,8 +1375,9 @@ function projectCandidate(
       positionRouteIds.set(positionId, ids);
     });
     raw.decisionIds.forEach((decisionId, index) => {
-      const from = raw.positionIds[index]!;
-      const to = raw.positionIds[index + 1]!;
+      const from = raw.positionIds[index];
+      const to = raw.positionIds[index + 1];
+      if (from === undefined || to === undefined) return;
       const orderId = `replacement-score-move-order:${stableHash(
         [routeId, ...raw.decisionIds.slice(0, index + 1)].join(SEPARATOR),
       )}`;
@@ -1356,7 +1418,7 @@ function projectCandidate(
       position_ids: [...raw.positionIds],
       decision_ids: [...raw.decisionIds],
       move_order_ids: moveOrderIds,
-      terminal_position_id: raw.positionIds.at(-1)!,
+      terminal_position_id: assertDefined(raw.positionIds.at(-1)),
       source_san_paths: raw.sourcePaths.map((path) => [...path]),
       source_route_count: 1,
     });
@@ -1365,8 +1427,8 @@ function projectCandidate(
   const positions: RepertoireGraphPosition[] = positionIds.map((positionId) => {
     const sourcePosition = sourcePositions.get(positionId);
     const subtreeNode = subtreeNodes.get(positionId);
-    const fen = sourcePosition?.fen ?? subtreeNode!.fen;
-    const chess = currentChess(fen)!;
+    const fen = sourcePosition?.fen ?? assertDefined(subtreeNode).fen;
+    const chess = assertDefined(currentChess(fen));
     return {
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       position_id: positionId,
@@ -1389,17 +1451,17 @@ function projectCandidate(
   const decisions: RepertoireGraphDecision[] = decisionIds.map((decisionId) => {
     const sourceDecision = sourceDecisions.get(decisionId);
     const subtreeEdge = subtreeEdges.get(decisionId);
-    const firstRoute = rawRoutes.find((route) => route.decisionIds.includes(decisionId))!;
+    const firstRoute = assertDefined(rawRoutes.find((route) => route.decisionIds.includes(decisionId)));
     const index = firstRoute.decisionIds.indexOf(decisionId);
     return {
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       decision_id: decisionId,
-      from_position_id: firstRoute.positionIds[index]!,
-      to_position_id: firstRoute.positionIds[index + 1]!,
-      san: sourceDecision?.san ?? subtreeEdge!.san,
-      uci: sourceDecision?.uci ?? subtreeEdge!.uci,
-      mover_color: sourceDecision?.mover_color ?? subtreeEdge!.mover_color,
-      owner: sourceDecision?.owner ?? subtreeEdge!.owner,
+      from_position_id: assertDefined(firstRoute.positionIds[index]),
+      to_position_id: assertDefined(firstRoute.positionIds[index + 1]),
+      san: sourceDecision?.san ?? assertDefined(subtreeEdge).san,
+      uci: sourceDecision?.uci ?? assertDefined(subtreeEdge).uci,
+      mover_color: sourceDecision?.mover_color ?? assertDefined(subtreeEdge).mover_color,
+      owner: sourceDecision?.owner ?? assertDefined(subtreeEdge).owner,
       plies: [...(decisionPlies.get(decisionId) ?? [])].sort((left, right) => left - right),
       source_san_paths: (
         sourceDecision?.source_san_paths ??
@@ -1424,7 +1486,7 @@ function projectCandidate(
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     graph_id: graphId,
     repertoire_color: source.repertoire_color,
-    root_position_id: routes[0]!.position_ids[0]!,
+    root_position_id: assertDefined(assertDefined(routes[0]).position_ids[0]),
     positions,
     decisions,
     move_orders: moveOrders.sort(
@@ -1438,15 +1500,16 @@ function projectCandidate(
     source_route_count: routes.length,
   };
   const expected = new Map(
-    routeIds.map((routeId, index) => [routeId, rawRoutes[index]!.expectedFrequency]),
+    routeIds.map((routeId, index) => [routeId, assertDefined(rawRoutes[index]).expectedFrequency]),
   );
   const knownCount = rawRoutes.filter((route) => route.expectedFrequency !== null).length;
   return {
     graph,
-    routeEvidence: graph.routes.map((route) => ({
-      route_id: route.route_id,
-      expected_frequency: expected.get(route.route_id)!,
-    })),
+    routeEvidence: graph.routes.map((route) => {
+      const expectedFrequency = expected.get(route.route_id);
+      if (expectedFrequency === undefined) throw new ProjectionInvariantError();
+      return { route_id: route.route_id, expected_frequency: expectedFrequency };
+    }),
     frequencyState:
       knownCount === 0 ? "unavailable" : knownCount === rawRoutes.length ? "available" : "partial",
     provenance: mergeProvenance([CORE_PROVENANCE], candidateProvenance(expansion)),
@@ -1515,11 +1578,11 @@ function modeContext(
   const trajectoryByRoute = new Map(
     trajectories.trajectories.map((trajectory) => [trajectory.route_id, trajectory]),
   );
-  const conceptsByRoute = new Map(concepts.routes.map((route) => [route.route_id, route]));
+  const conceptRoutesById = new Map(concepts.routes.map((route) => [route.route_id, route]));
   return cohort.modes
     .flatMap((mode) => {
       const trajectory = trajectoryByRoute.get(mode.representative_route_id);
-      const routeConcepts = conceptsByRoute.get(mode.representative_route_id);
+      const routeConcepts = conceptRoutesById.get(mode.representative_route_id);
       return trajectory && routeConcepts ? [{ trajectory, concepts: routeConcepts }] : [];
     })
     .sort((left, right) => compareStrings(left.trajectory.route_id, right.trajectory.route_id));
@@ -1540,7 +1603,11 @@ function fitForRoutes(
   let incomplete = false;
   const provenance: (readonly StrategicFitSourceProvenance[])[] = [[sourceForProfile(profile)]];
   for (const trajectory of trajectories) {
-    const routeConcepts = conceptByRoute.get(trajectory.route_id)!;
+    const routeConcepts = conceptByRoute.get(trajectory.route_id);
+    if (!routeConcepts) {
+      incomplete = true;
+      continue;
+    }
     const distances = modes.map((mode) =>
       computeStrategicTrajectoryDistance(
         trajectory,
@@ -1635,7 +1702,12 @@ function coverageValue(expansion: ReplacementCompleteCandidateExpansion): AxisVa
   const edges = new Map(expansion.subtree.edges.map((edge) => [edge.edge_id, edge]));
   const groups = new Map<string, (number | null)[]>();
   for (const route of expansion.subtree.routes) {
-    const identity = route.edge_ids.map((edgeId) => edges.get(edgeId)!.decision_id).join(SEPARATOR);
+    const identity = route.edge_ids
+      .flatMap((edgeId) => {
+        const edge = edges.get(edgeId);
+        return edge ? [edge.decision_id] : [];
+      })
+      .join(SEPARATOR);
     const values = groups.get(identity) ?? [];
     values.push(route.expected_opponent_frequency);
     groups.set(identity, values);
@@ -1769,7 +1841,7 @@ function emptyStrategicScore(
     training_cost: null,
     transposition_position_ids: [],
     contributions: REPLACEMENT_STRATEGIC_SCORE_AXES.map((axisId) =>
-      contribution(axisId, values.get(axisId)!),
+      contribution(axisId, assertDefined(values.get(axisId))),
     ),
     provenance,
   };
@@ -1853,12 +1925,13 @@ function scoreCompleteCandidate(
     routeWeighting = calculateStrategicRouteWeights(projection.graph, {
       mode: "manual",
       route_weights: projection.graph.routes.map((route) => {
-        const probability = baseWeights.routes.find(
-          (item) => item.route_id === route.route_id,
-        )!.opponent_probability;
+        const probability = assertDefined(
+          baseWeights.routes.find((item) => item.route_id === route.route_id),
+        ).opponent_probability;
         return {
           route_id: route.route_id,
-          weight: expectedByRoute.get(route.route_id)! / Math.max(probability, EPSILON),
+          weight:
+            assertDefined(expectedByRoute.get(route.route_id)) / Math.max(probability, EPSILON),
           provenance: projection.provenance,
         };
       }),
@@ -1907,7 +1980,11 @@ function scoreCompleteCandidate(
   const familiarityValues: { routeId: string; value: number }[] = [];
   let familiarityMissing = false;
   for (const trajectory of trajectoryReport.trajectories) {
-    const routeConcepts = candidateConcepts.get(trajectory.route_id)!;
+    const routeConcepts = candidateConcepts.get(trajectory.route_id);
+    if (!routeConcepts) {
+      familiarityMissing = true;
+      continue;
+    }
     const overlaps = modes.map(
       (mode) => computeStrategicConceptOverlap(routeConcepts, mode.concepts).overlap,
     );
@@ -2056,9 +2133,9 @@ function scoreCompleteCandidate(
   const homogenizationRaw = homogenizationAvailable
     ? round(
         (1 -
-          objectiveAxis.normalized! +
-          (1 - coverageAxis.normalized!) +
-          (1 - popularityAxis.normalized!)) /
+          objectiveAxis.normalized +
+          (1 - coverageAxis.normalized) +
+          (1 - popularityAxis.normalized)) /
           3,
       )
     : null;
@@ -2139,7 +2216,7 @@ function scoreCompleteCandidate(
     ["training-cost", trainingAxis],
   ]);
   const contributions = REPLACEMENT_STRATEGIC_SCORE_AXES.map((axisId) =>
-    contribution(axisId, values.get(axisId)!),
+    contribution(axisId, assertDefined(values.get(axisId))),
   );
   const scoreState = aggregateState([...values.values()]);
   const strategicScore: ReplacementStrategicScore = {
@@ -2212,8 +2289,11 @@ function dominates(
 ): boolean {
   let better = false;
   for (const axisId of axes) {
-    const leftValue = left.paretoValues.get(axisId)!.normalized!;
-    const rightValue = right.paretoValues.get(axisId)!.normalized!;
+    // dominates() is only called with candidates from assessPareto's `eligible` set, which
+    // already guarantees every active axis has a non-null normalized value for every candidate.
+    const leftValue = assertDefined(left.paretoValues.get(axisId)).normalized;
+    const rightValue = assertDefined(right.paretoValues.get(axisId)).normalized;
+    if (leftValue === null || rightValue === null) throw new ProjectionInvariantError();
     if (leftValue + EPSILON < rightValue) return false;
     if (leftValue > rightValue + EPSILON) better = true;
   }
@@ -2225,7 +2305,7 @@ function assessPareto(calculations: readonly CandidateCalculation[]): Replacemen
     (candidate) => candidate.scored.expansion.status === "complete",
   );
   const activeAxes = REPLACEMENT_PARETO_AXES.filter((axisId) => {
-    const values = complete.map((candidate) => candidate.paretoValues.get(axisId)!);
+    const values = complete.map((candidate) => assertDefined(candidate.paretoValues.get(axisId)));
     return values.some((value) => value.state === "available" && value.normalized !== null);
   });
   const eligible = calculations.filter(

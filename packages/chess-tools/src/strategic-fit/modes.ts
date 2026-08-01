@@ -21,6 +21,7 @@ import {
   STRATEGIC_FIT_ANALYSIS_VERSION,
   STRATEGIC_FIT_SCHEMA_VERSION,
 } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_MODE_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.modes;
 
@@ -145,7 +146,7 @@ function semanticId(kind: string, parts: readonly string[]): string {
   return `${kind}:${stableHash(parts.join(ID_SEPARATOR))}`;
 }
 
-function isObject(value: JsonValue): value is { readonly [key: string]: JsonValue } {
+function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -154,7 +155,15 @@ function stableSerialize(value: JsonValue): string {
   if (isObject(value)) {
     return `{${Object.keys(value)
       .sort(compareStrings)
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .map((key) => {
+        // value[key] can legitimately be `null` (JsonValue includes it) — only the noUncheckedIndexedAccess
+        // `| undefined` from the index signature is the artifact to rule out, so this can't use assertDefined.
+        const item = value[key];
+        if (item === undefined) {
+          throw new Error("strategic_fit_modes_stable_serialize_missing_key");
+        }
+        return `${JSON.stringify(key)}:${stableSerialize(item)}`;
+      })
       .join(",")}}`;
   }
   return JSON.stringify(value);
@@ -292,7 +301,7 @@ function evidenceDistance(left: RouteEvidence, right: RouteEvidence): number | n
   if (sharedSlots.length === 0) return null;
   return round(
     sharedSlots.reduce(
-      (sum, slot) => sum + setDistance(left.features.get(slot)!, right.features.get(slot)!),
+      (sum, slot) => sum + setDistance(assertDefined(left.features.get(slot)), assertDefined(right.features.get(slot))),
       0,
     ) / sharedSlots.length,
   );
@@ -311,8 +320,8 @@ function clusterMaximumDistance(
   for (const leftId of left.routeIds) {
     for (const rightId of right.routeIds) {
       const distance = evidenceDistance(
-        evidenceByRoute.get(leftId)!,
-        evidenceByRoute.get(rightId)!,
+        assertDefined(evidenceByRoute.get(leftId)),
+        assertDefined(evidenceByRoute.get(rightId)),
       );
       if (distance === null) return null;
       maximum = Math.max(maximum, distance);
@@ -326,13 +335,15 @@ function clusterRoutes(evidence: readonly RouteEvidence[]): RouteCluster[] {
   let clusters: RouteCluster[] = evidence
     .filter((item) => item.features.size > 0)
     .map((item) => ({ routeIds: [item.routeId] }));
-  while (true) {
+  for (;;) {
     let best: { left: number; right: number; distance: number; identity: string } | null = null;
     for (let left = 0; left < clusters.length; left++) {
+      const leftCluster = assertDefined(clusters[left]);
       for (let right = left + 1; right < clusters.length; right++) {
-        const distance = clusterMaximumDistance(clusters[left]!, clusters[right]!, evidenceByRoute);
+        const rightCluster = assertDefined(clusters[right]);
+        const distance = clusterMaximumDistance(leftCluster, rightCluster, evidenceByRoute);
         if (distance === null || distance > STRATEGIC_MODE_CLUSTER_DISTANCE + EPSILON) continue;
-        const identity = `${clusterIdentity(clusters[left]!)}${ID_SEPARATOR}${clusterIdentity(clusters[right]!)}`;
+        const identity = `${clusterIdentity(leftCluster)}${ID_SEPARATOR}${clusterIdentity(rightCluster)}`;
         if (
           best === null ||
           distance < best.distance - EPSILON ||
@@ -345,7 +356,10 @@ function clusterRoutes(evidence: readonly RouteEvidence[]): RouteCluster[] {
     }
     if (!best) break;
     const merged: RouteCluster = {
-      routeIds: sortedUnique([...clusters[best.left]!.routeIds, ...clusters[best.right]!.routeIds]),
+      routeIds: sortedUnique([
+        ...assertDefined(clusters[best.left]).routeIds,
+        ...assertDefined(clusters[best.right]).routeIds,
+      ]),
     };
     clusters = clusters.filter((_, index) => index !== best.left && index !== best.right);
     clusters.push(merged);
@@ -361,8 +375,8 @@ function unitEffectiveSampleSize(
 ): number {
   const units = new Map<string, number>();
   for (const routeId of routeIds) {
-    const unitId = unitIdByRoute.get(routeId)!;
-    units.set(unitId, (units.get(unitId) ?? 0) + routeWeightById.get(routeId)!);
+    const unitId = assertDefined(unitIdByRoute.get(routeId));
+    units.set(unitId, (units.get(unitId) ?? 0) + assertDefined(routeWeightById.get(routeId)));
   }
   return calculateEffectiveSampleSize([...units.values()]);
 }
@@ -374,20 +388,20 @@ function medoidCandidate(
   unitIdByRoute: ReadonlyMap<string, string>,
 ): StrategicModeMedoidCandidate {
   const clusterWeight = cluster.routeIds.reduce(
-    (sum, routeId) => sum + routeWeightById.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(routeWeightById.get(routeId)),
     0,
   );
-  let representative = cluster.routeIds[0]!;
+  let representative = assertDefined(cluster.routeIds[0]);
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const candidateId of cluster.routeIds) {
     const weightedDistance =
       cluster.routeIds.reduce((sum, routeId) => {
         const distance = evidenceDistance(
-          evidenceByRoute.get(candidateId)!,
-          evidenceByRoute.get(routeId)!,
+          assertDefined(evidenceByRoute.get(candidateId)),
+          assertDefined(evidenceByRoute.get(routeId)),
         );
         if (distance === null) throw new Error("strategic_fit_modes_incomparable_cluster");
-        return sum + routeWeightById.get(routeId)! * distance;
+        return sum + assertDefined(routeWeightById.get(routeId)) * distance;
       }, 0) / clusterWeight;
     if (
       weightedDistance < bestDistance - EPSILON ||
@@ -451,7 +465,7 @@ function explicitSelection(
       representative_route_id: target.representative_route_id,
       supporting_route_ids: routeIds,
       normalized_weight: round(
-        routeIds.reduce((sum, routeId) => sum + routeWeightById.get(routeId)!, 0),
+        routeIds.reduce((sum, routeId) => sum + assertDefined(routeWeightById.get(routeId)), 0),
       ),
       effective_sample_size: round(
         unitEffectiveSampleSize(routeIds, routeWeightById, unitIdByRoute),
@@ -542,7 +556,7 @@ function inferredSelection(
     };
   }
 
-  const evidence = cohort.route_ids.map((routeId) => routeEvidence(trajectories.get(routeId)!));
+  const evidence = cohort.route_ids.map((routeId) => routeEvidence(assertDefined(trajectories.get(routeId))));
   const evidenceByRoute = new Map(evidence.map((item) => [item.routeId, item]));
   const clusters = clusterRoutes(evidence);
   const candidates: CandidateContext[] = clusters

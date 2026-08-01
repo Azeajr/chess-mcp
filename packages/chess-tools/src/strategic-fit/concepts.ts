@@ -160,11 +160,11 @@ const CLASSIFIER_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
   reason: null,
 });
 
-function isObject(value: JsonValue): value is { readonly [key: string]: JsonValue } {
+function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function objectValue(value: JsonValue | undefined): { readonly [key: string]: JsonValue } | null {
+function objectValue(value: JsonValue | undefined): Readonly<Record<string, JsonValue>> | null {
   return value !== undefined && isObject(value) ? value : null;
 }
 
@@ -716,7 +716,7 @@ function extractRouteConcepts(
  */
 export function deriveStrategicRouteConcepts(
   trajectory: StrategicTrajectory,
-  labels: Map<string, StrategicConceptLabel> = new Map(),
+  labels = new Map<string, StrategicConceptLabel>(),
 ): StrategicRouteConcepts {
   return extractRouteConcepts(trajectory, labels);
 }

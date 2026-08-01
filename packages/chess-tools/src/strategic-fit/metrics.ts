@@ -25,6 +25,7 @@ import type {
 } from "./types.js";
 import type { StrategicRouteWeightingReport } from "./weights.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_METRICS_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.metrics;
 
@@ -275,7 +276,7 @@ function familyBuckets(
       if (!buckets.has(routeId)) {
         buckets.set(
           routeId,
-          [selection.cohort_id, "unit", routeUnit.get(routeId)!].join(ID_SEPARATOR),
+          [selection.cohort_id, "unit", assertDefined(routeUnit.get(routeId))].join(ID_SEPARATOR),
         );
       }
     }
@@ -373,7 +374,7 @@ function strategicEntropy(context: MetricContext): StrategicFitMetric<number> {
   for (const [routeId, bucketId] of context.familyBucketByRoute) {
     bucketWeights.set(
       bucketId,
-      (bucketWeights.get(bucketId) ?? 0) + context.routeWeight.get(routeId)!,
+      (bucketWeights.get(bucketId) ?? 0) + assertDefined(context.routeWeight.get(routeId)),
     );
   }
   const coveredWeight = [...bucketWeights.values()].reduce((sum, weight) => sum + weight, 0);
@@ -417,9 +418,9 @@ function conceptAggregates(context: MetricContext): Map<string, ConceptAggregate
         unitIds: new Set<string>(),
         cohortIds: new Set<string>(),
       };
-      aggregate.weight += context.routeWeight.get(routeId)!;
-      aggregate.unitIds.add(context.routeUnit.get(routeId)!);
-      aggregate.cohortIds.add(context.routeCohortId.get(routeId)!);
+      aggregate.weight += assertDefined(context.routeWeight.get(routeId));
+      aggregate.unitIds.add(assertDefined(context.routeUnit.get(routeId)));
+      aggregate.cohortIds.add(assertDefined(context.routeCohortId.get(routeId)));
       aggregates.set(conceptId, aggregate);
     }
   }
@@ -435,7 +436,7 @@ function conceptReuse(
   let coveredWeight = 0;
   for (const [routeId, conceptIds] of context.routeConceptIds) {
     if (conceptIds.length === 0) continue;
-    const weight = context.routeWeight.get(routeId)!;
+    const weight = assertDefined(context.routeWeight.get(routeId));
     coveredWeight += weight;
     totalExposure += weight * conceptIds.length;
     reusedExposure +=
@@ -592,7 +593,7 @@ function exceptionBurden(
   training: ReturnType<typeof masteryByConcept>,
 ): StrategicFitMetric<ExceptionBurdenMetricValue> {
   const expectedFrequency = [...context.exceptionRouteIds].reduce(
-    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(context.routeWeight.get(routeId)),
     0,
   );
   if (!training) {
@@ -615,7 +616,7 @@ function exceptionBurden(
   for (const routeId of context.exceptionRouteIds) {
     const routeMasteryValue = mastery.get(routeId);
     if (routeMasteryValue === undefined) continue;
-    const weight = context.routeWeight.get(routeId)!;
+    const weight = assertDefined(context.routeWeight.get(routeId));
     coveredExceptionWeight += weight;
     trainingCost +=
       weight * (burden.get(routeId) ?? 0) * (1 - routeMasteryValue) * sensitivity.value;
@@ -645,7 +646,7 @@ function forcedDiversityFloor(context: MetricContext): StrategicFitMetric<number
       .flatMap((finding) => finding.references.route_ids),
   );
   const value = [...forcedRouteIds].reduce(
-    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(context.routeWeight.get(routeId)),
     0,
   );
   return metric(
@@ -695,7 +696,7 @@ function trainingAdjustedWorkload(
   let relevantWeight = 0;
   let coveredWeight = 0;
   for (const routeId of relevantRoutes) {
-    const weight = context.routeWeight.get(routeId)!;
+    const weight = assertDefined(context.routeWeight.get(routeId));
     relevantWeight += weight;
     const routeMasteryValue = mastery.get(routeId);
     if (routeMasteryValue === undefined) continue;
@@ -758,7 +759,7 @@ function repertoireRegret(
     context.input.findings.flatMap((finding) => finding.references.route_ids),
   );
   const relevantWeight = [...relevantRouteIds].reduce(
-    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(context.routeWeight.get(routeId)),
     0,
   );
   if (relevantWeight <= EPSILON) {
@@ -788,12 +789,12 @@ function repertoireRegret(
     }
   }
   const trainingCoveredWeight = [...relevantRouteIds].reduce(
-    (sum, routeId) => sum + (mastery.has(routeId) ? context.routeWeight.get(routeId)! : 0),
+    (sum, routeId) => sum + (mastery.has(routeId) ? assertDefined(context.routeWeight.get(routeId)) : 0),
     0,
   );
   const replacementCoveredWeight = [...relevantRouteIds].reduce(
     (sum, routeId) =>
-      sum + (replacementByRoute.has(routeId) ? context.routeWeight.get(routeId)! : 0),
+      sum + (replacementByRoute.has(routeId) ? assertDefined(context.routeWeight.get(routeId)) : 0),
     0,
   );
   if (replacementCoveredWeight <= EPSILON) {
@@ -824,9 +825,9 @@ function repertoireRegret(
     const routeMasteryValue = mastery.get(routeId);
     const replacement = replacementByRoute.get(routeId);
     if (routeMasteryValue === undefined || replacement === undefined) continue;
-    const weight = context.routeWeight.get(routeId)!;
+    const weight = assertDefined(context.routeWeight.get(routeId));
     jointlyCoveredWeight += weight;
-    const unitId = context.routeUnit.get(routeId)!;
+    const unitId = assertDefined(context.routeUnit.get(routeId));
     regretScoreByUnit.set(
       unitId,
       (regretScoreByUnit.get(unitId) ?? 0) +
@@ -842,8 +843,8 @@ function repertoireRegret(
     ]),
   );
   for (const [unitId, score] of regretScoreByUnit) {
-    const coveredWeight = regretCoveredWeightByUnit.get(unitId)!;
-    const frequency = unitWeight.get(unitId)!;
+    const coveredWeight = assertDefined(regretCoveredWeightByUnit.get(unitId));
+    const frequency = assertDefined(unitWeight.get(unitId));
     // Canonically equivalent route spellings form one theory unit. Its expected burden is
     // discounted by familiarity and by how common that unit already is.
     regret += frequency * (1 - frequency) * (score / coveredWeight) * sensitivity.value;
@@ -874,7 +875,7 @@ function repertoireRegret(
 function moveOrderResilience(context: MetricContext): StrategicFitMetric<number> {
   const eligibleRoutes = new Set(context.selectedModeIdsByRoute.keys());
   const eligibleWeight = [...eligibleRoutes].reduce(
-    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(context.routeWeight.get(routeId)),
     0,
   );
   if (eligibleWeight <= EPSILON) {
@@ -889,19 +890,19 @@ function moveOrderResilience(context: MetricContext): StrategicFitMetric<number>
   for (const link of context.input.graph.transposition_links) {
     const routeIds = link.route_ids.filter((routeId) => eligibleRoutes.has(routeId));
     for (const routeId of routeIds) {
-      const modes = context.selectedModeIdsByRoute.get(routeId)!;
+      const modes = assertDefined(context.selectedModeIdsByRoute.get(routeId));
       const survives = routeIds.some(
         (otherRouteId) =>
           otherRouteId !== routeId &&
           [...modes].some((modeId) =>
-            context.selectedModeIdsByRoute.get(otherRouteId)!.has(modeId),
+            assertDefined(context.selectedModeIdsByRoute.get(otherRouteId)).has(modeId),
           ),
       );
       if (survives) resilientRoutes.add(routeId);
     }
   }
   const resilientWeight = [...resilientRoutes].reduce(
-    (sum, routeId) => sum + context.routeWeight.get(routeId)!,
+    (sum, routeId) => sum + assertDefined(context.routeWeight.get(routeId)),
     0,
   );
   const partial = eligibleWeight + EPSILON < context.totalWeight;
@@ -942,7 +943,7 @@ function conceptCentrality(
     );
   const coveredWeight = [...context.routeConceptIds.entries()]
     .filter(([, conceptIds]) => conceptIds.length > 0)
-    .reduce((sum, [routeId]) => sum + context.routeWeight.get(routeId)!, 0);
+    .reduce((sum, [routeId]) => sum + assertDefined(context.routeWeight.get(routeId)), 0);
   const partial = coveredWeight + EPSILON < context.totalWeight;
   return metric(
     "concept-centrality",
@@ -984,7 +985,7 @@ export function calculateStrategicFitMetrics(input: StrategicFitMetricsInput): S
 function unadjustedWorkload(context: MetricContext): number {
   const burden = burdenByRoute(context);
   return [...burden.entries()].reduce(
-    (sum, [routeId, value]) => sum + context.routeWeight.get(routeId)! * value,
+    (sum, [routeId, value]) => sum + assertDefined(context.routeWeight.get(routeId)) * value,
     0,
   );
 }
@@ -996,7 +997,7 @@ export function calculateStrategicFitOverview(
   const context = makeContext(input);
   const metrics = calculateStrategicFitMetrics(input);
   const expectedConceptBurden = [...context.routeConceptIds.entries()].reduce(
-    (sum, [routeId, conceptIds]) => sum + context.routeWeight.get(routeId)! * conceptIds.length,
+    (sum, [routeId, conceptIds]) => sum + assertDefined(context.routeWeight.get(routeId)) * conceptIds.length,
     0,
   );
   const hasConceptEvidence = [...context.routeConceptIds.values()].some(

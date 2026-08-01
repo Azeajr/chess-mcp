@@ -63,7 +63,7 @@ export interface StrategicFitRecomputationScope {
 
 export const STRATEGIC_FIT_UNSCOPED_RECOMPUTATION: StrategicFitRecomputationScope = Object.freeze({
   kind: "full-scan" as const,
-  cohort_ids: Object.freeze([]) as readonly string[],
+  cohort_ids: Object.freeze([]),
   reason: "No affected-cohort scope was supplied, so every cohort is recomputed.",
 });
 
@@ -277,7 +277,7 @@ export class StrategicFitIndexCache {
 
   private evictOverflow(): void {
     while (this.entries.size > this.maximumEntries) {
-      const oldest = this.entries.keys().next().value as string | undefined;
+      const oldest = this.entries.keys().next().value;
       if (oldest === undefined) break;
       this.entries.delete(oldest);
       this.evictions++;

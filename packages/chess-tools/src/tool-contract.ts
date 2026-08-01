@@ -12,7 +12,7 @@ export type ToolCapability =
   | "network"
   | "artifact"
   | "action";
-export type InputField = {
+export interface InputField {
   type: "string" | "integer" | "number" | "boolean" | "array" | "object";
   description?: string;
   enum?: readonly (string | number)[];
@@ -26,14 +26,14 @@ export type InputField = {
   maxItems?: number;
   maxLength?: number;
   pattern?: string;
-};
-export type ToolInput = {
+}
+export interface ToolInput {
   properties: Readonly<Record<string, InputField>>;
   browserProperties?: Readonly<Record<string, InputField>>;
   mcpProperties?: Readonly<Record<string, InputField>>;
   required?: readonly string[];
   mcpRequired?: readonly string[];
-};
+}
 export interface ToolContract {
   name: string;
   description: string;
@@ -300,7 +300,7 @@ const openObject = (
 });
 
 const strategicFitId = () => string(undefined, 256);
-const strategicFitIdList = (minimum: number | undefined = undefined, maximum = 500) =>
+const strategicFitIdList = (minimum?: number  , maximum = 500) =>
   array(strategicFitId(), minimum, maximum);
 const strategicFitProfile = object(
   {
@@ -1371,7 +1371,7 @@ export const TOOL_CONTRACTS = [
 
 export const TOOL_CONTRACT_BY_NAME = new Map(TOOL_CONTRACTS.map((tool) => [tool.name, tool]));
 export const contractsForHost = (host: ToolHost) =>
-  TOOL_CONTRACTS.filter((tool) => (tool.hosts as readonly ToolHost[]).includes(host));
+  TOOL_CONTRACTS.filter((tool) => (tool.hosts).includes(host));
 export function toolContract(name: string): ToolContract {
   const value = TOOL_CONTRACT_BY_NAME.get(name);
   if (!value) throw new Error(`unknown tool contract: ${name}`);
@@ -1383,7 +1383,7 @@ export function toolDefault<T>(name: string, key: string, fallback: T): T {
 
 export function jsonSchemaForTool(name: string, host: ToolHost): Record<string, unknown> | null {
   const contract = toolContract(name);
-  if (!(contract.hosts as readonly ToolHost[]).includes(host)) return null;
+  if (!(contract.hosts).includes(host)) return null;
   if (!contract.input) return null;
   const omitted = host === "browser" ? new Set(["repertoire_id"]) : new Set<string>();
   const hostProperties =
@@ -1828,7 +1828,7 @@ export function validateToolArguments(name: string, raw: unknown, host: ToolHost
     return { ok: false, error: "invalid_arguments", reason: "arguments must be an object" };
   const contract = TOOL_CONTRACT_BY_NAME.get(name);
   if (!contract) return { ok: false, error: "invalid_arguments", reason: `unknown tool: ${name}` };
-  if (!(contract.hosts as readonly ToolHost[]).includes(host))
+  if (!(contract.hosts).includes(host))
     return {
       ok: false,
       error: "invalid_arguments",

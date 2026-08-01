@@ -12,7 +12,8 @@ import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { makeSan, parseSan } from "chessops/san";
 import type { ChildNode, PgnNodeData } from "chessops/pgn";
-import { GameTree, type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
+import type { GameTree} from "./pgn.js";
+import { type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
 import {
@@ -38,6 +39,7 @@ import {
   doubledPawns,
   passedPawns,
 } from "./structure.js";
+import { assertDefined } from "./assert.js";
 
 const MATE_CP = 100000;
 
@@ -79,7 +81,7 @@ async function mapBounded<T, R>(
       }
       const index = next++;
       if (index >= items.length) return;
-      results[index] = await worker(items[index]!, index);
+      results[index] = await worker(assertDefined(items[index]), index);
       done++;
       control.onProgress?.(done, items.length);
       if (control.shouldCancel?.()) {
@@ -100,7 +102,7 @@ const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).un
 // states which it wants instead of hiding the choice in a hand-inlined copy (and a future sign fix can't
 // miss a stray copy): 100000 for internal decisive/severity math (analyze_game eval_cp, find_repertoire_gaps
 // severity, compare_moves mover_cp) vs 10000 for the published `eval`/`eval_cp` of suggest_* (via evalWhite).
-type ScoreLine = { cp: number | null; mate: number | null };
+interface ScoreLine { cp: number | null; mate: number | null }
 /** White-POV centipawns; a mate maps to ±mateCp (the caller picks the sentinel magnitude). */
 const whitePov = (l: ScoreLine, mateCp: number): number =>
   l.mate !== null ? (l.mate > 0 ? mateCp : -mateCp) : (l.cp ?? 0);
@@ -146,20 +148,20 @@ export async function analyzeMainline(
   const moves = mainline(pgn);
   if (!moves.length) return [];
   const fens = moves.map((m) => m.fenBefore);
-  fens.push(moves[moves.length - 1]!.fenAfter);
+  fens.push(assertDefined(moves[moves.length - 1]).fenAfter);
 
   const scheduled = await mapBounded(fens, (fen) => analyse(fen, 1, depth), control);
   if (scheduled.cancelled) return null;
   const results = scheduled.results;
   if (results.some((r) => r === null)) return null; // engine genuinely unavailable
   const evals = results.map((res, i) => {
-    const l = res![0];
+    const l = assertDefined(res)[0];
     if (!l) {
       // No lines ⇒ a terminal position (no legal moves); the engine returns []. This is only ever the
       // final fenAfter, consumed as an `after` eval (its bestUci is never read). Checkmate ⇒ the side
       // to move is mated (white-POV ∓MATE_CP); stalemate / insufficient material ⇒ a draw (0). Treating
       // [] as engine_unavailable (the old bug) aborted the review of every game ending in mate.
-      const pos = chessFromFen(fens[i]!);
+      const pos = chessFromFen(assertDefined(fens[i]));
       return {
         whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0,
         bestUci: "",
@@ -171,11 +173,11 @@ export async function analyzeMainline(
   // A before-position always has a legal move (the game played one from it), so its bestUci is only
   // empty if the engine misbehaved — report that as engine trouble, not the invalid_pgn the caller's
   // catch would have labeled the moveSan("") throw as.
-  if (moves.some((_, k) => evals[k]!.bestUci === "")) return null;
+  if (moves.some((_, k) => assertDefined(evals[k]).bestUci === "")) return null;
 
   return moves.map((m, k) => {
-    const before = evals[k]!;
-    const after = evals[k + 1]!;
+    const before = assertDefined(evals[k]);
+    const after = assertDefined(evals[k + 1]);
     const loss =
       m.color === "white" ? before.whiteCp - after.whiteCp : after.whiteCp - before.whiteCp;
     const cp_loss = Math.max(0, loss);
@@ -268,7 +270,7 @@ export async function findRepertoireGaps(
       const covered: CoveredGap[] = [];
       const moverIsWhite = node.fen.split(" ")[1] === "w";
       const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-      const best = res.length ? moverCp(res[0]!) : 0;
+      const best = res.length ? moverCp(assertDefined(res[0])) : 0;
       for (const l of res) {
         const san = moveSan(node.fen, l.uci);
         if (node.covered.includes(san)) continue;
@@ -276,7 +278,7 @@ export async function findRepertoireGaps(
         // not a real gap. Record it as covered-by-transposition instead of inflating the gap list —
         // engine-free, on results the scan already computed.
         const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
-        after.play(parseUci(l.uci)!);
+        after.play(assertDefined(parseUci(l.uci)));
         const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
         if (tgt) {
           covered.push({
@@ -315,10 +317,11 @@ export async function findRepertoireGaps(
   if (opts.popularity && gaps.length) {
     // One request per unique decision node (several gaps can share one), post-limit only —
     // request budget ≤ limit at 1 req/s. The lookup caches, so transposition re-hits are free.
+    const popularityLookup = opts.popularity;
     const fens = [...new Set(gaps.map((g) => g.fen))];
     const popularity = await mapBounded(
       fens,
-      async (fen) => [fen, await opts.popularity!(fen)] as const,
+      async (fen) => [fen, await popularityLookup(fen)] as const,
       {
         shouldCancel: opts.shouldCancel,
         concurrency: opts.concurrency,
@@ -403,9 +406,10 @@ export async function auditRepertoireMoves(
       if (!res.length) return { findings, audited }; // unreachable: the node has a stored child, so a legal move exists
       const moverIsWhite = node.fen.split(" ")[1] === "w";
       const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-      const best = mcp(res[0]!);
-      const best_move = moveSan(node.fen, res[0]!.uci);
-      const best_margin = res.length > 1 ? best - mcp(res[1]!) : null;
+      const first = assertDefined(res[0]);
+      const best = mcp(first);
+      const best_move = moveSan(node.fen, first.uci);
+      const best_margin = res.length > 1 ? best - mcp(assertDefined(res[1])) : null;
       const bySan = new Map(res.map((l) => [moveSan(node.fen, l.uci), l]));
       for (const raw of node.covered) {
         const pos = chessFromFen(node.fen);
@@ -451,12 +455,13 @@ export async function auditRepertoireMoves(
   if (scheduled.cancelled) return { cancelled: true };
   const perNode = scheduled.results;
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
-  const findings = perNode.flatMap((r) => r!.findings);
+  const results = perNode as { findings: AuditFinding[]; audited: number }[];
+  const findings = results.flatMap((r) => r.findings);
   findings.sort((a, b) => b.cp_loss - a.cp_loss);
   return {
     color,
     positions_scanned: nodes.length,
-    moves_audited: perNode.reduce((a, r) => a + r!.audited, 0),
+    moves_audited: results.reduce((a, r) => a + r.audited, 0),
     findings: findings.slice(0, opts.limit ?? 10),
   };
 }
@@ -530,14 +535,16 @@ export async function findOnlyMoves(
       if (res.length < 2) return { key, finding: null };
       const moverIsWhite = node.fen.split(" ")[1] === "w";
       const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-      const margin = mcp(res[0]!) - mcp(res[1]!);
+      const first = assertDefined(res[0]);
+      const second = assertDefined(res[1]);
+      const margin = mcp(first) - mcp(second);
       if (margin < minMargin) return { key, finding: null };
       const pos = chessFromFen(node.fen);
       const prescribed = node.covered.map((raw) => {
         const mv = parseSan(pos, raw);
         return mv ? makeSan(pos, mv) : raw; // tree moves are replay-verified at load; fallback unreachable
       });
-      const best_move = moveSan(node.fen, res[0]!.uci);
+      const best_move = moveSan(node.fen, first.uci);
       const finding: OnlyMoveFinding = {
         path: node.sanPath,
         fen: node.fen,
@@ -545,7 +552,7 @@ export async function findOnlyMoves(
         best_move,
         prescribed_is_best: prescribed.includes(best_move),
         margin,
-        best_eval: mcp(res[0]!),
+        best_eval: mcp(first),
       };
       return { key, finding };
     },
@@ -554,10 +561,11 @@ export async function findOnlyMoves(
   if (scheduled.cancelled) return { cancelled: true };
   const perNode = scheduled.results;
   if (perNode.some((r) => r === null)) return { error: "engine_unavailable" };
-  const scanned = new Set(perNode.map((r) => r!.key));
-  const tagged = new Set(perNode.filter((r) => r!.finding).map((r) => r!.key));
-  const findings = perNode
-    .map((r) => r!.finding)
+  const results = perNode as { key: string; finding: OnlyMoveFinding | null }[];
+  const scanned = new Set(results.map((r) => r.key));
+  const tagged = new Set(results.filter((r) => r.finding).map((r) => r.key));
+  const findings = results
+    .map((r) => r.finding)
     .filter((f): f is OnlyMoveFinding => f !== null)
     .sort((a, b) => b.margin - a.margin);
 
@@ -701,7 +709,7 @@ export async function annotateRepertoire(
         : `${cp >= 0 ? "+" : ""}${(cp / 100).toFixed(2)}`;
   const childData = (sanPath: string[]): PgnNodeData | null => {
     const idx = clone.indexPathOfSan(sanPath);
-    if (!idx || !idx.length) return null;
+    if (!idx?.length) return null;
     return (clone.nodeAt(idx) as ChildNode<PgnNodeData>).data;
   };
   const comment = (data: PgnNodeData, text: string) => {
@@ -889,9 +897,9 @@ export async function compareShortcutLines(
 
   const yourEval = async (fen: string): Promise<number | null> => {
     const r = await analyse(fen, 1, opts.depth ?? 20);
-    if (!r || !r.length) return null;
+    if (!r?.length) return null;
     // After your move the side to move is the OPPONENT; moverPov gives their POV, so negate to yours.
-    return -moverPov(r[0]!, fen.split(" ")[1] === "w", MATE_CP);
+    return -moverPov(assertDefined(r[0]), fen.split(" ")[1] === "w", MATE_CP);
   };
   const evalStay = await yourEval(stayFen);
   const evalTranspose = await yourEval(joinFen);
@@ -1054,7 +1062,7 @@ export async function resolveDanglingStubs(
     if (!res.length) return [];
     const moverIsWhite = fen.split(" ")[1] === "w";
     const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
-    const best = moverCp(res[0]!);
+    const best = moverCp(assertDefined(res[0]));
     return res.filter((l) => best - moverCp(l) <= cpThreshold).map((l) => l.uci);
   };
 
@@ -1068,6 +1076,9 @@ export async function resolveDanglingStubs(
     },
     pickMoves,
   );
+  // pickMoves runs as extendedBridges' callback, not a direct call in this scope, so TS's control-flow
+  // analysis can't see the mutation and narrows engineOk to `true` here even though it's genuinely mutable.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!engineOk) return { error: "engine_unavailable" };
 
   // extendedBridges ranks best-first; keep the first (best) extension per departure path.
@@ -1136,7 +1147,11 @@ export async function compareMoves(
     control,
   );
   const out: Record<string, unknown>[] = scheduled.results;
-  out.sort((a, b) => ((b.mover_cp as number) ?? -Infinity) - ((a.mover_cp as number) ?? -Infinity));
+  out.sort(
+    (a, b) =>
+      ((b.mover_cp as number | undefined) ?? -Infinity) -
+      ((a.mover_cp as number | undefined) ?? -Infinity),
+  );
   // Rank only the scored candidates — a rank on an illegal/engine-error row reads as a real placement.
   let rank = 0;
   for (const o of out) if (o.mover_cp !== undefined) o.rank = ++rank;
@@ -1174,7 +1189,7 @@ export async function suggestComplementaryLines(
     const oppUci = oppRes[0]?.uci;
     if (!oppUci) return { mode: m, anchor_fen: makeFen(pos.toSetup()), suggestions: [] };
     opponentMoveSan = moveSan(makeFen(pos.toSetup()), oppUci);
-    pos.play(parseUci(oppUci)!);
+    pos.play(assertDefined(parseUci(oppUci)));
   }
   const anchorFen = makeFen(pos.toSetup());
   const moverIsWhite = pos.turn === "white";
@@ -1182,7 +1197,7 @@ export async function suggestComplementaryLines(
 
   const res = await analyse(anchorFen, pool, opts.depth ?? 20);
   if (!res) return { error: "engine_unavailable" };
-  const best = res.length ? moverCp(res[0]!) : 0;
+  const best = res.length ? moverCp(assertDefined(res[0])) : 0;
   const leafBoards = tree.leafPositions().map((p) => p.board);
   const profile = buildFitProfile(leafBoards, color); // low_memorization: blended structural fit
   const shares = profileStructureShares(leafBoards); // sharp: structure novelty (not a fit axis)
@@ -1192,7 +1207,7 @@ export async function suggestComplementaryLines(
     const mcp = moverCp(l);
     if (best - mcp > 100) continue;
     const after = chessFromFen(anchorFen);
-    after.play(parseUci(l.uci)!);
+    after.play(assertDefined(parseUci(l.uci)));
     const resultStruct = classifyStructure(after.board).structure_class;
     const entry: Record<string, unknown> = {
       move: moveSan(anchorFen, l.uci),
@@ -1253,12 +1268,12 @@ export interface SuggestGapFillsOptions {
   target_plies?: number;
 }
 
-type RawComplementarySuggestion = {
+interface RawComplementarySuggestion {
   move: string;
   eval: number;
   profile_match?: number;
   pv: string;
-};
+}
 
 async function gapFillTail(
   fen: string,
@@ -1276,7 +1291,7 @@ async function gapFillTail(
     const result = await analyse(currentFen, 1, searchDepth);
     if (!result?.length) break;
     let advanced = 0;
-    for (const uci of result[0]!.pv ?? []) {
+    for (const uci of assertDefined(result[0]).pv) {
       if (out.length >= maxPlies) break;
       const move = parseUci(uci);
       if (!move) break;
@@ -1396,7 +1411,7 @@ export async function suggestGapFills(
   const byEval = [...probed].sort(
     (a, b) => moverEval(b.suggestion) - moverEval(a.suggestion) || b.fit - a.fit,
   );
-  const evalPick = byEval[0]!;
+  const evalPick = assertDefined(byEval[0]);
   const fitPick = [...probed]
     .filter((candidate) => candidate.suggestion.move !== evalPick.suggestion.move)
     .sort((a, b) => b.fit - a.fit || moverEval(b.suggestion) - moverEval(a.suggestion))[0];

@@ -12,6 +12,7 @@ import { makeSan, parseSan } from "chessops/san";
 import type { NormalMove, Role } from "chessops/types";
 import { makeUci, parseSquare, parseUci } from "chessops/util";
 
+import { assertDefined } from "../assert.js";
 import { positionKey, type Color } from "../congruence.js";
 import type { RepertoireGraph, RepertoireGraphPosition } from "./graph.js";
 import type {
@@ -27,6 +28,7 @@ import type {
   StrategicFitReplacementVersioned,
 } from "./replacement-types.js";
 import { STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION } from "./replacement-types.js";
+import type { ReplacementRequest } from "./replacement-types.js";
 import type { ReplacementCandidateGenerationResult } from "./replacement-candidates.js";
 import type {
   ReplacementEngineAnalysisEvidence,
@@ -310,7 +312,7 @@ export type ReplacementCandidateExpansion =
   | ReplacementIncompleteCandidateExpansion;
 
 export interface ExpandReplacementCandidatesInput {
-  readonly request: import("./replacement-types.js").ReplacementRequest;
+  readonly request: ReplacementRequest;
   readonly graph: RepertoireGraph;
   readonly pivot_result: ReplacementPivotSelectionResult;
   readonly candidate_generation: ReplacementCandidateGenerationResult;
@@ -436,9 +438,15 @@ function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort(compareStrings);
 }
 
+// JSON.stringify's lib.d.ts signature claims `string`, but it really returns `undefined` for
+// undefined/function/symbol values — this annotation reflects the true runtime type.
+function stringifyOrUndefined(value: unknown): string | undefined {
+  return JSON.stringify(value);
+}
+
 function jsonKey(value: unknown): string {
   try {
-    return JSON.stringify(value) ?? "";
+    return stringifyOrUndefined(value) ?? "";
   } catch {
     return "";
   }
@@ -524,11 +532,9 @@ function legalMoves(position: Chess): LegalMove[] {
   const moves: LegalMove[] = [];
   for (const [origin, destinations] of chessgroundDests(position)) {
     const from = parseSquare(origin);
-    if (from === undefined) continue;
     const piece = position.board.get(from);
     for (const destination of destinations) {
       const to = parseSquare(destination);
-      if (to === undefined) continue;
       const promotion = piece?.role === "pawn" && (to >> 3 === 0 || to >> 3 === 7);
       const roles = promotion ? PROMOTIONS : ([null] as const);
       for (const role of roles) {
@@ -744,6 +750,10 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
   if (typeof request.budget.include_all_forcing_replies !== "boolean") {
     return ["invalid-request", "invalid-reply-policy", "Forcing-reply policy must be boolean."];
   }
+  // pivot.status/owner are typed as single literals because every construction path sets them
+  // that way, but this function revalidates a pivot result that may have crossed a request
+  // boundary, so recheck them as real values rather than trust the type.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
     return [
       "stale",
@@ -756,6 +766,7 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
     !sameVersions(pivotResult) ||
     !sameRequestIdentity(pivotResult, request) ||
     pivot.repertoire_color !== request.repertoire_color ||
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     pivot.owner !== "repertoire"
   ) {
     return [
@@ -788,8 +799,7 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
     (decision) => decision.decision_id === pivot.decision_id,
   );
   if (
-    !graphDecision ||
-    graphDecision.from_position_id !== pivot.position_id ||
+    graphDecision?.from_position_id !== pivot.position_id ||
     graphDecision.san !== pivot.san ||
     graphDecision.uci !== pivot.uci ||
     graphDecision.owner !== "repertoire" ||
@@ -835,9 +845,14 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
       !sameRequestIdentity(seed, request) ||
       seed.pivot.pivot_id !== pivot.pivot_id ||
       seed.mover_color !== request.repertoire_color ||
+      // These fields are typed as single literals because every construction path sets them that
+      // way, but this loop revalidates Task 8.4 seeds that may have crossed a boundary — see the
+      // matching note earlier in this function.
+      /* eslint-disable @typescript-eslint/no-unnecessary-condition */
       seed.expansion.status !== "full-subtree-required" ||
       !seed.expansion.full_subtree_required ||
       seed.expansion.required_contract !== "ReplacementCandidateSubtree" ||
+      /* eslint-enable @typescript-eslint/no-unnecessary-condition */
       seenIds.has(seed.candidate_id)
     ) {
       return [
@@ -1452,7 +1467,7 @@ async function queryExplorer(
     const inputUci = rawRecord && typeof raw.uci === "string" ? raw.uci : null;
     const inputPv =
       rawRecord && Array.isArray(raw.pv) && raw.pv.every((value) => typeof value === "string")
-        ? (raw.pv as string[])
+        ? (raw.pv)
         : [];
     const popularityValid =
       rawRecord &&
@@ -1542,10 +1557,12 @@ async function queryExplorer(
         compareStrings(left.evidence.move_id, right.evidence.move_id) ||
         right.evidence.played_probability - left.evidence.played_probability,
     );
-    deduplicatedReplies.push(orderedMatches[0]!);
+    const first = orderedMatches[0];
+    if (!first) continue;
+    deduplicatedReplies.push(first);
     for (const duplicate of orderedMatches.slice(1)) {
       items[duplicate.itemIndex] = {
-        ...items[duplicate.itemIndex]!,
+        ...assertDefined(items[duplicate.itemIndex]),
         status: "malformed",
         error_code: "malformed-evidence",
         explanation:
@@ -1699,7 +1716,7 @@ function compatibleExpansionCache(
     })
     .sort(
       (left, right) =>
-        left.reached_depth! - right.reached_depth! ||
+        assertDefined(left.reached_depth) - assertDefined(right.reached_depth) ||
         left.requested_multipv - right.requested_multipv ||
         compareStrings(left.evidence_id, right.evidence_id),
     );
@@ -2018,7 +2035,7 @@ async function queryEngine(
     const uci = record && typeof line.uci === "string" ? line.uci : null;
     const pv =
       record && Array.isArray(line.pv) && line.pv.every((value) => typeof value === "string")
-        ? (line.pv as string[])
+        ? (line.pv)
         : [];
     const rank = record && finiteInteger(line.multipv_rank) ? line.multipv_rank : null;
     const depth = record && finiteInteger(line.depth) ? line.depth : null;
@@ -2059,7 +2076,7 @@ async function queryEngine(
       error = "stale-request";
     }
     let legal: LegalMove | null = null;
-    if (status === "complete" && parsed) {
+    if (status === "complete" && parsed && rank !== null && depth !== null && lineId !== null) {
       const after = position.clone();
       const san = makeSan(position, parsed);
       after.play(parsed);
@@ -2070,7 +2087,7 @@ async function queryEngine(
         after,
         forcing: san.includes("x") || san.includes("+") || san.includes("#") || san.includes("="),
       };
-      valid.push({ move: legal, rank: rank!, depth: depth!, id: lineId!, itemIndex });
+      valid.push({ move: legal, rank, depth, id: lineId, itemIndex });
     }
     const whiteCp = cpValid ? (line.white_pov_evaluation_cp as number) : null;
     const whiteMate = mateValid ? (line.white_pov_mate_in as number) : null;
@@ -2121,10 +2138,12 @@ async function queryEngine(
         compareStrings(left.move.uci, right.move.uci) ||
         compareStrings(left.id, right.id),
     );
-    canonicalValid.push(orderedMatches[0]!);
+    const first = orderedMatches[0];
+    if (!first) continue;
+    canonicalValid.push(first);
     for (const duplicate of orderedMatches.slice(1)) {
       items[duplicate.itemIndex] = {
-        ...items[duplicate.itemIndex]!,
+        ...assertDefined(items[duplicate.itemIndex]),
         status: "malformed",
         error_code: "malformed-evidence",
         explanation:
@@ -2326,14 +2345,15 @@ function subtreeValid(
     const to = nodes.get(edge.to_node_id);
     if (!from || !to) return false;
     const chess = currentPosition(from.fen);
-    const validated = chess ? validateMove(chess, edge.san, edge.uci) : { move: null };
+    if (!chess) return false;
+    const validated = validateMove(chess, edge.san, edge.uci);
     if (
       !validated.move ||
       positionKey(makeFen(validated.move.after.toSetup())) !== positionKey(to.fen) ||
       edge.decision_id !== decisionId(from.position_id, edge.uci, positionKey(to.fen)) ||
       to.ply !== from.ply + 1 ||
-      edge.mover_color !== chess!.turn ||
-      edge.owner !== (chess!.turn === repertoireColor ? "repertoire" : "opponent") ||
+      edge.mover_color !== chess.turn ||
+      edge.owner !== (chess.turn === repertoireColor ? "repertoire" : "opponent") ||
       edge.forcing !== validated.move.forcing
     )
       return false;
@@ -2348,8 +2368,10 @@ function subtreeValid(
     )
       return false;
     for (let index = 0; index < route.edge_ids.length; index++) {
-      const edge = edges.get(route.edge_ids[index]!)!;
+      const routeEdgeId = route.edge_ids[index];
+      const edge = routeEdgeId === undefined ? undefined : edges.get(routeEdgeId);
       if (
+        !edge ||
         edge.from_node_id !== route.node_ids[index] ||
         edge.to_node_id !== route.node_ids[index + 1]
       )
@@ -2362,13 +2384,19 @@ function subtreeValid(
   )
     return false;
   if (subtree.status === "complete") {
+    // These fields are typed as fixed/non-null for the "complete" variant because every
+    // construction path sets them that way, but this function revalidates a subtree that may
+    // have crossed a checkpoint/cache boundary — see the matching note earlier in this file.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (subtree.truncation_reasons.length !== 0 || subtree.completion === null) return false;
     if (
       subtree.completion.kind === "expanded-opponent-replies" &&
       subtree.completion.opponent_reply_edge_ids.length === 0
     )
       return false;
-  } else if (subtree.completion !== null || subtree.truncation_reasons.length === 0) return false;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  else if (subtree.completion !== null || subtree.truncation_reasons.length === 0) return false;
   return true;
 }
 
@@ -2467,17 +2495,17 @@ async function expandCandidate(
   global: ExpansionCounters,
 ): Promise<ReplacementCandidateExpansion> {
   const paths = sourcePaths(seed);
-  const pivotPosition = input.graph.positions.find(
-    (position) => position.position_id === seed.pivot.position_id,
-  )!;
-  const rootChess = currentPosition(pivotPosition.fen)!;
+  const pivotPosition = assertDefined(
+    input.graph.positions.find((position) => position.position_id === seed.pivot.position_id),
+  );
+  const rootChess = assertDefined(currentPosition(pivotPosition.fen));
   const rootEvidence: ReplacementExpansionPositionEvidence = {
     position_id: pivotPosition.position_id,
     position_key: pivotPosition.position_key,
     fen: pivotPosition.fen,
     ply: seed.pivot.ply - 1,
   };
-  const seedMove = validateMove(rootChess, seed.san, seed.uci).move!;
+  const seedMove = assertDefined(validateMove(rootChess, seed.san, seed.uci).move);
   const outcomeEvidence: ReplacementExpansionPositionEvidence = {
     position_id: seed.outcome_position_id,
     position_key: seed.outcome_position_key,
@@ -2487,12 +2515,13 @@ async function expandCandidate(
   const rootId = nodeId(seed.candidate_id, []);
   const firstEdgeId = edgeId(seed.candidate_id, [], seedMove.uci);
   const outcomeId = nodeId(seed.candidate_id, [firstEdgeId]);
-  const nodes: MutableNode[] = [makeNode(rootId, "root", rootEvidence, paths)];
+  const rootNode = makeNode(rootId, "root", rootEvidence, paths);
+  const nodes: MutableNode[] = [rootNode];
   const outcomeNode = makeNode(outcomeId, "repertoire-decision", outcomeEvidence, paths);
   nodes.push(outcomeNode);
   const edges: ReplacementSubtreeEdge[] = [];
-  const firstEdge = makeEdge(seed, nodes[0]!, outcomeNode, seedMove, firstEdgeId, null);
-  nodes[0]!.outgoing_edge_ids.push(firstEdgeId);
+  const firstEdge = makeEdge(seed, rootNode, outcomeNode, seedMove, firstEdgeId, null);
+  rootNode.outgoing_edge_ids.push(firstEdgeId);
   edges.push(firstEdge);
   const routes: ReplacementSubtreeRoute[] = [];
   const queue: RouteWork[] = [
@@ -2619,19 +2648,19 @@ async function expandCandidate(
   if (immediate) {
     outcomeNode.kind = "transposition";
     outcomeNode.transposition_target_position_id = immediate.position_id;
-    finishRoute(queue.shift()!, "existing-preparation");
+    finishRoute(assertDefined(queue.shift()), "existing-preparation");
     immediateCompletion = {
       kind: "immediate-transposition",
       target_position_id: immediate.position_id,
     };
   } else if (seedMove.after.isEnd()) {
     outcomeNode.kind = "terminal";
-    finishRoute(queue.shift()!, "terminal-position");
+    finishRoute(assertDefined(queue.shift()), "terminal-position");
     immediateCompletion = { kind: "terminal-position", terminal_node_id: outcomeId };
   }
 
   while (queue.length > 0) {
-    const work = queue.shift()!;
+    const work = assertDefined(queue.shift());
     tracker.visitedPositions++;
     advance(input, tracker);
     if (cancelled(input)) {
@@ -2656,14 +2685,14 @@ async function expandCandidate(
         "Cancellation stopped candidate expansion and all new provider scheduling.",
         [work.positionEvidence.position_id],
       );
-      while (queue.length > 0) finishRoute(queue.shift()!, "unresolved-reply");
+      while (queue.length > 0) finishRoute(assertDefined(queue.shift()), "unresolved-reply");
       break;
     }
     if (work.positionEvidence.ply >= input.request.budget.strategic_horizon_ply) {
       finishRoute(work, "strategic-horizon");
       continue;
     }
-    const parentNode = nodes.find((node) => node.node_id === work.nodeId)!;
+    const parentNode = assertDefined(nodes.find((node) => node.node_id === work.nodeId));
     if (work.position.turn !== input.request.repertoire_color) {
       const allLegal = legalMoves(work.position);
       const forcingMoves = allLegal.filter((move) => move.forcing);
@@ -2972,7 +3001,7 @@ async function expandCandidate(
               item.position.position_key === work.positionEvidence.position_key &&
               item.item_index === selectedReply.itemIndex,
           );
-          if (index >= 0) items[index] = { ...items[index]!, included: true };
+          if (index >= 0) items[index] = { ...assertDefined(items[index]), included: true };
         }
         const frequency =
           work.expectedFrequency === null || selectedReply.probability === null
@@ -3125,8 +3154,8 @@ async function expandCandidate(
     .sort((left, right) => left.ply - right.ply || compareStrings(left.node_id, right.node_id));
   const finalEdges = [...edges].sort(
     (left, right) =>
-      nodes.find((node) => node.node_id === left.from_node_id)!.ply -
-        nodes.find((node) => node.node_id === right.from_node_id)!.ply ||
+      assertDefined(nodes.find((node) => node.node_id === left.from_node_id)).ply -
+        assertDefined(nodes.find((node) => node.node_id === right.from_node_id)).ply ||
       compareStrings(left.from_node_id, right.from_node_id) ||
       compareStrings(left.uci, right.uci),
   );
@@ -3139,7 +3168,11 @@ async function expandCandidate(
     (left, right) => compareStrings(left.risk_id, right.risk_id),
   );
   const finalOmissions = sortedOmissions(omissions);
+  // TS proves candidateStatus is always "complete" by this point given the closure's actual call
+  // sites and control flow, but the check documents the real completion contract and stays in
+  // case that control flow changes.
   const complete =
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     candidateStatus === "complete" &&
     truncationReasons.size === 0 &&
     coveredImportantReplyCount === importantReplyCount &&
@@ -3191,6 +3224,7 @@ async function expandCandidate(
       completion: null,
       truncation_reasons: reasons as [string, ...string[]],
     };
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- see the note above `complete`
     if (candidateStatus === "complete") candidateStatus = "truncated";
   }
   if (!subtreeValid(subtree, seed.repertoire_color)) {

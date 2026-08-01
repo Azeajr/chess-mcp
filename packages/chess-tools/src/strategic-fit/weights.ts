@@ -252,7 +252,7 @@ export function calculateEffectiveSampleSize(weights: readonly number[]): number
 
 function groupOpponentDecisions(
   decisions: readonly RepertoireGraphDecision[],
-): Array<[string, RepertoireGraphDecision[]]> {
+): [string, RepertoireGraphDecision[]][] {
   const groups = new Map<string, RepertoireGraphDecision[]>();
   for (const decision of decisions) {
     if (decision.owner !== "opponent") continue;

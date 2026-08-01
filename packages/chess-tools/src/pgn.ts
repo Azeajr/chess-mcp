@@ -212,9 +212,9 @@ export function landsInCrossBranchPrep(
  *  `someLegal`) skips the clones a full enumeration would pay. */
 export function* iterateLegal(pos: Chess): Generator<{ move: NormalMove; after: Chess }> {
   for (const [orig, dests] of chessgroundDests(pos)) {
-    const from = parseSquare(orig)!;
+    const from = parseSquare(orig);
     for (const dest of dests) {
-      const to = parseSquare(dest)!;
+      const to = parseSquare(dest);
       const piece = pos.board.get(from);
       const toRank = to >> 3;
       const move: NormalMove =
@@ -315,7 +315,7 @@ export class GameTree {
   }
 
   private static _mergeNodes(tree: GameTree, node: Node<PgnNodeData>, path: Path): void {
-    for (const child of node.children as ChildNode<PgnNodeData>[]) {
+    for (const child of node.children) {
       const result = tree.appendSan(path, child.data.san);
       GameTree._mergeNodes(tree, child, result.path);
     }
@@ -377,7 +377,7 @@ export class GameTree {
     const toRank = to >> 3;
     if (promotion) move.promotion = promotion as NormalMove["promotion"];
     else if (piece?.role === "pawn" && (toRank === 0 || toRank === 7)) move.promotion = "queen";
-    const san = makeSanAndPlay(pos, move as Move);
+    const san = makeSanAndPlay(pos, move);
     if (san === "--") throw new Error(`illegal move ${orig}${dest}`);
     return this.appendSan(path, san);
   }
@@ -632,7 +632,7 @@ export class GameTree {
           if (path.length) leaves.push(path);
           return;
         }
-        node.children.forEach((c, i) => collect(c, [...path, i]));
+        node.children.forEach((c, i) => { collect(c, [...path, i]); });
       };
       collect(this.game.moves, []);
 
@@ -643,7 +643,7 @@ export class GameTree {
         let node: Node<PgnNodeData> = this.game.moves;
         for (let depth = 0; depth < leaf.length; depth++) {
           steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
-          const child = node.children[leaf[depth]!] as ChildNode<PgnNodeData>;
+          const child = node.children[leaf[depth]!]!;
           const move = parseSan(pos, child.data.san);
           if (!move) break;
           pos.play(move);
@@ -740,7 +740,7 @@ export class GameTree {
         const s = steps[idx]!;
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyseCached(fen, multipv);
-        if (!lines || !lines.length) continue;
+        if (!lines?.length) continue;
         const stayMove = leafSan[s.ply]!; // the line's own next move at this node
         const enriched = lines
           .map((l) => {

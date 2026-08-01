@@ -468,7 +468,7 @@ function applyStructuralOverrides(
   inferred: readonly MutableRouteGroup[],
   overrides: readonly StrategicCohortOverride[],
 ): MutableRouteGroup[] {
-  let groups = inferred.map((group) => ({
+  const groups = inferred.map((group) => ({
     routeIds: new Set(group.routeIds),
     overrideIds: new Set(group.overrideIds),
   }));

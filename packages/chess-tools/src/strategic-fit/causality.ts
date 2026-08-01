@@ -157,7 +157,7 @@ function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort(compareStrings);
 }
 
-function isObject(value: JsonValue): value is { readonly [key: string]: JsonValue } {
+function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

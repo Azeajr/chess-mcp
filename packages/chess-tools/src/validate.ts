@@ -72,9 +72,9 @@ export function legalMoves(fen: string): string[] {
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
   const out: string[] = [];
   for (const [orig, dests] of chessgroundDests(pos)) {
-    const from = parseSquare(orig)!;
+    const from = parseSquare(orig);
     for (const dest of dests) {
-      const to = parseSquare(dest)!;
+      const to = parseSquare(dest);
       const piece = pos.board.get(from);
       const toRank = to >> 3;
       const move: NormalMove =

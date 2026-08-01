@@ -9,7 +9,8 @@ import { makeSan, parseSan } from "chessops/san";
 import { parseUci } from "chessops/util";
 import { Chess } from "chessops/chess";
 import type { Node, PgnNodeData } from "chessops/pgn";
-import { GameTree, buildKeyIndex, type Path } from "./pgn.js";
+import type { GameTree} from "./pgn.js";
+import { buildKeyIndex, type Path } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 
 export type Severity = "low" | "medium" | "high";

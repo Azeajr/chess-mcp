@@ -196,7 +196,7 @@ function compareCheckpointKeys(left: string, right: string): number {
   return compareStrings(left, right);
 }
 
-function isObject(value: JsonValue): value is { readonly [key: string]: JsonValue } {
+function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
