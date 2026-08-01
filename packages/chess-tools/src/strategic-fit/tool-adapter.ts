@@ -88,12 +88,6 @@ export interface StrategicFitToolPersonalHistoryInput {
 }
 
 export interface StrategicFitToolArguments {
-  /** Legacy V1 inputs remain accepted until the final cutover. */
-  readonly min_severity?: "low" | "medium" | "high";
-  /** Bounded legacy projection size; native V2 paging lives in `page`. */
-  readonly limit?: number;
-  readonly acknowledged_weaknesses?: readonly (readonly string[])[];
-  readonly exclude_paths?: readonly (readonly string[])[];
   readonly profile?: StrategicFitToolProfileInput;
   readonly weighting?: StrategicFitToolWeightingInput;
   /** Optional host-collected population evidence. The deterministic core never performs I/O. */

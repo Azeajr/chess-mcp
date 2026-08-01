@@ -38,7 +38,7 @@ a no-scope Lichess personal token because the explorer requires authentication.
   personal-history frequency, bounded custom feature-family weights, persisted browser source
   filters with visible availability, browser-local training-adjusted metrics with source coverage, stable
   cursor paging over large reports,
-  provenance, and a temporary legacy projection; bounded conversation retrieval of an existing
+  provenance; bounded conversation retrieval of an existing
   report's summary, one finding page, or one finding with evidence and navigable paths; a staged
   browser intent interview that turns stated goals into proposed profile preferences shown as an
   exact diff and saved only on explicit acceptance; staged plan cards for retained exceptions whose
@@ -46,7 +46,7 @@ a no-scope Lichess personal token because the explorer requires authentication.
   confirmed redesign bounds that select a bounded portfolio of already-generated candidates with the
   measured value behind every bound, and name the binding bound when nothing qualifies;
   transposition
-  shortening, shortcut inspection, legacy engine-vetted one-move replacements, complete revision-bound
+  shortening, shortcut inspection, complete revision-bound
   Strategic Fit V2 candidate/change-set previews with explicit browser staging, atomic archive/undo
   persistence, honest MCP archive/undo limits, complementary lines, and shared best-eval/best-fit gap fills.
 

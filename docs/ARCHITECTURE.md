@@ -308,8 +308,8 @@ Task 8.10 keeps `suggest_replacement_line` stable while adding the discriminated
 pivot, profile, sources, budget, engine, coverage, retention, candidate, safety, identity, version,
 and provenance chain. The shared framework-free composer revalidates the retained Task 8.3–8.7
 evidence and produces structured per-candidate Task 8.8 change sets and immutable previews. Legacy
-`outlier_variation_path`/mode/depth behavior remains available until Phase 9; V2 and legacy inputs
-cannot be mixed.
+`outlier_variation_path`/mode/depth behavior remained available alongside it until Task 12.5's
+cutover; V2 and legacy inputs could not be mixed.
 
 Phase 8 exposes that V2 branch only as a retained-evidence preview bridge. It does not claim to start
 candidate discovery or host engine/explorer work from public finding IDs; the Phase 9 lifecycle will
@@ -325,7 +325,14 @@ edit call uses the existing clone-on-write handle boundary. Browser engine/Worke
 credentials, persistence, artifacts, and navigation remain browser-owned; Node engine-pool,
 network credential, confined-path, and handle lifetimes remain MCP-owned. Both retain structured
 unavailable/partial/cancelled/illegal evidence, Black repertoire ownership, and separately labeled
-White-POV transport. Phase 9 visual Replacement Lab lifecycle and candidate UI remain unstarted.
+White-POV transport. Phase 9 shipped the visual Replacement Lab lifecycle and candidate UI.
+
+Task 12.5 completed the V2 cutover: `analyze_repertoire_congruence` returns only the native V2
+report (its temporary `incongruencies`/`legacy_projection` compatibility view is gone), and
+`suggest_replacement_line` accepts only the `strategic-fit-replacement-v2` envelope (the
+`outlier_variation_path`/mode/depth one-move-pivot branch and its `repcongruence.ts` engine are
+removed). The Repertoire panel's direct Congruence/Fix section is retired in favor of the Strategic
+Fit workspace entry point; both canonical tool identifiers are unchanged.
 
 ## Safety and result conventions
 

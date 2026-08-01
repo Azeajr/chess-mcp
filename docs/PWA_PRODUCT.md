@@ -130,7 +130,7 @@ Browser results are staged and support document archive storage plus bounded und
 immutable previews only, explicitly expose unavailable archive/restore/undo support, and return a
 new clone-on-write repertoire handle only after a separate explicit edit. Matching command names do
 not imply shared Worker, engine-pool, credential, path, artifact, persistence, or handle behavior.
-Legacy one-move replacement results remain supported. The browser Replacement Lab now opens only
+The browser Replacement Lab now opens only
 from a current unresolved actionable finding, retains the exact document/report/finding/cohort
 identity, requires explicit semantic pivot confirmation, and exposes canonical candidate sources,
 engine depth, bounded budgets, progress, cancellation, retry, partial/unavailable source evidence,

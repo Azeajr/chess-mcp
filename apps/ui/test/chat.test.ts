@@ -8,7 +8,6 @@ import {
   completeStrategicFitReport,
   contractsForHost,
   jsonSchemaForTool,
-  projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitCompleteAnalysisOptions,
   strategicFitOptionsFromToolArguments,
@@ -166,8 +165,8 @@ test("deep analysis forces every browser engine request to depth 30", () => {
   assert.equal(requestedDepth({ depth: 12 }, { analysisDepth: () => 30 } as never), 30);
 });
 
-test("canonical replacement schema validates legacy and complete V2 modes without capability expansion", () => {
-  assert.equal(validateToolArguments("suggest_replacement_line", { outlier_variation_path: ["e4"] }, "browser").ok, true);
+test("canonical replacement schema validates the complete V2 envelope without capability expansion", () => {
+  assert.equal(validateToolArguments("suggest_replacement_line", { outlier_variation_path: ["e4"] }, "browser").ok, false);
   assert.equal(validateToolArguments("suggest_replacement_line", {}, "browser").ok, false);
   const fixture = replacementFixture("canonical public validation");
   const request = fixture.request;
@@ -203,7 +202,7 @@ test("canonical replacement schema validates legacy and complete V2 modes withou
   assert.deepEqual(browserSchema.required ?? [], []);
   assert.deepEqual(mcpSchema.required, ["repertoire_id"]);
   assert.equal(toolContract("suggest_replacement_line").hosts.length, 2);
-  assert.match(toolContract("suggest_replacement_line").result.compatibility ?? "", /Legacy/);
+  assert.match(toolContract("suggest_replacement_line").result.compatibility ?? "", /retained safety envelope/);
   assert.match(toolContract("suggest_replacement_line").hostAdaptation.resultDifference ?? "", /archive persistence or undo/);
 });
 
@@ -296,7 +295,6 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
     weighting: { mode: "equal" },
     page: { offset: 0, limit: 2 },
     sort: "finding-id",
-    limit: 2,
   };
   const dependencies = {
     ...defaultBrowserCommandDependencies,
@@ -339,14 +337,13 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
   assert.equal(equivalentPage.projection, "page");
   if (equivalentPage.projection !== "page") return;
   const mcpEquivalent = {
-    ...projectStrategicFitLegacyResult(equivalentPage.report, { limit: args.limit }),
+    ...equivalentPage.report,
     cursor: equivalentPage.cursor,
     next_cursor: equivalentPage.next_cursor,
   };
 
   assert.deepEqual(browser, mcpEquivalent);
   assert.equal(mcpEquivalent.analysis_version, STRATEGIC_FIT_ANALYSIS_VERSION);
-  assert.equal(mcpEquivalent.legacy_projection.deprecated, true);
   assert.deepEqual(mcpEquivalent.profile, {
     schema_version: mcpEquivalent.schema_version,
     mode: "familiar-plans",

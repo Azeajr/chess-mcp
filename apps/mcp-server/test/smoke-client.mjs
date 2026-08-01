@@ -228,7 +228,6 @@ const cong = await call(client, "analyze_repertoire_congruence", {
   weighting: { mode: "equal" },
   page: { offset: 0, limit: 2 },
   sort: "finding-id",
-  limit: 2,
 });
 console.log("  strategic fit:", cong.finding_page?.total_count, "findings, report", cong.report_id);
 ok(
@@ -237,10 +236,8 @@ ok(
     cong.profile?.mode === "custom" &&
     cong.profile?.source === "explicit" &&
     cong.findings?.length <= 2 &&
-    cong.finding_page?.total_count === cong.summary?.unresolved_finding_count &&
-    cong.legacy_projection?.deprecated === true &&
-    cong.incongruencies?.length <= 2,
-  "analyze_repertoire_congruence returns bounded native V2 semantics and the compatibility projection",
+    cong.finding_page?.total_count === cong.summary?.unresolved_finding_count,
+  "analyze_repertoire_congruence returns bounded native V2 semantics",
 );
 let invalidStrategicFitRejected = false;
 try {
@@ -389,15 +386,6 @@ ok(Array.isArray(sug.suggestions) && sug.suggestions.length >= 1 && typeof sug.s
 const gap = await call(client, "suggest_complementary_lines", { repertoire_id: sugRep.repertoire_id, fen: "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1", mode: "sharp", depth: 10, limit: 3 });
 ok(typeof gap.opponent_move === "string" && Array.isArray(gap.suggestions), "suggest auto-advances when opponent is to move");
 
-console.log("suggest_replacement_line (engine, depth 10)…");
-const repl = await call(client, "suggest_replacement_line", {
-  repertoire_id: congRep.repertoire_id,
-  outlier_variation_path: ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4", "e3", "Bxc3+", "bxc3", "O-O"],
-  depth: 10,
-});
-console.log("  outlier_move:", repl.outlier_move, "anchored_to:", repl.anchored_to, "suggestions:", repl.suggestions?.length);
-ok(!repl.error && repl.outlier_move === "bxc3" && Array.isArray(repl.suggestions), "suggest_replacement_line pivots at the weakness-incurring move");
-
 const replacementRequest = {
   schema_version: "2.0.0",
   analysis_version: "2.0.0",
@@ -435,6 +423,7 @@ const replacementFinding = {
   cohort_id: replacementRequest.cohort_id,
   repertoire_revision: replacementRequest.repertoire_revision,
 };
+console.log("suggest_replacement_line (V2 envelope)…");
 const v2Repl = await call(client, "suggest_replacement_line", {
   repertoire_id: congRep.repertoire_id,
   contract: "strategic-fit-replacement-v2",

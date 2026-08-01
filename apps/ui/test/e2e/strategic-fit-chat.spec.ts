@@ -107,25 +107,6 @@ test("blocked and error results remain explicit without implying consistency", a
   await expect(page.getByRole("alert").last()).toContainText("The repertoire changed while analysis was running.");
 });
 
-test("legacy projected congruence results still render and navigate during migration", async ({ page }) => {
-  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6", "legacy.pgn"));
-  await chess(page, (api) => api.appendToolResultForTesting("analyze_repertoire_congruence", {
-    incongruencies: [{
-      type: "uncertain",
-      severity: "low",
-      description: "Legacy compatibility finding",
-      paths: [["e4", "e5", "Nf3"]],
-      source_finding_id: "finding:legacy",
-    }],
-  }));
-
-  const card = page.locator(".strategic-fit-legacy-card");
-  await expect(card).toContainText("Legacy projected result");
-  await expect(card).toContainText("Legacy compatibility finding");
-  await card.getByRole("button", { name: /Go to line/ }).click();
-  await expect(page.locator(".move.current").first()).toContainText("Nf3");
-});
-
 test("a fake model can follow up by the compacted Strategic Fit finding ID", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("chess.openrouter.key", "fake-key"));
   await page.reload();

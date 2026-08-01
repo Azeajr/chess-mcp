@@ -12,6 +12,7 @@ pnpm --filter @chess-mcp/chess-tools build
 pnpm -r typecheck
 pnpm docs:check
 pnpm check:skills
+pnpm check:legacy-imports
 pnpm bench:strategic-fit         # --record to rebaseline; --scale large needs a raised heap
 node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs

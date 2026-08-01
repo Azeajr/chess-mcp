@@ -22,16 +22,10 @@ import {
   type GapFill,
 } from "../store/gaps";
 import {
-  congruence,
-  congScanning,
-  congError,
-  scanCongruence,
   complementary,
   compScanning,
   compError,
   scanComplementary,
-  replacements,
-  fixFlag,
   extBridges,
   bridgeScanning,
   bridgeError,
@@ -50,8 +44,6 @@ import {
   coverage,
   inspecting,
   inspectError,
-  type CongruenceFlag,
-  type ReplacementResult,
 } from "../store/repertoire";
 import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
 import { stagePreviewLine, preview, acceptPreview, clearPreview } from "../store/suggestions";
@@ -107,13 +99,6 @@ export default function RepertoirePanel() {
   const navSan = (sans: string[]) => {
     const ip = currentTree().indexPathOfSan(sans);
     if (ip) actions.goto(ip);
-  };
-
-  const pickReplacement = (res: ReplacementResult, pivotMove: string) => {
-    const fromPath = currentTree().indexPathOfSan(res.pivot_path.slice(0, -1));
-    if (!fromPath) return;
-    actions.goto(fromPath); // jump there so the gold preview arrow is visible immediately
-    stagePreviewLine(fromPath, [pivotMove]);
   };
 
   // Stub connector: stage the whole engine-vetted sequence that rejoins prep.
@@ -294,49 +279,6 @@ export default function RepertoirePanel() {
               <span class="fit">covered → {c.joinsPath.at(-1)}</span>
             </div>
           )}
-        </For>
-      </details>
-
-      {/* Tier A: congruence */}
-      <details class="rep-section">
-        <summary>
-          <span>Congruence</span>
-          <Show when={congScanning()} fallback={<button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanCongruence())}>Scan</button>}>
-            <span class="scan-progress">…</span>
-          </Show>
-        </summary>
-        <Show when={congError()}><div class="empty">{congError()}</div></Show>
-        <Show when={congruence() && congruence()!.length === 0}><div class="empty">No inconsistencies.</div></Show>
-        <For each={congruence() ?? []}>
-          {(f: CongruenceFlag) => {
-            const key = () => f.paths[0]!.join(",");
-            const state = () => replacements()[key()];
-            return (
-              <div class="rep-flag">
-                <div class="rep-row" onClick={() => navSan(f.paths[0]!)} title={f.description}>
-                  <span class={`sev sev-${f.severity}`}>{f.severity}</span>
-                  <span class="ctype">{f.type.replace(/_/g, " ")}</span>
-                  <span class="san">{f.paths[0]!.join(" ")}</span>
-                </div>
-                <button class="fix-btn" onClick={() => void fixFlag(f.paths[0]!)}>Fix this</button>
-                <Show when={state() === "loading"}><div class="scan-progress">finding replacements…</div></Show>
-                <Show when={state() && typeof state() === "object" && "error" in (state() as object)}>
-                  <div class="empty">{(state() as { error: string }).error}</div>
-                </Show>
-                <Show when={state() && typeof state() === "object" && "suggestions" in (state() as object)}>
-                  <For each={(state() as ReplacementResult).suggestions}>
-                    {(rm) => (
-                      <div class="rep-row indent" onClick={() => pickReplacement(state() as ReplacementResult, rm.pivot_move)}>
-                        <span class="san">{rm.pivot_move}</span>
-                        <span class="ev">{cp2(rm.eval_cp)}</span>
-                        <span class="fit">fit {rm.profile_match}</span>
-                      </div>
-                    )}
-                  </For>
-                </Show>
-              </div>
-            );
-          }}
         </For>
       </details>
 

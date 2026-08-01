@@ -19,7 +19,6 @@ import { decisionNodes, turnNodes, gapSeverity, medianLineLength, SEVERITY_RANK,
 import { validateLine } from "./validate.js";
 import type { ExplorerLookup } from "./explorer.js";
 import type { OpeningTable } from "./openings.js";
-import { replacementPivot } from "./repcongruence.js";
 import { strategicFitPortableAnnotations } from "./strategic-fit/annotation.js";
 import type { StrategicFitReport } from "./strategic-fit/types.js";
 import {
@@ -1207,72 +1206,4 @@ export async function suggestGapFills(
   const options = [await build("best_eval", evalPick)];
   if (fitPick) options.push(await build("best_fit", fitPick));
   return { path: sanPath, uncovered_move: uncoveredMove, target_plies: target, options };
-}
-
-// --- suggest_replacement_line (pivot resolution + engine + structure) ---
-
-export interface SuggestReplacementOptions {
-  mode?: "structural_fit" | "low_memorization" | "solid";
-  depth?: number;
-}
-
-export async function suggestReplacementLine(
-  tree: GameTree,
-  color: Color,
-  outlierVariationPath: string[],
-  opts: SuggestReplacementOptions,
-  analyse: Analyse,
-): Promise<Record<string, unknown>> {
-  const m = opts.mode ?? "structural_fit";
-  const piv = replacementPivot(tree, color, outlierVariationPath);
-  if ("error" in piv) {
-    const reason =
-      piv.error === "no_user_move"
-        ? "outlier_variation_path contains no user move to replace"
-        : "outlier_variation_path does not match a line in the repertoire";
-    return { error: piv.error, reason };
-  }
-
-  const profile = buildFitProfile(tree.leafPositions().map((p) => p.board), color);
-  const res = await analyse(piv.pivotBeforeFen, 5, opts.depth ?? 20);
-  if (!res) return { error: "engine_unavailable" };
-  const moverIsWhite = piv.pivotBeforeFen.split(" ")[1] === "w";
-  const moverCp = (l: EngineLine) => moverPov(l, moverIsWhite, 10000);
-  const best = res.length ? moverCp(res[0]!) : 0;
-
-  const suggestions: { entry: Record<string, unknown>; mcp: number }[] = [];
-  for (const l of res) {
-    if (l.uci === piv.outlierUci) continue;
-    const mcp = moverCp(l);
-    if (best - mcp > 100) continue;
-    const after = chessFromFen(piv.pivotBeforeFen);
-    after.play(parseUci(l.uci)!);
-    const resultStruct = classifyStructure(after.board).structure_class;
-    // Blended structural fit (named structure + center + themes) — robust when resultStruct is
-    // "unknown", so the hand-rolled PV-theme fallback this replaced is no longer needed.
-    const match = fitScore(profile, after.board, color);
-
-    suggestions.push({
-      entry: {
-        pivot_move: moveSan(piv.pivotBeforeFen, l.uci),
-        line: pvSan(piv.pivotBeforeFen, l.pv),
-        eval_cp: evalWhite(l),
-        resulting_structure: resultStruct,
-        profile_match: match,
-      },
-      mcp,
-    });
-  }
-
-  if (m === "solid") suggestions.sort((a, b) => b.mcp - a.mcp);
-  else suggestions.sort((a, b) => (b.entry.profile_match as number) - (a.entry.profile_match as number) || b.mcp - a.mcp);
-
-  return {
-    outlier_move: moveSan(piv.pivotBeforeFen, piv.outlierUci),
-    anchored_to: piv.anchoredTo,
-    // SAN path up to and including the move being replaced — the UI strips the last entry to get
-    // the anchor position (pivotBeforeFen) for staging a replacement preview.
-    pivot_path: piv.pivotPath,
-    suggestions: suggestions.map((s) => s.entry),
-  };
 }

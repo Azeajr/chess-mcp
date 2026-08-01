@@ -18,15 +18,12 @@ import {
   structuralProfileResult,
   suggestComplementaryLines,
   suggestGapFills,
-  suggestReplacementLine,
   composeReplacementToolV2,
-  REPLACEMENT_TOOL_V2_CONTRACT,
   theoryDepth,
   toolDefault,
   transpositionResult,
   type ExplorerDb,
   projectStrategicFitConversation,
-  projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitConversationErrorResult,
   strategicFitReportUnavailableResult,
@@ -425,7 +422,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     // Task 12.3: the page's own cursor and its successor travel with the page so a large report is
     // walked by cursor rather than by recomputed offsets.
     return {
-      ...projectStrategicFitLegacyResult(projection.report, { limit: toolArgs.limit }),
+      ...projection.report,
       cursor: projection.cursor,
       next_cursor: projection.next_cursor,
     };
@@ -462,72 +459,64 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     return result;
   },
   suggest_replacement_line: async (args, context) => {
-    if (args.contract === REPLACEMENT_TOOL_V2_CONTRACT) {
-      const input = args as unknown as ReplacementToolV2Input;
-      const result = composeReplacementToolV2(context.currentTree(), input, {
-        signal: context.signal,
-        expected_repertoire_revision: `browser:${context.currentRevision()}`,
-        expected_repertoire_color: context.currentColor(),
-      });
-      throwIfAborted(context.signal);
-      const items = [];
-      const stagedIds: string[] = [];
-      try {
-        for (const candidate of result.items) {
-          if (candidate.status !== "previewed" || !candidate.change_set) {
-            items.push({ ...candidate, stage: null });
-            continue;
-          }
-          const stage = await context.stageReplacementChangeSet({
-            safety: input.safety,
-            change_set: candidate.change_set,
-          });
-          if (stage && typeof stage === "object" && "stage" in stage) {
-            const staged = stage.stage;
-            if (staged && typeof staged === "object" && "stage_id" in staged && typeof staged.stage_id === "string") {
-              stagedIds.push(staged.stage_id);
-            }
-          }
-          throwIfAborted(context.signal);
-          if (stage && typeof stage === "object" && "ok" in stage && stage.ok === false) {
-            const stageError = "error" in stage ? String(stage.error) : "staging-failed";
-            items.push({
-              ...candidate,
-              status: stageError.includes("stale") ? "stale" : "blocked",
-              error_code: stageError,
-              explanation: `Browser staging rejected this preview: ${stageError}.`,
-              stage,
-            });
-          } else items.push({ ...candidate, stage });
-        }
-      } catch (error) {
-        await Promise.all(stagedIds.map((stageId) => context.discardReplacementChangeSet(stageId)));
-        throw error;
-      }
-      const stagedCount = items.filter((candidate) => candidate.status === "previewed").length;
-      const hostStatus = stagedCount === items.length ? result.status
-        : stagedCount === 0 && items.some((candidate) => candidate.status === "stale") ? "stale"
-        : "partial";
-      return {
-        ...result,
-        status: hostStatus,
-        items,
-        host: {
-          kind: "browser",
-          preview_policy: "stage-only",
-          acceptance_required: true,
-          archive_storage: "document-indexeddb",
-          undo: "bounded-document-snapshot",
-          v2_generation: "retained-evidence-only-until-phase-9",
-        },
-      };
-    }
-    const result = await suggestReplacementLine(
-      context.currentTree(), context.currentColor(), (args.outlier_variation_path as string[]) ?? [],
-      { mode: args.mode as never, depth: requestedDepth(args, context) }, commandAnalyse(context),
-    );
+    const input = args as unknown as ReplacementToolV2Input;
+    const result = composeReplacementToolV2(context.currentTree(), input, {
+      signal: context.signal,
+      expected_repertoire_revision: `browser:${context.currentRevision()}`,
+      expected_repertoire_color: context.currentColor(),
+    });
     throwIfAborted(context.signal);
-    return result;
+    const items = [];
+    const stagedIds: string[] = [];
+    try {
+      for (const candidate of result.items) {
+        if (candidate.status !== "previewed" || !candidate.change_set) {
+          items.push({ ...candidate, stage: null });
+          continue;
+        }
+        const stage = await context.stageReplacementChangeSet({
+          safety: input.safety,
+          change_set: candidate.change_set,
+        });
+        if (stage && typeof stage === "object" && "stage" in stage) {
+          const staged = stage.stage;
+          if (staged && typeof staged === "object" && "stage_id" in staged && typeof staged.stage_id === "string") {
+            stagedIds.push(staged.stage_id);
+          }
+        }
+        throwIfAborted(context.signal);
+        if (stage && typeof stage === "object" && "ok" in stage && stage.ok === false) {
+          const stageError = "error" in stage ? String(stage.error) : "staging-failed";
+          items.push({
+            ...candidate,
+            status: stageError.includes("stale") ? "stale" : "blocked",
+            error_code: stageError,
+            explanation: `Browser staging rejected this preview: ${stageError}.`,
+            stage,
+          });
+        } else items.push({ ...candidate, stage });
+      }
+    } catch (error) {
+      await Promise.all(stagedIds.map((stageId) => context.discardReplacementChangeSet(stageId)));
+      throw error;
+    }
+    const stagedCount = items.filter((candidate) => candidate.status === "previewed").length;
+    const hostStatus = stagedCount === items.length ? result.status
+      : stagedCount === 0 && items.some((candidate) => candidate.status === "stale") ? "stale"
+      : "partial";
+    return {
+      ...result,
+      status: hostStatus,
+      items,
+      host: {
+        kind: "browser",
+        preview_policy: "stage-only",
+        acceptance_required: true,
+        archive_storage: "document-indexeddb",
+        undo: "bounded-document-snapshot",
+        v2_generation: "retained-evidence-only",
+      },
+    };
   },
   audit_repertoire_moves: async (args, context) => {
     const result = await auditRepertoireMoves(context.currentTree(), context.currentColor(), {

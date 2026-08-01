@@ -1,8 +1,8 @@
 /**
  * Feature 6 backbone: deterministic, no-API repertoire reports surfaced in the side panel.
- * Tier A scans (congruence — gaps live in store/gaps.ts) and Tier B actions (extend / fix) all
- * run through the application browser-command client against shared chess-tools + local engine — the same
- * source of truth the chat uses, just driven directly here instead of by the model.
+ * Tier A scans (gaps live in store/gaps.ts) and Tier B extend all run through the application
+ * browser-command client against shared chess-tools + local engine — the same source of truth
+ * the chat uses, just driven directly here instead of by the model.
  */
 import { createSignal } from "solid-js";
 import {
@@ -13,42 +13,6 @@ import {
 } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
-
-// --- Tier A: congruence (engine-free) ---
-
-export interface CongruenceFlag {
-  type: string;
-  severity: "low" | "medium" | "high";
-  description: string;
-  paths: string[][];
-  cluster?: string;
-}
-
-const [congruence, setCongruence] = createSignal<CongruenceFlag[] | null>(null);
-const [congScanning, setCongScanning] = createSignal(false);
-const [congError, setCongError] = createSignal<string | null>(null);
-export { congruence, congScanning, congError };
-
-export async function scanCongruence() {
-  setCongError(null);
-  setCongScanning(true);
-  try {
-    const r = (await executeBrowserCommand("analyze_repertoire_congruence", { min_severity: "low" })) as {
-      incongruencies?: CongruenceFlag[];
-      error?: string;
-    };
-    if (r.error) {
-      setCongError(r.error);
-      setCongruence(null);
-    } else {
-      setCongruence(r.incongruencies ?? []);
-    }
-  } catch (e) {
-    setCongError(e instanceof Error ? e.message : String(e));
-  } finally {
-    setCongScanning(false);
-  }
-}
 
 // --- Tier A: connect dangling stubs into prep (engine-vetted) ---
 // A stopped line (frontier leaf, your turn) continued by the color's engine-best moves until it
@@ -246,34 +210,3 @@ export function clearComplementary() {
   setCompError(null);
 }
 
-// --- Tier B: fix (suggest_replacement_line for a congruence flag), keyed by the flag's path ---
-
-export interface ReplacementMove {
-  pivot_move: string;
-  line: string;
-  eval_cp: number;
-  resulting_structure: string;
-  profile_match: number;
-}
-export interface ReplacementResult {
-  outlier_move: string;
-  pivot_path: string[];
-  suggestions: ReplacementMove[];
-}
-type ReplacementState = "loading" | { error: string } | ReplacementResult;
-
-const [replacements, setReplacements] = createSignal<Record<string, ReplacementState>>({});
-export { replacements };
-
-export async function fixFlag(outlierPath: string[]) {
-  const key = outlierPath.join(",");
-  setReplacements((p) => ({ ...p, [key]: "loading" }));
-  try {
-    const r = (await executeBrowserCommand("suggest_replacement_line", { outlier_variation_path: outlierPath, depth: analysisDepth() })) as ReplacementResult & {
-      error?: string;
-    };
-    setReplacements((p) => ({ ...p, [key]: r.error ? { error: r.error } : r }));
-  } catch (e) {
-    setReplacements((p) => ({ ...p, [key]: { error: e instanceof Error ? e.message : String(e) } }));
-  }
-}

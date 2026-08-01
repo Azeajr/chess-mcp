@@ -69,8 +69,6 @@ export { mainline, classifyCpLoss, moveAccuracy, aggregateGames, walkGameVsReper
 export type { MainlineMove, MoveClass, GameRecord, GameWalk, PlayerDeviation, UncoveredOpponent, RepertoireMoveMap } from "./game.js";
 export { parseOpeningsTsv, identifyAt, identifyDeepest, identifyDeepestFromMoves } from "./openings.js";
 export type { OpeningEntry, OpeningTable } from "./openings.js";
-export { analyzeCongruence, replacementPivot } from "./repcongruence.js";
-export type { CongruenceOptions, PivotResult, PivotError } from "./repcongruence.js";
 export {
   analyzeMainline,
   findRepertoireGaps,
@@ -81,7 +79,6 @@ export {
   compareMoves,
   suggestComplementaryLines,
   suggestGapFills,
-  suggestReplacementLine,
   compareShortcutLines,
   checkShortcutCoverage,
   annotateRepertoire,
@@ -107,7 +104,6 @@ export type {
   StubResolution,
   CoverageResolution,
   SuggestComplementaryOptions,
-  SuggestReplacementOptions,
   ShortcutComparison,
   ShortcutCoverage,
   AnnotateSource,
@@ -145,7 +141,6 @@ export * from "./strategic-fit/conversation-projection.js";
 export * from "./strategic-fit/visualization.js";
 export * from "./strategic-fit/concept-heatmap.js";
 export * from "./strategic-fit/decision-flow.js";
-export * from "./strategic-fit/legacy-projection.js";
 export * from "./strategic-fit/annotation.js";
 export * from "./strategic-fit/tool-adapter.js";
 export * from "./strategic-fit/metadata.js";

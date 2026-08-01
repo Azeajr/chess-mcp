@@ -51,11 +51,10 @@ const define = (name: string, description: string, capabilities: ToolCapability[
       kind: capabilities.includes("action") ? "action" : capabilities.includes("artifact") ? "artifact" : "data",
       ...(name === "analyze_repertoire_congruence" ? {
         semantics: "Versioned Strategic Fit V2 report with immutable summary, findings, preflight, paging, and provenance.",
-        compatibility: "Includes a bounded deprecated V1 incongruencies projection until Task 12.5.",
       } : {}),
       ...(name === "suggest_replacement_line" ? {
-        semantics: "Legacy one-move suggestions or a complete revision-bound Strategic Fit V2 candidate/change-set preview envelope. No host silently applies a preview.",
-        compatibility: "Legacy outlier_variation_path/mode/depth behavior remains available until Phase 9. V2 mode requires the complete canonical retained safety envelope.",
+        semantics: "A complete revision-bound Strategic Fit V2 candidate/change-set preview envelope. No host silently applies a preview.",
+        compatibility: "Requires the complete canonical retained safety envelope.",
       } : {}),
       ...(name === "get_strategic_fit_report" ? {
         semantics: "Bounded conversation projection of an existing immutable report: identity, overview state, one compact finding page, or one finding with evidence and navigable paths. Never the full report, provenance, or any document artifact.",
@@ -277,10 +276,10 @@ export const TOOL_CONTRACTS = [
   define("get_structural_profile", "Return a repertoire-wide pawn-structure profile or one position selected by SAN path.", ["repertoire"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), variation_path: array() }, mcpRequired: ["repertoire_id"] }),
   define(
     "analyze_repertoire_congruence",
-    "Analyze Strategic Fit across transposition-aware repertoire routes with bounded custom feature-family weights, profile-composed manual/population/personal-history frequency, source filters, and browser-local training mastery; returns native V2 evidence and a temporary legacy projection.",
+    "Analyze Strategic Fit across transposition-aware repertoire routes with bounded custom feature-family weights, profile-composed manual/population/personal-history frequency, source filters, and browser-local training mastery; returns the native V2 report.",
     ["repertoire", "game", "network"],
     BOTH,
-    { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, personal_history_platform: "lichess", personal_history_max_games: 30, page_limit: 50, legacy_projection_limit: 10 },
+    { profile_mode: "balanced", weighting_mode: "equal", popularity_db: "lichess", popularity_max_positions: 60, personal_history_platform: "lichess", personal_history_max_games: 30, page_limit: 50 },
     {
       properties: {
         repertoire_id: string("MCP handle; browser injects the current document"),
@@ -293,10 +292,6 @@ export const TOOL_CONTRACTS = [
         cohort_overrides: array(strategicFitCohortOverride, undefined, 100),
         explicit_targets: array(strategicFitExplicitTarget, undefined, 100),
         route_assessments: array(strategicFitRouteAssessment, undefined, 500),
-        min_severity: { type: "string", enum: ["low", "medium", "high"], description: "Deprecated V1 compatibility input." },
-        limit: integer(1, 50),
-        acknowledged_weaknesses: array(array(string(undefined, 128), undefined, 256), undefined, 500),
-        exclude_paths: array(array(string(undefined, 128), undefined, 256), undefined, 500),
       },
       mcpRequired: ["repertoire_id"],
     },
@@ -323,12 +318,9 @@ export const TOOL_CONTRACTS = [
   define("classify_illustrative_lines","Find NAG-marked side lines that can inflate repertoire analysis counts.", ["repertoire"], BOTH, { limit: 20 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), limit: integer(1, 100) }, mcpRequired: ["repertoire_id"] }),
   define("modify_repertoire_line", "Apply or preview a prune, add, or reorder edit by SAN path.", ["repertoire", "action"], BOTH, {}, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), action: { type: "string", enum: ["prune", "add", "reorder"] }, path: array(), add_moves: array(), promote_move: string() }, required: ["action", "path"], mcpRequired: ["repertoire_id", "action", "path"] }),
   define("suggest_complementary_lines", "Suggest engine-sound moves ranked for structural fit or imbalance.", ["repertoire", "engine"], BOTH, { depth: 20, limit: 5 }, { properties: { repertoire_id: string("MCP handle; browser injects the current document"), fen: string("FEN; browser defaults to the current position"), mode: { type: "string", enum: ["low_memorization", "sharp"] }, depth: integer(1, 30), limit: integer(1, 10) }, mcpRequired: ["repertoire_id", "fen"] }),
-  define("suggest_replacement_line", "Preview sound one-move replacements, or validate retained Task 8.7 evidence into complete Strategic Fit V2 atomic change sets without silently applying them. V2 candidate generation itself remains hidden until Phase 9.", ["repertoire", "engine", "action"], BOTH, { depth: 20 }, {
+  define("suggest_replacement_line", "Validate retained Task 8.7 evidence into complete Strategic Fit V2 atomic change sets without silently applying them.", ["repertoire", "engine", "action"], BOTH, {}, {
     properties: {
       repertoire_id: string("MCP handle; browser injects the current document"),
-      outlier_variation_path: array(string(undefined, 128), undefined, 256),
-      mode: { type: "string", enum: ["structural_fit", "low_memorization", "solid"] },
-      depth: integer(1, 30),
       contract: { type: "string", enum: ["strategic-fit-replacement-v2"] },
       replacement_request: openObject("Complete canonical ReplacementRequest with finding, profile, source, budget, identity, version, and provenance inputs.", { request_id: strategicFitId() }, ["request_id"]),
       finding: openObject("Revision-bound report/finding/semantic-finding/cohort identity.", { finding_id: strategicFitId() }, ["finding_id"]),
@@ -720,18 +712,11 @@ function explorerPopulationArgumentsError(
 function replacementArgumentsError(value: Record<string, unknown>): string | null {
   const id = (candidate: unknown): candidate is string =>
     typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 256;
-  const v2 = value.contract !== undefined || value.replacement_request !== undefined;
-  if (!v2) return Array.isArray(value.outlier_variation_path)
-    ? null
-    : "suggest_replacement_line requires outlier_variation_path for legacy mode or contract plus the complete V2 envelope";
   if (value.contract !== "strategic-fit-replacement-v2") return "contract must be strategic-fit-replacement-v2";
   for (const key of [
     "replacement_request", "finding", "pivot", "profile", "sources", "budget", "engine", "coverage",
     "retention", "candidate_ids", "safety",
   ]) if (!(key in value)) return `missing required V2 argument: ${key}`;
-  for (const key of ["outlier_variation_path", "mode", "depth"]) {
-    if (key in value) return `${key} is legacy-only and cannot be combined with the V2 replacement envelope`;
-  }
   const record = (key: string) => value[key] as Record<string, unknown>;
   const object = (candidate: unknown): candidate is Record<string, unknown> =>
     candidate !== null && typeof candidate === "object" && !Array.isArray(candidate);

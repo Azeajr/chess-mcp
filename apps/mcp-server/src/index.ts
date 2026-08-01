@@ -33,7 +33,6 @@ import {
   resolveDanglingStubs,
   compareMoves,
   suggestComplementaryLines,
-  suggestReplacementLine,
   composeReplacementToolV2,
   REPLACEMENT_TOOL_V2_CONTRACT,
   parseOpeningsTsv,
@@ -71,7 +70,6 @@ import {
   suggestGapFills,
   opponentPrepResult,
   projectStrategicFitConversation,
-  projectStrategicFitLegacyResult,
   projectStrategicFitReport,
   strategicFitConversationErrorResult,
   strategicFitReportUnavailableResult,
@@ -1044,10 +1042,6 @@ server.tool(
     cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
     explicit_targets: z.array(strategicFitExplicitTargetSchema).max(100).optional(),
     route_assessments: z.array(strategicFitRouteAssessmentSchema).max(500).optional(),
-    min_severity: z.enum(["low", "medium", "high"]).optional(),
-    limit: z.number().int().min(1).max(50).optional(),
-    acknowledged_weaknesses: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
-    exclude_paths: z.array(z.array(z.string().max(128)).max(256)).max(500).optional(),
   },
   async ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
@@ -1200,7 +1194,7 @@ server.tool(
     // Task 12.3: a large report is walked by cursor, so every page carries its own cursor and the
     // successor cursor that continues the same report and sort order.
     return ok({
-      ...projectStrategicFitLegacyResult(projection.report, { limit: args.limit }),
+      ...projection.report,
       cursor: projection.cursor,
       next_cursor: projection.next_cursor,
     });
@@ -1269,9 +1263,6 @@ server.tool(
   toolContract("suggest_replacement_line").description,
   {
     repertoire_id: z.string(),
-    outlier_variation_path: z.array(z.string().max(128)).max(256).optional(),
-    mode: z.enum(["structural_fit", "low_memorization", "solid"]).optional(),
-    depth: z.number().int().min(1).max(30).optional(),
     contract: z.enum([REPLACEMENT_TOOL_V2_CONTRACT]).optional(),
     replacement_request: replacementRequestEnvelopeSchema.optional(),
     finding: replacementFindingEnvelopeSchema.optional(),
@@ -1293,35 +1284,26 @@ server.tool(
     if (!e) return notFound();
     const validation = validateToolArguments("suggest_replacement_line", { repertoire_id, ...rawArgs }, "mcp");
     if (!validation.ok) return ok(validation);
-    if (rawArgs.contract === REPLACEMENT_TOOL_V2_CONTRACT) {
-      const result = composeReplacementToolV2(e.tree, rawArgs as unknown as ReplacementToolV2Input, {
-        signal: extra.signal,
-        expected_repertoire_revision: e.revision,
-        expected_repertoire_color: e.color,
-      });
-      return ok({
-        ...result,
-        host: {
-          kind: "mcp",
-          preview_policy: "preview-only",
-          source_repertoire_id: repertoire_id,
-          source_handle_unchanged: true,
-          new_repertoire_id: null,
-          archive_storage: "unavailable",
-          archive_restore: "unavailable",
-          undo: "unavailable",
-          explicit_edit_required_for_clone_handle: true,
-          v2_generation: "retained-evidence-only-until-phase-9",
-        },
-      });
-    }
-    const legacy = rawArgs as {
-      outlier_variation_path: string[];
-      mode?: "structural_fit" | "low_memorization" | "solid";
-      depth?: number;
-    };
-    return ok(await suggestReplacementLine(e.tree, e.color, legacy.outlier_variation_path,
-      { mode: legacy.mode, depth: legacy.depth }, analyseMulti));
+    const result = composeReplacementToolV2(e.tree, rawArgs as unknown as ReplacementToolV2Input, {
+      signal: extra.signal,
+      expected_repertoire_revision: e.revision,
+      expected_repertoire_color: e.color,
+    });
+    return ok({
+      ...result,
+      host: {
+        kind: "mcp",
+        preview_policy: "preview-only",
+        source_repertoire_id: repertoire_id,
+        source_handle_unchanged: true,
+        new_repertoire_id: null,
+        archive_storage: "unavailable",
+        archive_restore: "unavailable",
+        undo: "unavailable",
+        explicit_edit_required_for_clone_handle: true,
+        v2_generation: "retained-evidence-only",
+      },
+    });
   },
 );
 

@@ -46,7 +46,7 @@ Env knobs (all optional):
 
 | var | default | meaning |
 |---|---|---|
-| `PANEL` | _(none)_ | `Shorten` \| `Gaps` \| `Congruence` \| `Connect` — scan it; `Shorten` also clicks Inspect (?). Omit → just load + screenshot. |
+| `PANEL` | _(none)_ | `Shorten` \| `Gaps` \| `Connect` — scan it; `Shorten` also clicks Inspect (?). Omit → just load + screenshot. |
 | `PGN` | a graded-fit sample | inline PGN, or a path to a `.pgn` file |
 | `COLOR` | `white` | repertoire side |
 | `URL` | `http://localhost:5173/` | dev server |

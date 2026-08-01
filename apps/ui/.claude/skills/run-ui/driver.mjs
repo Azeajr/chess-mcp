@@ -10,7 +10,7 @@
  * Env knobs (all optional):
  *   URL=http://localhost:5173/   dev server
  *   COLOR=white|black            repertoire side (default white)
- *   PANEL=Shorten|Gaps|Congruence|Connect   scan this panel; Shorten also clicks Inspect (?)
+ *   PANEL=Shorten|Gaps|Connect   scan this panel; Shorten also clicks Inspect (?)
  *   OUT=<dir>                    screenshot dir (default: ./_run-ui-screens)
  *   PGN=<inline PGN | file path> repertoire (default: a graded-fit multi-structure sample)
  */

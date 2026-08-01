@@ -18,7 +18,7 @@ assert.deepEqual(
 for (const tool of [
   "evaluate_position", "compare_moves", "find_repertoire_gaps", "suggest_gap_fills",
   "find_pruning_transpositions", "get_repertoire_coverage", "suggest_complementary_lines",
-  "suggest_replacement_line", "analyze_game", "get_game_summary", "export_annotated_pgn",
+  "analyze_game", "get_game_summary", "export_annotated_pgn",
   "batch_review", "audit_repertoire_moves", "find_only_moves", "check_shortcut_coverage",
   "compare_shortcut_lines", "inspect_shortcut", "export_annotated_repertoire",
 ]) assert.equal(toolDefault(tool, "depth", 0), 20, `${tool} defaults to depth 20`);
@@ -30,7 +30,7 @@ assert.equal(validateToolArguments("compare_moves", { moves: ["e4", 2] }, "brows
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], surprise: true }, "browser").error, "invalid_arguments");
 assert.equal(validateToolArguments("compare_moves", { moves: ["e4"], depth: 12 }, "browser").ok, true);
 assert.equal(validateToolArguments("get_repertoire_coverage", { connect_stubs: true, depth: 30 }, "browser").ok, true);
-assert.equal(validateToolArguments("analyze_repertoire_congruence", { acknowledged_weaknesses: [["e4", 2]] }, "browser").error, "invalid_arguments");
+assert.equal(validateToolArguments("analyze_repertoire_congruence", { outlier_variation_path: ["e4"] }, "browser").error, "invalid_arguments");
 assert.equal(validateToolArguments("analyze_repertoire_congruence", {
   profile: { mode: "custom", preferences: { manual_weight_importance: 0.75 } },
   weighting: { mode: "equal" },

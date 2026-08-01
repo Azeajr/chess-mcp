@@ -937,6 +937,7 @@ pnpm -r typecheck
 pnpm docs:check
 pnpm check:skills
 pnpm check:tool-contract
+pnpm check:legacy-imports
 node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 node scripts/strategic-fit-benchmark.mjs

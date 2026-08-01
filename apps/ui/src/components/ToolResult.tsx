@@ -313,27 +313,6 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
   </section>;
 }
 
-function LegacyCongruenceResult(props: { data: Data }) {
-  const findings = () => Array.isArray(props.data.incongruencies) ? props.data.incongruencies as Data[] : [];
-  return <div class="result-card report-card strategic-fit-legacy-card">
-    <div class="result-title">Congruence · Legacy projected result</div>
-    <div class="result-summary">{findings().length} projected finding{findings().length === 1 ? "" : "s"}; native Strategic Fit evidence is unavailable in this result.</div>
-    <For each={findings().slice(0, 3)}>{(finding) => {
-      const paths = Array.isArray(finding.paths)
-        ? finding.paths.filter((path): path is string[] => Array.isArray(path) && path.every((move) => typeof move === "string"))
-        : [];
-      const path = () => navigableSanPath(paths);
-      return <div class="strategic-fit-finding" data-finding-id={String(finding.source_finding_id ?? "")}>
-        <div class="strategic-fit-finding-head"><span class="strategic-fit-category">{titleCase(String(finding.type ?? "finding"))}</span><span>{titleCase(String(finding.severity ?? ""))}</span></div>
-        <div class="strategic-fit-explanation">{String(finding.description ?? "")}</div>
-        <Show when={path()}>{(safePath) =>
-          <button class="result-nav strategic-fit-nav" onClick={() => goToSanPath(safePath())}><span>Go to line</span><b>{safePath().join(" ")}</b></button>
-        }</Show>
-      </div>;
-    }}</For>
-  </div>;
-}
-
 const diffValue = (value: unknown): string => {
   if (value === null) return "not set";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
@@ -766,12 +745,7 @@ const byOperation: Record<string, (data: Data) => unknown> = {
     summary={`${String(data.games_matched_color ?? 0)} relevant games · ${String(data.coverage_pct ?? "—")}% reached prep · ${String(Array.isArray(data.uncovered_opponent_moves) ? data.uncovered_opponent_moves.length : 0)} targets`}
     data={data}
   />,
-  analyze_repertoire_congruence: (data) => {
-    const report = asStrategicFitReport(data);
-    return report
-      ? <StrategicFitResult report={report} />
-      : <LegacyCongruenceResult data={data} />;
-  },
+  analyze_repertoire_congruence: (data) => <StrategicFitResult report={asStrategicFitReport(data)!} />,
   get_strategic_fit_report: (data) => {
     const projection = asStrategicFitRetrieval(data);
     return projection
