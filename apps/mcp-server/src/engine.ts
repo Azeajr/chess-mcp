@@ -492,6 +492,7 @@ function installCapture() {
   if (captureInstalled) return;
   captureInstalled = true;
   // Route engine stdout (console.log) to the current line handler; swallow it otherwise.
+  // eslint-disable-next-line no-console -- Stockfish's in-process Emscripten fallback emits UCI here.
   console.log = (...args: unknown[]) => {
     lineHandler?.(args.map((a) => (typeof a === "string" ? a : String(a))).join(" "));
   };

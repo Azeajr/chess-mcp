@@ -52,7 +52,6 @@ export default defineConfig([
       "scripts/**/*.{js,mjs,cjs,ts,tsx}",
       "**/scripts/**/*.{js,mjs,cjs,ts,tsx}",
       "**/test/**/*.{js,mjs,cjs,ts,tsx}",
-      "apps/mcp-server/src/engine.ts",
       "apps/ui/.claude/skills/run-ui/**/*.{js,mjs,cjs,ts,tsx}",
     ],
     rules: {
