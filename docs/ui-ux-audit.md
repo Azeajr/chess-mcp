@@ -4,7 +4,12 @@
 **Scope:** `apps/ui` (SolidJS 1.9 / Vite PWA), with `packages/chess-tools` and `apps/mcp-server` inspected only where their contracts, terminology, states, or errors reach the interface.
 **Method:** full source reconstruction of `apps/ui/src` (108 files), plus runtime inspection of the running dev server driven headlessly through Chromium at twelve viewports, four zoom levels, and scripted keyboard/pointer interaction. Every finding is tagged **Verified** (observed at runtime or unambiguous in source) or **Hypothesis** (requires assistive-technology or real-device confirmation).
 
-**No production code was modified.**
+**No production code was modified during the audit.**
+
+> **Maintenance update — 2026-08-01.** ESLint 9 and Oxfmt were added after
+> the audit was completed, and the repository was brought into compliance.
+> This report remains a record of the observed UI/UX behaviour; the tooling
+> update does not re-validate or close any of its product findings.
 
 ---
 
