@@ -27,6 +27,29 @@ native browser, provider, resource-usage, or external-client behavior:
     actual chat store and emit a credential-free JSON report.
 13. Exercise all synchronized Claude Code plugin workflows after contract or skill changes.
 
+## Linting
+
+Phase 1 (landing now): ESLint 9 flat config, type-aware `typescript-eslint`
+(`strictTypeChecked` + `stylisticTypeChecked`) scoped to each package's `src`,
+`eslint-plugin-solid` (`flat/typescript`) scoped to `apps/ui/src`, non-type-checked
+linting for tests/scripts/config files outside each tsconfig's `include`. Oxfmt as a
+separate formatter, not wired into ESLint. No root `tsconfig.json` exists — only
+`tsconfig.base.json`, which each package's tsconfig extends.
+
+Phase 2 (add after phase 1 is clean and run for a while, one at a time, not bundled):
+
+- `eslint-plugin-import-x` + `eslint-import-resolver-typescript` for import hygiene.
+- `eslint-plugin-security` (start with `detect-object-injection` at `warn`, known noisy).
+- `eslint-plugin-regexp`.
+- `@vitest/eslint-plugin` scoped to `*.test.ts`; `eslint-plugin-playwright` scoped to
+  `apps/ui/test/e2e`.
+- `knip` for dead exports/dependencies, as its own script, not folded into `lint`.
+- `eslint-plugin-unicorn`, pinned to the last ESLint-9-compatible release, once core
+  rules are settled (current Unicorn requires ESLint 10.4+).
+
+Do not bundle phase 2 additions into one PR — each plugin needs its own signal-to-noise
+pass against this repo before enabling by default.
+
 ## Follow-up quality work
 
 - Add summary-to-detail references where any result still approaches model-context limits.

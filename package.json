@@ -9,6 +9,10 @@
     "mcp": "tsx apps/mcp-server/src/index.ts",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . --cache",
+    "lint:fix": "eslint . --cache --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "test:strategic-fit": "pnpm --filter @chess-mcp/chess-tools exec tsc -p test/strategic-fit/tsconfig.json && tsx --test packages/chess-tools/test/strategic-fit/*.test.ts",
     "bench:strategic-fit": "pnpm --filter @chess-mcp/chess-tools build && node scripts/strategic-fit-benchmark.mjs",
     "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node --import tsx scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
@@ -19,12 +23,18 @@
     "sync:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs && rm -rf plugin/skills && cp -r .claude/skills plugin/skills",
     "check:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs --check && diff -r .claude/skills plugin/skills"
   },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-solid": "^0.14.5",
+    "globals": "^17.8.0",
+    "oxfmt": "^0.61.0",
+    "playwright": "^1.61.0",
+    "tsx": "^4.19.0",
+    "typescript-eslint": "^8.65.0"
+  },
   "engines": {
     "node": ">=20"
-  },
-  "devDependencies": {
-    "playwright": "^1.61.0",
-    "tsx": "^4.19.0"
   },
   "packageManager": "pnpm@11.3.0"
 }
