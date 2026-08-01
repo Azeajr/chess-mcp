@@ -618,11 +618,14 @@ test("proof UI supplies keyboard, screen-reader, no-color, reduced-motion, mobil
   assert.match(component, /aria-label="Post-commit report metric claims"/);
   assert.match(component, /repertoire POV/);
   assert.match(component, /White POV/);
-  assert.match(styles, /\.replacement-proof-claims-scroll \{ max-width: 100%; overflow-x: auto;/);
-  assert.match(styles, /\.replacement-proof-actions button \{ min-height: 44px; \}/);
   assert.match(
     styles,
-    /\.replacement-resolution-proof,\n {2}\.replacement-proof-outcome,\n {2}\.replacement-proof-new-findings > li \{ forced-color-adjust: auto; \}/,
+    /\.replacement-proof-claims-scroll\s*\{\s*max-width:\s*100%;\s*overflow-x:\s*auto;/,
+  );
+  assert.match(styles, /\.replacement-proof-actions button\s*\{\s*min-height:\s*44px;\s*\}/);
+  assert.match(
+    styles,
+    /\.replacement-resolution-proof,\s*\.replacement-proof-outcome,\s*\.replacement-proof-new-findings > li\s*\{\s*forced-color-adjust:\s*auto;\s*\}/,
   );
   assert.match(styles, /data-proof-status="superseded"/);
 });

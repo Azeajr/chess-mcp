@@ -352,12 +352,14 @@ export function createStrategicFitLifecycleState(
   ): Promise<StrategicFinding[]> => {
     // The browser contract always supplies canonical paging. Keeping lifecycle-only test/custom
     // boundaries tolerant of a report shell preserves the orchestration boundary's narrow scope.
+    const findingPage = (report as Partial<StrategicFitAnalysisResult>).finding_page;
+    if (findingPage === undefined) return [];
     const reportFindings = report.findings as StrategicFinding[];
-    if (report.finding_page.total_count === 0) return [];
+    if (findingPage.total_count === 0) return [];
     if (
-      report.finding_page.offset === 0 &&
-      report.finding_page.returned_count === report.finding_page.total_count &&
-      reportFindings.length === report.finding_page.total_count
+      findingPage.offset === 0 &&
+      findingPage.returned_count === findingPage.total_count &&
+      reportFindings.length === findingPage.total_count
     )
       return [...reportFindings].sort((left, right) =>
         left.finding_id.localeCompare(right.finding_id),
@@ -366,7 +368,7 @@ export function createStrategicFitLifecycleState(
     const findings: StrategicFinding[] = [];
     const seen = new Set<string>();
     let offset = 0;
-    while (offset < report.finding_page.total_count) {
+    while (offset < findingPage.total_count) {
       const value = await boundary.execute(
         "analyze_repertoire_congruence",
         {

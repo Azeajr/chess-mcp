@@ -275,6 +275,13 @@ function isAbort(value: unknown): boolean {
   );
 }
 
+function isActiveGeneration(
+  active: { readonly sequence: number; readonly controller: AbortController } | null,
+  sequence: number,
+): boolean {
+  return active !== null && active.sequence === sequence;
+}
+
 function currentActionability(
   prepared: ReplacementLabPreparedContext,
   boundary: ReplacementLabStateBoundary,
@@ -541,7 +548,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
           },
         },
       );
-      if (active.sequence !== requestSequence || controller.signal.aborted) {
+      if (!isActiveGeneration(active, requestSequence) || controller.signal.aborted) {
         discard(result);
         return false;
       }

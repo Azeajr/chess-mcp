@@ -223,7 +223,7 @@ test("review UI supplies keyboard, screen-reader, no-color, reduced-motion, mobi
     "utf8",
   );
   const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-  assert.match(component, /<fieldset class="replacement-retention-controls"/);
+  assert.match(component, /<fieldset\s+class="replacement-retention-controls"/);
   assert.match(component, /<legend>Old-line retention<\/legend>/);
   assert.match(component, /aria-live="polite"/);
   assert.match(component, /role="alert"/);
@@ -234,5 +234,5 @@ test("review UI supplies keyboard, screen-reader, no-color, reduced-motion, mobi
   assert.match(styles, /@media \(forced-colors: active\)/);
   assert.match(styles, /@media \(max-width: 820px\)/);
   assert.match(styles, /replacement-operation-list pre/);
-  assert.match(styles, /max-height: 18rem; overflow: auto/);
+  assert.match(styles, /max-height:\s*18rem;\s*overflow:\s*auto/);
 });

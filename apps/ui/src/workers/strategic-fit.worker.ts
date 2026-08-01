@@ -5,6 +5,7 @@ import {
   analyzeStrategicFit,
   createStrategicFitJobRecorder,
   restoreStrategicFitJobCheckpoint,
+  strategicFitColdJobRecovery,
   strategicFitJobCompatibility,
   type AnalyzeStrategicFitOptions,
 } from "@chess-mcp/chess-tools";
@@ -119,7 +120,12 @@ function recoverJob(
   post: PostResponse,
 ): void {
   const { payload, request_id: requestId } = request;
-  const recovery = restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
+  const recovery =
+    payload.resume === undefined
+      ? strategicFitColdJobRecovery(
+          "No checkpoint was supplied, so the analysis ran from a cold start.",
+        )
+      : restoreStrategicFitJobCheckpoint(index, payload.resume, compatibility);
   post({ type: "recovery", request_id: requestId, recovery });
 }
 
