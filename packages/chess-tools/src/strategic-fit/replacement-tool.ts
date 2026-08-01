@@ -144,7 +144,7 @@ function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   return `{${Object.entries(value as Record<string, unknown>)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableJson(entryValue)}`)
     .join(",")}}`;
 }
 
@@ -162,9 +162,22 @@ function canonicalRequest(request: ReplacementRequest): ReplacementRequest {
   };
 }
 
+/**
+ * Array.isArray narrows to `any[]` per lib.d.ts, which would erase `values`'s precise
+ * `StrategicFitSourceProvenance[]` element type for the `.every()` call below. This plain-boolean
+ * wrapper keeps the runtime defensiveness (values is caller-supplied and may not actually be an
+ * array) without leaking `any`.
+ */
+function isPlainArray(value: unknown): boolean {
+  return Array.isArray(value);
+}
+
 function validProvenance(values: readonly StrategicFitSourceProvenance[]): boolean {
+  // values is caller-supplied; despite the static element type promising a non-null object shape,
+  // a real caller can send malformed entries (including null holes), so this revalidates at runtime.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   return (
-    Array.isArray(values) &&
+    isPlainArray(values) &&
     values.every(
       (value) =>
         value !== null &&
@@ -174,6 +187,7 @@ function validProvenance(values: readonly StrategicFitSourceProvenance[]): boole
         typeof value.state === "string",
     )
   );
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 }
 
 function item(
@@ -228,6 +242,10 @@ function result(
 
 function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | null {
   const request = input.replacement_request;
+  // input is a caller-supplied public tool boundary; its `contract`/version fields are typed as
+  // exact literals by the internal contract, but a real caller (or a stale/mismatched client) can
+  // send anything at runtime, so these must be revalidated rather than trusted from the static type.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (input.contract !== REPLACEMENT_TOOL_V2_CONTRACT || input.candidate_ids.length === 0)
     return "invalid-request";
   if (
@@ -236,12 +254,14 @@ function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | n
     input.safety.candidates.some((candidate) => !validProvenance(candidate.provenance))
   )
     return "invalid-request";
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     request.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     request.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
     request.replacement_schema_version !== STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
   )
     return "version-mismatch";
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   if (
     !same(input.finding, {
       report_id: request.report_id,
@@ -300,12 +320,17 @@ function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | n
     const simulated = input.safety.candidates.find(
       (candidate) => candidate.candidate_id === entry.candidate_id,
     );
+    // entry is caller-supplied retention input; prune_explicitly_confirmed is typed as the literal
+    // `true` once action is "replace", but this is a safety-critical confirmation flag arriving
+    // from an external boundary, so it must be revalidated as exactly `true` (not just truthy) —
+    // `!== true` is intentional here, not a boolean-literal-compare simplification opportunity.
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-boolean-literal-compare */
     if (
-      !simulated ||
-      simulated.action !== entry.action ||
-      (entry.action === "replace" && !entry.prune_explicitly_confirmed)
+      simulated?.action !== entry.action ||
+      (entry.action === "replace" && entry.prune_explicitly_confirmed !== true)
     )
       return "retention-mismatch";
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-boolean-literal-compare */
   }
   return null;
 }

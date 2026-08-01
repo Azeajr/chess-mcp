@@ -5,6 +5,7 @@
  * while merging positions and decisions by chess semantics so later analysis is not biased by
  * variation ordering, duplicate branches, or move-order transpositions.
  */
+import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { INITIAL_FEN, makeFen, parseFen } from "chessops/fen";
 import { makeSan, parseSan } from "chessops/san";
@@ -252,9 +253,12 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
     moveOrderIds: readonly string[],
   ): void => {
     if (ancestors.has(node)) throw new Error("strategic_fit_graph_invalid_tree: cycle detected");
-    const children = (node as { children?: unknown }).children;
-    if (!Array.isArray(children))
+    const rawChildren = (node as { children?: unknown }).children;
+    if (!Array.isArray(rawChildren))
       throw new Error("strategic_fit_graph_invalid_tree: malformed children");
+    // Array.isArray narrows to `any[]` per lib.d.ts; re-type as `unknown[]` so `child` below stays
+    // safely typed until the runtime `typeof child === "object"` check narrows it for real.
+    const children: readonly unknown[] = rawChildren;
 
     if (children.length === 0 && sourceSans.length > 0) {
       sourceRouteCount++;
@@ -304,7 +308,7 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
       const nextSourceSans = [...sourceSans, sourceSan];
       const nextCanonicalSans = [...canonicalSans, canonicalSan];
       const nextUcis = [...ucis, uci];
-      const fromPositionId = positionIds.at(-1)!;
+      const fromPositionId = assertDefined(positionIds.at(-1));
       const nextPosition = ensurePosition(next, nextSourceSans);
       const decisionKey = [fromPositionId, uci, nextPosition.positionId].join(PATH_SEPARATOR);
       const decisionId = semanticId("decision", decisionKey);
@@ -332,7 +336,7 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
       }
       decision.plies.add(nextUcis.length);
       decision.sourceSanPaths.push(nextSourceSans);
-      positions.get(fromPositionId)!.outgoingDecisionIds.add(decisionId);
+      assertDefined(positions.get(fromPositionId)).outgoingDecisionIds.add(decisionId);
       nextPosition.incomingDecisionIds.add(decisionId);
 
       const nextDecisionIds = [...decisionIds, decisionId];
@@ -378,11 +382,11 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
 
   for (const route of routes.values()) {
     for (const positionId of route.positionIds)
-      positions.get(positionId)!.routeIds.add(route.routeId);
+      assertDefined(positions.get(positionId)).routeIds.add(route.routeId);
     for (const decisionId of route.decisionIds)
-      decisions.get(decisionId)!.routeIds.add(route.routeId);
+      assertDefined(decisions.get(decisionId)).routeIds.add(route.routeId);
     for (const moveOrderId of route.moveOrderIds)
-      moveOrders.get(moveOrderId)!.routeIds.add(route.routeId);
+      assertDefined(moveOrders.get(moveOrderId)).routeIds.add(route.routeId);
   }
 
   const graphPositions: RepertoireGraphPosition[] = [...positions.values()]
@@ -390,7 +394,7 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
       position_id: position.positionId,
       position_key: position.positionKey,
-      fen: [...position.fens].sort(compareStrings)[0]!,
+      fen: assertDefined([...position.fens].sort(compareStrings)[0]),
       turn: position.turn,
       source_san_paths: sortedPaths(position.sourceSanPaths),
       incoming_move_order_ids: sortedValues(position.incomingMoveOrderIds),
@@ -440,7 +444,7 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
       position_ids: [...route.positionIds],
       decision_ids: [...route.decisionIds],
       move_order_ids: [...route.moveOrderIds],
-      terminal_position_id: route.positionIds.at(-1)!,
+      terminal_position_id: assertDefined(route.positionIds.at(-1)),
       source_san_paths: sortedPaths(route.sourceSanPaths),
       source_route_count: route.sourceSanPaths.length,
     }))

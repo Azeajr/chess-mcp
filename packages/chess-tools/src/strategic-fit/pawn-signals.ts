@@ -6,6 +6,7 @@
  * route checkpoints. Approximate observations are explicitly named as candidates and retain their
  * classifier confidence and provenance.
  */
+import { assertDefined } from "../assert.js";
 import { parseFen } from "chessops/fen";
 import type { Board } from "chessops/board";
 import { makeSquare, squareFile, squareRank } from "chessops/util";
@@ -285,12 +286,12 @@ function pawnIslandsFor(board: Board, color: Color): PawnIsland[] {
   const islands: number[][] = [];
   for (const file of occupiedFiles) {
     const current = islands.at(-1);
-    if (!current || file !== current.at(-1)! + 1) islands.push([file]);
+    if (!current || file !== assertDefined(current.at(-1)) + 1) islands.push([file]);
     else current.push(file);
   }
   return islands.map((files) => ({
-    files: files.map((file) => FILE_NAMES[file]!),
-    squares: squareNames(files.flatMap((file) => byFile.get(file)!)),
+    files: files.map((file) => assertDefined(FILE_NAMES[file])),
+    squares: squareNames(files.flatMap((file) => assertDefined(byFile.get(file)))),
   }));
 }
 
@@ -299,7 +300,7 @@ function connectedPawnGroups(board: Board, color: Color): ConnectedPawnGroup[] {
   const parents = new Map(squares.map((square) => [square, square]));
   const connections = new Map<string, "phalanx" | "chain">();
   const find = (square: number): number => {
-    const parent = parents.get(square)!;
+    const parent = assertDefined(parents.get(square));
     if (parent === square) return square;
     const root = find(parent);
     parents.set(square, root);
@@ -313,8 +314,8 @@ function connectedPawnGroups(board: Board, color: Color): ConnectedPawnGroup[] {
 
   for (let leftIndex = 0; leftIndex < squares.length; leftIndex++) {
     for (let rightIndex = leftIndex + 1; rightIndex < squares.length; rightIndex++) {
-      const left = squares[leftIndex]!;
-      const right = squares[rightIndex]!;
+      const left = assertDefined(squares[leftIndex]);
+      const right = assertDefined(squares[rightIndex]);
       if (Math.abs(squareFile(left) - squareFile(right)) !== 1) continue;
       const rankDistance = Math.abs(squareRank(left) - squareRank(right));
       if (rankDistance > 1) continue;
@@ -412,7 +413,11 @@ function groupedByFile(board: Board, color: Color, names: readonly string[]): Pa
 
 function individualPawnGroups(board: Board, color: Color, names: readonly string[]): PawnGroup[] {
   return names.map((name) => {
-    const square = pawnSquares(board, color).find((candidate) => makeSquare(candidate) === name)!;
+    // names always originates from isolatedPawns/doubledPawns on this same board+color, which
+    // derive from the same board.pieces(color, "pawn") set as pawnSquares, so a match always exists.
+    const square = assertDefined(
+      pawnSquares(board, color).find((candidate) => makeSquare(candidate) === name),
+    );
     return {
       squares: [name],
       mobility: pawnCanAdvance(board, square, color) ? "mobile" : "static",
@@ -585,10 +590,10 @@ function centerOpenness(board: Board): CenterOpennessObservation {
   const blackFiles = new Set(pawnSquares(board, "black").map(squareFile));
   const openFiles = [...CENTER_FILES]
     .filter((file) => !whiteFiles.has(file) && !blackFiles.has(file))
-    .map((file) => FILE_NAMES[file]!);
+    .map((file) => assertDefined(FILE_NAMES[file]));
   const semiOpenFiles = [...CENTER_FILES]
     .filter((file) => whiteFiles.has(file) !== blackFiles.has(file))
-    .map((file) => FILE_NAMES[file]!);
+    .map((file) => assertDefined(FILE_NAMES[file]));
   const state: CenterOpenness =
     openFiles.length === 2
       ? "open"

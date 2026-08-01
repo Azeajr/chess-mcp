@@ -7,6 +7,7 @@
  * observed. Position features caused by an irreversible move are not automatically irreversible:
  * doubled pawns, files, and center states can still change at the next checkpoint.
  */
+import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 
@@ -93,12 +94,25 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Reads a property that a preceding `Object.keys` check already proved is present. `JsonValue`
+ * legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not safe here —
+ * only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
+ */
+function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
+  const result = value[key];
+  if (result === undefined) {
+    throw new Error(`strategic_fit_trajectory_missing_property: ${key}`);
+  }
+  return result;
+}
+
 function stableSerialize(value: JsonValue): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   if (isObject(value)) {
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(requireProperty(value, key))}`)
       .join(",")}}`;
   }
   return JSON.stringify(value);
@@ -112,13 +126,21 @@ function signalSlot(signal: StrategicSignal): string {
   return subject === null ? signal.feature_id : `${signal.feature_id}:${subject}`;
 }
 
+/**
+ * Array.isArray narrows to `any[]` per lib.d.ts; this predicate narrows to JsonValue's own array
+ * member instead, so an inline `.map()` callback over the result stays precisely typed.
+ */
+function isJsonArray(value: JsonValue | undefined): value is readonly JsonValue[] {
+  return Array.isArray(value);
+}
+
 /** Metadata about repetition does not change which recurring placement was observed. */
 function persistenceValue(signal: StrategicSignal): JsonValue {
   if (signal.feature_id !== "piece.recurring-placements" || !isObject(signal.value)) {
     return signal.value;
   }
   const placements = signal.value.placements;
-  if (!Array.isArray(placements)) return signal.value;
+  if (!isJsonArray(placements)) return signal.value;
   return {
     placements: placements.map((placement) => {
       if (!isObject(placement)) return placement;
@@ -223,7 +245,7 @@ function makeSnapshot(
     );
   }
   const routeObservation = positionSignals.observations[selected.checkpoint.ply];
-  if (!routeObservation || routeObservation.position_id !== selected.position_id) {
+  if (routeObservation?.position_id !== selected.position_id) {
     throw new Error(
       `strategic_fit_trajectory_missing_position_signals: ${route.route_id} at ply ${selected.checkpoint.ply}`,
     );
@@ -300,7 +322,7 @@ function applyPersistence(rawSnapshots: readonly RawSnapshot[]): StrategicSnapsh
         const slot = signalSlot(signal);
         const signature = stableSerialize(persistenceValue(signal));
         const run = runs.get(slot);
-        if (!run || run.signature !== signature) {
+        if (run?.signature !== signature) {
           runs.set(slot, {
             signature,
             lastPly: snapshot.checkpoint.ply,
@@ -310,7 +332,7 @@ function applyPersistence(rawSnapshots: readonly RawSnapshot[]): StrategicSnapsh
           run.lastPly = snapshot.checkpoint.ply;
           run.distinctPlyCount++;
         }
-        const currentRun = runs.get(slot)!;
+        const currentRun = assertDefined(runs.get(slot));
         if (isHistoricalIrreversible(signal)) persistence = "irreversible";
         else if (currentRun.distinctPlyCount >= 2) persistence = "stable";
       }

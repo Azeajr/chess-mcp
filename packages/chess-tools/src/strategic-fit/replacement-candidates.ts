@@ -6,6 +6,7 @@
  * 8.5 expansion, never full ReplacementCandidate proposals: the mandatory full-subtree contract in
  * replacement-types.ts remains the only finished-candidate shape.
  */
+import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { makeFen, parseFen } from "chessops/fen";
 import { makeSan, parseSan } from "chessops/san";
@@ -349,7 +350,16 @@ function jsonKey(value: JsonValue): string {
   const record = value as Readonly<Record<string, JsonValue>>;
   return `{${Object.keys(record)
     .sort(compareStrings)
-    .map((key) => `${JSON.stringify(key)}:${jsonKey(record[key]!)}`)
+    .map((key) => {
+      // JsonValue legitimately includes `null`, so assertDefined (which also rejects `null`) is
+      // not safe here; only `undefined` (a genuinely absent key) would be an error, and `key`
+      // came from this same record's own `Object.keys`, so it is always present.
+      const propertyValue = record[key];
+      if (propertyValue === undefined) {
+        throw new Error(`strategic_fit_replacement_missing_property: ${key}`);
+      }
+      return `${JSON.stringify(key)}:${jsonKey(propertyValue)}`;
+    })
     .join(",")}}`;
 }
 
@@ -376,7 +386,7 @@ function mergeCandidateSources(
   return [...grouped.entries()]
     .sort(([left], [right]) => compareStrings(left, right))
     .map(([, matches]) => {
-      const first = matches[0]!;
+      const first = assertDefined(matches[0]);
       const detailValues = new Map<string, Readonly<Record<string, JsonValue>>>();
       for (const match of matches) detailValues.set(jsonKey(match.details), match.details);
       return {
@@ -493,6 +503,10 @@ function pivotCompatibilityError(
       "Maximum candidate budget must be a non-negative safe integer.",
     ];
   }
+  // result (input.pivot_result) is caller-supplied evidence from a prior pipeline stage — possibly
+  // stale, cached, or reconstructed from a serialized boundary — so its `status`/version/owner
+  // literals must be revalidated at runtime rather than trusted from the static type.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (result.status !== "selected" || result.pivot.status !== "actionable") {
     return [
       "non-actionable",
@@ -500,6 +514,7 @@ function pivotCompatibilityError(
       "Candidate generation requires one validated actionable Task 8.2 pivot.",
     ];
   }
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     result.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
     result.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION ||
@@ -524,6 +539,7 @@ function pivotCompatibilityError(
       "Validated pivot result does not match the current replacement request identity.",
     ];
   }
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
   if (graph.repertoire_color !== request.repertoire_color) {
     return [
       "stale",
@@ -534,7 +550,7 @@ function pivotCompatibilityError(
   const position = graph.positions.find(
     (candidate) => candidate.position_id === result.pivot.position_id,
   );
-  let positionIsCurrent = position !== undefined && position.turn === request.repertoire_color;
+  let positionIsCurrent = position?.turn === request.repertoire_color;
   if (positionIsCurrent && position) {
     try {
       const parsed = Chess.fromSetup(parseFen(position.fen).unwrap()).unwrap();
@@ -556,8 +572,14 @@ function pivotCompatibilityError(
   const decision = graph.decisions.find(
     (candidate) => candidate.decision_id === result.pivot.decision_id,
   );
+  if (!decision) {
+    return [
+      "stale",
+      "pivot-decision-stale",
+      "Validated pivot decision no longer matches the current semantic graph.",
+    ];
+  }
   if (
-    !decision ||
     decision.from_position_id !== result.pivot.position_id ||
     decision.to_position_id === result.pivot.position_id ||
     decision.san !== result.pivot.san ||
@@ -961,22 +983,22 @@ function mergeRawCandidates(raw: readonly RawCandidate[]): RawCandidate[] {
     ]);
   }
   return [...byOutcome.values()]
-    .map((matches) => {
-      const canonical = [...matches].sort(
-        (left, right) => compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san),
-      )[0]!;
+    .map((matches): RawCandidate => {
+      const canonical = assertDefined(
+        [...matches].sort(
+          (left, right) =>
+            compareStrings(left.uci, right.uci) || compareStrings(left.san, right.san),
+        )[0],
+      );
       const popularity = matches.flatMap((candidate) =>
         candidate.popularity === null ? [] : [candidate.popularity],
       );
-      const memoryClass: ReplacementCandidateMemoryClass = matches.some(
-        (candidate) => candidate.memoryClass === "low",
-      )
-        ? "low"
-        : "unknown";
       return {
         ...canonical,
         existingPreparation: matches.some((candidate) => candidate.existingPreparation),
-        memoryClass,
+        memoryClass: matches.some((candidate) => candidate.memoryClass === "low")
+          ? "low"
+          : "unknown",
         sourcePaths: sortedPaths(matches.flatMap((candidate) => candidate.sourcePaths)),
         sources: mergeCandidateSources(matches.flatMap((candidate) => candidate.sources)),
         databaseEvidenceIds: sortedUnique(
@@ -1154,9 +1176,11 @@ export function generateReplacementCandidates(
   }
 
   const pivot = input.pivot_result.pivot as ReplacementActionablePivotEvidence;
-  const pivotPosition = input.graph.positions.find(
-    (position) => position.position_id === pivot.position_id,
-  )!;
+  // pivotCompatibilityError already returned null above, which only happens after it confirmed a
+  // position with this exact position_id is present and current in this same graph.
+  const pivotPosition = assertDefined(
+    input.graph.positions.find((position) => position.position_id === pivot.position_id),
+  );
   const localProvenance = mergeStrategicProvenance([
     ...input.request.provenance,
     ...input.pivot_result.provenance,

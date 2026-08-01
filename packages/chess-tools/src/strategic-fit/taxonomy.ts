@@ -5,6 +5,7 @@
  * deterministic projection used for descriptive containers; later cohort logic must still apply
  * strategic and decision-scope evidence before treating any taxonomy node as actionable.
  */
+import { assertDefined } from "../assert.js";
 import type { OpeningEntry, OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
@@ -151,11 +152,9 @@ export function classifyOpeningName(name: string): OpeningTaxonomyNameParts | nu
   };
 }
 
-function nodeSpecs(parts: OpeningTaxonomyNameParts): {
-  level: OpeningTaxonomyLevel;
-  label: string;
-  pathLabels: string[];
-}[] {
+function nodeSpecs(
+  parts: OpeningTaxonomyNameParts,
+): { level: OpeningTaxonomyLevel; label: string; pathLabels: string[] }[] {
   const specs: { level: OpeningTaxonomyLevel; label: string; pathLabels: string[] }[] = [];
   const pathLabels = [parts.family];
   specs.push({ level: "family", label: parts.family, pathLabels: [...pathLabels] });
@@ -180,7 +179,7 @@ function normalizeEcoCode(code: string): string {
 
 function ecoRange(codes: ReadonlySet<string>): OpeningEcoRange {
   const sorted = [...codes].sort(compareStrings);
-  return { from: sorted[0]!, to: sorted.at(-1)! };
+  return { from: assertDefined(sorted[0]), to: assertDefined(sorted.at(-1)) };
 }
 
 function buildNodeCatalog(table: OpeningTable): Map<string, OpeningTaxonomyNode> {
@@ -303,10 +302,10 @@ function unknownTaxonomy(
 
 function commonPath(candidates: readonly InheritedCandidate[]): OpeningTaxonomyNode[] {
   if (candidates.length === 0) return [];
-  const first = candidates[0]!.path;
+  const first = assertDefined(candidates[0]).path;
   const common: OpeningTaxonomyNode[] = [];
   for (let index = 0; index < first.length; index++) {
-    const expected = first[index]!;
+    const expected = assertDefined(first[index]);
     if (
       !candidates.every((candidate) => candidate.path[index]?.taxonomy_id === expected.taxonomy_id)
     )
@@ -360,7 +359,7 @@ export function buildOpeningTaxonomy(
       routes: graph.routes.map((route) => ({
         route_id: route.route_id,
         terminal_position_id: route.terminal_position_id,
-        taxonomy: positionById.get(route.terminal_position_id)!,
+        taxonomy: assertDefined(positionById.get(route.terminal_position_id)),
       })),
     };
   }
@@ -420,7 +419,7 @@ export function buildOpeningTaxonomy(
     routes: graph.routes.map((route) => ({
       route_id: route.route_id,
       terminal_position_id: route.terminal_position_id,
-      taxonomy: positionById.get(route.terminal_position_id)!,
+      taxonomy: assertDefined(positionById.get(route.terminal_position_id)),
     })),
   };
 }

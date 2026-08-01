@@ -7,6 +7,7 @@
  * combined with the configured family weights. The exported contribution fields use the same
  * arithmetic as the final score so explanations can always reconcile with it.
  */
+import { assertDefined } from "../assert.js";
 import type { StrategicConceptDictionary, StrategicRouteConcepts } from "./concepts.js";
 import type { StrategicModeReport } from "./modes.js";
 import type {
@@ -200,12 +201,25 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Reads a property that a preceding `Object.keys`/`Object.hasOwn` check already proved is present.
+ * `JsonValue` legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not
+ * safe here — only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
+ */
+function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
+  const result = value[key];
+  if (result === undefined) {
+    throw new Error(`strategic_fit_distance_missing_property: ${key}`);
+  }
+  return result;
+}
+
 function stableSerialize(value: JsonValue): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   if (isObject(value)) {
     return `{${Object.keys(value)
       .sort(compareStrings)
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(requireProperty(value, key))}`)
       .join(",")}}`;
   }
   return JSON.stringify(value);
@@ -218,7 +232,7 @@ function canonicalValue(value: JsonValue): JsonValue {
     Object.keys(value)
       .filter((key) => !TIMING_AND_TRANSPORT_KEYS.has(key))
       .sort(compareStrings)
-      .map((key) => [key, canonicalValue(value[key]!)]),
+      .map((key) => [key, canonicalValue(requireProperty(value, key))]),
   );
 }
 
@@ -270,7 +284,12 @@ function mixedValueDistance(left: JsonValue, right: JsonValue, featureId: string
     return (
       sharedKeys.reduce(
         (sum, key) =>
-          sum + mixedValueDistance(normalizedLeft[key]!, normalizedRight[key]!, featureId),
+          sum +
+          mixedValueDistance(
+            requireProperty(normalizedLeft, key),
+            requireProperty(normalizedRight, key),
+            featureId,
+          ),
         0,
       ) / sharedKeys.length
     );
@@ -358,14 +377,14 @@ function observations(
     .sort(compareCheckpointKeys);
   const values: FeatureObservation[] = [];
   for (const key of matched) {
-    const leftSignals = stableSignals(leftSnapshots.get(key)!);
-    const rightSignals = stableSignals(rightSnapshots.get(key)!);
+    const leftSignals = stableSignals(assertDefined(leftSnapshots.get(key)));
+    const rightSignals = stableSignals(assertDefined(rightSnapshots.get(key)));
     const slots = [...leftSignals.keys()]
       .filter((slot) => rightSignals.has(slot))
       .sort(compareStrings);
     for (const slot of slots) {
-      const leftSignal = leftSignals.get(slot)!;
-      const rightSignal = rightSignals.get(slot)!;
+      const leftSignal = assertDefined(leftSignals.get(slot));
+      const rightSignal = assertDefined(rightSignals.get(slot));
       if (
         leftSignal.family !== rightSignal.family ||
         leftSignal.feature_id !== rightSignal.feature_id
@@ -404,8 +423,8 @@ function aggregateFeatures(values: readonly FeatureObservation[]): FeatureAggreg
   }
   return [...groups.values()]
     .map((group) => ({
-      family: group[0]!.family,
-      featureId: group[0]!.featureId,
+      family: assertDefined(group[0]).family,
+      featureId: assertDefined(group[0]).featureId,
       distance: clamp(group.reduce((sum, item) => sum + item.distance, 0) / group.length),
       matchedEvidenceCount: group.length,
       matchedCheckpointKeys: sortedUnique(group.map((item) => item.checkpointKey)),
@@ -488,7 +507,7 @@ function reconcileContributions<T extends { readonly contribution: number }>(
   if (Math.abs(adjustment) <= EPSILON) return [...values];
   let adjustedIndex = values.length - 1;
   if (adjustment < 0) {
-    while (adjustedIndex >= 0 && values[adjustedIndex]!.contribution + adjustment < -EPSILON) {
+    while (adjustedIndex >= 0 && assertDefined(values[adjustedIndex]).contribution + adjustment < -EPSILON) {
       adjustedIndex--;
     }
   }
@@ -654,10 +673,10 @@ export function calculateStrategicDistances(
         compareStrings(left.mode_id, right.mode_id),
       )) {
         const pair = computeStrategicTrajectoryDistance(
-          trajectoryByRoute.get(routeId)!,
-          trajectoryByRoute.get(mode.representative_route_id)!,
-          conceptsByRoute.get(routeId)!,
-          conceptsByRoute.get(mode.representative_route_id)!,
+          assertDefined(trajectoryByRoute.get(routeId)),
+          assertDefined(trajectoryByRoute.get(mode.representative_route_id)),
+          assertDefined(conceptsByRoute.get(routeId)),
+          assertDefined(conceptsByRoute.get(mode.representative_route_id)),
           { feature_family_weights: weights },
         );
         comparisons.push({

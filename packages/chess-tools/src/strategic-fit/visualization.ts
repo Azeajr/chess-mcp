@@ -14,6 +14,7 @@
  * so the learning-concepts family never contributes to map coordinates; that limitation is
  * recorded on the axes rather than silently ignored.
  */
+import { assertDefined } from "../assert.js";
 import {
   computeStrategicTrajectoryDistance,
   type StrategicDistanceFamilyContribution,
@@ -202,12 +203,11 @@ interface AnchorCandidate {
 /** An anchor must carry comparable non-final evidence or every distance to it would be null. */
 function canAnchor(trajectory: StrategicTrajectory | undefined): boolean {
   return (
-    trajectory !== undefined &&
-    trajectory.snapshots.some(
+    trajectory?.snapshots.some(
       (snapshot) =>
         snapshot.checkpoint.comparability === "comparable" &&
         snapshot.checkpoint.kind !== "final-valid-position",
-    )
+    ) ?? false
   );
 }
 
@@ -234,8 +234,7 @@ function anchorCandidates(
     )
     .filter((candidate) => canAnchor(trajectoriesByRoute.get(candidate.route_id)))
     .sort(
-      (left, right) =>
-        right.score - left.score || compareStrings(left.mode_id ?? "", right.mode_id ?? ""),
+      (left, right) => right.score - left.score || compareStrings(left.mode_id, right.mode_id),
     );
   if (modeCandidates.length > 0) return modeCandidates;
   return cohorts
@@ -285,6 +284,10 @@ function excludedFamilies(profile: StrategicFitProfile): StrategicMapExcludedFam
   ];
   for (const family of STRATEGIC_SIGNAL_FAMILIES) {
     if (family === "learning-concepts") continue;
+    // profile is caller-supplied/persisted (see metadata.ts's `as Record<...>` cast on load); a
+    // stale or malformed profile could be missing a family key despite the static type promising
+    // completeness, so this re-checks rather than trusting the type.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if ((profile.preferences.feature_family_weights[family] ?? 0) <= 0) {
       excluded.push({
         family,
@@ -359,13 +362,13 @@ function transpositionEdges(
 ): StrategicMapTranspositionEdge[] {
   const sequences = points.map((point) => ({
     route_id: point.route_id,
-    snapshots: snapshotSequence(trajectoriesByRoute.get(point.route_id)!),
+    snapshots: snapshotSequence(assertDefined(trajectoriesByRoute.get(point.route_id))),
   }));
   const edges: StrategicMapTranspositionEdge[] = [];
   for (let leftIndex = 0; leftIndex < sequences.length; leftIndex++) {
     for (let rightIndex = leftIndex + 1; rightIndex < sequences.length; rightIndex++) {
-      const left = sequences[leftIndex]!;
-      const right = sequences[rightIndex]!;
+      const left = assertDefined(sequences[leftIndex]);
+      const right = assertDefined(sequences[rightIndex]);
       const shared: string[] = [];
       for (const leftSnapshot of left.snapshots) {
         for (const rightSnapshot of right.snapshots) {
@@ -387,10 +390,10 @@ function transpositionEdges(
         }
       }
       if (shared.length > 0) {
-        const [fromRoute, toRoute] = [left.route_id, right.route_id].sort(compareStrings);
+        const sortedPair = [left.route_id, right.route_id].sort(compareStrings);
         edges.push({
-          from_route_id: fromRoute!,
-          to_route_id: toRoute!,
+          from_route_id: assertDefined(sortedPair[0]),
+          to_route_id: assertDefined(sortedPair[1]),
           shared_position_ids: shared.sort(compareStrings),
         });
       }
@@ -464,7 +467,7 @@ export function buildStrategicMapProjection(
       exclusions,
     );
   }
-  const anchorXTrajectory = trajectoriesByRoute.get(primary.route_id)!;
+  const anchorXTrajectory = assertDefined(trajectoriesByRoute.get(primary.route_id));
   const anchorXConcepts = emptyConcepts(anchorXTrajectory);
   const distanceToX = (trajectory: StrategicTrajectory): StrategicTrajectoryDistance =>
     computeStrategicTrajectoryDistance(
@@ -478,14 +481,14 @@ export function buildStrategicMapProjection(
   let secondary: AnchorCandidate | null = null;
   for (const candidate of candidates.slice(1)) {
     if (candidate.route_id === primary.route_id) continue;
-    const separation = distanceToX(trajectoriesByRoute.get(candidate.route_id)!);
+    const separation = distanceToX(assertDefined(trajectoriesByRoute.get(candidate.route_id)));
     if (separation.distance !== null && separation.distance > 0) {
       secondary = candidate;
       break;
     }
   }
   const anchorYTrajectory =
-    secondary === null ? null : trajectoriesByRoute.get(secondary.route_id)!;
+    secondary === null ? null : assertDefined(trajectoriesByRoute.get(secondary.route_id));
   const anchorYConcepts = anchorYTrajectory === null ? null : emptyConcepts(anchorYTrajectory);
 
   const axes: StrategicMapAxes = {
@@ -573,11 +576,11 @@ export function buildStrategicMapProjection(
         route_id: routeId,
         cohort_id: cohort.cohort_id,
         trajectory_id: trajectory.trajectory_id,
-        x: xDistance.distance ?? 0,
+        x: xDistance.distance,
         y: yDistance?.distance ?? 0,
         normalized_weight: weightByRoute.get(routeId) ?? 0,
         confidence: trajectory.evidence_coverage,
-        color_index: colorIndexByCohort.get(cohort.cohort_id)!,
+        color_index: assertDefined(colorIndexByCohort.get(cohort.cohort_id)),
         resolution,
         finding_ids: routeFindings.map((finding) => finding.finding_id),
         is_anchor:

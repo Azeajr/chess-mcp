@@ -11,6 +11,7 @@ import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSquare, squareFile } from "chessops/util";
 
+import { assertDefined } from "../assert.js";
 import type {
   StrategicDistanceFeatureContribution,
   StrategicDistanceReport,
@@ -161,6 +162,19 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Reads a property that a preceding `Object.keys` check already proved is present. `JsonValue`
+ * legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not safe here —
+ * only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
+ */
+function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
+  const result = value[key];
+  if (result === undefined) {
+    throw new Error(`strategic_fit_causality_missing_property: ${key}`);
+  }
+  return result;
+}
+
 function canonicalValue(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (!isObject(value)) return value;
@@ -168,7 +182,7 @@ function canonicalValue(value: JsonValue): JsonValue {
     Object.keys(value)
       .filter((key) => !TIMING_AND_TRANSPORT_KEYS.has(key))
       .sort(compareStrings)
-      .map((key) => [key, canonicalValue(value[key]!)]),
+      .map((key) => [key, canonicalValue(requireProperty(value, key))]),
   );
 }
 
@@ -177,7 +191,7 @@ function stableSerialize(value: JsonValue): string {
   if (isObject(value)) {
     return `{${Object.keys(value)
       .sort(compareStrings)
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key]!)}`)
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(requireProperty(value, key))}`)
       .join(",")}}`;
   }
   return JSON.stringify(value);
@@ -303,7 +317,7 @@ function rawSignalsForRoute(graph: RepertoireGraph, route: RepertoireGraphRoute)
   const signalsByPly = route.position_ids.map((positionId, ply) => {
     const position = positions.get(positionId);
     const observation = routeSignals.observations[ply];
-    if (!position || !observation || observation.position_id !== positionId) {
+    if (!position || observation?.position_id !== positionId) {
       throw new Error(
         `strategic_fit_causality_missing_route_evidence: ${route.route_id} at ply ${ply}`,
       );
@@ -344,7 +358,7 @@ function sharedPositions(
 ): SharedPosition[] {
   const baselineByPosition = new Map<string, number[]>();
   for (let ply = 0; ply <= Math.min(baselineLimit, baseline.position_ids.length - 1); ply++) {
-    const positionId = baseline.position_ids[ply]!;
+    const positionId = assertDefined(baseline.position_ids[ply]);
     const values = baselineByPosition.get(positionId) ?? [];
     values.push(ply);
     baselineByPosition.set(positionId, values);
@@ -355,7 +369,7 @@ function sharedPositions(
     affectedPly <= Math.min(affectedLimit, affected.position_ids.length - 1);
     affectedPly++
   ) {
-    const positionId = affected.position_ids[affectedPly]!;
+    const positionId = assertDefined(affected.position_ids[affectedPly]);
     for (const baselinePly of baselineByPosition.get(positionId) ?? []) {
       result.push({ positionId, affectedPly, baselinePly });
     }
@@ -403,8 +417,7 @@ function signalDiffers(
 ): boolean | null {
   const affectedSignal = affected.signalsByPly[affectedPly]?.get(slot);
   const baselineSignal = baseline.signalsByPly[baselinePly]?.get(slot);
-  if (!affectedSignal || !baselineSignal || affectedSignal.feature_id !== baselineSignal.feature_id)
-    return null;
+  if (!affectedSignal || affectedSignal.feature_id !== baselineSignal?.feature_id) return null;
   return !sameValue(affectedSignal.value, baselineSignal.value);
 }
 
@@ -513,7 +526,7 @@ function irreversibleExplanation(
     castling ? "castling" : null,
     promotion ? "promotion" : null,
   ].filter((reason): reason is string => reason !== null);
-  return `Irreversible ${reasons.join(" and ")} ${route.san_moves[ply - 1]!} contributes to the stable difference.`;
+  return `Irreversible ${reasons.join(" and ")} ${assertDefined(route.san_moves[ply - 1])} contributes to the stable difference.`;
 }
 
 function causalLabel(controllability: number | null): CausalControlLabel {
@@ -605,7 +618,8 @@ function opponentDivergencePly(
   for (let ply = shared.affectedPly + 1; ply <= affectedLimit; ply++) {
     const decisionId = affected.decision_ids[ply - 1];
     const decision = decisionId ? decisions.get(decisionId) : undefined;
-    if (decision?.owner === "opponent" && !baselineSegment.has(decisionId!)) return ply;
+    if (decision?.owner === "opponent" && !baselineSegment.has(assertDefined(decisionId)))
+      return ply;
   }
   return null;
 }
@@ -833,8 +847,11 @@ function attributeWithContext(
     explanation: explanationFor(
       label,
       totalWeight <= EPSILON ? 1 : unknownWeight / totalWeight,
-      new Set(playerDifferences.map((difference) => difference.decision!.decision_id)).size,
-      new Set(opponentDifferences.map((difference) => difference.decision!.decision_id)).size,
+      new Set(playerDifferences.map((difference) => assertDefined(difference.decision).decision_id))
+        .size,
+      new Set(
+        opponentDifferences.map((difference) => assertDefined(difference.decision).decision_id),
+      ).size,
     ),
   };
 }

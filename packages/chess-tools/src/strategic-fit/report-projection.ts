@@ -160,8 +160,9 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function openingTableIdentity(options: AnalyzeStrategicFitOptions) {
-  return [...(options.openingTable ?? new Map()).entries()]
+function openingTableIdentity(options: AnalyzeStrategicFitOptions): readonly unknown[] {
+  if (!options.openingTable) return [];
+  return [...options.openingTable.entries()]
     .sort(([left], [right]) => compareStrings(left, right))
     .map(([position, entry]) => [position, entry.eco, entry.name]);
 }
@@ -362,7 +363,7 @@ export function projectStrategicFitReport(
     const finding = report.findings.find(
       (candidate) => candidate.finding_id === request.finding_id,
     );
-    if (!finding || finding.repertoire_revision !== request.expected_repertoire_revision) {
+    if (finding?.repertoire_revision !== request.expected_repertoire_revision) {
       throw new StrategicFitReportProjectionError(
         "strategic_fit_finding_not_found",
         `Finding ${request.finding_id} is not current in report ${report.report_id}.`,

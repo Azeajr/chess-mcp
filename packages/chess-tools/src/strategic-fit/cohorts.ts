@@ -6,6 +6,7 @@
  * transpositions are always kept together. User overrides operate on semantic route/decision
  * identities and never remove excluded routes from data-quality accounting.
  */
+import { assertDefined } from "../assert.js";
 import type { RepertoireGraph, RepertoireGraphDecision, RepertoireGraphRoute } from "./graph.js";
 import type { OpeningTaxonomy, RepertoireOpeningTaxonomy } from "./taxonomy.js";
 import type { StrategicTrajectoryReport } from "./trajectory.js";
@@ -255,7 +256,7 @@ function actionableDecisionId(
       .map((snapshot) => snapshot.checkpoint.ply)
       .sort((left, right) => left - right)[0] ?? route.decision_ids.length;
   for (let index = Math.min(firstEvidencePly, route.decision_ids.length) - 1; index >= 0; index--) {
-    const decisionId = route.decision_ids[index]!;
+    const decisionId = assertDefined(route.decision_ids[index]);
     if (decisions.get(decisionId)?.owner === "repertoire") return decisionId;
   }
   return null;
@@ -276,9 +277,9 @@ function routeContexts(
 
   return graph.routes
     .map((route): RouteContext => {
-      const routeTaxonomy = taxonomyByRoute.get(route.route_id)!;
-      const trajectory = trajectoryByRoute.get(route.route_id)!;
-      const weight = weightByRoute.get(route.route_id)!;
+      const routeTaxonomy = assertDefined(taxonomyByRoute.get(route.route_id));
+      const trajectory = assertDefined(trajectoryByRoute.get(route.route_id));
+      const weight = assertDefined(weightByRoute.get(route.route_id));
       const comparableSnapshots = trajectory.snapshots.filter(
         (snapshot) => snapshot.checkpoint.comparability === "comparable",
       );
@@ -378,9 +379,9 @@ function inferredRouteGroups(
   const parent = contexts.map((_, index) => index);
   const find = (index: number): number => {
     let root = index;
-    while (parent[root] !== root) root = parent[root]!;
+    while (parent[root] !== root) root = assertDefined(parent[root]);
     while (parent[index] !== index) {
-      const next = parent[index]!;
+      const next = assertDefined(parent[index]);
       parent[index] = root;
       index = next;
     }
@@ -395,7 +396,8 @@ function inferredRouteGroups(
 
   for (let left = 0; left < contexts.length; left++) {
     for (let right = left + 1; right < contexts.length; right++) {
-      if (comparablePair(graph, contexts[left]!, contexts[right]!)) union(left, right);
+      if (comparablePair(graph, assertDefined(contexts[left]), assertDefined(contexts[right])))
+        union(left, right);
     }
   }
 
@@ -409,7 +411,10 @@ function inferredRouteGroups(
   return [...groups.values()]
     .map((routeIds) => ({ routeIds, overrideIds: new Set<string>() }))
     .sort((left, right) =>
-      compareStrings([...left.routeIds].sort()[0]!, [...right.routeIds].sort()[0]!),
+      compareStrings(
+        assertDefined([...left.routeIds].sort()[0]),
+        assertDefined([...right.routeIds].sort()[0]),
+      ),
     );
 }
 
@@ -480,10 +485,10 @@ function applyStructuralOverrides(
     const touched = groups.filter((group) =>
       [...selected].some((routeId) => group.routeIds.has(routeId)),
     );
-    if (touched.length !== 1 || selected.size >= touched[0]!.routeIds.size) {
+    if (touched.length !== 1 || selected.size >= assertDefined(touched[0]).routeIds.size) {
       throw new Error(`strategic_fit_cohorts_invalid_split: ${override.override_id}`);
     }
-    const source = touched[0]!;
+    const source = assertDefined(touched[0]);
     const extracted = extractRoutes(source, selected);
     source.overrideIds.add(override.override_id);
     groups.push({ routeIds: extracted, overrideIds: new Set([override.override_id]) });
@@ -511,7 +516,10 @@ function applyStructuralOverrides(
   return groups
     .filter((group) => group.routeIds.size > 0)
     .sort((left, right) =>
-      compareStrings([...left.routeIds].sort()[0]!, [...right.routeIds].sort()[0]!),
+      compareStrings(
+        assertDefined([...left.routeIds].sort()[0]),
+        assertDefined([...right.routeIds].sort()[0]),
+      ),
     );
 }
 
@@ -541,7 +549,7 @@ function exclusionState(
 
 function commonValues<T>(sets: readonly ReadonlySet<T>[]): T[] {
   if (sets.length === 0) return [];
-  return [...sets[0]!].filter((value) => sets.slice(1).every((set) => set.has(value)));
+  return [...assertDefined(sets[0])].filter((value) => sets.slice(1).every((set) => set.has(value)));
 }
 
 function commonOpeningScope(contexts: readonly RouteContext[]): string[] {
@@ -573,7 +581,7 @@ function normalizedCohortWeights(contexts: readonly RouteContext[]): {
     unitWeights.set(
       context.weight.weighting_unit_id,
       (unitWeights.get(context.weight.weighting_unit_id) ?? 0) +
-        routeWeightById.get(context.route.route_id)!,
+        assertDefined(routeWeightById.get(context.route.route_id)),
     );
   }
   return {
@@ -608,7 +616,7 @@ function makeCohort(
   overrides: readonly StrategicCohortOverride[],
 ): StrategicComparableCohort {
   const allContexts = [...group.routeIds]
-    .map((routeId) => contextByRoute.get(routeId)!)
+    .map((routeId) => assertDefined(contextByRoute.get(routeId)))
     .sort((left, right) => compareStrings(left.route.route_id, right.route.route_id));
   const includedContexts = allContexts.filter(
     (context) => !excludedRouteIds.has(context.route.route_id),
@@ -662,7 +670,7 @@ function makeCohort(
         : ("actionable" as const);
   const openingScopeIds = commonOpeningScope(baselineContexts);
   const containerIds = sortedUnique(
-    allContexts.map((context) => containerIdByRoute.get(context.route.route_id)!),
+    allContexts.map((context) => assertDefined(containerIdByRoute.get(context.route.route_id))),
   );
   const cohortId = semanticId("cohort", [
     STRATEGIC_COHORT_VERSION,

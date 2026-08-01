@@ -8,6 +8,7 @@
  * the source routes. This keeps deeper annotation, duplicate leaves, and transposed move orders
  * from manufacturing additional strategic evidence.
  */
+import { assertDefined } from "../assert.js";
 import type { RepertoireGraph, RepertoireGraphDecision } from "./graph.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
 import {
@@ -366,7 +367,7 @@ function routeFactors(
   }
 
   const missing = graph.routes
-    .filter((route) => factors.get(route.route_id)!.resolution === "equal-fallback")
+    .filter((route) => assertDefined(factors.get(route.route_id)).resolution === "equal-fallback")
     .map((route) => route.route_id);
   if (missing.length > 0) {
     fallbacks.push({
@@ -386,7 +387,7 @@ function routeFactors(
       resolution: "equal",
     });
     for (const route of graph.routes) {
-      const existing = factors.get(route.route_id)!;
+      const existing = assertDefined(factors.get(route.route_id));
       factors.set(route.route_id, { ...existing, factor: 1, resolution: "equal-fallback" });
     }
   }
@@ -474,7 +475,7 @@ function calculateBaseStrategicRouteWeights(
       (probability, decision) => probability * decision.normalized_weight,
       1,
     );
-    const factor = factors.get(route.route_id)!;
+    const factor = assertDefined(factors.get(route.route_id));
     return {
       routeId: route.route_id,
       terminalPositionId: route.terminal_position_id,
@@ -714,7 +715,7 @@ function calculateComposedStrategicRouteWeights(
 
   const reports = used.map((source) => ({
     source,
-    coefficient: coefficients.get(source.kind)!,
+    coefficient: assertDefined(coefficients.get(source.kind)),
     report: calculateBaseStrategicRouteWeights(graph, {
       mode: source.kind === "manual" ? "manual" : "external",
       route_weights: source.input.route_weights,
@@ -743,7 +744,9 @@ function calculateComposedStrategicRouteWeights(
     .map((route): StrategicNormalizedRouteWeight => {
       const normalizedWeight = reports.reduce(
         (sum, entry, index) =>
-          sum + entry.coefficient * routeBySource[index]!.get(route.route_id)!.normalized_weight,
+          sum +
+          entry.coefficient *
+            assertDefined(assertDefined(routeBySource[index]).get(route.route_id)).normalized_weight,
         0,
       );
       const opponentProbability = route.decision_ids.reduce(
@@ -763,7 +766,10 @@ function calculateComposedStrategicRouteWeights(
         resolution: "supplied",
         provenance: mergeProvenance(
           [CORE_PROVENANCE, composition],
-          ...reports.map((entry, index) => routeBySource[index]!.get(route.route_id)!.provenance),
+          ...reports.map(
+            (entry, index) =>
+              assertDefined(assertDefined(routeBySource[index]).get(route.route_id)).provenance,
+          ),
         ),
       };
     })
@@ -827,7 +833,9 @@ function graphOpponentDecisionResults(
           (sum, entry, index) =>
             sum +
             entry.coefficient *
-              decisionBySource[index]!.get(decision.decision_id)!.normalized_weight,
+              assertDefined(
+                assertDefined(decisionBySource[index]).get(decision.decision_id),
+              ).normalized_weight,
           0,
         );
         return {
@@ -839,7 +847,9 @@ function graphOpponentDecisionResults(
           provenance: mergeProvenance(
             [CORE_PROVENANCE, composition],
             ...reports.map(
-              (entry, index) => decisionBySource[index]!.get(decision.decision_id)!.provenance,
+              (entry, index) =>
+                assertDefined(assertDefined(decisionBySource[index]).get(decision.decision_id))
+                  .provenance,
             ),
           ),
         };
