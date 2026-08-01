@@ -23,6 +23,7 @@ import {
 import { chessgroundDests } from "chessops/compat";
 import type { Move, NormalMove } from "chessops/types";
 import { positionKey, type Color } from "./congruence.js";
+import { assertDefined } from "./assert.js";
 
 /** Child-index path from the root. `[]` is the starting position. */
 export type Path = number[];
@@ -274,7 +275,7 @@ export class GameTree {
     for (const g of games) rejectFenSetup(g);
     const tree = new GameTree(first);
     for (let i = 1; i < games.length; i++) {
-      GameTree._mergeNodes(tree, games[i]!.moves, []);
+      GameTree._mergeNodes(tree, assertDefined(games[i]).moves, []);
     }
     tree.assertLegal();
     return tree;
@@ -622,7 +623,7 @@ export class GameTree {
     // (real engine work, not a loose parity bound). P5: the pre-pass is O(whole tree) and depends only
     // on the tree + color, so it is computed once per instance and reused across cursor chunks (and
     // repeat scans on the same MCP handle) instead of being re-run on every chunked call.
-    if (!this._pruneWork || this._pruneWork.color !== color) {
+    if (this._pruneWork?.color !== color) {
       const keyIndex = buildKeyIndex(this.game.moves).keyMap;
 
       // Every leaf's index path.
@@ -632,7 +633,9 @@ export class GameTree {
           if (path.length) leaves.push(path);
           return;
         }
-        node.children.forEach((c, i) => { collect(c, [...path, i]); });
+        node.children.forEach((c, i) => {
+          collect(c, [...path, i]);
+        });
       };
       collect(this.game.moves, []);
 
@@ -643,7 +646,7 @@ export class GameTree {
         let node: Node<PgnNodeData> = this.game.moves;
         for (let depth = 0; depth < leaf.length; depth++) {
           steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
-          const child = node.children[leaf[depth]!]!;
+          const child = assertDefined(node.children[assertDefined(leaf[depth])]);
           const move = parseSan(pos, child.data.san);
           if (!move) break;
           pos.play(move);
@@ -710,7 +713,7 @@ export class GameTree {
       after.play(mv);
       const fen = makeFen(after.toSetup());
       const sl = await analyseCached(fen, 1, depth);
-      return sl && sl.length ? -moverCp(fen, sl[0]!) : null; // sl is opponent-POV; negate for the mover
+      return sl?.length ? -moverCp(fen, assertDefined(sl[0])) : null; // sl is opponent-POV; negate for the mover
     };
 
     // A re-route collected for the current line (pos kept for E1's deep re-eval; not emitted).
@@ -737,11 +740,11 @@ export class GameTree {
           budgetSpent = true;
           break;
         }
-        const s = steps[idx]!;
+        const s = assertDefined(steps[idx]);
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyseCached(fen, multipv);
         if (!lines?.length) continue;
-        const stayMove = leafSan[s.ply]!; // the line's own next move at this node
+        const stayMove = assertDefined(leafSan[s.ply]); // the line's own next move at this node
         const enriched = lines
           .map((l) => {
             const mv = parseUci(l.uci);
@@ -790,13 +793,13 @@ export class GameTree {
       let savIdx = 0;
       let evIdx = 0;
       reroutes.forEach((r, i) => {
-        const sav = reroutes[savIdx]!;
+        const sav = assertDefined(reroutes[savIdx]);
         if (
           r.savedPlies > sav.savedPlies ||
           (r.savedPlies === sav.savedPlies && r.evalTranspose > sav.evalTranspose)
         )
           savIdx = i;
-        const ev = reroutes[evIdx]!;
+        const ev = assertDefined(reroutes[evIdx]);
         if (
           r.evalTranspose > ev.evalTranspose ||
           (r.evalTranspose === ev.evalTranspose && r.savedPlies > ev.savedPlies)
@@ -808,7 +811,7 @@ export class GameTree {
       // itself stays on the cheaper scan eval; only the reported eval is upgraded).
       let confirmedIdx = -1;
       if (confirmDepth != null && !opts.shouldCancel?.()) {
-        const best = reroutes[evIdx]!;
+        const best = assertDefined(reroutes[evIdx]);
         const deep = await evalAfterMove(best.pos, best.rerouteMove, confirmDepth);
         if (deep != null) {
           best.evalTranspose = deep;
@@ -1004,7 +1007,7 @@ export class GameTree {
     let node: Node<PgnNodeData> = res.node;
     const pos = this.positionAtSan(sans);
     while (node.children.length) {
-      const child = node.children[0]!;
+      const child = assertDefined(node.children[0]);
       const move = parseSan(pos, child.data.san);
       if (!move) break;
       pos.play(move);
@@ -1133,7 +1136,7 @@ export class GameTree {
     const idx = node.children.findIndex((c) => c.data.san === opts.promoteMove);
     if (idx < 0) return { tree: null, error: "variation_not_found" };
     const [child] = node.children.splice(idx, 1);
-    node.children.unshift(child!);
+    node.children.unshift(assertDefined(child));
     return { tree: clone, error: null };
   }
 
@@ -1190,7 +1193,7 @@ export class GameTree {
       const ci = node.children.findIndex((c) => c.data.san === san);
       if (ci < 0) return null;
       out.push(ci);
-      node = node.children[ci]!;
+      node = assertDefined(node.children[ci]);
     }
     return out;
   }
@@ -1199,7 +1202,7 @@ export class GameTree {
   lastMoveAt(path: Path): [string, string] | null {
     if (path.length === 0) return null;
     const before = this.positionAt(path.slice(0, -1));
-    const san = this.sanAt(path)!;
+    const san = assertDefined(this.sanAt(path));
     const move = parseSan(before, san);
     if (!move || !("from" in move)) return null;
     return [makeSquare(move.from), makeSquare(move.to)];

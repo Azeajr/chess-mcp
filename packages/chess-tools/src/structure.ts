@@ -12,6 +12,7 @@ import { squareFile, squareRank, makeSquare, parseSquare } from "chessops/util";
 import { parseFen, makeBoardFen } from "chessops/fen";
 import type { Board } from "chessops/board";
 import type { Color } from "./congruence.js";
+import { assertDefined } from "./assert.js";
 
 const FILE_NAMES = "abcdefgh";
 const QUEENSIDE = new Set([0, 1, 2, 3]); // files a–d
@@ -63,8 +64,9 @@ export function pawnChains(board: Board, color: Color): string[][] {
   const parent = new Map(ps.map((s) => [s, s]));
   const find = (x: number): number => {
     while (parent.get(x) !== x) {
-      parent.set(x, parent.get(parent.get(x)!)!);
-      x = parent.get(x)!;
+      const px = assertDefined(parent.get(x));
+      parent.set(x, assertDefined(parent.get(px)));
+      x = assertDefined(parent.get(x));
     }
     return x;
   };
@@ -93,19 +95,26 @@ export function pawnChains(board: Board, color: Color): string[][] {
 export function openFiles(board: Board): string[] {
   const wf = new Set(pawns(board, "white").map(squareFile));
   const bf = new Set(pawns(board, "black").map(squareFile));
-  return [...Array(8).keys()].filter((f) => !wf.has(f) && !bf.has(f)).map((f) => FILE_NAMES[f]!);
+  return [...Array(8).keys()]
+    .filter((f) => !wf.has(f) && !bf.has(f))
+    .map((f) => assertDefined(FILE_NAMES[f]));
 }
 export function halfOpenFiles(board: Board, color: Color): string[] {
   const own = new Set(pawns(board, color).map(squareFile));
   const enemy = new Set(pawns(board, other(color)).map(squareFile));
-  return [...Array(8).keys()].filter((f) => !own.has(f) && enemy.has(f)).map((f) => FILE_NAMES[f]!);
+  return [...Array(8).keys()]
+    .filter((f) => !own.has(f) && enemy.has(f))
+    .map((f) => assertDefined(FILE_NAMES[f]));
 }
 
 // --- theme helpers ---
 function wingCounts(board: Board, color: Color): [number, number] {
   let qs = 0;
   let ks = 0;
-  for (const sq of pawns(board, color)) QUEENSIDE.has(squareFile(sq)) ? qs++ : ks++;
+  for (const sq of pawns(board, color)) {
+    if (QUEENSIDE.has(squareFile(sq))) qs++;
+    else ks++;
+  }
   return [qs, ks];
 }
 function wingMajority(board: Board, color: Color): "queenside" | "kingside" | null {
@@ -128,8 +137,10 @@ function minorityAttack(board: Board, color: Color): boolean {
 function colorComplex(board: Board, color: Color): "light" | "dark" | null {
   let light = 0;
   let dark = 0;
-  for (const sq of pawns(board, color))
-    (squareFile(sq) + squareRank(sq)) % 2 === 0 ? dark++ : light++;
+  for (const sq of pawns(board, color)) {
+    if ((squareFile(sq) + squareRank(sq)) % 2 === 0) dark++;
+    else light++;
+  }
   if (dark - light >= 3) return "light";
   if (light - dark >= 3) return "dark";
   return null;
@@ -163,7 +174,8 @@ export function themes(board: Board, color: Color): Themes {
   const cached = THEMES_CACHE.get(key);
   if (cached) return cached;
   const result = themesUncached(board, color);
-  if (THEMES_CACHE.size >= MEMO_CAP) THEMES_CACHE.delete(THEMES_CACHE.keys().next().value!);
+  if (THEMES_CACHE.size >= MEMO_CAP)
+    THEMES_CACHE.delete(assertDefined(THEMES_CACHE.keys().next().value));
   THEMES_CACHE.set(key, result);
   return result;
 }
@@ -199,7 +211,8 @@ export function centerState(board: Board): "tense" | "locked" | "open" | "semi-o
   const cached = CENTER_CACHE.get(key);
   if (cached) return cached;
   const result = centerStateUncached(board);
-  if (CENTER_CACHE.size >= MEMO_CAP) CENTER_CACHE.delete(CENTER_CACHE.keys().next().value!);
+  if (CENTER_CACHE.size >= MEMO_CAP)
+    CENTER_CACHE.delete(assertDefined(CENTER_CACHE.keys().next().value));
   CENTER_CACHE.set(key, result);
   return result;
 }
@@ -248,12 +261,12 @@ function graded(coreOk: boolean, bonus: number, base: number, cap: number, step 
   if (!coreOk) return 0;
   return Math.round(Math.min(cap, base + step * bonus) * 100) / 100;
 }
-const mirrorName = (n: string): string => makeSquare(parseSquare(n)! ^ 56);
+const mirrorName = (n: string): string => makeSquare(assertDefined(parseSquare(n)) ^ 56);
 /** White-relative names, rank-mirrored for Black so one spec serves both orientations. */
 const rel = (color: Color, ...names: string[]): string[] =>
   color === "white" ? names : names.map(mirrorName);
 
-const BISHOP = (n: string) => parseSquare(n)!;
+const BISHOP = (n: string) => assertDefined(parseSquare(n));
 
 function iqp(board: Board, color: Color): number {
   const dPawns = pawns(board, color).filter((sq) => squareFile(sq) === 3);
@@ -261,7 +274,7 @@ function iqp(board: Board, color: Color): number {
   const files = fileSet(board, color);
   if (files.has(2) || files.has(4)) return 0;
   if (pawns(board, other(color)).some((sq) => squareFile(sq) === 3)) return 0;
-  const r = squareRank(dPawns[0]!);
+  const r = squareRank(assertDefined(dPawns[0]));
   if (color === "white") return r === 3 ? 0.9 : r === 4 || r === 5 ? 0.6 : 0;
   return r === 4 ? 0.9 : r === 2 || r === 3 ? 0.6 : 0;
 }
@@ -434,7 +447,8 @@ export function classifyStructure(board: Board): { structure_class: string; conf
   const cached = STRUCT_CACHE.get(key);
   if (cached) return cached;
   const result = classifyStructureUncached(board);
-  if (STRUCT_CACHE.size >= STRUCT_CACHE_CAP) STRUCT_CACHE.delete(STRUCT_CACHE.keys().next().value!);
+  if (STRUCT_CACHE.size >= STRUCT_CACHE_CAP)
+    STRUCT_CACHE.delete(assertDefined(STRUCT_CACHE.keys().next().value));
   STRUCT_CACHE.set(key, result);
   return result;
 }
@@ -622,7 +636,7 @@ export function aggregateProfile(boards: Board[], color: Color) {
     }))
     .sort((a, b) => b.count - a.count || a.structure_class.localeCompare(b.structure_class));
   const themesOut: Record<string, number> = {};
-  for (const k of [...themeTally.keys()].sort()) themesOut[k] = themeTally.get(k)!;
+  for (const k of [...themeTally.keys()].sort()) themesOut[k] = assertDefined(themeTally.get(k));
   themesOut.avg_space_white = Math.round((spaceW / denom) * 10) / 10;
   themesOut.avg_space_black = Math.round((spaceB / denom) * 10) / 10;
 

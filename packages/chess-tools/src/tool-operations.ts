@@ -1,4 +1,5 @@
 import { legalMoves, validateFen } from "./validate.js";
+import { assertDefined } from "./assert.js";
 import {
   analyzeMainline,
   findRepertoireGaps,
@@ -18,14 +19,21 @@ import type { GameTree } from "./pgn.js";
 import { makeFen } from "chessops/fen";
 import { makePgn, parsePgn } from "chessops/pgn";
 
-export interface PositionError { error: "invalid_fen"; reason: string }
-export interface GroundedPosition { fen: string; turn: "white" | "black"; legal_moves: string[] }
+export interface PositionError {
+  error: "invalid_fen";
+  reason: string;
+}
+export interface GroundedPosition {
+  fen: string;
+  turn: "white" | "black";
+  legal_moves: string[];
+}
 
 /** Shared validation and result shaping for position-grounding host adapters. */
 export function groundPosition(rawFen: string): GroundedPosition | PositionError {
   const checked = validateFen(rawFen);
   if (!checked.valid) return { error: "invalid_fen", reason: checked.reason ?? "invalid FEN" };
-  const fen = checked.fen!;
+  const fen = assertDefined(checked.fen);
   return { fen, turn: fen.split(" ")[1] === "w" ? "white" : "black", legal_moves: legalMoves(fen) };
 }
 
@@ -183,10 +191,10 @@ export function annotatedGameResult(
   if (!game) return { error: "invalid_pgn", reason: "no game" };
   let node = game.moves;
   for (let index = 0; node.children.length && index < records.length; index++) {
-    const child = node.children[0]!;
-    const record = records[index]!;
+    const child = assertDefined(node.children[0]);
+    const record = assertDefined(records[index]);
     if (record.classification !== "good") {
-      child.data.nags = [REVIEW_NAG[record.classification]!];
+      child.data.nags = [assertDefined(REVIEW_NAG[record.classification])];
       child.data.comments = [`best: ${record.best_move} (${(record.best_eval / 100).toFixed(2)})`];
     }
     node = child;
@@ -212,7 +220,7 @@ export function repertoireHistoryResult(
   for (const game of matched) {
     let walk;
     try {
-      walk = walkGameVsRepertoire(moveMap, color, game.pgn!);
+      walk = walkGameVsRepertoire(moveMap, color, assertDefined(game.pgn));
     } catch {
       skipped++;
       continue;
@@ -277,7 +285,7 @@ export function opponentPrepResult(
   for (const game of matched) {
     let walk;
     try {
-      walk = walkGameVsRepertoire(moveMap, color, game.pgn!);
+      walk = walkGameVsRepertoire(moveMap, color, assertDefined(game.pgn));
     } catch {
       skipped++;
       continue;
@@ -291,7 +299,7 @@ export function opponentPrepResult(
       row.count++;
       uncovered.set(key, row);
     }
-    const opening = identifyDeepest(openings, game.pgn!);
+    const opening = identifyDeepest(openings, assertDefined(game.pgn));
     const key = opening?.name ?? "Unclassified";
     const row = lineMap.get(key) ?? {
       name: key,
@@ -391,8 +399,10 @@ export async function batchReviewOperation(
       .filter((move) => move.classification !== "good")
       .map((move) => ({ move: move.san, classification: move.classification }));
     const opening = options.groupBy === "eco" ? identifyDeepest(openings, gamePgn) : null;
-    const groupKey = options.groupBy === "color" ? userColor! : (opening?.eco ?? "unknown");
-    const groupName = options.groupBy === "color" ? userColor! : (opening?.name ?? "Unknown");
+    const groupKey =
+      options.groupBy === "color" ? assertDefined(userColor) : (opening?.eco ?? "unknown");
+    const groupName =
+      options.groupBy === "color" ? assertDefined(userColor) : (opening?.name ?? "Unknown");
     let result: GameRecord["result"] = null;
     if (options.username) {
       const header = game.headers.get("Result") ?? "*";

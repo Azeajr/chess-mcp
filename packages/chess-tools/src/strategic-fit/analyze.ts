@@ -80,6 +80,7 @@ import type {
   StrategicTrajectory,
 } from "./types.js";
 import { STRATEGIC_FIT_PROGRESS_PHASES } from "./types.js";
+import { assertDefined } from "../assert.js";
 import {
   STRATEGIC_FIT_ANALYSIS_MANIFEST,
   STRATEGIC_FIT_ANALYSIS_VERSION,
@@ -422,7 +423,7 @@ function progress(
   phaseIndex: number,
   state: StrategicFitProgress["state"],
 ): StrategicFitProgress {
-  const phase = STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]!;
+  const phase = assertDefined(STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]);
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     run_id: runId,
@@ -445,7 +446,7 @@ function runPhase<T>(
   phaseIndex: number,
   work: () => T,
 ): T {
-  const phase = STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]!;
+  const phase = assertDefined(STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]);
   if (options.shouldCancel?.()) {
     options.onProgress?.(progress(runId, phaseIndex, "cancelled"));
     throw new StrategicFitAnalysisCancelledError(runId, phase, phaseIndex);
@@ -651,7 +652,8 @@ function nearestComparison(
       )
       .sort(
         (left, right) =>
-          left.distance! - right.distance! || compareStrings(left.mode_id, right.mode_id),
+          assertDefined(left.distance) - assertDefined(right.distance) ||
+          compareStrings(left.mode_id, right.mode_id),
       )[0] ?? null
   );
 }
@@ -662,7 +664,7 @@ function candidates(context: FindingContext): FindingCandidate[] {
   const cohortById = new Map(context.modes.cohorts.map((cohort) => [cohort.cohort_id, cohort]));
 
   for (const selection of context.modes.selections) {
-    const cohort = cohortById.get(selection.cohort_id)!;
+    const cohort = assertDefined(cohortById.get(selection.cohort_id));
     if (selection.state === "excluded") continue;
     if (selection.state === "mixed-profile") {
       const comparison =
@@ -670,7 +672,7 @@ function candidates(context: FindingContext): FindingCandidate[] {
           .filter((item) => item.cohort_id === cohort.cohort_id && item.distance !== null)
           .sort(
             (left, right) =>
-              right.distance! - left.distance! ||
+              assertDefined(right.distance) - assertDefined(left.distance) ||
               compareStrings(left.left_route_id, right.left_route_id) ||
               compareStrings(left.mode_id, right.mode_id),
           )[0] ?? null;
@@ -739,7 +741,7 @@ function candidates(context: FindingContext): FindingCandidate[] {
     const routeIds = [...unit.route_ids].sort(compareStrings);
     result.push({
       kind: "transposition",
-      cohort: cohortByRoute.get(routeIds[0]!) ?? null,
+      cohort: cohortByRoute.get(assertDefined(routeIds[0])) ?? null,
       selectionState: "insufficient-evidence",
       routeIds,
       modes: [],
@@ -777,7 +779,15 @@ function distinctFeatureValues(
     .sort(([left], [right]) => compareStrings(left, right))
     .map(([, value]) => value);
   if (sorted.length === 0) return null;
-  return sorted.length === 1 ? sorted[0]! : sorted;
+  if (sorted.length === 1) {
+    // `sorted[0]` may legitimately be JSON `null` (a real feature value) — assertDefined would
+    // wrongly throw on that, so only guard against the (unreachable, given the length check)
+    // `undefined` case that noUncheckedIndexedAccess forces onto the type.
+    const only = sorted[0];
+    if (only === undefined) throw new Error("distinctFeatureValues: sorted[0] missing");
+    return only;
+  }
+  return sorted;
 }
 
 function dimensions(
@@ -842,6 +852,10 @@ function stableFromPly(candidate: FindingCandidate): number | null {
 }
 
 function temporalPersistence(candidate: FindingCandidate): number {
+  // NOT equivalent to `candidate.comparison?.distance === null`: when comparison is undefined
+  // that chain evaluates to `undefined === null` (false), so the guard would stop returning 0
+  // for a missing comparison and fall through to read `.matched_checkpoint_keys` off undefined.
+  // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
   if (!candidate.comparison || candidate.comparison.distance === null) return 0;
   const count = candidate.comparison.matched_checkpoint_keys.length;
   return count === 0 ? 0 : round(Math.min(1, count / 2));
@@ -915,7 +929,9 @@ function findingAssessment(
   readonly confidence: StrategicFinding["confidence"];
 } {
   const trajectories = trajectoryById(context.trajectories);
-  const affected = trajectories.get(candidate.comparison?.left_route_id ?? candidate.routeIds[0]!);
+  const affected = trajectories.get(
+    candidate.comparison?.left_route_id ?? assertDefined(candidate.routeIds[0]),
+  );
   const incompleteShare =
     candidate.routeIds.filter((routeId) => trajectories.get(routeId)?.state !== "complete").length /
     candidate.routeIds.length;
@@ -1096,7 +1112,10 @@ function findingFromCandidate(
   candidate: FindingCandidate,
 ): StrategicFinding {
   const routesById = routeById(context.graph);
-  const routes = candidate.routeIds.map((routeId) => routesById.get(routeId)!).filter(Boolean);
+  const routes = candidate.routeIds.flatMap((routeId) => {
+    const route = routesById.get(routeId);
+    return route ? [route] : [];
+  });
   const difference = findingDifference(candidate, context.concepts);
   const { assessment, learningBurden, confidence } = findingAssessment(
     context,
@@ -1120,10 +1139,10 @@ function findingFromCandidate(
     repertoire_revision: context.options.repertoireRevision,
     classification: assessment.classification,
     plain_language_category: category(assessment.classification),
-    opening_scope: openingScope(context, candidate.routeIds[0]!),
+    opening_scope: openingScope(context, assertDefined(candidate.routeIds[0])),
     affected_line_summary:
       routes.length === 1
-        ? routes[0]!.san_moves.join(" ")
+        ? assertDefined(routes[0]).san_moves.join(" ")
         : `${routes.length} related repertoire routes`,
     explanation: explanation(assessment),
     references: {
@@ -1239,7 +1258,7 @@ export function analyzeStrategicFit(
       graph_content_key: contentKey,
       graph,
       trajectories,
-      completed_phase: STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]!,
+      completed_phase: assertDefined(STRATEGIC_FIT_PROGRESS_PHASES[phaseIndex]),
       completed_phase_index: phaseIndex,
     });
   };

@@ -24,6 +24,7 @@ import type { Node, PgnNodeData } from "chessops/pgn";
 import { fetchJson } from "./apiclient.js";
 import { positionKey } from "./congruence.js";
 import type { GameTree } from "./pgn.js";
+import { assertDefined } from "./assert.js";
 
 export type ExplorerDb = "lichess" | "masters";
 
@@ -125,7 +126,7 @@ const pct = (n: number, total: number) => (total ? Math.round((n / total) * 1000
 let explorerToken: string | null = null;
 /** Lichess personal API token (no scopes) — required by the explorer since ~2026-03. */
 export function setExplorerToken(token: string | null): void {
-  explorerToken = token && token.trim() ? token.trim() : null;
+  explorerToken = token?.trim() ? token.trim() : null;
 }
 export function hasExplorerToken(): boolean {
   return explorerToken !== null;
@@ -153,7 +154,7 @@ export function normalizeExplorerFilters(filters: ExplorerFilters = {}): Normali
 
   const speeds = uniqueSorted(filters.speeds ?? DEFAULT_EXPLORER_SPEEDS, (speed) => {
     const index = SPEED_ORDER.get(speed);
-    if (index === undefined) throw new Error(`explorer_invalid_speed: ${String(speed)}`);
+    if (index === undefined) throw new Error(`explorer_invalid_speed: ${speed}`);
     return index;
   });
   if (db === "lichess" && speeds.length === 0) throw new Error("explorer_empty_speeds");
@@ -333,7 +334,13 @@ export async function theoryDepth(
       return null;
     }
     const key = positionKey(fen);
-    if (seen.has(key)) return seen.get(key)!;
+    if (seen.has(key)) {
+      // `seen`'s value type legitimately includes `null` (a cached "offline" lookup) — only
+      // reject the `undefined` that Map.get's signature adds, which `.has()` above already rules out.
+      const cached = seen.get(key);
+      if (cached === undefined) throw new Error("theoryDepth: seen cache inconsistent");
+      return cached;
+    }
     if (queried >= maxPositions) {
       budgetOut = true;
       return null;
@@ -345,7 +352,7 @@ export async function theoryDepth(
       cancelled = true;
       return null;
     }
-    if (res === null) res = await lookup(fen); // one retry through the rate limiter
+    res ??= await lookup(fen); // one retry through the rate limiter
     if (opts.shouldCancel?.()) {
       cancelled = true;
       return null;
@@ -379,6 +386,10 @@ export async function theoryDepth(
       return;
     }
     const res = await query(makeFen(pos.toSetup()));
+    // TS's narrowing doesn't see that `query` (a closure over `offline`) can flip it to true, so
+    // it treats `offline` as still-false here — verified with the TS checker; the guard is real
+    // and needed, since a failed lookup inside `query` sets `offline = true` before returning.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (offline) return;
     if (res === null) {
       // budget ran out — everything under here is unvisited
@@ -423,6 +434,9 @@ export async function theoryDepth(
   };
 
   await walk(tree.game.moves, Chess.default(), [], 0);
+  // Same TS narrowing gap as above: `walk`/`query` mutate `cancelled`/`offline` through their
+  // closures, which the checker can't see through, but the awaited walk really can set either.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (cancelled)
     return {
       positions_queried: queried,
@@ -433,6 +447,7 @@ export async function theoryDepth(
       cancelled: true,
     };
   if (offline) return { error: "explorer_unavailable" };
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 
   lines.sort((a, b) => (a.theory_exit_ply ?? Infinity) - (b.theory_exit_ply ?? Infinity));
   const exits = lines
@@ -443,8 +458,8 @@ export async function theoryDepth(
   const median = !exits.length
     ? null
     : exits.length % 2
-      ? exits[mid]!
-      : Math.round((exits[mid - 1]! + exits[mid]!) / 2);
+      ? assertDefined(exits[mid])
+      : Math.round((assertDefined(exits[mid - 1]) + assertDefined(exits[mid])) / 2);
   return {
     positions_queried: queried,
     truncated: budgetOut,

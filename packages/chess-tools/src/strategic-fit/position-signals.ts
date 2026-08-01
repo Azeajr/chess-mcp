@@ -19,6 +19,7 @@ import type {
   StrategicSignal,
 } from "./types.js";
 import type { RepertoireGraph, RepertoireGraphRoute } from "./graph.js";
+import { assertDefined } from "../assert.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export type StrategicFitRelativeSide = "repertoire" | "opponent";
@@ -262,17 +263,14 @@ function observeCastling(
   // chessops represents standard castling in UCI_Chess960 form (king to the friendly rook square).
   const rookTarget = destination?.color === mover?.color && destination?.role === "rook";
   if (
-    !mover ||
-    mover.role !== "king" ||
+    mover?.role !== "king" ||
     (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2)
   )
     return;
-  if (!state[mover.color].castling) {
-    state[mover.color].castling = {
-      side: squareFile(to) < squareFile(from) ? "queenside" : "kingside",
-      ply,
-    };
-  }
+  state[mover.color].castling ??= {
+    side: squareFile(to) < squareFile(from) ? "queenside" : "kingside",
+    ply,
+  };
 }
 
 function observePieceLosses(
@@ -405,8 +403,8 @@ function recurringPlacementValue(placements: ReadonlyMap<string, PlacementObserv
         role: placement.role,
         square: placement.square,
         observation_count: placement.plies.length,
-        first_ply: placement.plies[0]!,
-        last_ply: placement.plies.at(-1)!,
+        first_ply: assertDefined(placement.plies[0]),
+        last_ply: assertDefined(placement.plies.at(-1)),
       })),
   };
 }
@@ -463,8 +461,8 @@ function filesValue(board: Board, repertoireColor: Color): JsonValue {
 
 function wingExpansionFor(board: Board, color: Color): JsonValue {
   const advanced = advancedPawnSquares(board, color);
-  const queenside = advanced.filter((square) => squareFile(parseSquare(square)!) <= 2);
-  const kingside = advanced.filter((square) => squareFile(parseSquare(square)!) >= 5);
+  const queenside = advanced.filter((square) => squareFile(assertDefined(parseSquare(square))) <= 2);
+  const kingside = advanced.filter((square) => squareFile(assertDefined(parseSquare(square))) >= 5);
   return {
     queenside,
     kingside,
@@ -629,10 +627,10 @@ export function extractRoutePositionSignals(
   const observations: StrategicPositionSignalObservation[] = [];
 
   for (let ply = 0; ply < boards.length; ply++) {
-    const board = boards[ply]!;
+    const board = assertDefined(boards[ply]);
     if (ply > 0) {
-      const before = boards[ply - 1]!;
-      const uci = route.uci_moves[ply - 1]!;
+      const before = assertDefined(boards[ply - 1]);
+      const uci = assertDefined(route.uci_moves[ply - 1]);
       observeCastling(before, uci, ply, state);
       observeExchange(before, uci, ply, route.repertoire_color, exchanges);
       observePieceLosses(before, board, ply, state);
@@ -640,7 +638,7 @@ export function extractRoutePositionSignals(
     observeFianchettos(board, ply, state);
     observePlacements(board, ply, route.repertoire_color, placements);
 
-    const positionId = route.position_ids[ply]!;
+    const positionId = assertDefined(route.position_ids[ply]);
     const observationIdentity = [
       STRATEGIC_FIT_ANALYSIS_VERSION,
       route.route_id,

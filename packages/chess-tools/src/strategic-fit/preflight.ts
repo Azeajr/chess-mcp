@@ -12,6 +12,7 @@ import { parseSan } from "chessops/san";
 import { positionKey, type Color } from "../congruence.js";
 import type { OpeningTable } from "../openings.js";
 import type { GameTree } from "../pgn.js";
+import { assertDefined } from "../assert.js";
 import type {
   JsonValue,
   PreflightIssue,
@@ -22,6 +23,16 @@ import type {
   StrategicFitSourceProvenance,
 } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
+
+/**
+ * Same as `Array.isArray`, but returns a plain `boolean` instead of a type predicate. `children`
+ * here is `unknown` (untrusted, possibly-malformed tree data); `Array.isArray`'s `arg is any[]`
+ * predicate would collapse it — and every element drawn from it — down to `any`, which then
+ * leaks into `visit`'s strictly-typed `object` parameter instead of staying `unknown`.
+ */
+function isPlainArray(value: unknown): boolean {
+  return Array.isArray(value);
+}
 
 /** The first frozen configured checkpoint in the Strategic Fit design. */
 export const STRATEGIC_FIT_MIN_COMPARABLE_PLY = 12;
@@ -125,7 +136,7 @@ function makeIssue(
 }
 
 function customStartProblem(tree: GameTree): { unsupported: boolean; reason: string } | null {
-  const headers = tree.game?.headers;
+  const headers = tree.game.headers;
   if (!(headers instanceof Map))
     return { unsupported: false, reason: "Repertoire headers are malformed." };
 
@@ -152,7 +163,7 @@ function replayTree(tree: GameTree): ReplayResult {
   const duplicatePaths: string[][] = [];
   const positions = new Map<string, string[][]>();
 
-  const root = tree.game?.moves as unknown;
+  const root = tree.game.moves as unknown;
   if (
     !root ||
     typeof root !== "object" ||
@@ -180,14 +191,15 @@ function replayTree(tree: GameTree): ReplayResult {
     }
 
     const children = (node as { children?: unknown }).children;
-    if (!Array.isArray(children)) {
+    if (!isPlainArray(children)) {
       malformed.push({ path, reason: "A repertoire node has malformed children." });
       return;
     }
+    const childArray = children as readonly unknown[];
 
     ancestors.add(node);
     const siblingSans = new Set<string>();
-    for (const child of children) {
+    for (const child of childArray) {
       if (!child || typeof child !== "object") {
         malformed.push({ path, reason: "A repertoire child node is malformed." });
         continue;
@@ -326,7 +338,7 @@ export function preflightStrategicFit(
     );
   }
 
-  const rawRootChildren = (tree.game?.moves as unknown as { children?: unknown })?.children;
+  const rawRootChildren = (tree.game.moves as unknown as { children?: unknown }).children;
   const structurallyEmpty = Array.isArray(rawRootChildren) && rawRootChildren.length === 0;
   if (structurallyEmpty) {
     issues.push(
@@ -373,7 +385,7 @@ export function preflightStrategicFit(
         "evidence-limitation",
         "degraded",
         "One route cannot establish a comparable strategic baseline.",
-        [replay.routes[0]!.path],
+        [assertDefined(replay.routes[0]).path],
         { route_count: routeCount },
       ),
     );
@@ -423,7 +435,8 @@ export function preflightStrategicFit(
     options.openingTable.size > 0;
   const routesMissingOpening = openingTableAvailable
     ? replay.routes.filter(
-        (route) => !route.positionKeys.some((key) => options.openingTable!.has(key)),
+        (route) =>
+          !route.positionKeys.some((key) => assertDefined(options.openingTable).has(key)),
       )
     : replay.routes;
   if (!openingTableAvailable || routesMissingOpening.length > 0) {

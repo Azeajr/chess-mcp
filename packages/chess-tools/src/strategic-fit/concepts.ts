@@ -19,6 +19,17 @@ import {
   STRATEGIC_FIT_ANALYSIS_VERSION,
   STRATEGIC_FIT_SCHEMA_VERSION,
 } from "./version.js";
+import { assertDefined } from "../assert.js";
+
+/**
+ * Same as `Array.isArray`, but returns a plain `boolean` instead of a type predicate. Use this
+ * (instead of `Array.isArray` directly) when checking a precisely-typed `JsonValue` field that's
+ * still needed with its precise type afterward — `Array.isArray`'s `arg is any[]` predicate would
+ * silently collapse every later reference to that expression down to `any`.
+ */
+function isPlainArray(value: unknown): boolean {
+  return Array.isArray(value);
+}
 
 export const STRATEGIC_CONCEPT_CATEGORIES = [
   "pawn-break",
@@ -306,8 +317,9 @@ function emitPawnBreaks(
   signal: StrategicSignal,
 ): void {
   const value = objectValue(signal.value);
-  if (!value || !Array.isArray(value.breaks)) return;
-  for (const candidate of value.breaks) {
+  if (!value || !isPlainArray(value.breaks)) return;
+  const breaks = value.breaks as readonly JsonValue[];
+  for (const candidate of breaks) {
     const item = objectValue(candidate);
     if (!item) continue;
     const side = validSide(item.subject);
@@ -358,7 +370,7 @@ function emitCastlingSetups(
   for (const side of ["repertoire", "opponent"] as const) {
     const setup = objectValue(value[side]);
     const wing = setup ? validToken(setup.side) : null;
-    if (!setup || setup.castled !== true || (wing !== "kingside" && wing !== "queenside")) continue;
+    if (setup?.castled !== true || (wing !== "kingside" && wing !== "queenside")) continue;
     emit(
       concepts,
       snapshot,
@@ -412,7 +424,7 @@ function emitBishopPairSetups(
   if (!value) return;
   for (const side of ["repertoire", "opponent"] as const) {
     const setup = objectValue(value[side]);
-    if (!setup || setup.has_pair !== true) continue;
+    if (setup?.has_pair !== true) continue;
     emit(
       concepts,
       snapshot,
@@ -434,8 +446,9 @@ function emitRecurringPlacements(
   signal: StrategicSignal,
 ): void {
   const value = objectValue(signal.value);
-  if (!value || !Array.isArray(value.placements)) return;
-  for (const candidate of value.placements) {
+  if (!value || !isPlainArray(value.placements)) return;
+  const placements = value.placements as readonly JsonValue[];
+  for (const candidate of placements) {
     const placement = objectValue(candidate);
     if (!placement) continue;
     const side = validSide(placement.side);
@@ -490,8 +503,9 @@ function emitExchangePatterns(
   signal: StrategicSignal,
 ): void {
   const value = objectValue(signal.value);
-  if (!value || !Array.isArray(value.exchanges)) return;
-  for (const candidate of value.exchanges) {
+  if (!value || !isPlainArray(value.exchanges)) return;
+  const exchanges = value.exchanges as readonly JsonValue[];
+  for (const candidate of exchanges) {
     const exchange = objectValue(candidate);
     if (!exchange || (numberValue(exchange.count) ?? 0) < 1) continue;
     const side = validSide(exchange.capturing_side);
@@ -520,16 +534,17 @@ function emitRookFilePlans(
 ): void {
   const fileValue = objectValue(fileSignal.value);
   const placementValue = objectValue(placementSignal.value);
-  if (!fileValue || !placementValue || !Array.isArray(placementValue.placements)) return;
+  if (!fileValue || !placementValue || !isPlainArray(placementValue.placements)) return;
+  const placements = placementValue.placements as readonly JsonValue[];
   const open = new Set(stringArray(fileValue.open));
   const halfOpen = objectValue(fileValue.half_open);
-  for (const candidate of placementValue.placements) {
+  for (const candidate of placements) {
     const placement = objectValue(candidate);
-    if (!placement || placement.role !== "rook") continue;
+    if (placement?.role !== "rook") continue;
     const side = validSide(placement.side);
     const square = validSquare(placement.square);
     if (!side || !square) continue;
-    const file = square[0]!;
+    const file = assertDefined(square[0]);
     const available =
       open.has(file) || (halfOpen ? stringArray(halfOpen[side]).includes(file) : false);
     if (!available) continue;
@@ -608,7 +623,7 @@ function emitEndgameTendencies(
   signal: StrategicSignal,
 ): void {
   const value = objectValue(signal.value);
-  if (!value || value.mutual_exchange !== true) return;
+  if (value?.mutual_exchange !== true) return;
   emit(
     concepts,
     snapshot,

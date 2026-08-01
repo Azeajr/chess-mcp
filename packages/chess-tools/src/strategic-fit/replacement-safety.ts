@@ -35,6 +35,7 @@ import {
   type StrategicFitSourceProvenance,
 } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION, STRATEGIC_FIT_SCHEMA_VERSION } from "./version.js";
+import { assertDefined } from "../assert.js";
 
 export const REPLACEMENT_SAFETY_ACTIONS = ["add-alternative", "replace"] as const;
 export type ReplacementSafetyAction = (typeof REPLACEMENT_SAFETY_ACTIONS)[number];
@@ -279,11 +280,16 @@ function mergeProvenance(
 }
 
 function sameVersions(value: StrategicFitReplacementVersioned): boolean {
+  // `value` is a caller-supplied/persisted Task 8.6+ result; its version fields are typed as
+  // exact literals, but that's a static declaration, not a runtime guarantee — stale or
+  // cross-version data must be caught here, so the literal-vs-literal checks stay.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   return (
     value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
     value.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
     value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
   );
+  /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 }
 
 function sameIdentity(
@@ -376,10 +382,15 @@ function boundaryFailure(
   if (
     (scoring.status !== "complete" && scoring.status !== "partial") ||
     scoring.error_code !== null ||
+    // `scoring` is the caller-supplied prior Task 8.6 result; these fields are typed as literal
+    // `true`, but that's only the declared shape — the actual persisted/passed-in value must be
+    // revalidated at runtime since it may be stale or hand-edited.
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !scoring.source_graph_unchanged ||
     !scoring.source_context_unchanged ||
     !scoring.expansion_unchanged ||
     !scoring.inputs_unchanged ||
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     (recomputed.status !== "complete" && recomputed.status !== "partial") ||
     recomputed.error_code !== null ||
     stableJson(scoring) !== stableJson(recomputed)
@@ -488,10 +499,16 @@ function candidateBoundaryError(
         "Unscored Task 8.6 candidates remain inspectable but cannot masquerade as safety simulations.",
     };
   }
+  // `candidate` is a caller-supplied/persisted Task 8.5-8.6 result; the discriminated-union
+  // and literal types declare that a "complete" expansion always has a "complete" subtree, but
+  // that's only the compile-time shape of freshly-built data — retained/passed-in evidence must
+  // be revalidated at runtime in case it's stale, truncated, or otherwise doesn't match.
+  /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     candidate.expansion.status !== "complete" ||
     candidate.expansion.subtree?.status !== "complete"
   ) {
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     return {
       error: "candidate-expansion-incomplete",
       explanation:
@@ -505,7 +522,7 @@ function routeSans(expansion: ReplacementCompleteCandidateExpansion): string[][]
   const edges = new Map(expansion.subtree.edges.map((edge) => [edge.edge_id, edge]));
   const routes = new Map<string, string[]>();
   for (const route of expansion.subtree.routes) {
-    const sans = route.edge_ids.map((edgeId) => edges.get(edgeId)!.san);
+    const sans = route.edge_ids.map((edgeId) => assertDefined(edges.get(edgeId)).san);
     routes.set(sans.join(SEPARATOR), sans);
   }
   return [...routes.values()].sort(
@@ -600,7 +617,7 @@ function popularityByDecision(
   const normalized = new Map<string, number>();
   for (const values of grouped.values()) {
     if (values.length === 1) {
-      normalized.set(values[0]!.decision_id, 1);
+      normalized.set(assertDefined(values[0]).decision_id, 1);
       continue;
     }
     const weighted = values.map((decision) => ({
@@ -613,9 +630,9 @@ function popularityByDecision(
       )
     )
       continue;
-    const total = weighted.reduce((sum, item) => sum + item.weight!, 0);
+    const total = weighted.reduce((sum, item) => sum + assertDefined(item.weight), 0);
     if (total <= EPSILON) continue;
-    for (const item of weighted) normalized.set(item.id, item.weight! / total);
+    for (const item of weighted) normalized.set(item.id, assertDefined(item.weight) / total);
   }
   return normalized;
 }
@@ -653,13 +670,13 @@ function requirementsFor(
     expansion.subtree.edges
       .filter((edge) => edge.owner === "opponent")
       .map((edge) => {
-        const from = nodes.get(edge.from_node_id)!;
+        const from = assertDefined(nodes.get(edge.from_node_id));
         return [`${from.position_id}${SEPARATOR}${edge.san}`, edge] as const;
       }),
   );
   for (const edge of expansion.subtree.edges) {
     if (edge.owner !== "opponent") continue;
-    const from = nodes.get(edge.from_node_id)!;
+    const from = assertDefined(nodes.get(edge.from_node_id));
     addRequirement(requirements, {
       positionId: from.position_id,
       decisionId: edge.decision_id,
@@ -775,10 +792,14 @@ function weightedCoverage(
       : null;
   });
   if (frequencies.some((value) => value === null)) return null;
-  const total = (frequencies as number[]).reduce((sum, value) => sum + value, 0);
+  // Safe to treat as number[] from here: the check above already ruled out any null entry, and
+  // `numericFrequencies` is `replies.map(...)`, so it is index-parallel with `replies` below.
+  const numericFrequencies = frequencies as number[];
+  const total = numericFrequencies.reduce((sum, value) => sum + value, 0);
   if (total <= EPSILON) return null;
   const coveredWeight = replies.reduce(
-    (sum, reply, index) => sum + (covered(graph, reply) ? frequencies[index]! : 0),
+    (sum, reply, index) =>
+      sum + (covered(graph, reply) ? assertDefined(numericFrequencies[index]) : 0),
     0,
   );
   return round(coveredWeight / total);
