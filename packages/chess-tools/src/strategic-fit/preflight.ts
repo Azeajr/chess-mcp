@@ -435,8 +435,7 @@ export function preflightStrategicFit(
     options.openingTable.size > 0;
   const routesMissingOpening = openingTableAvailable
     ? replay.routes.filter(
-        (route) =>
-          !route.positionKeys.some((key) => assertDefined(options.openingTable).has(key)),
+        (route) => !route.positionKeys.some((key) => assertDefined(options.openingTable).has(key)),
       )
     : replay.routes;
   if (!openingTableAvailable || routesMissingOpening.length > 0) {

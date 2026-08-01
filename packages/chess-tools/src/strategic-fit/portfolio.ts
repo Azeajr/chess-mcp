@@ -538,8 +538,8 @@ function measurementsFor(
           ? null
           : available &&
             (definition.direction === "maximum"
-              ? (value) <= constraint.value
-              : (value) >= constraint.value),
+              ? value <= constraint.value
+              : value >= constraint.value),
     } satisfies StrategicFitPortfolioMeasurement;
   });
 }

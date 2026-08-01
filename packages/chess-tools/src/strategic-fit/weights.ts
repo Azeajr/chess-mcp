@@ -746,7 +746,8 @@ function calculateComposedStrategicRouteWeights(
         (sum, entry, index) =>
           sum +
           entry.coefficient *
-            assertDefined(assertDefined(routeBySource[index]).get(route.route_id)).normalized_weight,
+            assertDefined(assertDefined(routeBySource[index]).get(route.route_id))
+              .normalized_weight,
         0,
       );
       const opponentProbability = route.decision_ids.reduce(
@@ -833,9 +834,8 @@ function graphOpponentDecisionResults(
           (sum, entry, index) =>
             sum +
             entry.coefficient *
-              assertDefined(
-                assertDefined(decisionBySource[index]).get(decision.decision_id),
-              ).normalized_weight,
+              assertDefined(assertDefined(decisionBySource[index]).get(decision.decision_id))
+                .normalized_weight,
           0,
         );
         return {

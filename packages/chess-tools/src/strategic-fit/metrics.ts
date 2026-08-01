@@ -789,7 +789,8 @@ function repertoireRegret(
     }
   }
   const trainingCoveredWeight = [...relevantRouteIds].reduce(
-    (sum, routeId) => sum + (mastery.has(routeId) ? assertDefined(context.routeWeight.get(routeId)) : 0),
+    (sum, routeId) =>
+      sum + (mastery.has(routeId) ? assertDefined(context.routeWeight.get(routeId)) : 0),
     0,
   );
   const replacementCoveredWeight = [...relevantRouteIds].reduce(
@@ -997,7 +998,8 @@ export function calculateStrategicFitOverview(
   const context = makeContext(input);
   const metrics = calculateStrategicFitMetrics(input);
   const expectedConceptBurden = [...context.routeConceptIds.entries()].reduce(
-    (sum, [routeId, conceptIds]) => sum + assertDefined(context.routeWeight.get(routeId)) * conceptIds.length,
+    (sum, [routeId, conceptIds]) =>
+      sum + assertDefined(context.routeWeight.get(routeId)) * conceptIds.length,
     0,
   );
   const hasConceptEvidence = [...context.routeConceptIds.values()].some(

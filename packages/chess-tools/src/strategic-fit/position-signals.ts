@@ -262,10 +262,7 @@ function observeCastling(
   const destination = before.get(to);
   // chessops represents standard castling in UCI_Chess960 form (king to the friendly rook square).
   const rookTarget = destination?.color === mover?.color && destination?.role === "rook";
-  if (
-    mover?.role !== "king" ||
-    (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2)
-  )
+  if (mover?.role !== "king" || (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2))
     return;
   state[mover.color].castling ??= {
     side: squareFile(to) < squareFile(from) ? "queenside" : "kingside",
@@ -461,7 +458,9 @@ function filesValue(board: Board, repertoireColor: Color): JsonValue {
 
 function wingExpansionFor(board: Board, color: Color): JsonValue {
   const advanced = advancedPawnSquares(board, color);
-  const queenside = advanced.filter((square) => squareFile(assertDefined(parseSquare(square))) <= 2);
+  const queenside = advanced.filter(
+    (square) => squareFile(assertDefined(parseSquare(square))) <= 2,
+  );
   const kingside = advanced.filter((square) => squareFile(assertDefined(parseSquare(square))) >= 5);
   return {
     queenside,

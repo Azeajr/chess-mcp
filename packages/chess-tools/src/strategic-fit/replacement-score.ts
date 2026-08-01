@@ -1451,7 +1451,9 @@ function projectCandidateFromRoutes(
   const decisions: RepertoireGraphDecision[] = decisionIds.map((decisionId) => {
     const sourceDecision = sourceDecisions.get(decisionId);
     const subtreeEdge = subtreeEdges.get(decisionId);
-    const firstRoute = assertDefined(rawRoutes.find((route) => route.decisionIds.includes(decisionId)));
+    const firstRoute = assertDefined(
+      rawRoutes.find((route) => route.decisionIds.includes(decisionId)),
+    );
     const index = firstRoute.decisionIds.indexOf(decisionId);
     return {
       analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,

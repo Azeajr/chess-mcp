@@ -518,11 +518,7 @@ function subtreeOccurrences(
   return occurrences;
 }
 
-function operationId(
-  changeId: string,
-  kind: ReplacementChangeOperationKind,
-  key: string,
-): string {
+function operationId(changeId: string, kind: ReplacementChangeOperationKind, key: string): string {
   return `operation:${changeId}:${kind}:${stableHash(key)}`;
 }
 
@@ -716,7 +712,9 @@ function constructOperations(
     provenance,
   );
   const archives: Omit<ReplacementArchiveSubtreeOperation, "sequence">[] = [];
-  const prunes: (Omit<ReplacementPruneSubtreeOperation, "sequence"> & { archive_operation_id: string })[] = [];
+  const prunes: (Omit<ReplacementPruneSubtreeOperation, "sequence"> & {
+    archive_operation_id: string;
+  })[] = [];
   if (current.candidate.action === "replace") {
     for (const path of decisionPaths) {
       const target = targetAt(current.graph, path);

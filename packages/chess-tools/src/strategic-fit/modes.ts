@@ -301,7 +301,12 @@ function evidenceDistance(left: RouteEvidence, right: RouteEvidence): number | n
   if (sharedSlots.length === 0) return null;
   return round(
     sharedSlots.reduce(
-      (sum, slot) => sum + setDistance(assertDefined(left.features.get(slot)), assertDefined(right.features.get(slot))),
+      (sum, slot) =>
+        sum +
+        setDistance(
+          assertDefined(left.features.get(slot)),
+          assertDefined(right.features.get(slot)),
+        ),
       0,
     ) / sharedSlots.length,
   );
@@ -556,7 +561,9 @@ function inferredSelection(
     };
   }
 
-  const evidence = cohort.route_ids.map((routeId) => routeEvidence(assertDefined(trajectories.get(routeId))));
+  const evidence = cohort.route_ids.map((routeId) =>
+    routeEvidence(assertDefined(trajectories.get(routeId))),
+  );
   const evidenceByRoute = new Map(evidence.map((item) => [item.routeId, item]));
   const clusters = clusterRoutes(evidence);
   const candidates: CandidateContext[] = clusters

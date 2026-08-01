@@ -1641,9 +1641,7 @@ export async function generateReplacementEngineCandidates(
     !validEngineIdentity(evidence.engine) ||
     typeof evidence.evidence_id !== "string" ||
     !Array.isArray(evidence.lines) ||
-    !REPLACEMENT_ENGINE_EVIDENCE_STATES.includes(
-      evidence.state,
-    ) ||
+    !REPLACEMENT_ENGINE_EVIDENCE_STATES.includes(evidence.state) ||
     (evidence.reason !== null && typeof evidence.reason !== "string") ||
     !finiteInteger(evidence.requested_depth) ||
     !finiteInteger(evidence.requested_multipv) ||

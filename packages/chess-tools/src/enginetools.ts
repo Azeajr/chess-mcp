@@ -12,7 +12,7 @@ import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { makeSan, parseSan } from "chessops/san";
 import type { ChildNode, PgnNodeData } from "chessops/pgn";
-import type { GameTree} from "./pgn.js";
+import type { GameTree } from "./pgn.js";
 import { type Path, buildKeyIndex, landsInCrossBranchPrep } from "./pgn.js";
 import { positionKey, type Color } from "./congruence.js";
 import { mainline, classifyCpLoss, type MoveClass } from "./game.js";
@@ -102,7 +102,10 @@ const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).un
 // states which it wants instead of hiding the choice in a hand-inlined copy (and a future sign fix can't
 // miss a stray copy): 100000 for internal decisive/severity math (analyze_game eval_cp, find_repertoire_gaps
 // severity, compare_moves mover_cp) vs 10000 for the published `eval`/`eval_cp` of suggest_* (via evalWhite).
-interface ScoreLine { cp: number | null; mate: number | null }
+interface ScoreLine {
+  cp: number | null;
+  mate: number | null;
+}
 /** White-POV centipawns; a mate maps to ±mateCp (the caller picks the sentinel magnitude). */
 const whitePov = (l: ScoreLine, mateCp: number): number =>
   l.mate !== null ? (l.mate > 0 ? mateCp : -mateCp) : (l.cp ?? 0);

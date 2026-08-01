@@ -549,7 +549,9 @@ function exclusionState(
 
 function commonValues<T>(sets: readonly ReadonlySet<T>[]): T[] {
   if (sets.length === 0) return [];
-  return [...assertDefined(sets[0])].filter((value) => sets.slice(1).every((set) => set.has(value)));
+  return [...assertDefined(sets[0])].filter((value) =>
+    sets.slice(1).every((set) => set.has(value)),
+  );
 }
 
 function commonOpeningScope(contexts: readonly RouteContext[]): string[] {

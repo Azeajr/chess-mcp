@@ -206,7 +206,10 @@ function opponentGroups(graph: RepertoireGraph): RepertoireGraphDecision[][] {
       siblings.sort((left, right) => compareStrings(left.decision_id, right.decision_id)),
     )
     .sort((left, right) =>
-      compareStrings(assertDefined(left[0]).from_position_id, assertDefined(right[0]).from_position_id),
+      compareStrings(
+        assertDefined(left[0]).from_position_id,
+        assertDefined(right[0]).from_position_id,
+      ),
     );
 }
 

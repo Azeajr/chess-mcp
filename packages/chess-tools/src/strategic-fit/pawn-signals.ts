@@ -516,8 +516,10 @@ function centerTensionPairs(board: Board, repertoireColor: Color): CenterTension
   }
   return [...pairs.values()]
     .map((pair): CenterTensionPair => {
-      const whiteSubject: PawnSignalSubject = repertoireColor === "white" ? "repertoire" : "opponent";
-      const blackSubject: PawnSignalSubject = repertoireColor === "black" ? "repertoire" : "opponent";
+      const whiteSubject: PawnSignalSubject =
+        repertoireColor === "white" ? "repertoire" : "opponent";
+      const blackSubject: PawnSignalSubject =
+        repertoireColor === "black" ? "repertoire" : "opponent";
       return {
         repertoire_pawn: makeSquare(repertoireColor === "white" ? pair.white : pair.black),
         opponent_pawn: makeSquare(repertoireColor === "white" ? pair.black : pair.white),

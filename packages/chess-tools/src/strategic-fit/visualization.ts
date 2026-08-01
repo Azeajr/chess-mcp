@@ -233,9 +233,7 @@ function anchorCandidates(
       })),
     )
     .filter((candidate) => canAnchor(trajectoriesByRoute.get(candidate.route_id)))
-    .sort(
-      (left, right) => right.score - left.score || compareStrings(left.mode_id, right.mode_id),
-    );
+    .sort((left, right) => right.score - left.score || compareStrings(left.mode_id, right.mode_id));
   if (modeCandidates.length > 0) return modeCandidates;
   return cohorts
     .filter((cohort) => cohort.state !== "excluded")

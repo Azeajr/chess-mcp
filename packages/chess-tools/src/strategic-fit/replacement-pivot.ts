@@ -714,7 +714,14 @@ export function selectReplacementPivot(
     };
   }
 
-  const pivot = actionableEvidence(assertDefined(candidates[0]), [], request, finding, cohort, provenance);
+  const pivot = actionableEvidence(
+    assertDefined(candidates[0]),
+    [],
+    request,
+    finding,
+    cohort,
+    provenance,
+  );
   return {
     ...resultBase(request, provenance),
     status: "selected",

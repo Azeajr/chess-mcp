@@ -1467,7 +1467,7 @@ async function queryExplorer(
     const inputUci = rawRecord && typeof raw.uci === "string" ? raw.uci : null;
     const inputPv =
       rawRecord && Array.isArray(raw.pv) && raw.pv.every((value) => typeof value === "string")
-        ? (raw.pv)
+        ? raw.pv
         : [];
     const popularityValid =
       rawRecord &&
@@ -2035,7 +2035,7 @@ async function queryEngine(
     const uci = record && typeof line.uci === "string" ? line.uci : null;
     const pv =
       record && Array.isArray(line.pv) && line.pv.every((value) => typeof value === "string")
-        ? (line.pv)
+        ? line.pv
         : [];
     const rank = record && finiteInteger(line.multipv_rank) ? line.multipv_rank : null;
     const depth = record && finiteInteger(line.depth) ? line.depth : null;

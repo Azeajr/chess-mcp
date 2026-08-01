@@ -203,9 +203,7 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
   let worst_group = null;
   let best_group = null;
   if (decided) {
-    const byWin = (
-      [...out] as { key: string; name: string; games: number; win_rate: number }[]
-    )
+    const byWin = ([...out] as { key: string; name: string; games: number; win_rate: number }[])
       .filter((g) => g.games >= MIN_HEADLINE_GAMES)
       .sort((a, b) => a.win_rate - b.win_rate);
     const lo = byWin[0];

@@ -507,7 +507,10 @@ function reconcileContributions<T extends { readonly contribution: number }>(
   if (Math.abs(adjustment) <= EPSILON) return [...values];
   let adjustedIndex = values.length - 1;
   if (adjustment < 0) {
-    while (adjustedIndex >= 0 && assertDefined(values[adjustedIndex]).contribution + adjustment < -EPSILON) {
+    while (
+      adjustedIndex >= 0 &&
+      assertDefined(values[adjustedIndex]).contribution + adjustment < -EPSILON
+    ) {
       adjustedIndex--;
     }
   }
