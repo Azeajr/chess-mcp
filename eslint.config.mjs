@@ -81,7 +81,10 @@ export default defineConfig([
       "@typescript-eslint/only-throw-error": "error",
       "@typescript-eslint/prefer-nullish-coalescing": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
-      "@typescript-eslint/restrict-template-expressions": "error",
+      "@typescript-eslint/restrict-template-expressions": [
+        "error",
+        { allowNumber: true, allowBoolean: true },
+      ],
       "@typescript-eslint/switch-exhaustiveness-check": "error",
     },
   },

@@ -54,7 +54,7 @@ const MULTIPV_MAX = 10;
 const PERSIST_FILE = (() => {
   const dir =
     process.env.EVAL_CACHE_DIR ??
-    join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "chess-mcp");
+    join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "chess-mcp");
   return dir === "0" ? null : join(dir, "evals.jsonl");
 })();
 
@@ -62,12 +62,16 @@ const PERSIST_FILE = (() => {
 // rewrite can't race an append. First link creates the cache dir.
 let writeQueue: Promise<unknown> | null = null;
 function queueWrite(fn: () => Promise<unknown>): Promise<void> {
-  writeQueue ??= mkdir(dirname(PERSIST_FILE!), { recursive: true });
+  if (!PERSIST_FILE) return Promise.resolve();
+  writeQueue ??= mkdir(dirname(PERSIST_FILE), { recursive: true });
   writeQueue = writeQueue.then(fn).catch(() => undefined);
   return writeQueue as Promise<void>;
 }
 
-type CacheEntry = { depth: number; lines: MultiLine[] };
+interface CacheEntry {
+  depth: number;
+  lines: MultiLine[];
+}
 
 function persistPut(key: string, entry: CacheEntry): void {
   if (!PERSIST_FILE) return;
@@ -100,7 +104,11 @@ function loadPersisted(store: Map<string, CacheEntry>): void {
         // skip corrupt line
       }
     }
-    while (store.size > MAX_CACHE) store.delete(store.keys().next().value!);
+    while (store.size > MAX_CACHE) {
+      const oldest = store.keys().next().value;
+      if (oldest === undefined) break;
+      store.delete(oldest);
+    }
     if (fileLines > MAX_CACHE * 2) persistCompact(store);
   } catch {
     // no file yet / unreadable — start memory-only
@@ -131,7 +139,10 @@ export const evalCache = {
     const key = this.key(fen, multipv);
     const entry: CacheEntry = { depth, lines };
     this.store.set(key, entry);
-    if (this.store.size > MAX_CACHE) this.store.delete(this.store.keys().next().value!);
+    if (this.store.size > MAX_CACHE) {
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
     persistPut(key, entry);
   },
   /** Clears memory only; the disk file is left for the next boot (test hook — see cache.mjs). */
@@ -165,10 +176,10 @@ loadPersisted(evalCache.store);
 // behind UciEndpoint so the search/parse/watchdog code is shared.
 
 /** Minimal UCI transport: pool child stdio or the in-process emscripten engine. */
-type UciEndpoint = {
+interface UciEndpoint {
   send: (cmd: string) => void;
   setHandler: (h: ((line: string) => void) | null) => void;
-};
+}
 
 const WATCHDOG_MS = 30000;
 const DEEP_WATCHDOG_MS = 60000;
@@ -216,16 +227,18 @@ function runSearch(
       () => {
         stopped = true;
         ep.send("stop");
-        graceTimer = setTimeout(() => finish(null), GRACE_MS);
+        graceTimer = setTimeout(() => {
+          finish(null);
+        }, GRACE_MS);
       },
       movetime == null && depth >= 30 ? DEEP_WATCHDOG_MS : WATCHDOG_MS,
     );
     ep.setHandler((line: string) => {
       if (line.startsWith("info") && line.includes(" multipv ") && line.includes(" pv ")) {
-        const idx = Number(line.match(/ multipv (\d+)/)?.[1] ?? 0);
-        const d = Number(line.match(/ depth (\d+)/)?.[1] ?? 0);
-        const cp = line.match(/ score cp (-?\d+)/);
-        const mate = line.match(/ score mate (-?\d+)/);
+        const idx = Number(/ multipv (\d+)/.exec(line)?.[1] ?? 0);
+        const d = Number(/ depth (\d+)/.exec(line)?.[1] ?? 0);
+        const cp = / score cp (-?\d+)/.exec(line);
+        const mate = / score mate (-?\d+)/.exec(line);
         const pvStr = line.split(" pv ")[1];
         const pv = pvStr ? pvStr.trim().split(/\s+/) : [];
         if (!idx || !pv[0]) return;
@@ -254,13 +267,13 @@ function runSearch(
 
 // --- pool children ---
 
-type PoolChild = {
+interface PoolChild {
   ep: UciEndpoint;
   child: ChildProcess;
   dead: boolean;
   /** resolves when the process exits (races the in-flight search on a crash). */
   exited: Promise<void>;
-};
+}
 
 function enginePath(): string {
   return join(
@@ -283,7 +296,8 @@ function spawnChild(): Promise<PoolChild | null> {
     }
     let handler: ((line: string) => void) | null = null;
     let buf = "";
-    child.stdout!.on("data", (d: Buffer) => {
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (d: string) => {
       buf += d;
       let i: number;
       while ((i = buf.indexOf("\n")) >= 0) {
@@ -299,7 +313,7 @@ function spawnChild(): Promise<PoolChild | null> {
       dead: false,
       exited,
       ep: {
-        send: (cmd) => void child.stdin!.write(`${cmd}\n`),
+        send: (cmd) => void child.stdin?.write(`${cmd}\n`),
         setHandler: (h) => (handler = h),
       },
     };
@@ -336,14 +350,14 @@ function spawnChild(): Promise<PoolChild | null> {
 
 // --- pool front: queue, dispatch, respawn ---
 
-type Job = {
+interface Job {
   fen: string;
   multipv: number;
   depth: number;
   movetime?: number;
   retried: boolean;
   resolve: (out: SearchOutcome) => void;
-};
+}
 
 const queue: Job[] = [];
 const idle: PoolChild[] = [];
@@ -357,8 +371,8 @@ let poolInit: Promise<boolean> | null = null;
 function setIdleRefs(pc: PoolChild, isIdle: boolean): void {
   const m = isIdle ? "unref" : "ref";
   pc.child[m]();
-  (pc.child.stdout as unknown as { [k: string]: () => void } | null)?.[m]?.();
-  (pc.child.stdin as unknown as { [k: string]: () => void } | null)?.[m]?.();
+  (pc.child.stdout as unknown as Record<string, () => void> | null)?.[m]?.();
+  (pc.child.stdin as unknown as Record<string, () => void> | null)?.[m]?.();
 }
 
 function addChild(pc: PoolChild): void {
@@ -388,8 +402,9 @@ function addChild(pc: PoolChild): void {
 
 function pump(): void {
   while (queue.length && idle.length) {
-    const job = queue.shift()!;
-    const pc = idle.pop()!;
+    const job = queue.shift();
+    const pc = idle.pop();
+    if (!job || !pc) break;
     void runOnChild(pc, job);
   }
 }
@@ -465,7 +480,9 @@ function ensurePool(): Promise<boolean> {
 
 // --- in-process fallback (the pre-pool engine, unchanged semantics, searches serialized) ---
 
-type Engine = { sendCommand: (cmd: string) => void };
+interface Engine {
+  sendCommand: (cmd: string) => void;
+}
 
 let enginePromise: Promise<Engine | null> | null = null;
 let lineHandler: ((line: string) => void) | null = null;
@@ -481,27 +498,25 @@ function installCapture() {
 }
 
 async function getEngine(): Promise<Engine | null> {
-  if (!enginePromise) {
-    enginePromise = (async () => {
-      try {
-        installCapture();
-        // The emscripten build clobbers globalThis.fetch (its browser asset loader) during init.
-        // Save Node's real fetch and restore it after, so the network tools keep working.
-        const savedFetch = globalThis.fetch;
-        const initEngine = require("stockfish") as (path: string) => Promise<Engine>;
-        const engine = await initEngine(enginePath());
-        globalThis.fetch = savedFetch;
-        engine.sendCommand("uci");
-        // Once per process, NOT per search (P2) — see the pool handshake for the trade-off note.
-        engine.sendCommand("ucinewgame");
-        engine.sendCommand("isready");
-        return engine;
-      } catch (err) {
-        console.error("[engine] stockfish unavailable:", err);
-        return null;
-      }
-    })();
-  }
+  enginePromise ??= (async () => {
+    try {
+      installCapture();
+      // The emscripten build clobbers globalThis.fetch (its browser asset loader) during init.
+      // Save Node's real fetch and restore it after, so the network tools keep working.
+      const savedFetch = globalThis.fetch;
+      const initEngine = require("stockfish") as (path: string) => Promise<Engine>;
+      const engine = await initEngine(enginePath());
+      globalThis.fetch = savedFetch;
+      engine.sendCommand("uci");
+      // Once per process, NOT per search (P2) — see the pool handshake for the trade-off note.
+      engine.sendCommand("ucinewgame");
+      engine.sendCommand("isready");
+      return engine;
+    } catch (err) {
+      console.error("[engine] stockfish unavailable:", err);
+      return null;
+    }
+  })();
   return enginePromise;
 }
 
@@ -522,7 +537,9 @@ function inProcessSearch(
     const engine = await getEngine();
     if (!engine) return null;
     const ep: UciEndpoint = {
-      send: (cmd) => engine.sendCommand(cmd),
+      send: (cmd) => {
+        engine.sendCommand(cmd);
+      },
       setHandler: (h) => (lineHandler = h),
     };
     const outcome = await runSearch(ep, fen, multipv, depth, movetime);

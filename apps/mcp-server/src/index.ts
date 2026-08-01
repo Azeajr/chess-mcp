@@ -15,7 +15,6 @@ import {
   validateFen,
   validatePgn,
   validateLine,
-  legalMoves,
   cloudEval,
   tablebaseLookup,
   explorerPosition,
@@ -301,78 +300,76 @@ const explorerAuthRequired = () =>
   });
 
 // --- validation / position (engine-free) ---
-server.tool(
+server.registerTool(
   "validate_fen",
-  toolContract("validate_fen").description,
-  { fen: z.string() },
+  { description: toolContract("validate_fen").description, inputSchema: { fen: z.string() } },
   ({ fen }) => ok(validateFen(fen)),
 );
-server.tool(
+server.registerTool(
   "validate_pgn",
-  toolContract("validate_pgn").description,
-  { pgn: z.string() },
+  { description: toolContract("validate_pgn").description, inputSchema: { pgn: z.string() } },
   ({ pgn }) => ok(validatePgn(pgn)),
 );
-server.tool(
+server.registerTool(
   "validate_line",
-  toolContract("validate_line").description,
-  { fen: z.string(), moves: z.array(z.string()) },
+  {
+    description: toolContract("validate_line").description,
+    inputSchema: { fen: z.string(), moves: z.array(z.string()) },
+  },
   ({ fen, moves }) => {
     // Gate the FEN: validateLine → parseFen().unwrap() throws a raw FenError on garbage input.
     const v = validateFen(fen);
-    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
-    return ok(validateLine(v.fen!, moves));
+    if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
+    return ok(validateLine(v.fen, moves));
   },
 );
-server.tool(
+server.registerTool(
   "get_legal_moves",
-  toolContract("get_legal_moves").description,
-  { fen: z.string() },
+  { description: toolContract("get_legal_moves").description, inputSchema: { fen: z.string() } },
   ({ fen }) => {
     const grounded = groundPosition(fen);
     if ("error" in grounded) return ok(grounded);
     return ok({ fen: grounded.fen, moves: grounded.legal_moves });
   },
 );
-server.tool(
+server.registerTool(
   "get_position",
-  toolContract("get_position").description,
-  { fen: z.string() },
+  { description: toolContract("get_position").description, inputSchema: { fen: z.string() } },
   ({ fen }) => {
     return ok(groundPosition(fen));
   },
 );
 
 // --- network (offline-safe) ---
-server.tool(
+server.registerTool(
   "cloud_eval",
-  toolContract("cloud_eval").description,
-  { fen: z.string() },
+  { description: toolContract("cloud_eval").description, inputSchema: { fen: z.string() } },
   async ({ fen }) => {
     const c = await cloudEval(fen);
     return ok(c ? { fen, ...c } : { fen, available: false });
   },
 );
-server.tool(
+server.registerTool(
   "tablebase_lookup",
-  toolContract("tablebase_lookup").description,
-  { fen: z.string() },
+  { description: toolContract("tablebase_lookup").description, inputSchema: { fen: z.string() } },
   async ({ fen }) => {
     const t = await tablebaseLookup(fen);
     return ok(t ?? { available: false });
   },
 );
-server.tool(
+server.registerTool(
   "position_popularity",
-  toolContract("position_popularity").description,
   {
-    fen: z.string(),
-    db: z.enum(["lichess", "masters"]).optional(),
-    speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
-    ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
-    since: explorerRecencySchema().optional(),
-    until: explorerRecencySchema().optional(),
-    top_moves: z.number().int().min(0).max(30).optional(),
+    description: toolContract("position_popularity").description,
+    inputSchema: {
+      fen: z.string(),
+      db: z.enum(["lichess", "masters"]).optional(),
+      speeds: z.array(explorerSpeedSchema).min(1).max(EXPLORER_SPEEDS.length).optional(),
+      ratings: z.array(explorerRatingSchema).min(1).max(EXPLORER_RATING_BUCKETS.length).optional(),
+      since: explorerRecencySchema().optional(),
+      until: explorerRecencySchema().optional(),
+      top_moves: z.number().int().min(0).max(30).optional(),
+    },
   },
   async ({ fen, db, speeds, ratings, since, until, top_moves }, extra) => {
     const rawFilters = Object.fromEntries(
@@ -389,10 +386,10 @@ server.tool(
     const validation = validateToolArguments("position_popularity", rawFilters, "mcp");
     if (!validation.ok) return ok(validation);
     const v = validateFen(fen);
-    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
     if (!hasExplorerToken()) return explorerAuthRequired();
     const filters: ExplorerFilters = { db, speeds, ratings, since, until, movesLimit: top_moves };
-    const res = await explorerPosition(v.fen!, filters, extra.signal);
+    const res = await explorerPosition(v.fen, filters, extra.signal);
     return ok(
       res
         ? { fen: v.fen, db: db ?? toolDefault("position_popularity", "db", "lichess"), ...res }
@@ -402,28 +399,30 @@ server.tool(
 );
 
 // --- engine ---
-server.tool(
+server.registerTool(
   "evaluate_position",
-  toolContract("evaluate_position").description,
   {
-    fen: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    lines: z.number().int().min(1).max(5).optional(),
+    description: toolContract("evaluate_position").description,
+    inputSchema: {
+      fen: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      lines: z.number().int().min(1).max(5).optional(),
+    },
   },
   async ({ fen, depth, lines }) => {
     // Reject an illegal-but-parseable FEN up front (the same gate get_position/suggest_* apply):
     // without it, moveSan below throws (chessops rejects the setup) instead of a closed-set error.
     const v = validateFen(fen);
-    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
     // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
     // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
     const res = await analyseMulti(
-      v.fen!,
+      v.fen,
       lines ?? toolDefault("evaluate_position", "lines", 3),
       depth ?? toolDefault("evaluate_position", "depth", 20),
     );
     if (!res) return ok({ error: "engine_unavailable" });
-    return ok(shapeEvaluation(v.fen!, res, moveSan));
+    return ok(shapeEvaluation(v.fen, res, moveSan));
   },
 );
 
@@ -434,10 +433,12 @@ function loadSummary(id: string, tree: GameTree, color: Color) {
   return { repertoire_id: id, color, nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth };
 }
 
-server.tool(
+server.registerTool(
   "load_repertoire",
-  toolContract("load_repertoire").description,
-  { pgn: z.string(), color: colorSchema },
+  {
+    description: toolContract("load_repertoire").description,
+    inputSchema: { pgn: z.string(), color: colorSchema },
+  },
   ({ pgn, color }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
@@ -451,10 +452,12 @@ server.tool(
     return ok(loadSummary(id, tree, color));
   },
 );
-server.tool(
+server.registerTool(
   "load_repertoire_from_file",
-  toolContract("load_repertoire_from_file").description,
-  { path: z.string(), color: colorSchema },
+  {
+    description: toolContract("load_repertoire_from_file").description,
+    inputSchema: { path: z.string(), color: colorSchema },
+  },
   async ({ path, color }) => {
     const real = confine(path);
     if (!real)
@@ -473,10 +476,12 @@ server.tool(
     return ok(loadSummary(store(tree, color), tree, color));
   },
 );
-server.tool(
+server.registerTool(
   "export_repertoire",
-  toolContract("export_repertoire").description,
-  { repertoire_id: z.string() },
+  {
+    description: toolContract("export_repertoire").description,
+    inputSchema: { repertoire_id: z.string() },
+  },
   ({ repertoire_id }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
@@ -484,10 +489,12 @@ server.tool(
     return ok({ pgn: e.tree.toPgn(), nodes: s.nodes, leaves: s.leaves, max_depth: s.maxDepth });
   },
 );
-server.tool(
+server.registerTool(
   "export_repertoire_to_file",
-  toolContract("export_repertoire_to_file").description,
-  { repertoire_id: z.string(), path: z.string() },
+  {
+    description: toolContract("export_repertoire_to_file").description,
+    inputSchema: { repertoire_id: z.string(), path: z.string() },
+  },
   async ({ repertoire_id, path }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
@@ -510,17 +517,19 @@ server.tool(
 );
 
 // --- gaps (engine scan) ---
-server.tool(
+server.registerTool(
   "find_repertoire_gaps",
-  toolContract("find_repertoire_gaps").description,
   {
-    repertoire_id: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    min_severity: z.enum(["low", "medium", "high"]).optional(),
-    max_positions: z.number().int().min(1).max(60).optional(),
-    limit: z.number().int().min(1).max(50).optional(),
-    popularity: z.boolean().optional(),
-    popularity_db: z.enum(["lichess", "masters"]).optional(),
+    description: toolContract("find_repertoire_gaps").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      min_severity: z.enum(["low", "medium", "high"]).optional(),
+      max_positions: z.number().int().min(1).max(60).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      popularity: z.boolean().optional(),
+      popularity_db: z.enum(["lichess", "masters"]).optional(),
+    },
   },
   async ({
     repertoire_id,
@@ -555,16 +564,18 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "suggest_gap_fills",
-  toolContract("suggest_gap_fills").description,
   {
-    repertoire_id: z.string(),
-    variation_path: z.array(z.string()),
-    uncovered_move: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    limit: z.number().int().min(2).max(10).optional(),
-    target_plies: z.number().int().min(2).max(200).optional(),
+    description: toolContract("suggest_gap_fills").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      variation_path: z.array(z.string()),
+      uncovered_move: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      limit: z.number().int().min(2).max(10).optional(),
+      target_plies: z.number().int().min(2).max(200).optional(),
+    },
   },
   async ({ repertoire_id, variation_path, uncovered_move, depth, limit, target_plies }) => {
     const e = get(repertoire_id);
@@ -585,14 +596,16 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "find_theory_depth",
-  toolContract("find_theory_depth").description,
   {
-    repertoire_id: z.string(),
-    db: z.enum(["lichess", "masters"]).optional(),
-    min_games: z.number().int().min(1).optional(),
-    max_positions: z.number().int().min(1).max(120).optional(),
+    description: toolContract("find_theory_depth").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      db: z.enum(["lichess", "masters"]).optional(),
+      min_games: z.number().int().min(1).optional(),
+      max_positions: z.number().int().min(1).max(120).optional(),
+    },
   },
   async ({ repertoire_id, db, min_games, max_positions }) => {
     const e = get(repertoire_id);
@@ -608,15 +621,17 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "audit_repertoire_moves",
-  toolContract("audit_repertoire_moves").description,
   {
-    repertoire_id: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    min_cp_loss: z.number().int().min(0).optional(),
-    max_positions: z.number().int().min(1).max(60).optional(),
-    limit: z.number().int().min(1).max(50).optional(),
+    description: toolContract("audit_repertoire_moves").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      min_cp_loss: z.number().int().min(0).optional(),
+      max_positions: z.number().int().min(1).max(60).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    },
   },
   async ({ repertoire_id, depth, min_cp_loss, max_positions, limit }) => {
     const e = get(repertoire_id);
@@ -632,17 +647,19 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "find_only_moves",
-  toolContract("find_only_moves").description,
   {
-    repertoire_id: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    min_margin: z.number().int().min(0).optional(),
-    max_positions: z.number().int().min(1).max(300).optional(),
-    limit: z.number().int().min(1).max(100).optional(),
-    lines_limit: z.number().int().min(1).max(50).optional(),
-    export_path: z.string().optional(),
+    description: toolContract("find_only_moves").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      min_margin: z.number().int().min(0).optional(),
+      max_positions: z.number().int().min(1).max(300).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+      lines_limit: z.number().int().min(1).max(50).optional(),
+      export_path: z.string().optional(),
+    },
   },
   async ({ repertoire_id, depth, min_margin, max_positions, limit, lines_limit, export_path }) => {
     const e = get(repertoire_id);
@@ -683,10 +700,12 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "get_transpositions",
-  toolContract("get_transpositions").description,
-  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  {
+    description: toolContract("get_transpositions").description,
+    inputSchema: { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  },
   ({ repertoire_id, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
@@ -694,21 +713,23 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "find_pruning_transpositions",
-  toolContract("find_pruning_transpositions").description,
   {
-    repertoire_id: z.string(),
-    limit: z.number().int().min(1).max(100).optional(),
-    multipv: z.number().int().min(1).max(8).optional(),
-    cp_threshold: z.number().int().min(0).max(500).optional(),
-    max_loss_cp: z.number().int().min(0).max(1000).optional(),
-    depth: z.number().int().min(1).max(30).optional(),
-    movetime_ms: z.number().int().min(50).max(10000).optional(),
-    budget: z.number().int().min(1).max(500).optional(),
-    leaf_start: z.number().int().min(0).optional(),
-    leaf_count: z.number().int().min(1).max(200).optional(),
-    confirm_depth: z.number().int().min(1).max(30).optional(),
+    description: toolContract("find_pruning_transpositions").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      limit: z.number().int().min(1).max(100).optional(),
+      multipv: z.number().int().min(1).max(8).optional(),
+      cp_threshold: z.number().int().min(0).max(500).optional(),
+      max_loss_cp: z.number().int().min(0).max(1000).optional(),
+      depth: z.number().int().min(1).max(30).optional(),
+      movetime_ms: z.number().int().min(50).max(10000).optional(),
+      budget: z.number().int().min(1).max(500).optional(),
+      leaf_start: z.number().int().min(0).optional(),
+      leaf_count: z.number().int().min(1).max(200).optional(),
+      confirm_depth: z.number().int().min(1).max(30).optional(),
+    },
   },
   async ({
     repertoire_id,
@@ -765,17 +786,19 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "check_shortcut_coverage",
-  toolContract("check_shortcut_coverage").description,
   {
-    repertoire_id: z.string(),
-    line_path: z.array(z.string()),
-    at_ply: z.number().int().min(0),
-    depth: z.number().int().min(1).max(30).optional(),
-    min_severity: z.enum(["low", "medium", "high"]).optional(),
-    max_positions: z.number().int().min(1).max(60).optional(),
-    limit: z.number().int().min(1).max(50).optional(),
+    description: toolContract("check_shortcut_coverage").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      line_path: z.array(z.string()),
+      at_ply: z.number().int().min(0),
+      depth: z.number().int().min(1).max(30).optional(),
+      min_severity: z.enum(["low", "medium", "high"]).optional(),
+      max_positions: z.number().int().min(1).max(60).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    },
   },
   async ({ repertoire_id, line_path, at_ply, depth, min_severity, max_positions, limit }) => {
     const e = get(repertoire_id);
@@ -798,16 +821,18 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "compare_shortcut_lines",
-  toolContract("compare_shortcut_lines").description,
   {
-    repertoire_id: z.string(),
-    line_path: z.array(z.string()),
-    at_ply: z.number().int().min(0),
-    joins_path: z.array(z.string()),
-    depth: z.number().int().min(1).max(30).optional(),
-    eval_tiebreak_cp: z.number().int().min(0).max(500).optional(),
+    description: toolContract("compare_shortcut_lines").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      line_path: z.array(z.string()),
+      at_ply: z.number().int().min(0),
+      joins_path: z.array(z.string()),
+      depth: z.number().int().min(1).max(30).optional(),
+      eval_tiebreak_cp: z.number().int().min(0).max(500).optional(),
+    },
   },
   async ({ repertoire_id, line_path, at_ply, joins_path, depth, eval_tiebreak_cp }) => {
     const e = get(repertoire_id);
@@ -829,14 +854,16 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "get_repertoire_coverage",
-  toolContract("get_repertoire_coverage").description,
   {
-    repertoire_id: z.string(),
-    limit: z.number().int().min(1).max(100).optional(),
-    connect_stubs: z.boolean().optional(),
-    depth: z.number().int().min(1).max(30).optional(),
+    description: toolContract("get_repertoire_coverage").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      limit: z.number().int().min(1).max(100).optional(),
+      connect_stubs: z.boolean().optional(),
+      depth: z.number().int().min(1).max(30).optional(),
+    },
   },
   async ({ repertoire_id, limit, connect_stubs, depth }) => {
     const e = get(repertoire_id);
@@ -858,20 +885,22 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "compare_moves",
-  toolContract("compare_moves").description,
   {
-    fen: z.string(),
-    moves: z.array(z.string()),
-    depth: z.number().int().min(1).max(30).optional(),
+    description: toolContract("compare_moves").description,
+    inputSchema: {
+      fen: z.string(),
+      moves: z.array(z.string()),
+      depth: z.number().int().min(1).max(30).optional(),
+    },
   },
   async ({ fen, moves, depth }) => {
     // Gate the FEN (compareMoves → validateLine throws a raw FenError on garbage) and cap the
     // candidate list — each candidate triggers a separate engine search, so an unbounded array is a
     // per-call DoS.
     const v = validateFen(fen);
-    if (!v.valid) return ok({ error: "invalid_fen", reason: v.reason });
+    if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
     if (moves.length > MAX_COMPARE_MOVES)
       return ok({
         error: "too_many_moves",
@@ -879,7 +908,7 @@ server.tool(
       });
     return ok(
       await compareMoves(
-        v.fen!,
+        v.fen,
         moves,
         depth ?? toolDefault("compare_moves", "depth", 20),
         analyseMulti,
@@ -889,13 +918,15 @@ server.tool(
 );
 
 // --- game analysis (engine) ---
-server.tool(
+server.registerTool(
   "analyze_game",
-  toolContract("analyze_game").description,
   {
-    pgn: z.string(),
-    depth: z.number().int().min(1).max(30).optional(),
-    verbose: z.boolean().optional(),
+    description: toolContract("analyze_game").description,
+    inputSchema: {
+      pgn: z.string(),
+      depth: z.number().int().min(1).max(30).optional(),
+      verbose: z.boolean().optional(),
+    },
   },
   async ({ pgn, depth, verbose }) => {
     const tl = pgnTooLarge(pgn);
@@ -917,10 +948,12 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "get_game_summary",
-  toolContract("get_game_summary").description,
-  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  {
+    description: toolContract("get_game_summary").description,
+    inputSchema: { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  },
   async ({ pgn, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
@@ -940,10 +973,12 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "export_annotated_pgn",
-  toolContract("export_annotated_pgn").description,
-  { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  {
+    description: toolContract("export_annotated_pgn").description,
+    inputSchema: { pgn: z.string(), depth: z.number().int().min(1).max(30).optional() },
+  },
   async ({ pgn, depth }) => {
     const tl = pgnTooLarge(pgn);
     if (tl) return tl;
@@ -963,18 +998,20 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "export_annotated_repertoire",
-  toolContract("export_annotated_repertoire").description,
   {
-    repertoire_id: z.string(),
-    include: z.array(z.enum(["audit", "only_moves", "gaps", "congruence"])).optional(),
-    depth: z.number().int().min(1).max(30).optional(),
-    max_positions: z.number().int().min(1).max(300).optional(),
-    min_cp_loss: z.number().int().min(0).optional(),
-    min_margin: z.number().int().min(0).optional(),
-    min_severity: z.enum(["low", "medium", "high"]).optional(),
-    export_path: z.string().optional(),
+    description: toolContract("export_annotated_repertoire").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      include: z.array(z.enum(["audit", "only_moves", "gaps", "congruence"])).optional(),
+      depth: z.number().int().min(1).max(30).optional(),
+      max_positions: z.number().int().min(1).max(300).optional(),
+      min_cp_loss: z.number().int().min(0).optional(),
+      min_margin: z.number().int().min(0).optional(),
+      min_severity: z.enum(["low", "medium", "high"]).optional(),
+      export_path: z.string().optional(),
+    },
   },
   async ({
     repertoire_id,
@@ -1048,15 +1085,17 @@ server.tool(
 );
 
 // --- repertoire edit + illustrative lines ---
-server.tool(
+server.registerTool(
   "modify_repertoire_line",
-  toolContract("modify_repertoire_line").description,
   {
-    repertoire_id: z.string(),
-    action: z.enum(["prune", "add", "reorder"]),
-    path: z.array(z.string()),
-    add_moves: z.array(z.string()).optional(),
-    promote_move: z.string().optional(),
+    description: toolContract("modify_repertoire_line").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      action: z.enum(["prune", "add", "reorder"]),
+      path: z.array(z.string()),
+      add_moves: z.array(z.string()).optional(),
+      promote_move: z.string().optional(),
+    },
   },
   ({ repertoire_id, action, path, add_moves, promote_move }) => {
     const e = get(repertoire_id);
@@ -1089,10 +1128,12 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "classify_illustrative_lines",
-  toolContract("classify_illustrative_lines").description,
-  { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  {
+    description: toolContract("classify_illustrative_lines").description,
+    inputSchema: { repertoire_id: z.string(), limit: z.number().int().min(1).max(100).optional() },
+  },
   ({ repertoire_id, limit }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
@@ -1110,10 +1151,9 @@ server.tool(
 const openingsTable = parseOpeningsTsv(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "data", "openings.tsv"), "utf8"),
 );
-server.tool(
+server.registerTool(
   "identify_opening",
-  toolContract("identify_opening").description,
-  { pgn: z.string() },
+  { description: toolContract("identify_opening").description, inputSchema: { pgn: z.string() } },
   ({ pgn }) => {
     const hit = identifyDeepest(openingsTable, pgn);
     return ok(hit ?? { opening: null });
@@ -1121,15 +1161,17 @@ server.tool(
 );
 
 // --- batch review (engine, multi-game) ---
-server.tool(
+server.registerTool(
   "batch_review",
-  toolContract("batch_review").description,
   {
-    pgn: z.string(),
-    group_by: z.enum(["eco", "color"]).optional(),
-    username: z.string().optional(),
-    max_games: z.number().int().min(1).max(100).optional(),
-    depth: z.number().int().min(1).max(30).optional(),
+    description: toolContract("batch_review").description,
+    inputSchema: {
+      pgn: z.string(),
+      group_by: z.enum(["eco", "color"]).optional(),
+      username: z.string().optional(),
+      max_games: z.number().int().min(1).max(100).optional(),
+      depth: z.number().int().min(1).max(30).optional(),
+    },
   },
   async ({ pgn, group_by, username, max_games, depth }) => {
     const tl = pgnTooLarge(pgn);
@@ -1151,14 +1193,16 @@ server.tool(
 );
 
 // --- game history (network) ---
-server.tool(
+server.registerTool(
   "lichess_games",
-  toolContract("lichess_games").description,
   {
-    username: z.string(),
-    max_games: z.number().int().min(1).max(100).optional(),
-    opening_eco: z.string().optional(),
-    include_pgn: z.boolean().optional(),
+    description: toolContract("lichess_games").description,
+    inputSchema: {
+      username: z.string(),
+      max_games: z.number().int().min(1).max(100).optional(),
+      opening_eco: z.string().optional(),
+      include_pgn: z.boolean().optional(),
+    },
   },
   async ({ username, max_games, opening_eco, include_pgn }) => {
     const games = await lichessGames(
@@ -1172,15 +1216,17 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "chesscom_games",
-  toolContract("chesscom_games").description,
   {
-    username: z.string(),
-    year: z.number().int(),
-    month: z.number().int().min(1).max(12),
-    opening_eco: z.string().optional(),
-    include_pgn: z.boolean().optional(),
+    description: toolContract("chesscom_games").description,
+    inputSchema: {
+      username: z.string(),
+      year: z.number().int(),
+      month: z.number().int().min(1).max(12),
+      opening_eco: z.string().optional(),
+      include_pgn: z.boolean().optional(),
+    },
   },
   async ({ username, year, month, opening_eco, include_pgn }) => {
     const games = await chesscomGames(username, year, month, opening_eco, include_pgn ?? false);
@@ -1190,16 +1236,18 @@ server.tool(
 );
 
 // --- repertoire vs played games (network + handle) ---
-server.tool(
+server.registerTool(
   "repertoire_vs_history",
-  toolContract("repertoire_vs_history").description,
   {
-    repertoire_id: z.string(),
-    username: z.string(),
-    platform: z.enum(["lichess", "chesscom"]).optional(),
-    max_games: z.number().int().min(1).max(100).optional(),
-    year: z.number().int().optional(),
-    month: z.number().int().min(1).max(12).optional(),
+    description: toolContract("repertoire_vs_history").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      username: z.string(),
+      platform: z.enum(["lichess", "chesscom"]).optional(),
+      max_games: z.number().int().min(1).max(100).optional(),
+      year: z.number().int().optional(),
+      month: z.number().int().min(1).max(12).optional(),
+    },
   },
   async ({ repertoire_id, username, platform, max_games, year, month }) => {
     const e = get(repertoire_id);
@@ -1225,16 +1273,18 @@ server.tool(
 );
 
 // --- match prep vs a specific opponent (network + handle) ---
-server.tool(
+server.registerTool(
   "prep_vs_opponent",
-  toolContract("prep_vs_opponent").description,
   {
-    repertoire_id: z.string(),
-    username: z.string(),
-    platform: z.enum(["lichess", "chesscom"]).optional(),
-    max_games: z.number().int().min(1).max(100).optional(),
-    year: z.number().int().optional(),
-    month: z.number().int().min(1).max(12).optional(),
+    description: toolContract("prep_vs_opponent").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      username: z.string(),
+      platform: z.enum(["lichess", "chesscom"]).optional(),
+      max_games: z.number().int().min(1).max(100).optional(),
+      year: z.number().int().optional(),
+      month: z.number().int().min(1).max(12).optional(),
+    },
   },
   async ({ repertoire_id, username, platform, max_games, year, month }) => {
     const e = get(repertoire_id);
@@ -1260,10 +1310,12 @@ server.tool(
 );
 
 // --- structure (descriptive: named-structure classifier + themes/center) ---
-server.tool(
+server.registerTool(
   "get_structural_profile",
-  toolContract("get_structural_profile").description,
-  { repertoire_id: z.string(), variation_path: z.array(z.string()).optional() },
+  {
+    description: toolContract("get_structural_profile").description,
+    inputSchema: { repertoire_id: z.string(), variation_path: z.array(z.string()).optional() },
+  },
   ({ repertoire_id, variation_path }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
@@ -1271,27 +1323,29 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "find_structures",
-  toolContract("find_structures").description,
   {
-    repertoire_id: z.string(),
-    structure: z.string().optional(),
-    min_confidence: z.number().min(0).max(1).optional(),
-    center: z.enum(["tense", "locked", "open", "semi-open"]).optional(),
-    themes: z
-      .array(
-        z.enum([
-          "fianchetto_white",
-          "fianchetto_black",
-          "minority_attack_white",
-          "minority_attack_black",
-          "flank_vs_center",
-        ]),
-      )
-      .optional(),
-    color_complex: z.enum(["light", "dark"]).optional(),
-    limit: z.number().int().min(1).max(100).optional(),
+    description: toolContract("find_structures").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      structure: z.string().optional(),
+      min_confidence: z.number().min(0).max(1).optional(),
+      center: z.enum(["tense", "locked", "open", "semi-open"]).optional(),
+      themes: z
+        .array(
+          z.enum([
+            "fianchetto_white",
+            "fianchetto_black",
+            "minority_attack_white",
+            "minority_attack_black",
+            "flank_vs_center",
+          ]),
+        )
+        .optional(),
+      color_complex: z.enum(["light", "dark"]).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+    },
   },
   ({ repertoire_id, structure, min_confidence, center, themes, color_complex, limit }) => {
     const e = get(repertoire_id);
@@ -1325,28 +1379,30 @@ server.tool(
   },
 );
 
-server.tool(
+server.registerTool(
   "analyze_repertoire_congruence",
-  toolContract("analyze_repertoire_congruence").description,
   {
-    repertoire_id: z.string(),
-    profile: strategicFitProfileSchema.optional(),
-    weighting: strategicFitWeightingSchema.optional(),
-    popularity: strategicFitPopularitySchema.optional(),
-    personal_history: strategicFitPersonalHistorySchema.optional(),
-    page: strategicFitPageSchema.optional(),
-    sort: z
-      .enum([
-        "replacement-priority",
-        "training-priority",
-        "expected-frequency",
-        "opening-scope",
-        "finding-id",
-      ])
-      .optional(),
-    cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
-    explicit_targets: z.array(strategicFitExplicitTargetSchema).max(100).optional(),
-    route_assessments: z.array(strategicFitRouteAssessmentSchema).max(500).optional(),
+    description: toolContract("analyze_repertoire_congruence").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      profile: strategicFitProfileSchema.optional(),
+      weighting: strategicFitWeightingSchema.optional(),
+      popularity: strategicFitPopularitySchema.optional(),
+      personal_history: strategicFitPersonalHistorySchema.optional(),
+      page: strategicFitPageSchema.optional(),
+      sort: z
+        .enum([
+          "replacement-priority",
+          "training-priority",
+          "expected-frequency",
+          "opening-scope",
+          "finding-id",
+        ])
+        .optional(),
+      cohort_overrides: z.array(strategicFitCohortOverrideSchema).max(100).optional(),
+      explicit_targets: z.array(strategicFitExplicitTargetSchema).max(100).optional(),
+      route_assessments: z.array(strategicFitRouteAssessmentSchema).max(500).optional(),
+    },
   },
   async ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
@@ -1437,23 +1493,31 @@ server.tool(
         personalHistoryProgressTotal +
         STRATEGIC_FIT_PROGRESS_PHASES.length;
       notifyProgress(popularityProgressTotal, total, "Fetching personal game history");
+      // year/month (chesscom) and max_games (lichess) are guaranteed by
+      // strategicPersonalHistorySourceFromToolArguments's construction for their respective
+      // platform, but the shared source type doesn't encode that — treat an unexpected gap the
+      // same as a failed fetch (null games) rather than asserting past it.
       const games =
         personalHistorySource.platform === "chesscom"
-          ? await chesscomGames(
-              personalHistorySource.username,
-              personalHistorySource.year!,
-              personalHistorySource.month!,
-              undefined,
-              true,
-              extra.signal,
-            )
-          : await lichessGames(
-              personalHistorySource.username,
-              personalHistorySource.max_games!,
-              undefined,
-              true,
-              extra.signal,
-            );
+          ? personalHistorySource.year === undefined || personalHistorySource.month === undefined
+            ? null
+            : await chesscomGames(
+                personalHistorySource.username,
+                personalHistorySource.year,
+                personalHistorySource.month,
+                undefined,
+                true,
+                extra.signal,
+              )
+          : personalHistorySource.max_games === undefined
+            ? null
+            : await lichessGames(
+                personalHistorySource.username,
+                personalHistorySource.max_games,
+                undefined,
+                true,
+                extra.signal,
+              );
       if (extra.signal.aborted) {
         throw new DOMException("Strategic Fit personal-history fetch cancelled", "AbortError");
       }
@@ -1487,7 +1551,7 @@ server.tool(
     options = {
       ...options,
       shouldCancel: () => extra.signal.aborted,
-      onProgress: (progress) =>
+      onProgress: (progress) => {
         notifyProgress(
           popularityProgressTotal +
             personalHistoryProgressTotal +
@@ -1495,7 +1559,8 @@ server.tool(
             (progress.state === "completed" ? 1 : 0),
           popularityProgressTotal + personalHistoryProgressTotal + progress.phase_count,
           progress.message,
-        ),
+        );
+      },
     };
     const completeReport = getOrCreateStrategicFitReport(e, options, (completeOptions) =>
       analyzeStrategicFit(e.tree, completeOptions),
@@ -1518,30 +1583,32 @@ server.tool(
 );
 
 // --- scoped Strategic Fit retrieval for conversation ---
-server.tool(
+server.registerTool(
   "get_strategic_fit_report",
-  toolContract("get_strategic_fit_report").description,
   {
-    repertoire_id: z.string(),
-    report_id: z.string().max(256),
-    view: z.enum(["summary", "findings", "finding"]).optional(),
-    finding_id: z.string().max(256).optional(),
-    page: z
-      .object({
-        offset: z.number().int().min(0).max(1_000_000).optional(),
-        limit: z.number().int().min(1).max(25).optional(),
-        cursor: z.string().max(512).optional(),
-      })
-      .optional(),
-    sort: z
-      .enum([
-        "replacement-priority",
-        "training-priority",
-        "expected-frequency",
-        "opening-scope",
-        "finding-id",
-      ])
-      .optional(),
+    description: toolContract("get_strategic_fit_report").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      report_id: z.string().max(256),
+      view: z.enum(["summary", "findings", "finding"]).optional(),
+      finding_id: z.string().max(256).optional(),
+      page: z
+        .object({
+          offset: z.number().int().min(0).max(1_000_000).optional(),
+          limit: z.number().int().min(1).max(25).optional(),
+          cursor: z.string().max(512).optional(),
+        })
+        .optional(),
+      sort: z
+        .enum([
+          "replacement-priority",
+          "training-priority",
+          "expected-frequency",
+          "opening-scope",
+          "finding-id",
+        ])
+        .optional(),
+    },
   },
   ({ repertoire_id, ...rawArgs }) => {
     const e = get(repertoire_id);
@@ -1572,15 +1639,17 @@ server.tool(
 );
 
 // --- suggest complementary lines (engine + structure) ---
-server.tool(
+server.registerTool(
   "suggest_complementary_lines",
-  toolContract("suggest_complementary_lines").description,
   {
-    repertoire_id: z.string(),
-    fen: z.string(),
-    mode: z.enum(["low_memorization", "sharp"]).optional(),
-    depth: z.number().int().min(1).max(30).optional(),
-    limit: z.number().int().min(1).max(10).optional(),
+    description: toolContract("suggest_complementary_lines").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      fen: z.string(),
+      mode: z.enum(["low_memorization", "sharp"]).optional(),
+      depth: z.number().int().min(1).max(30).optional(),
+      limit: z.number().int().min(1).max(10).optional(),
+    },
   },
   async ({ repertoire_id, fen, mode, depth, limit }) => {
     const e = get(repertoire_id);
@@ -1592,38 +1661,40 @@ server.tool(
 );
 
 // --- suggest replacement line (pivot resolution + engine + structure) ---
-server.tool(
+server.registerTool(
   "suggest_replacement_line",
-  toolContract("suggest_replacement_line").description,
   {
-    repertoire_id: z.string(),
-    contract: z.enum([REPLACEMENT_TOOL_V2_CONTRACT]).optional(),
-    replacement_request: replacementRequestEnvelopeSchema.optional(),
-    finding: replacementFindingEnvelopeSchema.optional(),
-    pivot: replacementPivotEnvelopeSchema.optional(),
-    profile: replacementProfileEnvelopeSchema.optional(),
-    sources: z
-      .array(
-        z.enum([
-          "existing-repertoire-transposition",
-          "opening-database",
-          "engine-multipv",
-          "user-line",
-          "structurally-similar",
-          "move-order-shortcut",
-        ]),
-      )
-      .min(1)
-      .max(6)
-      .optional(),
-    budget: replacementBudgetEnvelopeSchema.optional(),
-    engine: replacementEngineEnvelopeSchema.optional(),
-    coverage: replacementCoverageEnvelopeSchema.optional(),
-    retention: z.array(replacementRetentionEnvelopeSchema).max(100).optional(),
-    candidate_ids: z.array(z.string().max(256)).min(1).max(100).optional(),
-    safety: replacementSafetyEnvelopeSchema.optional(),
+    description: toolContract("suggest_replacement_line").description,
+    inputSchema: {
+      repertoire_id: z.string(),
+      contract: z.enum([REPLACEMENT_TOOL_V2_CONTRACT]).optional(),
+      replacement_request: replacementRequestEnvelopeSchema.optional(),
+      finding: replacementFindingEnvelopeSchema.optional(),
+      pivot: replacementPivotEnvelopeSchema.optional(),
+      profile: replacementProfileEnvelopeSchema.optional(),
+      sources: z
+        .array(
+          z.enum([
+            "existing-repertoire-transposition",
+            "opening-database",
+            "engine-multipv",
+            "user-line",
+            "structurally-similar",
+            "move-order-shortcut",
+          ]),
+        )
+        .min(1)
+        .max(6)
+        .optional(),
+      budget: replacementBudgetEnvelopeSchema.optional(),
+      engine: replacementEngineEnvelopeSchema.optional(),
+      coverage: replacementCoverageEnvelopeSchema.optional(),
+      retention: z.array(replacementRetentionEnvelopeSchema).max(100).optional(),
+      candidate_ids: z.array(z.string().max(256)).min(1).max(100).optional(),
+      safety: replacementSafetyEnvelopeSchema.optional(),
+    },
   },
-  async ({ repertoire_id, ...rawArgs }, extra) => {
+  ({ repertoire_id, ...rawArgs }, extra) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
     const validation = validateToolArguments(

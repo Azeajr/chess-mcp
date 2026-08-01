@@ -69,9 +69,16 @@ function evict() {
   while (map.size > MAX) {
     let oldestKey: string | undefined;
     let oldestTs = Infinity;
-    for (const [k, v] of map) if (v.ts < oldestTs) ((oldestTs = v.ts), (oldestKey = k));
+    for (const [k, v] of map) {
+      if (v.ts < oldestTs) {
+        oldestTs = v.ts;
+        oldestKey = k;
+      }
+    }
     if (oldestKey === undefined) break;
-    drop(oldestKey, map.get(oldestKey)!);
+    const entry = map.get(oldestKey);
+    if (!entry) break;
+    drop(oldestKey, entry);
   }
 }
 
@@ -156,7 +163,7 @@ export function getOrCreateStrategicFitReport(
   entry.strategicFitCheckpoint = null;
   entry.strategicFitReports.set(key, report);
   while (entry.strategicFitReports.size > MAX_STRATEGIC_FIT_REPORTS) {
-    const oldest = entry.strategicFitReports.keys().next().value as string | undefined;
+    const oldest = entry.strategicFitReports.keys().next().value;
     if (oldest === undefined) break;
     entry.strategicFitReports.delete(oldest);
   }
