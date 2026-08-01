@@ -91,7 +91,6 @@ if (PANEL) {
     )
       .replace(/\s+/g, " ")
       .trim();
-    const warn = await section.locator(".shortcut-detail .warn").allInnerTexts();
     console.log(`  inspect[${i}]: ${detail}`);
     await page.screenshot({ path: `${OUT}/20-${PANEL}-inspect-${i}.png`, fullPage: true });
   }

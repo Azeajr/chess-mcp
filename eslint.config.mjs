@@ -119,6 +119,14 @@ export default defineConfig([
   },
 
   {
+    name: "project/ui-skill-browser-scripts",
+    files: ["apps/ui/.claude/skills/run-ui/*.mjs"],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+
+  {
     name: "project/node",
     files: ["**/*.{js,mjs,cjs,ts,tsx}"],
     ignores: ["apps/ui/src/**"],
