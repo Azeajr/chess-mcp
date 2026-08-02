@@ -97,3 +97,23 @@ UI's exported render bounds from source, so it needs a Node release that strips 
   plugin versions together when the public MCP surface changes.
 - No `Co-Authored-By` trailers.
 - Release only when requested: commit, tag `v0.x.y`, and push the tag; tag CI creates the release.
+
+## UI/UX remediation work packages
+
+Treat a request matching `Implement WP-<three digits>` as an instruction to execute exactly one
+UI/UX remediation package end to end. First inspect the working tree, then run
+`pnpm ux:task WP-NNN` with the requested ID before making any edit. If the command reports the
+package blocked, complete, invalid, in progress, or otherwise non-executable, stop without
+implementing it. Never reimplement a completed package or combine packages in one request.
+
+For a ready package, the capsule emitted by `ux:task` is the authoritative package-specific scope:
+read its work-package document and repository instructions, preserve unrelated changes, and remain
+within its allowed primary files unless repository evidence proves a directly related supporting
+file is required. Satisfy every acceptance criterion and preserved behavior contract without
+weakening tests. Use the canonical package workflow, including `pnpm ux:test WP-NNN` and every test
+or check named by the capsule; fix package-caused failures and report unrelated pre-existing failures
+separately. Change only that package's lifecycle state, and only after all required validation
+passes. Then run `pnpm ux:plan-check` and verify that `pnpm ux:task WP-NNN` rejects the completed
+package as non-executable. Do not stage or commit unless the user separately requests it. The final
+response must concisely report the implementation and actual command results; never claim a pass
+without evidence.

@@ -4,6 +4,7 @@ import {
   deriveTaskLifecycle,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
+  validateRemediationAgentInstructions,
   validateRelevantSymbol,
   validateWp000RequiredCommands,
 } from "./lib/ux-task-contract.mjs";
@@ -17,6 +18,9 @@ const packages = manifest.packages;
 const foundations = manifest.foundations ?? {};
 const errors = [];
 const ids = Object.keys(packages);
+
+for (const error of validateRemediationAgentInstructions(await readText("AGENTS.md")))
+  errors.push(`AGENTS.md: ${error}`);
 
 for (const [id, item] of Object.entries(packages)) {
   for (const dependency of item.dependencies) {

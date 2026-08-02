@@ -15,7 +15,7 @@ const item = manifest.packages[id];
 if (!item) throw new Error(`Unknown work package: ${id}`);
 
 const capsule = buildTaskCapsule(id, item, state);
-if (!capsule.executable && state.packages[id]?.status === "complete") {
+if (!capsule.executable) {
   console.error(capsule.text);
   process.exitCode = 1;
 } else {

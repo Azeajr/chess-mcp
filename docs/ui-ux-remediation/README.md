@@ -11,7 +11,8 @@ This directory is a derived execution layer for [the source roadmap](../ui-ux-re
 
 ## State rules
 
-- A package starts as `not-started`; it becomes `ready` only when every manifest dependency is `completed` and every blocking gate is `resolved` with evidence recorded in `state.json`.
-- A package may be `in-progress`, `blocked`, or `completed`; completion requires the package capsule's Definition of Done.
+- A package starts as `not-started`; it becomes execution-ready only when every manifest dependency is `complete` and every blocking gate is `resolved` with evidence recorded in `state.json`.
+- A package lifecycle is `not-started`, `in-progress`, or `complete`; blocked/ready are derived readiness states. Completion requires the package capsule's Definition of Done.
 - Do not use a source-plan claim as proof of completion. The initial state intentionally marks every package `not-started`.
-- Run `pnpm ux:plan-check` after changing the manifest or state. Use `pnpm ux:task WP-005` for a compact execution capsule and `pnpm ux:test WP-005` for only that package's mapped tests.
+- The normal Codex CLI request is `Implement WP-NNN.` Repository instructions make the agent inspect the tree, run `pnpm ux:task WP-NNN`, stop unless it is ready, and follow the emitted capsule through validation and completion verification. `AGENTS.md` is the standing execution protocol; the manifest, package document, and capsule remain authoritative for package-specific requirements.
+- Run `pnpm ux:plan-check` after changing the manifest or state. Use `pnpm ux:test WP-NNN` for only that package's mapped tests.

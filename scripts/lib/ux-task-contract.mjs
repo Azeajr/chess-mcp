@@ -89,16 +89,47 @@ export const deriveTaskLifecycle = (item, packageState, state) => {
 const section = (title, values, empty = "none") =>
   `${title}:\n${values.length ? values.map((value) => `- ${value}`).join("\n") : `- ${empty}`}`;
 
+const stopMessage = (id, reason) =>
+  `STOP: ${id} is ${reason} and must not be implemented or edited.`;
+
+export const renderAgentExecutionProtocol = (id) =>
+  [
+    `agent execution protocol for ${id}:`,
+    `- Inspect AGENTS.md and docs/ui-ux-remediation/work-packages/${id}.md before editing; the package-specific capsule above is authoritative.`,
+    `- Implement ${id} only, preserve unrelated working-tree changes, and stay within its allowed primary files unless repository evidence requires a directly related supporting file.`,
+    `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
+    `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
+    `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
+    "- Do not stage or commit unless the user explicitly requests it separately. Report actual command results and distinguish unrelated pre-existing failures.",
+  ].join("\n");
+
+const renderBlockers = (lifecycle) => [
+  ...lifecycle.unresolvedDependencies.map((dependency) => `dependency ${dependency}`),
+  ...lifecycle.unresolvedGates.map((gate) => `gate ${gate}`),
+  ...lifecycle.unresolvedFoundations.map((foundation) => `foundation ${foundation}`),
+];
+
 export const buildTaskCapsule = (id, item, state) => {
   const lifecycle = deriveTaskLifecycle(item, state.packages[id], state);
-  if (lifecycle.status === "complete") {
+  if (lifecycle.readiness === "not-executable") {
     return {
       executable: false,
       text: [
-        `${id} — status: complete`,
+        `${id} — status: ${lifecycle.status}`,
         `${id} — readiness: not-executable`,
-        "completed package; do not execute it again.",
+        stopMessage(id, `${lifecycle.status}/non-executable`),
       ].join("\n"),
+    };
+  }
+  if (lifecycle.readiness === "blocked") {
+    return {
+      executable: false,
+      text: [
+        `${id} — status: ${lifecycle.status}`,
+        `${id} — readiness: blocked`,
+        section("blockers", renderBlockers(lifecycle)),
+        stopMessage(id, "blocked"),
+      ].join("\n\n"),
     };
   }
   const dependencies = [
@@ -136,8 +167,22 @@ export const buildTaskCapsule = (id, item, state) => {
       ),
       section("required tests", [...item.requiredTests.files, ...item.requiredTests.commands]),
       `rollback rule:\n- ${item.rollbackRule ?? "See the package capsule's Failure and rollback contract."}`,
+      renderAgentExecutionProtocol(id),
     ].join("\n\n"),
   };
+};
+
+export const validateRemediationAgentInstructions = (source) => {
+  const errors = [];
+  if (!/^## UI\/UX remediation work packages$/mu.test(source))
+    errors.push("missing UI/UX remediation work-package instruction section");
+  if (!/`Implement WP-<three digits>`/u.test(source))
+    errors.push("missing Implement WP-<three digits> convention");
+  if (!/`pnpm ux:task WP-NNN`/u.test(source))
+    errors.push("missing authoritative ux:task preflight command");
+  if (/WP-\d{3} AC-\d+/u.test(source))
+    errors.push("duplicates package-specific acceptance criteria");
+  return errors;
 };
 
 const has = (text, expression) => expression.test(text);

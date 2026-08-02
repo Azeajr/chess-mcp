@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildTaskCapsule,
   deriveTaskLifecycle,
   normalizePrimaryFile,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
+  validateRemediationAgentInstructions,
   validateRelevantSymbol,
   validateWp000RequiredCommands,
 } from "./lib/ux-task-contract.mjs";
@@ -42,8 +47,9 @@ test("completed packages derive not-executable and emit no actionable capsule", 
   });
   const capsule = buildTaskCapsule("WP-001", item, state("complete"));
   assert.equal(capsule.executable, false);
-  assert.match(capsule.text, /do not execute it again/u);
+  assert.match(capsule.text, /STOP: WP-001 is complete\/non-executable/u);
   assert.doesNotMatch(capsule.text, /allowed primary files/u);
+  assert.doesNotMatch(capsule.text, /agent execution protocol/u);
 });
 
 test("ready and blocked packages remain distinct", () => {
@@ -60,6 +66,65 @@ test("ready and blocked packages remain distinct", () => {
     deriveTaskLifecycle(item, { status: "in-progress" }, state("in-progress")).readiness,
     "not-executable",
   );
+});
+
+test("ready capsule emits a dynamic package-specific execution protocol", () => {
+  const capsule = buildTaskCapsule("WP-123", item, {
+    ...state("not-started"),
+    packages: { "WP-000": { status: "complete" }, "WP-123": { status: "not-started" } },
+  });
+  assert.equal(capsule.executable, true);
+  assert.match(capsule.text, /allowed primary files/u);
+  assert.match(capsule.text, /agent execution protocol for WP-123/u);
+  assert.match(capsule.text, /pnpm ux:test WP-123/u);
+  assert.match(capsule.text, /pnpm ux:task WP-123/u);
+  assert.match(capsule.text, /Do not stage or commit/u);
+  assert.doesNotMatch(capsule.text, /WP-002/u);
+});
+
+test("blocked capsule reports blockers and emits only a stop protocol", () => {
+  const capsule = buildTaskCapsule("WP-001", item, state("not-started", "not-started"));
+  assert.equal(capsule.executable, false);
+  assert.match(capsule.text, /blockers:\n- dependency WP-000/u);
+  assert.match(capsule.text, /STOP: WP-001 is blocked/u);
+  assert.doesNotMatch(capsule.text, /allowed primary files/u);
+  assert.doesNotMatch(capsule.text, /agent execution protocol/u);
+});
+
+test("in-progress capsule is non-executable and emits only a stop protocol", () => {
+  const capsule = buildTaskCapsule("WP-001", item, state("in-progress"));
+  assert.equal(capsule.executable, false);
+  assert.match(capsule.text, /status: in-progress/u);
+  assert.match(capsule.text, /STOP: WP-001 is in-progress\/non-executable/u);
+  assert.doesNotMatch(capsule.text, /agent execution protocol/u);
+});
+
+test("ux:task exits nonzero for every non-executable lifecycle fixture", async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), "chess-mcp-ux-task-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const dataDirectory = path.join(root, "docs/ui-ux-remediation");
+  await mkdir(dataDirectory, { recursive: true });
+  await writeFile(
+    path.join(dataDirectory, "manifest.json"),
+    JSON.stringify({ packages: { "WP-001": item } }),
+  );
+  const taskScript = fileURLToPath(new URL("./ux-task.mjs", import.meta.url));
+
+  for (const [status, dependencyStatus] of [
+    ["complete", "complete"],
+    ["in-progress", "complete"],
+    ["not-started", "not-started"],
+  ]) {
+    await writeFile(
+      path.join(dataDirectory, "state.json"),
+      JSON.stringify(state(status, dependencyStatus)),
+    );
+    const result = spawnSync(process.execPath, [taskScript, "WP-001"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1, `${status}: ${result.stdout}${result.stderr}`);
+  }
 });
 
 test("primary files require canonical repository-relative POSIX paths", () => {
@@ -141,4 +206,13 @@ test("WP-000 records the canonical driver path consistently", async () => {
   assert.match(planText, new RegExp(driverPath, "u"));
   assert.doesNotMatch(packageText, /(?:^|[^/])\.claude\/skills\/run-ui\/driver\.mjs/mu);
   assert.doesNotMatch(planText, /(?:^|[^/])\.claude\/skills\/run-ui\/driver\.mjs/mu);
+});
+
+test("repository instructions establish the generic remediation convention", async () => {
+  const source = await readFile("AGENTS.md", "utf8");
+  assert.deepEqual(validateRemediationAgentInstructions(source), []);
+  assert.match(source, /only after all required validation\s+passes/iu);
+  assert.match(source, /Do not stage or commit unless the user separately requests it/iu);
+  assert.match(source, /actual command results/iu);
+  assert.doesNotMatch(source, /WP-\d{3} AC-\d+/u);
 });
