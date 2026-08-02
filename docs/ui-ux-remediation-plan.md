@@ -262,7 +262,7 @@ activeShortcuts(): Shortcut[];                 // drives the help sheet
 **Does not own.** Row content semantics or the severity vocabulary.
 **Initial consumers.** All nine `.rep-row` sites in `RepertoirePanel.tsx` (lines 137, 176, 189, 207, 215, 253, 276, 300, 330, 396) and `ToolResult`'s `.result-nav`.
 **`MoveButton`** — a move span rendered as a button inside a `role="tree"` structure, with `aria-current="true"` on the active node and `aria-expanded` on branch toggles. Arrow-key traversal lives in `MoveTree`, not in the button.
-**Test strategy.** A Playwright assertion that every `.rep-row`-equivalent and every move is Tab-reachable and Enter-activatable, plus `touchTargetViolations` (D4) run against the repertoire panel and move tree roots.
+**Test strategy.** A Playwright assertion that every `.rep-row`-equivalent is Tab-reachable and Enter-activatable; the move tree is one Tab stop with arrow-key traversal and Enter activation for its internal moves. Also run `touchTargetViolations` (D4) against the repertoire panel and move-tree roots.
 **Resolves.** UX-004, UX-014 (structural half).
 
 ### 4.9 Content registry — `src/content/`
@@ -392,7 +392,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Implementation approach.**
 
-- New `apps/ui/test/e2e/helpers/app.ts`: `openApp(page, { width, height, pgn, fileName, color })` wrapping the `window.__chess` load path used by `.claude/skills/run-ui/driver.mjs`, plus `LONG_FILENAME` and `RICH_PGN` fixtures (the driver's four-line London/QID PGN, extended to ≥12 routes past ply 12 for Strategic Fit evidence tests).
+- New `apps/ui/test/e2e/helpers/app.ts`: `openApp(page, { width, height, pgn, fileName, color })` wrapping the `window.__chess` load path used by `apps/ui/.claude/skills/run-ui/driver.mjs`, plus `LONG_FILENAME` and `RICH_PGN` fixtures (the driver's four-line London/QID PGN, extended to ≥12 routes past ply 12 for Strategic Fit evidence tests).
 - New `apps/ui/test/e2e/helpers/viewports.ts`: the 16-entry matrix from §11 as an exported constant, shared by every layout spec.
 - Extend `helpers/accessibility.ts` with `keyboardReachable(root, selector)` (Tab-walks and returns unreachable elements), `rawIdentifierViolations(root)` (matches `/cohort:[0-9a-f]{16}/`, `/^[0-9a-f]{8}$/`, and any `contractsForHost("browser")` tool name appearing outside a `<details>`), and `overflowViolations(page)`.
 - New specs: `core-layout.spec.ts`, `core-keyboard.spec.ts`, `core-dialogs.spec.ts`, `core-document.spec.ts`, `core-status.spec.ts`.
@@ -411,7 +411,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
   1. `UX-001` no core panel (`.side-panel`, `.chat-wrap`, `.mobile-tabs`) has zero rendered height at 640×400, 360×640, 720×500.
   2. `UX-002` `documentElement.scrollWidth === clientWidth` at every 5 px step from 320 to 2560 with `LONG_FILENAME` loaded.
   3. `UX-014` `touchTargetViolations(app, 24)` is empty at 1280×800 and `touchTargetViolations(app, 44)` is empty with `hasTouch: true`.
-  4. `UX-003`/`UX-004` `keyboardReachable` reports zero unreachable elements for board squares, `.move`, and `.rep-row`.
+  4. `UX-003`/`UX-004` `keyboardReachable` reports zero unreachable composite entry points for the board and move tree, validates their internal keyboard traversal, and reports zero unreachable `.rep-row` controls. The board and move tree are each one page-level Tab stop; individual squares and moves are not page-level Tab stops.
   5. `UX-007` for each of the three overlays: focus enters, Tab cycles inside, `Escape` closes, focus returns, `ArrowRight` leaves `currentPath()` unchanged.
   6. `UX-005` for each mutation kind, `apply → undo → redo` returns the exact PGN at each step.
   7. `UX-012` each operation in the §3 inventory produces exactly one live-region message.
@@ -929,7 +929,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Acceptance criteria.**
 
-- `keyboardReachable` reports zero unreachable elements among `.rep-row` equivalents and move items.
+- `keyboardReachable` reports zero unreachable `.rep-row` equivalents. The move tree is one page-level Tab stop with internal arrow-key traversal, so individual move items are not required in the page Tab sequence.
 - `Enter` and `Space` on a repertoire row perform the same action as a click (navigate, or stage a preview).
 - The move tree has exactly one tab stop; entering it focuses the current move; `↑ ↓ ← → Home End` traverse without changing the board; `Enter` navigates the board and appends the chat focus marker.
 - The current move exposes `aria-current="true"`; branch toggles expose `aria-expanded` matching their state.
@@ -2269,7 +2269,7 @@ Copy changes are **not** given their own PRs. `WP-024` moves strings without rew
 | 1   | No zero-height core panel on short viewports | Playwright                                    | `RICH_PGN`, four short viewports                   | `getBoundingClientRect().height >= 192` for the active panel; tab bar fully in viewport                                                                       | Very stable — pure geometry                                                                | **Before** `WP-001` (as `fixme`) |
 | 2   | No horizontal overflow 320–2560 px           | Playwright                                    | `LONG_FILENAME` (120 chars)                        | `scrollWidth === clientWidth` at 5 px steps                                                                                                                   | Stable; sensitive to font metrics, so assert equality not a threshold                      | **Before** `WP-002`              |
 | 3   | Target sizes                                 | Playwright + existing `touchTargetViolations` | Full app, Gaps expanded                            | Empty violation array at 24 px (fine) and 44 px (`hasTouch`)                                                                                                  | Stable; needs a reviewed exclusion list that must stay empty                               | **Before** `WP-006`/`WP-011`     |
-| 4   | Keyboard reachability                        | Playwright + new `keyboardReachable`          | Branching PGN                                      | Tab-walk collects reached elements; assert every board square, `.move`, and row is reached                                                                    | Moderately stable; brittle if focus order changes — assert set membership, not order       | **Before** `WP-011`/`WP-014`     |
+| 4   | Keyboard reachability                        | Playwright + new `keyboardReachable`          | Branching PGN                                      | Tab-walk reaches the board and move-tree composite entry points and each repertoire row; assert internal board and move-tree keyboard traversal separately    | Moderately stable; brittle if focus order changes — assert set membership, not order       | **Before** `WP-011`/`WP-014`     |
 | 5   | Dialog and shortcut-scope contract           | Playwright, parameterised                     | Each overlay                                       | Focus in, Tab cycle, `Escape`, restore, `inert`, `ArrowRight` inert on `currentPath()`                                                                        | Very stable                                                                                | **Before** `WP-007`              |
 | 6   | Undo/redo round trips                        | `tsx --test` store suite                      | Each mutation kind                                 | `toPgn()` equality at each step; `version()` monotonicity                                                                                                     | Very stable — pure functions over strings                                                  | **Before** `WP-005`              |
 | 7   | Status announcements                         | Playwright                                    | Each operation kind                                | Read live-region `textContent` after each action; assert exact message count                                                                                  | Moderately stable; rate limiting must be deterministic in tests (inject a clock)           | **Before** `WP-009`              |

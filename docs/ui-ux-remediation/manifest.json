@@ -11,38 +11,35 @@
       "blockingGates": [],
       "ownedAuditFindings": [],
       "primaryFiles": [
-        "ci.yml",
-        "playwright.config.ts",
-        "test/e2e/helpers/accessibility.ts",
-        "apps/ui/test/e2e/helpers/app.ts",
-        ".claude/skills/run-ui/driver.mjs",
-        "apps/ui/test/e2e/helpers/viewports.ts",
-        "helpers/accessibility.ts",
-        "core-layout.spec.ts",
-        "core-keyboard.spec.ts",
-        "core-dialogs.spec.ts",
-        "core-document.spec.ts",
-        "core-status.spec.ts",
-        "pnpm exec playwright test --config apps/ui/playwright.config.ts",
+        ".github/workflows/ci.yml",
         "AGENTS.md",
-        "helpers/viewports.ts"
+        "apps/ui/playwright.config.ts",
+        "apps/ui/test/e2e/helpers/accessibility.ts",
+        "apps/ui/test/e2e/helpers/app.ts",
+        "apps/ui/.claude/skills/run-ui/driver.mjs",
+        "apps/ui/test/e2e/helpers/viewports.ts",
+        "apps/ui/test/e2e/core-layout.spec.ts",
+        "apps/ui/test/e2e/core-keyboard.spec.ts",
+        "apps/ui/test/e2e/core-dialogs.spec.ts",
+        "apps/ui/test/e2e/core-document.spec.ts",
+        "apps/ui/test/e2e/core-status.spec.ts",
+        "scripts/playwright-container.mjs",
+        "package.json",
+        "docs/ui-ux-remediation/manifest.json",
+        "docs/ui-ux-remediation/state.json"
       ],
       "relevantSymbols": [
-        "ci.yml",
-        "playwright.config.ts",
-        "test/e2e/helpers/accessibility.ts",
-        "apps/ui/test/e2e/helpers/app.ts",
-        ".claude/skills/run-ui/driver.mjs",
-        "apps/ui/test/e2e/helpers/viewports.ts",
-        "helpers/accessibility.ts",
-        "core-layout.spec.ts",
-        "core-keyboard.spec.ts",
-        "core-dialogs.spec.ts",
-        "core-document.spec.ts",
-        "core-status.spec.ts",
-        "pnpm exec playwright test --config apps/ui/playwright.config.ts",
-        "AGENTS.md",
-        "helpers/viewports.ts"
+        "openApp",
+        "LONG_FILENAME",
+        "RICH_PGN",
+        "keyboardReachable",
+        "rawIdentifierViolations",
+        "overflowViolations",
+        "touchTargetViolations",
+        "basicAccessibilityViolations",
+        "currentPath",
+        "fullyParallel",
+        "test.slow()"
       ],
       "acceptanceCriteria": [
         {
@@ -59,7 +56,7 @@
         },
         {
           "id": "WP-000 AC-4",
-          "text": "- Ten baseline checks exist, each named with the finding ID it guards, each currently `test.fixme` where the audit measured a failure and passing where it measured correct behaviour:\n  1. `UX-001` no core panel (`.side-panel`, `.chat-wrap`, `.mobile-tabs`) has zero rendered height at 640×400, 360×640, 720×500.\n  2. `UX-002` `documentElement.scrollWidth === clientWidth` at every 5 px step from 320 to 2560 with `LONG_FILENAME` loaded.\n  3. `UX-014` `touchTargetViolations(app, 24)` is empty at 1280×800 and `touchTargetViolations(app, 44)` is empty with `hasTouch: true`.\n  4. `UX-003`/`UX-004` `keyboardReachable` reports zero unreachable elements for board squares, `.move`, and `.rep-row`.\n  5. `UX-007` for each of the three overlays: focus enters, Tab cycles inside, `Escape` closes, focus returns, `ArrowRight` leaves `currentPath()` unchanged.\n  6. `UX-005` for each mutation kind, `apply → undo → redo` returns the exact PGN at each step.\n  7. `UX-012` each operation in the §3 inventory produces exactly one live-region message.\n  8. `UX-015`/`UX-016` `rawIdentifierViolations` is empty for the chat log and the Strategic Fit workspace.\n  9. `UX-011` a running Gaps scan remains visible after switching to the Chat tab at 390×844.\n  10. Strategic Fit strengths: staged-proposal copy, `pending`/`stale` transitions, preflight counts, finding-queue filters, chart/table fallback, and print/export complete-list mode each have at least one asserting spec (extend existing specs where they already cover it; add where they do not)."
+          "text": "- Ten baseline checks exist, each named with the finding ID it guards, each currently `test.fixme` where the audit measured a failure and passing where it measured correct behaviour:\n  1. `UX-001` no core panel (`.side-panel`, `.chat-wrap`, `.mobile-tabs`) has zero rendered height at 640×400, 360×640, 720×500.\n  2. `UX-002` `documentElement.scrollWidth === clientWidth` at every 5 px step from 320 to 2560 with `LONG_FILENAME` loaded.\n  3. `UX-014` `touchTargetViolations(app, 24)` is empty at 1280×800 and `touchTargetViolations(app, 44)` is empty with `hasTouch: true`.\n  4. `UX-003`/`UX-004` `keyboardReachable` reports zero unreachable composite entry points for the board and move tree, validates their internal keyboard traversal, and reports zero unreachable `.rep-row` controls. The board and move tree are each one page-level Tab stop; individual squares and moves are not page-level Tab stops.\n  5. `UX-007` for each of the three overlays: focus enters, Tab cycles inside, `Escape` closes, focus returns, `ArrowRight` leaves `currentPath()` unchanged.\n  6. `UX-005` for each mutation kind, `apply → undo → redo` returns the exact PGN at each step.\n  7. `UX-012` each operation in the §3 inventory produces exactly one live-region message.\n  8. `UX-015`/`UX-016` `rawIdentifierViolations` is empty for the chat log and the Strategic Fit workspace.\n  9. `UX-011` a running Gaps scan remains visible after switching to the Chat tab at 390×844.\n  10. Strategic Fit strengths: staged-proposal copy, `pending`/`stale` transitions, preflight counts, finding-queue filters, chart/table fallback, and print/export complete-list mode each have at least one asserting spec (extend existing specs where they already cover it; add where they do not)."
         },
         {
           "id": "WP-000 AC-5",
@@ -74,7 +71,9 @@
           "pnpm -r typecheck",
           "pnpm docs:check",
           "pnpm check:skills",
-          "pnpm test:e2e:container"
+          "pnpm --filter @chess-mcp/ui test:chat",
+          "pnpm test:e2e:container",
+          "pnpm ux:plan-check"
         ],
         "description": "This package _is_ the tests. Fixtures: `RICH_PGN` must produce ≥1 comparable Strategic Fit route so `WP-031`'s terminal-state test has a positive control."
       },
@@ -90,17 +89,11 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-001"],
       "primaryFiles": [
-        "styles.css:279–330",
         "apps/ui/src/styles.css",
-        "store/layout.ts",
-        "core-layout.spec.ts"
+        "apps/ui/src/store/layout.ts",
+        "apps/ui/test/e2e/core-layout.spec.ts"
       ],
-      "relevantSymbols": [
-        "styles.css:279–330",
-        "apps/ui/src/styles.css",
-        "store/layout.ts",
-        "core-layout.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-001 AC-1",
@@ -140,23 +133,11 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-002"],
       "primaryFiles": [
-        "styles.css:77–88",
-        "styles.css:331–333",
-        "TopBar.tsx:24–26",
-        "styles.css",
-        "TopBar.tsx",
-        "styles.css:342–351",
-        "core-layout.spec.ts"
+        "apps/ui/src/styles.css",
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/test/e2e/core-layout.spec.ts"
       ],
-      "relevantSymbols": [
-        "styles.css:77–88",
-        "styles.css:331–333",
-        "TopBar.tsx:24–26",
-        "styles.css",
-        "TopBar.tsx",
-        "styles.css:342–351",
-        "core-layout.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-002 AC-1",
@@ -196,29 +177,14 @@
       "blockingGates": ["PD-1"],
       "ownedAuditFindings": ["UX-006", "UX-029", "UX-032"],
       "primaryFiles": [
-        "TopBar.tsx:34–44",
-        "files.ts:94",
-        "persist.ts:46",
-        "files.ts:134–141",
-        "src/components/DocumentCloseDialog.tsx",
-        "store/files.ts",
-        "TopBar.tsx",
-        "store/game.ts",
-        "files.ts:154–161",
-        "core-document.spec.ts"
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/src/store/files.ts",
+        "apps/ui/src/store/persist.ts",
+        "apps/ui/src/components/DocumentCloseDialog.tsx",
+        "apps/ui/src/store/game.ts",
+        "apps/ui/test/e2e/core-document.spec.ts"
       ],
-      "relevantSymbols": [
-        "TopBar.tsx:34–44",
-        "files.ts:94",
-        "persist.ts:46",
-        "files.ts:134–141",
-        "src/components/DocumentCloseDialog.tsx",
-        "store/files.ts",
-        "TopBar.tsx",
-        "store/game.ts",
-        "files.ts:154–161",
-        "core-document.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-003 AC-1",
@@ -270,31 +236,17 @@
       "blockingGates": ["PD-2"],
       "ownedAuditFindings": ["UX-006"],
       "primaryFiles": [
-        "persist.ts",
-        "strategic-fit-changes.ts:754",
-        "strategic-fit-sidecar.ts:231",
-        "store/idb.ts",
-        "store/persist.ts",
-        "src/components/RecoverDialog.tsx",
-        "strategic-fit-changes.ts:740–800",
-        "strategic-fit-changes.test.ts",
-        "strategic-fit-resumable.test.ts",
-        "test/persist-snapshots.test.ts",
-        "core-document.spec.ts"
+        "apps/ui/src/store/persist.ts",
+        "apps/ui/src/store/strategic-fit-changes.ts",
+        "apps/ui/src/store/strategic-fit-sidecar.ts",
+        "apps/ui/src/store/idb.ts",
+        "apps/ui/src/components/RecoverDialog.tsx",
+        "apps/ui/test/strategic-fit-changes.test.ts",
+        "apps/ui/test/strategic-fit-resumable.test.ts",
+        "apps/ui/test/persist-snapshots.test.ts",
+        "apps/ui/test/e2e/core-document.spec.ts"
       ],
-      "relevantSymbols": [
-        "persist.ts",
-        "strategic-fit-changes.ts:754",
-        "strategic-fit-sidecar.ts:231",
-        "store/idb.ts",
-        "store/persist.ts",
-        "src/components/RecoverDialog.tsx",
-        "strategic-fit-changes.ts:740–800",
-        "strategic-fit-changes.test.ts",
-        "strategic-fit-resumable.test.ts",
-        "test/persist-snapshots.test.ts",
-        "core-document.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-004 AC-1",
@@ -349,41 +301,20 @@
       "blockingGates": ["PD-3"],
       "ownedAuditFindings": ["UX-005"],
       "primaryFiles": [
-        "App.tsx:56–59",
-        "game.ts:177–190",
-        "Board.tsx:35",
-        "PromotionModal.tsx:29",
-        "suggestions.ts:92",
-        "suggestions.ts:181",
-        "strategic-fit-changes.ts:779",
-        "strategic-fit-changes.ts:794",
-        "src/store/history.ts",
-        "store/game.ts",
-        "store/shortcuts.ts",
-        "App.tsx:55",
-        "strategic-fit-changes.test.ts",
-        "strategic-fit-resumable.test.ts",
-        "test/history.test.ts",
-        "core-keyboard.spec.ts"
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/components/Board.tsx",
+        "apps/ui/src/components/PromotionModal.tsx",
+        "apps/ui/src/store/suggestions.ts",
+        "apps/ui/src/store/strategic-fit-changes.ts",
+        "apps/ui/src/store/history.ts",
+        "apps/ui/src/store/game.ts",
+        "apps/ui/src/store/shortcuts.ts",
+        "apps/ui/test/strategic-fit-changes.test.ts",
+        "apps/ui/test/strategic-fit-resumable.test.ts",
+        "apps/ui/test/history.test.ts",
+        "apps/ui/test/e2e/core-keyboard.spec.ts"
       ],
-      "relevantSymbols": [
-        "App.tsx:56–59",
-        "game.ts:177–190",
-        "Board.tsx:35",
-        "PromotionModal.tsx:29",
-        "suggestions.ts:92",
-        "suggestions.ts:181",
-        "strategic-fit-changes.ts:779",
-        "strategic-fit-changes.ts:794",
-        "src/store/history.ts",
-        "store/game.ts",
-        "store/shortcuts.ts",
-        "App.tsx:55",
-        "strategic-fit-changes.test.ts",
-        "strategic-fit-resumable.test.ts",
-        "test/history.test.ts",
-        "core-keyboard.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-005 AC-1",
@@ -447,23 +378,12 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-025", "UX-026", "UX-027", "UX-014"],
       "primaryFiles": [
-        "styles.css:4872",
-        "Board.tsx:39",
-        "styles.css:20–31",
-        "styles.css",
-        "Board.tsx",
-        "core-a11y.spec.ts",
-        "helpers/accessibility.ts"
+        "apps/ui/src/styles.css",
+        "apps/ui/src/components/Board.tsx",
+        "apps/ui/test/e2e/core-a11y.spec.ts",
+        "apps/ui/test/e2e/helpers/accessibility.ts"
       ],
-      "relevantSymbols": [
-        "styles.css:4872",
-        "Board.tsx:39",
-        "styles.css:20–31",
-        "styles.css",
-        "Board.tsx",
-        "core-a11y.spec.ts",
-        "helpers/accessibility.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-006 AC-1",
@@ -515,43 +435,20 @@
       "blockingGates": ["AG-1"],
       "ownedAuditFindings": ["UX-007", "UX-019", "UX-045"],
       "primaryFiles": [
-        "SettingsDrawer.tsx",
-        "PromotionModal.tsx",
-        "ColorPickerModal.tsx",
-        "StrategicFitWorkspace.tsx:347–408",
-        "App.tsx:70–74",
-        "StrategicFitWorkspace.tsx:417",
-        "App.tsx:45–65",
-        "src/components/primitives/Dialog.tsx",
-        "StrategicFitWorkspace.tsx",
-        "src/store/shortcuts.ts",
-        "App.tsx",
-        "styles.css",
-        "strategic-fit-accessibility.spec.ts",
-        "strategic-fit-workspace.spec.ts",
-        "Board.tsx:55",
-        "core-dialogs.spec.ts",
-        "shortcuts.ts"
+        "apps/ui/src/components/SettingsDrawer.tsx",
+        "apps/ui/src/components/PromotionModal.tsx",
+        "apps/ui/src/components/ColorPickerModal.tsx",
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/components/primitives/Dialog.tsx",
+        "apps/ui/src/store/shortcuts.ts",
+        "apps/ui/src/styles.css",
+        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-workspace.spec.ts",
+        "apps/ui/src/components/Board.tsx",
+        "apps/ui/test/e2e/core-dialogs.spec.ts"
       ],
-      "relevantSymbols": [
-        "SettingsDrawer.tsx",
-        "PromotionModal.tsx",
-        "ColorPickerModal.tsx",
-        "StrategicFitWorkspace.tsx:347–408",
-        "App.tsx:70–74",
-        "StrategicFitWorkspace.tsx:417",
-        "App.tsx:45–65",
-        "src/components/primitives/Dialog.tsx",
-        "StrategicFitWorkspace.tsx",
-        "src/store/shortcuts.ts",
-        "App.tsx",
-        "styles.css",
-        "strategic-fit-accessibility.spec.ts",
-        "strategic-fit-workspace.spec.ts",
-        "Board.tsx:55",
-        "core-dialogs.spec.ts",
-        "shortcuts.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-007 AC-1",
@@ -610,17 +507,12 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-044"],
       "primaryFiles": [
-        "App.tsx:45–65",
-        "src/components/ShortcutHelpDialog.tsx",
-        "store/shortcuts.ts",
-        "content/index.ts"
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/components/ShortcutHelpDialog.tsx",
+        "apps/ui/src/store/shortcuts.ts",
+        "apps/ui/src/content/index.ts"
       ],
-      "relevantSymbols": [
-        "App.tsx:45–65",
-        "src/components/ShortcutHelpDialog.tsx",
-        "store/shortcuts.ts",
-        "content/index.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-008 AC-1",
@@ -657,23 +549,14 @@
       "blockingGates": ["AG-5"],
       "ownedAuditFindings": ["UX-012"],
       "primaryFiles": [
-        "App.tsx",
-        "TopBar.tsx:71",
-        "RepertoirePanel.tsx:162",
-        "src/store/announce.ts",
-        "src/components/AppLiveRegion.tsx",
-        "src/components/primitives/Toast.tsx"
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/store/announce.ts",
+        "apps/ui/src/components/AppLiveRegion.tsx",
+        "apps/ui/src/components/primitives/Toast.tsx"
       ],
-      "relevantSymbols": [
-        "App.tsx",
-        "TopBar.tsx:71",
-        "RepertoirePanel.tsx:162",
-        "src/store/announce.ts",
-        "src/components/AppLiveRegion.tsx",
-        "Toast",
-        "announce()",
-        "AppLiveRegion"
-      ],
+      "relevantSymbols": ["Toast", "announce()", "AppLiveRegion"],
       "acceptanceCriteria": [
         {
           "id": "WP-009 AC-1",
@@ -721,37 +604,17 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-011", "UX-040", "UX-012"],
       "primaryFiles": [
-        "gaps.ts:38",
-        "repertoire.ts:27",
-        "commands.ts:35",
-        "chat.ts:19",
-        "chat.ts:172",
-        "analysis.ts:37",
-        "application/execution-status.ts",
-        "chat.ts",
-        "commands.ts",
-        "src/store/operations.ts",
-        "gaps.ts",
-        "repertoire.ts",
-        "test/cancellation.test.ts",
-        "test/operations.test.ts"
+        "apps/ui/src/store/gaps.ts",
+        "apps/ui/src/store/repertoire.ts",
+        "apps/ui/src/store/commands.ts",
+        "apps/ui/src/store/chat.ts",
+        "apps/ui/src/store/analysis.ts",
+        "apps/ui/src/application/execution-status.ts",
+        "apps/ui/src/store/operations.ts",
+        "apps/ui/test/cancellation.test.ts",
+        "apps/ui/test/operations.test.ts"
       ],
-      "relevantSymbols": [
-        "gaps.ts:38",
-        "repertoire.ts:27",
-        "commands.ts:35",
-        "chat.ts:19",
-        "chat.ts:172",
-        "analysis.ts:37",
-        "application/execution-status.ts",
-        "chat.ts",
-        "commands.ts",
-        "src/store/operations.ts",
-        "gaps.ts",
-        "repertoire.ts",
-        "test/cancellation.test.ts",
-        "test/operations.test.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-010 AC-1",
@@ -795,37 +658,19 @@
       "blockingGates": ["DV-2", "AG-3"],
       "ownedAuditFindings": ["UX-004", "UX-014"],
       "primaryFiles": [
-        "RepertoirePanel.tsx",
-        "MoveTree.tsx:67–76",
-        "styles.css:834–842",
-        "ToolResult.tsx:83",
-        "src/components/primitives/InteractiveRow.tsx",
-        "src/components/primitives/MoveButton.tsx",
-        "RepertoirePanel.tsx:341",
-        "MoveTree.tsx",
-        "MoveTree.tsx:64",
-        "styles.css",
-        "MoveTree.tsx:95",
-        "core-keyboard.spec.ts"
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/components/MoveTree.tsx",
+        "apps/ui/src/styles.css",
+        "apps/ui/src/components/ToolResult.tsx",
+        "apps/ui/src/components/primitives/InteractiveRow.tsx",
+        "apps/ui/src/components/primitives/MoveButton.tsx",
+        "apps/ui/test/e2e/core-keyboard.spec.ts"
       ],
-      "relevantSymbols": [
-        "RepertoirePanel.tsx",
-        "MoveTree.tsx:67–76",
-        "styles.css:834–842",
-        "ToolResult.tsx:83",
-        "src/components/primitives/InteractiveRow.tsx",
-        "src/components/primitives/MoveButton.tsx",
-        "RepertoirePanel.tsx:341",
-        "MoveTree.tsx",
-        "MoveTree.tsx:64",
-        "styles.css",
-        "MoveTree.tsx:95",
-        "core-keyboard.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-011 AC-1",
-          "text": "- `keyboardReachable` reports zero unreachable elements among `.rep-row` equivalents and move items."
+          "text": "- `keyboardReachable` reports zero unreachable `.rep-row` equivalents; the move tree is one page-level Tab stop with internal arrow-key traversal, so individual move items are not required in the page Tab sequence."
         },
         {
           "id": "WP-011 AC-2",
@@ -873,19 +718,12 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-013"],
       "primaryFiles": [
-        "Divider.tsx",
-        "styles.css:192–229",
-        "store/layout.ts",
-        "styles.css",
-        "core-keyboard.spec.ts"
+        "apps/ui/src/components/Divider.tsx",
+        "apps/ui/src/styles.css",
+        "apps/ui/src/store/layout.ts",
+        "apps/ui/test/e2e/core-keyboard.spec.ts"
       ],
-      "relevantSymbols": [
-        "Divider.tsx",
-        "styles.css:192–229",
-        "store/layout.ts",
-        "styles.css",
-        "core-keyboard.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-012 AC-1",
@@ -929,23 +767,14 @@
       "blockingGates": ["AG-2"],
       "ownedAuditFindings": ["UX-011"],
       "primaryFiles": [
-        "MobileTabs.tsx",
-        "styles.css:318–330",
-        "StrategicFitWorkspace.tsx:325–342",
-        "App.tsx",
-        "src/components/ActivityStrip.tsx",
-        "styles.css",
-        "core-status.spec.ts"
+        "apps/ui/src/components/MobileTabs.tsx",
+        "apps/ui/src/styles.css",
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/components/ActivityStrip.tsx",
+        "apps/ui/test/e2e/core-status.spec.ts"
       ],
-      "relevantSymbols": [
-        "MobileTabs.tsx",
-        "styles.css:318–330",
-        "StrategicFitWorkspace.tsx:325–342",
-        "App.tsx",
-        "src/components/ActivityStrip.tsx",
-        "styles.css",
-        "core-status.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-013 AC-1",
@@ -989,23 +818,13 @@
       "blockingGates": ["DV-1", "AG-4"],
       "ownedAuditFindings": ["UX-003"],
       "primaryFiles": [
-        "Board.tsx:92–95",
-        "Board.tsx:32–37",
-        "src/components/BoardKeyboardLayer.tsx",
-        "src/store/board-cursor.ts",
-        "content/analysis.ts",
-        "Board.tsx:74–87",
-        "core-keyboard.spec.ts"
+        "apps/ui/src/components/Board.tsx",
+        "apps/ui/src/components/BoardKeyboardLayer.tsx",
+        "apps/ui/src/store/board-cursor.ts",
+        "apps/ui/src/content/analysis.ts",
+        "apps/ui/test/e2e/core-keyboard.spec.ts"
       ],
-      "relevantSymbols": [
-        "Board.tsx:92–95",
-        "Board.tsx:32–37",
-        "src/components/BoardKeyboardLayer.tsx",
-        "src/store/board-cursor.ts",
-        "content/analysis.ts",
-        "Board.tsx:74–87",
-        "core-keyboard.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-014 AC-1",
@@ -1061,23 +880,12 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-010"],
       "primaryFiles": [
-        "App.tsx:106–110",
-        "styles.css:415–424",
-        "App.tsx",
-        "styles.css:421–423",
-        "store/ui.ts",
-        "styles.css:319–330",
-        "core-layout.spec.ts"
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/styles.css",
+        "apps/ui/src/store/ui.ts",
+        "apps/ui/test/e2e/core-layout.spec.ts"
       ],
-      "relevantSymbols": [
-        "App.tsx:106–110",
-        "styles.css:415–424",
-        "App.tsx",
-        "styles.css:421–423",
-        "store/ui.ts",
-        "styles.css:319–330",
-        "core-layout.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-015 AC-1",
@@ -1117,43 +925,18 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-009", "UX-008", "UX-022"],
       "primaryFiles": [
-        "analysis.ts:39",
-        "AnalysisPanel.tsx:44",
-        "analysis.ts:38",
-        "TopBar.tsx:52–68",
-        "TopBar.tsx:13–17",
-        "AnalysisPanel.tsx:30–36",
-        "EvalBar.tsx",
-        "TopBar.tsx",
-        "SettingsDrawer.tsx",
-        "src/components/AnalysisSettings.tsx",
-        "analysis.ts",
-        "content/analysis.ts",
-        "store/engine-settings.ts",
-        "RepertoirePanel.tsx:86",
-        "analysis.ts:77",
-        "SettingsDrawer.tsx:87–90",
-        "core-analysis.spec.ts"
+        "apps/ui/src/store/analysis.ts",
+        "apps/ui/src/components/AnalysisPanel.tsx",
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/src/components/EvalBar.tsx",
+        "apps/ui/src/components/SettingsDrawer.tsx",
+        "apps/ui/src/components/AnalysisSettings.tsx",
+        "apps/ui/src/content/analysis.ts",
+        "apps/ui/src/store/engine-settings.ts",
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/test/e2e/core-analysis.spec.ts"
       ],
-      "relevantSymbols": [
-        "analysis.ts:39",
-        "AnalysisPanel.tsx:44",
-        "analysis.ts:38",
-        "TopBar.tsx:52–68",
-        "TopBar.tsx:13–17",
-        "AnalysisPanel.tsx:30–36",
-        "EvalBar.tsx",
-        "TopBar.tsx",
-        "SettingsDrawer.tsx",
-        "src/components/AnalysisSettings.tsx",
-        "analysis.ts",
-        "content/analysis.ts",
-        "store/engine-settings.ts",
-        "RepertoirePanel.tsx:86",
-        "analysis.ts:77",
-        "SettingsDrawer.tsx:87–90",
-        "core-analysis.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-016 AC-1",
@@ -1209,19 +992,12 @@
       "blockingGates": ["DV-3"],
       "ownedAuditFindings": ["UX-008"],
       "primaryFiles": [
-        "TopBar.tsx:19–76",
-        "TopBar.tsx",
-        "src/components/DocumentMenu.tsx",
-        "styles.css",
-        "core-layout.spec.ts"
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/src/components/DocumentMenu.tsx",
+        "apps/ui/src/styles.css",
+        "apps/ui/test/e2e/core-layout.spec.ts"
       ],
-      "relevantSymbols": [
-        "TopBar.tsx:19–76",
-        "TopBar.tsx",
-        "src/components/DocumentMenu.tsx",
-        "styles.css",
-        "core-layout.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-017 AC-1",
@@ -1269,23 +1045,14 @@
       "blockingGates": ["PD-1"],
       "ownedAuditFindings": ["UX-031", "UX-029", "UX-032"],
       "primaryFiles": [
-        "TopBar.tsx:21–23",
-        "files.ts:140",
-        "src/components/DocumentStatus.tsx",
-        "store/files.ts",
-        "content/document.ts",
-        "App.tsx",
-        "core-document.spec.ts"
+        "apps/ui/src/components/TopBar.tsx",
+        "apps/ui/src/store/files.ts",
+        "apps/ui/src/components/DocumentStatus.tsx",
+        "apps/ui/src/content/document.ts",
+        "apps/ui/src/App.tsx",
+        "apps/ui/test/e2e/core-document.spec.ts"
       ],
-      "relevantSymbols": [
-        "TopBar.tsx:21–23",
-        "files.ts:140",
-        "src/components/DocumentStatus.tsx",
-        "store/files.ts",
-        "content/document.ts",
-        "App.tsx",
-        "core-document.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-018 AC-1",
@@ -1332,8 +1099,8 @@
       "dependencies": ["WP-009", "WP-010"],
       "blockingGates": [],
       "ownedAuditFindings": ["UX-041"],
-      "primaryFiles": ["vite.config.ts:25", "src/pwa/updates.ts"],
-      "relevantSymbols": ["vite.config.ts:25", "src/pwa/updates.ts"],
+      "primaryFiles": ["apps/ui/vite.config.ts", "apps/ui/src/pwa/updates.ts"],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-019 AC-1",
@@ -1372,8 +1139,8 @@
       "dependencies": ["WP-001", "WP-002"],
       "blockingGates": [],
       "ownedAuditFindings": ["UX-024"],
-      "primaryFiles": ["styles.css", "store/layout.ts"],
-      "relevantSymbols": ["styles.css", "store/layout.ts"],
+      "primaryFiles": ["apps/ui/src/styles.css", "apps/ui/src/store/layout.ts"],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-020 AC-1",
@@ -1412,8 +1179,13 @@
       "dependencies": ["WP-000", "WP-024"],
       "blockingGates": ["PD-4"],
       "ownedAuditFindings": ["UX-028"],
-      "primaryFiles": ["store/settings.ts", "App.tsx", "store/layout.ts", "ChatPanel.tsx"],
-      "relevantSymbols": ["store/settings.ts", "App.tsx", "store/layout.ts", "ChatPanel.tsx"],
+      "primaryFiles": [
+        "apps/ui/src/store/settings.ts",
+        "apps/ui/src/App.tsx",
+        "apps/ui/src/store/layout.ts",
+        "apps/ui/src/components/ChatPanel.tsx"
+      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-021 AC-1",
@@ -1453,17 +1225,10 @@
       "blockingGates": ["DV-4"],
       "ownedAuditFindings": ["UX-021", "UX-035"],
       "primaryFiles": [
-        "RepertoirePanel.tsx:144–404",
-        "RepertoirePanel.tsx",
-        "content/repertoire.ts",
-        "RepertoirePanel.tsx:86"
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/content/repertoire.ts"
       ],
-      "relevantSymbols": [
-        "RepertoirePanel.tsx:144–404",
-        "RepertoirePanel.tsx",
-        "content/repertoire.ts",
-        "RepertoirePanel.tsx:86"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-022 AC-1",
@@ -1511,15 +1276,11 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-035"],
       "primaryFiles": [
-        "RepertoirePanel.tsx:148–160",
-        "content/strategicFit.ts",
-        "strategic-fit-workspace.spec.ts"
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/content/strategicFit.ts",
+        "apps/ui/test/e2e/strategic-fit-workspace.spec.ts"
       ],
-      "relevantSymbols": [
-        "RepertoirePanel.tsx:148–160",
-        "content/strategicFit.ts",
-        "strategic-fit-workspace.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-023 AC-1",
@@ -1565,35 +1326,19 @@
         "UX-043"
       ],
       "primaryFiles": [
-        "AnalysisPanel.tsx:14",
-        "RepertoirePanel.tsx:57",
-        "ToolResult.tsx:86",
-        "ToolResult.tsx:639–685",
-        "content/format.ts",
-        "content/errors.ts",
-        "content/tools.ts",
+        "apps/ui/src/components/AnalysisPanel.tsx",
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/components/ToolResult.tsx",
+        "apps/ui/src/content/format.ts",
+        "apps/ui/src/content/errors.ts",
+        "apps/ui/src/content/tools.ts",
         "scripts/check-content.mjs",
-        "errors.ts",
-        "AnalysisLifecycle.tsx",
-        "StrategicFitWorkspace.tsx:436",
-        "content/strategicFit.ts",
-        "test/content.test.ts"
+        "apps/ui/src/components/strategic-fit/AnalysisLifecycle.tsx",
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/src/content/strategicFit.ts",
+        "apps/ui/test/content.test.ts"
       ],
-      "relevantSymbols": [
-        "AnalysisPanel.tsx:14",
-        "RepertoirePanel.tsx:57",
-        "ToolResult.tsx:86",
-        "ToolResult.tsx:639–685",
-        "content/format.ts",
-        "content/errors.ts",
-        "content/tools.ts",
-        "scripts/check-content.mjs",
-        "errors.ts",
-        "AnalysisLifecycle.tsx",
-        "StrategicFitWorkspace.tsx:436",
-        "content/strategicFit.ts",
-        "test/content.test.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-024 AC-1",
@@ -1633,23 +1378,12 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-015"],
       "primaryFiles": [
-        "ChatPanel.tsx:85",
-        "ChatPanel.tsx:91",
-        "ToolResult.tsx:62–84",
-        "ChatPanel.tsx",
-        "ToolResult.tsx",
-        "content/tools.ts",
-        "content/format.ts"
+        "apps/ui/src/components/ChatPanel.tsx",
+        "apps/ui/src/components/ToolResult.tsx",
+        "apps/ui/src/content/tools.ts",
+        "apps/ui/src/content/format.ts"
       ],
-      "relevantSymbols": [
-        "ChatPanel.tsx:85",
-        "ChatPanel.tsx:91",
-        "ToolResult.tsx:62–84",
-        "ChatPanel.tsx",
-        "ToolResult.tsx",
-        "content/tools.ts",
-        "content/format.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-025 AC-1",
@@ -1685,29 +1419,17 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-015", "UX-020", "UX-034"],
       "primaryFiles": [
-        "ToolResult.tsx:783",
-        "ToolResult.tsx",
-        "store/settings.ts",
-        "content/chat.ts",
-        "content/format.ts",
-        "content/errors.ts",
-        "styles.css",
-        "strategic-fit-chat.spec.ts",
-        "strategic-fit-plan.spec.ts",
-        "strategic-fit-portfolio.spec.ts"
+        "apps/ui/src/components/ToolResult.tsx",
+        "apps/ui/src/store/settings.ts",
+        "apps/ui/src/content/chat.ts",
+        "apps/ui/src/content/format.ts",
+        "apps/ui/src/content/errors.ts",
+        "apps/ui/src/styles.css",
+        "apps/ui/test/e2e/strategic-fit-chat.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-plan.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-portfolio.spec.ts"
       ],
-      "relevantSymbols": [
-        "ToolResult.tsx:783",
-        "ToolResult.tsx",
-        "store/settings.ts",
-        "content/chat.ts",
-        "content/format.ts",
-        "content/errors.ts",
-        "styles.css",
-        "strategic-fit-chat.spec.ts",
-        "strategic-fit-plan.spec.ts",
-        "strategic-fit-portfolio.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-026 AC-1",
@@ -1751,37 +1473,15 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-046", "UX-040", "UX-047"],
       "primaryFiles": [
-        "chat.ts:52–59",
-        "chat.ts:143–165",
-        "chat.ts:172",
-        "ChatPanel.tsx:106–122",
-        "engine/stockfish.ts",
-        "chat.ts:146",
-        "chat.ts",
-        "src/components/ChatContextChip.tsx",
-        "ChatPanel.tsx",
-        "content/chat.ts",
-        "chat.ts:188–193",
-        "test/chat.test.ts",
-        "test/cancellation.test.ts",
-        "chat.test.ts"
+        "apps/ui/src/store/chat.ts",
+        "apps/ui/src/components/ChatPanel.tsx",
+        "apps/ui/src/engine/stockfish.ts",
+        "apps/ui/src/components/ChatContextChip.tsx",
+        "apps/ui/src/content/chat.ts",
+        "apps/ui/test/chat.test.ts",
+        "apps/ui/test/cancellation.test.ts"
       ],
-      "relevantSymbols": [
-        "chat.ts:52–59",
-        "chat.ts:143–165",
-        "chat.ts:172",
-        "ChatPanel.tsx:106–122",
-        "engine/stockfish.ts",
-        "chat.ts:146",
-        "chat.ts",
-        "src/components/ChatContextChip.tsx",
-        "ChatPanel.tsx",
-        "content/chat.ts",
-        "chat.ts:188–193",
-        "test/chat.test.ts",
-        "test/cancellation.test.ts",
-        "chat.test.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-027 AC-1",
@@ -1828,8 +1528,12 @@
       "dependencies": ["WP-027"],
       "blockingGates": [],
       "ownedAuditFindings": ["UX-038"],
-      "primaryFiles": ["AnalysisPanel.tsx:62–84", "store/suggestions.ts", "store/ui.ts"],
-      "relevantSymbols": ["AnalysisPanel.tsx:62–84", "store/suggestions.ts", "store/ui.ts"],
+      "primaryFiles": [
+        "apps/ui/src/components/AnalysisPanel.tsx",
+        "apps/ui/src/store/suggestions.ts",
+        "apps/ui/src/store/ui.ts"
+      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-028 AC-1",
@@ -1861,15 +1565,10 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-036", "UX-037", "UX-039", "UX-042"],
       "primaryFiles": [
-        "RepertoirePanel.tsx:246",
-        "content/repertoire.ts",
-        "RepertoirePanel.tsx:264–267"
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/content/repertoire.ts"
       ],
-      "relevantSymbols": [
-        "RepertoirePanel.tsx:246",
-        "content/repertoire.ts",
-        "RepertoirePanel.tsx:264–267"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-029 AC-1",
@@ -1917,19 +1616,13 @@
       "blockingGates": ["PD-6"],
       "ownedAuditFindings": ["UX-016"],
       "primaryFiles": [
-        "src/store/strategic-fit-names.ts",
-        "chat.ts",
-        "strategic-fit-cohort-adjustments.ts",
-        "strategic-fit-retrieval.test.ts",
-        "strategic-fit-chat.spec.ts"
+        "apps/ui/src/store/strategic-fit-names.ts",
+        "apps/ui/src/store/chat.ts",
+        "apps/ui/src/store/strategic-fit-cohort-adjustments.ts",
+        "apps/ui/test/strategic-fit-retrieval.test.ts",
+        "apps/ui/test/e2e/strategic-fit-chat.spec.ts"
       ],
-      "relevantSymbols": [
-        "src/store/strategic-fit-names.ts",
-        "chat.ts",
-        "strategic-fit-cohort-adjustments.ts",
-        "strategic-fit-retrieval.test.ts",
-        "strategic-fit-chat.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-030 AC-1",
@@ -1973,21 +1666,14 @@
       "blockingGates": ["PD-7"],
       "ownedAuditFindings": ["UX-017"],
       "primaryFiles": [
-        "AnalysisLifecycle.tsx:16",
-        "store/strategic-fit.ts",
-        "src/components/strategic-fit/InsufficientEvidence.tsx",
-        "content/strategicFit.ts",
-        "strategic-fit-preflight.spec.ts",
-        "strategic-fit-preflight-presentation.test.ts"
+        "apps/ui/src/components/strategic-fit/AnalysisLifecycle.tsx",
+        "apps/ui/src/store/strategic-fit.ts",
+        "apps/ui/src/components/strategic-fit/InsufficientEvidence.tsx",
+        "apps/ui/src/content/strategicFit.ts",
+        "apps/ui/test/e2e/strategic-fit-preflight.spec.ts",
+        "apps/ui/test/strategic-fit-preflight-presentation.test.ts"
       ],
-      "relevantSymbols": [
-        "AnalysisLifecycle.tsx:16",
-        "store/strategic-fit.ts",
-        "src/components/strategic-fit/InsufficientEvidence.tsx",
-        "content/strategicFit.ts",
-        "strategic-fit-preflight.spec.ts",
-        "strategic-fit-preflight-presentation.test.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-031 AC-1",
@@ -2031,21 +1717,13 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-018"],
       "primaryFiles": [
-        "AnalysisLifecycle.tsx:115",
-        "AnalysisLifecycle.tsx",
-        "store/ui.ts:37",
-        "StrategicFitWorkspace.tsx:393–396",
-        "strategic-fit-lifecycle.spec.ts",
-        "strategic-fit-preflight.spec.ts"
+        "apps/ui/src/components/strategic-fit/AnalysisLifecycle.tsx",
+        "apps/ui/src/store/ui.ts",
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/test/e2e/strategic-fit-lifecycle.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-preflight.spec.ts"
       ],
-      "relevantSymbols": [
-        "AnalysisLifecycle.tsx:115",
-        "AnalysisLifecycle.tsx",
-        "store/ui.ts:37",
-        "StrategicFitWorkspace.tsx:393–396",
-        "strategic-fit-lifecycle.spec.ts",
-        "strategic-fit-preflight.spec.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-032 AC-1",
@@ -2084,8 +1762,11 @@
       "dependencies": ["WP-007", "WP-031"],
       "blockingGates": ["DV-5", "AG-1"],
       "ownedAuditFindings": ["UX-033"],
-      "primaryFiles": ["styles.css:1711–1713", "strategic-fit-accessibility.spec.ts"],
-      "relevantSymbols": ["styles.css:1711–1713", "strategic-fit-accessibility.spec.ts"],
+      "primaryFiles": [
+        "apps/ui/src/styles.css",
+        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts"
+      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-033 AC-1",
@@ -2129,15 +1810,11 @@
       "blockingGates": ["PD-8"],
       "ownedAuditFindings": ["UX-043"],
       "primaryFiles": [
-        "ResolutionProof.tsx:9–20",
-        "content/strategicFit.ts",
+        "apps/ui/src/components/strategic-fit/ResolutionProof.tsx",
+        "apps/ui/src/content/strategicFit.ts",
         "packages/chess-tools/src/workflow-contract.ts"
       ],
-      "relevantSymbols": [
-        "ResolutionProof.tsx:9–20",
-        "content/strategicFit.ts",
-        "packages/chess-tools/src/workflow-contract.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-034 AC-1",
@@ -2185,7 +1862,7 @@
       "blockingGates": ["PD-5"],
       "ownedAuditFindings": [],
       "primaryFiles": ["docs/"],
-      "relevantSymbols": ["PD-5 study", "written recommendation"],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-035 AC-1",
@@ -2206,8 +1883,8 @@
       "dependencies": ["WP-006"],
       "blockingGates": [],
       "ownedAuditFindings": ["UX-030", "UX-048"],
-      "primaryFiles": ["styles.css", "styles.css:1–4"],
-      "relevantSymbols": ["styles.css", "styles.css:1–4"],
+      "primaryFiles": ["apps/ui/src/styles.css"],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-036 AC-1",
@@ -2255,15 +1932,11 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-048"],
       "primaryFiles": [
-        "ChatPanel.tsx:117",
-        "RepertoirePanel.tsx:237",
-        "StrategicFitWorkspace.tsx:94"
+        "apps/ui/src/components/ChatPanel.tsx",
+        "apps/ui/src/components/RepertoirePanel.tsx",
+        "apps/ui/src/components/StrategicFitWorkspace.tsx"
       ],
-      "relevantSymbols": [
-        "ChatPanel.tsx:117",
-        "RepertoirePanel.tsx:237",
-        "StrategicFitWorkspace.tsx:94"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-037 AC-1",
@@ -2311,21 +1984,13 @@
       "blockingGates": [],
       "ownedAuditFindings": ["UX-023"],
       "primaryFiles": [
-        "analysis.ts:32",
-        "Board.tsx:74–87",
-        "AnalysisPanel.tsx:12",
-        "src/components/ArrowLegend.tsx",
-        "Board.tsx:44–49",
-        "content/analysis.ts"
+        "apps/ui/src/store/analysis.ts",
+        "apps/ui/src/components/Board.tsx",
+        "apps/ui/src/components/AnalysisPanel.tsx",
+        "apps/ui/src/components/ArrowLegend.tsx",
+        "apps/ui/src/content/analysis.ts"
       ],
-      "relevantSymbols": [
-        "analysis.ts:32",
-        "Board.tsx:74–87",
-        "AnalysisPanel.tsx:12",
-        "src/components/ArrowLegend.tsx",
-        "Board.tsx:44–49",
-        "content/analysis.ts"
-      ],
+      "relevantSymbols": [],
       "acceptanceCriteria": [
         {
           "id": "WP-038 AC-1",
