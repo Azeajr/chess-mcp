@@ -15,8 +15,8 @@ import { createSignal } from "solid-js";
 const KEY_SIDE = "chess.layout.side";
 const KEY_CHAT = "chess.layout.chat";
 const KEY_BOARD = "chess.layout.board";
-const MIN_PX = 240;
-const MAX_PX = 800;
+export const MIN_PX = 240;
+export const MAX_PX = 800;
 const SIDE_DEFAULT = 300;
 const CHAT_DEFAULT = 360;
 const BOARD_MIN = 300; // px the board keeps before chat/side are clamped
@@ -66,6 +66,12 @@ export function resizeSideChat(d: number) {
   setChatWidthRaw(chat - delta);
 }
 
+/** Restore both desktop panel widths; persistence stays with the invoking interaction. */
+export function resetLayout() {
+  setSideWidthRaw(SIDE_DEFAULT);
+  setChatWidthRaw(CHAT_DEFAULT);
+}
+
 /** On window resize, shrink chat-then-side so the board keeps BOARD_MIN. */
 function reflow() {
   const b = budget();
@@ -87,8 +93,12 @@ const [boardSize, setBoardSizeRaw] = createSignal(readBoard());
 export { boardSize };
 export const setBoardSize = (px: number) =>
   setBoardSizeRaw(Math.max(BOARD_SM_MIN, Math.min(BOARD_SM_MAX, px)));
+export function resetBoard() {
+  setBoardSizeRaw(0);
+}
 export function persistBoard() {
   if (boardSize() > 0) localStorage.setItem(KEY_BOARD, String(boardSize()));
+  else localStorage.removeItem(KEY_BOARD);
 }
 
 /** Persist current widths — call on drag-end (pointerup), one write per gesture. */

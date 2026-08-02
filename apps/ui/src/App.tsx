@@ -36,6 +36,10 @@ import {
   boardSize,
   setBoardSize,
   persistBoard,
+  resetBoard,
+  resetLayout,
+  MIN_PX,
+  MAX_PX,
 } from "./store/layout";
 
 export default function App() {
@@ -116,6 +120,10 @@ export default function App() {
               rendered square on the first drag so it picks up where the CSS default left off. */}
           <Divider
             axis="y"
+            label="Resize the chessboard"
+            value={boardSize() || 320}
+            min={160}
+            max={900}
             onResize={(d) => {
               const base =
                 boardSize() > 0
@@ -124,16 +132,23 @@ export default function App() {
               setBoardSize(base + d);
             }}
             onEnd={persistBoard}
+            onReset={resetBoard}
           />
           {/* Phone-only panel switcher; hidden above 720px. */}
           <MobileTabs />
           {/* board│side boundary: drag right shrinks side so the board grows — the divider follows
               the cursor (board is flex:1 and absorbs the slack). */}
           <Divider
+            label="Resize the analysis panel"
+            value={effSideWidth()}
+            min={MIN_PX}
+            max={MAX_PX}
+            valueDirection={-1}
             onResize={(d) => {
               resizeSide(-d);
             }}
             onEnd={persistLayout}
+            onReset={resetLayout}
           />
           <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
             <AnalysisPanel />
@@ -142,10 +157,15 @@ export default function App() {
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
           <Divider
+            label="Resize the analysis and chat panels"
+            value={effSideWidth()}
+            min={MIN_PX}
+            max={MAX_PX}
             onResize={(d) => {
               resizeSideChat(d);
             }}
             onEnd={persistLayout}
+            onReset={resetLayout}
           />
           <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
             <ChatPanel />

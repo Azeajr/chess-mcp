@@ -241,6 +241,7 @@ img,
 }
 
 .divider {
+  position: relative;
   width: 5px;
   flex: 0 0 auto;
   cursor: col-resize;
@@ -248,6 +249,15 @@ img,
   border-radius: 3px;
   touch-action: none;
   transition: background var(--motion-fast);
+}
+.divider::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  left: 50%;
+  width: var(--target-min);
+  transform: translateX(-50%);
 }
 .divider:hover,
 .divider:active {
@@ -273,6 +283,12 @@ img,
   border-radius: 2px;
   background: var(--border);
   transition: background var(--motion-fast);
+}
+.divider-h::before {
+  inset: 50% 0 auto;
+  width: 100%;
+  height: var(--target-min);
+  transform: translateY(-50%);
 }
 .divider-h:hover::after,
 .divider-h:active::after {
@@ -389,6 +405,13 @@ img,
 
 /* Touch devices: meet the 44px tap-target minimum without bloating mouse density. */
 @media (pointer: coarse) {
+  .divider::before {
+    width: var(--target-touch);
+  }
+  .divider-h::before {
+    width: 100%;
+    height: var(--target-touch);
+  }
   .app-main :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])) {
     min-width: var(--target-touch);
     min-height: var(--target-touch);

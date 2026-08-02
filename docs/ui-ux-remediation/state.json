@@ -97,7 +97,23 @@
       "status": "not-started"
     },
     "WP-012": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-012",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-keyboard.spec.ts --reporter=dot (18 passed, 3 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm test:e2e:container (307 passed, 20 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
+          "git diff --check"
+        ],
+        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified focusable and named separator semantics, 16/64 px keyboard resizing, clamped Home/End bounds, keyup persistence and reload, Enter/double-click reset, pointer capture outside the divider, 24/44 px hit areas, phone board clamping, and adjacent-panel click-through across Chromium, Firefox, and WebKit."
+      }
     },
     "WP-013": {
       "status": "not-started"

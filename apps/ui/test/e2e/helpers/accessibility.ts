@@ -165,7 +165,7 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
       );
     };
     for (const candidate of container.querySelectorAll<HTMLElement>(
-      "button, select, summary, [role='tab'], a[href], input:not([type='hidden']):not([type='range'])",
+      "button, select, summary, [role='tab'], [role='separator'], a[href], input:not([type='hidden']):not([type='range'])",
     )) {
       if (!visible(candidate) || candidate.matches(":disabled")) continue;
       const input = candidate instanceof HTMLInputElement ? candidate : null;
@@ -174,13 +174,23 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
           ? (candidate.closest<HTMLElement>("label") ?? candidate)
           : candidate;
       const rect = target.getBoundingClientRect();
-      if (rect.width + 0.01 < min || rect.height + 0.01 < min) {
+      const hitRect =
+        candidate.getAttribute("role") === "separator"
+          ? (() => {
+              const hitArea = getComputedStyle(candidate, "::before");
+              return {
+                width: Math.max(rect.width, Number.parseFloat(hitArea.width) || 0),
+                height: Math.max(rect.height, Number.parseFloat(hitArea.height) || 0),
+              };
+            })()
+          : rect;
+      if (hitRect.width + 0.01 < min || hitRect.height + 0.01 < min) {
         const name =
           candidate.getAttribute("aria-label") ??
           candidate.textContent?.trim() ??
           input?.name ??
           candidate.tagName.toLowerCase();
-        issues.push(`${name}: ${rect.width.toFixed(1)}×${rect.height.toFixed(1)}`);
+        issues.push(`${name}: ${hitRect.width.toFixed(1)}×${hitRect.height.toFixed(1)}`);
       }
     }
     return issues;
@@ -205,7 +215,8 @@ export async function keyboardReachable(root: Locator, selector: string): Promis
   const page = root.page();
   const reached = new Set<string>();
   await root.focus();
-  for (let index = 0; index < Math.max(32, markers.length * 4); index++) {
+  // Dense panels can place related composite entry points dozens of controls apart in DOM order.
+  for (let index = 0; index < Math.max(128, markers.length * 4); index++) {
     await page.keyboard.press("Tab");
     const marker = await page.evaluate(
       () => document.activeElement?.getAttribute("data-keyboard-target") ?? null,
