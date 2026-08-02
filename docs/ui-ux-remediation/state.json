@@ -2,15 +2,20 @@
   "version": 1,
   "packages": {
     "WP-000": {
-      "status": "in-progress",
+      "status": "complete",
       "evidence": {
-        "baseline": "HEAD a6f8be57 in detached worktree reproduced format:check, docs:check, check:skills, and test:chat failures; baseline Chromium Playwright passed.",
-        "blockers": [
-          "format:check: docs/ui-ux-remediation/manifest.json, all WP capsules, and scripts/ux-{plan-check,task,test}.mjs",
-          "docs:check: docs/TOOL_CATALOG.md is stale",
-          "check:skills: analyze-position, chess-game-review, annotate-pgn, and repertoire-builder guidance is stale",
-          "test:chat: failures in chat.test.ts, strategic-fit-lifecycle.test.ts, strategic-fit-replacement-change-review.test.ts, strategic-fit-resolution-proof.test.ts, and strategic-fit-resumable.test.ts"
-        ]
+        "validation": [
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm -r typecheck",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed)",
+          "pnpm test:e2e:container (243 passed, 27 expected test.fixme cases skipped)",
+          "pnpm ux:plan-check",
+          "pnpm ux:test WP-000"
+        ],
+        "playwright": "pnpm test:e2e:container: Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble ran pnpm install --frozen-lockfile and the configured in-container Vite webServer; 243 passed, 27 expected test.fixme cases skipped across Chromium, Firefox, and WebKit. Chromium owns the four retained *-linux.png visual baselines; Firefox/WebKit run the applicable non-snapshot suite."
       }
     },
     "WP-001": {

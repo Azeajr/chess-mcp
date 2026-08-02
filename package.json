@@ -20,6 +20,8 @@
     "ux:task": "node scripts/ux-task.mjs",
     "ux:test": "node scripts/ux-test.mjs",
     "ux:plan-check": "node scripts/ux-plan-check.mjs",
+    "test:e2e:container": "node scripts/playwright-container.mjs",
+    "test:e2e:update-snapshots": "node scripts/playwright-container.mjs --update-snapshots",
     "verify:openrouter": "node --import tsx scripts/openrouter-tool-surface-eval.mjs",
     "docs:generate": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs",
     "docs:check": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs --check && node scripts/docs-consistency.mjs",

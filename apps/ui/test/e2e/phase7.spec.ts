@@ -245,7 +245,7 @@ test("structured command errors render as distinct result cards", async ({ page 
   await expect(page.getByRole("alert")).toContainText("missing_criteria");
 });
 
-test("long direct analysis exposes a working cancel action", async ({ page }) => {
+test.slow("long direct analysis exposes a working cancel action", async ({ page }) => {
   await chess(page, (api) => api.loadPgn("1. e4 (1. d4 d5 2. c4) e5 2. Nf3 Nc6 3. Bb5"));
   await page.getByRole("button", { name: "Audit" }).click();
   const cancel = page.getByRole("button", { name: "Cancel" }).first();

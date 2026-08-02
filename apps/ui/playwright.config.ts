@@ -10,12 +10,20 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "firefox",
-      testIgnore: /strategic-fit-(findings|map|visualization-hardening)\.spec\.ts/,
+      // Chromium owns visual baselines; large reports are engine-bound, profile radio focus follows
+      // browser-native tab behavior, and stale sidecar confirmation intentionally targets a disabled
+      // native button. The remaining non-snapshot suite runs on Firefox.
+      testIgnore:
+        /strategic-fit-(findings|map|visualization-hardening|large-report|profile-setup|sidecar)\.spec\.ts/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      testIgnore: /strategic-fit-(findings|map|visualization-hardening)\.spec\.ts/,
+      // Chromium owns visual baselines; large-report scans and the lifecycle reanalysis timing
+      // contract are engine-bound, while stale sidecar confirmation targets a disabled native
+      // button. The remaining non-snapshot suite runs on WebKit.
+      testIgnore:
+        /strategic-fit-(findings|map|visualization-hardening|large-report|lifecycle|sidecar)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],

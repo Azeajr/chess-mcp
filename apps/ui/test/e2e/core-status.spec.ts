@@ -2,15 +2,54 @@ import { expect, test } from "playwright/test";
 import { openApp } from "./helpers/app";
 import { rawIdentifierViolations } from "./helpers/accessibility";
 
-test.fixme("UX-012 every operation produces exactly one live-region announcement", async ({
+type AnnouncementScenario =
+  | "file-saved"
+  | "document-restored"
+  | "operation-started"
+  | "operation-completed"
+  | "operation-cancelled"
+  | "operation-failed"
+  | "mutation-applied"
+  | "mutation-undone"
+  | "engine-offline";
+
+const announcementScenarios: ReadonlyArray<{
+  scenario: AnnouncementScenario;
+  message: RegExp;
+}> = [
+  { scenario: "file-saved", message: /file.*saved/i },
+  { scenario: "document-restored", message: /document.*restored/i },
+  { scenario: "operation-started", message: /operation.*started/i },
+  { scenario: "operation-completed", message: /operation.*\d+.*result/i },
+  { scenario: "operation-cancelled", message: /operation.*cancelled/i },
+  { scenario: "operation-failed", message: /operation.*failed/i },
+  { scenario: "mutation-applied", message: /mutation.*applied/i },
+  { scenario: "mutation-undone", message: /mutation.*undone/i },
+  { scenario: "engine-offline", message: /engine.*offline/i },
+];
+
+test.fixme("UX-012 every required event produces exactly one live-region announcement", async ({
   page,
 }) => {
   await openApp(page);
-  const liveRegions = page.locator("[role='status'], [role='alert'], [aria-live]");
-  const before = await liveRegions.allTextContents();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  const after = await liveRegions.allTextContents();
-  expect(after.filter((message, index) => message !== before[index]).length).toBe(1);
+  const liveRegions = page.locator("[data-app-live-region]");
+  for (const { scenario, message } of announcementScenarios) {
+    const before = await liveRegions.allTextContents();
+    await page.evaluate((event) => {
+      const chess = (
+        window as unknown as {
+          __chess: { exerciseAnnouncementScenario(scenario: AnnouncementScenario): Promise<void> };
+        }
+      ).__chess;
+      return chess.exerciseAnnouncementScenario(event);
+    }, scenario);
+    const changed = async () => {
+      const after = await liveRegions.allTextContents();
+      return after.filter((text, index) => text.trim() !== "" && text !== before[index]);
+    };
+    await expect.poll(changed).toHaveLength(1);
+    expect((await changed())[0]).toMatch(message);
+  }
 });
 
 test.fixme("UX-015 UX-016 chat and Strategic Fit never expose raw identifiers", async ({

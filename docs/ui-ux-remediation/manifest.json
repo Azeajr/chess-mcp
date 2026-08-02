@@ -73,7 +73,8 @@
           "pnpm format:check",
           "pnpm -r typecheck",
           "pnpm docs:check",
-          "pnpm check:skills"
+          "pnpm check:skills",
+          "pnpm test:e2e:container"
         ],
         "description": "This package _is_ the tests. Fixtures: `RICH_PGN` must produce ≥1 comparable Strategic Fit route so `WP-031`'s terminal-state test has a positive control."
       },

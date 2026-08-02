@@ -58,8 +58,7 @@ jobs:
       - run: pnpm --filter @chess-mcp/chess-tools build
       - run: pnpm --filter @chess-mcp/ui typecheck
       - run: pnpm --filter @chess-mcp/ui test:chat
-      - run: pnpm exec playwright install --with-deps chromium firefox webkit
-      - run: pnpm exec playwright test --config apps/ui/playwright.config.ts
+      - run: pnpm test:e2e:container
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v6
