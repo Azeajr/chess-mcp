@@ -109,7 +109,7 @@
         },
         {
           "id": "WP-001 AC-4",
-          "text": "- `document.documentElement.scrollWidth === clientWidth` at all four short viewports."
+          "text": "- `document.documentElement.scrollWidth === clientWidth` at 640×400, 360×640, and 720×500. At 800×450, WP-001 does not increase the pre-existing horizontal overflow baseline; absolute elimination of that top-bar overflow is WP-002's acceptance criterion."
         },
         {
           "id": "WP-001 AC-5",

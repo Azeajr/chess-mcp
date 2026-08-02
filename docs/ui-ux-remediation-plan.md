@@ -465,7 +465,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - At 640×400, 360×640, 720×500, and 800×450: `.side-panel` (or `.chat-wrap` when the Chat tab is active) has rendered height ≥ 192 px, and `.mobile-tabs` is fully within the viewport.
 - At 360×740 and 390×844 the rendered heights of `.topbar`, `.board-wrap`, `.side-panel`, and `.mobile-tabs` are unchanged from the pre-change baseline (±2 px).
 - At 640×400 the page reaches the bottom of the Analysis panel by scrolling `.workspace`, with no horizontal scroll.
-- `document.documentElement.scrollWidth === clientWidth` at all four short viewports.
+- `document.documentElement.scrollWidth === clientWidth` at 640×400, 360×640, and 720×500. At 800×450, WP-001 does not increase the pre-existing horizontal overflow baseline; absolute elimination of that top-bar overflow is WP-002's acceptance criterion.
 - Switching mobile tabs at 640×400 does not remount Chessground (assert the board element's identity is stable).
 
 **Automated tests.** `core-layout.spec.ts`: baseline check 1 flips from `fixme` to passing; add the 360×740/390×844 no-regression assertions with recorded baseline numbers as a fixture constant.
