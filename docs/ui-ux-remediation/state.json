@@ -137,7 +137,27 @@
       "status": "not-started"
     },
     "WP-020": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-020 (WP-020 responsive-tier Node assertions passed)",
+          "node --test scripts/ux-task-contract.test.mjs scripts/wp020-responsive-tiers.test.mjs (2 test files passed)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-layout.spec.ts --grep \"WP-020|UX-024\" --reporter=dot (9 passed across Chromium, Firefox, and WebKit)",
+          "pnpm test:e2e:container apps/ui/test/e2e/strategic-fit-*.spec.ts --project chromium --reporter=dot (90 passed across all 18 current Strategic Fit spec files)",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed across all 43 store suites)",
+          "pnpm test:e2e:container (316 passed, 20 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Playwright 1.61.0 in the version-matched mcr.microsoft.com/playwright:v1.61.0-noble container verified the 1100-to-1101 px cliff bound, one-time no-drift seeding, the 320-to-2560 px panel-minimum sweep, and exact pre-change persisted widths across Chromium, Firefox, and WebKit. The board changed from 560 px to 505 px (9.82%) in the manual Chromium resize check.",
+        "manual": "Headless Chromium on Linux was visually inspected at 1100x800 and after resizing the same live page to 1101x800. The transition was not visually jarring: the board contracted by 55 px, analysis and chat appeared at their 240 px floors without overlap or clipping, and the workspace remained usable."
+      }
     },
     "WP-021": {
       "status": "not-started"

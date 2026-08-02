@@ -7,8 +7,8 @@
  * Single-layer model: the stored width IS the rendered width (WYSIWYG). Each drag caps the panel
  * it controls against the *other* panel's current width so the board keeps a floor (BOARD_MIN) —
  * the other panel never moves, so the dividers are independent. On window resize, reflow() shrinks
- * chat-then-side to keep the board floor. Only the wide flex regime reads these — the grid
- * breakpoints (≤1100px) neutralise the inline widths with `width:auto`.
+ * chat-then-side to keep the board floor. Only the wide flex regime reads these — the compact and
+ * grid tiers neutralise the inline widths with `width:auto`.
  */
 import { createSignal } from "solid-js";
 
@@ -27,6 +27,8 @@ const GUTTER = 96; // workspace padding + gaps + dividers, approx
 // container width via min(), so it can never overflow.
 const BOARD_SM_MIN = 160;
 const BOARD_SM_MAX = 900;
+const COMPACT_MAX = 720;
+const GRID_MAX = 1100;
 
 const clamp = (px: number) => Math.max(MIN_PX, Math.min(MAX_PX, px));
 const read = (k: string, fallback: number) => {
@@ -34,6 +36,12 @@ const read = (k: string, fallback: number) => {
   return Number.isFinite(v) && v > 0 ? clamp(v) : fallback;
 };
 
+const hasPersistedLayout =
+  typeof localStorage !== "undefined" &&
+  [KEY_SIDE, KEY_CHAT].every((key) => {
+    const value = Number(localStorage.getItem(key));
+    return Number.isFinite(value) && value > 0;
+  });
 const [sideWidth, setSideWidthRaw] = createSignal(read(KEY_SIDE, SIDE_DEFAULT));
 const [chatWidth, setChatWidthRaw] = createSignal(read(KEY_CHAT, CHAT_DEFAULT));
 export { sideWidth, chatWidth };
@@ -83,7 +91,75 @@ function reflow() {
   setSideWidthRaw(side);
   setChatWidthRaw(chat);
 }
-if (typeof window !== "undefined") window.addEventListener("resize", reflow);
+
+interface GridLayout {
+  board: number;
+  chat: number;
+  side: number;
+}
+
+let gridLayout: GridLayout | undefined;
+let canSeedWideTransition = !hasPersistedLayout;
+const isGridTier = () => window.innerWidth > COMPACT_MAX && window.innerWidth <= GRID_MAX;
+let wasGridTier = typeof window !== "undefined" && isGridTier();
+
+function measureGridLayout() {
+  if (!isGridTier()) return;
+  const board = document.querySelector<HTMLElement>(".board-panel");
+  const side = document.querySelector<HTMLElement>(".side-panel");
+  const chat = document.querySelector<HTMLElement>(".chat-wrap");
+  if (!board || !side || !chat) return;
+  gridLayout = {
+    board: board.getBoundingClientRect().width,
+    side: side.getBoundingClientRect().width,
+    chat: chat.getBoundingClientRect().width,
+  };
+}
+
+/**
+ * A fresh profile has no meaningful desktop widths yet. On its first grid-to-flex crossing, use
+ * the grid geometry to divide the width left after preserving the rendered board. Existing stored
+ * values bypass this path, so layouts persisted by older builds remain exact.
+ */
+function seedWideLayout(measured: GridLayout) {
+  const workspace = document.querySelector<HTMLElement>(".workspace");
+  const dividers = workspace?.querySelectorAll<HTMLElement>(".divider:not(.divider-h)");
+  if (!workspace || !dividers) return;
+  const style = getComputedStyle(workspace);
+  const horizontalChrome =
+    Number.parseFloat(style.paddingLeft) +
+    Number.parseFloat(style.paddingRight) +
+    Number.parseFloat(style.columnGap) * 4 +
+    [...dividers].reduce((total, divider) => total + divider.getBoundingClientRect().width, 0);
+  const panelBudget = Math.max(
+    MIN_PX * 2,
+    workspace.getBoundingClientRect().width - horizontalChrome - measured.board,
+  );
+  const measuredTotal = measured.side + measured.chat;
+  const sideShare =
+    measuredTotal > 0 ? (panelBudget * measured.side) / measuredTotal : panelBudget / 2;
+  const seededSide = clamp(Math.min(measured.side, Math.max(MIN_PX, sideShare)));
+  const seededChat = clamp(Math.max(MIN_PX, panelBudget - seededSide));
+  setSideWidthRaw(seededSide);
+  setChatWidthRaw(seededChat);
+  persistLayout();
+}
+
+function handleResize() {
+  const gridTier = isGridTier();
+  if (canSeedWideTransition && wasGridTier && window.innerWidth > GRID_MAX && gridLayout) {
+    seedWideLayout(gridLayout);
+    canSeedWideTransition = false;
+  }
+  reflow();
+  wasGridTier = gridTier;
+  if (gridTier) requestAnimationFrame(measureGridLayout);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", handleResize);
+  if (wasGridTier) requestAnimationFrame(measureGridLayout);
+}
 
 const readBoard = () => {
   const v = Number(localStorage.getItem(KEY_BOARD));

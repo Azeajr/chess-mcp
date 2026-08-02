@@ -238,6 +238,92 @@ test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page }) => {
   await touchContext.close();
 });
 
+test("UX-024 / WP-020 AC-1 removes the 1100px board-size cliff without transition drift", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem("chess.layout.side");
+    localStorage.removeItem("chess.layout.chat");
+  });
+  await openApp(page, { width: 1100, height: 800 });
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))),
+  );
+  const gridBoardWidth = await page
+    .locator(".board-wrap")
+    .evaluate((element) => element.getBoundingClientRect().width);
+
+  await page.setViewportSize({ width: 1101, height: 800 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          localStorage.getItem("chess.layout.side") !== null &&
+          localStorage.getItem("chess.layout.chat") !== null,
+      ),
+    )
+    .toBe(true);
+  const seeded = await page.evaluate(() => ({
+    board: document.querySelector(".board-wrap")?.getBoundingClientRect().width ?? 0,
+    side: localStorage.getItem("chess.layout.side"),
+    chat: localStorage.getItem("chess.layout.chat"),
+  }));
+  expect(Math.abs(seeded.board - gridBoardWidth) / gridBoardWidth).toBeLessThanOrEqual(0.15);
+
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.setViewportSize({ width: 1101, height: 800 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        side: localStorage.getItem("chess.layout.side"),
+        chat: localStorage.getItem("chess.layout.chat"),
+      })),
+    )
+    .toEqual({ side: seeded.side, chat: seeded.chat });
+});
+
+test("WP-020 AC-2 keeps visible panels above tier minimums through a continuous resize sweep", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem("chess.layout.side");
+    localStorage.removeItem("chess.layout.chat");
+  });
+  await openApp(page, { width: 320, height: 1100 });
+  for (let width = 320; width <= 2560; width += 5) {
+    await page.setViewportSize({ width, height: 1100 });
+    const violations = await page.locator(".side-panel, .chat-wrap").evaluateAll((panels) =>
+      panels.flatMap((panel) => {
+        const rect = panel.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return [];
+        return rect.width >= 240 && rect.height >= 192
+          ? []
+          : [{ className: panel.className, width: rect.width, height: rect.height }];
+      }),
+    );
+    expect(violations, `panel minimums at ${width}px`).toEqual([]);
+  }
+});
+
+test("WP-020 AC-5 honours layout widths persisted by the pre-change build", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("chess.layout.side", "333");
+    localStorage.setItem("chess.layout.chat", "350");
+  });
+  await openApp(page, { width: 1100, height: 800 });
+  await page.setViewportSize({ width: 1101, height: 800 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        sideRendered: document.querySelector(".side-panel")?.getBoundingClientRect().width,
+        chatRendered: document.querySelector(".chat-wrap")?.getBoundingClientRect().width,
+        sideStored: localStorage.getItem("chess.layout.side"),
+        chatStored: localStorage.getItem("chess.layout.chat"),
+      })),
+    )
+    .toEqual({ sideRendered: 333, chatRendered: 350, sideStored: "333", chatStored: "350" });
+});
+
 test("UX-014 all core controls meet pointer target minimums", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
   const app = page.locator(".app");

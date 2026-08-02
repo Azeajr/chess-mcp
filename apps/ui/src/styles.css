@@ -3,6 +3,30 @@
 @import "chessground/assets/chessground.brown.css";
 @import "chessground/assets/chessground.cburnett.css";
 
+/* WP-020_RESPONSIVE_TIERS_START
+ * Responsive tiers are a source convention because native CSS cannot use custom properties in
+ * media conditions. Keep the px values in this block only; queries below use their em equivalents.
+ *
+ * Compact (up to --tier-compact-max: 720px): one mounted panel is visible below the pinned board;
+ * the workspace scrolls only on constrained heights, and tabs may hide the other mounted panels.
+ * Grid (--tier-grid-min: 721px through --tier-grid-max: 1100px): board and analysis share the first
+ * row, chat spans the second; workspace/chat content scrolls and no panel may be hidden.
+ * Flex (--tier-flex-min: 1101px and above): board absorbs spare width while analysis and chat use
+ * persisted widths; each content panel owns its vertical scrolling and no panel may be hidden.
+ *
+ * Every tier keeps panels at least --tier-panel-min-width: 240px wide when visible and at least
+ * --tier-panel-min-height: 12rem tall. Content, never the whole document, owns overflow.
+ */
+:root {
+  --tier-compact-max: 720px;
+  --tier-grid-min: 721px;
+  --tier-grid-max: 1100px;
+  --tier-flex-min: 1101px;
+  --tier-panel-min-width: 240px;
+  --tier-panel-min-height: 12rem;
+}
+/* WP-020_RESPONSIVE_TIERS_END */
+
 :root {
   --bg: #1e1e21;
   --panel: #26262b;
@@ -264,7 +288,7 @@ img,
   background: var(--accent);
 }
 
-/* Horizontal board resizer — only shown in the phone column layout (see ≤720px). A visible grip
+/* Horizontal board resizer — only shown in the compact column tier. A visible grip
    so it's discoverable as a drag handle. */
 .divider-h {
   display: none;
@@ -295,7 +319,7 @@ img,
   background: var(--accent);
 }
 
-/* Phone panel switcher — hidden until the ≤720px breakpoint flips it to flex. */
+/* Phone panel switcher — hidden until the compact tier flips it to flex. */
 .mobile-tabs {
   display: none;
   gap: 0.4rem;
@@ -319,7 +343,7 @@ img,
 
 /* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
    inline panel widths are neutralised so the grid columns take over. */
-@media (max-width: 1100px) {
+@media (max-width: 68.75em) {
   .workspace {
     display: grid;
     grid-template-columns: minmax(260px, 1fr) 320px;
@@ -343,7 +367,7 @@ img,
 /* Phone: pinned board + tab bar. The tab bar sets .workspace[data-mtab]; the rules below toggle
    each panel's display so panels stay mounted (chessground never re-inits, chat keeps its log).
    Short viewports give the panel its 12rem floor and let the workspace scroll instead. */
-@media (max-width: 720px) {
+@media (max-width: 45em) {
   .workspace {
     display: flex;
     flex-direction: column;
@@ -479,7 +503,7 @@ img,
 
 /* Preserve the pinned phone layout at normal heights. On constrained viewports the panel keeps
    its usable floor and the workspace, rather than the Analysis panel, owns the scroll. */
-@media (max-width: 720px) and (max-height: 640px) {
+@media (max-width: 45em) and (max-height: 640px) {
   .side-panel,
   .chat-wrap {
     flex: 1 1 12rem;
@@ -487,7 +511,7 @@ img,
   }
 }
 
-@media (max-width: 720px) and (max-height: 640px) {
+@media (max-width: 45em) and (max-height: 640px) {
   .workspace {
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -500,7 +524,7 @@ img,
 /* The wide workspace is locked to the viewport and clips its own overflow. Let the complete
    middle column scroll as well as the move tree's body, otherwise expanded analysis/repertoire
    content can be pushed outside the viewport with no scroll container that can reach it. */
-@media (min-width: 1101px) {
+@media (min-width: 68.8125em) {
   .side-panel {
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -5677,6 +5701,7 @@ img,
   overflow-wrap: anywhere;
 }
 
+/* Strategic Fit workspace-local compact fallback; this is not a global responsive tier. */
 @media (max-width: 820px) {
   .strategic-fit-entry {
     align-items: flex-start;
@@ -6295,6 +6320,7 @@ img,
   padding-left: 1.1rem;
   font-size: 0.82rem;
 }
+/* Strategic Fit workspace-local compact fallback; this is not a global responsive tier. */
 @media (max-width: 820px) {
   .strategic-map-chart {
     max-width: 100%;
@@ -6453,6 +6479,7 @@ img,
   padding-left: 1.1rem;
   font-size: 0.82rem;
 }
+/* Strategic Fit workspace-local compact fallback; this is not a global responsive tier. */
 @media (max-width: 820px) {
   .concept-heatmap-controls label {
     flex: 1 1 8rem;
@@ -6628,6 +6655,7 @@ img,
   padding-left: 1.1rem;
   font-size: 0.82rem;
 }
+/* Strategic Fit workspace-local compact fallback; this is not a global responsive tier. */
 @media (max-width: 820px) {
   .decision-flow-controls label {
     flex: 1 1 8rem;
@@ -6749,10 +6777,10 @@ img,
 }
 
 /*
- * Responsive fallbacks: below the phone breakpoint the drawn charts give up width before the table
+ * Responsive fallbacks: in the compact tier the drawn charts give up width before the table
  * equivalents do, because the tables are what must stay readable.
  */
-@media (max-width: 720px) {
+@media (max-width: 45em) {
   .strategic-map-chart {
     max-width: 100%;
   }

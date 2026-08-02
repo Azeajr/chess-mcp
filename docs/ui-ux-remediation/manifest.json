@@ -1164,8 +1164,11 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": ["node --test"],
+        "files": [
+          "apps/ui/test/e2e/core-layout.spec.ts",
+          "scripts/wp020-responsive-tiers.test.mjs"
+        ],
+        "commands": ["node --test scripts/wp020-responsive-tiers.test.mjs"],
         "description": "A continuous-resize sweep asserting the cliff bound and the minimums; a `styles.css` lint-style assertion (a small `node --test` script) that raw breakpoint literals appear only in the tier block."
       },
       "requiredManualValidation": "Drag a browser window across 1100 px and confirm the transition is not visually jarring.",
