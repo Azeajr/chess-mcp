@@ -78,6 +78,7 @@ test("ready capsule emits a dynamic package-specific execution protocol", () => 
   assert.match(capsule.text, /agent execution protocol for WP-123/u);
   assert.match(capsule.text, /pnpm ux:test WP-123/u);
   assert.match(capsule.text, /pnpm ux:task WP-123/u);
+  assert.match(capsule.text, /next executable package/u);
   assert.match(capsule.text, /Do not stage or commit/u);
   assert.doesNotMatch(capsule.text, /WP-002/u);
 });

@@ -100,6 +100,7 @@ export const renderAgentExecutionProtocol = (id) =>
     `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
     `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
     `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
+    "- Inspect the current manifest and state after completion. In the final response, name the next executable package, or state that none is ready and summarize the blockers.",
     "- Do not stage or commit unless the user explicitly requests it separately. Report actual command results and distinguish unrelated pre-existing failures.",
   ].join("\n");
 
@@ -180,6 +181,8 @@ export const validateRemediationAgentInstructions = (source) => {
     errors.push("missing Implement WP-<three digits> convention");
   if (!/`pnpm ux:task WP-NNN`/u.test(source))
     errors.push("missing authoritative ux:task preflight command");
+  if (!/next executable package/u.test(source))
+    errors.push("missing next executable package handoff");
   if (/WP-\d{3} AC-\d+/u.test(source))
     errors.push("duplicates package-specific acceptance criteria");
   return errors;

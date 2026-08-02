@@ -114,6 +114,8 @@ weakening tests. Use the canonical package workflow, including `pnpm ux:test WP-
 or check named by the capsule; fix package-caused failures and report unrelated pre-existing failures
 separately. Change only that package's lifecycle state, and only after all required validation
 passes. Then run `pnpm ux:plan-check` and verify that `pnpm ux:task WP-NNN` rejects the completed
-package as non-executable. Do not stage or commit unless the user separately requests it. The final
-response must concisely report the implementation and actual command results; never claim a pass
-without evidence.
+package as non-executable. After completion, inspect the current manifest and state to identify the
+next executable package. The final response must name that package, or state that none is ready and
+summarize the blockers. Do not stage or commit unless the user separately requests it. The final
+response must also concisely report the implementation and actual command results; never claim a
+pass without evidence.
