@@ -1919,8 +1919,17 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
+        "files": [
+          "scripts/wp036-design-tokens.test.mjs",
+          "apps/ui/test/e2e/core-a11y.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-map.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-visualization-hardening.spec.ts"
+        ],
+        "commands": [
+          "node --test scripts/wp036-design-tokens.test.mjs",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-a11y.spec.ts apps/ui/test/e2e/strategic-fit-map.spec.ts apps/ui/test/e2e/strategic-fit-findings.spec.ts apps/ui/test/e2e/strategic-fit-visualization-hardening.spec.ts"
+        ],
         "description": "The existing Strategic Fit visual snapshots as the primary gate; the density guard assertions; a stylesheet assertion that raw hexes and `z-index` literals do not appear outside allowed regions."
       },
       "requiredManualValidation": "A side-by-side review of the type migration at 1280×800 and 390×844 before merge.",

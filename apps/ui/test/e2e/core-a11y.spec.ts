@@ -322,3 +322,34 @@ test("WP-006 AC-8 target floors keep panel density within fifteen percent", asyn
   expect(heights.side).toBeLessThanOrEqual(baseline.side * 1.15);
   expect(heights.chat).toBeLessThanOrEqual(baseline.chat * 1.15);
 });
+
+test("WP-036 AC-2 and AC-6 rendered body type meets its floor without panel overgrowth", async ({
+  page,
+}) => {
+  await openApp(page, { width: 1280, height: 800 });
+
+  const violations = await page.locator("body").evaluate((root) =>
+    [...root.querySelectorAll("*")]
+      .filter((element) => !element.closest("svg, .cg-wrap"))
+      .filter((element) => element.textContent?.trim())
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        return style.display !== "none" && style.visibility !== "hidden";
+      })
+      .map((element) => ({
+        selector: element.className || element.tagName.toLowerCase(),
+        size: Number.parseFloat(getComputedStyle(element).fontSize),
+        uppercase: getComputedStyle(element).textTransform === "uppercase",
+      }))
+      .filter(({ size, uppercase }) => size < (uppercase ? 11.2 : 12)),
+  );
+  expect(violations).toEqual([]);
+
+  const baseline = { side: 717.625, chat: 717.625 };
+  const heights = await page.locator(".side-panel, .chat-wrap").evaluateAll((elements) => ({
+    side: elements[0]!.getBoundingClientRect().height,
+    chat: elements[1]!.getBoundingClientRect().height,
+  }));
+  expect(heights.side).toBeLessThanOrEqual(baseline.side * 1.15);
+  expect(heights.chat).toBeLessThanOrEqual(baseline.chat * 1.15);
+});

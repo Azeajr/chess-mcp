@@ -205,7 +205,29 @@
       "status": "not-started"
     },
     "WP-036": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-036 (4 stylesheet contract tests and 50 Playwright tests passed; 2 expected browser-capability skips)",
+          "node --test scripts/wp036-design-tokens.test.mjs (4 passed)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-a11y.spec.ts --grep WP-036 (3 passed across Chromium, Firefox, and WebKit)",
+          "pnpm test:e2e:container (319 passed, 20 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed across all 43 store suites)",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check"
+        ],
+        "playwright": "Playwright 1.61.0 in the version-matched mcr.microsoft.com/playwright:v1.61.0-noble container verified the 12 px rendered body floor, the explicit 11.2 px uppercase micro-label allowlist, the 15% panel-density bound, all Strategic Fit behavior, and the complete configured suite across Chromium, Firefox, and WebKit.",
+        "snapshots": "Reviewer note: the additive token/color/layer extraction first passed all 28 targeted Strategic Fit tests against the existing baselines with zero screenshot differences. After the intentional type-floor migration, only strategic-map-chart-linux.png, strategic-fit-review-desktop-linux.png, and strategic-fit-review-phone-linux.png changed. Each was reviewed individually: plotted map geometry and colors remain unchanged; desktop and phone changes are limited to larger body and label text, with controls, pinned stage navigation, reachability, and overflow behavior preserved. The print snapshot remained byte-stable. No blanket snapshot update was used.",
+        "manual": "Headless Chromium 1.61 on Linux was reviewed side by side at 1280x800 and 390x844 using the pre-change and targeted post-change Strategic Fit baselines. The 12 px floor improves dense analysis copy without clipping; desktop phase cards remain a three-column grid, phone phase cards remain a reachable single column, the pinned stage bar and touch targets remain intact, and no panel exceeded the measured 15% growth bound.",
+        "accessibility": "Rendered application body text was programmatically checked in Chromium, Firefox, and WebKit: ordinary text is at least 12 px and the only 11.2 px application text is the documented uppercase micro-label allowlist. Chessground coordinates and SVG viewBox labels remain outside the body-text policy, preserving the imported board theme and meaningful chart scaling. Focus, reduced-motion, forced-colors, selection, and pointer/touch target tests all remained green.",
+        "contentGate": "pnpm check:content is not yet a repository command because its owning package WP-024 remains not-started; no content surface changed in WP-036.",
+        "rollback": "Reverting the type-floor declarations and the three reviewed snapshots restores the prior dense typography while leaving the additive token block independently usable. Reverting the full WP-036 change restores the former literal styles. Neither rollback changes repertoire, profile, analysis, or other user data."
+      }
     },
     "WP-037": {
       "status": "not-started"
