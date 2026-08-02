@@ -5,25 +5,38 @@ import { VIEWPORTS } from "./helpers/viewports";
 
 const NORMAL_PHONE_BASELINES = {
   chromium: {
-    "360×740": { ".topbar": 163.75, ".board-wrap": 318, ".side-panel": 171.25, ".mobile-tabs": 33 },
-    "390×844": { ".topbar": 163.75, ".board-wrap": 348, ".side-panel": 245.25, ".mobile-tabs": 33 },
+    "360×740": {
+      ".topbar": 146.921875,
+      ".board-wrap": 318,
+      ".side-panel": 188.078125,
+      ".mobile-tabs": 33,
+    },
+    "390×844": {
+      ".topbar": 146.921875,
+      ".board-wrap": 348,
+      ".side-panel": 262.078125,
+      ".mobile-tabs": 33,
+    },
   },
   firefox: {
-    "360×740": { ".topbar": 173.8, ".board-wrap": 318, ".side-panel": 157.2, ".mobile-tabs": 37 },
-    "390×844": { ".topbar": 173.8, ".board-wrap": 348, ".side-panel": 231.2, ".mobile-tabs": 37 },
+    "360×740": { ".topbar": 157, ".board-wrap": 318, ".side-panel": 174, ".mobile-tabs": 37 },
+    "390×844": { ".topbar": 157, ".board-wrap": 348, ".side-panel": 248, ".mobile-tabs": 37 },
   },
   webkit: {
-    "360×740": { ".topbar": 180.75, ".board-wrap": 318, ".side-panel": 151.25, ".mobile-tabs": 36 },
+    "360×740": {
+      ".topbar": 163.921875,
+      ".board-wrap": 318,
+      ".side-panel": 168.078125,
+      ".mobile-tabs": 36,
+    },
     "390×844": {
-      ".topbar": 147.75,
+      ".topbar": 136.53125,
       ".board-wrap": 348,
-      ".side-panel": 258.234375,
+      ".side-panel": 269.453125,
       ".mobile-tabs": 36,
     },
   },
 } as const;
-
-const PRE_EXISTING_800_OVERFLOW_WIDTHS = { chromium: 858, firefox: 849, webkit: 855 } as const;
 
 const panelDimensions = (page: import("playwright/test").Page) =>
   page.evaluate(() =>
@@ -35,10 +48,7 @@ const panelDimensions = (page: import("playwright/test").Page) =>
     ),
   );
 
-test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({
-  page,
-  browserName,
-}) => {
+test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
   for (const viewport of [
     { width: 640, height: 400 },
     { width: 360, height: 640 },
@@ -67,14 +77,7 @@ test("UX-001 / WP-001 core panels retain usable height on short viewports", asyn
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
     }));
-    if (viewport.width === 800) {
-      expect(
-        viewportWidths.scrollWidth,
-        "800×450 preserves the WP-002 overflow baseline",
-      ).toBeLessThanOrEqual(PRE_EXISTING_800_OVERFLOW_WIDTHS[browserName]);
-    } else {
-      expect(viewportWidths.scrollWidth).toBe(viewportWidths.clientWidth);
-    }
+    expect(viewportWidths.scrollWidth).toBe(viewportWidths.clientWidth);
 
     if (viewport.width <= 720) {
       await page.getByRole("tab", { name: "Chat" }).click();
@@ -163,17 +166,76 @@ test("WP-001 scrolls the Analysis panel through the workspace without remounting
   }
 });
 
-test.fixme("UX-002 no horizontal overflow across the viewport matrix and width sweep", async ({
+test("UX-002 / WP-002 AC-1 has no horizontal overflow across the viewport matrix and width sweep", async ({
   page,
 }) => {
+  await openApp(page, { ...VIEWPORTS[0], fileName: LONG_FILENAME });
   for (const viewport of VIEWPORTS) {
-    await openApp(page, { ...viewport, fileName: LONG_FILENAME });
+    await page.setViewportSize(viewport);
     expect(await overflowViolations(page)).toEqual([]);
   }
   for (let width = 320; width <= 2560; width += 5) {
-    await openApp(page, { width, height: 800, fileName: LONG_FILENAME });
+    await page.setViewportSize({ width, height: 800 });
     expect(await overflowViolations(page), `overflow at ${width}px`).toEqual([]);
   }
+});
+
+test("WP-002 AC-2 keeps top-bar controls and repertoire actions inside the viewport", async ({
+  page,
+}) => {
+  await openApp(page, { width: 768, height: 1024, fileName: LONG_FILENAME });
+  const violations = await page
+    .locator(".topbar button, .topbar select, .topbar input, .rep-section button")
+    .evaluateAll((elements) =>
+      elements.flatMap((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.left >= 0 &&
+          rect.right <= window.innerWidth &&
+          rect.top >= 0 &&
+          rect.bottom <= window.innerHeight
+          ? []
+          : [element.textContent?.trim() || element.getAttribute("aria-label") || element.tagName];
+      }),
+    );
+  expect(violations).toEqual([]);
+});
+
+test("WP-002 AC-3 contains the filename and exposes its full value", async ({ page }) => {
+  await openApp(page, { width: 768, height: 1024, fileName: LONG_FILENAME });
+  const filename = page.locator(".topbar .moveno");
+  await expect(filename).toHaveAttribute("title", LONG_FILENAME);
+  const width = await filename.evaluate((element) => element.getBoundingClientRect().width);
+  expect(width).toBeLessThanOrEqual(768 * 0.4 + 0.01);
+});
+
+test("WP-002 AC-4 keeps the normal-width top bar on one row", async ({ page }) => {
+  await openApp(page, { width: 1280, height: 800, fileName: "twenty-character.pgn" });
+  const rowCenters = await page
+    .locator(".topbar > :not(.analysis-notice)")
+    .evaluateAll((elements) => [
+      ...new Set(
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return Math.round(rect.top + rect.height / 2);
+        }),
+      ),
+    ]);
+  expect(rowCenters).toHaveLength(1);
+});
+
+test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page }) => {
+  const touchContext = await page
+    .context()
+    .browser()!
+    .newContext({
+      baseURL: "http://127.0.0.1:4173",
+      hasTouch: true,
+      viewport: { width: 1280, height: 800 },
+    });
+  const touchPage = await touchContext.newPage();
+  await openApp(touchPage, { width: 1280, height: 800 });
+  expect(await touchTargetViolations(touchPage.locator(".topbar"), 44)).toEqual([]);
+  await touchContext.close();
 });
 
 test.fixme("UX-014 all core controls meet pointer target minimums", async ({ page }) => {

@@ -27,11 +27,17 @@ export default function TopBar() {
         <span class="dirty">● unsaved</span>
       </Show>
       <Show when={fileName()}>
-        <span class="moveno">{fileName()}</span>
+        <span class="moveno" title={fileName() ?? ""}>
+          {fileName()}
+        </span>
       </Show>
       <button onClick={() => void openFile()}>Open PGN</button>
       <Show when={storedFileName()}>
-        <button title="Re-open your last file" onClick={() => void reopenLast()}>
+        <button
+          class="reopen-button"
+          title={`Re-open your last file: ${storedFileName()}`}
+          onClick={() => void reopenLast()}
+        >
           Reopen {storedFileName()}
         </button>
       </Show>

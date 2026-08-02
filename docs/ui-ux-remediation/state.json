@@ -36,7 +36,21 @@
       }
     },
     "WP-002": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-002",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-layout.spec.ts --reporter=dot (24 passed, 3 unrelated expected test.fixme cases skipped across Chromium, Firefox, and WebKit; final WebKit geometry correction separately passed)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed)",
+          "git diff --check"
+        ],
+        "playwright": "Canonical version-matched Playwright 1.61.0 container validated the 320–2560 px sweep, viewport matrix, 768 px control containment, 40% filename bound and full title, 1280 px one-row layout, 44 px coarse-pointer targets, and preserved WP-001 geometry across Chromium, Firefox, and WebKit."
+      }
     },
     "WP-003": {
       "status": "not-started"

@@ -76,8 +76,11 @@ img,
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 0.75rem;
+  row-gap: 0.4rem;
   padding: 0.6rem 1rem;
   /* Clear the notch / rounded corners in the installed standalone app (env → 0 elsewhere). */
   padding-top: calc(0.6rem + env(safe-area-inset-top));
@@ -88,8 +91,18 @@ img,
 }
 
 .topbar .title {
+  flex: 0 1 auto;
+  min-width: 0;
   font-weight: 600;
   margin-right: auto;
+}
+
+.topbar .moveno {
+  min-width: 0;
+  max-width: min(32ch, 40%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar button,
@@ -102,6 +115,14 @@ img,
   padding: 0.35rem 0.7rem;
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+.topbar .reopen-button {
+  min-width: 0;
+  max-width: min(32ch, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar .depth-control {
@@ -328,9 +349,6 @@ img,
   }
   .workspace[data-mtab="chat"] .side-panel {
     display: none;
-  }
-  .topbar {
-    flex-wrap: wrap;
   }
   /* 16px floor stops iOS Safari auto-zooming when these gain focus. */
   .chat-input textarea,
