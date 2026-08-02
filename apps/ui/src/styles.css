@@ -10,11 +10,22 @@
   --text: #e6e6e6;
   --muted: #9a9aa3;
   --accent: #6ea8fe;
+  --focus-ring: 2px solid var(--accent);
+  --focus-offset: 2px;
+  --target-min: 24px;
+  --target-touch: 44px;
+  --motion-fast: 120ms;
+  --motion-slow: 200ms;
   color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: var(--focus-ring) !important;
+  outline-offset: var(--focus-offset) !important;
 }
 
 body {
@@ -24,13 +35,11 @@ body {
   color: var(--text);
   /* Stop pull-to-refresh / scroll-chaining while panning the board or scrolling chat. */
   overscroll-behavior: none;
-  /* Kill long-press callout menu and drag-select highlight app-wide (mobile Safari/Chrome). */
+  /* Keep long-press callouts suppressed for board gestures on mobile Safari/Chrome. */
   -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
-/* Text areas and inputs still need normal select/drag/callout for editing (chat box, FEN/PGN fields). */
+/* Text areas and inputs need normal select/drag/callout for editing (chat box, FEN/PGN fields). */
 input,
 textarea,
 [contenteditable] {
@@ -44,6 +53,27 @@ img,
   -webkit-user-drag: none;
   user-drag: none;
   -webkit-touch-callout: none;
+}
+
+/* Selection is the default; suppress it only on genuine gesture and application-chrome surfaces. */
+.cg-wrap,
+.topbar,
+.mobile-tabs,
+.mobile-tabs button,
+.divider,
+.eval-bar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-main :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])) {
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+}
+
+.app-main a[href] {
+  display: inline-flex;
+  align-items: center;
 }
 
 .app {
@@ -217,7 +247,7 @@ img,
   background: transparent;
   border-radius: 3px;
   touch-action: none;
-  transition: background 0.15s;
+  transition: background var(--motion-fast);
 }
 .divider:hover,
 .divider:active {
@@ -242,7 +272,7 @@ img,
   height: 4px;
   border-radius: 2px;
   background: var(--border);
-  transition: background 0.15s;
+  transition: background var(--motion-fast);
 }
 .divider-h:hover::after,
 .divider-h:active::after {
@@ -359,13 +389,9 @@ img,
 
 /* Touch devices: meet the 44px tap-target minimum without bloating mouse density. */
 @media (pointer: coarse) {
-  .topbar button,
-  .topbar select,
-  .topbar input,
-  .chat-input button,
-  .mobile-tabs button,
-  .rep-panel .scan-btn {
-    min-height: 44px;
+  .app-main :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])) {
+    min-width: var(--target-touch);
+    min-height: var(--target-touch);
   }
 }
 
@@ -407,7 +433,7 @@ img,
   right: 0;
   bottom: 0;
   background: #e6e6e6;
-  transition: height 0.2s ease;
+  transition: height var(--motion-slow) ease;
 }
 
 .eval-bar .score {
@@ -533,8 +559,9 @@ img,
   align-items: center;
   justify-content: center;
   flex: none;
-  min-width: 1.1rem;
-  height: 1.1rem;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  height: var(--target-min);
   margin-top: 0.15rem;
   padding: 0 0.25rem;
   font-size: 0.66rem;
@@ -814,7 +841,7 @@ img,
   display: block;
   height: 100%;
   background: var(--accent);
-  transition: width 0.15s ease;
+  transition: width var(--motion-fast) ease;
 }
 .rep-panel .scan-bar.indeterminate .scan-bar-fill {
   animation: scan-progress 1.2s ease-in-out infinite;
@@ -847,8 +874,10 @@ img,
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 50%;
-  width: 1.1rem;
-  height: 1.1rem;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  width: var(--target-min);
+  height: var(--target-min);
   line-height: 1;
   font-size: 0.7rem;
   cursor: pointer;
@@ -5998,6 +6027,17 @@ img,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-slow: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
   .strategic-fit-region-spinner {
     animation: none;
   }
@@ -6016,6 +6056,49 @@ img,
 }
 
 @media (forced-colors: active) {
+  .sev,
+  .fit,
+  .eval-bar,
+  .scan-bar-fill,
+  .tool-run,
+  .mobile-tabs button.active,
+  .divider:hover,
+  .divider:active {
+    forced-color-adjust: auto;
+  }
+  .sev-high,
+  .fit-out,
+  .tool-run.failed {
+    border: 2px double CanvasText;
+  }
+  .sev-medium,
+  .fit-adjacent,
+  .tool-run.cancelled {
+    border: 2px dashed CanvasText;
+  }
+  .sev-low,
+  .fit-in-book,
+  .tool-run.completed {
+    border: 1px solid CanvasText;
+  }
+  .tool-run.running {
+    border-left: 5px solid CanvasText;
+  }
+  .mobile-tabs button.active {
+    border: 3px double CanvasText;
+    text-decoration: underline;
+  }
+  .scan-bar-fill {
+    border-block: 2px solid CanvasText;
+    background: repeating-linear-gradient(45deg, CanvasText 0 2px, Canvas 2px 4px);
+  }
+  .eval-bar {
+    border: 2px solid CanvasText;
+  }
+  .divider:hover,
+  .divider:active {
+    outline: 2px solid CanvasText;
+  }
   .replacement-pareto-point circle,
   .replacement-candidate-table tbody tr,
   .replacement-candidate-detail,

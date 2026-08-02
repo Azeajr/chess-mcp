@@ -62,7 +62,24 @@
       "status": "not-started"
     },
     "WP-006": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-006",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/core-a11y.spec.ts apps/ui/test/e2e/core-layout.spec.ts --project chromium --grep \"WP-006|UX-014\" --reporter=dot (8 passed)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-a11y.spec.ts --reporter=dot (19 passed, 2 browser-capability skips)",
+          "pnpm test:e2e:container (289 passed, 20 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm --filter @chess-mcp/ui test:chat (282 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check"
+        ],
+        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified the global focus ring, reduced-motion CSS and board behavior, forced-colors differentiators, selectable output and board selection suppression, Chromium touch drag, 24/44 px target floors, and the 15% density guard. The complete configured suite passed on Chromium, Firefox, and WebKit."
+      }
     },
     "WP-007": {
       "status": "not-started"

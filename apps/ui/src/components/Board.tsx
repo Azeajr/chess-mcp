@@ -17,8 +17,12 @@ import { pendingPromo, setPendingPromo } from "../store/promotion";
 export default function Board() {
   let el!: HTMLDivElement;
   let cg: Api | undefined;
+  let motionPreference: MediaQueryList | undefined;
+  const syncAnimationPreference = () =>
+    cg?.set({ animation: { enabled: !motionPreference?.matches } });
 
   onMount(() => {
+    motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     cg = Chessground(el, {
       fen: fen(),
       orientation: color(),
@@ -35,9 +39,10 @@ export default function Board() {
           },
         },
       },
-      animation: { enabled: true, duration: 120 },
+      animation: { enabled: !motionPreference.matches, duration: 120 },
       highlight: { lastMove: true, check: true },
     });
+    motionPreference.addEventListener("change", syncAnimationPreference);
     // "gold" is the Feature 1 preview brush — added to the default set (green/red/blue/yellow)
     // after init so we don't have to re-declare the built-ins the Config type demands.
     (cg.state.drawable.brushes as Record<string, DrawBrush>).gold = {
@@ -85,7 +90,10 @@ export default function Board() {
     cg.setShapes(shapes as unknown as DrawShape[]);
   });
 
-  onCleanup(() => cg?.destroy());
+  onCleanup(() => {
+    motionPreference?.removeEventListener("change", syncAnimationPreference);
+    cg?.destroy();
+  });
 
   return (
     <div class="board-wrap">

@@ -165,7 +165,7 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
       );
     };
     for (const candidate of container.querySelectorAll<HTMLElement>(
-      "button, select, summary, textarea, input:not([type='hidden'])",
+      "button, select, summary, [role='tab'], a[href], input:not([type='hidden']):not([type='range'])",
     )) {
       if (!visible(candidate) || candidate.matches(":disabled")) continue;
       const input = candidate instanceof HTMLInputElement ? candidate : null;

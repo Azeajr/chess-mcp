@@ -238,7 +238,7 @@ test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page }) => {
   await touchContext.close();
 });
 
-test.fixme("UX-014 all core controls meet pointer target minimums", async ({ page }) => {
+test("UX-014 all core controls meet pointer target minimums", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
   const app = page.locator(".app");
   expect(await touchTargetViolations(app, 24)).toEqual([]);
