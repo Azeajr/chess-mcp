@@ -19,7 +19,21 @@
       }
     },
     "WP-001": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-001",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-layout.spec.ts --grep \"UX-001 / WP-001|WP-001 preserves|WP-001 scrolls\" --reporter=dot (9 passed across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "git diff --check",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Canonical version-matched Playwright container ran the WP-001 geometry, scrolling, horizontal-overflow, and Chessground-identity assertions: 9 passed across Chromium, Firefox, and WebKit."
+      }
     },
     "WP-002": {
       "status": "not-started"

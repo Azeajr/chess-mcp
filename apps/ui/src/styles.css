@@ -273,9 +273,9 @@ img,
   }
 }
 
-/* Phone: pinned board + tab bar. Flex column; only the active panel scrolls, the page does not.
-   The tab bar sets .workspace[data-mtab]; the rules below toggle each panel's display so panels
-   stay mounted (chessground never re-inits, chat keeps its log). */
+/* Phone: pinned board + tab bar. The tab bar sets .workspace[data-mtab]; the rules below toggle
+   each panel's display so panels stay mounted (chessground never re-inits, chat keeps its log).
+   Short viewports give the panel its 12rem floor and let the workspace scroll instead. */
 @media (max-width: 720px) {
   .workspace {
     display: flex;
@@ -297,10 +297,11 @@ img,
      back to the responsive default until the user drags. Extra `.workspace` specificity so this
      beats the base `.board-wrap` rule, which sits later in the source. */
   .workspace .board-wrap {
-    width: min(var(--board-size, min(70vh, calc(100% - 26px))), calc(100% - 26px));
+    width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 26px))), calc(100% - 26px));
   }
   .mobile-tabs {
     display: flex;
+    flex: 0 0 auto;
   }
   .side-panel {
     flex: 1 1 0;
@@ -407,6 +408,26 @@ img,
   flex-direction: column;
   gap: 1rem;
   min-height: 0;
+}
+
+/* Preserve the pinned phone layout at normal heights. On constrained viewports the panel keeps
+   its usable floor and the workspace, rather than the Analysis panel, owns the scroll. */
+@media (max-width: 720px) and (max-height: 640px) {
+  .side-panel,
+  .chat-wrap {
+    flex: 1 1 12rem;
+    min-height: 12rem;
+  }
+}
+
+@media (max-width: 720px) and (max-height: 640px) {
+  .workspace {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .side-panel {
+    overflow: visible;
+  }
 }
 
 /* The wide workspace is locked to the viewport and clips its own overflow. Let the complete
