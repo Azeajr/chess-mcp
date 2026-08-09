@@ -52,17 +52,20 @@ test("an ambiguous natural request needs no preset and direct analysis remains a
   await expect(page.getByText("Annotated repertoire")).toBeVisible();
 });
 
-test("analysis depth is globally adjustable and warns at the maximum", async ({ page }) => {
-  const depth = page.getByRole("spinbutton", { name: "Analysis depth" });
-  const slider = page.getByRole("slider", { name: "Analysis depth slider" });
+test("analysis depth stays globally adjustable with persistent deep-analysis guidance", async ({
+  page,
+}) => {
+  const settings = page.locator(".analysis-settings");
+  await settings.locator("summary").click();
+  const depth = settings.getByRole("spinbutton", { name: "Analysis depth" });
+  const slider = settings.getByRole("slider", { name: "Analysis depth slider" });
   await expect(depth).toHaveValue("20");
   await slider.fill("24");
   await expect(depth).toHaveValue("24");
   await depth.fill("30");
   await expect(slider).toHaveValue("30");
-  await expect(page.getByRole("status")).toContainText("Every engine task will use depth 30");
-  await page.getByRole("button", { name: "Dismiss deep analysis notice" }).click();
-  await expect(page.getByText("Every engine task will use depth 30")).toHaveCount(0);
+  await expect(settings).toContainText("Every engine task will use depth 30");
+  await expect(page.getByRole("button", { name: "Dismiss deep analysis notice" })).toHaveCount(0);
 });
 
 test("a finding path navigates to the exact move", async ({ page }) => {

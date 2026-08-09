@@ -1,5 +1,5 @@
 import { For, Show, createMemo } from "solid-js";
-import { strategicFitPlanSectionLabel } from "@chess-mcp/chess-tools";
+import { strategicFitPlanSectionLabel } from "../content/strategicFit";
 import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
@@ -36,6 +36,8 @@ import {
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
 import Status from "./primitives/Status";
+import { countLabel, diffValue, displayValue, titleCase } from "../content/format";
+import { errorContent } from "../content/errors";
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -133,12 +135,6 @@ function NavigationRows(props: { data: Data }) {
     </For>
   );
 }
-
-const titleCase = (value: string) =>
-  value
-    .split(/[-_]/)
-    .map((part) => (part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part))
-    .join(" ");
 
 function navigableSanPath(paths: readonly (readonly string[])[]): string[] | null {
   for (const path of paths) {
@@ -493,21 +489,6 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
   );
 }
 
-const displayValue = (value: unknown): string => {
-  if (value === undefined || value === null) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return `${value}`;
-  return JSON.stringify(value);
-};
-
-const diffValue = (value: unknown): string => {
-  if (value === null) return "not set";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "none";
-  if (typeof value === "number")
-    return Number.isInteger(value) ? displayValue(value) : value.toFixed(2);
-  return displayValue(value);
-};
-
 /**
  * A profile proposal is staged, not applied. The card shows the exact before/after for every
  * changed field so the user confirms values rather than a summary of them, and it states plainly
@@ -592,9 +573,6 @@ function StrategicFitProposalResult(props: { data: Data }) {
     </section>
   );
 }
-
-const countLabel = (count: number, singular: string): string =>
-  `${count} ${singular}${count === 1 ? "" : "s"}`;
 
 /**
  * The deterministic basis a plan may rest on. It is shown as evidence, not as a result to act on,
@@ -1007,59 +985,11 @@ function ArtifactRows(props: { data: Data }) {
   return <For each={artifacts()}>{(artifact) => <ArtifactResult data={artifact} />}</For>;
 }
 
-const ERROR_LABELS: Record<string, string> = {
-  invalid_arguments: "Invalid command arguments",
-  engine_unavailable: "Local engine unavailable",
-  cancelled: "Cancelled",
-  explorer_auth_required: "Lichess token required",
-  fetch_failed: "Network request failed",
-  missing_criteria: "Search criteria required",
-  path_not_found: "Repertoire path not found",
-  strategic_fit_finding_not_found: "Strategic Fit finding is unavailable",
-  strategic_fit_report_unavailable: "Strategic Fit report is no longer cached",
-  strategic_fit_missing_report_identity: "Strategic Fit report identity required",
-  strategic_fit_missing_finding_identity: "Strategic Fit finding identity required",
-  strategic_fit_stale_page_cursor: "Strategic Fit page cursor is stale",
-  strategic_fit_intent_empty_proposal: "Profile proposal was empty",
-  strategic_fit_intent_invalid_mode: "Unknown profile mode",
-  strategic_fit_intent_unknown_field: "Unknown profile preference",
-  strategic_fit_intent_invalid_value: "Profile value is out of range",
-  strategic_fit_intent_invalid_concept_id: "Unknown Strategic Fit concept",
-  strategic_fit_intent_conflicting_concepts: "Concept is both preferred and avoided",
-  strategic_fit_intent_no_change: "Profile already matches the proposal",
-  strategic_fit_intent_proposal_stale: "Profile proposal is stale",
-  strategic_fit_intent_proposal_not_pending: "Profile proposal is no longer pending",
-  strategic_fit_plan_empty: "Plan card was empty",
-  strategic_fit_plan_invalid_section: "Plan section is not valid",
-  strategic_fit_plan_invalid_value: "Plan value is out of bounds",
-  strategic_fit_plan_missing_support: "Plan section cites no evidence",
-  strategic_fit_plan_unsupported_concept: "Concept is not part of this finding",
-  strategic_fit_plan_unsupported_checkpoint: "Checkpoint is not part of this finding",
-  strategic_fit_plan_unsupported_drill: "Drill is not part of this finding",
-  strategic_fit_plan_unsupported_move: "Move is not on a validated path",
-  strategic_fit_plan_unsupported_model_game: "Model game or position is unsupported",
-  strategic_fit_plan_evidence_unavailable: "Plan evidence is unavailable",
-  strategic_fit_plan_stale: "Plan card is stale",
-  strategic_fit_plan_not_pending: "Plan card is no longer pending",
-  strategic_fit_portfolio_empty_constraints: "Redesign bounds were empty",
-  strategic_fit_portfolio_unknown_constraint: "Unknown redesign bound",
-  strategic_fit_portfolio_invalid_value: "Redesign bound is out of range",
-  strategic_fit_portfolio_unconfirmed_constraints: "Redesign bounds are not confirmed",
-  strategic_fit_portfolio_evidence_unavailable: "No candidates to build a portfolio from",
-  strategic_fit_portfolio_unknown_option: "Portfolio option does not exist",
-  strategic_fit_portfolio_stale: "Redesign bounds are stale",
-  strategic_fit_portfolio_not_pending: "Redesign bounds are no longer pending",
-  strategic_fit_stale_report: "Strategic Fit report is stale",
-  strategic_fit_stale_revision: "Strategic Fit report is stale",
-  variation_not_found: "Repertoire path not found",
-  stale_revision: "Document changed",
-};
-
 function ErrorResult(props: { data: Data }) {
   const code = () => displayValue(props.data.error ?? "command_failed");
   return (
     <div class={`result-card result-error-card error-${code()}`} role="alert">
-      <div class="result-title">{ERROR_LABELS[code()] ?? code().replace(/_/g, " ")}</div>
+      <div class="result-title">{errorContent(code()).title}</div>
       <Show when={props.data.reason}>
         <div class="result-summary">{String(props.data.reason)}</div>
       </Show>

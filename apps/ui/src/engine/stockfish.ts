@@ -206,6 +206,12 @@ function runSearch(
       ep.setHandler(null);
       resolve(out);
     };
+    // A Worker can fail before it has produced a bestmove (for example, when its WASM asset is
+    // unavailable). Settle the in-flight search immediately so the analysis store can expose its
+    // offline recovery state instead of waiting for the watchdog.
+    void ep.died.then(() => {
+      finish(null);
+    });
     const stop = () => {
       if (settled || stopped) return;
       stopped = true;

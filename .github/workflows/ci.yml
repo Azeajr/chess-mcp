@@ -32,6 +32,8 @@ jobs:
         run: pnpm --filter @chess-mcp/chess-tools build
       - name: Generated documentation is current
         run: pnpm docs:check
+      - name: Browser content registry is complete
+        run: pnpm check:content
       - name: Typecheck all packages
         run: pnpm -r typecheck
       - name: Deterministic smoke suites (engine-free, no network)

@@ -47,11 +47,12 @@ async function expectFocusRing(locator: Locator) {
 
 test("WP-006 AC-1 gives keyboard focus a global two-pixel accent ring", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
+  const analysisSettings = page.locator(".analysis-settings");
   const samples = [
     page.getByRole("button", { name: "Open PGN" }),
     page.getByRole("button", { name: "Save", exact: true }),
     page.locator(".topbar select"),
-    page.getByLabel("Analysis depth slider"),
+    analysisSettings.locator("summary"),
     page.locator(".rep-section > summary").first(),
     page.locator(".rep-panel .scan-btn").first(),
     page.locator(".chat-mode"),

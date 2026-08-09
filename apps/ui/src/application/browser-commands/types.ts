@@ -40,6 +40,7 @@ export const BROWSER_COMMAND_NAMES = [
   "get_repertoire_coverage",
   "get_structural_profile",
   "analyze_repertoire_congruence",
+  "get_strategic_fit_report",
   "classify_illustrative_lines",
   "modify_repertoire_line",
   "suggest_complementary_lines",
@@ -68,6 +69,62 @@ export const BROWSER_COMMAND_NAMES = [
 ] as const;
 
 export type BrowserCommandName = (typeof BROWSER_COMMAND_NAMES)[number];
+
+/**
+ * Error codes the browser registry can return, including errors forwarded from its domain and
+ * staged-action dependencies. Keep this inventory beside the exhaustive command-name registry so
+ * the content gate can require user-facing copy without importing browser runtime modules.
+ */
+export const BROWSER_COMMAND_ERROR_CODES = [
+  "invalid_arguments",
+  "invalid_fen",
+  "engine_unavailable",
+  "cancelled",
+  "explorer_auth_required",
+  "fetch_failed",
+  "missing_arg",
+  "missing_criteria",
+  "unknown_structure",
+  "path_not_found",
+  "strategic_fit_finding_not_found",
+  "strategic_fit_report_unavailable",
+  "strategic_fit_missing_report_identity",
+  "strategic_fit_missing_finding_identity",
+  "strategic_fit_stale_page_cursor",
+  "strategic_fit_intent_empty_proposal",
+  "strategic_fit_intent_invalid_mode",
+  "strategic_fit_intent_unknown_field",
+  "strategic_fit_intent_invalid_value",
+  "strategic_fit_intent_invalid_concept_id",
+  "strategic_fit_intent_conflicting_concepts",
+  "strategic_fit_intent_no_change",
+  "strategic_fit_intent_proposal_stale",
+  "strategic_fit_intent_proposal_not_pending",
+  "strategic_fit_plan_empty",
+  "strategic_fit_plan_invalid_section",
+  "strategic_fit_plan_invalid_value",
+  "strategic_fit_plan_missing_support",
+  "strategic_fit_plan_unsupported_concept",
+  "strategic_fit_plan_unsupported_checkpoint",
+  "strategic_fit_plan_unsupported_drill",
+  "strategic_fit_plan_unsupported_move",
+  "strategic_fit_plan_unsupported_model_game",
+  "strategic_fit_plan_evidence_unavailable",
+  "strategic_fit_plan_stale",
+  "strategic_fit_plan_not_pending",
+  "strategic_fit_portfolio_empty_constraints",
+  "strategic_fit_portfolio_unknown_constraint",
+  "strategic_fit_portfolio_invalid_value",
+  "strategic_fit_portfolio_unconfirmed_constraints",
+  "strategic_fit_portfolio_evidence_unavailable",
+  "strategic_fit_portfolio_unknown_option",
+  "strategic_fit_portfolio_stale",
+  "strategic_fit_portfolio_not_pending",
+  "strategic_fit_stale_report",
+  "strategic_fit_stale_revision",
+  "variation_not_found",
+  "stale_revision",
+] as const;
 export type BrowserCommandArgs = Record<string, unknown>;
 export type BrowserCommandHandler = (
   args: BrowserCommandArgs,

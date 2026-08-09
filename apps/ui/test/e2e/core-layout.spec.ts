@@ -6,33 +6,43 @@ import { VIEWPORTS } from "./helpers/viewports";
 const NORMAL_PHONE_BASELINES = {
   chromium: {
     "360×740": {
-      ".topbar": 146.921875,
+      ".topbar": 112.34375,
       ".board-wrap": 318,
-      ".side-panel": 188.078125,
+      ".side-panel": 222.65625,
       ".mobile-tabs": 33,
     },
     "390×844": {
-      ".topbar": 146.921875,
+      ".topbar": 112.34375,
       ".board-wrap": 348,
-      ".side-panel": 262.078125,
+      ".side-panel": 296.65625,
       ".mobile-tabs": 33,
     },
   },
   firefox: {
-    "360×740": { ".topbar": 157, ".board-wrap": 318, ".side-panel": 174, ".mobile-tabs": 37 },
-    "390×844": { ".topbar": 157, ".board-wrap": 348, ".side-panel": 248, ".mobile-tabs": 37 },
+    "360×740": {
+      ".topbar": 118.4,
+      ".board-wrap": 318,
+      ".side-panel": 212.6,
+      ".mobile-tabs": 37,
+    },
+    "390×844": {
+      ".topbar": 118.4,
+      ".board-wrap": 348,
+      ".side-panel": 286.6,
+      ".mobile-tabs": 37,
+    },
   },
   webkit: {
     "360×740": {
-      ".topbar": 163.921875,
+      ".topbar": 126.34375,
       ".board-wrap": 318,
-      ".side-panel": 168.078125,
+      ".side-panel": 205.65625,
       ".mobile-tabs": 36,
     },
     "390×844": {
-      ".topbar": 136.53125,
+      ".topbar": 98.953125,
       ".board-wrap": 348,
-      ".side-panel": 269.453125,
+      ".side-panel": 307.03125,
       ".mobile-tabs": 36,
     },
   },

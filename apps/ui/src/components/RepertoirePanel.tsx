@@ -64,25 +64,8 @@ import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
 import Select from "./primitives/Select";
 import Status from "./primitives/Status";
+import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
 
-function gapEval(g: Gap): string {
-  if (g.mate !== null) return `M${Math.abs(g.mate)}`;
-  const cp = g.evalCp ?? 0;
-  return (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
-}
-const cp2 = (cp: number) => (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
-/** SAN list → numbered notation continuing from `startPly` half-moves: "1. e4 c6 2. Nf3 d5". */
-function numbered(sans: string[], startPly = 0): string {
-  const out: string[] = [];
-  for (let i = 0; i < sans.length; i++) {
-    const ply = startPly + i;
-    const no = Math.floor(ply / 2) + 1;
-    if (ply % 2 === 0) out.push(`${no}. ${sans[i]}`);
-    else if (i === 0) out.push(`${no}... ${sans[i]}`);
-    else out.push(sans[i] ?? "");
-  }
-  return out.join(" ");
-}
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
 
 export default function RepertoirePanel() {
@@ -172,9 +155,6 @@ export default function RepertoirePanel() {
     actions.goto(atIdx);
     stagePreviewLine(atIdx, [p.rerouteMove]);
   };
-  const cpDelta = (d: number | null) =>
-    d == null ? "" : ` Δ${d <= 0 ? "+" : "−"}${(Math.abs(d) / 100).toFixed(2)}`;
-
   // Click a fill option → stage [uncoveredMove, reply, …PV] from the gap node. Length tracks the
   // repertoire's typical depth (filtered median), so the new line is as deep as the rest; ≥2 plies so
   // the gap is always actually closed. Accept (gold-arrow UI) grafts in memory; Save persists.
@@ -198,7 +178,7 @@ export default function RepertoirePanel() {
       }}
     >
       <span class="san">{numbered(props.opt.line, props.g.path.length)}</span>
-      <span class="ev">{props.opt.evalCp == null ? "—" : cp2(props.opt.evalCp)}</span>
+      <span class="ev">{props.opt.evalCp == null ? "—" : centipawnText(props.opt.evalCp)}</span>
       <span class="fit">
         {props.label} · fit {props.opt.fit.toFixed(2)}
       </span>
@@ -479,7 +459,7 @@ export default function RepertoirePanel() {
                   <span class="san">
                     <span class="muted">{gapLine(g)}</span> · {g.uncoveredMove}
                   </span>
-                  <span class="ev">{gapEval(g)}</span>
+                  <span class="ev">{evaluationText({ cp: g.evalCp, mate: g.mate })}</span>
                 </div>
                 <button
                   class="fix-btn fill-btn"
@@ -624,7 +604,7 @@ export default function RepertoirePanel() {
                 onClick={() => {
                   onPrune(p);
                 }}
-                title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${cpDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
+                title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${centipawnDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
               >
                 <span class="bridge-icon">✂</span>
                 <span class="san">
@@ -644,7 +624,7 @@ export default function RepertoirePanel() {
                   </span>
                 </Show>
                 <span class="fit">
-                  −{p.savedPlies}ply{cpDelta(p.evalDelta)}
+                  −{p.savedPlies}ply{centipawnDelta(p.evalDelta)}
                 </span>
                 <button
                   class={`inspect-btn${inspectKey() === shortcutKey(p) ? " on" : ""}`}
@@ -746,7 +726,7 @@ export default function RepertoirePanel() {
               title={m.pv}
             >
               <span class="san">{m.move}</span>
-              <span class="ev">{cp2(m.eval)}</span>
+              <span class="ev">{centipawnText(m.eval)}</span>
               <span class="fit">
                 {m.profile_match != null
                   ? `fit ${m.profile_match}`

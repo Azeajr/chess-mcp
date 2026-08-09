@@ -1,8 +1,10 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import ProfileSetup, { STRATEGIC_FIT_PROFILE_LABELS } from "./strategic-fit/ProfileSetup";
-import AnalysisLifecycle, {
+import ProfileSetup from "./strategic-fit/ProfileSetup";
+import AnalysisLifecycle from "./strategic-fit/AnalysisLifecycle";
+import {
   STRATEGIC_FIT_LIFECYCLE_LABELS,
-} from "./strategic-fit/AnalysisLifecycle";
+  STRATEGIC_FIT_PROFILE_LABELS,
+} from "../content/strategicFit";
 import StrategicOverview, { type StrategicOverviewItemId } from "./strategic-fit/StrategicOverview";
 import StrategicMap from "./strategic-fit/StrategicMap";
 import ConceptHeatmap from "./strategic-fit/ConceptHeatmap";

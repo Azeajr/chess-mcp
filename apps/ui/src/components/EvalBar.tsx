@@ -3,20 +3,17 @@
  * analysis store (one engine consumer — no second search racing the arrows). Shows a neutral
  * bar until the first line arrives, "—" if the engine is offline.
  */
-import { createMemo, Show } from "solid-js";
-import { engineLines, engineOffline } from "../store/analysis";
+import { createMemo } from "solid-js";
+import { evaluationAriaLabel } from "../content/analysis";
+import { analysisState, engineLines } from "../store/analysis";
 
-const top = createMemo(() => engineLines()[0] ?? null);
-
-function pct(): number {
-  const e = top();
+function pct(e: ReturnType<typeof engineLines>[number] | null): number {
   if (!e) return 50;
   if (e.mate !== null) return e.mate > 0 ? 100 : 0;
   return Math.max(2, Math.min(98, 50 + (e.cp ?? 0) / 20));
 }
 
-function label(): string {
-  const e = top();
+function label(e: ReturnType<typeof engineLines>[number] | null): string {
   if (!e) return "";
   if (e.mate !== null) return `M${Math.abs(e.mate)}`;
   const cp = e.cp ?? 0;
@@ -24,14 +21,18 @@ function label(): string {
 }
 
 export default function EvalBar() {
+  const top = createMemo(() => engineLines()[0] ?? null);
+  const state = analysisState;
+
   return (
-    <div class="eval-bar" title={engineOffline() ? "engine offline" : "Stockfish (white POV)"}>
-      <div class="fill" style={{ height: `${pct()}%` }} />
-      <div class="score">
-        <Show when={!engineOffline()} fallback="—">
-          {label()}
-        </Show>
-      </div>
+    <div
+      class={`eval-bar${state() === "off" ? " is-off" : ""}`}
+      role="img"
+      aria-label={evaluationAriaLabel(state(), top())}
+      title={state() === "offline" ? "engine offline" : "Stockfish (white POV)"}
+    >
+      <div class="fill" style={{ height: `${pct(top())}%` }} />
+      <div class="score">{state() === "offline" ? "—" : label(top())}</div>
     </div>
   );
 }

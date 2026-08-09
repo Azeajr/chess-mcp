@@ -3,64 +3,75 @@
  * repertoire fit (green/yellow/red) and your-side eval. Mirrors the board arrows.
  */
 import { For, Show } from "solid-js";
-import { engineLines, analysing, engineOffline, type EngineLine } from "../store/analysis";
+import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../store/analysis";
 import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
 import { analysisDepth } from "../store/engine-settings";
 import type { Fit } from "@chess-mcp/chess-tools";
+import { ANALYSIS_CONTENT } from "../content/analysis";
+import AnalysisSettings from "./AnalysisSettings";
 import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
 import Status from "./primitives/Status";
+import { cloudEvaluationText, evaluationText } from "../content/format";
 
 const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
 
-function evalText(l: EngineLine): string {
-  if (l.mate !== null) return `M${Math.abs(l.mate)}`;
-  const cp = l.cp ?? 0;
-  return (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
-}
-
-function cloudText(): string {
-  const c = cloud();
-  if (!c) return "—";
-  const cp = c.cp ?? 0;
-  const score =
-    c.mate !== null ? `M${Math.abs(c.mate)}` : (cp >= 0 ? "+" : "") + (cp / 100).toFixed(2);
-  return `${score}  ·  depth ${c.depth}`;
-}
-
 export default function AnalysisPanel() {
+  const state = analysisState;
+  const inFlight = () => state() === "starting" || state() === "analysing";
+
   return (
     <div class="analysis">
-      <PanelHeader kicker="Position">
-        <span>Engine lines · depth {analysisDepth()}</span>
-        <Show when={analysing()}>
-          <span class="spinner">analysing…</span>
-        </Show>
+      <PanelHeader class="analysis-header" title={ANALYSIS_CONTENT.title}>
+        <span class="analysis-header-meta">
+          <span class={`analysis-state analysis-state-${state()}`}>
+            {ANALYSIS_CONTENT.status[state()]}
+          </span>
+          <span
+            class="analysis-depth-chip"
+            aria-label={`Effective analysis depth: ${analysisDepth()}`}
+          >
+            Depth {analysisDepth()}
+          </span>
+        </span>
+        <AnalysisSettings />
       </PanelHeader>
-      <Show when={analysing()}>
-        <Progress class="analysis-progress" label="Position analysis in progress" />
+      <Show when={inFlight()}>
+        <Progress class="analysis-progress" label={ANALYSIS_CONTENT.progress} />
       </Show>
       <Show
-        when={!engineOffline()}
-        fallback={<div class="empty">Engine offline — arrows unavailable.</div>}
+        when={engineLines().length}
+        fallback={
+          <div class={`analysis-empty analysis-empty-${state()}`}>
+            <p>{ANALYSIS_CONTENT.empty[state()]}</p>
+            <Show when={state() === "off"}>
+              <button type="button" onClick={() => setEvalEnabled(true)}>
+                {ANALYSIS_CONTENT.actions.enable}
+              </button>
+            </Show>
+            <Show when={state() === "offline"}>
+              <button type="button" onClick={reloadAnalysis}>
+                {ANALYSIS_CONTENT.actions.reload}
+              </button>
+            </Show>
+          </div>
+        }
       >
-        <Show when={engineLines().length} fallback={<div class="empty">No lines yet.</div>}>
-          <For each={engineLines()}>
-            {(l) => (
-              <div class="line">
-                <Status class={`fit fit-${l.fit}`}>{FIT_LABEL[l.fit]}</Status>
-                <span class="san">{l.san}</span>
-                <span class={`weight w-${l.weight}`} title={`engine weight: ${l.weight}`} />
-                <span class="ev">{evalText(l)}</span>
-              </div>
-            )}
-          </For>
-        </Show>
+        <For each={engineLines()}>
+          {(l) => (
+            <div class="line">
+              <Status class={`fit fit-${l.fit}`}>{FIT_LABEL[l.fit]}</Status>
+              <span class="san">{l.san}</span>
+              <span class={`weight w-${l.weight}`} title={`engine weight: ${l.weight}`} />
+              <span class="ev">{evaluationText(l)}</span>
+            </div>
+          )}
+        </For>
       </Show>
       <div class="cloud-row" title="Lichess cloud eval (white POV)">
         <span class="cloud-label">cloud</span>
-        <span class="cloud-val">{cloudText()}</span>
+        <span class="cloud-val">{cloudEvaluationText(cloud())}</span>
       </div>
 
       <Show when={suggestions().length}>

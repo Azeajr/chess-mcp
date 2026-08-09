@@ -11,8 +11,6 @@ import {
   setModel,
   lichessToken,
   setLichessToken,
-  cloudEvalEnabled,
-  setCloudEvalEnabled,
   MODEL_SUGGESTIONS,
 } from "../store/settings";
 import Field from "./primitives/Field";
@@ -87,20 +85,6 @@ export default function SettingsDrawer() {
               Personal token, no scopes needed — lichess.org/account/oauth/token. Enables the
               opening-explorer tools (position popularity, theory depth, gap popularity). Stored in
               localStorage (plaintext).
-            </small>
-          </Field>
-
-          <Field class="field field-toggle" label="Lichess cloud eval">
-            <input
-              type="checkbox"
-              checked={cloudEvalEnabled()}
-              onChange={(e) => {
-                setCloudEvalEnabled(e.currentTarget.checked);
-              }}
-            />
-            <small>
-              Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off
-              to keep prep lines fully on this machine — local Stockfish is unaffected.
             </small>
           </Field>
         </div>

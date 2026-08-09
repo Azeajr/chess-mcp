@@ -20,6 +20,27 @@ export interface EngineLine {
   depth: number;
 }
 
+export type AnalysisState = "off" | "starting" | "analysing" | "ready" | "offline";
+
+export interface AnalysisStateInput {
+  readonly evalEnabled: boolean;
+  readonly analysing: boolean;
+  readonly engineOffline: boolean;
+  readonly hasLines: boolean;
+}
+
+/**
+ * The visible engine lifecycle is intentionally derived from the same signals that drive the
+ * worker. In particular, an enabled engine with no line yet is "starting" during the debounce
+ * as well as during its first search, rather than being mistaken for an engine that is off.
+ */
+export function deriveAnalysisState(input: AnalysisStateInput): AnalysisState {
+  if (!input.evalEnabled) return "off";
+  if (input.engineOffline) return "offline";
+  if (!input.hasLines) return "starting";
+  return input.analysing ? "analysing" : "ready";
+}
+
 /** chessground DrawShape (typed loosely here; Board casts to the chessground type). */
 export interface Arrow {
   orig: string;
@@ -37,8 +58,29 @@ const [engineArrows, setArrows] = createSignal<Arrow[]>([]);
 const [analysing, setAnalysing] = createSignal(false);
 const [engineOffline, setEngineOffline] = createSignal(false);
 const [evalEnabled, setEvalEnabled] = createSignal(false);
+const [analysisReload, setAnalysisReload] = createSignal(0);
 
-export { engineLines, engineArrows, analysing, engineOffline, evalEnabled, setEvalEnabled };
+const analysisState = (): AnalysisState =>
+  deriveAnalysisState({
+    evalEnabled: evalEnabled(),
+    analysing: analysing(),
+    engineOffline: engineOffline(),
+    hasLines: engineLines().length > 0,
+  });
+
+/** Re-run the live-worker request without changing any analysis preferences. */
+const reloadAnalysis = () => setAnalysisReload((version) => version + 1);
+
+export {
+  engineLines,
+  engineArrows,
+  analysing,
+  engineOffline,
+  evalEnabled,
+  setEvalEnabled,
+  analysisState,
+  reloadAnalysis,
+};
 
 export const repertoireArrows = (): Arrow[] =>
   currentTree()
@@ -67,6 +109,7 @@ createEffect(() => {
   const col = color();
   const enabled = evalEnabled();
   const depth = analysisDepth();
+  analysisReload(); // dependency for the explicit offline recovery action
 
   if (!enabled) {
     setAnalysing(false);
