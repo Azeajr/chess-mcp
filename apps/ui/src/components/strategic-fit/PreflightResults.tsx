@@ -6,6 +6,7 @@ import type {
   PreflightIssueSeverity,
   StrategicFitPreflight,
 } from "@chess-mcp/chess-tools";
+import Status from "../primitives/Status";
 
 export const PREFLIGHT_CODE_LABELS: Readonly<Record<PreflightIssueCode, string>> = {
   "empty-repertoire": "Empty repertoire",
@@ -177,7 +178,7 @@ export default function PreflightResults(props: { preflight: StrategicFitPreflig
           <span>Input and evidence check</span>
           <h2 id="strategic-fit-preflight-title">Preflight results</h2>
         </div>
-        <strong class="strategic-fit-preflight-state-label">{copy().label}</strong>
+        <Status class="strategic-fit-preflight-state-label">{copy().label}</Status>
       </header>
       <p class="strategic-fit-preflight-summary">{copy().description}</p>
 

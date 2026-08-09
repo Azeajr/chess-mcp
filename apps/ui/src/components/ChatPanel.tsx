@@ -21,6 +21,11 @@ import { actions } from "../store/game";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 import ToolResult from "./ToolResult";
+import Button from "./primitives/Button";
+import PanelHeader from "./primitives/PanelHeader";
+import Progress from "./primitives/Progress";
+import Select from "./primitives/Select";
+import Status from "./primitives/Status";
 
 function buildToolNameMap(msgs: ChatMessage[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -56,9 +61,9 @@ export default function ChatPanel() {
 
   return (
     <div class="chat">
-      <div class="panel-head">
+      <PanelHeader>
         <span>Chat</span>
-        <select
+        <Select
           class="chat-mode"
           title="Optional workflow guidance; all tools remain available"
           value={chatMode()}
@@ -67,11 +72,11 @@ export default function ChatPanel() {
           }}
         >
           <For each={CHAT_MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
-        </select>
-        <button class="scan-btn" onClick={clearChat}>
+        </Select>
+        <Button variant="ghost" class="scan-btn" onClick={clearChat}>
           Clear
-        </button>
-      </div>
+        </Button>
+      </PanelHeader>
 
       <div class="chat-log">
         <For each={history()}>
@@ -125,7 +130,20 @@ export default function ChatPanel() {
         <For each={toolRuns()}>
           {(run) => (
             <div class={`tool-run ${run.status}`}>
-              <span class="tool-run-state">{run.status}</span> {run.name}
+              <Status
+                tone={
+                  run.status === "running"
+                    ? "running"
+                    : run.status === "completed"
+                      ? "success"
+                      : run.status === "failed"
+                        ? "danger"
+                        : "neutral"
+                }
+              >
+                {run.status}
+              </Status>{" "}
+              {run.name}
               <Show when={run.total != null}>
                 <span>
                   {" "}
@@ -136,11 +154,15 @@ export default function ChatPanel() {
                 <span class="tool-run-detail"> — {run.detail}</span>
               </Show>
               <Show when={run.status === "running"}>
-                <Show when={run.total != null} fallback={<progress class="tool-run-progress" />}>
-                  <progress
+                <Show
+                  when={run.total != null}
+                  fallback={<Progress class="tool-run-progress" label={`${run.name} progress`} />}
+                >
+                  <Progress
                     class="tool-run-progress"
                     max={run.total ?? 1}
                     value={Math.min(run.done ?? 0, run.total ?? 0)}
+                    label={`${run.name} progress`}
                   />
                 </Show>
               </Show>
@@ -169,6 +191,7 @@ export default function ChatPanel() {
       </Show>
       <div class="chat-input">
         <textarea
+          aria-label="Chat message"
           rows="2"
           placeholder="Ask about this position, game, or repertoire…"
           value={input()}

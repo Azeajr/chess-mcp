@@ -15,6 +15,7 @@ import {
   setCloudEvalEnabled,
   MODEL_SUGGESTIONS,
 } from "../store/settings";
+import Field from "./primitives/Field";
 
 export default function SettingsDrawer() {
   return (
@@ -31,8 +32,7 @@ export default function SettingsDrawer() {
             <button onClick={() => setSettingsOpen(false)}>✕</button>
           </div>
 
-          <label class="field">
-            <span>OpenRouter API key</span>
+          <Field class="field" label="OpenRouter API key">
             <input
               type="password"
               placeholder="sk-or-…"
@@ -42,10 +42,9 @@ export default function SettingsDrawer() {
               }}
             />
             <small>Stored in localStorage (plaintext). Used for in-app chat only.</small>
-          </label>
+          </Field>
 
-          <label class="field">
-            <span>Model</span>
+          <Field class="field" label="Model">
             <input
               type="text"
               placeholder="deepseek/deepseek-v4-flash"
@@ -73,10 +72,9 @@ export default function SettingsDrawer() {
                 )}
               </For>
             </div>
-          </label>
+          </Field>
 
-          <label class="field">
-            <span>Lichess API token</span>
+          <Field class="field" label="Lichess API token">
             <input
               type="password"
               placeholder="lip_…"
@@ -90,10 +88,9 @@ export default function SettingsDrawer() {
               opening-explorer tools (position popularity, theory depth, gap popularity). Stored in
               localStorage (plaintext).
             </small>
-          </label>
+          </Field>
 
-          <label class="field field-toggle">
-            <span>Lichess cloud eval</span>
+          <Field class="field field-toggle" label="Lichess cloud eval">
             <input
               type="checkbox"
               checked={cloudEvalEnabled()}
@@ -105,7 +102,7 @@ export default function SettingsDrawer() {
               Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off
               to keep prep lines fully on this machine — local Stockfish is unaffected.
             </small>
-          </label>
+          </Field>
         </div>
       </div>
     </Show>

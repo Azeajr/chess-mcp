@@ -49,6 +49,9 @@ import {
 } from "../store/ui";
 import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
 import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
+import PanelHeader from "./primitives/PanelHeader";
+import RegionState from "./primitives/RegionState";
+import Status from "./primitives/Status";
 
 const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -56,25 +59,6 @@ const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "evidence", label: "Evidence" },
   { id: "resolution", label: "Resolution" },
 ];
-
-const EMPTY_COPY: Record<StrategicFitWorkspaceStage, { title: string; detail: string }> = {
-  overview: {
-    title: "No strategic map yet",
-    detail: "Opening this workspace does not start an analysis.",
-  },
-  findings: {
-    title: "No findings to review",
-    detail: "Findings will appear here only after a Strategic Fit analysis is requested.",
-  },
-  evidence: {
-    title: "No evidence selected",
-    detail: "Select a future finding to compare its branch with the cohort baseline.",
-  },
-  resolution: {
-    title: "No resolution selected",
-    detail: "Resolution choices will become available when a finding is under review.",
-  },
-};
 
 const FOCUSABLE = [
   "a[href]",
@@ -86,42 +70,6 @@ const FOCUSABLE = [
   "[contenteditable='true']",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
-
-function RegionState(props: {
-  region: StrategicFitWorkspaceStage;
-  state: StrategicFitWorkspaceRegionState;
-}) {
-  const copy = () => EMPTY_COPY[props.region];
-  return (
-    <div
-      class={`strategic-fit-region-state strategic-fit-region-${props.state.status}`}
-      data-region-state={props.state.status}
-      role={
-        props.state.status === "error"
-          ? "alert"
-          : props.state.status === "loading"
-            ? "status"
-            : undefined
-      }
-    >
-      <Show when={props.state.status === "empty"}>
-        <strong>{copy().title}</strong>
-        <p>{props.state.message ?? copy().detail}</p>
-      </Show>
-      <Show when={props.state.status === "loading"}>
-        <span class="strategic-fit-region-spinner" aria-hidden="true" />
-        <div>
-          <strong>Loading workspace data</strong>
-          <p>{props.state.message ?? "This region is waiting for Strategic Fit data."}</p>
-        </div>
-      </Show>
-      <Show when={props.state.status === "error"}>
-        <strong>Workspace data unavailable</strong>
-        <p>{props.state.message ?? "This region could not be displayed."}</p>
-      </Show>
-    </div>
-  );
-}
 
 export default function StrategicFitWorkspace() {
   let dialog!: HTMLElement;
@@ -445,7 +393,7 @@ export default function StrategicFitWorkspace() {
           event.stopPropagation();
         }}
       >
-        <header class="strategic-fit-workspace-header">
+        <PanelHeader class="strategic-fit-workspace-header">
           <div>
             <div class="strategic-fit-workspace-kicker">Repertoire review</div>
             <h1 id="strategic-fit-workspace-title">Strategic Fit</h1>
@@ -457,24 +405,24 @@ export default function StrategicFitWorkspace() {
             </p>
           </div>
           <div class="strategic-fit-workspace-header-actions">
-            <span class="strategic-fit-workspace-status">
+            <Status class="strategic-fit-workspace-status">
               {STRATEGIC_FIT_LIFECYCLE_LABELS[strategicFitLifecycle().status]}
-            </span>
+            </Status>
             <button ref={closeButton} type="button" onClick={close}>
               Return to repertoire
             </button>
           </div>
-        </header>
+        </PanelHeader>
 
         <Show
           when={profileReady()}
           fallback={
-            <main class="strategic-fit-profile-loading" role="status">
-              <span class="strategic-fit-region-spinner" aria-hidden="true" />
-              <div>
-                <strong>Loading profile settings</strong>
-                <p>Waiting for this repertoire's saved Strategic Fit preferences.</p>
-              </div>
+            <main class="strategic-fit-profile-loading">
+              <RegionState
+                status="loading"
+                title="Loading profile settings"
+                message="Waiting for this repertoire's saved Strategic Fit preferences."
+              />
             </main>
           }
         >
@@ -528,10 +476,12 @@ export default function StrategicFitWorkspace() {
                     }
                     tabIndex={0}
                   >
-                    <div class="strategic-fit-pane-heading">
-                      <span>Overview</span>
-                      <h2 id="strategic-fit-pane-overview-title">Strategic map</h2>
-                    </div>
+                    <PanelHeader
+                      class="strategic-fit-pane-heading"
+                      kicker="Overview"
+                      title="Strategic map"
+                      titleId="strategic-fit-pane-overview-title"
+                    />
                     <Show
                       when={currentOverview()}
                       fallback={
@@ -637,10 +587,12 @@ export default function StrategicFitWorkspace() {
                     })()}
                     tabIndex={0}
                   >
-                    <div class="strategic-fit-pane-heading">
-                      <span>Review queue</span>
-                      <h2 id="strategic-fit-pane-findings-title">Findings</h2>
-                    </div>
+                    <PanelHeader
+                      class="strategic-fit-pane-heading"
+                      kicker="Review queue"
+                      title="Findings"
+                      titleId="strategic-fit-pane-findings-title"
+                    />
                     <Show
                       when={currentFindings()}
                       fallback={
@@ -681,10 +633,12 @@ export default function StrategicFitWorkspace() {
                     }
                     tabIndex={0}
                   >
-                    <div class="strategic-fit-pane-heading">
-                      <span>Branch review</span>
-                      <h2 id="strategic-fit-pane-evidence-title">Evidence / comparison</h2>
-                    </div>
+                    <PanelHeader
+                      class="strategic-fit-pane-heading"
+                      kicker="Branch review"
+                      title="Evidence / comparison"
+                      titleId="strategic-fit-pane-evidence-title"
+                    />
                     <Show
                       when={currentEvidence()}
                       fallback={
@@ -766,10 +720,12 @@ export default function StrategicFitWorkspace() {
                     }
                     tabIndex={0}
                   >
-                    <div class="strategic-fit-pane-heading">
-                      <span>Next step</span>
-                      <h2 id="strategic-fit-pane-resolution-title">Resolution</h2>
-                    </div>
+                    <PanelHeader
+                      class="strategic-fit-pane-heading"
+                      kicker="Next step"
+                      title="Resolution"
+                      titleId="strategic-fit-pane-resolution-title"
+                    />
                     <Show
                       when={usesStageTabs() && currentResolution()}
                       fallback={

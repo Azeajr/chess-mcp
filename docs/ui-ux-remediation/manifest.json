@@ -1980,8 +1980,18 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
+        "files": [
+          "scripts/wp037-primitives.test.mjs",
+          "apps/ui/test/e2e/core-a11y.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-map.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-visualization-hardening.spec.ts"
+        ],
+        "commands": [
+          "node --test scripts/wp037-primitives.test.mjs",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-a11y.spec.ts apps/ui/test/e2e/strategic-fit-accessibility.spec.ts apps/ui/test/e2e/strategic-fit-map.spec.ts apps/ui/test/e2e/strategic-fit-findings.spec.ts apps/ui/test/e2e/strategic-fit-visualization-hardening.spec.ts"
+        ],
         "description": "Class-absence assertions; density guards; the snapshot suite; the accessibility helper across core-app roots."
       },
       "requiredManualValidation": "Visual review at 390×844, 1280×800, and 1440×900 before merge.",

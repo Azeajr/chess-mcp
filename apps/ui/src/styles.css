@@ -253,7 +253,9 @@ img,
 .topbar .title {
   flex: 0 1 auto;
   min-width: 0;
+  margin-block: 0;
   font-weight: 600;
+  font-size: inherit;
   margin-right: auto;
 }
 
@@ -748,7 +750,8 @@ img,
   font-size: 0.9rem;
 }
 
-.analysis .panel-head {
+.analysis .panel-head,
+.analysis .panel-header {
   display: flex;
   justify-content: space-between;
   color: var(--muted);
@@ -874,6 +877,115 @@ img,
 }
 
 /* Feature 6: repertoire backbone panel — collapsible Tier A / Tier B sections. */
+.ui-progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+.ui-status {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.ui-status-success {
+  color: var(--status-success-text);
+}
+.ui-status-danger {
+  color: var(--status-danger-text-soft);
+}
+.ui-status-running {
+  color: var(--accent);
+}
+.ui-region-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px dashed #4c515d;
+  border-radius: 9px;
+  background: #181a1f;
+  color: #c4c7ce;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.ui-region-state p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+.ui-region-state-error {
+  border-color: #9a5058;
+  background: #2c1d21;
+  color: #ffc9cd;
+}
+.ui-region-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  border: 2px solid #4b5360;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ui-region-spin 0.8s linear infinite;
+}
+@keyframes ui-region-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+}
+.panel-header-kicker {
+  font: inherit;
+}
+.panel-header h2 {
+  margin: 0;
+  font-size: inherit;
+}
+.ui-button {
+  cursor: pointer;
+  font: inherit;
+}
+.ui-button-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+.ui-button-secondary {
+  background: var(--surface-control);
+  color: var(--text);
+}
+.ui-button-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.ui-button-danger {
+  border-color: var(--status-danger-border);
+  color: var(--status-danger-text-soft);
+}
+.ui-field {
+  display: grid;
+  gap: 0.3rem;
+}
+.ui-field-label {
+  color: var(--muted);
+  font-size: var(--type-xs);
+  font-weight: 600;
+}
+.ui-field-hint {
+  color: var(--muted);
+  font-size: var(--type-xs);
+}
+.ui-select {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-control);
+  color: var(--text);
+  font: inherit;
+}
 .rep-panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -881,7 +993,8 @@ img,
   padding: 0.4rem 0.6rem;
   font-size: 0.9rem;
 }
-.outcome-label {
+.outcome-label,
+.rep-panel > .panel-header {
   padding: 8px 10px 5px;
   color: var(--muted);
   font-size: var(--type-micro);
@@ -977,27 +1090,10 @@ img,
   align-items: center;
   gap: 0.35rem;
 }
-.rep-panel .scan-meter {
+.rep-panel .scan-progress-meter {
   width: 64px;
   height: 6px;
   accent-color: var(--accent);
-}
-.rep-panel .scan-bar {
-  display: inline-block;
-  width: 48px;
-  height: 6px;
-  background: var(--surface-control);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.rep-panel .scan-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width var(--motion-fast) ease;
-}
-.rep-panel .scan-bar.indeterminate .scan-bar-fill {
-  animation: scan-progress 1.2s ease-in-out infinite;
 }
 @keyframes scan-progress {
   from {
@@ -1241,7 +1337,8 @@ img,
   border-radius: 8px;
   padding: var(--space-3);
 }
-.chat .panel-head {
+.chat .panel-head,
+.chat .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1659,6 +1756,7 @@ img,
   background: var(--status-success-surface);
 }
 .result-status {
+  font-weight: 400;
   text-transform: capitalize;
 }
 .result-status.stale {
@@ -1778,6 +1876,11 @@ img,
   flex-direction: column;
   gap: 0.3rem;
   font-size: 0.85rem;
+}
+.field .ui-field-label {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 .field input {
   background: var(--surface-overlay);
@@ -2159,6 +2262,8 @@ img,
   padding: 0.22rem 0.5rem;
   color: #bdc3cc;
   font-size: var(--type-xs);
+  font-weight: 400;
+  text-transform: none;
   white-space: nowrap;
 }
 .strategic-fit-workspace-header button,
@@ -2192,6 +2297,12 @@ img,
   flex: 1 1 0;
   padding: 3rem 1rem;
   color: #c4c7ce;
+}
+.strategic-fit-profile-loading .ui-region-state {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .strategic-fit-profile-loading p {
   margin: 0.3rem 0 0;
@@ -2833,6 +2944,7 @@ img,
 .strategic-fit-analysis-phase-status {
   color: #969fac;
   font-size: var(--type-xs);
+  font-weight: 400;
   line-height: 1.25;
 }
 .strategic-fit-analysis-phase-list li[data-phase-state="completed"] {
@@ -2866,6 +2978,8 @@ img,
   padding: 0.2rem 0.5rem;
   color: #dce3ec;
   font-size: var(--type-xs);
+  font-weight: 700;
+  text-transform: none;
   white-space: nowrap;
 }
 .strategic-fit-preflight-state-ready .strategic-fit-preflight-state-label {
@@ -3042,6 +3156,7 @@ img,
   display: none;
 }
 .strategic-fit-pane-heading {
+  display: block;
   min-height: 3.4rem;
   padding-bottom: 0.8rem;
   border-bottom: 1px solid var(--border);
@@ -4645,44 +4760,6 @@ img,
   margin: 0.24rem 0 0;
   color: #b3bdc8;
 }
-.strategic-fit-region-state {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  margin-top: 1rem;
-  padding: 0.85rem;
-  border: 1px dashed #4c515d;
-  border-radius: 9px;
-  background: #181a1f;
-  color: #c4c7ce;
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-.strategic-fit-region-state p {
-  margin: 0.25rem 0 0;
-  color: var(--muted);
-}
-.strategic-fit-region-error {
-  border-color: #9a5058;
-  background: #2c1d21;
-  color: #ffc9cd;
-}
-.strategic-fit-region-spinner {
-  width: 1rem;
-  height: 1rem;
-  flex: 0 0 auto;
-  margin-top: 0.1rem;
-  border: 2px solid #4b5360;
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: strategic-fit-region-spin 0.8s linear infinite;
-}
-@keyframes strategic-fit-region-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .strategic-fit-replacement-action {
   display: grid;
   gap: 0.6rem;
@@ -6228,7 +6305,7 @@ img,
     scroll-behavior: auto !important;
     transition: none !important;
   }
-  .strategic-fit-region-spinner {
+  .ui-region-spinner {
     animation: none;
   }
   .strategic-fit-workspace,
@@ -6249,7 +6326,7 @@ img,
   .sev,
   .fit,
   .eval-bar,
-  .scan-bar-fill,
+  .ui-progress,
   .tool-run,
   .mobile-tabs button.active,
   .divider:hover,
@@ -6278,9 +6355,8 @@ img,
     border: 3px double CanvasText;
     text-decoration: underline;
   }
-  .scan-bar-fill {
+  .ui-progress {
     border-block: 2px solid CanvasText;
-    background: repeating-linear-gradient(45deg, CanvasText 0 2px, Canvas 2px 4px);
   }
   .eval-bar {
     border: 2px solid CanvasText;

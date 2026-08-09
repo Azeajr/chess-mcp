@@ -14,6 +14,7 @@ import ChangeSetPreview from "./ChangeSetPreview";
 import ReplacementPareto from "./ReplacementPareto";
 import ResolutionProof from "./ResolutionProof";
 import { strategicFitResolutionProofSnapshot } from "../../store/strategic-fit-resolution-proof";
+import Progress from "../primitives/Progress";
 
 const SOURCE_LABELS: Readonly<Record<ReplacementCandidateSourceKind, string>> = {
   "existing-repertoire-transposition": "Existing preparation",
@@ -505,7 +506,11 @@ export default function ReplacementLab() {
                 aria-live="polite"
               >
                 <h3 id="replacement-lab-progress-title">Generating candidates</h3>
-                <progress max={Math.max(1, progress().total)} value={progress().completed} />
+                <Progress
+                  label="Generating replacement candidates"
+                  max={Math.max(1, progress().total)}
+                  value={progress().completed}
+                />
                 <p>{progress().detail}</p>
                 <span>
                   {progress().completed} / {progress().total}

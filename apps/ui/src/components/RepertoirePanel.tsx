@@ -58,6 +58,12 @@ import { saveArtifact } from "../store/artifacts";
 import { analysisDepth } from "../store/engine-settings";
 import StrategicFitTransfer from "./StrategicFitTransfer";
 import { setStrategicFitWorkspaceOpen } from "../store/ui";
+import Button from "./primitives/Button";
+import ErrorState from "./primitives/ErrorState";
+import PanelHeader from "./primitives/PanelHeader";
+import Progress from "./primitives/Progress";
+import Select from "./primitives/Select";
+import Status from "./primitives/Status";
 
 function gapEval(g: Gap): string {
   if (g.mate !== null) return `M${Math.abs(g.mate)}`;
@@ -130,8 +136,9 @@ export default function RepertoirePanel() {
       <Show when={state(command).progress}>
         {(p) => (
           <div class="scan-progress">
-            <progress
-              class="scan-meter"
+            <Progress
+              class="scan-progress-meter"
+              label={`${command} progress`}
               max={p().total ?? 1}
               value={p().total ? Math.min(p().done, p().total ?? 0) : undefined}
             />
@@ -141,9 +148,7 @@ export default function RepertoirePanel() {
           </div>
         )}
       </Show>
-      <Show when={state(command).error}>
-        <div class="empty">{state(command).error}</div>
-      </Show>
+      <Show when={state(command).error}>{(message) => <ErrorState message={message()} />}</Show>
     </>
   );
 
@@ -202,7 +207,7 @@ export default function RepertoirePanel() {
 
   return (
     <div class="rep-panel">
-      <div class="outcome-label">Repertoire</div>
+      <PanelHeader title="Repertoire" />
       <div class="scope-note">Engine-backed operations use depth {analysisDepth()}.</div>
       <section class="strategic-fit-entry" aria-labelledby="strategic-fit-entry-title">
         <div>
@@ -213,13 +218,14 @@ export default function RepertoirePanel() {
             Explore the review workspace. Opening it does not analyze or change this repertoire.
           </div>
         </div>
-        <button
+        <Button
+          variant="primary"
           type="button"
           class="strategic-fit-open-button"
           onClick={() => setStrategicFitWorkspaceOpen(true)}
         >
           Open workspace
-        </button>
+        </Button>
       </section>
       <Show when={preview()}>
         {(active) => (
@@ -252,9 +258,9 @@ export default function RepertoirePanel() {
                 navSan(finding.path as string[]);
               }}
             >
-              <span class={`sev sev-${String(finding.classification)}`}>
+              <Status class={`sev sev-${String(finding.classification)}`}>
                 {String(finding.classification)}
-              </span>
+              </Status>
               <span class="san">
                 {(finding.path as string[]).join(" ")} · {String(finding.prescribed)} →{" "}
                 {String(finding.best_move)}
@@ -329,6 +335,7 @@ export default function RepertoirePanel() {
         </summary>
         <div class="command-input">
           <input
+            aria-label="Structure name"
             value={structure()}
             placeholder="e.g. Carlsbad"
             onInput={(e) => setStructure(e.currentTarget.value)}
@@ -357,6 +364,7 @@ export default function RepertoirePanel() {
         </summary>
         <div class="command-input">
           <input
+            aria-label="Opponent username"
             value={opponent()}
             placeholder="Lichess username"
             onInput={(e) => setOpponent(e.currentTarget.value)}
@@ -399,7 +407,7 @@ export default function RepertoirePanel() {
 
       <StrategicFitTransfer />
 
-      <div class="outcome-label">Advanced</div>
+      <PanelHeader title="Advanced" />
       {/* Tier A: gaps */}
       <details class="rep-section" open>
         <summary>
@@ -432,23 +440,11 @@ export default function RepertoirePanel() {
         <Show when={progress()}>
           {(p) => (
             <div class="scan-progress">
-              <span
-                class={`scan-bar${p().total ? "" : " indeterminate"}`}
-                role="progressbar"
-                aria-label="Scanning repertoire positions"
-                aria-valuemin="0"
-                aria-valuemax={p().total || undefined}
-                aria-valuenow={p().total ? Math.min(p().done, p().total) : undefined}
-              >
-                <span
-                  class="scan-bar-fill"
-                  style={{
-                    width: p().total
-                      ? `${Math.min(100, Math.round((p().done / p().total) * 100))}%`
-                      : "38%",
-                  }}
-                />
-              </span>
+              <Progress
+                label="Scanning repertoire positions"
+                max={p().total || undefined}
+                value={p().total ? Math.min(p().done, p().total) : undefined}
+              />
               <span>{p().total ? `scanning ${p().done}/${p().total}…` : "preparing scan…"}</span>
             </div>
           )}
@@ -479,7 +475,7 @@ export default function RepertoirePanel() {
                   }}
                   title={`${gapLine(g)} — uncovered: ${g.uncoveredMove}`}
                 >
-                  <span class={`sev sev-${g.severity}`}>{g.severity}</span>
+                  <Status class={`sev sev-${g.severity}`}>{g.severity}</Status>
                   <span class="san">
                     <span class="muted">{gapLine(g)}</span> · {g.uncoveredMove}
                   </span>
@@ -595,14 +591,11 @@ export default function RepertoirePanel() {
             }
           >
             <span class="scan-progress" title="positions analysed / estimated total">
-              <span class="scan-bar">
-                <span
-                  class="scan-bar-fill"
-                  style={{
-                    width: `${pruneTotal() ? Math.min(100, Math.round((pruneDone() / pruneTotal()) * 100)) : 0}%`,
-                  }}
-                />
-              </span>
+              <Progress
+                label="Shortening repertoire lines"
+                max={pruneTotal() || undefined}
+                value={pruneTotal() ? Math.min(pruneDone(), pruneTotal()) : undefined}
+              />
               {pruneTotal() ? `${Math.min(pruneDone(), pruneTotal())}/${pruneTotal()}` : "…"}
               <button
                 class="scan-btn scan-cancel"
@@ -717,7 +710,7 @@ export default function RepertoirePanel() {
       <details class="rep-section">
         <summary>
           <span>Extend here</span>
-          <select
+          <Select
             class="rep-mode"
             value={mode()}
             onClick={(e) => {
@@ -727,7 +720,7 @@ export default function RepertoirePanel() {
           >
             <option value="low_memorization">low-mem</option>
             <option value="sharp">sharp</option>
-          </select>
+          </Select>
           <button
             class="scan-btn"
             disabled={!usersTurn()}

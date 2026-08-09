@@ -8,6 +8,9 @@ import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
 import { analysisDepth } from "../store/engine-settings";
 import type { Fit } from "@chess-mcp/chess-tools";
+import PanelHeader from "./primitives/PanelHeader";
+import Progress from "./primitives/Progress";
+import Status from "./primitives/Status";
 
 const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
 
@@ -29,21 +32,14 @@ function cloudText(): string {
 export default function AnalysisPanel() {
   return (
     <div class="analysis">
-      <div class="outcome-label">Position</div>
-      <div class="panel-head">
+      <PanelHeader kicker="Position">
         <span>Engine lines · depth {analysisDepth()}</span>
         <Show when={analysing()}>
           <span class="spinner">analysing…</span>
         </Show>
-      </div>
+      </PanelHeader>
       <Show when={analysing()}>
-        <div
-          class="analysis-progress"
-          role="progressbar"
-          aria-label="Position analysis in progress"
-        >
-          <span />
-        </div>
+        <Progress class="analysis-progress" label="Position analysis in progress" />
       </Show>
       <Show
         when={!engineOffline()}
@@ -53,7 +49,7 @@ export default function AnalysisPanel() {
           <For each={engineLines()}>
             {(l) => (
               <div class="line">
-                <span class={`fit fit-${l.fit}`}>{FIT_LABEL[l.fit]}</span>
+                <Status class={`fit fit-${l.fit}`}>{FIT_LABEL[l.fit]}</Status>
                 <span class="san">{l.san}</span>
                 <span class={`weight w-${l.weight}`} title={`engine weight: ${l.weight}`} />
                 <span class="ev">{evalText(l)}</span>
@@ -69,7 +65,7 @@ export default function AnalysisPanel() {
 
       <Show when={suggestions().length}>
         <div class="suggestions">
-          <div class="panel-head">Suggested (from chat)</div>
+          <PanelHeader title="Suggested (from chat)" />
           <For each={suggestions()}>
             {(s) => (
               <div class="suggestion">

@@ -18,6 +18,7 @@ import {
   type StrategicFitFindingQueueIntent,
 } from "../../store/ui";
 import FindingCard from "./FindingCard";
+import RegionState from "../primitives/RegionState";
 
 const SORT_LABELS: Readonly<Record<StrategicFitFindingSort, string>> = {
   "replacement-priority": "Replacement priority",
@@ -109,21 +110,18 @@ export default function FindingQueue(props: {
       data-queue-status={state().status}
     >
       <Show when={state().status === "loading"}>
-        <div class="strategic-fit-region-state" role="status">
-          <span class="strategic-fit-region-spinner" aria-hidden="true" />
-          <div>
-            <strong>Loading the complete finding queue</strong>
-            <p>Reading canonical report pages without starting a new analysis.</p>
-          </div>
-        </div>
+        <RegionState
+          status="loading"
+          title="Loading the complete finding queue"
+          message="Reading canonical report pages without starting a new analysis."
+        />
       </Show>
       <Show when={state().status === "error"}>
-        <div class="strategic-fit-region-state strategic-fit-region-error" role="alert">
-          <div>
-            <strong>Finding queue unavailable</strong>
-            <p>{state().error ?? "The current report pages could not be read."}</p>
-          </div>
-        </div>
+        <RegionState
+          status="error"
+          title="Finding queue unavailable"
+          message={state().error ?? "The current report pages could not be read."}
+        />
       </Show>
 
       <Show when={state().status === "ready"}>

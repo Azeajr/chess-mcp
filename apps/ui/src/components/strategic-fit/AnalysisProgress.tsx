@@ -1,4 +1,6 @@
 import { For } from "solid-js";
+import Progress from "../primitives/Progress";
+import Status from "../primitives/Status";
 import {
   STRATEGIC_FIT_PHASE_LABELS,
   type StrategicFitLifecycleSnapshot,
@@ -90,8 +92,8 @@ export default function AnalysisProgress(props: { state: StrategicFitLifecycleSn
           {completed()} of 6 complete
         </span>
       </header>
-      <progress
-        aria-label={`${completed()} of 6 Strategic Fit phases complete`}
+      <Progress
+        label={`${completed()} of 6 Strategic Fit phases complete`}
         value={completed()}
         max={6}
       />
@@ -108,9 +110,9 @@ export default function AnalysisProgress(props: { state: StrategicFitLifecycleSn
               <span class="strategic-fit-analysis-phase-name">
                 {STRATEGIC_FIT_PHASE_LABELS[entry.phase]}
               </span>
-              <span class="strategic-fit-analysis-phase-status">
+              <Status class="strategic-fit-analysis-phase-status">
                 {phaseStatusLabel(entry.state, props.state.status, isBlocked())}
-              </span>
+              </Status>
             </li>
           )}
         </For>

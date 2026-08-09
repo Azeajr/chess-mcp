@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "playwright/test";
 import { openApp } from "./helpers/app";
-import { touchTargetViolations } from "./helpers/accessibility";
+import { basicAccessibilityViolations, touchTargetViolations } from "./helpers/accessibility";
 
 type ChessHarness = {
   currentPath(): number[];
@@ -88,7 +88,7 @@ test("WP-006 AC-2 reduced motion disables board and CSS motion", async ({ page }
   await page.waitForTimeout(160);
   expect(await transforms()).toEqual(settledImmediately);
 
-  for (const selector of [".divider", ".eval-bar .fill", ".strategic-fit-region-spinner"]) {
+  for (const selector of [".divider", ".eval-bar .fill", ".ui-region-spinner"]) {
     const probe = page.locator(selector).first();
     if ((await probe.count()) === 0) {
       await page.locator(".app-main").evaluate(
@@ -124,7 +124,7 @@ test("WP-006 AC-3 forced colors retain non-color status distinctions", async ({ 
       <span class="sev sev-high">high</span><span class="sev sev-medium">medium</span>
       <span class="fit fit-in-book">book</span><span class="fit fit-out">out</span>
       <div class="mobile-tabs" style="display: flex"><button class="active">Moves</button></div>
-      <span class="scan-bar"><span class="scan-bar-fill" style="width: 50%"></span></span>`;
+      <progress class="ui-progress" max="100" value="50"></progress>`;
     root.append(fixture);
   });
 
@@ -145,7 +145,7 @@ test("WP-006 AC-3 forced colors retain non-color status distinctions", async ({ 
     "underline",
   );
   expect(
-    await page.locator(".scan-bar-fill").evaluate((el) => getComputedStyle(el).borderTopWidth),
+    await page.locator(".ui-progress").evaluate((el) => getComputedStyle(el).borderTopWidth),
   ).not.toBe("0px");
 });
 
@@ -352,4 +352,29 @@ test("WP-036 AC-2 and AC-6 rendered body type meets its floor without panel over
   }));
   expect(heights.side).toBeLessThanOrEqual(baseline.side * 1.15);
   expect(heights.chat).toBeLessThanOrEqual(baseline.chat * 1.15);
+});
+
+test("WP-037 AC-5 presentation primitives keep panels within ten percent of WP-036", async ({
+  page,
+}) => {
+  await openApp(page, { width: 1280, height: 800 });
+  const baseline = { side: 717.625, chat: 717.625 };
+  const heights = await page.locator(".side-panel, .chat-wrap").evaluateAll((elements) => ({
+    side: elements[0]!.getBoundingClientRect().height,
+    chat: elements[1]!.getBoundingClientRect().height,
+  }));
+  expect(heights.side).toBeLessThanOrEqual(baseline.side * 1.1);
+  expect(heights.chat).toBeLessThanOrEqual(baseline.chat * 1.1);
+});
+
+test("WP-037 AC-7 migrated presentation surfaces have no basic accessibility violations", async ({
+  page,
+}) => {
+  await openApp(page, { width: 1280, height: 800 });
+  expect(await basicAccessibilityViolations(page.locator(".app-main"))).toEqual([]);
+
+  await page.getByRole("button", { name: "Open workspace" }).click();
+  const workspace = page.getByRole("dialog", { name: "Strategic Fit" });
+  await expect(workspace).toBeVisible();
+  expect(await basicAccessibilityViolations(workspace)).toEqual([]);
 });

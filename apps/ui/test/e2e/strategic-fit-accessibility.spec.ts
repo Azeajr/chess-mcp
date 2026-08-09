@@ -116,7 +116,7 @@ test("reduced-motion preference disables workspace animation and transition", as
       message: "Reduced-motion loading fixture.",
     }),
   );
-  const spinner = dialog.locator(".strategic-fit-region-spinner");
+  const spinner = dialog.locator(".ui-region-spinner");
   await expect(spinner).toBeVisible();
   expect(await spinner.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
   expect(

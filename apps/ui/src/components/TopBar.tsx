@@ -22,7 +22,7 @@ export default function TopBar() {
   };
   return (
     <div class="topbar">
-      <span class="title">Chess Repertoire</span>
+      <h1 class="title">Chess Repertoire</h1>
       <Show when={dirty()}>
         <span class="dirty">● unsaved</span>
       </Show>

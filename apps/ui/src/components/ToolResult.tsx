@@ -35,6 +35,7 @@ import {
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
+import Status from "./primitives/Status";
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -574,13 +575,13 @@ function StrategicFitProposalResult(props: { data: Data }) {
       <Show
         when={status() === "pending"}
         fallback={
-          <span class={`result-status ${status()}`}>
+          <Status class={`result-status ${status()}`}>
             {status() === "stale"
               ? "Profile or document changed — proposal is no longer valid"
               : status() === "unavailable"
                 ? "Proposal is not available in this session"
                 : status()}
-          </span>
+          </Status>
         }
       >
         <button class="result-accept" onClick={() => acceptStrategicFitProfileProposal(id())}>
@@ -704,13 +705,13 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
       <Show
         when={status() === "pending"}
         fallback={
-          <span class={`result-status ${status()}`}>
+          <Status class={`result-status ${status()}`}>
             {status() === "stale"
               ? "Evidence or document changed — plan is no longer valid"
               : status() === "unavailable"
                 ? "Plan is not available in this session"
                 : status()}
-          </span>
+          </Status>
         }
       >
         <button class="result-accept" onClick={() => acceptStrategicFitPlanCard(id())}>
@@ -777,13 +778,13 @@ function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
       <Show
         when={status() === "pending"}
         fallback={
-          <span class={`result-status ${status()}`}>
+          <Status class={`result-status ${status()}`}>
             {status() === "stale"
               ? "Repertoire changed — state the bounds again"
               : status() === "unavailable"
                 ? "These bounds are not available in this session"
                 : status()}
-          </span>
+          </Status>
         }
       >
         <button class="result-accept" onClick={() => confirmStrategicFitPortfolioConstraints(id())}>
@@ -940,9 +941,9 @@ function StagedEditResult(props: { data: Data }) {
       <Show
         when={edit()?.status === "pending"}
         fallback={
-          <span class={`result-status ${edit()?.status}`}>
+          <Status class={`result-status ${edit()?.status}`}>
             {stale() ? "Tree changed — preview is stale" : edit()?.status}
-          </span>
+          </Status>
         }
       >
         <Show when={edit()?.action === "add"}>
