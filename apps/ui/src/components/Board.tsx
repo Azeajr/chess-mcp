@@ -51,6 +51,14 @@ export default function Board() {
       opacity: 0.95,
       lineWidth: 10,
     };
+    // Repertoire arrows use their own colour and a width outside the engine's 6/10/14 px bands,
+    // so they remain distinguishable from in-book engine arrows in forced-colour rendering.
+    (cg.state.drawable.brushes as Record<string, DrawBrush>).repertoire = {
+      key: "repertoire",
+      color: "#0f9f8f",
+      opacity: 0.95,
+      lineWidth: 4,
+    };
   });
 
   // Re-sync the board whenever the store position changes. Also depends on the pending-promotion

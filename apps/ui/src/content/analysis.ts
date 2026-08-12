@@ -1,4 +1,5 @@
 import type { AnalysisState } from "../store/analysis";
+import type { Fit, Weight } from "@chess-mcp/chess-tools";
 import { evaluationText, type EvaluationValue } from "./format";
 
 export const CLOUD_EVALUATION_PRIVACY_NOTE =
@@ -34,6 +35,26 @@ export const ANALYSIS_CONTENT = {
       `Deep analysis is enabled. Every engine task will use depth ${depth} and may take several minutes.`,
   },
   progress: "Position analysis in progress",
+  arrows: {
+    summary: "Arrow legend",
+    fitHeading: "Engine arrow colour — repertoire fit",
+    weightHeading: "Engine arrow thickness — evaluation strength",
+    sourceHeading: "Arrow source",
+    fit: {
+      "in-book": { plain: "In repertoire", expert: "book" },
+      adjacent: { plain: "Related position", expert: "adj" },
+      out: { plain: "Outside repertoire", expert: "out" },
+    } satisfies Record<Fit, { plain: string; expert: string }>,
+    weight: {
+      thick: { plain: "Strong", expert: "thick" },
+      medium: { plain: "Close", expert: "medium" },
+      thin: { plain: "Weaker", expert: "thin" },
+    } satisfies Record<Weight, { plain: string; expert: string }>,
+    source: {
+      repertoire: "Repertoire move — thin teal arrow",
+      engine: "Engine move — fit colour with strength thickness",
+    },
+  },
 } as const;
 
 function evaluationSummary(value: EvaluationValue): string {

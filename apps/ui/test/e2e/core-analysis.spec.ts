@@ -186,3 +186,50 @@ test("WP-016 AC-8 preserves the selected depth for direct engine commands", asyn
   expect(depths.length).toBeGreaterThan(0);
   expect(depths.every((depth) => depth === 23)).toBe(true);
 });
+
+test("WP-038 AC-1 AC-3 AC-4 AC-6 explains arrows accessibly and persists disclosure", async ({
+  page,
+}) => {
+  await installEngineFixture(page, "lines");
+  await openApp(page, { pgn: "1. e4 e5 *" });
+
+  const panel = page.locator(".analysis");
+  const legend = panel.locator(".arrow-legend");
+  await expect(legend).not.toHaveAttribute("open", "");
+  await legend.locator("summary").click();
+  await expect(legend).toHaveAttribute("open", "");
+  await expect(legend).toContainText("In repertoire (book)");
+  await expect(legend).toContainText("Related position (adj)");
+  await expect(legend).toContainText("Outside repertoire (out)");
+  await expect(legend).toContainText("Strong (thick)");
+  await expect(legend).toContainText("Close (medium)");
+  await expect(legend).toContainText("Weaker (thin)");
+  await expect(legend).toContainText("Repertoire move — thin teal arrow");
+  await expect(legend).toContainText("Engine move — fit colour with strength thickness");
+
+  await panel.getByRole("button", { name: "Turn on evaluation" }).click();
+  await expect(panel.locator(".line")).toHaveCount(1, { timeout: 10_000 });
+  await expect(panel.locator(".line .fit")).toHaveText("In repertoire (book)");
+  await expect(
+    panel.getByRole("img", { name: "Engine arrow strength: Close (medium)" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".analysis .arrow-legend")).toHaveAttribute("open", "");
+});
+
+test("WP-038 AC-2 AC-5 keeps repertoire arrows distinct and de-duplicates engine overlap", async ({
+  page,
+}) => {
+  await installEngineFixture(page, "lines");
+  await openApp(page, { pgn: "1. e4 e5 *" });
+
+  const renderedArrows = page.locator(".cg-shapes > g > g");
+  await expect(renderedArrows).toHaveCount(1);
+  await expect(renderedArrows).toHaveAttribute("cgHash", /repertoire,4/u);
+
+  await page.locator(".analysis").getByRole("button", { name: "Turn on evaluation" }).click();
+  await expect(page.locator(".analysis .line")).toHaveCount(1, { timeout: 10_000 });
+  await expect(renderedArrows).toHaveCount(1);
+  await expect(renderedArrows).toHaveAttribute("cgHash", /repertoire,4/u);
+});

@@ -1,11 +1,11 @@
 # Next step
 
-The next executable UI/UX remediation package is **WP-038 — Analysis arrow legend and fit labels**.
+The next executable UI/UX remediation package is **WP-026 — Chat result hierarchy and recovery actions**.
 
-WP-016 (Analysis states and controls), WP-023 (Strategic Fit workspace), WP-024 (Content registry foundation), and WP-025 (Human-readable tool labels) are complete. Begin with:
+WP-038 (Analysis arrow legend and fit labels) is complete. Begin with:
 
 ```sh
-pnpm ux:task WP-038
+pnpm ux:task WP-026
 ```
 
 After completing a package, derive the next handoff from the live manifest and state, update this file,

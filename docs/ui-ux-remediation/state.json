@@ -326,7 +326,25 @@
       }
     },
     "WP-038": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-038 (2 passed on Chromium)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-analysis.spec.ts apps/ui/test/e2e/core-a11y.spec.ts --grep \"WP-038|WP-006 AC-3\" --reporter=dot (9 passed across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm --filter @chess-mcp/ui test:chat (286 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check"
+        ],
+        "playwright": "The version-matched Playwright 1.61.0 container passed all nine focused WP-038 and forced-colors compatibility assertions across Chromium, Firefox, and WebKit. The complete 363-test container run passed 321 tests with 20 configured skips; 19 unrelated tests timed out under six-worker resource contention, while the package-caused legacy selector collision was corrected and verified across all browsers.",
+        "manual": "At the 160 px board design floor, repertoire and engine arrows remain distinguishable by both source colour (teal versus fit colour) and non-overlapping widths (4 px versus 6/10/14 px). Under forced colors, the width distinction remains available; the canonical three-browser forced-colors compatibility test passed.",
+        "rollback": "Reverting WP-038 restores abbreviated fit labels, removes the persistent legend and repertoire brush distinction, and changes no repertoire, analysis, or other user data."
+      }
     }
   },
   "gates": {

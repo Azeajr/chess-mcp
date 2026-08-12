@@ -88,8 +88,8 @@ export const repertoireArrows = (): Arrow[] =>
     .map((m) => ({
       orig: m.orig,
       dest: m.dest,
-      brush: "green",
-      modifiers: { lineWidth: 7 },
+      brush: "repertoire",
+      modifiers: { lineWidth: 4 },
     }));
 
 function toArrow(l: EngineLine): Arrow {
