@@ -1013,8 +1013,16 @@ img,
   min-height: var(--target-min);
   display: flex;
   align-items: center;
+  gap: 0.35rem;
   color: var(--muted);
   cursor: pointer;
+}
+
+.arrow-legend-disclosure {
+  width: 1ch;
+  flex: none;
+  color: var(--text);
+  text-align: center;
 }
 
 .arrow-legend-body {
@@ -1051,18 +1059,6 @@ img,
   border-radius: 50%;
 }
 
-.legend-fit-in-book {
-  background: var(--status-success-border);
-}
-
-.legend-fit-adjacent {
-  background: var(--status-adjacent-surface);
-}
-
-.legend-fit-out {
-  background: var(--status-danger-border);
-}
-
 .legend-line {
   width: 1.5rem;
   flex: none;
@@ -1072,7 +1068,15 @@ img,
 
 .legend-line.repertoire {
   height: 4px;
-  background: #0f9f8f;
+}
+
+@media (forced-colors: active) {
+  /* Chessground emits arrow paint as SVG attributes, which forced colors leaves intact. */
+  .legend-colour,
+  .legend-line.repertoire,
+  .legend-line.engine-source {
+    forced-color-adjust: none;
+  }
 }
 
 .legend-expert,

@@ -3,6 +3,13 @@ import { openApp } from "./helpers/app";
 
 type EngineFixtureMode = "lines" | "empty" | "offline";
 
+const ARROW_COLOURS = {
+  inBook: "rgb(21, 120, 27)",
+  adjacent: "rgb(230, 143, 0)",
+  out: "rgb(136, 32, 32)",
+  repertoire: "rgb(15, 159, 143)",
+};
+
 async function installEngineFixture(page: Page, mode: EngineFixtureMode) {
   await page.addInitScript((fixtureMode: EngineFixtureMode) => {
     const depths: number[] = [];
@@ -195,9 +202,12 @@ test("WP-038 AC-1 AC-3 AC-4 AC-6 explains arrows accessibly and persists disclos
 
   const panel = page.locator(".analysis");
   const legend = panel.locator(".arrow-legend");
+  const disclosure = legend.locator(".arrow-legend-disclosure");
   await expect(legend).not.toHaveAttribute("open", "");
+  await expect(disclosure).toHaveText("▸");
   await legend.locator("summary").click();
   await expect(legend).toHaveAttribute("open", "");
+  await expect(disclosure).toHaveText("▾");
   await expect(legend).toContainText("In repertoire (book)");
   await expect(legend).toContainText("Related position (adj)");
   await expect(legend).toContainText("Outside repertoire (out)");
@@ -206,6 +216,19 @@ test("WP-038 AC-1 AC-3 AC-4 AC-6 explains arrows accessibly and persists disclos
   await expect(legend).toContainText("Weaker (thin)");
   await expect(legend).toContainText("Repertoire move — thin teal arrow");
   await expect(legend).toContainText("Engine move — fit colour with strength thickness");
+  await expect(legend.locator(".legend-fit-in-book")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.inBook,
+  );
+  await expect(legend.locator(".legend-fit-adjacent")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.adjacent,
+  );
+  await expect(legend.locator(".legend-fit-out")).toHaveCSS("background-color", ARROW_COLOURS.out);
+  await expect(legend.locator(".legend-line.repertoire")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.repertoire,
+  );
 
   await panel.getByRole("button", { name: "Turn on evaluation" }).click();
   await expect(panel.locator(".line")).toHaveCount(1, { timeout: 10_000 });
@@ -216,6 +239,37 @@ test("WP-038 AC-1 AC-3 AC-4 AC-6 explains arrows accessibly and persists disclos
 
   await page.reload();
   await expect(page.locator(".analysis .arrow-legend")).toHaveAttribute("open", "");
+  await expect(page.locator(".arrow-legend-disclosure")).toHaveText("▾");
+
+  await page.locator(".analysis .arrow-legend summary").click();
+  await expect(page.locator(".analysis .arrow-legend")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".arrow-legend-disclosure")).toHaveText("▸");
+  await page.reload();
+  await expect(page.locator(".analysis .arrow-legend")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".arrow-legend-disclosure")).toHaveText("▸");
+});
+
+test("WP-038 keeps board and legend palette aligned in forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await installEngineFixture(page, "lines");
+  await openApp(page, { pgn: "1. e4 e5 *" });
+
+  const legend = page.locator(".analysis .arrow-legend");
+  await legend.locator("summary").click();
+  await expect(page.locator(".cg-shapes > g > g > line")).toHaveAttribute("stroke", "#0f9f8f");
+  await expect(legend.locator(".legend-fit-in-book")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.inBook,
+  );
+  await expect(legend.locator(".legend-fit-adjacent")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.adjacent,
+  );
+  await expect(legend.locator(".legend-fit-out")).toHaveCSS("background-color", ARROW_COLOURS.out);
+  await expect(legend.locator(".legend-line.repertoire")).toHaveCSS(
+    "background-color",
+    ARROW_COLOURS.repertoire,
+  );
 });
 
 test("WP-038 AC-2 AC-5 keeps repertoire arrows distinct and de-duplicates engine overlap", async ({

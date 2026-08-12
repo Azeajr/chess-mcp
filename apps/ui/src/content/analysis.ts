@@ -5,6 +5,33 @@ import { evaluationText, type EvaluationValue } from "./format";
 export const CLOUD_EVALUATION_PRIVACY_NOTE =
   "Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off to keep prep lines fully on this machine — local Stockfish is unaffected.";
 
+type ArrowBrush = {
+  brush: string;
+  key: string;
+  color: string;
+  opacity: number;
+  lineWidth: number;
+};
+
+/**
+ * Shared board/legend palette. Board registers these brushes explicitly rather than relying on
+ * Chessground defaults, so the legend cannot drift from the arrows it explains.
+ */
+export const ANALYSIS_ARROW_BRUSHES = {
+  fit: {
+    "in-book": { brush: "green", key: "g", color: "#15781b", opacity: 1, lineWidth: 10 },
+    adjacent: { brush: "yellow", key: "y", color: "#e68f00", opacity: 1, lineWidth: 10 },
+    out: { brush: "red", key: "r", color: "#882020", opacity: 1, lineWidth: 10 },
+  } satisfies Record<Fit, ArrowBrush>,
+  repertoire: {
+    brush: "repertoire",
+    key: "repertoire",
+    color: "#0f9f8f",
+    opacity: 0.95,
+    lineWidth: 4,
+  },
+} as const;
+
 export const ANALYSIS_CONTENT = {
   title: "Engine",
   status: {

@@ -1,7 +1,13 @@
 import { createSignal, For, onMount } from "solid-js";
-import { ANALYSIS_CONTENT } from "../content/analysis";
+import type { Fit } from "@chess-mcp/chess-tools";
+import { ANALYSIS_ARROW_BRUSHES, ANALYSIS_CONTENT } from "../content/analysis";
 
 export const ARROW_LEGEND_STORAGE_KEY = "chess.analysis.arrow-legend.expanded.v1";
+
+const FITS = ["in-book", "adjacent", "out"] as const satisfies readonly Fit[];
+const ENGINE_SOURCE_BACKGROUND = `linear-gradient(90deg, ${FITS.map(
+  (fit) => ANALYSIS_ARROW_BRUSHES.fit[fit].color,
+).join(", ")})`;
 
 export default function ArrowLegend() {
   const [expanded, setExpanded] = createSignal(false);
@@ -16,16 +22,26 @@ export default function ArrowLegend() {
 
   return (
     <details class="arrow-legend" open={expanded()} onToggle={persist}>
-      <summary>{ANALYSIS_CONTENT.arrows.summary}</summary>
+      <summary>
+        <span class="arrow-legend-disclosure" aria-hidden="true">
+          {expanded() ? "▾" : "▸"}
+        </span>
+        <span>{ANALYSIS_CONTENT.arrows.summary}</span>
+      </summary>
       <div class="arrow-legend-body">
         <section aria-labelledby="arrow-fit-heading">
           <h3 id="arrow-fit-heading">{ANALYSIS_CONTENT.arrows.fitHeading}</h3>
           <ul>
-            <For each={Object.entries(ANALYSIS_CONTENT.arrows.fit)}>
-              {([fit, label]) => (
+            <For each={FITS}>
+              {(fit) => (
                 <li>
-                  <span class={`legend-colour legend-fit-${fit}`} aria-hidden="true" />
-                  {label.plain} <span class="legend-expert">({label.expert})</span>
+                  <span
+                    class={`legend-colour legend-fit-${fit}`}
+                    style={{ background: ANALYSIS_ARROW_BRUSHES.fit[fit].color }}
+                    aria-hidden="true"
+                  />
+                  {ANALYSIS_CONTENT.arrows.fit[fit].plain}{" "}
+                  <span class="legend-expert">({ANALYSIS_CONTENT.arrows.fit[fit].expert})</span>
                 </li>
               )}
             </For>
@@ -48,11 +64,19 @@ export default function ArrowLegend() {
           <h3 id="arrow-source-heading">{ANALYSIS_CONTENT.arrows.sourceHeading}</h3>
           <ul>
             <li>
-              <span class="legend-line repertoire" aria-hidden="true" />
+              <span
+                class="legend-line repertoire"
+                style={{ background: ANALYSIS_ARROW_BRUSHES.repertoire.color }}
+                aria-hidden="true"
+              />
               {ANALYSIS_CONTENT.arrows.source.repertoire}
             </li>
             <li>
-              <span class="legend-line engine w-medium" aria-hidden="true" />
+              <span
+                class="legend-line engine-source w-medium"
+                style={{ background: ENGINE_SOURCE_BACKGROUND }}
+                aria-hidden="true"
+              />
               {ANALYSIS_CONTENT.arrows.source.engine}
             </li>
           </ul>
