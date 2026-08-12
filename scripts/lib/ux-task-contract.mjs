@@ -100,8 +100,9 @@ export const renderAgentExecutionProtocol = (id) =>
     `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
     `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
     `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
-    "- Inspect the current manifest and state after completion. In the final response, name the next executable package, or state that none is ready and summarize the blockers.",
-    "- Do not stage or commit unless the user explicitly requests it separately. Report actual command results and distinguish unrelated pre-existing failures.",
+    "- Inspect the current manifest and state after completion, then update docs/ui-ux-remediation/NEXT.md with the next executable package or its blockers.",
+    "- Commit only the completed package's scoped changes, docs/ui-ux-remediation/state.json, and docs/ui-ux-remediation/NEXT.md; preserve unrelated dirty-worktree changes by staging explicit paths only, then push the commit.",
+    "- In the final response, name the next executable package, or state that none is ready and summarize the blockers. Report actual command results and distinguish unrelated pre-existing failures.",
   ].join("\n");
 
 const renderBlockers = (lifecycle) => [
@@ -183,6 +184,9 @@ export const validateRemediationAgentInstructions = (source) => {
     errors.push("missing authoritative ux:task preflight command");
   if (!/next executable package/u.test(source))
     errors.push("missing next executable package handoff");
+  if (!/NEXT\.md/u.test(source)) errors.push("missing NEXT.md handoff update");
+  if (!/commit only the completed package's scoped changes and push the commit/u.test(source))
+    errors.push("missing scoped commit-and-push completion step");
   if (/WP-\d{3} AC-\d+/u.test(source))
     errors.push("duplicates package-specific acceptance criteria");
   return errors;

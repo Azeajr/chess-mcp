@@ -79,7 +79,9 @@ test("ready capsule emits a dynamic package-specific execution protocol", () => 
   assert.match(capsule.text, /pnpm ux:test WP-123/u);
   assert.match(capsule.text, /pnpm ux:task WP-123/u);
   assert.match(capsule.text, /next executable package/u);
-  assert.match(capsule.text, /Do not stage or commit/u);
+  assert.match(capsule.text, /NEXT\.md/u);
+  assert.match(capsule.text, /Commit only the completed package's scoped changes/u);
+  assert.match(capsule.text, /push the commit/u);
   assert.doesNotMatch(capsule.text, /WP-002/u);
 });
 
@@ -213,7 +215,8 @@ test("repository instructions establish the generic remediation convention", asy
   const source = await readFile("AGENTS.md", "utf8");
   assert.deepEqual(validateRemediationAgentInstructions(source), []);
   assert.match(source, /only after all required validation\s+passes/iu);
-  assert.match(source, /Do not stage or commit unless the user separately requests it/iu);
+  assert.match(source, /NEXT\.md/u);
+  assert.match(source, /commit only the completed package's scoped changes and push the commit/iu);
   assert.match(source, /actual command results/iu);
   assert.doesNotMatch(source, /WP-\d{3} AC-\d+/u);
 });

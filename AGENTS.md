@@ -115,7 +115,9 @@ or check named by the capsule; fix package-caused failures and report unrelated 
 separately. Change only that package's lifecycle state, and only after all required validation
 passes. Then run `pnpm ux:plan-check` and verify that `pnpm ux:task WP-NNN` rejects the completed
 package as non-executable. After completion, inspect the current manifest and state to identify the
-next executable package. The final response must name that package, or state that none is ready and
-summarize the blockers. Do not stage or commit unless the user separately requests it. The final
-response must also concisely report the implementation and actual command results; never claim a
-pass without evidence.
+next executable package, update `docs/ui-ux-remediation/NEXT.md` with that live handoff (or its
+blockers), then commit only the completed package's scoped changes and push the commit. Preserve
+unrelated dirty-worktree changes: explicitly stage only the package files, `state.json`, and
+`NEXT.md`. The final response must name that package, or state that none is ready and summarize the
+blockers. The final response must also concisely report the implementation and actual command results;
+never claim a pass without evidence.
