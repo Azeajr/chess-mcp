@@ -3,6 +3,16 @@ import { createSignal } from "solid-js";
 
 export const [settingsOpen, setSettingsOpen] = createSignal(false);
 
+export type SettingsFocusTarget = "lichess-token" | null;
+export const [settingsFocusTarget, setSettingsFocusTarget] =
+  createSignal<SettingsFocusTarget>(null);
+
+/** Opens Settings and, when relevant, moves focus straight to the recovery field. */
+export function openSettings(focusTarget: SettingsFocusTarget = null) {
+  setSettingsFocusTarget(focusTarget);
+  setSettingsOpen(true);
+}
+
 /** Phone-only (≤720px) panel selector: which panel shows under the pinned board. */
 export type MobileTab = "analysis" | "moves" | "chat";
 export const [mobileTab, setMobileTab] = createSignal<MobileTab>("analysis");

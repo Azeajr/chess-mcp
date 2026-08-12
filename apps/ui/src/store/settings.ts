@@ -11,7 +11,10 @@ const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
 const KEY_MODE = "chess.chat.mode";
 const KEY_LICHESS = "chess.lichess.token";
+const KEY_TECHNICAL_DETAILS = "chess.chat.technical-details";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+const runtimeEnv = (import.meta as { env?: { DEV?: boolean } }).env;
+const DEFAULT_TECHNICAL_DETAILS = runtimeEnv?.DEV ? "true" : "false";
 
 /** The selectable models (friendly label → OpenRouter slug), shown as chips in Settings. */
 export const MODEL_SUGGESTIONS: { label: string; slug: string }[] = [
@@ -63,6 +66,18 @@ export function setLichessToken(v: string) {
   if (t) localStorage.setItem(KEY_LICHESS, t);
   else localStorage.removeItem(KEY_LICHESS);
   setExplorerToken(t || null);
+}
+
+// Raw result payloads and error codes help during development, but are deliberately opt-in for
+// regular sessions. Vite development keeps the previous debugging affordance unless a user opts
+// out, while production starts with it hidden.
+const [showTechnicalDetails, setShowTechnicalDetailsRaw] = createSignal(
+  read(KEY_TECHNICAL_DETAILS, DEFAULT_TECHNICAL_DETAILS) === "true",
+);
+export { showTechnicalDetails };
+export function setShowTechnicalDetails(v: boolean) {
+  setShowTechnicalDetailsRaw(v);
+  localStorage.setItem(KEY_TECHNICAL_DETAILS, String(v));
 }
 
 // Cloud eval sends every browsed FEN to Lichess; the rest of the PWA is local-first, so this is

@@ -3,6 +3,12 @@ import { expect, test, type Page } from "playwright/test";
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
   appendToolResultForTesting(operation: string, result: unknown): void;
+  stageEdit(
+    action: "add" | "prune" | "reorder",
+    path: string[],
+    options?: { addMoves?: string[]; promoteMove?: string },
+  ): unknown;
+  toPgn(): string;
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
@@ -68,6 +74,184 @@ const report = (overrides: Record<string, unknown> = {}) => ({
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+});
+
+async function appendStagedAdd(page: Page) {
+  await chess(page, (api) => api.loadPgn("1. e4 e5 *", "staged-edit.pgn"));
+  const staged = (await chess(page, (api) =>
+    api.stageEdit("add", ["e4", "e5"], { addMoves: ["Nf3", "Nc6"] }),
+  )) as { ok: boolean; action_id?: string };
+  if (!staged.ok) throw new Error("staged edit fixture should be valid");
+  await chess(
+    page,
+    (api, result) => api.appendToolResultForTesting("modify_repertoire_line", result),
+    staged,
+  );
+  return staged;
+}
+
+test("WP-026 AC-1 technical details hide raw payloads and error codes until enabled", async ({
+  page,
+}) => {
+  await page.evaluate(() => localStorage.setItem("chess.chat.technical-details", "false"));
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("get_game_summary", {
+      total_moves: 1,
+      white: { accuracy_pct: 100, blunders: 0 },
+      black: { accuracy_pct: 100, blunders: 0 },
+    }),
+  );
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("evaluate_position", {
+      error: "engine_unavailable",
+      reason: "The local engine did not start.",
+    }),
+  );
+
+  await expect(page.locator(".chat-log .tool-result-raw")).toHaveCount(0);
+  await expect(page.locator(".chat-log .result-code")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  const technicalDetails = page.getByRole("checkbox", { name: "Show technical details" });
+  await expect(technicalDetails).not.toBeChecked();
+  await technicalDetails.check();
+  await expect(page.locator(".chat-log .tool-result-raw")).toHaveCount(2);
+  await expect(page.locator(".chat-log .result-code")).toHaveText("engine_unavailable");
+  expect(await page.evaluate(() => localStorage.getItem("chess.chat.technical-details"))).toBe(
+    "true",
+  );
+});
+
+test("WP-026 AC-2 gives mutating cards a forced-colors-safe non-colour distinction", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("get_game_summary", {
+      total_moves: 1,
+      white: { accuracy_pct: 100, blunders: 0 },
+      black: { accuracy_pct: 100, blunders: 0 },
+    }),
+  );
+  await appendStagedAdd(page);
+
+  const informational = page.locator(".result-card-informational").last();
+  const mutating = page.locator(".result-card-mutating.staged-card").last();
+  await expect(informational).toBeVisible();
+  await expect(mutating).toBeVisible();
+  await expect(mutating.locator(".result-mutation-badge")).toHaveText("Changes your repertoire");
+  expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches)).toBe(true);
+  expect(await mutating.evaluate((card) => getComputedStyle(card).borderLeftWidth)).toBe("4px");
+  expect(await informational.evaluate((card) => getComputedStyle(card).borderLeftWidth)).toBe(
+    "0px",
+  );
+});
+
+test("WP-026 AC-3 staged repertoire edits state scope, browser impact, and undo", async ({
+  page,
+}) => {
+  await appendStagedAdd(page);
+
+  const card = page.locator(".result-card-mutating.staged-card").last();
+  await expect(card).toContainText("Scope: 2 moves in 1 line.");
+  await expect(card).toContainText("Current line: 1. e4 e5.");
+  await expect(card).toContainText("New continuation: 2. Nf3 Nc6.");
+  await expect(card).toContainText("Accepting updates the working repertoire in this browser.");
+  await expect(card).toContainText("You can undo this change from the move tree after accepting.");
+
+  await card.getByRole("button", { name: "Accept" }).click();
+  expect(await chess(page, (api) => api.toPgn())).toContain("Nf3 Nc6");
+});
+
+test("WP-026 AC-4 error recovery retries chat and focuses the Lichess token setting", async ({
+  page,
+}) => {
+  await page.evaluate(() => localStorage.setItem("chess.openrouter.key", "fake-key"));
+  await page.reload();
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+
+  let requests = 0;
+  await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
+    requests++;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify({
+        choices: [
+          {
+            delta: { content: requests === 1 ? "Initial response." : "Retried response." },
+            finish_reason: "stop",
+          },
+        ],
+      })}\n\ndata: [DONE]\n\n`,
+    });
+  });
+
+  const input = page.getByPlaceholder("Ask about this position, game, or repertoire…");
+  await input.fill("Retry this request");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Initial response.")).toBeVisible();
+
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("evaluate_position", { error: "engine_unavailable" }),
+  );
+  const engineError = page.getByRole("alert").filter({ hasText: "Local engine unavailable" });
+  await engineError.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByText("Retried response.")).toBeVisible();
+  expect(requests).toBe(2);
+
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("find_theory_depth", { error: "explorer_auth_required" }),
+  );
+  const explorerError = page.getByRole("alert").filter({ hasText: "Lichess token required" });
+  await explorerError.getByRole("button", { name: "Add Lichess token" }).click();
+  await expect(page.locator(".drawer")).toBeVisible();
+  await expect(page.getByLabel("Lichess API token")).toBeFocused();
+});
+
+test("WP-026 AC-5 preserves the staged-mutation safeguards in the chat log", async ({ page }) => {
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("propose_strategic_fit_profile", {
+      kind: "strategic_fit_profile_proposal",
+      proposal_id: "proposal:preserved-copy",
+      current_mode: "balanced",
+      resulting_mode: "custom",
+      diff: [],
+    }),
+  );
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("propose_strategic_fit_plan", {
+      kind: "strategic_fit_plan_basis",
+      report_id: "report:preserved-copy",
+      finding_id: "finding:preserved-copy",
+      concept_ids: [],
+      checkpoints: [],
+      drills: [],
+      moves: [],
+      omitted_concept_count: 1,
+      omitted_checkpoint_count: 0,
+      omitted_drill_count: 0,
+      omitted_san_path_count: 0,
+      omitted_move_count: 0,
+    }),
+  );
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("propose_strategic_fit_portfolio", {
+      kind: "strategic_fit_portfolio_constraints",
+      constraint_set_id: "constraints:preserved-copy",
+      status: "pending",
+      constraints: [],
+      conflicts: [],
+    }),
+  );
+
+  const log = page.locator(".chat-log");
+  await expect(log).toContainText("Nothing is saved until you accept.");
+  await expect(log).toContainText("Withheld evidence exists; it is not absent");
+  await expect(log).toContainText("Nothing is bound and no preference was saved.");
 });
 
 test("typed Strategic Fit cards keep signals separate and navigate through a current safe SAN reference", async ({

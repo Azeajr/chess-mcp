@@ -2,8 +2,13 @@
  * Settings drawer: OpenRouter API key, model slug, and Lichess API token (persisted to
  * localStorage by the settings store). The keys are stored in plaintext — noted to the user.
  */
-import { For, Show } from "solid-js";
-import { settingsOpen, setSettingsOpen } from "../store/ui";
+import { createEffect, For, Show } from "solid-js";
+import {
+  settingsFocusTarget,
+  settingsOpen,
+  setSettingsFocusTarget,
+  setSettingsOpen,
+} from "../store/ui";
 import {
   apiKey,
   model,
@@ -11,11 +16,24 @@ import {
   setModel,
   lichessToken,
   setLichessToken,
+  setShowTechnicalDetails,
+  showTechnicalDetails,
   MODEL_SUGGESTIONS,
 } from "../store/settings";
 import Field from "./primitives/Field";
 
 export default function SettingsDrawer() {
+  createEffect(() => {
+    if (!settingsOpen() || settingsFocusTarget() !== "lichess-token") return;
+    requestAnimationFrame(() => {
+      const input = document.getElementById("settings-lichess-token");
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        setSettingsFocusTarget(null);
+      }
+    });
+  });
+
   return (
     <Show when={settingsOpen()}>
       <div class="drawer-backdrop" onClick={() => setSettingsOpen(false)}>
@@ -74,6 +92,7 @@ export default function SettingsDrawer() {
 
           <Field class="field" label="Lichess API token">
             <input
+              id="settings-lichess-token"
               type="password"
               placeholder="lip_…"
               value={lichessToken()}
@@ -86,6 +105,19 @@ export default function SettingsDrawer() {
               opening-explorer tools (position popularity, theory depth, gap popularity). Stored in
               localStorage (plaintext).
             </small>
+          </Field>
+
+          <Field class="field field-toggle" label="Display">
+            <input
+              type="checkbox"
+              aria-label="Show technical details"
+              checked={showTechnicalDetails()}
+              onChange={(e) => {
+                setShowTechnicalDetails(e.currentTarget.checked);
+              }}
+            />
+            <span>Show technical details</span>
+            <small>Show raw command payloads and error codes in chat.</small>
           </Field>
         </div>
       </div>

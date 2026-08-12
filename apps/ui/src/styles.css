@@ -1753,6 +1753,28 @@ img,
   padding: 0.35rem 0;
   color: var(--text);
 }
+.tool-result-tier {
+  display: contents;
+}
+.result-card-navigational {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  background: var(--surface-raised);
+}
+.result-card-mutating {
+  border-left: 4px solid var(--accent);
+  padding-left: 0.55rem;
+}
+.result-mutation-badge {
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.08rem 0.38rem;
+  color: var(--text);
+  font-size: var(--type-xs);
+  font-weight: 650;
+  line-height: 1.2;
+}
 .result-title {
   width: 100%;
   font-weight: 650;
@@ -1775,6 +1797,13 @@ img,
   color: var(--status-danger-text);
   font-family: ui-monospace, monospace;
   font-size: var(--type-xs);
+}
+.result-technical-summary {
+  font-family: ui-monospace, monospace;
+  font-size: var(--type-xs);
+}
+.result-error-card .result-recovery {
+  border-color: var(--status-danger-border);
 }
 .report-card .result-summary {
   width: 100%;
@@ -2021,6 +2050,19 @@ img,
 .tool-result-raw summary {
   cursor: pointer;
   padding: 0.25rem 0;
+}
+@media (forced-colors: active) {
+  .result-card-navigational {
+    border-color: CanvasText;
+  }
+  .result-card-mutating {
+    border-left-color: CanvasText;
+  }
+  .result-mutation-badge {
+    border-color: CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
 }
 .chat-hint {
   color: var(--status-warning-strong);

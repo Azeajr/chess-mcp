@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, onMount, type JSX } from "solid-js";
 import { strategicFitPlanSectionLabel } from "../content/strategicFit";
 import type {
   StrategicFinding,
@@ -35,7 +35,11 @@ import {
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
+import { retry } from "../store/chat";
+import { showTechnicalDetails } from "../store/settings";
+import { openSettings } from "../store/ui";
 import Status from "./primitives/Status";
+import { stagedEditContent } from "../content/chat";
 import { countLabel, diffValue, displayValue, numbered, titleCase } from "../content/format";
 import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
@@ -55,7 +59,7 @@ const parse = (content: string | null): Data | null => {
   }
 };
 
-function navigateFen(target: string) {
+function findPathForFen(target: string): number[] | null {
   const tree = currentTree();
   const find = (path: number[]): number[] | null => {
     if (tree.fenAt(path) === target) return path;
@@ -65,7 +69,11 @@ function navigateFen(target: string) {
     }
     return null;
   };
-  const found = find([]);
+  return find([]);
+}
+
+function navigateFen(target: string) {
+  const found = findPathForFen(target);
   if (found) actions.goto(found);
 }
 
@@ -156,6 +164,32 @@ function navigableSanPath(paths: readonly (readonly string[])[]): string[] | nul
 function goToSanPath(path: readonly string[]) {
   const indexPath = currentTree().indexPathOfSan([...path]);
   if (indexPath) actions.goto(indexPath);
+}
+
+type ResultTier = "informational" | "navigational" | "mutating";
+
+/**
+ * Renderers stay responsible for their specialised semantics. This boundary adds the shared tier
+ * class after their card is mounted, so no renderer needs a parallel class-name rewrite.
+ */
+function ResultTierBoundary(props: { tier: ResultTier; children: JSX.Element }) {
+  let container: HTMLDivElement | undefined;
+  onMount(() => {
+    for (const card of container?.querySelectorAll<HTMLElement>(".result-card") ?? []) {
+      card.classList.add(`result-card-${props.tier}`);
+    }
+  });
+  return (
+    <div
+      ref={(element) => {
+        container = element;
+      }}
+      class="tool-result-tier"
+      data-result-tier={props.tier}
+    >
+      {props.children}
+    </div>
+  );
 }
 
 type StrategicFitChatReport = StrategicFitReport &
@@ -909,21 +943,24 @@ function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
   const stale = () => edit()?.status === "stale";
+  const content = createMemo(() => stagedEditContent(props.data));
   return (
     <div class="result-card staged-card">
-      <div class="result-title">Proposed {displayValue(props.data.action)} edit</div>
-      <div class="result-line">
-        {(props.data.path as string[] | undefined)?.join(" ") ?? "Start position"}
-      </div>
-      <Show when={Array.isArray(props.data.line)}>
-        <div class="result-line">{(props.data.line as string[]).join(" ")}</div>
+      <div class="result-title">{content().title}</div>
+      <span class="result-mutation-badge">Changes your repertoire</span>
+      <div class="result-summary">{content().scope}</div>
+      <div class="result-line">{content().currentLine}</div>
+      <div class="result-line">{content().proposedLine}</div>
+      <div class="result-summary">{content().acceptance}</div>
+      <div class="result-summary">{content().reversible}</div>
+      <Show when={showTechnicalDetails()}>
+        <div class="result-summary result-technical-summary">
+          Tree details: {displayValue((props.data.before as Data | undefined)?.nodes)} →{" "}
+          {displayValue((props.data.after as Data | undefined)?.nodes)} nodes ·{" "}
+          {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
+          {displayValue((props.data.after as Data | undefined)?.leaves)} leaves
+        </div>
       </Show>
-      <div class="result-summary">
-        nodes {displayValue((props.data.before as Data | undefined)?.nodes)} →{" "}
-        {displayValue((props.data.after as Data | undefined)?.nodes)} · leaves{" "}
-        {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
-        {displayValue((props.data.after as Data | undefined)?.leaves)}
-      </div>
       <Show
         when={edit()?.status === "pending"}
         fallback={
@@ -995,13 +1032,49 @@ function ArtifactRows(props: { data: Data }) {
 
 function ErrorResult(props: { data: Data }) {
   const code = () => displayValue(props.data.error ?? "command_failed");
+  const content = () => errorContent(code());
+  const takeRecoveryAction = () => {
+    switch (content().action) {
+      case "retry":
+        retry();
+        break;
+      case "open-settings":
+        openSettings();
+        break;
+      case "open-lichess-token":
+        openSettings("lichess-token");
+        break;
+      case "none":
+        break;
+    }
+  };
+  const recoveryLabel = () => {
+    switch (content().action) {
+      case "retry":
+        return "Retry";
+      case "open-settings":
+        return "Open Settings";
+      case "open-lichess-token":
+        return "Add Lichess token";
+      case "none":
+        return "";
+    }
+  };
   return (
     <div class={`result-card result-error-card error-${code()}`} role="alert">
-      <div class="result-title">{errorContent(code()).title}</div>
+      <div class="result-title">{content().title}</div>
+      <div class="result-summary">{content().cause}</div>
       <Show when={props.data.reason}>
         <div class="result-summary">{String(props.data.reason)}</div>
       </Show>
-      <div class="result-code">{code()}</div>
+      <Show when={content().action !== "none"}>
+        <button class="result-recovery" onClick={takeRecoveryAction}>
+          {recoveryLabel()}
+        </button>
+      </Show>
+      <Show when={showTechnicalDetails()}>
+        <div class="result-code">{code()}</div>
+      </Show>
     </div>
   );
 }
@@ -1136,6 +1209,43 @@ const byKind: Record<string, (data: Data) => unknown> = {
   strategic_fit_portfolio: (data) => <StrategicFitPortfolioResultCard data={data} />,
 };
 
+function hasNavigableReference(value: unknown): boolean {
+  const tree = currentTree();
+  const isSanPath = (candidate: unknown) =>
+    Array.isArray(candidate) &&
+    candidate.length > 0 &&
+    candidate.every((move) => typeof move === "string") &&
+    tree.indexPathOfSan([...candidate]) !== null;
+  const isCurrentPly = (candidate: unknown) => {
+    if (typeof candidate !== "number" || !Number.isInteger(candidate) || candidate < 0)
+      return false;
+    try {
+      tree.nodeAt(Array.from({ length: candidate }, () => 0));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const visit = (candidate: unknown): boolean => {
+    if (Array.isArray(candidate)) return candidate.some(visit);
+    if (!candidate || typeof candidate !== "object") return false;
+    const item = candidate as Data;
+    for (const key of ["path", "san_path", "variation_path", "pivot_path"] as const) {
+      if (isSanPath(item[key])) return true;
+    }
+    if (Array.isArray(item.source_san_paths) && item.source_san_paths.some(isSanPath)) return true;
+    if (typeof item.fen === "string" && findPathForFen(item.fen)) return true;
+    if (isCurrentPly(item.ply)) return true;
+    return Object.values(item).some(visit);
+  };
+  return visit(value);
+}
+
+function resultTier(value: Data): ResultTier {
+  if (byKind[displayValue(value.kind)]) return "mutating";
+  return hasNavigableReference(value) ? "navigational" : "informational";
+}
+
 /** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */
 export default function ToolResult(props: Props) {
   const data = createMemo(() => parse(props.content));
@@ -1157,7 +1267,7 @@ export default function ToolResult(props: Props) {
                 const result = value();
                 const render = renderer(result);
                 return (
-                  <>
+                  <ResultTierBoundary tier={resultTier(result)}>
                     <Show when={render}>{(selected) => selected()(result) as never}</Show>
                     <Show when={!render && !hasArtifacts()}>
                       <div class="result-card">
@@ -1165,19 +1275,25 @@ export default function ToolResult(props: Props) {
                       </div>
                     </Show>
                     <ArtifactRows data={result} />
-                  </>
+                  </ResultTierBoundary>
                 );
               }}
             </Show>
           </>
         }
       >
-        {(value) => <ErrorResult data={value()} />}
+        {(value) => (
+          <ResultTierBoundary tier="informational">
+            <ErrorResult data={value()} />
+          </ResultTierBoundary>
+        )}
       </Show>
-      <details class="tool-result-raw">
-        <summary>Raw JSON</summary>
-        <pre>{props.content}</pre>
-      </details>
+      <Show when={showTechnicalDetails()}>
+        <details class="tool-result-raw">
+          <summary>Raw JSON</summary>
+          <pre>{props.content}</pre>
+        </details>
+      </Show>
     </>
   );
 }

@@ -246,7 +246,28 @@
       }
     },
     "WP-026": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-026 (the manifest has no mapped command; named WP-026 browser coverage was added to strategic-fit-chat.spec.ts)",
+          "pnpm exec eslint <WP-026 TypeScript files> (pass)",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm check:content (45 browser tools, 48 browser error codes)",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm -C apps/ui test:chat (286 passed)",
+          "pnpm -C apps/ui build",
+          "pnpm test:e2e:container strategic-fit-chat.spec.ts strategic-fit-plan.spec.ts strategic-fit-portfolio.spec.ts (57 passed)",
+          "pnpm test:e2e:container (360 passed, 20 configured skips; one unrelated WebKit startup timeout passed unchanged in a one-worker retry)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-layout.spec.ts --project webkit --workers=1 --grep 'WP-002 AC-4 keeps the normal-width top bar on one row' (1 passed)",
+          "git diff --check"
+        ],
+        "lint": "Global pnpm lint reports one pre-existing error in unchanged apps/ui/src/content/analysis.ts:8 (interface-vs-type); all WP-026 TypeScript files pass scoped ESLint.",
+        "playwright": "The focused canonical container run passed all 57 Strategic Fit chat, plan, and portfolio cases across Chromium, Firefox, and WebKit. The full container suite had 360 passes and 20 configured skips; its one unrelated WebKit startup timeout passed unchanged when retried serially. The host focused run passed 38 Chromium/Firefox cases; host WebKit could not launch because the environment lacks its GStreamer/GTK libraries.",
+        "accessibility": "A Chromium/Linux desktop forced-colors: active probe and visual review confirmed the staged-edit card remains distinguishable without colour: its system-colour left border and visible ‘Changes your repertoire’ badge remained readable alongside scope, browser impact, and undo copy.",
+        "rollback": "Reverting WP-026 restores the former flat card presentation, raw payload/code visibility, and staged-edit copy. It creates no repertoire, profile, analysis, or artifact mutation; existing Accept/Reject behavior remains the sole mutation path."
+      }
     },
     "WP-027": {
       "status": "not-started"
