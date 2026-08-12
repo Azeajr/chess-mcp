@@ -649,9 +649,21 @@ img,
 }
 
 .move-tree .move {
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
   padding: 0 0.2rem;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: middle;
+  cursor: pointer;
 }
 
 .move-tree .move:hover {
@@ -714,6 +726,17 @@ img,
 .move-tree .empty {
   color: var(--muted);
   font-style: italic;
+}
+
+@media (pointer: coarse) {
+  .move-tree .move,
+  .move-tree .collapse-toggle {
+    min-width: var(--target-touch);
+    min-height: var(--target-touch);
+  }
+  .move-tree .collapse-toggle {
+    height: var(--target-touch);
+  }
 }
 
 .analysis {
@@ -1394,11 +1417,20 @@ img,
 .rep-row {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--target-min);
   gap: 0.5rem;
   padding: 0.25rem 0;
-  cursor: pointer;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-size: 0.82rem;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .rep-row:hover {
   background: var(--border-default);
@@ -1450,6 +1482,23 @@ img,
 }
 .rep-row .fit {
   margin-left: 0.5rem;
+}
+
+.rep-row-action {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.rep-row-action .rep-row {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .rep-row {
+    min-height: var(--target-touch);
+  }
 }
 
 .rep-flag {

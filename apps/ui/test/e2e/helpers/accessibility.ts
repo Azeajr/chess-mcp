@@ -98,7 +98,14 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
     }
 
     const headings = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].filter(visible);
-    if (headings.length === 0 || headings[0]!.tagName !== "H1") {
+    // A full application/document scope needs an h1. Reusable panels and dialogs are scoped
+    // regions, so they must preserve any heading hierarchy they contain without inventing a page
+    // heading of their own.
+    const requiresDocumentHeading =
+      container === document.body ||
+      container === document.documentElement ||
+      container.matches(".app, .app-main, main, [role='main']");
+    if (requiresDocumentHeading && (headings.length === 0 || headings[0]!.tagName !== "H1")) {
       issues.push("visible heading outline does not start with h1");
     }
     let previousLevel = 0;

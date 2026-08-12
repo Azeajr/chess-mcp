@@ -49,6 +49,15 @@ export { commandStates };
 
 const controllers = new Map<DirectCommand, AbortController>();
 
+/** Development harness seam for deterministic direct-panel result fixtures. */
+export function setCommandStateForTesting(command: DirectCommand, state: CommandState) {
+  if (!import.meta.env.DEV)
+    throw new Error("Direct command fixture injection is development-only.");
+  controllers.get(command)?.abort();
+  controllers.delete(command);
+  setCommandStates((all) => ({ ...all, [command]: { ...state } }));
+}
+
 export function cancelCommand(command: DirectCommand) {
   controllers.get(command)?.abort();
   controllers.delete(command);

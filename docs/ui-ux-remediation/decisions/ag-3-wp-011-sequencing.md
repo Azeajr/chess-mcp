@@ -22,3 +22,15 @@ circular dependency.
 
 **Scope:** Documentation and execution metadata only. No production code is changed by this
 decision.
+
+## Execution status — 2026-08-12
+
+WP-011's automated AG-3 evidence is complete. The version-matched Playwright 1.61.0 container ran
+`core-keyboard.spec.ts` sequentially across Chromium, Firefox, and WebKit: 39 tests passed and the
+three configured UX-003 board-test cases skipped. The suite verifies the single roving Tab stop,
+DV-2 arrow traversal, Enter-only navigation, `aria-current`, `aria-expanded`, compact/coarse-pointer
+targets, density, DOM validity, and scoped accessibility.
+
+AG-3 remains unresolved and WP-011 remains in progress. NVDA on Windows, VoiceOver on macOS/iOS,
+and a real-phone row-activation pass are still required. They were unavailable in this Linux
+execution, and no synthetic or headless proxy is being recorded as manual evidence.
