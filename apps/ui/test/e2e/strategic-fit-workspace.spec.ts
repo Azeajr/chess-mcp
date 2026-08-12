@@ -22,6 +22,7 @@ type ChessHarness = {
   dirty(): boolean;
   fileName(): string | null;
   commandStates(): unknown;
+  strategicFitLifecycle(): { status: string };
   strategicFitMetadata(): unknown;
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "balanced"): unknown;
@@ -115,11 +116,20 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   const before = await snapshot(page);
   const persistedBefore = await persistedStrategicFitMetadata(page, before.document_id);
   const workersBefore = await workerStarts(page);
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const entry = page.locator(".strategic-fit-entry");
+  await expect(entry).toContainText(
+    "Is your repertoire asking you to learn too many different plans?",
+  );
+  await expect(entry).toContainText(
+    "Strategic Fit compares the ideas behind your lines and flags the ones that stand apart from the rest.",
+  );
+  await expect(entry).toContainText("Opening it does not analyze or change this repertoire.");
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
 
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
+  expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
   await expect(
     dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
   ).toBeVisible();
@@ -144,7 +154,7 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
 test("focus is trapped in both directions and Escape restores the exact opener", async ({
   page,
 }) => {
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
@@ -181,7 +191,7 @@ test("focus is trapped in both directions and Escape restores the exact opener",
 
 test("phone shell exposes the four frozen stages one at a time", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const stages = dialog.getByRole("tab");
   await expect(stages).toHaveCount(4);
@@ -208,7 +218,7 @@ test("phone shell exposes the four frozen stages one at a time", async ({ page }
 });
 
 test("shell regions render explicit empty, loading, and error states", async ({ page }) => {
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   await chess(page, (api) => {
     api.setStrategicFitWorkspaceRegionState("overview", {
       status: "loading",

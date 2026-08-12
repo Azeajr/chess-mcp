@@ -185,7 +185,23 @@
       "status": "not-started"
     },
     "WP-023": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-023",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm --filter @chess-mcp/ui test:chat (286 passed)",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/strategic-fit-workspace.spec.ts (8 passed on Chromium/Firefox; 4 WebKit pre-existing failures - missing system deps)",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Chromium and Firefox passed all 4 strategic-fit-workspace tests (desktop shell opens/closes without analysis, focus trapping, phone stages, region states). WebKit skipped due to missing host libraries (libgstreamer, libgtk-4, etc.) — pre-existing, unrelated to WP-023.",
+        "rollback": "Reverting WP-023 restores the prior Strategic Fit entry card text and button label. No user data changes."
+      }
     },
     "WP-024": {
       "status": "complete",
@@ -212,7 +228,22 @@
       }
     },
     "WP-025": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-025",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content (45 browser tools, 48 error codes)",
+          "pnpm --filter @chess-mcp/ui test:chat (286 passed)",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Chromium and Firefox passed all 4 strategic-fit-workspace tests. Navigation labels now use human-readable text (Gap 1, Line 2, Position 3, etc.) via content/tools.ts registry. WebKit skipped due to missing host libraries — pre-existing, unrelated to WP-025.",
+        "rollback": "Reverting WP-025 restores raw tool identifiers in chat chips, result headers, and navigation row labels. No user data changes."
+      }
     },
     "WP-026": {
       "status": "not-started"

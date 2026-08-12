@@ -25,7 +25,7 @@ test.fixme("UX-007 every overlay traps focus, restores it, and blocks board navi
   await openApp(page);
   await expectDialogContract(
     page,
-    page.getByRole("button", { name: "Open workspace" }),
+    page.getByRole("button", { name: "Open Strategic Fit" }),
     page.getByRole("dialog", { name: "Strategic Fit" }),
   );
   await expectDialogContract(

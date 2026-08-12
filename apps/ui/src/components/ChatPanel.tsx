@@ -20,6 +20,7 @@ import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
+import { resultLabel, taskLabel } from "../content/tools";
 import ToolResult from "./ToolResult";
 import Button from "./primitives/Button";
 import PanelHeader from "./primitives/PanelHeader";
@@ -102,14 +103,14 @@ export default function ChatPanel() {
               <Show when={m.role === "assistant" && m.tool_calls}>
                 <div class="tool-chips">
                   <For each={m.tool_calls}>
-                    {(tc) => <span class="chip">⚙ {tc.function.name}</span>}
+                    {(tc) => <span class="chip">⚙ {taskLabel(tc.function.name)}</span>}
                   </For>
                 </div>
               </Show>
               <Show when={m.role === "tool" && m.tool_call_id}>
                 <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
                   <div class="tool-result-label">
-                    {toolNames().get(m.tool_call_id ?? "") ?? "tool"} result
+                    {resultLabel(toolNames().get(m.tool_call_id ?? "") ?? "tool")}
                     {isErrorResult(m.content) ? " ⚠" : ""}
                   </div>
                   <ToolResult
@@ -143,7 +144,7 @@ export default function ChatPanel() {
               >
                 {run.status}
               </Status>{" "}
-              {run.name}
+              {taskLabel(run.name)}
               <Show when={run.total != null}>
                 <span>
                   {" "}
@@ -156,13 +157,15 @@ export default function ChatPanel() {
               <Show when={run.status === "running"}>
                 <Show
                   when={run.total != null}
-                  fallback={<Progress class="tool-run-progress" label={`${run.name} progress`} />}
+                  fallback={
+                    <Progress class="tool-run-progress" label={`${taskLabel(run.name)} progress`} />
+                  }
                 >
                   <Progress
                     class="tool-run-progress"
                     max={run.total ?? 1}
                     value={Math.min(run.done ?? 0, run.total ?? 0)}
-                    label={`${run.name} progress`}
+                    label={`${taskLabel(run.name)} progress`}
                   />
                 </Show>
               </Show>

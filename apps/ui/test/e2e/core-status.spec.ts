@@ -57,7 +57,7 @@ test.fixme("UX-015 UX-016 chat and Strategic Fit never expose raw identifiers", 
 }) => {
   await openApp(page);
   expect(await rawIdentifierViolations(page.locator(".chat-wrap"))).toEqual([]);
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   expect(
     await rawIdentifierViolations(page.getByRole("dialog", { name: "Strategic Fit" })),
   ).toEqual([]);
