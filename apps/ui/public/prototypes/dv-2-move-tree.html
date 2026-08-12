@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DV-2 move-tree arrow-key prototype</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+        line-height: 1.45;
+      }
+
+      body {
+        max-width: 54rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+
+      .notice {
+        border-inline-start: 0.25rem solid currentColor;
+        padding-inline-start: 0.75rem;
+      }
+
+      [role="tree"] {
+        border: 1px solid currentColor;
+        border-radius: 0.35rem;
+        margin-block: 1rem;
+        padding: 0.5rem;
+      }
+
+      [role="treeitem"] {
+        list-style: none;
+        padding: 0.2rem 0.4rem;
+      }
+
+      [role="treeitem"].variation {
+        border-inline-start: 0.2rem solid currentColor;
+        margin-inline-start: 0.55rem;
+        padding-inline-start: 0.55rem;
+      }
+
+      [role="treeitem"].is-active {
+        background: Highlight;
+        color: HighlightText;
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+      }
+
+      [role="group"] {
+        margin: 0;
+        padding-inline-start: 1rem;
+      }
+
+      .meta {
+        display: grid;
+        gap: 0.25rem;
+        grid-template-columns: max-content 1fr;
+      }
+
+      .metrics {
+        border: 1px solid currentColor;
+        border-radius: 0.35rem;
+        padding: 0.75rem;
+      }
+
+      kbd {
+        border: 1px solid currentColor;
+        border-radius: 0.2rem;
+        padding: 0.05rem 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DV-2: move-tree arrow-key prototype</h1>
+      <p class="notice">
+        Gate artifact only. This is not the application move tree and does not implement WP-011 or
+        AG-3.
+      </p>
+      <p>
+        Task: Starting on <strong>2. Nf3</strong>, find the second variation after it and reach that
+        variation&rsquo;s last move. Use the arrow keys in the tree.
+      </p>
+      <p>
+        Open one of the two mappings with
+        <code>?mapping=enter-variation</code> or <code>?mapping=advance-mainline</code>. An omitted
+        or invalid mapping deliberately defaults to <code>enter-variation</code>.
+      </p>
+
+      <dl class="meta">
+        <dt>Experiment mapping</dt>
+        <dd id="mapping-label" data-testid="mapping"></dd>
+        <dt>Focused move</dt>
+        <dd id="focus-label" data-testid="focus"></dd>
+      </dl>
+
+      <div
+        id="move-tree"
+        role="tree"
+        tabindex="0"
+        aria-label="Sample branching repertoire"
+        aria-describedby="tree-instructions"
+      ></div>
+      <p id="tree-instructions">
+        <kbd>Right Arrow</kbd> follows this experiment&rsquo;s mapping. <kbd>Up Arrow</kbd> and
+        <kbd>Down Arrow</kbd> move among siblings. <kbd>Left Arrow</kbd> moves to the parent.
+        <kbd>Home</kbd> and <kbd>End</kbd> move to the first and last moves. <kbd>Enter</kbd>
+        records the move that a full move tree would navigate to.
+      </p>
+
+      <section class="metrics" aria-labelledby="metrics-title">
+        <h2 id="metrics-title">Session metrics</h2>
+        <p id="task-status" data-testid="task-status">Task not yet complete.</p>
+        <p id="task-metrics" data-testid="task-metrics">
+          Elapsed: &mdash;; wrong navigation keys: 0; wrong-key rate: &mdash;.
+        </p>
+        <label>
+          Stated model after the task
+          <select id="stated-model" data-testid="stated-model">
+            <option value="">Choose one</option>
+            <option value="enter-variation">Right Arrow enters a variation</option>
+            <option value="advance-mainline">Right Arrow advances the mainline</option>
+            <option value="no-preference">No preference</option>
+          </select>
+        </label>
+        <p id="navigation-target" aria-live="polite" data-testid="navigation-target"></p>
+      </section>
+    </main>
+
+    <script>
+      const mappings = new Set(["enter-variation", "advance-mainline"]);
+      const requestedMapping = new URLSearchParams(window.location.search).get("mapping");
+      const mapping = mappings.has(requestedMapping) ? requestedMapping : "enter-variation";
+
+      const nodes = [
+        { id: "e4", label: "1. e4", parent: null, mainline: "e5" },
+        { id: "e5", label: "1... e5", parent: "e4", mainline: "nf3" },
+        {
+          id: "nf3",
+          label: "2. Nf3",
+          parent: "e5",
+          mainline: "nc6",
+          variations: ["d6", "nf6"],
+        },
+        { id: "nc6", label: "2... Nc6", parent: "nf3", mainline: "bb5" },
+        { id: "bb5", label: "3. Bb5", parent: "nc6" },
+        { id: "d6", label: "2... d6", parent: "nf3", mainline: "d4", variation: true },
+        { id: "d4", label: "3. d4", parent: "d6" },
+        { id: "nf6", label: "2... Nf6", parent: "nf3", mainline: "nxe5", variation: true },
+        { id: "nxe5", label: "3. Nxe5", parent: "nf6" },
+      ];
+      const byId = new Map(nodes.map((node) => [node.id, node]));
+      const childrenByParent = new Map();
+      for (const node of nodes) {
+        const siblings = childrenByParent.get(node.parent) ?? [];
+        siblings.push(node.id);
+        childrenByParent.set(node.parent, siblings);
+      }
+
+      const tree = document.querySelector("#move-tree");
+      const mappingLabel = document.querySelector("#mapping-label");
+      const focusLabel = document.querySelector("#focus-label");
+      const taskStatus = document.querySelector("#task-status");
+      const taskMetrics = document.querySelector("#task-metrics");
+      const navigationTarget = document.querySelector("#navigation-target");
+      const statedModel = document.querySelector("#stated-model");
+      const taskPaths = {
+        "enter-variation": ["d6", "nf6", "nxe5"],
+        "advance-mainline": ["nc6", "d6", "nf6", "nxe5"],
+      };
+
+      mappingLabel.textContent =
+        mapping === "enter-variation"
+          ? "Right Arrow enters a variation"
+          : "Right Arrow advances the mainline";
+
+      function childIds(node) {
+        return [node.mainline, ...(node.variations ?? [])].filter(Boolean);
+      }
+
+      function renderBranch(parentId, level) {
+        const group = document.createElement("ul");
+        group.setAttribute("role", "group");
+        for (const id of childrenByParent.get(parentId) ?? []) {
+          const node = byId.get(id);
+          const item = document.createElement("li");
+          item.id = `dv2-${node.id}`;
+          item.dataset.nodeId = node.id;
+          item.setAttribute("role", "treeitem");
+          item.setAttribute("aria-level", String(level));
+          item.textContent = node.label;
+          if (node.variation) item.classList.add("variation");
+          const children = childIds(node);
+          if (children.length) {
+            item.setAttribute("aria-expanded", "true");
+            item.append(renderBranch(node.id, level + 1));
+          }
+          group.append(item);
+        }
+        return group;
+      }
+
+      tree.append(renderBranch(null, 1));
+
+      let activeId = "nf3";
+      let taskStart;
+      let taskProgress = 0;
+      let wrongNavigationKeys = 0;
+      let navigationKeys = 0;
+      let complete = false;
+
+      function renderActive() {
+        for (const item of tree.querySelectorAll("[role=treeitem]")) {
+          const isActive = item.dataset.nodeId === activeId;
+          item.classList.toggle("is-active", isActive);
+          item.setAttribute("aria-selected", String(isActive));
+        }
+        const node = byId.get(activeId);
+        tree.setAttribute("aria-activedescendant", `dv2-${activeId}`);
+        focusLabel.textContent = node.label;
+      }
+
+      function updateTaskMetrics() {
+        if (!taskStart) return;
+        const elapsed = ((performance.now() - taskStart) / 1000).toFixed(1);
+        const rate = navigationKeys
+          ? `${Math.round((wrongNavigationKeys / navigationKeys) * 100)}%`
+          : "0%";
+        taskMetrics.textContent = `Elapsed: ${elapsed}s; wrong navigation keys: ${wrongNavigationKeys}; wrong-key rate: ${rate}.`;
+      }
+
+      function completeTask() {
+        if (complete) return;
+        complete = true;
+        updateTaskMetrics();
+        taskStatus.textContent = "Task complete: second variation reached at 3. Nxe5.";
+      }
+
+      function rightId(node) {
+        if (mapping === "enter-variation" && node.variations?.length) return node.variations[0];
+        return node.mainline ?? childIds(node)[0] ?? node.id;
+      }
+
+      function siblingId(node, offset) {
+        if (node.parent === null) return node.id;
+        const siblings = childrenByParent.get(node.parent) ?? [];
+        return siblings[siblings.indexOf(node.id) + offset] ?? node.id;
+      }
+
+      function lastNodeId() {
+        let last = nodes[0].id;
+        const visit = (id) => {
+          last = id;
+          for (const child of childIds(byId.get(id))) visit(child);
+        };
+        visit(nodes[0].id);
+        return last;
+      }
+
+      function moveTo(nextId, key) {
+        const previousId = activeId;
+        activeId = nextId;
+        if (!taskStart) taskStart = performance.now();
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) {
+          navigationKeys += 1;
+          const expectedId = taskPaths[mapping][taskProgress];
+          if (nextId === expectedId && nextId !== previousId) taskProgress += 1;
+          else if (nextId !== previousId || key !== "ArrowRight") wrongNavigationKeys += 1;
+          updateTaskMetrics();
+        }
+        renderActive();
+        if (activeId === "nxe5") completeTask();
+      }
+
+      tree.addEventListener("keydown", (event) => {
+        const node = byId.get(activeId);
+        let nextId;
+        switch (event.key) {
+          case "ArrowRight":
+            nextId = rightId(node);
+            break;
+          case "ArrowLeft":
+            nextId = node.parent ?? node.id;
+            break;
+          case "ArrowDown":
+            nextId = siblingId(node, 1);
+            break;
+          case "ArrowUp":
+            nextId = siblingId(node, -1);
+            break;
+          case "Home":
+            nextId = nodes[0].id;
+            break;
+          case "End":
+            nextId = lastNodeId();
+            break;
+          case "Enter":
+            navigationTarget.textContent = `Would navigate the board to ${node.label}.`;
+            event.preventDefault();
+            return;
+          default:
+            return;
+        }
+        event.preventDefault();
+        moveTo(nextId, event.key);
+      });
+
+      statedModel.addEventListener("change", () => {
+        navigationTarget.textContent = statedModel.value
+          ? `Recorded stated model: ${statedModel.options[statedModel.selectedIndex].text}.`
+          : "";
+      });
+
+      renderActive();
+    </script>
+  </body>
+</html>

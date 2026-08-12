@@ -402,8 +402,39 @@
       "evidence": null
     },
     "DV-2": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-12",
+        "decision": "Right Arrow enters a variation; Up/Down move among siblings.",
+        "basis": "The documented DV-2 default-if-inconclusive in docs/ui-ux-remediation-plan.md §14, applied because participant evidence was unavailable and therefore inconclusive.",
+        "record": "docs/ui-ux-remediation/decisions/dv-2-move-tree-arrow-semantics.md",
+        "prototype": "apps/ui/public/prototypes/dv-2-move-tree.html?mapping=enter-variation and ?mapping=advance-mainline",
+        "syntheticProxyEvidence": [
+          {
+            "id": "synthetic-1",
+            "mapping": "enter-variation",
+            "keys": ["ArrowRight", "ArrowDown", "ArrowRight"],
+            "result": "Reached 3. Nxe5 with 0 scripted wrong navigation keys.",
+            "limitation": "Deterministic browser automation, not a human participant or user-preference result."
+          },
+          {
+            "id": "synthetic-2",
+            "mapping": "advance-mainline",
+            "keys": ["ArrowRight", "ArrowDown", "ArrowDown", "ArrowRight"],
+            "result": "Reached 3. Nxe5 with 0 scripted wrong navigation keys.",
+            "limitation": "Deterministic browser automation, not a human participant or user-preference result."
+          }
+        ],
+        "participantEvidence": {
+          "available": false,
+          "result": "inconclusive",
+          "note": "Two real repertoire builders were unavailable in this execution environment. No human completion time, wrong-key rate, stated model, or preference was fabricated."
+        },
+        "validation": [
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/dv-2-move-tree-prototype.spec.ts --project chromium --reporter=dot (5 passed)",
+          "pnpm test:e2e:container apps/ui/test/e2e/dv-2-move-tree-prototype.spec.ts --reporter=dot (15 passed across Chromium, Firefox, and WebKit)"
+        ]
+      }
     },
     "DV-3": {
       "status": "unresolved",
