@@ -549,8 +549,15 @@
       }
     },
     "PD-2": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-13",
+        "decision": [
+          "Retain five snapshots within the package's 2 MB total budget.",
+          "Present recovery snapshots as a newest-first list with timestamp, filename, and size."
+        ],
+        "source": "User decision"
+      }
     },
     "PD-3": {
       "status": "unresolved",
