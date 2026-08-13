@@ -12,7 +12,7 @@
     "build": "vite build",
     "postbuild": "node scripts/check-worker-boundary.mjs",
     "test:chat": "tsx --test test/*.test.ts",
-    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e": "node ../../scripts/playwright-low-impact.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

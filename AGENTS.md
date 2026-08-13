@@ -18,9 +18,8 @@ node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
-pnpm --filter @chess-mcp/ui test:e2e
+pnpm test:e2e -- [Playwright args]             # serial, CPU/memory capped local run
 pnpm --filter @chess-mcp/ui build
-pnpm exec playwright test --config apps/ui/playwright.config.ts
 pnpm dev                       # use dev:host for LAN
 pnpm mcp
 ```
@@ -28,6 +27,19 @@ pnpm mcp
 CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not engine/local paths.
 `EVAL_CACHE_DIR=0` disables the persistent evaluation cache. `pnpm bench:strategic-fit` reads the
 UI's exported render bounds from source, so it needs a Node release that strips TypeScript types.
+
+## Interactive validation limits
+
+- `pnpm test:e2e -- [Playwright args]` is the default interactive Playwright entry point (as is
+  `pnpm --filter @chess-mcp/ui test:e2e`). It forces one worker and runs in a user-service cgroup capped
+  at 30% CPU, 2 GiB `MemoryHigh`, 3 GiB `MemoryMax`, nice level 15, and a 15-minute hard runtime
+  limit. Override those values only deliberately through `E2E_CPU_QUOTA`, `E2E_MEMORY_HIGH`,
+  `E2E_MEMORY_MAX`, `E2E_NICE`, and `E2E_RUNTIME_MAX`. The named user service is
+  `chess-mcp-playwright-low-impact`; stop it with
+  `systemctl --user stop chess-mcp-playwright-low-impact.service` if needed.
+- Use `pnpm test:e2e:container` only in CI or when the user explicitly requests canonical
+  container validation; it installs dependencies and runs a multi-worker browser suite, so it is
+  not suitable for routine interactive use.
 
 ## Boundaries and sources of truth
 

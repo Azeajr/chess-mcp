@@ -106,7 +106,7 @@ node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
-pnpm exec playwright test --config apps/ui/playwright.config.ts
+pnpm test:e2e
 ```
 
 The network-gated MCP smoke still exercises the bundled engine and local paths. CI runs on Node 26.
