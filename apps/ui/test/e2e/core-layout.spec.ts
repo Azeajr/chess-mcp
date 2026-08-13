@@ -58,6 +58,36 @@ const panelDimensions = (page: import("playwright/test").Page) =>
     ),
   );
 
+async function installEngineLineFixture(page: import("playwright/test").Page) {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    window.Worker = new Proxy(NativeWorker, {
+      construct(target, args, newTarget) {
+        if (!String(args[0]).includes("stockfish-18-lite-single.js"))
+          return Reflect.construct(target, args, newTarget);
+
+        const worker = {
+          onmessage: null as ((event: MessageEvent<string>) => void) | null,
+          onerror: null as ((event: ErrorEvent) => void) | null,
+          postMessage(message: unknown) {
+            const command = String(message);
+            if (!command.startsWith("go depth ")) return;
+            const depth = Number(command.slice("go depth ".length));
+            queueMicrotask(() => {
+              worker.onmessage?.({
+                data: `info depth ${depth} multipv 1 score cp 34 pv e2e4`,
+              } as MessageEvent<string>);
+              worker.onmessage?.({ data: "bestmove e2e4" } as MessageEvent<string>);
+            });
+          },
+          terminate() {},
+        };
+        return worker;
+      },
+    });
+  });
+}
+
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
   for (const viewport of [
     { width: 640, height: 400 },
@@ -332,6 +362,121 @@ test("WP-020 AC-5 honours layout widths persisted by the pre-change build", asyn
       })),
     )
     .toEqual({ sideRendered: 333, chatRendered: 350, sideStored: "333", chatStored: "350" });
+});
+
+test("UX-010 / WP-015 keeps the move tree and analysis visible before side-panel scrolling", async ({
+  page,
+}) => {
+  await installEngineLineFixture(page);
+  for (const viewport of [
+    { width: 1024, height: 600 },
+    { width: 1280, height: 800 },
+    { width: 1440, height: 900 },
+  ]) {
+    await openApp(page, viewport);
+    const moveTree = await page.locator(".side-panel .move-tree").evaluate((tree) => {
+      const sidePanel = tree.closest(".side-panel");
+      const treeBody = tree.querySelector(".tree-body");
+      const treeRect = tree.getBoundingClientRect();
+      const treeBodyRect = treeBody?.getBoundingClientRect();
+      const visibleMoves = Array.from(
+        tree.querySelectorAll<HTMLElement>(".tree-body .move"),
+      ).filter((move) => {
+        const rect = move.getBoundingClientRect();
+        return (
+          rect.top >= (treeBodyRect?.top ?? Number.POSITIVE_INFINITY) &&
+          rect.bottom <=
+            Math.min(treeBodyRect?.bottom ?? Number.NEGATIVE_INFINITY, window.innerHeight)
+        );
+      }).length;
+
+      return {
+        sideScrollTop: sidePanel?.scrollTop,
+        top: treeRect.top,
+        visibleMoves,
+      };
+    });
+    expect(moveTree.sideScrollTop, `side scroll at ${viewport.width}×${viewport.height}`).toBe(0);
+    expect(
+      moveTree.top,
+      `move tree top at ${viewport.width}×${viewport.height}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      moveTree.visibleMoves,
+      `visible move rows at ${viewport.width}×${viewport.height}`,
+    ).toBeGreaterThanOrEqual(3);
+  }
+
+  await openApp(page, { width: 1280, height: 800 });
+  await page.getByRole("button", { name: "Turn on evaluation" }).click();
+  const engineLine = page.locator(".analysis .line").first();
+  await expect(engineLine).toBeVisible({ timeout: 10_000 });
+  const engineLinePosition = await engineLine.evaluate((line) => {
+    const rect = line.getBoundingClientRect();
+    return {
+      sideScrollTop: line.closest(".side-panel")?.scrollTop,
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(engineLinePosition.sideScrollTop).toBe(0);
+  expect(engineLinePosition.top).toBeGreaterThanOrEqual(0);
+  expect(engineLinePosition.bottom).toBeLessThanOrEqual(engineLinePosition.viewportHeight);
+});
+
+test("WP-015 defaults mobile to Moves and preserves exactly one mounted panel group", async ({
+  page,
+}) => {
+  await openApp(page, { width: 390, height: 844 });
+  await expect(page.getByRole("tab", { name: "Moves" })).toHaveAttribute("aria-selected", "true");
+
+  await page.evaluate(() => {
+    (window as Window & { wp015Panels?: Record<string, Element | null> }).wp015Panels = {
+      analysis: document.querySelector(".analysis"),
+      repertoire: document.querySelector(".rep-panel"),
+      moves: document.querySelector(".move-tree"),
+      chat: document.querySelector(".chat-wrap"),
+    };
+  });
+
+  for (const tab of ["Moves", "Analysis", "Chat"] as const) {
+    await page.getByRole("tab", { name: tab }).click();
+    const state = await page.evaluate(() => {
+      const isVisible = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        return Boolean(element && getComputedStyle(element).display !== "none");
+      };
+      const panels = (window as Window & { wp015Panels?: Record<string, Element | null> })
+        .wp015Panels;
+      const mounted = panels
+        ? Object.entries(panels).every(
+            ([name, element]) =>
+              document.querySelector(
+                `.${name === "repertoire" ? "rep-panel" : name === "moves" ? "move-tree" : name === "chat" ? "chat-wrap" : "analysis"}`,
+              ) === element,
+          )
+        : false;
+      const analysis =
+        isVisible(".analysis") && isVisible(".rep-panel") && !isVisible(".move-tree");
+      const moves = isVisible(".move-tree") && !isVisible(".analysis") && !isVisible(".rep-panel");
+      const chat = isVisible(".chat-wrap");
+      return { mounted, visibleGroups: [analysis, moves, chat].filter(Boolean).length };
+    });
+    expect(state.mounted, `${tab} keeps panels mounted`).toBe(true);
+    expect(state.visibleGroups, `${tab} shows one panel group`).toBe(1);
+  }
+});
+
+test("WP-015 AC-5 has no horizontal overflow across the viewport matrix", async ({ page }) => {
+  await openApp(page, VIEWPORTS[0]);
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize(viewport);
+    expect(
+      await overflowViolations(page),
+      `overflow at ${viewport.width}×${viewport.height}`,
+    ).toEqual([]);
+  }
 });
 
 test("UX-014 all core controls meet pointer target minimums", async ({ page }) => {

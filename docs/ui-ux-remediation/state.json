@@ -186,7 +186,24 @@
       "status": "not-started"
     },
     "WP-015": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-015",
+          "pnpm test:e2e -- apps/ui/test/e2e/core-layout.spec.ts --grep WP-015 --reporter=dot (9 focused Chromium, Firefox, and WebKit checks passed serially in the capped low-impact user service)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm --filter @chess-mcp/ui test:chat (38 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check"
+        ],
+        "playwright": "The focused cross-browser suite asserts the move-tree position and visible rows at 1024×600, 1280×800, and 1440×900; an engine-line fixture verifies the analysis position without launching a live engine; and mobile default, mounted-panel switching, and viewport-matrix overflow assertions all passed serially under the 30% CPU, 2 GiB MemoryHigh, 3 GiB MemoryMax, low-priority user service.",
+        "rollback": "Reverting WP-015 restores the previous analysis/repertoire/moves order, the former move-tree desktop bound, and the Analysis mobile default. It does not modify repertoire, analysis, or other user data."
+      }
     },
     "WP-016": {
       "status": "complete",

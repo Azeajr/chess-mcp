@@ -634,7 +634,8 @@ img,
   }
 
   .side-panel .move-tree {
-    flex: 0 0 min(50vh, 28rem);
+    flex: 0 1 min(45vh, 24rem);
+    min-height: 10rem;
   }
 }
 

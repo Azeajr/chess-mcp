@@ -15,7 +15,7 @@ export function openSettings(focusTarget: SettingsFocusTarget = null) {
 
 /** Phone-only (≤720px) panel selector: which panel shows under the pinned board. */
 export type MobileTab = "analysis" | "moves" | "chat";
-export const [mobileTab, setMobileTab] = createSignal<MobileTab>("analysis");
+export const [mobileTab, setMobileTab] = createSignal<MobileTab>("moves");
 
 /** Additive Strategic Fit workspace chrome. Analysis lifecycle state belongs to Task 5.3. */
 export type StrategicFitWorkspaceStage = "overview" | "findings" | "evidence" | "resolution";

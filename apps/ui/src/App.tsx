@@ -166,9 +166,9 @@ export default function App() {
             onReset={resetLayout}
           />
           <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
+            <MoveTree />
             <AnalysisPanel />
             <RepertoirePanel />
-            <MoveTree />
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
           <Divider
