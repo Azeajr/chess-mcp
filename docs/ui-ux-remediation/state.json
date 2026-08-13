@@ -94,7 +94,7 @@
       "status": "not-started"
     },
     "WP-011": {
-      "status": "in-progress",
+      "status": "complete",
       "evidence": {
         "validation": [
           "pnpm ux:test WP-011",
@@ -112,7 +112,7 @@
         "automatedAccessibility": "The focused three-browser container run verified the one roving Tab stop, DV-2 traversal (Right enters the first variation, Left returns parent, Up/Down change siblings), Enter-only board navigation, aria-current, aria-expanded, compact/coarse-pointer target floors, density, no nested buttons, and scoped side-panel accessibility. It passed 39 tests with 3 configured UX-003 board-test skips.",
         "fullSuite": "The full six-worker container suite did not pass: 386 passed, 20 skipped, and 11 WebKit failures. The failures were timeout/resource-contended or unrelated Strategic Fit/document tests; the one WP-011 timeout was isolated unchanged in a one-worker WebKit run, where all 13 active core-keyboard tests passed.",
         "limitations": "pnpm lint now reaches only the pre-existing apps/ui/src/content/analysis.ts interface/type rule failure. pnpm docs:check fails on two pre-existing broken local links in docs/ui-ux-remediation/decisions/dv-2-move-tree-arrow-semantics.md. These failures are outside WP-011 scope.",
-        "manual": "AG-3 remains unresolved. Required NVDA (Windows) and VoiceOver (macOS/iOS) move-tree sessions, plus real-phone touch activation, were not available in this Linux environment and were not fabricated.",
+        "manual": "VoiceOver validation passed separately on an iPhone 13 mini running iOS 26.6 in Safari with VoiceOver enabled: the move tree announced and navigated correctly, with no issues reported. A separate real-phone touch pass with VoiceOver disabled also passed: repertoire row activation and touch targets worked correctly, with no issues reported. NVDA validation passed on Windows 11 Enterprise 23H2 using NVDA 2026.1.1 (2026.1.1.55980) and Chrome 151.0.7922.137: the move tree behavior passed with no issues reported.",
         "rollback": "Reverting the focused WP-011 implementation restores div/span move and repertoire rows, prior click-only tree behavior, and prior row styling. It changes no repertoire, staged preview, analysis, or other user data."
       }
     },
@@ -398,11 +398,11 @@
       "evidence": null
     },
     "AG-3": {
-      "status": "unresolved",
+      "status": "resolved",
       "evidence": {
         "automated": "WP-011 automated evidence passed in the version-matched Playwright 1.61.0 container: core-keyboard.spec.ts passed 39 tests across Chromium, Firefox, and WebKit, with 3 configured UX-003 board-test skips.",
-        "manual": "Pending NVDA (Windows), VoiceOver (macOS/iOS), and a real-phone row-activation pass. These environments were unavailable for this execution; no proxy is treated as a substitute.",
-        "status": "Do not resolve AG-3 or mark WP-011 complete until the required manual evidence is recorded."
+        "manual": "VoiceOver validation passed separately on an iPhone 13 mini running iOS 26.6 in Safari with VoiceOver enabled: the move tree announced and navigated correctly, with no issues reported. A separate real-phone touch pass with VoiceOver disabled also passed: repertoire row activation and touch targets worked correctly, with no issues reported. NVDA validation passed on Windows 11 Enterprise 23H2 using NVDA 2026.1.1 (2026.1.1.55980) and Chrome 151.0.7922.137: the move tree behavior passed with no issues reported.",
+        "status": "Resolved after VoiceOver, NVDA, and real-phone touch evidence passed."
       }
     },
     "AG-4": {
