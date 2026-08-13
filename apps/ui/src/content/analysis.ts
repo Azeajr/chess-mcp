@@ -5,13 +5,13 @@ import { evaluationText, type EvaluationValue } from "./format";
 export const CLOUD_EVALUATION_PRIVACY_NOTE =
   "Sends each browsed position (FEN only) to Lichess for a cloud second opinion. Turn off to keep prep lines fully on this machine — local Stockfish is unaffected.";
 
-type ArrowBrush = {
+interface ArrowBrush {
   brush: string;
   key: string;
   color: string;
   opacity: number;
   lineWidth: number;
-};
+}
 
 /**
  * Shared board/legend palette. Board registers these brushes explicitly rather than relying on

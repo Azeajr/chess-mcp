@@ -63,7 +63,7 @@ for (const file of files) {
   for (const match of contents.matchAll(linkPattern)) {
     const raw = match[1].trim().replace(/^<|>$/g, "");
     if (!raw || raw.startsWith("#") || /^[a-z][a-z\d+.-]*:/i.test(raw)) continue;
-    const path = decodeURIComponent(raw.split("#", 1)[0]);
+    const path = decodeURIComponent(raw.split(/[?#]/, 1)[0]);
     const target = path.startsWith("/")
       ? resolve(root, `.${path}`)
       : resolve(dirname(resolve(root, file)), path);
