@@ -5,7 +5,7 @@
 import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
 import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
-import { setSettingsOpen } from "../store/ui";
+import { openSettings } from "../store/ui";
 
 export default function TopBar() {
   return (
@@ -51,7 +51,13 @@ export default function TopBar() {
         <option value="white">White</option>
         <option value="black">Black</option>
       </select>
-      <button onClick={() => setSettingsOpen(true)}>Settings</button>
+      <button
+        onClick={() => {
+          openSettings();
+        }}
+      >
+        Settings
+      </button>
     </div>
   );
 }

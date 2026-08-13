@@ -74,6 +74,9 @@ export const deriveTaskLifecycle = (item, packageState, state) => {
   const unresolvedGates = item.blockingGates.filter(
     (gate) => state.gates[gate]?.status !== "resolved",
   );
+  const unresolvedCompletionGates = (item.completionGates ?? []).filter(
+    (gate) => state.gates[gate]?.status !== "resolved",
+  );
   const unresolvedFoundations = (item.prerequisites ?? []).filter(
     (foundation) => state.foundations?.[foundation]?.status !== "complete",
   );
@@ -83,7 +86,14 @@ export const deriveTaskLifecycle = (item, packageState, state) => {
         ? "blocked"
         : "ready"
       : "not-executable";
-  return { status, readiness, unresolvedDependencies, unresolvedGates, unresolvedFoundations };
+  return {
+    status,
+    readiness,
+    unresolvedDependencies,
+    unresolvedGates,
+    unresolvedCompletionGates,
+    unresolvedFoundations,
+  };
 };
 
 const section = (title, values, empty = "none") =>
@@ -146,6 +156,9 @@ export const buildTaskCapsule = (id, item, state) => {
   const gates = item.blockingGates.map(
     (gate) => `${gate}: ${state.gates[gate]?.status ?? "missing"}`,
   );
+  const completionGates = (item.completionGates ?? []).map(
+    (gate) => `${gate}: ${state.gates[gate]?.status ?? "missing"}`,
+  );
   return {
     executable: lifecycle.readiness === "ready",
     text: [
@@ -153,6 +166,7 @@ export const buildTaskCapsule = (id, item, state) => {
       `${id} — readiness: ${lifecycle.readiness}`,
       section("dependency status", dependencies),
       section("gate status", gates),
+      section("completion gate status", completionGates),
       section("allowed primary files", item.primaryFiles),
       section("relevant symbols", item.relevantSymbols, "none explicitly named"),
       section(

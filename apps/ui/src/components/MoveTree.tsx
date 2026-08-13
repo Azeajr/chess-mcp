@@ -156,6 +156,18 @@ export default function MoveTree() {
       activateMove(active);
       return;
     }
+    if (event.key === " ") {
+      const node = currentTree().nodeAt(active);
+      if (node.children.length > 1) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleGroup(active);
+        queueMicrotask(() => {
+          focusItem(active);
+        });
+      }
+      return;
+    }
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
       return;
     event.preventDefault();
@@ -239,6 +251,7 @@ export default function MoveTree() {
                 type="button"
                 tabIndex={-1}
                 aria-label={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
+                aria-keyshortcuts="Space"
                 aria-expanded={!isCollapsed}
                 aria-controls={groupId(branchPath)}
                 title={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}

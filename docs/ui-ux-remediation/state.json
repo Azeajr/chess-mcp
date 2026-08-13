@@ -82,7 +82,31 @@
       }
     },
     "WP-007": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-007",
+          "node --test scripts/ux-task-contract.test.mjs",
+          "pnpm --filter @chess-mcp/ui exec tsx --test test/shortcuts.test.ts (1 passed)",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/core-dialogs.spec.ts apps/ui/test/e2e/core-keyboard.spec.ts --project chromium --reporter=dot (16 passed, 1 expected UX-003 board-test skip)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-dialogs.spec.ts apps/ui/test/e2e/strategic-fit-accessibility.spec.ts apps/ui/test/e2e/strategic-fit-workspace.spec.ts --reporter=dot (33 passed across Chromium, Firefox, and WebKit)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-keyboard.spec.ts --workers=1 --reporter=dot (39 passed, 3 expected UX-003 board-test skips across Chromium, Firefox, and WebKit)",
+          "pnpm -r typecheck",
+          "pnpm format:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui test:chat (287 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check"
+        ],
+        "automatedAccessibility": "The three-browser dialog contract verifies named dialog semantics, focus entry, Tab and Shift+Tab trapping, Escape close and focus restoration, inert/aria-hidden background, blocked ArrowRight and Mod+Z board mutations, promotion button names, explicit colour-picker cancellation, and scoped accessibility violations. The shortcut store test verifies a modal scope suspends registered commands without preventing native dialog keyboard behavior.",
+        "fullSuite": "The final six-worker container suite had 405 passing tests and 17 configured skips, plus one unrelated Chromium timeout in strategic-fit-sidecar.spec.ts when its stale-preview confirmation control remained disabled. The isolated retry of that exact test passed (1 passed), so no WP-007 test failed.",
+        "limitations": "pnpm lint reaches only the pre-existing apps/ui/src/content/analysis.ts interface/type rule failure. pnpm docs:check still reports the two pre-existing broken local links in docs/ui-ux-remediation/decisions/dv-2-move-tree-arrow-semantics.md. These failures are outside WP-007 scope.",
+        "manual": "VoiceOver validation passed on an iPhone 13 mini running iOS 26.6 in Safari, and NVDA validation passed on Windows 11 Enterprise 23H2 using NVDA 2026.1.1 (2026.1.1.55980) with Chrome 151.0.7922.137. For Settings, Promotion, and Colour picker, each dialog announced its role and name, the background was unreachable through virtual-cursor navigation, and focus returned audibly on close. No issues were reported.",
+        "rollback": "Reverting the Dialog primitive, overlay migrations, and shortcut scope restores the former unfocused overlays and document key handler. It changes no repertoire, saved settings, staged preview, or Strategic Fit data."
+      }
     },
     "WP-008": {
       "status": "not-started"
@@ -390,8 +414,12 @@
   },
   "gates": {
     "AG-1": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "automated": "WP-007's dialog contract suite passed across Chromium, Firefox, and WebKit: 33 focused dialog and Strategic Fit accessibility tests passed. It verifies all three overlays have named dialog semantics, focus trapping/restoration, inert background, and blocked board shortcuts; basicAccessibilityViolations is empty for every dialog root.",
+        "manual": "VoiceOver validation passed on an iPhone 13 mini running iOS 26.6 in Safari, and NVDA validation passed on Windows 11 Enterprise 23H2 using NVDA 2026.1.1 (2026.1.1.55980) with Chrome 151.0.7922.137. For Settings, Promotion, and Colour picker, each dialog announced its role and name, the background was unreachable through virtual-cursor navigation, and focus returned audibly on close. No issues were reported.",
+        "status": "Resolved after the required VoiceOver and NVDA dialog sessions passed."
+      }
     },
     "AG-2": {
       "status": "unresolved",

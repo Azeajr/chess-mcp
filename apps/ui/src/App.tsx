@@ -27,6 +27,7 @@ import {
   strategicFitTrainingPerformanceWarning,
 } from "./store/strategic-fit-training";
 import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
+import { dispatchShortcut, registerShortcut } from "./store/shortcuts";
 import {
   resizeSide,
   resizeSideChat,
@@ -56,32 +57,45 @@ export default function App() {
       void restoreLastFile();
     })();
     const onKey = (e: KeyboardEvent) => {
-      if (strategicFitWorkspaceOpen()) return;
-      // Cmd/Ctrl+S saves even from a text field (nothing else claims it). Everything below must NOT
-      // fire while typing: Ctrl+Z especially — undo() deletes a leaf node, so hijacking the text-edit
-      // undo would silently mutate the repertoire.
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void saveFile();
-        return;
-      }
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      )
-        return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        actions.undo();
-        return;
-      }
-      if (e.key === "ArrowLeft") actions.back();
-      else if (e.key === "ArrowRight") actions.forward();
+      dispatchShortcut(e);
     };
+    const disposeShortcuts = [
+      registerShortcut({
+        id: "document.save",
+        key: "s",
+        allowInTextFields: true,
+        handler: () => {
+          void saveFile();
+        },
+      }),
+      registerShortcut({
+        id: "position.back",
+        key: "ArrowLeft",
+        handler: () => {
+          actions.back();
+        },
+      }),
+      registerShortcut({
+        id: "position.forward",
+        key: "ArrowRight",
+        handler: () => {
+          actions.forward();
+        },
+      }),
+      registerShortcut({
+        id: "document.undo",
+        key: "z",
+        handler: () => {
+          actions.undo();
+        },
+      }),
+    ];
     window.addEventListener("keydown", onKey);
     onCleanup(() => {
       window.removeEventListener("keydown", onKey);
+      disposeShortcuts.forEach((dispose) => {
+        dispose();
+      });
     });
   });
 
@@ -171,10 +185,10 @@ export default function App() {
             <ChatPanel />
           </div>
         </div>
-        <SettingsDrawer />
-        <PromotionModal />
-        <ColorPickerModal />
       </div>
+      <SettingsDrawer />
+      <PromotionModal />
+      <ColorPickerModal />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>

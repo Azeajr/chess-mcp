@@ -19,6 +19,7 @@ import {
 const item = {
   dependencies: ["WP-000"],
   blockingGates: [],
+  completionGates: [],
   primaryFiles: ["apps/ui/src/App.tsx"],
   relevantSymbols: [],
   acceptanceCriteria: [],
@@ -43,6 +44,7 @@ test("completed packages derive not-executable and emit no actionable capsule", 
     readiness: "not-executable",
     unresolvedDependencies: [],
     unresolvedGates: [],
+    unresolvedCompletionGates: [],
     unresolvedFoundations: [],
   });
   const capsule = buildTaskCapsule("WP-001", item, state("complete"));
@@ -66,6 +68,29 @@ test("ready and blocked packages remain distinct", () => {
     deriveTaskLifecycle(item, { status: "in-progress" }, state("in-progress")).readiness,
     "not-executable",
   );
+});
+
+test("completion gates allow implementation but prevent an invalid completion record", () => {
+  const completionGateItem = { ...item, completionGates: ["AG-1"] };
+  const unresolvedGateState = {
+    ...state("not-started"),
+    gates: { "AG-1": { status: "unresolved" } },
+  };
+  const ready = deriveTaskLifecycle(
+    completionGateItem,
+    { status: "not-started" },
+    unresolvedGateState,
+  );
+  assert.equal(ready.readiness, "ready");
+  assert.deepEqual(ready.unresolvedCompletionGates, ["AG-1"]);
+
+  const complete = deriveTaskLifecycle(
+    completionGateItem,
+    { status: "complete" },
+    unresolvedGateState,
+  );
+  assert.equal(complete.readiness, "not-executable");
+  assert.deepEqual(complete.unresolvedCompletionGates, ["AG-1"]);
 });
 
 test("ready capsule emits a dynamic package-specific execution protocol", () => {

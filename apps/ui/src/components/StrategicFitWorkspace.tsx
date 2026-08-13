@@ -54,6 +54,7 @@ import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
 import PanelHeader from "./primitives/PanelHeader";
 import RegionState from "./primitives/RegionState";
 import Status from "./primitives/Status";
+import { pushShortcutScope } from "../store/shortcuts";
 
 const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -316,6 +317,7 @@ export default function StrategicFitWorkspace() {
 
   onMount(() => {
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const disposeShortcutScope = pushShortcutScope("strategic-fit-workspace");
     const compactQuery = window.matchMedia("(max-width: 820px)");
     const updateStageSemantics = () => setUsesStageTabs(compactQuery.matches);
     updateStageSemantics();
@@ -369,6 +371,7 @@ export default function StrategicFitWorkspace() {
     document.addEventListener("keydown", trapFocus, true);
     closeButton.focus();
     onCleanup(() => {
+      disposeShortcutScope();
       document.removeEventListener("keydown", trapFocus, true);
       compactQuery.removeEventListener("change", updateStageSemantics);
       window.removeEventListener("beforeprint", beforePrint);
@@ -388,6 +391,7 @@ export default function StrategicFitWorkspace() {
         role="dialog"
         aria-modal="true"
         aria-hidden={replacementLabSnapshot().open ? "true" : undefined}
+        inert={replacementLabSnapshot().open}
         aria-labelledby="strategic-fit-workspace-title"
         aria-describedby="strategic-fit-workspace-description"
         tabIndex={-1}

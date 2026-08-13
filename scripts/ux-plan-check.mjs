@@ -29,6 +29,9 @@ for (const [id, item] of Object.entries(packages)) {
   for (const gate of item.blockingGates) {
     if (!state.gates[gate]) errors.push(`${id}: unknown gate ${gate}`);
   }
+  for (const gate of item.completionGates ?? []) {
+    if (!state.gates[gate]) errors.push(`${id}: unknown completion gate ${gate}`);
+  }
   for (const foundation of item.prerequisites ?? []) {
     if (!foundations[foundation])
       errors.push(`${id}: unknown prerequisite foundation ${foundation}`);
@@ -85,6 +88,8 @@ for (const [id, item] of Object.entries(packages)) {
     errors.push(`${id}: completed package is executable`);
   if (packageState?.status === "in-progress" && lifecycle.readiness !== "not-executable")
     errors.push(`${id}: in-progress package is executable`);
+  if (packageState?.status === "complete" && lifecycle.unresolvedCompletionGates.length)
+    errors.push(`${id}: completed package has unresolved completion gate(s)`);
 }
 
 for (const command of validateWp000RequiredCommands(packages["WP-000"]))

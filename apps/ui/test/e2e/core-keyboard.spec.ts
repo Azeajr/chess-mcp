@@ -155,6 +155,14 @@ test("WP-011 AC-4 current state and branch expansion remain truthful", async ({ 
   await expect(group).toBeHidden();
 
   await current.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(group).toBeVisible();
+  await expect(current).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(group).toBeHidden();
+  await expect(current).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(moveItem(page, firstVariation)).toBeFocused();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");

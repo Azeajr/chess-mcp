@@ -363,12 +363,12 @@ export default function RepertoirePanel() {
         {commandStatus("prep_vs_opponent")}
         <For each={rows("prep_vs_opponent", "lines")}>
           {(line) => (
-            <InteractiveRow aria-label={`${String(line.name)} opponent preparation summary`}>
+            <div class="rep-row" aria-label={`${String(line.name)} opponent preparation summary`}>
               <span class="san">{String(line.name)}</span>
               <span class="fit">
                 {String(line.games)} games · {String(line.hit_rate)}% in prep
               </span>
-            </InteractiveRow>
+            </div>
           )}
         </For>
       </details>
