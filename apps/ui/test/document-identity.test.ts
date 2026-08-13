@@ -5,7 +5,7 @@ import {
   createBrowserDocumentId,
   normalizeBrowserDocumentId,
 } from "../src/store/document-identity.ts";
-import { actions, documentId, restoreDocument } from "../src/store/game.ts";
+import { actions, changesSinceExport, documentId, restoreDocument } from "../src/store/game.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -95,4 +95,20 @@ test("failed explicit loads and failed restores leave the active identity unchan
   assert.throws(() => restoreDocument("", "corrupt-autosave.pgn", crypto.randomUUID()), /no game/);
   assert.equal(documentId(), active);
   assert.equal(actions.toPgn(), pgn);
+});
+
+test("export change counts track repertoire mutations and reset after saving", () => {
+  actions.newGame();
+  actions.markSaved();
+  assert.equal(changesSinceExport(), 0);
+
+  actions.play("e2", "e4");
+  assert.equal(changesSinceExport(), 1);
+  actions.goto([0]);
+  assert.equal(changesSinceExport(), 1, "navigation is not an unexported document change");
+
+  actions.play("e7", "e5");
+  assert.equal(changesSinceExport(), 2);
+  actions.markSaved();
+  assert.equal(changesSinceExport(), 0);
 });

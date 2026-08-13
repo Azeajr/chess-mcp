@@ -4,7 +4,16 @@
  */
 import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
-import { openFile, saveFile, clearHandle, reopenLast, storedFileName } from "../store/files";
+import {
+  clearHandle,
+  dismissFileNotice,
+  fileNotice,
+  openFile,
+  reopenLast,
+  requestDocumentClose,
+  saveFile,
+  storedFileName,
+} from "../store/files";
 import { openSettings } from "../store/ui";
 
 export default function TopBar() {
@@ -19,7 +28,20 @@ export default function TopBar() {
           {fileName()}
         </span>
       </Show>
-      <button onClick={() => void openFile()}>Open PGN</button>
+      <Show when={fileNotice()}>
+        {(notice) => (
+          <div class="file-notice" role="status">
+            <span>{notice().message}</span>
+            <Show when={notice().action === "open"}>
+              <button onClick={openFile}>Open PGN</button>
+            </Show>
+            <button aria-label="Dismiss file notice" onClick={dismissFileNotice}>
+              ×
+            </button>
+          </div>
+        )}
+      </Show>
+      <button onClick={openFile}>Open PGN</button>
       <Show when={storedFileName()}>
         <button
           class="reopen-button"
@@ -32,12 +54,10 @@ export default function TopBar() {
       <button onClick={() => void saveFile()}>Save</button>
       <button
         onClick={() => {
-          // Guard the one-click data-loss path: newGame replaces the tree and the autosave then
-          // overwrites the IndexedDB copy — with no file saved, that copy is the only one.
-          if (dirty() && !window.confirm("Discard unsaved changes and start a new repertoire?"))
-            return;
-          clearHandle();
-          actions.newGame();
+          requestDocumentClose("new", () => {
+            clearHandle();
+            actions.newGame();
+          });
         }}
       >
         New

@@ -1,16 +1,17 @@
 # Next step
 
-**WP-007 — Dialog focus and escape behavior** is **complete**. Its automated dialog contract and
-Strategic Fit accessibility evidence passed across Chromium, Firefox, and WebKit (33 focused
-tests), and its reviewed move-tree regression suite passed 39 active tests across all three
-browsers with three configured UX-003 board-test skips.
+**WP-003 — Document-close protection** is **complete**. New, Open PGN, and Reopen now use one
+Dialog-backed guard, content changes retain an exported-change count across autosave, save-before-
+continue resumes exactly once, and file capability failures are named in a visible notice. The
+focused Chromium run passed 14 tests with one configured UX-005 skip; the corresponding 45-case
+three-browser container run and the 441-case full container run completed without a reported
+failure. Lint, formatting, typecheck, docs, skills, content, chat/store tests, and the production
+UI build passed.
 
-AG-1 also passed. VoiceOver on iPhone 13 mini (iOS 26.6, Safari) and NVDA 2026.1.1 on Windows 11
-Enterprise 23H2 (Chrome 151.0.7922.137) each confirmed that Settings, Promotion, and Colour picker
-announce their name and dialog role, keep the background unreachable by virtual cursor, and return
-focus audibly on close.
+Manual validation also passed: the user confirmed Chromium writes to the existing real file handle
+before completing a replacement, and Firefox/WebKit show the named download-fallback message when
+File System Access is unavailable. No issues were reported.
 
-**Next executable package: WP-003 — Unsaved-work guard.** WP-015 is also ready, but WP-003 is
-first in the live manifest order. Run `pnpm ux:task WP-003` to begin it. `pnpm lint` and
-`pnpm docs:check` retain the unrelated pre-existing failures documented in `state.json`.
-Preserve unrelated dirty-worktree changes throughout.
+**Next executable package: WP-015 — Side-panel task order and mobile default.** Run
+`pnpm ux:task WP-015` to begin it. WP-004 is now the critical-path successor, but remains blocked
+on PD-2. Preserve unrelated dirty-worktree changes throughout.

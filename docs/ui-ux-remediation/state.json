@@ -53,7 +53,27 @@
       }
     },
     "WP-003": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-003",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/core-document.spec.ts apps/ui/test/e2e/core-dialogs.spec.ts apps/ui/test/e2e/document-identity.spec.ts --project chromium --reporter=dot (14 passed, 1 configured UX-005 test.fixme skip)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-document.spec.ts apps/ui/test/e2e/core-dialogs.spec.ts apps/ui/test/e2e/document-identity.spec.ts --reporter=dot (45 configured cross-browser cases completed without a reported failure)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm --filter @chess-mcp/ui test:chat (38 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm test:e2e:container --reporter=dot (441 configured cross-browser cases completed without a reported failure)",
+          "git diff --check"
+        ],
+        "automatedAccessibility": "The focused document-dialog tests verify its name and modal semantics, initial focus, Tab and Shift+Tab cycling, Escape close and return focus, inert background, blocked board-arrow navigation, and scoped accessibility violations. They also preserve the existing colour-picker open flow.",
+        "manual": "User-confirmed manual validation: Chromium with a real file handle wrote to the same file before completing the pending document replacement; Firefox and WebKit without File System Access showed the named download-fallback message. Browser, OS, and device versions were not separately reported; no issues were reported.",
+        "rollback": "Reverting WP-003 restores the former conditional document-replacement confirmations and silent download fallback. It does not delete, alter, or overwrite an existing repertoire or saved file; the additive autosave change-count field is ignored by the prior build."
+      }
     },
     "WP-004": {
       "status": "not-started"

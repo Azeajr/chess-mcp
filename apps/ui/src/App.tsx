@@ -11,6 +11,7 @@ import MobileTabs from "./components/MobileTabs";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
+import DocumentCloseDialog from "./components/DocumentCloseDialog";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
 import { actions } from "./store/game";
 import { saveFile, restoreLastFile } from "./store/files";
@@ -189,6 +190,7 @@ export default function App() {
       <SettingsDrawer />
       <PromotionModal />
       <ColorPickerModal />
+      <DocumentCloseDialog />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>
