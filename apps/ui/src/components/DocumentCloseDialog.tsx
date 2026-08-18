@@ -9,6 +9,7 @@ import {
   savingDocumentClose,
 } from "../store/files";
 import Dialog from "./primitives/Dialog";
+import { setRecoverDialogOpen } from "../store/persist";
 
 const intentLabel = {
   new: "start a new repertoire",
@@ -63,12 +64,32 @@ export default function DocumentCloseDialog() {
                     <button data-document-close-safe onClick={cancelDocumentClose}>
                       Cancel
                     </button>
+                    <button
+                      type="button"
+                      class="document-close-recover"
+                      onClick={() => {
+                        cancelDocumentClose();
+                        setRecoverDialogOpen(true);
+                      }}
+                    >
+                      Recover an earlier repertoire
+                    </button>
                     <button onClick={continueDocumentClose}>Continue</button>
                   </>
                 }
               >
                 <button data-document-close-safe onClick={cancelDocumentClose}>
                   Keep working
+                </button>
+                <button
+                  type="button"
+                  class="document-close-recover"
+                  onClick={() => {
+                    cancelDocumentClose();
+                    setRecoverDialogOpen(true);
+                  }}
+                >
+                  Recover an earlier repertoire
                 </button>
                 <button
                   disabled={savingDocumentClose()}

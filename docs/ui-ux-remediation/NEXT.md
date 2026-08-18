@@ -1,12 +1,13 @@
 # Next step
 
-**WP-015 — Side-panel task order and mobile default** is **complete**. The move tree now leads the
-wide side panel with a bounded, usable height; Analysis follows; and repertoire tools come last.
-Mobile starts on `Moves`. The focused layout suite passed its nine Chromium, Firefox, and WebKit
-checks serially in the capped low-impact user service, and lint, formatting, typecheck,
-documentation, skills, content, chat/store tests, and the production UI build passed.
+**WP-004 — Autosave snapshot ring and recovery UI** is **complete**. The browser now retains five
+atomic, size-bounded working-document snapshots, captures document replacement and idle boundaries,
+degrades without affecting the live autosave slot, lists corrupt entries safely, and restores a
+selected PGN under a new document identity. The focused store, Strategic Fit transaction, and
+three-engine recovery flows pass.
 
-**No package is currently executable.** WP-004, the critical-path successor, remains blocked on
-unresolved product decision PD-2. The remaining not-started packages are also blocked by unresolved
-gates, prerequisites, or dependencies; consult `pnpm ux:task WP-NNN` after resolving the relevant
-blocker. Preserve unrelated dirty-worktree changes throughout.
+**No package is currently executable.** The critical-path successor WP-005 is blocked by WP-009 and
+PD-3; WP-009 is blocked by AG-5. The other root blockers are the `content-label-foundation` for
+WP-008 and unresolved gates PD-4 (WP-021), DV-4 (WP-022), and PD-6 (WP-030). Every remaining
+not-started package is blocked by one of those roots, another unresolved gate, or a dependency on a
+blocked package. Resolve a root gate/foundation and rerun `pnpm ux:task WP-NNN` before implementation.

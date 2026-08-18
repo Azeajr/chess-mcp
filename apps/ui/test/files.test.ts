@@ -8,7 +8,7 @@ import {
   requestDocumentClose,
 } from "../src/store/files.ts";
 
-test("document-close resume runs at most once", () => {
+test("document-close resume runs at most once", async () => {
   cancelDocumentClose();
   let resumes = 0;
 
@@ -18,8 +18,7 @@ test("document-close resume runs at most once", () => {
   requestDocumentClose("open", () => {
     resumes += 100;
   });
-  continueDocumentClose();
-  continueDocumentClose();
+  await Promise.all([continueDocumentClose(), continueDocumentClose()]);
 
   assert.equal(resumes, 1);
   assert.equal(pendingDocumentClose(), null);

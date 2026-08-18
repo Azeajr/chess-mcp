@@ -8,10 +8,42 @@ type ChessHarness = {
     path: string[],
     options?: { addMoves?: string[]; promoteMove?: string },
   ): { ok: boolean };
+  documentId(): string;
 };
 
 const documentCloseDialog = (page: Page) =>
   page.getByRole("dialog", { name: "Replace current repertoire?" });
+
+test("WP-004 AC-1 AC-2 New snapshot can be recovered as an exact new document", async ({
+  page,
+}) => {
+  await openApp(page);
+  const expected = await currentPgn(page);
+  const originalId = await page.evaluate(() =>
+    (window as unknown as { __chess: ChessHarness }).__chess.documentId(),
+  );
+
+  await page.getByRole("button", { name: "New" }).click();
+  await documentCloseDialog(page).getByRole("button", { name: "Continue" }).click();
+  await expect.poll(() => currentPgn(page)).not.toBe(expected);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "Recover a repertoire" }).click();
+  const recover = page.getByRole("dialog", { name: "Recover a repertoire" });
+  await expect(recover).toContainText("rich-repertoire.pgn");
+  await expect(recover).toContainText(/\d+ moves · \d+ lines/);
+  await expect(recover.getByLabel("Snapshot PGN preview")).toHaveText(expected);
+  await recover.getByRole("button", { name: "Restore as new document" }).click();
+
+  await expect(recover).toHaveCount(0);
+  await expect.poll(() => currentPgn(page)).toBe(expected);
+  const restoredId = await page.evaluate(() =>
+    (window as unknown as { __chess: ChessHarness }).__chess.documentId(),
+  );
+  expect(restoredId).not.toBe(originalId);
+});
 
 async function makeDocumentDirty(page: Page) {
   return page.evaluate(() =>

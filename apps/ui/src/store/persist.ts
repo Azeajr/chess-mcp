@@ -5,7 +5,8 @@
  * persistence in store/files (which re-opens an on-disk file on demand).
  */
 import { createSignal, createEffect, onCleanup } from "solid-js";
-import { idbGet, idbSet } from "./idb";
+import { idbGet, idbSet, idbMutateAtomically } from "./idb";
+import { GameTree } from "@chess-mcp/chess-tools";
 import {
   currentTree,
   path,
@@ -46,10 +47,191 @@ export interface SavedWorkingRepertoire {
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 400;
+const IDLE_SNAPSHOT_MS = 10 * 60 * 1000;
+const SNAPSHOT_INDEX_KEY = "workingRepertoire.snapshotIndex";
+const SNAPSHOT_KEY_PREFIX = "workingRepertoire.snapshot.";
+const MAX_SNAPSHOTS = 5;
+const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 let pendingAutosave: SavedWorkingRepertoire | null = null;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 let autosaveTail: Promise<void> = Promise.resolve();
 let autosavePauseDepth = 0;
+let snapshotTail: Promise<void> = Promise.resolve();
+let lastSnapshotAt = 0;
+
+export type SnapshotReason = "before-replace" | "idle" | "manual";
+
+export interface SnapshotRecord {
+  readonly id: string;
+  readonly savedAt: number;
+  readonly reason: SnapshotReason;
+  readonly pgn: string;
+  readonly fileName: string | null;
+}
+
+interface SnapshotIndexEntry {
+  readonly id: string;
+  readonly savedAt: number;
+  readonly reason: SnapshotReason;
+  readonly fileName: string | null;
+  readonly byteSize: number;
+  readonly moveCount: number;
+  readonly lineCount: number;
+}
+
+export interface SnapshotListEntry extends SnapshotIndexEntry {
+  readonly readable: boolean;
+}
+
+const [snapshotsUnavailable, setSnapshotsUnavailable] = createSignal(false);
+const [recoverDialogOpen, setRecoverDialogOpen] = createSignal(false);
+export { snapshotsUnavailable, recoverDialogOpen, setRecoverDialogOpen };
+
+function snapshotKey(id: string) {
+  return `${SNAPSHOT_KEY_PREFIX}${id}`;
+}
+
+function payloadBytes(payload: SnapshotRecord) {
+  return new TextEncoder().encode(JSON.stringify(payload)).byteLength;
+}
+
+function isQuotaExceeded(error: unknown) {
+  return error instanceof DOMException && error.name === "QuotaExceededError";
+}
+
+function trimSnapshotIndex(entries: SnapshotIndexEntry[]) {
+  const retained = [...entries].sort((a, b) => a.savedAt - b.savedAt);
+  while (
+    retained.length > MAX_SNAPSHOTS ||
+    retained.reduce((total, entry) => total + entry.byteSize, 0) > MAX_SNAPSHOT_BYTES
+  ) {
+    retained.shift();
+  }
+  return retained;
+}
+
+async function writeSnapshot(
+  payload: SnapshotRecord,
+  entry: SnapshotIndexEntry,
+  evictOneMore: boolean,
+) {
+  const previous = (await idbGet<SnapshotIndexEntry[]>(SNAPSHOT_INDEX_KEY)) ?? [];
+  let retained = trimSnapshotIndex([...previous, entry]);
+  if (evictOneMore && retained.length > 1) retained = retained.slice(1);
+  if (!retained.some((item) => item.id === payload.id)) {
+    throw new DOMException("Snapshot exceeds the history budget", "QuotaExceededError");
+  }
+  const retainedIds = new Set(retained.map((item) => item.id));
+  const mutations = [
+    ...previous
+      .filter((item) => !retainedIds.has(item.id))
+      .map((item) => ({ key: snapshotKey(item.id), delete: true as const })),
+    { key: snapshotKey(payload.id), value: payload },
+    { key: SNAPSHOT_INDEX_KEY, value: retained },
+  ];
+  await idbMutateAtomically(mutations);
+}
+
+/** Capture the current document without allowing snapshot failures to affect the live autosave. */
+export async function captureSnapshot(reason: SnapshotReason): Promise<string | null> {
+  if (autosavePauseDepth > 0) return null;
+  const pgn = currentTree().toPgn();
+  const stats = currentTree().stats();
+  if (stats.nodes === 0) return null;
+  const payload: SnapshotRecord = {
+    id: crypto.randomUUID(),
+    savedAt: (lastSnapshotAt = Math.max(Date.now(), lastSnapshotAt + 1)),
+    reason,
+    pgn,
+    fileName: fileName(),
+  };
+  const entry: SnapshotIndexEntry = {
+    id: payload.id,
+    savedAt: payload.savedAt,
+    reason,
+    fileName: payload.fileName,
+    byteSize: payloadBytes(payload),
+    moveCount: stats.nodes,
+    lineCount: stats.leaves,
+  };
+  const result = snapshotTail
+    .catch(() => undefined)
+    .then(async () => {
+      if (autosavePauseDepth > 0) return false;
+      let captured = false;
+      try {
+        await writeSnapshot(payload, entry, false);
+        captured = true;
+      } catch (error) {
+        if (!isQuotaExceeded(error)) {
+          setSnapshotsUnavailable(true);
+          return false;
+        }
+        try {
+          await writeSnapshot(payload, entry, true);
+          captured = true;
+        } catch {
+          setSnapshotsUnavailable(true);
+        }
+      }
+      if (captured) {
+        setSnapshotsUnavailable(false);
+        const environment = Reflect.get(import.meta, "env") as { DEV?: boolean } | undefined;
+        if (environment?.DEV) {
+          // eslint-disable-next-line no-console -- package rollout diagnostic, DEV-only by contract
+          console.debug("snapshot write", {
+            reason,
+            id: payload.id,
+            bytes: entry.byteSize,
+          });
+        }
+      }
+      return captured;
+    });
+  snapshotTail = result.then(() => undefined);
+  return (await result) ? payload.id : null;
+}
+
+export async function readSnapshot(id: string): Promise<SnapshotRecord | undefined> {
+  return idbGet<SnapshotRecord>(snapshotKey(id));
+}
+
+export async function listSnapshots(): Promise<SnapshotListEntry[]> {
+  await snapshotTail;
+  const index = (await idbGet<SnapshotIndexEntry[]>(SNAPSHOT_INDEX_KEY)) ?? [];
+  return Promise.all(
+    [...index]
+      .sort((a, b) => b.savedAt - a.savedAt)
+      .map(async (entry) => {
+        try {
+          const payload = await readSnapshot(entry.id);
+          if (!payload) throw new Error("missing snapshot");
+          GameTree.fromPgn(payload.pgn);
+          return { ...entry, readable: true };
+        } catch {
+          return { ...entry, readable: false };
+        }
+      }),
+  );
+}
+
+export async function deleteSnapshot(id: string): Promise<void> {
+  const index = (await idbGet<SnapshotIndexEntry[]>(SNAPSHOT_INDEX_KEY)) ?? [];
+  await idbMutateAtomically([
+    { key: snapshotKey(id), delete: true },
+    { key: SNAPSHOT_INDEX_KEY, value: index.filter((entry) => entry.id !== id) },
+  ]);
+}
+
+/** Restore a historical PGN as a new browser document after preserving the current one. */
+export async function restoreSnapshot(id: string): Promise<boolean> {
+  const snapshot = await readSnapshot(id);
+  if (!snapshot) return false;
+  GameTree.fromPgn(snapshot.pgn);
+  await captureSnapshot("manual");
+  restoreDocument(snapshot.pgn, snapshot.fileName ?? undefined, undefined);
+  return true;
+}
 
 function scheduleAutosave(saved: SavedWorkingRepertoire): ReturnType<typeof setTimeout> | null {
   pendingAutosave = saved;
@@ -106,6 +288,12 @@ const [ready, setReady] = createSignal(false);
 
 /** Create the debounced autosave effect (call from a component body so it has a reactive owner). */
 export function startAutosave() {
+  const idleTimer = setInterval(() => {
+    if (ready() && dirty()) void captureSnapshot("idle");
+  }, IDLE_SNAPSHOT_MS);
+  onCleanup(() => {
+    clearInterval(idleTimer);
+  });
   createEffect(() => {
     if (!ready()) return;
     const tree = currentTree();

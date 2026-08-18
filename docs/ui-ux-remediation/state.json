@@ -76,7 +76,30 @@
       }
     },
     "WP-004": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-004",
+          "pnpm --filter @chess-mcp/ui exec tsx --test test/persist-snapshots.test.ts (6 passed)",
+          "pnpm --filter @chess-mcp/ui exec tsx --test test/strategic-fit-changes.test.ts test/strategic-fit-resumable.test.ts (26 passed)",
+          "pnpm test:e2e -- apps/ui/test/e2e/core-document.spec.ts --project chromium --reporter=dot (7 passed, 1 configured pre-roadmap skip)",
+          "pnpm test:e2e -- apps/ui/test/e2e/core-document.spec.ts --grep WP-004 --reporter=dot (Chromium and Firefox passed; local WebKit launch blocked by missing host libraries)",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-document.spec.ts --grep WP-004 --reporter=dot (3 passed across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm --filter @chess-mcp/ui test:chat (295 passed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "git diff --check",
+          "pnpm test:e2e -- --reporter=dot (global 453-case run reached the enforced 15-minute service limit; unrelated core-layout and strategic-fit-accessibility failures/timeouts were emitted before termination)"
+        ],
+        "automatedAccessibility": "The recovery UI uses the shared modal primitive for naming, focus containment, inert background, Escape handling, and focus return. The cross-browser round trip locates recovery controls and snapshot metadata by accessible role and name.",
+        "manual": "Chromium and Firefox on Linux were exercised in isolated ephemeral browser contexts, and Chromium, Firefox, and WebKit were verified in the Playwright 1.61.0 Noble container. Near-quota degradation was exercised deterministically with a transaction-capable IndexedDB test double: two QuotaExceededError writes left the live workingRepertoire byte-for-byte intact and surfaced the unavailable signal. No physical-device or non-headless browser session was available.",
+        "rollback": "Reverting WP-004 leaves additive snapshot payload and index keys as inert data that the prior build ignores. It does not delete or rewrite the workingRepertoire live slot, and no user data is lost; snapshot keys must not be deleted during rollback."
+      }
     },
     "WP-005": {
       "status": "not-started"
