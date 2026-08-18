@@ -10,6 +10,7 @@ import type { Key } from "chessground/types";
 import type { DrawShape, DrawBrush } from "chessground/draw";
 import { actions, fen, dests, turnColor, lastMove, color } from "../store/game";
 import { isPromotion } from "@chess-mcp/chess-tools";
+import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
 import { engineArrows, repertoireArrows, type Arrow } from "../store/analysis";
 import { suggestionArrows, previewArrow } from "../store/suggestions";
 import { pendingPromo, setPendingPromo } from "../store/promotion";
@@ -45,12 +46,25 @@ export default function Board() {
     motionPreference.addEventListener("change", syncAnimationPreference);
     // "gold" is the Feature 1 preview brush — added to the default set (green/red/blue/yellow)
     // after init so we don't have to re-declare the built-ins the Config type demands.
-    (cg.state.drawable.brushes as Record<string, DrawBrush>).gold = {
+    const brushes = cg.state.drawable.brushes as Record<string, DrawBrush>;
+    brushes.gold = {
       key: "gold",
       color: "#e3b341",
       opacity: 0.95,
       lineWidth: 10,
     };
+    // Register the analysis palette explicitly so Chessground and the legend share one source.
+    for (const brush of [
+      ...Object.values(ANALYSIS_ARROW_BRUSHES.fit),
+      ANALYSIS_ARROW_BRUSHES.repertoire,
+    ]) {
+      brushes[brush.brush] = {
+        key: brush.key,
+        color: brush.color,
+        opacity: brush.opacity,
+        lineWidth: brush.lineWidth,
+      };
+    }
   });
 
   // Re-sync the board whenever the store position changes. Also depends on the pending-promotion

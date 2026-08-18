@@ -6,6 +6,7 @@
  */
 import { createSignal, createEffect, onCleanup } from "solid-js";
 import { classifyUciMove, weightFor, type Fit, type Weight } from "@chess-mcp/chess-tools";
+import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
 import { fen, currentTree, currentPath, color } from "./game";
 import { analyseLive } from "../engine/stockfish";
 import { analysisDepth } from "./engine-settings";
@@ -50,7 +51,6 @@ export interface Arrow {
 }
 
 const MULTIPV = 3;
-const FIT_BRUSH: Record<Fit, string> = { "in-book": "green", adjacent: "yellow", out: "red" };
 const WEIGHT_PX: Record<Weight, number> = { thick: 14, medium: 10, thin: 6 };
 
 const [engineLines, setLines] = createSignal<EngineLine[]>([]);
@@ -88,15 +88,15 @@ export const repertoireArrows = (): Arrow[] =>
     .map((m) => ({
       orig: m.orig,
       dest: m.dest,
-      brush: "green",
-      modifiers: { lineWidth: 7 },
+      brush: ANALYSIS_ARROW_BRUSHES.repertoire.brush,
+      modifiers: { lineWidth: ANALYSIS_ARROW_BRUSHES.repertoire.lineWidth },
     }));
 
 function toArrow(l: EngineLine): Arrow {
   return {
     orig: l.uci.slice(0, 2),
     dest: l.uci.slice(2, 4),
-    brush: FIT_BRUSH[l.fit],
+    brush: ANALYSIS_ARROW_BRUSHES.fit[l.fit].brush,
     modifiers: { lineWidth: WEIGHT_PX[l.weight] },
   };
 }

@@ -295,7 +295,20 @@
       }
     },
     "WP-038": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-038 (3 Chromium checks passed)",
+          "pnpm test:e2e:container (346 passed, 20 configured skips across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm check:content",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched mcr.microsoft.com/playwright:v1.61.0-noble container: 346 passed, 20 configured skips, zero failures across Chromium, Firefox, and WebKit. The three WP-038 checks assert the accessible legend content and persisted disclosure, palette alignment under forced colors, and that repertoire arrows stay distinct from de-duplicated engine arrows.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (9d31535, 3838ce3, and the content/analysis.ts hunk of 3154863), reviewed rather than cherry-picked. Only the arrow-legend styles.css hunks were taken; the rest of that branch was not."
+      }
     }
   },
   "gates": {

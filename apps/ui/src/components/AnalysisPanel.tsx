@@ -7,15 +7,13 @@ import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../s
 import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
 import { analysisDepth } from "../store/engine-settings";
-import type { Fit } from "@chess-mcp/chess-tools";
 import { ANALYSIS_CONTENT } from "../content/analysis";
 import AnalysisSettings from "./AnalysisSettings";
+import ArrowLegend from "./ArrowLegend";
 import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
 import Status from "./primitives/Status";
 import { cloudEvaluationText, evaluationText } from "../content/format";
-
-const FIT_LABEL: Record<Fit, string> = { "in-book": "book", adjacent: "adj", out: "out" };
 
 export default function AnalysisPanel() {
   const state = analysisState;
@@ -61,14 +59,22 @@ export default function AnalysisPanel() {
         <For each={engineLines()}>
           {(l) => (
             <div class="line">
-              <Status class={`fit fit-${l.fit}`}>{FIT_LABEL[l.fit]}</Status>
+              <Status class={`fit fit-${l.fit}`}>
+                {ANALYSIS_CONTENT.arrows.fit[l.fit].plain}
+                <span class="fit-expert"> ({ANALYSIS_CONTENT.arrows.fit[l.fit].expert})</span>
+              </Status>
               <span class="san">{l.san}</span>
-              <span class={`weight w-${l.weight}`} title={`engine weight: ${l.weight}`} />
+              <span
+                class={`weight w-${l.weight}`}
+                role="img"
+                aria-label={`Engine arrow strength: ${ANALYSIS_CONTENT.arrows.weight[l.weight].plain} (${ANALYSIS_CONTENT.arrows.weight[l.weight].expert})`}
+              />
               <span class="ev">{evaluationText(l)}</span>
             </div>
           )}
         </For>
       </Show>
+      <ArrowLegend />
       <div class="cloud-row" title="Lichess cloud eval (white POV)">
         <span class="cloud-label">cloud</span>
         <span class="cloud-val">{cloudEvaluationText(cloud())}</span>

@@ -2040,8 +2040,10 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
+        "files": ["apps/ui/test/e2e/core-analysis.spec.ts"],
+        "commands": [
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts apps/ui/test/e2e/core-analysis.spec.ts --project chromium --grep \"WP-038\""
+        ],
         "description": "An arrow-count assertion for a position with overlapping repertoire and engine suggestions; a legend content assertion; a persistence assertion."
       },
       "requiredManualValidation": "Confirm the repertoire/engine distinction is visible at the smallest board size (160 px) and under forced colors.\n\n---",
