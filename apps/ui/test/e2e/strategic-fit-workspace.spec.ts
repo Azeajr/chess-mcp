@@ -24,6 +24,7 @@ type ChessHarness = {
   commandStates(): unknown;
   strategicFitMetadata(): unknown;
   strategicFitMetadataStatus(): string;
+  strategicFitLifecycle(): { status: string };
   selectStrategicFitProfile(mode: "balanced"): unknown;
   flushStrategicFitMetadata(): Promise<void>;
   setStrategicFitWorkspaceRegionState(region: Region, state: RegionState): void;
@@ -99,6 +100,29 @@ test.beforeEach(async ({ page }) => {
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
 });
 
+test("WP-023 AC-1 AC-2 AC-3 AC-4 the entry card leads with the problem and opens nothing", async ({
+  page,
+}) => {
+  const card = page.locator(".strategic-fit-entry");
+  const title = card.locator(".strategic-fit-entry-title");
+
+  // AC-1: a question about the user's repertoire, not a label for the feature.
+  await expect(title).toHaveText(/\?$/);
+  await expect(title).not.toHaveText("Strategic Fit");
+  // AC-2: the reassurance the audit found already correct must survive.
+  await expect(card).toContainText("does not analyze or change this repertoire");
+
+  // AC-3
+  const opener = card.getByRole("button", { name: "Open Strategic Fit" });
+  await expect(opener).toBeVisible();
+
+  // AC-4: opening is inert — no analysis is triggered by the entry point.
+  expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
+  await opener.click();
+  await expect(page.getByRole("dialog", { name: "Strategic Fit" })).toBeVisible();
+  expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
+});
+
 test("desktop shell opens and closes without analysis, mutation, or state loss", async ({
   page,
 }) => {
@@ -115,7 +139,7 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   const before = await snapshot(page);
   const persistedBefore = await persistedStrategicFitMetadata(page, before.document_id);
   const workersBefore = await workerStarts(page);
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
 
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
@@ -144,7 +168,7 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
 test("focus is trapped in both directions and Escape restores the exact opener", async ({
   page,
 }) => {
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
@@ -181,7 +205,7 @@ test("focus is trapped in both directions and Escape restores the exact opener",
 
 test("phone shell exposes the four frozen stages one at a time", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const stages = dialog.getByRole("tab");
   await expect(stages).toHaveCount(4);
@@ -208,7 +232,7 @@ test("phone shell exposes the four frozen stages one at a time", async ({ page }
 });
 
 test("shell regions render explicit empty, loading, and error states", async ({ page }) => {
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   await chess(page, (api) => {
     api.setStrategicFitWorkspaceRegionState("overview", {
       status: "loading",

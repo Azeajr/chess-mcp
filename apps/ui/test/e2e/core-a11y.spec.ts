@@ -58,7 +58,7 @@ test("WP-006 AC-1 gives keyboard focus a global two-pixel accent ring", async ({
     page.locator(".chat-mode"),
     page.getByRole("button", { name: "Clear" }),
     page.locator(".chat-input textarea"),
-    page.getByRole("button", { name: "Open workspace" }),
+    page.getByRole("button", { name: "Open Strategic Fit" }),
   ];
   for (const sample of samples) await expectFocusRing(sample);
 });
@@ -374,7 +374,7 @@ test("WP-037 AC-7 migrated presentation surfaces have no basic accessibility vio
   await openApp(page, { width: 1280, height: 800 });
   expect(await basicAccessibilityViolations(page.locator(".app-main"))).toEqual([]);
 
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const workspace = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(workspace).toBeVisible();
   expect(await basicAccessibilityViolations(workspace)).toEqual([]);

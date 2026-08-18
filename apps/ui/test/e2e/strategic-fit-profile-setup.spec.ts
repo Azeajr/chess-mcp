@@ -106,7 +106,7 @@ const waitForWorkingDocument = async (page: Page, documentId: string) => {
 };
 
 const openWorkspace = async (page: Page) => {
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();

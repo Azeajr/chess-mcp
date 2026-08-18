@@ -27,7 +27,7 @@ const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: 
 
 async function openWorkspace(page: Page, setupComplete = false) {
   if (setupComplete) await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();

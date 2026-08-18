@@ -149,7 +149,7 @@ async function loadExplicitProfile(page: Page) {
 }
 
 async function openWorkspace(page: Page) {
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
   return dialog;

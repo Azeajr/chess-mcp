@@ -65,6 +65,7 @@ import Progress from "./primitives/Progress";
 import Select from "./primitives/Select";
 import Status from "./primitives/Status";
 import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
+import { STRATEGIC_FIT_ENTRY } from "../content/strategicFit";
 
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
 
@@ -192,10 +193,10 @@ export default function RepertoirePanel() {
       <section class="strategic-fit-entry" aria-labelledby="strategic-fit-entry-title">
         <div>
           <div id="strategic-fit-entry-title" class="strategic-fit-entry-title">
-            Strategic Fit
+            {STRATEGIC_FIT_ENTRY.question}
           </div>
           <div class="strategic-fit-entry-copy">
-            Explore the review workspace. Opening it does not analyze or change this repertoire.
+            {STRATEGIC_FIT_ENTRY.summary} {STRATEGIC_FIT_ENTRY.reassurance}
           </div>
         </div>
         <Button
@@ -204,7 +205,7 @@ export default function RepertoirePanel() {
           class="strategic-fit-open-button"
           onClick={() => setStrategicFitWorkspaceOpen(true)}
         >
-          Open workspace
+          {STRATEGIC_FIT_ENTRY.action}
         </Button>
       </section>
       <Show when={preview()}>

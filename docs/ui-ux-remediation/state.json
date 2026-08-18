@@ -185,7 +185,20 @@
       "status": "not-started"
     },
     "WP-023": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-023",
+          "pnpm test:e2e:container (349 passed, 20 configured skips across Chromium, Firefox, and WebKit)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched mcr.microsoft.com/playwright:v1.61.0-noble container: 349 passed, 20 configured skips, zero failures across Chromium, Firefox, and WebKit. The new WP-023 check asserts the title is a question rather than the feature name, the no-side-effects sentence survives, the button reads Open Strategic Fit, and strategicFitLifecycle().status stays \"idle\" across the open.",
+        "scope": "Renaming the opener required updating its 26 references across 15 e2e specs and apps/ui/.claude/skills/run-ui/open-workspace.mjs, outside the package's three primary files. The driver is a real caller: leaving it would have silently broken the run-ui skill.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (39b3d8a), reviewed rather than cherry-picked. That branch renamed the button without updating the run-ui driver."
+      }
     },
     "WP-024": {
       "status": "complete",

@@ -1448,7 +1448,7 @@ async function bootstrap(
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   const before = await chess(page, (api) => api.toPgn());
   const pathBefore = await chess(page, (api) => [...api.currentPath()]);
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
@@ -1687,7 +1687,7 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await page.reload();
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restoredDialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await restoredDialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
@@ -1884,7 +1884,7 @@ test("training items persist semantic references, keep findings visible, and exp
   await chess(page, (api) => api.flushStrategicFitMetadata());
   await page.reload();
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
   await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
@@ -2006,7 +2006,7 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   await page.reload();
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
   await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
@@ -2237,7 +2237,7 @@ test("overview intents filter only the current report queue and can return to al
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
   await expect(dialog).toHaveCount(0);
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const reopened = page.getByRole("dialog", { name: "Strategic Fit" });
   const reopenedQueue = reopened
     .locator("#strategic-fit-pane-findings")
@@ -2341,7 +2341,7 @@ test("phone can complete the full review journey with the keyboard only and retu
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "keyboard-review.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
 
-  const opener = page.getByRole("button", { name: "Open workspace" });
+  const opener = page.getByRole("button", { name: "Open Strategic Fit" });
   await opener.focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });

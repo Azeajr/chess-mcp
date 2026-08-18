@@ -26,7 +26,7 @@ await page.evaluate(
 );
 await page.waitForTimeout(500);
 
-await page.getByRole("button", { name: "Open workspace" }).click();
+await page.getByRole("button", { name: "Open Strategic Fit" }).click();
 await page.waitForTimeout(1000);
 await page.screenshot({ path: `${OUT}/30-strategic-fit-workspace.png`, fullPage: true });
 console.log("screenshotted workspace →", `${OUT}/30-strategic-fit-workspace.png`);
