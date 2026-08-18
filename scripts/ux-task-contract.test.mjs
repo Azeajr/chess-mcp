@@ -9,6 +9,7 @@ import {
   buildTaskCapsule,
   deriveTaskLifecycle,
   normalizePrimaryFile,
+  validateCompletionEvidence,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
   validateRemediationAgentInstructions,
@@ -65,6 +66,54 @@ test("ready and blocked packages remain distinct", () => {
   assert.equal(
     deriveTaskLifecycle(item, { status: "in-progress" }, state("in-progress")).readiness,
     "not-executable",
+  );
+});
+
+test("completion evidence must name an end-to-end run that was not spec-scoped", () => {
+  const complete = (validation) => ({ status: "complete", evidence: { validation } });
+
+  // The two shapes that let a package regress a different package while reporting a pass.
+  assert.match(
+    validateCompletionEvidence(
+      "WP-011",
+      complete([
+        "pnpm ux:test WP-011",
+        "pnpm test:e2e:container apps/ui/test/e2e/core-keyboard.spec.ts --workers=1 (39 passed)",
+      ]),
+    )[0],
+    /only spec-scoped/u,
+  );
+  assert.match(
+    validateCompletionEvidence(
+      "WP-015",
+      complete(["pnpm test:e2e -- apps/ui/test/e2e/core-layout.spec.ts --grep WP-015"]),
+    )[0],
+    /only spec-scoped/u,
+  );
+
+  assert.match(
+    validateCompletionEvidence("WP-025", complete(["pnpm lint", "pnpm -r typecheck"]))[0],
+    /no end-to-end run/u,
+  );
+  assert.match(
+    validateCompletionEvidence("WP-030", { status: "complete" })[0],
+    /no validation evidence/u,
+  );
+
+  // An unnarrowed run satisfies the gate; non-complete packages are never asked for evidence.
+  assert.deepEqual(
+    validateCompletionEvidence("WP-011", complete(["pnpm test:e2e:container (243 passed)"])),
+    [],
+  );
+  assert.deepEqual(validateCompletionEvidence("WP-011", { status: "not-started" }), []);
+
+  // Records that predate the gate are listed explicitly rather than silently exempted.
+  assert.deepEqual(
+    validateCompletionEvidence(
+      "WP-002",
+      complete(["pnpm test:e2e:container apps/ui/test/e2e/core-layout.spec.ts"]),
+    ),
+    [],
   );
 });
 

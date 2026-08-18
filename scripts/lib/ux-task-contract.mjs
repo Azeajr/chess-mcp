@@ -66,6 +66,31 @@ export const validateWp000RequiredCommands = (item) =>
     (command) => !item.requiredTests.commands.includes(command),
   );
 
+// A completion record is only trustworthy if it names an e2e run that was not narrowed to the
+// package's own spec file or grep. Scoped runs pass while the package silently regresses another
+// package's acceptance criteria, which is exactly how WP-011 shipped a WP-002 AC-2 regression and
+// WP-015 unmounted the Strategic Fit entry point on phone viewports.
+const E2E_COMMAND = /\b(?:pnpm\s+test:e2e(?::container)?|playwright\s+test)\b/u;
+const SCOPED_RUN = /(?:\.spec\.ts|--grep\b|\s-g\s)/u;
+
+// Completions recorded before this gate existed. Both named only core-layout.spec.ts, so neither
+// meets the rule; they are listed rather than silently exempted so removing one is a deliberate act.
+const PRE_GATE_COMPLETIONS = new Set(["WP-001", "WP-002"]);
+
+export const validateCompletionEvidence = (id, packageState) => {
+  if (packageState?.status !== "complete") return [];
+  if (PRE_GATE_COMPLETIONS.has(id)) return [];
+  const validation = packageState.evidence?.validation;
+  if (!Array.isArray(validation) || !validation.length)
+    return ["completion records no validation evidence"];
+  const commands = validation.filter((entry) => typeof entry === "string");
+  const e2e = commands.filter((command) => E2E_COMMAND.test(command));
+  if (!e2e.length) return ["completion records no end-to-end run"];
+  if (!e2e.some((command) => !SCOPED_RUN.test(command)))
+    return ["completion records only spec-scoped end-to-end runs; a full-suite run is required"];
+  return [];
+};
+
 export const deriveTaskLifecycle = (item, packageState, state) => {
   const status = packageState?.status ?? "missing";
   const unresolvedDependencies = item.dependencies.filter(
@@ -98,6 +123,7 @@ export const renderAgentExecutionProtocol = (id) =>
     `- Inspect AGENTS.md and docs/ui-ux-remediation/work-packages/${id}.md before editing; the package-specific capsule above is authoritative.`,
     `- Implement ${id} only, preserve unrelated working-tree changes, and stay within its allowed primary files unless repository evidence requires a directly related supporting file.`,
     `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
+    `- Run the full end-to-end suite unnarrowed by any spec path or --grep before recording completion. A package-scoped run cannot show whether ${id} regressed another package, and completion evidence that names only scoped runs is rejected.`,
     `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
     `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
     "- Inspect the current manifest and state after completion. In the final response, name the next executable package, or state that none is ready and summarize the blockers.",
@@ -183,6 +209,8 @@ export const validateRemediationAgentInstructions = (source) => {
     errors.push("missing authoritative ux:task preflight command");
   if (!/next executable package/u.test(source))
     errors.push("missing next executable package handoff");
+  if (!/full end-to-end suite/iu.test(source))
+    errors.push("missing full-suite end-to-end regression requirement");
   if (/WP-\d{3} AC-\d+/u.test(source))
     errors.push("duplicates package-specific acceptance criteria");
   return errors;

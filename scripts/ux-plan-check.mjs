@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   deriveTaskLifecycle,
+  validateCompletionEvidence,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
   validateRemediationAgentInstructions,
@@ -85,6 +86,7 @@ for (const [id, item] of Object.entries(packages)) {
     errors.push(`${id}: completed package is executable`);
   if (packageState?.status === "in-progress" && lifecycle.readiness !== "not-executable")
     errors.push(`${id}: in-progress package is executable`);
+  for (const error of validateCompletionEvidence(id, packageState)) errors.push(`${id}: ${error}`);
 }
 
 for (const command of validateWp000RequiredCommands(packages["WP-000"]))

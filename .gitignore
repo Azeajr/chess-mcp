@@ -20,3 +20,6 @@ apps/ui/public/openings.tsv
 
 # agent worktree checkouts
 .claude/worktrees/
+
+# per-developer Claude Code permission allowlist — machine-local, never shared
+.claude/settings.local.json
