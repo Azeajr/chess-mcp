@@ -7,13 +7,7 @@
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import {
-  AG1_BACKGROUND_CONTROL_NAME,
-  AG1_DIALOG_NAME,
-  AG1_OPENER_NAME,
-  AG1_SCENARIO_ID,
-  mergeBundles,
-} from "./scenarios/ag-1-dialog";
+import { DIALOG_SCENARIOS, mergeBundles, scenarioById } from "./scenarios/ag-1-dialog";
 import { computeDialogVerdict } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";
@@ -68,8 +62,9 @@ function renderMarkdown(verdict: ScenarioVerdict, bundle: EvidenceBundle): strin
 async function main() {
   const runId = await resolveRunId();
   const dir = path.join(EVIDENCE_ROOT, runId);
+  const scenarioIds = new Set(DIALOG_SCENARIOS.map((scenario) => scenario.id));
   const files = (await readdir(dir)).filter(
-    (name) => name.startsWith(`${AG1_SCENARIO_ID}-`) && name.endsWith(".json"),
+    (name) => name.endsWith(".json") && [...scenarioIds].some((id) => name.startsWith(`${id}-`)),
   );
   if (files.length === 0) {
     throw new Error(`No evidence files found in ${dir}. Run pnpm a11y:capture first.`);
@@ -77,28 +72,48 @@ async function main() {
   const bundles: EvidenceBundle[] = await Promise.all(
     files.map(async (name) => JSON.parse(await readFile(path.join(dir, name), "utf8"))),
   );
-  const merged = mergeBundles(bundles);
-  const verdict = computeDialogVerdict(merged, {
-    dialogName: AG1_DIALOG_NAME,
-    backgroundControlName: AG1_BACKGROUND_CONTROL_NAME,
-    expectedFocusReturnTargetName: AG1_OPENER_NAME,
-  });
 
+  // One verdict per scenario, never one merged across them: a dialog's findings are only
+  // meaningful against its own expected names, and merging Settings evidence with Strategic Fit
+  // evidence would compare each screen reader's utterance against the wrong dialog.
+  const reports = [];
+  for (const scenario of DIALOG_SCENARIOS) {
+    const forScenario = bundles.filter((bundle) => bundle.scenarioId === scenario.id);
+    if (forScenario.length === 0) continue;
+    const merged = mergeBundles(forScenario);
+    const definition = scenarioById(merged.scenarioId);
+    if (!definition) throw new Error(`No scenario definition for ${merged.scenarioId}.`);
+    reports.push({
+      verdict: computeDialogVerdict(merged, {
+        dialogName: definition.dialogName,
+        backgroundControlName: definition.backgroundControlName,
+        expectedFocusReturnTargetName: definition.openerName,
+      }),
+      evidence: merged,
+    });
+  }
+  if (reports.length === 0) {
+    throw new Error(`Evidence in ${dir} matched no known scenario definition.`);
+  }
+
+  await writeFile(path.join(dir, "report.json"), JSON.stringify({ reports }, null, 2));
   await writeFile(
-    path.join(dir, "report.json"),
-    JSON.stringify({ verdict, evidence: merged }, null, 2),
+    path.join(dir, "report.md"),
+    reports.map((report) => renderMarkdown(report.verdict, report.evidence)).join("\n---\n\n"),
   );
-  await writeFile(path.join(dir, "report.md"), renderMarkdown(verdict, merged));
 
-  console.log(`\nRun ${runId}: overall status = ${verdict.overallStatus}`);
-  for (const finding of verdict.findings) {
-    console.log(`  ${finding.id} [${finding.status}] ${finding.summary}`);
+  let failed = false;
+  for (const { verdict } of reports) {
+    console.log(
+      `\nRun ${runId} — ${verdict.scenarioId}: overall status = ${verdict.overallStatus}`,
+    );
+    for (const finding of verdict.findings) {
+      console.log(`  ${finding.id} [${finding.status}] ${finding.summary}`);
+    }
+    if (verdict.findings.some((finding) => FAILING_STATUSES.has(finding.status))) failed = true;
   }
   console.log(`\nFull report: ${path.join(dir, "report.md")}`);
-
-  if (verdict.findings.some((finding) => FAILING_STATUSES.has(finding.status))) {
-    process.exitCode = 1;
-  }
+  if (failed) process.exitCode = 1;
 }
 
 await main();

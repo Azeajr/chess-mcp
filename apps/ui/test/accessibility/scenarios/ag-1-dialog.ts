@@ -1,128 +1,44 @@
 /**
- * The AG-1 proof of concept: open the Strategic Fit dialog, capture browser-tier evidence from
- * whichever collectors this worker supports, attempt AT-tier evidence, and return one bundle.
- * Called once per browser project; results merge across projects in the spec.
+ * AG-1's concrete scenarios. AG-1's scope is the `Dialog` primitive *and its consumers*, so the
+ * evidence has to cover a dialog actually built on the primitive — Settings is one of WP-007's
+ * three overlays. Strategic Fit is kept alongside it because it is the primitive's extraction
+ * source and the surface `WP-033` will migrate onto it, so a regression there is worth catching
+ * even though it is not itself an AG-1 consumer yet.
  */
-import type { Page } from "playwright/test";
-import type { EvidenceBundle, KeyboardTraceEvidence } from "../evidence-schema";
-import { captureAriaSnapshot, captureCdpAxTree, supportsCdpAxTree } from "../collectors/browser-ax";
-import { captureAxe } from "../collectors/axe";
-import { traceKeyboard } from "../collectors/keyboard-trace";
-import {
-  currentPlatformSupports,
-  infrastructureLimitationFor,
-  type AtRunnerId,
-} from "../collectors/at-runner";
+import type { EvidenceBundle } from "../evidence-schema";
+import type { DialogScenarioDefinition } from "./dialog-scenario";
 
 export const AG1_SCENARIO_ID = "ag-1-strategic-fit-dialog";
 export const AG1_OPENER_NAME = "Open Strategic Fit";
 export const AG1_DIALOG_NAME = "Strategic Fit";
 export const AG1_BACKGROUND_CONTROL_NAME = "Open PGN";
 
-const AT_RUNNERS: readonly AtRunnerId[] = ["nvda", "voiceover"];
+/** The primitive's own contract, observed through one of its three real consumers. */
+export const SETTINGS_SCENARIO: DialogScenarioDefinition = {
+  id: "ag-1-settings-dialog",
+  openerName: "Settings",
+  dialogName: "Settings",
+  backgroundControlName: "Open PGN",
+  scopeSelector: ".ui-dialog, [role='dialog']",
+  traceKeys: ["Tab", "Tab", "Tab", "Shift+Tab", "Escape"],
+};
 
-export interface RunAg1ScenarioOptions {
-  readonly runId: string;
-  /** Set true to attempt real AT capture when the platform supports it (off in the fast path). */
-  readonly attemptAtCapture: boolean;
-}
+export const STRATEGIC_FIT_SCENARIO: DialogScenarioDefinition = {
+  id: AG1_SCENARIO_ID,
+  openerName: AG1_OPENER_NAME,
+  dialogName: AG1_DIALOG_NAME,
+  backgroundControlName: AG1_BACKGROUND_CONTROL_NAME,
+  scopeSelector: ".strategic-fit-workspace, [role='dialog']",
+  traceKeys: ["Tab", "Tab", "Tab", "Shift+Tab", "Escape"],
+};
 
-export async function runAg1Scenario(
-  page: Page,
-  browser: "chromium" | "firefox" | "webkit",
-  options: RunAg1ScenarioOptions,
-): Promise<EvidenceBundle> {
-  await page.waitForTimeout(500);
-  const opener = page.getByRole("button", { name: AG1_OPENER_NAME });
-  await opener.click();
-  const dialog = page.getByRole("dialog", { name: AG1_DIALOG_NAME });
-  await dialog.waitFor({ state: "visible" });
+export const DIALOG_SCENARIOS: readonly DialogScenarioDefinition[] = [
+  SETTINGS_SCENARIO,
+  STRATEGIC_FIT_SCENARIO,
+];
 
-  const ariaSnapshots = [await captureAriaSnapshot(dialog, browser, "Strategic Fit dialog root")];
-
-  const cdpAxTrees = supportsCdpAxTree(browser) ? [await captureCdpAxTree(page)] : [];
-
-  const axe = [await captureAxe(page, browser)];
-
-  // AT capture must happen here, while the dialog is genuinely open — not after the keyboard
-  // trace below, whose last step presses Escape and closes it (run 32206750401's real VoiceOver
-  // observation named neither the dialog nor any page content, because by the old ordering the
-  // dialog was already closed by the time it ran).
-  //
-  // Runs 32206750401/32207555004 also tried forcing focus with a raw click on the dialog's
-  // heading, on the theory that OS window focus was the problem. Run 32208455039 disproved that
-  // theory directly: with the click already removed, the exact same webkit keyboard-trace
-  // anomaly (Tab losing focus) reproduced a third time.
-  //
-  // page.bringToFront() used to happen here, before the AT loop. Run 32209308823 found that wrong:
-  // it put daylight (a whole browser-tier capture step) between it and at-runner.ts's
-  // macOSActivate call, in the wrong order versus @guidepup/guidepup-playwright's
-  // navigateToWebContent() reference (macOSActivate THEN bringToFront, back-to-back). Both calls
-  // now happen together inside captureAtObservation, right before the AT command — see
-  // collectors/at-runner.ts.
-  //
-  // StrategicFitWorkspace sets its own initial focus (closeButton.focus()) from onMount, which
-  // dialog.waitFor({ state: "visible" }) does not guarantee has already run — wait explicitly for
-  // real DOM focus to land before asking the AT to report it. (There is no `Dialog` primitive yet:
-  // WP-007 has not started, and this dialog is its intended extraction source.) This check is
-  // OS-window-focus-independent (document.activeElement tracks DOM focus regardless of whether
-  // the window has real OS focus), so it stays here rather than moving with bringToFront.
-  if (options.attemptAtCapture) {
-    await page.waitForFunction(
-      () => document.activeElement !== null && document.activeElement !== document.body,
-    );
-  }
-
-  const atObservations: EvidenceBundle["atObservations"][number][] = [];
-  const infrastructureLimitations: EvidenceBundle["infrastructureLimitations"][number][] = [];
-  if (options.attemptAtCapture) {
-    for (const runner of AT_RUNNERS) {
-      if (!currentPlatformSupports(runner)) {
-        infrastructureLimitations.push(infrastructureLimitationFor(runner));
-        continue;
-      }
-      // Real capture path — see collectors/at-runner.ts module doc for its verification status.
-      // The session drives a real close and reopen so the screen reader's own focus-return and
-      // entry announcement are spoken during it; it hands the dialog back open, so the keyboard
-      // trace below is unaffected by any of this.
-      const { captureAtObservations } = await import("../collectors/at-runner");
-      atObservations.push(
-        ...(await captureAtObservations(runner, page, {
-          // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
-          awaitClosed: async () => {
-            await dialog.waitFor({ state: "detached" });
-          },
-          awaitOpen: async () => {
-            await dialog.waitFor({ state: "visible" });
-          },
-        })),
-      );
-    }
-  } else {
-    for (const runner of AT_RUNNERS)
-      infrastructureLimitations.push(infrastructureLimitationFor(runner));
-  }
-
-  const keyboardTraces: KeyboardTraceEvidence[] = [
-    await traceKeyboard(
-      page,
-      browser,
-      ["Tab", "Tab", "Tab", "Shift+Tab", "Escape"],
-      ".strategic-fit-workspace, [role='dialog']",
-    ),
-  ];
-
-  return {
-    scenarioId: AG1_SCENARIO_ID,
-    runId: options.runId,
-    stateFingerprint: `${browser}:dialog-open:${AG1_DIALOG_NAME}`,
-    ariaSnapshots,
-    cdpAxTrees,
-    axe,
-    keyboardTraces,
-    atObservations,
-    infrastructureLimitations,
-  };
+export function scenarioById(id: string): DialogScenarioDefinition | undefined {
+  return DIALOG_SCENARIOS.find((scenario) => scenario.id === id);
 }
 
 /** Merge per-browser bundles from the same scenario run into the one the verdict engine reads. */
