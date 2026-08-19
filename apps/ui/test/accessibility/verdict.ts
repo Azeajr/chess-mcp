@@ -231,7 +231,12 @@ function axeFindings(bundle: EvidenceBundle): readonly Finding[] {
 }
 
 const AT_SOURCES = ["nvda", "voiceover"] as const;
-const AT_CLAIMS = ["dialog-announcement", "focus-report", "focus-return"] as const;
+const AT_CLAIMS = [
+  "dialog-announcement",
+  "background-unreachable",
+  "focus-report",
+  "focus-return",
+] as const;
 
 /**
  * What each AG-1 claim requires a real utterance to contain, and why. Every expectation resolves
@@ -244,7 +249,19 @@ function atClaimExpectation(
   bundle: EvidenceBundle,
   observation: EvidenceBundle["atObservations"][number],
   expectation: DialogScenarioExpectation,
-): { readonly needles: readonly string[]; readonly description: string } | null {
+): {
+  readonly needles: readonly string[];
+  readonly description: string;
+  /** "absent" inverts the check: the utterances must NOT contain the needle. */
+  readonly polarity?: "absent";
+} | null {
+  if (claim === "background-unreachable") {
+    return {
+      needles: [expectation.backgroundControlName],
+      polarity: "absent",
+      description: `never reached the background control "${expectation.backgroundControlName}" while sweeping the virtual cursor through the open dialog`,
+    };
+  }
   if (claim === "dialog-announcement") {
     // AG-1's wording: "announced with its name and as a dialog" — both halves, hence two needles.
     return {
@@ -355,24 +372,33 @@ function atFindings(
         ];
       }
 
-      const missing = claimExpectation.needles.filter(
-        (needle) =>
-          !observation.utterances.some((utterance) =>
-            utterance.toLowerCase().includes(needle.toLowerCase()),
-          ),
+      const present = claimExpectation.needles.filter((needle) =>
+        observation.utterances.some((utterance) =>
+          utterance.toLowerCase().includes(needle.toLowerCase()),
+        ),
       );
-      const satisfied = missing.length === 0;
+      const absentPolarity = claimExpectation.polarity === "absent";
+      const wrong = absentPolarity
+        ? present
+        : claimExpectation.needles.filter((needle) => !present.includes(needle));
+      const satisfied = wrong.length === 0;
       return [
         {
           id: nextFindingId(),
           severity: satisfied ? "minor" : "serious",
           confidence: 1,
           status: satisfied ? "confirmed-pass" : "confirmed-failure",
-          wcag: ["4.1.2", ...(claim === "focus-return" ? ["2.4.3"] : [])],
+          wcag: [
+            "4.1.2",
+            ...(claim === "focus-return" ? ["2.4.3"] : []),
+            ...(claim === "background-unreachable" ? ["2.4.3", "1.3.1"] : []),
+          ],
           assertionId: `at-runner:${source}:${claim}`,
           summary: satisfied
             ? `${source} ${claimExpectation.description}.`
-            : `${source} never ${claimExpectation.description} — missing: ${missing.join(", ")}.`,
+            : absentPolarity
+              ? `${source} reached "${wrong.join(", ")}", which should be unreachable while the dialog is open.`
+              : `${source} never ${claimExpectation.description} — missing: ${wrong.join(", ")}.`,
           expected: `A real ${source} utterance that ${claimExpectation.description}.`,
           actual: `${source} on ${observation.os}/${observation.browser} (${observation.command}) said "${utterances}".`,
           evidence,

@@ -121,7 +121,11 @@ export interface KeyboardTraceEvidence {
  * audibly on close. One observation answers one of those, so each carries its claim rather than
  * leaving the verdict engine to infer it from the command name.
  */
-export type AtClaim = "dialog-announcement" | "focus-report" | "focus-return";
+export type AtClaim =
+  | "dialog-announcement"
+  | "background-unreachable"
+  | "focus-report"
+  | "focus-return";
 
 export interface AtObservation {
   readonly source: "nvda" | "voiceover";

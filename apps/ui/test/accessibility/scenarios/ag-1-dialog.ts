@@ -88,17 +88,11 @@ export async function runAg1Scenario(
       const { captureAtObservations } = await import("../collectors/at-runner");
       atObservations.push(
         ...(await captureAtObservations(runner, page, {
-          close: async () => {
-            await page.keyboard.press("Escape");
+          // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
+          awaitClosed: async () => {
             await dialog.waitFor({ state: "detached" });
           },
-          reopen: async () => {
-            // Keyboard activation, not a synthetic mouse click. Closing restores focus to the
-            // opener (real NVDA confirmed it in run 32231445756: "Open Strategic Fit, button,
-            // focused"), so pressing Enter is both what a screen-reader user actually does and
-            // the activation path most likely to raise the focus-change event an AT announces.
-            await opener.focus();
-            await page.keyboard.press("Enter");
+          awaitOpen: async () => {
             await dialog.waitFor({ state: "visible" });
           },
         })),

@@ -82,39 +82,40 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
 }
 
 /** How long to let a screen reader finish responding to a command before reading its log. */
-const SETTLE_MS = 1500;
-/** How long to wait for an unprompted announcement, which has no completion signal to await. */
-const SPEECH_TIMEOUT_MS = 8000;
-const SETTLE_POLL_MS = 250;
+const SETTLE_MS = 1000;
+/** How many virtual-cursor steps to take when checking the background is unreachable. */
+const VIRTUAL_CURSOR_STEPS = 12;
 
 /**
- * The caller's dialog, expressed as the two real user actions this session needs to drive. Both
- * run while the screen reader is live, which is the entire point: an announcement that is not
- * spoken during a real session is not evidence that it would be.
+ * The caller's dialog, expressed as the DOM settling this session must wait for. The key presses
+ * themselves are issued by the screen reader, not by the caller — see captureAtObservations.
  */
 export interface AtDialogSteps {
-  /** Close the open dialog the way a user would, from the keyboard. */
-  readonly close: () => Promise<void>;
-  /** Reopen it, so the screen reader's own entry announcement lands in the spoken log. */
-  readonly reopen: () => Promise<void>;
+  /** Resolve once the dialog is gone, after the screen reader pressed Escape. */
+  readonly awaitClosed: () => Promise<void>;
+  /** Resolve once the dialog is present, after the screen reader activated the opener. */
+  readonly awaitOpen: () => Promise<void>;
 }
 
 /**
  * Runs one real screen-reader session across a full open/close/reopen cycle and returns what it
  * actually said at each point, as one AtObservation per AG-1 claim.
  *
- * Ordering matters and is not arbitrary. The dialog is already open when this is called (the
- * browser-tier collectors need it open, and running them with a screen reader live would bury the
- * utterances that matter in unrelated chatter), so the cycle is: report focus → close → report
- * focus again → reopen. That yields the focus report, the focus-return-on-close report, and the
- * entry announcement from a single session, and it deliberately ends with the dialog open again
- * so the keyboard trace that runs after this is unaffected.
+ * Every key that should produce an announcement is pressed *by the screen reader*, never by
+ * Playwright. That is not a stylistic choice. Both drivers record speech only while one of their
+ * own actions is in flight: NVDAClient.js pushes into its spoken-phrase log inside the queued
+ * action path, and VoiceOverClient's enqueueAndTap "captures the logs for the performed action".
+ * Speech provoked by a Playwright key press is emitted and then dropped, which is why runs
+ * 32231445756 and 32232144892 both recorded "(nothing)" for the announcement at 1.5s and again at
+ * 8s — it was never a timing problem, and no amount of waiting could have fixed it.
  *
- * The announcement specifically cannot be captured any other way: spokenPhraseLog() only contains
- * what was spoken since start(), and the screen reader starts long after the dialog first opened.
+ * Ordering: the dialog is already open when this is called (the browser-tier collectors need it
+ * open, and running them with a screen reader live would bury the utterances that matter), so the
+ * cycle is report focus → Escape → report focus → Enter → virtual-cursor sweep. It deliberately
+ * ends with the dialog open again so the keyboard trace that runs after this is unaffected.
  *
  * Throws if called on an unsupported platform — callers must check currentPlatformSupports()
- * first and record an InfrastructureLimitation instead of calling this.
+ * first and record an InfrastructureLimitation instead.
  */
 export async function captureAtObservations(
   runner: AtRunnerId,
@@ -136,17 +137,13 @@ export async function captureAtObservations(
       start(): Promise<void>;
       stop(): Promise<void>;
       spokenPhraseLog(): Promise<string[]>;
+      press(key: string): Promise<void>;
+      next(): Promise<void>;
       perform(command: T["keyboardCommands"][keyof T["keyboardCommands"]]): Promise<void>;
     },
   ): Promise<readonly AtObservation[]> {
     await screenReader.start();
     try {
-      if (runner === "voiceover") {
-        // App-level activation, THEN tab-level bringToFront, back-to-back, right before the
-        // command — reference order, see module doc comment.
-        await macOSActivate(WEBKIT_MACOS_APPLICATION_NAME);
-        await page?.bringToFront();
-      }
       const commands = screenReader.keyboardCommands as Record<
         string,
         T["keyboardCommands"][keyof T["keyboardCommands"]] | undefined
@@ -156,9 +153,8 @@ export async function captureAtObservations(
 
       // Re-assert app focus before every command, not once per session. Run 32231445756 showed
       // VoiceOver falling back to "VoiceOver Settings activity" — the exact symptom run
-      // 32209308823 diagnosed — because this session is long enough, with real page interactions
-      // in it, for macOS to hand focus back to VoiceOver's own UI between commands. Activating
-      // once at the top was sufficient only while the session was a single command long.
+      // 32209308823 diagnosed — because this session is long enough, with real state changes in
+      // it, for macOS to hand focus back to VoiceOver's own UI in between.
       const focusBrowser = async () => {
         if (runner !== "voiceover") return;
         await macOSActivate(WEBKIT_MACOS_APPLICATION_NAME);
@@ -169,18 +165,10 @@ export async function captureAtObservations(
       // since the previous one. Without this every observation would restate the whole session
       // and "did the screen reader say X here" would collapse into "did it ever say X".
       let spokenSoFar = 0;
-      const since = async ({ awaitSpeech = false } = {}): Promise<readonly string[]> => {
-        // An unprompted announcement has no completion signal to await, so poll for the log to
-        // grow rather than sleeping a fixed guess. Run 32231445756 read "(nothing)" from both
-        // screen readers after a fixed 1.5s — too short to distinguish "said nothing" from
-        // "had not finished saying it yet", which are very different findings.
-        const deadline = Date.now() + (awaitSpeech ? SPEECH_TIMEOUT_MS : SETTLE_MS);
-        let log = await screenReader.spokenPhraseLog();
-        while (Date.now() < deadline && (!awaitSpeech || log.length === spokenSoFar)) {
-          await page?.waitForTimeout(SETTLE_POLL_MS);
-          log = await screenReader.spokenPhraseLog();
-        }
-        const fresh = log.slice(spokenSoFar);
+      const since = async (): Promise<readonly string[]> => {
+        await page?.waitForTimeout(SETTLE_MS);
+        const log = await screenReader.spokenPhraseLog();
+        const fresh = log.slice(spokenSoFar).filter((phrase) => phrase.trim() !== "");
         spokenSoFar = log.length;
         return fresh;
       };
@@ -207,23 +195,39 @@ export async function captureAtObservations(
       await screenReader.perform(focusCommand);
       const focusReport = observe("focus-report", focusCommandName, await since());
 
-      await steps.close();
       await focusBrowser();
+      await screenReader.press("Escape");
+      await steps.awaitClosed();
       await screenReader.perform(focusCommand);
       const focusReturn = observe("focus-return", focusCommandName, await since());
 
       await focusBrowser();
-      await steps.reopen();
-      // No command here: the entry announcement is spoken by the screen reader on its own when
-      // focus enters the dialog. Asking it to report focus instead would capture the answer to a
-      // different question.
+      // Enter on the opener, which the close just restored focus to. Activating through the
+      // screen reader is what makes the dialog's own entry announcement land in the log.
+      await screenReader.press("Enter");
+      await steps.awaitOpen();
       const announcement = observe(
         "dialog-announcement",
-        "(unprompted on open)",
-        await since({ awaitSpeech: true }),
+        "press Enter on the opener",
+        await since(),
       );
 
-      return [announcement, focusReport, focusReturn];
+      // Virtual-cursor sweep: AG-1 asks that the background not be reachable this way, and the
+      // review cursor is a different thing from DOM focus — which is exactly why it can reach
+      // content a Tab press cannot.
+      await focusBrowser();
+      const sweep: string[] = [];
+      for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
+        await screenReader.next();
+        sweep.push(...(await since()));
+      }
+      const background = observe(
+        "background-unreachable",
+        `next() x${VIRTUAL_CURSOR_STEPS}`,
+        sweep,
+      );
+
+      return [announcement, background, focusReport, focusReturn];
     } finally {
       await screenReader.stop();
     }
