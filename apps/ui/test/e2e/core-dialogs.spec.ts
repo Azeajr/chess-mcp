@@ -43,6 +43,11 @@ const colorPicker: DialogFixture = {
     const opener = page.getByRole("button", { name: "Open PGN" });
     await opener.focus();
     await opener.click();
+    // WP-003 guards every document-replacing action; the colour picker is the step after it.
+    await page
+      .getByRole("dialog", { name: "Replace current repertoire?" })
+      .getByRole("button", { name: "Continue" })
+      .click();
     return page.getByRole("dialog", { name: "Which color is this repertoire for?" });
   },
 };

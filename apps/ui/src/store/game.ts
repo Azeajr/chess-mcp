@@ -18,10 +18,18 @@ const [version, setVersion] = createSignal(0);
 const [path, setPath] = createSignal<Path>([]);
 const [color, setColor] = createSignal<Color>("white");
 const [dirty, setDirty] = createSignal(false);
+const [changesSinceExport, setChangesSinceExport] = createSignal(0);
 const [fileName, setFileName] = createSignal<string | null>(null);
 const [documentId, setDocumentId] = createSignal<BrowserDocumentId>(createBrowserDocumentId());
 
 const bump = () => setVersion((v) => v + 1);
+
+/** Record a repertoire mutation without counting navigation-only revision changes as exports. */
+function recordDocumentChange() {
+  setDirty(true);
+  setChangesSinceExport((count) => count + 1);
+  bump();
+}
 
 /** Current FEN — depends on version + path. */
 export const fen = () => {
@@ -44,7 +52,7 @@ export const lastMove = () => {
   return tree().lastMoveAt(path());
 };
 
-export { color, path, dirty, fileName, version, documentId };
+export { color, path, dirty, changesSinceExport, fileName, version, documentId };
 
 /** Read-only handle to the tree for rendering the move list (read version() to subscribe). */
 export const currentTree = () => {
@@ -66,6 +74,7 @@ function replaceDocument(
     setPath([]);
     setColor("white");
     setDirty(false);
+    setChangesSinceExport(0);
     setFileName(name ?? null);
     setDocumentId(nextDocumentId);
     if (
@@ -108,8 +117,8 @@ export const actions = {
   play(orig: string, dest: string, promotion?: string) {
     const r = tree().playMove(path(), orig, dest, promotion);
     setPath(r.path);
-    if (r.appended) setDirty(true);
-    bump();
+    if (r.appended) recordDocumentChange();
+    else bump();
   },
 
   goto(p: Path) {
@@ -136,8 +145,7 @@ export const actions = {
           ])
         : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
     if (destination) setPath(destination);
-    setDirty(true);
-    bump();
+    recordDocumentChange();
     return { ok: true, revision: version() };
   },
 
@@ -158,8 +166,7 @@ export const actions = {
     batch(() => {
       setTree(nextTree);
       setPath([...nextPath]);
-      setDirty(true);
-      bump();
+      recordDocumentChange();
     });
     return { ok: true, revision: version() };
   },
@@ -204,8 +211,7 @@ export const actions = {
     if (childIndex === undefined) return;
     parent.children.splice(childIndex, 1);
     setPath(p.slice(0, -1));
-    setDirty(true);
-    bump();
+    recordDocumentChange();
   },
 
   forward() {
@@ -223,10 +229,19 @@ export const actions = {
   },
 
   markSaved() {
-    setDirty(false);
+    batch(() => {
+      setDirty(false);
+      setChangesSinceExport(0);
+    });
   },
 
-  markDirty() {
+  markDirty(restoredChanges = 1) {
     setDirty(true);
+    setChangesSinceExport((count) =>
+      Math.max(
+        count,
+        Number.isSafeInteger(restoredChanges) && restoredChanges > 0 ? restoredChanges : 1,
+      ),
+    );
   },
 };

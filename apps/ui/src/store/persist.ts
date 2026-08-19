@@ -12,6 +12,7 @@ import {
   color,
   fileName,
   dirty,
+  changesSinceExport,
   documentId,
   version,
   actions,
@@ -38,6 +39,7 @@ export interface SavedWorkingRepertoire {
   path: number[];
   fileName: string | null;
   dirty: boolean;
+  changesSinceExport?: number;
   documentId?: unknown;
   /** Monotonic browser document revision; absent only in pre-Phase-8 autosaves. */
   revision?: number;
@@ -111,6 +113,7 @@ export function startAutosave() {
     const p = path();
     const fn = fileName();
     const d = dirty();
+    const exportChanges = changesSinceExport();
     const id = documentId();
     const documentRevision = version();
     const timer = scheduleAutosave({
@@ -119,6 +122,7 @@ export function startAutosave() {
       path: p,
       fileName: fn,
       dirty: d,
+      changesSinceExport: exportChanges,
       documentId: id,
       revision: documentRevision,
     });
@@ -144,7 +148,7 @@ export async function restoreWorking() {
       restoreDocument(saved.pgn, saved.fileName ?? undefined, saved.documentId, saved.revision);
       actions.setColor(saved.color);
       actions.goto(probePath(saved.path));
-      if (saved.dirty) actions.markDirty();
+      if (saved.dirty) actions.markDirty(saved.changesSinceExport);
     }
   } catch {
     /* corrupt/empty — start fresh */

@@ -296,6 +296,27 @@ img,
   font-size: 0.8rem;
 }
 
+.topbar .file-notice {
+  display: inline-flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--status-info-surface);
+  border-radius: 6px;
+  background: var(--status-info-action);
+  color: var(--status-info-text);
+  font-size: var(--type-xs);
+}
+
+.file-notice span {
+  flex: 1;
+}
+
+.file-notice button {
+  flex: 0 0 auto;
+}
+
 .tool-run-progress {
   display: block;
   width: 100%;
@@ -2117,6 +2138,25 @@ img,
 .ui-dialog-description {
   margin: 0;
   color: var(--muted);
+  font-size: var(--type-xs);
+}
+.document-close-copy {
+  margin: 0;
+  font-size: var(--type-sm);
+}
+.document-close-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.document-close-actions button:last-child {
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-surface);
+  color: var(--status-danger-text-soft);
+}
+.document-close-error {
+  margin: 0;
+  color: var(--status-danger-text);
   font-size: var(--type-xs);
 }
 .drawer-backdrop {

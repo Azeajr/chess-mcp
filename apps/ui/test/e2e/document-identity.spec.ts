@@ -161,6 +161,10 @@ test("cancelled and invalid file-picker loads leave the active identity and cont
     }),
   );
   await page.getByRole("button", { name: "Open PGN" }).click();
+  await page
+    .getByRole("dialog", { name: "Replace current repertoire?" })
+    .getByRole("button", { name: "Continue" })
+    .click();
   await expect(page.getByText("Which color is this repertoire for?")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   expect(await chess(page, (api) => api.documentId())).toBe(activeId);
@@ -178,6 +182,10 @@ test("cancelled and invalid file-picker loads leave the active identity and cont
     }),
   );
   await page.getByRole("button", { name: "Open PGN" }).click();
+  await page
+    .getByRole("dialog", { name: "Replace current repertoire?" })
+    .getByRole("button", { name: "Continue" })
+    .click();
   await page.getByRole("button", { name: "Load" }).click();
   await expect(page.getByText(/Could not load: illegal move/)).toBeVisible();
   expect(await chess(page, (api) => api.documentId())).toBe(activeId);

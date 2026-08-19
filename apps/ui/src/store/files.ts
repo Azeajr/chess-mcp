@@ -5,7 +5,7 @@
  * otherwise via a user-gesture "Reopen" button). Shared by TopBar + the Cmd/Ctrl+S shortcut.
  */
 import { createSignal } from "solid-js";
-import { actions, fileName, dirty } from "./game";
+import { actions, fileName } from "./game";
 import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
@@ -25,11 +25,38 @@ type PickerWindow = Window & {
 
 const HANDLE_KEY = "fileHandle";
 let handle: FilePickerHandle | null = null;
+let reopenHandleForTesting: FilePickerHandle | null = null;
 const PGN_TYPES = [{ description: "PGN", accept: { "application/x-chess-pgn": [".pgn"] } }];
 
 // Name of a persisted handle that hasn't been (re-)opened yet → drives the TopBar "Reopen" button.
 const [storedFileName, setStoredFileName] = createSignal<string | null>(null);
 export { storedFileName };
+
+export type DocumentCloseIntent = "new" | "open" | "reopen";
+
+interface PendingDocumentClose {
+  intent: DocumentCloseIntent;
+  resume: () => void | Promise<void>;
+}
+
+const [pendingDocumentClose, setPendingDocumentClose] = createSignal<PendingDocumentClose | null>(
+  null,
+);
+const [documentCloseError, setDocumentCloseError] = createSignal<string | null>(null);
+const [savingDocumentClose, setSavingDocumentClose] = createSignal(false);
+export { pendingDocumentClose, documentCloseError, savingDocumentClose };
+
+interface FileNotice {
+  message: string;
+  action?: "open";
+}
+
+const [fileNotice, setFileNotice] = createSignal<FileNotice | null>(null);
+export { fileNotice };
+
+export function dismissFileNotice() {
+  setFileNotice(null);
+}
 
 // Pending PGN load waiting for color selection.
 interface PendingLoad {
@@ -78,6 +105,45 @@ export function clearHandle() {
   void idbDel(HANDLE_KEY);
 }
 
+/** DEV-only callers expose this through window.__chess for the denied-permission browser check. */
+export function setReopenHandleForTesting(nextHandle: FilePickerHandle | null) {
+  reopenHandleForTesting = nextHandle;
+  setStoredFileName(nextHandle?.name ?? null);
+}
+
+/** Queue one document-replacing action until its consequence has been acknowledged. */
+export function requestDocumentClose(
+  intent: DocumentCloseIntent,
+  resume: () => void | Promise<void>,
+) {
+  if (pendingDocumentClose()) return;
+  setDocumentCloseError(null);
+  setPendingDocumentClose({ intent, resume });
+}
+
+export function cancelDocumentClose() {
+  setSavingDocumentClose(false);
+  setDocumentCloseError(null);
+  setPendingDocumentClose(null);
+}
+
+function resumeDocumentClose(pending: PendingDocumentClose) {
+  if (pendingDocumentClose() !== pending) return;
+  setSavingDocumentClose(false);
+  setDocumentCloseError(null);
+  setPendingDocumentClose(null);
+  void Promise.resolve(pending.resume()).catch((error: unknown) => {
+    setFileNotice({
+      message: `Could not continue: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  });
+}
+
+export function continueDocumentClose() {
+  const pending = pendingDocumentClose();
+  if (pending) resumeDocumentClose(pending);
+}
+
 async function loadFromHandle(h: FilePickerHandle) {
   const pgn = await (await h.getFile()).text();
   setPendingLoad({
@@ -88,15 +154,24 @@ async function loadFromHandle(h: FilePickerHandle) {
   });
 }
 
-export async function openFile() {
-  // Loading a file replaces the working tree; with unsaved edits and no file handle, the autosave
-  // copy is the only copy and gets overwritten moments later — confirm before the picker opens.
-  if (dirty() && !window.confirm("Discard unsaved changes and open a different PGN?")) return;
+function wasCancelled(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function beginOpenFile() {
   const w = window as PickerWindow;
   if (w.showOpenFilePicker) {
-    const [h] = await w.showOpenFilePicker({ types: PGN_TYPES });
-    if (!h) return;
-    await loadFromHandle(h);
+    try {
+      const [h] = await w.showOpenFilePicker({ types: PGN_TYPES });
+      if (!h) return;
+      await loadFromHandle(h);
+    } catch (error) {
+      if (!wasCancelled(error)) {
+        setFileNotice({
+          message: `Could not open a PGN: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
     return;
   }
   const input = document.createElement("input");
@@ -112,32 +187,73 @@ export async function openFile() {
   input.click();
 }
 
-export async function saveFile() {
+export function openFile() {
+  requestDocumentClose("open", beginOpenFile);
+}
+
+export type SaveFileResult =
+  | { via: "handle" | "picker" | "download"; fileName: string }
+  | { via: "cancelled" }
+  | { via: "failed"; message: string };
+
+export async function saveFile(): Promise<SaveFileResult> {
   const pgn = actions.toPgn();
   const w = window as PickerWindow;
-  if (handle) {
-    const ws = await handle.createWritable();
-    await ws.write(pgn);
-    await ws.close();
+  try {
+    if (handle) {
+      const ws = await handle.createWritable();
+      await ws.write(pgn);
+      await ws.close();
+      actions.markSaved();
+      return { via: "handle", fileName: handle.name };
+    }
+    if (w.showSaveFilePicker) {
+      const h = await w.showSaveFilePicker({ suggestedName: "repertoire.pgn", types: PGN_TYPES });
+      remember(h);
+      const ws = await h.createWritable();
+      await ws.write(pgn);
+      await ws.close();
+      actions.markSaved();
+      return { via: "picker", fileName: h.name };
+    }
+    const downloadedFileName = fileName() ?? "repertoire.pgn";
+    const blob = new Blob([pgn], { type: "application/x-chess-pgn" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = downloadedFileName;
+    a.click();
+    URL.revokeObjectURL(a.href);
     actions.markSaved();
+    setFileNotice({
+      message: `Downloaded ${downloadedFileName}. This browser cannot re-link that file for future saves.`,
+    });
+    return { via: "download", fileName: downloadedFileName };
+  } catch (error) {
+    if (wasCancelled(error)) return { via: "cancelled" };
+    return {
+      via: "failed",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function saveAndContinueDocumentClose() {
+  const pending = pendingDocumentClose();
+  if (!pending || savingDocumentClose()) return;
+  setSavingDocumentClose(true);
+  setDocumentCloseError(null);
+  const result = await saveFile();
+  if (pendingDocumentClose() !== pending) return;
+  if (result.via === "cancelled") {
+    setSavingDocumentClose(false);
     return;
   }
-  if (w.showSaveFilePicker) {
-    const h = await w.showSaveFilePicker({ suggestedName: "repertoire.pgn", types: PGN_TYPES });
-    remember(h);
-    const ws = await h.createWritable();
-    await ws.write(pgn);
-    await ws.close();
-    actions.markSaved();
+  if (result.via === "failed") {
+    setSavingDocumentClose(false);
+    setDocumentCloseError(`Could not save the file: ${result.message}`);
     return;
   }
-  const blob = new Blob([pgn], { type: "application/x-chess-pgn" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = fileName() ?? "repertoire.pgn";
-  a.click();
-  URL.revokeObjectURL(a.href);
-  actions.markSaved();
+  resumeDocumentClose(pending);
 }
 
 /**
@@ -152,10 +268,18 @@ export async function restoreLastFile() {
 
 /** User-gesture re-open: request permission for the stored handle, then load it. */
 export async function reopenLast() {
-  const h = await idbGet<FilePickerHandle>(HANDLE_KEY);
+  const h = (await idbGet<FilePickerHandle>(HANDLE_KEY)) ?? reopenHandleForTesting;
   if (!h) return;
-  let perm = await h.queryPermission?.({ mode: "readwrite" });
-  if (perm !== "granted") perm = await h.requestPermission?.({ mode: "readwrite" });
-  if (perm !== "granted") return;
-  await loadFromHandle(h);
+  requestDocumentClose("reopen", async () => {
+    let perm = await h.queryPermission?.({ mode: "readwrite" });
+    if (perm !== "granted") perm = await h.requestPermission?.({ mode: "readwrite" });
+    if (perm !== "granted") {
+      setFileNotice({
+        message: `Permission to reopen ${h.name} was denied. Choose Open PGN to select it again.`,
+        action: "open",
+      });
+      return;
+    }
+    await loadFromHandle(h);
+  });
 }

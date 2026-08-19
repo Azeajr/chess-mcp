@@ -1,7 +1,17 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
-import { actions, color, currentPath, dirty, documentId, fileName, version } from "./store/game";
+import {
+  actions,
+  changesSinceExport,
+  color,
+  currentPath,
+  dirty,
+  documentId,
+  fileName,
+  version,
+} from "./store/game";
+import { setReopenHandleForTesting } from "./store/files";
 import {
   addSuggestion,
   acceptSuggestion,
@@ -100,7 +110,9 @@ if (import.meta.env.DEV) {
     color,
     currentPath,
     dirty,
+    changesSinceExport,
     fileName,
+    setReopenHandleForTesting,
     commandStates,
     addSuggestion,
     acceptSuggestion,

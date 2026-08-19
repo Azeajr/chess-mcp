@@ -53,7 +53,22 @@
       }
     },
     "WP-003": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm test:e2e:container (379 passed, 14 configured skips across Chromium, Firefox, and WebKit, zero failures)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm check:content",
+          "pnpm docs:check",
+          "pnpm ux:plan-check",
+          "apps/ui/test/files.test.ts and apps/ui/test/document-identity.test.ts (14 passed)"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched Playwright container: 379 passed, 14 configured skips, zero failures across all three engines. core-document.spec.ts gains six WP-003 checks (18 across the three engines): a clean New that changes nothing and restores focus, the dirty three-way choice naming the file and its unexported change count, save-then-continue and save-cancelled, the Open PGN guard proving the picker is not reached before the choice, the Reopen guard with a denied permission notice, and the download-fallback notice naming the file.",
+        "scope": "AC-6 and AC-7 need window-level state no production code owns, so index.tsx exposes changesSinceExport and setReopenHandleForTesting on the DEV-only __chess harness. App.tsx mounts DocumentCloseDialog outside .app-main: overlays rendered inside it go inert the moment they open, the WP-007 defect. Two specs the guard changes the flow of were updated rather than weakened - core-dialogs.spec.ts's colour-picker fixture and document-identity.spec.ts's two picker cases now click through the guard, which the first full-suite run caught as six real failures. game.ts gains changesSinceExport because AC-2 requires naming the number of unexported changes, and dirty() alone cannot count.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (7c65e0b), reviewed rather than cherry-picked. Its two @typescript-eslint/no-misused-promises errors are not present here: continueDocumentClose stays synchronous and the async save is wrapped at the call site. Its state.json and NEXT.md hunks were not taken, and its core-dialogs.spec.ts hunk was discarded because that file was rewritten for WP-007."
+      }
     },
     "WP-004": {
       "status": "not-started"
