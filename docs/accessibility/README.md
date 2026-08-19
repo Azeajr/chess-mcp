@@ -6,9 +6,9 @@ pipeline exists to produce the same evidence automatically — real screen-reade
 substitute for it — so AG-1 can be decided from captured evidence instead of a manual pass.
 
 **Status as of this writing:** the deterministic browser tier is proven, real, and passing. The
-AT tier (NVDA, VoiceOver) is designed and typechecked but has never executed — see "What's
-unverified" below. AG-1 itself is **not yet resolved**: that requires a real triggered run of
-`.github/workflows/accessibility.yml`, not a redefinition of what the gate asks for.
+AT tier now produces real, correct evidence from both NVDA and VoiceOver (run 32210865750) — see
+"What's unverified" below for how each got there. AG-1 itself is **not yet resolved**: a separate,
+still-open keyboard-trace bug keeps the merged verdict at `confirmed-failure`.
 
 ## Architecture
 
@@ -116,19 +116,61 @@ both failed with the same root cause — `guidepup/setup-action` only performs t
 project-scoped `@guidepup/setup install {nvda,voiceover}` half (screen-reader assets matched to
 this project's installed `@guidepup/guidepup` version), which both jobs now run as an explicit
 step, added directly in response to that run's actual error output rather than guessed in
-advance. Re-triggering after that fix is the next real signal. Until a clean run has been
-inspected, treat those two jobs as designed-not-proven. **Do not promote this workflow to run
-on every `pull_request` before that has happened.**
+advance.
+
+**NVDA: proven correct as of run 32208455039, confirmed stable on 32209308823 and 32210865750**
+(three consecutive real runs) — `reportCurrentFocus` reports `'Return to repertoire, button,
+focused'`, the real, correct DOM focus target. Treat `at-nvda` as trustworthy.
+
+**VoiceOver: proven correct as of run 32210865750** — `describeItemWithKeyboardFocus` reports
+`'Return to repertoire button has keyboard focus'`, matching NVDA's real target. Getting here took
+several real, wrong intermediate observations, each one diagnosed from actual evidence rather than
+guessed: `next()`/`findNextControl` moved VoiceOver's own review cursor, never synced to real DOM
+focus (fixed by switching to `describeItemWithKeyboardFocus`); the browser window never had real
+macOS focus, reported as `'Desktop group has keyboard focus'` (fixed by calling `macOSActivate`,
+ported from `@guidepup/guidepup-playwright`'s own `navigateToWebContent()` reference
+implementation); and finally the fix landed in the wrong place and the wrong order —
+`page.bringToFront()` ran early in the scenario file, separated from `macOSActivate` in
+`at-runner.ts` by an unrelated capture step, reversed from the reference's back-to-back
+`macOSActivate` → `bringToFront` order — which produced `'VoiceOver Settings activity'`, still
+wrong. Moving both calls together into `captureAtObservation`, in the reference's order,
+immediately before the AT command, is what finally produced the correct observation.
+
+**One separate, still-open bug**: `keyboardTrace[3]` (webkit, captured by the `at-voiceover` job)
+shows a real `Tab` press losing DOM focus (`activeElementAfter: None`) mid-sequence, reproduced
+identically across five consecutive runs (4 through 8) and unaffected by any of the AT-activation
+fixes above. It never reproduces on the same scenario's headless webkit capture
+(`browser-evidence`, always clean). This makes `overallStatus: confirmed-failure` on every run so
+far despite both AT observations now being correct — the two problems are independent. Leading
+hypothesis, not yet confirmed: `captureAtObservation` calls `screenReader.stop()` on VoiceOver
+immediately before the keyboard trace's first `Tab` press runs on the same page/window; stopping a
+live screen reader is not necessarily instantaneous at the macOS Accessibility API layer, and the
+trace's `Tab` presses may be landing during that teardown window. Not yet tested. The
+`guidepup/setup-action` `record: true` diagnostic was added to `at-voiceover` in case this needed
+visual inspection, but only records the *setup* step, not the later test run where this anomaly
+actually happens — it produced no output and isn't useful for this specific bug. Until this is
+fixed, `at-voiceover`'s own AT observation is trustworthy but the merged verdict for this scenario
+will keep failing on this unrelated keyboard-trace finding.
+
+Until this keyboard-trace bug is fixed, treat the workflow's overall verdict as failing for a real,
+understood reason, not a pipeline defect. **Do not promote this workflow to run on every
+`pull_request` before that has happened.**
 
 ## AG-1 status
 
-Not resolved. The deterministic browser-tier evidence above is real and satisfies the automated
-half of AG-1 as originally written (dialog contract suite passing across three browsers,
-background inertness, focus return). The manual half — one NVDA session, one VoiceOver session —
-is what the `at-nvda`/`at-voiceover` jobs exist to replace with real automated equivalents, and
-they have not yet run for real. AG-1 gets marked resolved in
-`docs/ui-ux-remediation/state.json` only after a genuine triggered workflow run produces real
-NVDA and VoiceOver evidence — not before, and not by redefining the gate to drop that requirement.
+Not resolved. The deterministic browser-tier evidence is real and satisfies the automated half of
+AG-1 as originally written (dialog contract suite passing across three browsers, background
+inertness, focus return). The manual half — one NVDA session, one VoiceOver session — is what the
+`at-nvda`/`at-voiceover` jobs exist to replace with real automated equivalents. Both now produce
+real, correct evidence (run 32210865750): NVDA reports `'Return to repertoire, button, focused'`,
+VoiceOver reports `'Return to repertoire button has keyboard focus'` — the same real target, from
+two independent real screen readers on two real OSes.
+
+AG-1 is still not marked resolved in `docs/ui-ux-remediation/state.json`, because the same run's
+merged verdict is `confirmed-failure` — the separate, still-open webkit keyboard-trace bug
+described above (`A11Y-006`/`A11Y-008`). Marking AG-1 resolved requires a run whose *overall*
+verdict is clean, not just its AT-tier findings — not before, and not by redefining the gate to
+drop a real, currently-failing finding.
 
 ## What this MVP is not
 
