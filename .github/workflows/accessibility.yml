@@ -1,0 +1,137 @@
+name: Accessibility
+
+# Manual trigger only. Two jobs here (nvda, voiceover) have never executed — see the comments on
+# each for what is proven versus designed-but-unverified. Promote to `pull_request` only once a
+# real triggered run has been inspected; see docs/accessibility/README.md.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # One run ID shared by every job below, so their independently-computed evidence lands in the
+  # same directory and merge-report can actually merge it. Without this each job's capture.mjs
+  # would mint its own timestamp and there would be nothing to merge — this is the exact bug
+  # found and fixed locally when three parallel Playwright workers each generated a different ID.
+  A11Y_RUN_ID: a11y-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  # Proven: this exact invocation (A11Y_CONTAINER=1 node capture.mjs) was run locally against the
+  # live app and produced real confirmed-pass findings across all three engines, citations
+  # verified against raw evidence. ubuntu-latest ships Docker by default, so this needs no setup
+  # beyond checkout/pnpm/node — same Docker mechanism the existing `ui` CI job already trusts for
+  # the main e2e suite (scripts/playwright-container.mjs).
+  browser-evidence:
+    name: Browser evidence — Chromium, Firefox, WebKit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - name: Capture deterministic evidence (Docker, all three engines)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs
+        env:
+          A11Y_CONTAINER: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a11y-evidence-browser
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
+          if-no-files-found: error
+
+  # UNVERIFIED — no Windows machine available to test this on. Written against Guidepup's
+  # documented API and guidepup/setup-action's documented usage (both fetched and confirmed real
+  # from github.com/guidepup during design), but has never executed. First real signal comes from
+  # manually triggering this workflow and reading its actual output — do not treat this job as
+  # trustworthy until that has happened at least once.
+  at-nvda:
+    name: AT evidence — NVDA (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: guidepup/setup-action@0.21.0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm exec playwright install chromium
+        working-directory: apps/ui
+      - name: Capture NVDA evidence (headed — NVDA reads the real screen)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project chromium
+        env:
+          A11Y_ATTEMPT_AT: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-evidence-nvda
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
+          if-no-files-found: warn
+
+  # UNVERIFIED — same caveat as at-nvda, no macOS machine available. Safari/WebKit is VoiceOver's
+  # natural pairing on macOS, hence --project webkit here versus --project chromium for NVDA.
+  at-voiceover:
+    name: AT evidence — VoiceOver (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: guidepup/setup-action@0.21.0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm exec playwright install webkit
+        working-directory: apps/ui
+      - name: Capture VoiceOver evidence (headed — VoiceOver reads the real screen)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project webkit
+        env:
+          A11Y_ATTEMPT_AT: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-evidence-voiceover
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
+          if-no-files-found: warn
+
+  merge-report:
+    name: Merge evidence and compute verdict
+    needs: [browser-evidence, at-nvda, at-voiceover]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download all evidence into one run directory
+        uses: actions/download-artifact@v4
+        with:
+          pattern: a11y-evidence-*
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}
+          merge-multiple: true
+      - name: Compute verdict
+        working-directory: apps/ui
+        run: pnpm a11y:verdict
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-report
+          path: |
+            apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/report.json
+            apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/report.md

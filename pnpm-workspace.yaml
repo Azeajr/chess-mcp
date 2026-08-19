@@ -5,5 +5,7 @@ allowBuilds:
   esbuild: true
   stockfish: false
 minimumReleaseAgeExclude:
-  - playwright-core@1.61.0
-  - playwright@1.61.0
+  - playwright-core@1.62.1
+  - playwright@1.62.1
+overrides:
+  playwright-core: 1.62.1

@@ -1,0 +1,33 @@
+/**
+ * Capture stage only: opens the Strategic Fit dialog, runs every collector this project's browser
+ * supports, and persists the resulting evidence bundle to disk. `pnpm a11y:verdict` (run after all
+ * projects finish) merges the per-browser files and computes the deterministic verdict — kept as a
+ * separate step because Playwright projects execute independently and there is no single point
+ * "after chromium, firefox, and webkit have all run" inside a spec file itself.
+ */
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { expect, test } from "playwright/test";
+import { openApp } from "../e2e/helpers/app";
+import { runAg1Scenario } from "./scenarios/ag-1-dialog";
+import { EVIDENCE_DIR, RUN_ID } from "./run-context.mjs";
+
+test("AG-1 capture: Strategic Fit dialog evidence", async ({ page, browserName }) => {
+  const browser = browserName as "chromium" | "firefox" | "webkit";
+  await openApp(page);
+
+  const bundle = await runAg1Scenario(page, browser, {
+    runId: RUN_ID,
+    attemptAtCapture: process.env.A11Y_ATTEMPT_AT === "1",
+  });
+
+  // Sanity assertions at the capture stage — these are cheap, per-browser truths (a dialog
+  // opened, axe ran) that should fail loudly here rather than surface only as a confusing gap
+  // in the merged verdict later.
+  expect(bundle.ariaSnapshots.length).toBeGreaterThan(0);
+  expect(bundle.axe.length).toBeGreaterThan(0);
+
+  await mkdir(EVIDENCE_DIR, { recursive: true });
+  const outFile = path.join(EVIDENCE_DIR, `${bundle.scenarioId}-${browser}.json`);
+  await writeFile(outFile, JSON.stringify(bundle, null, 2));
+});

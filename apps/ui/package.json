@@ -14,7 +14,11 @@
     "test:chat": "tsx --test test/*.test.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p test/accessibility/tsconfig.json --noEmit",
+    "a11y:capture": "node test/accessibility/capture.mjs",
+    "a11y:verdict": "tsx test/accessibility/compute-verdict.ts",
+    "a11y:test": "pnpm a11y:capture && pnpm a11y:verdict",
+    "a11y:llm-review": "node test/accessibility/llm-review.mjs"
   },
   "dependencies": {
     "@chess-mcp/chess-tools": "workspace:*",
@@ -24,6 +28,8 @@
     "stockfish": "^18.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@guidepup/guidepup": "^0.33.2",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
