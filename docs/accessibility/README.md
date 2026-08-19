@@ -5,11 +5,13 @@ NVDA session and a human VoiceOver session before the `Dialog` primitive (WP-007
 pipeline exists to produce the same evidence automatically — real screen-reader output, not a
 substitute for it — so AG-1 can be decided from captured evidence instead of a manual pass.
 
-**Status as of this writing:** the deterministic browser tier is proven, real, and passing. The
-AT tier now produces real, correct evidence from both NVDA and VoiceOver (run 32210865750) — see
-"What's unverified" below for how each got there, including a real keyboard-accessibility bug the
-pipeline found and that has now been fixed in the dialog itself. AG-1 status: pending one more
-triggered run to confirm the fix against real evidence.
+**Status as of this writing:** run 32228856608 is the first fully clean run —
+`overallStatus: confirmed-pass`, all nine findings passing, with all three evidence jobs
+succeeding. That includes both AT-tier findings: real NVDA output on a real Windows runner and
+real VoiceOver output on a real macOS runner, each checked against the control that actually held
+DOM focus when it was captured. Getting there took fixing three genuine, previously-undiscovered
+accessibility bugs in the dialog, every one of them invisible to Linux CI — see "What's
+unverified" below.
 
 ## Architecture
 
@@ -172,30 +174,61 @@ live DOM probe in the container rather than reasoned about:
 - **Roving-tabindex members are not Tab stops.** The unselected stage tabs carry `tabindex="-1"` but
   still match `button:not([disabled])`, so they needed an explicit exclusion.
 
-This is exactly the kind of finding this pipeline exists to catch: real automated evidence
-surfaced a genuine, previously-undiscovered keyboard-accessibility bug that a spec-scoped or
-Chromium-only test suite would never have exercised.
+With the Tab sequence fixed, the macOS trace stopped agreeing with Linux at exactly one more
+place: `Escape` closed the dialog but left focus on the document body instead of returning it to
+the opener. That failure was present in every earlier macOS run too — the Tab bug had simply been
+loud enough to hide it. A temporary probe logged into the job log (added, read, removed) ruled out
+every structural explanation: at cleanup time the opener was connected, had no `inert` ancestor,
+the dialog was already gone, and an explicit `focus()` from the probe itself took immediately.
+
+**Real cause: macOS browsers do not give a `<button>` DOM focus when it is clicked.** That is a
+platform convention both WebKit and Chrome follow on macOS, and one Linux CI never exercises. The
+workspace captured `document.activeElement` on mount as its return target, so on macOS it captured
+`document.body`, and closing "restored" focus to a body that cannot hold it. Fixed in two places:
+the opener focuses itself on click, and the workspace no longer accepts `document.body` as a
+return target — accepting it is precisely what kept this invisible, since restoring to the body is
+indistinguishable from restoring nothing.
+
+This is exactly the kind of finding this pipeline exists to catch. Three real accessibility bugs,
+all in shipped production code, none reachable from a spec-scoped or Chromium-only suite: one from
+a macOS keyboard setting, one from a DOM-visibility assumption, one from a macOS pointer
+convention.
 
 Not fixed here: `ReplacementLab.tsx` carries the same boundary-only focus trap and is therefore
-expected to have the same defect on macOS Safari. It is outside AG-1's scenario, has no AT-tier
+expected to have the same Tab defect on macOS Safari. It is outside AG-1's scenario, has no AT-tier
 evidence of its own yet, and is left for a follow-up with its own verification.
+
+One pipeline defect was found alongside them. The verdict engine never turned an `AtObservation`
+into a finding — only the `InfrastructureLimitation` filed by workers that cannot run a given
+screen reader. Since every run has at least one such limitation, every run carried at least one
+`automation-inconclusive` finding, so `overallStatus` could never reach `confirmed-pass` no matter
+what NVDA and VoiceOver actually said: the gate this workflow is written against was unreachable
+by construction. `atFindings()` now emits one finding per screen reader, comparing the real
+utterance against the control that actually had DOM focus when it was captured — taken from the
+same bundle's keyboard trace rather than hardcoded — and falls back to the limitation only when no
+worker covered that source at all.
 
 ## AG-1 status
 
-Not resolved. The deterministic browser-tier evidence is real and satisfies the automated half of
-AG-1 as originally written (dialog contract suite passing across three browsers, background
-inertness, focus return). The manual half — one NVDA session, one VoiceOver session — is what the
-`at-nvda`/`at-voiceover` jobs exist to replace with real automated equivalents. Both now produce
-real, correct evidence (run 32210865750): NVDA reports `'Return to repertoire, button, focused'`,
-VoiceOver reports `'Return to repertoire button has keyboard focus'` — the same real target, from
-two independent real screen readers on two real OSes.
+The evidence AG-1 asks for now exists. Run 32228856608 is `confirmed-pass` overall, with every
+finding passing and all three evidence jobs green:
 
-AG-1 is still not marked resolved in `docs/ui-ux-remediation/state.json`. Run 32210865750's
-merged verdict was `confirmed-failure` on the webkit keyboard-trace bug described above
-(`A11Y-006`/`A11Y-008`) — since fixed in `StrategicFitWorkspace.tsx`'s focus-trap handler.
-Marking AG-1 resolved requires a fresh triggered run confirming that fix against real evidence,
-with an `overallStatus` of `confirmed-pass` — not before, and not by redefining the gate to drop
-a real, currently-failing finding.
+| Finding      | Claim                                               | Source                       |
+| ------------ | --------------------------------------------------- | ---------------------------- |
+| A11Y-001     | Dialog role and accessible name                     | chromium, firefox, webkit    |
+| A11Y-002     | Background control excluded from the AX tree        | chromium (CDP)               |
+| A11Y-003–007 | Focus returns to the opener, one per captured trace | all five traces              |
+| A11Y-008     | NVDA named the control that actually had focus      | real NVDA, Windows runner    |
+| A11Y-009     | VoiceOver named the control that actually had focus | real VoiceOver, macOS runner |
+
+The manual half of AG-1 as originally written — one human NVDA session, one human VoiceOver
+session — is what `at-nvda`/`at-voiceover` replace: NVDA reports `'Return to repertoire, button,
+focused'`, VoiceOver reports `'Return to repertoire button has keyboard focus'`. The same real
+target, from two independent real screen readers on two real OSes, each compared against the
+control that actually held DOM focus at capture time rather than against a hardcoded string.
+
+`docs/ui-ux-remediation/state.json` still records AG-1 as `unresolved`. Flipping it is a
+deliberate call to make with that evidence in hand, not a side effect of a green run.
 
 ## What this MVP is not
 

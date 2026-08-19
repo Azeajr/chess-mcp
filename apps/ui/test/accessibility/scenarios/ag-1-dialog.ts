@@ -98,37 +98,6 @@ export async function runAg1Scenario(
     ),
   ];
 
-  // TEMPORARY DIAGNOSTIC — remove once the macOS-only focus-return-after-Escape bug is closed.
-  // Only real macOS WebKit reproduces it, so this prints the post-Escape state into the job log
-  // rather than guessing across 7-minute CI rounds. Logged, not added to the evidence bundle:
-  // this is a probe, not a claim the verdict engine should reason about.
-  console.log(
-    `[ag1-focus-probe:${browser}] ${JSON.stringify(
-      await page.evaluate((openerName) => {
-        const describe = (element: Element | null) =>
-          element === null
-            ? "null"
-            : `${element.tagName.toLowerCase()}:${(element.textContent ?? "").trim().slice(0, 32)}`;
-        const opener = [...document.querySelectorAll("button")].find(
-          (button) => button.textContent?.trim() === openerName,
-        );
-        const inertAncestor = opener?.closest("[inert]");
-        const activeBefore = describe(document.activeElement);
-        opener?.focus();
-        return {
-          activeBefore,
-          openerFound: opener !== undefined,
-          openerConnected: opener?.isConnected ?? false,
-          inertAncestor: inertAncestor
-            ? `${inertAncestor.tagName.toLowerCase()} inert=${JSON.stringify(inertAncestor.getAttribute("inert"))}`
-            : "none",
-          dialogStillPresent: document.querySelector("[role='dialog']") !== null,
-          activeAfterExplicitFocus: describe(document.activeElement),
-        };
-      }, AG1_OPENER_NAME),
-    )}`,
-  );
-
   return {
     scenarioId: AG1_SCENARIO_ID,
     runId: options.runId,
