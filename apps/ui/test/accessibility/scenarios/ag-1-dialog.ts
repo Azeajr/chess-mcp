@@ -63,17 +63,7 @@ export async function runAg1Scenario(
       }
       // Real capture path — see collectors/at-runner.ts module doc for its verification status.
       const { captureAtObservation } = await import("../collectors/at-runner");
-      atObservations.push(
-        await captureAtObservation(runner, {
-          // "moveToNext" (NVDA) confirmed valid by CI run 32205714869 actually executing it.
-          // "next" (invented from a screenReader.next() method-call example, not a real
-          // keyboardCommands key) failed that same run with "Unknown voiceover keyboard command:
-          // next" — findNextControl is the one VoiceOver key confirmed real from
-          // github.com/guidepup/guidepup's own "Complex Navigation" example, not yet re-verified
-          // by an actual run.
-          commands: runner === "nvda" ? ["moveToNext"] : ["findNextControl"],
-        }),
-      );
+      atObservations.push(await captureAtObservation(runner));
     }
   } else {
     for (const runner of AT_RUNNERS)

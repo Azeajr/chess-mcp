@@ -28,6 +28,15 @@ test("AG-1 capture: Strategic Fit dialog evidence", async ({ page, browserName }
   expect(bundle.axe.length).toBeGreaterThan(0);
 
   await mkdir(EVIDENCE_DIR, { recursive: true });
-  const outFile = path.join(EVIDENCE_DIR, `${bundle.scenarioId}-${browser}.json`);
+  // GITHUB_JOB (a standard Actions env var — the running job's id, e.g. "at-nvda") keeps this
+  // filename unique across CI jobs that legitimately capture the same scenario+browser pair with
+  // different meaning — browser-evidence's headless chromium versus at-nvda's headed
+  // A11Y_ATTEMPT_AT chromium. Without it, .github/workflows/accessibility.yml run 32206066681
+  // downloaded both jobs' artifacts into one merge directory via merge-multiple: true and one
+  // silently overwrote the other, producing confirmed-failure findings that were actually just
+  // Windows-headed evidence masquerading as the Linux-headless capture. Local runs have no job
+  // id and no collision risk (one job, browser name alone already disambiguates).
+  const jobId = process.env.GITHUB_JOB ?? "local";
+  const outFile = path.join(EVIDENCE_DIR, `${bundle.scenarioId}-${browser}-${jobId}.json`);
   await writeFile(outFile, JSON.stringify(bundle, null, 2));
 });

@@ -5,13 +5,12 @@
  * AtObservation without a real screen reader having actually spoken; a worker that cannot run
  * one returns an InfrastructureLimitation record instead.
  *
- * UNVERIFIED ON THIS MACHINE: this repository's dev/CI environment is Linux, which cannot run
- * NVDA or VoiceOver at all — Guidepup has no Linux target. Every line below is written against
- * Guidepup's documented API (README.md and guidepup-playwright README.md, fetched from
- * github.com/guidepup/guidepup and github.com/guidepup/guidepup-playwright) but has never
- * executed. First real execution happens on a windows-latest or macos-latest GitHub Actions
- * runner — see .github/workflows/accessibility.yml. Until that run happens and is inspected,
- * treat this module as designed-not-proven.
+ * Uses screenReader.next() rather than perform(keyboardCommands.X): CI run 32206066681 found
+ * that VoiceOver's "findNextControl" keyboard command hangs (it opens VoiceOver's interactive
+ * Find UI rather than taking a single navigation step — the test timed out waiting for it).
+ * next() is the one navigation primitive documented as identical across both screen readers
+ * (github.com/guidepup/guidepup's own "Basic Navigation — Cross-Platform" example) rather than a
+ * per-platform keyCodeCommands map entry guessed from a different, more complex example.
  */
 import type { AtObservation, InfrastructureLimitation } from "../evidence-schema";
 
@@ -35,21 +34,12 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
   };
 }
 
-export interface AtScenarioSteps {
-  /** Guidepup keyboard-command names, e.g. voiceOver.keyboardCommands.findNextControl. */
-  readonly commands: readonly string[];
-}
-
 /**
- * Runs one scenario through a real screen reader and returns its actual spoken output. Throws if
- * called on an unsupported platform — callers must check currentPlatformSupports() first and
- * record an InfrastructureLimitation instead of calling this. Not invoked by any test in this
- * repository yet; see the module doc comment.
+ * Starts the real screen reader, steps forward once with next(), and returns its actual spoken
+ * output. Throws if called on an unsupported platform — callers must check
+ * currentPlatformSupports() first and record an InfrastructureLimitation instead of calling this.
  */
-export async function captureAtObservation(
-  runner: AtRunnerId,
-  steps: AtScenarioSteps,
-): Promise<AtObservation> {
+export async function captureAtObservation(runner: AtRunnerId): Promise<AtObservation> {
   if (!currentPlatformSupports(runner)) {
     throw new Error(
       `captureAtObservation(${runner}) called on ${process.platform}; check currentPlatformSupports() first.`,
@@ -57,45 +47,23 @@ export async function captureAtObservation(
   }
   // Dynamic import: @guidepup/guidepup has no Linux build, so a static import would break
   // typecheck/build on every non-Windows, non-MacOS worker, including this repo's own CI Node job.
-  const guidepup = await import("@guidepup/guidepup");
+  const { nvda, voiceOver } = await import("@guidepup/guidepup");
+  const screenReader = runner === "nvda" ? nvda : voiceOver;
 
-  // NVDA and VoiceOver each declare their own concrete KeyCodeCommand shape (Windows Key[] vs
-  // macOS KeyCodes) and their own perform() overload. Branching fully, rather than collapsing
-  // both instances into one `screenReader` variable, lets TS infer each command's exact type
-  // from that instance's own keyboardCommands getter instead of forcing a manual cast.
-  async function run<T extends { keyboardCommands: object }>(
-    screenReader: T & {
-      start(): Promise<void>;
-      stop(): Promise<void>;
-      spokenPhraseLog(): Promise<string[]>;
-      perform(command: T["keyboardCommands"][keyof T["keyboardCommands"]]): Promise<void>;
-    },
-  ): Promise<readonly string[]> {
-    await screenReader.start();
-    try {
-      for (const commandName of steps.commands) {
-        const commands = screenReader.keyboardCommands as Record<
-          string,
-          T["keyboardCommands"][keyof T["keyboardCommands"]] | undefined
-        >;
-        const command = commands[commandName];
-        if (!command) throw new Error(`Unknown ${runner} keyboard command: ${commandName}`);
-        await screenReader.perform(command);
-      }
-      return await screenReader.spokenPhraseLog();
-    } finally {
-      await screenReader.stop();
-    }
+  await screenReader.start();
+  try {
+    await screenReader.next();
+    const utterances = await screenReader.spokenPhraseLog();
+    return {
+      source: runner,
+      atVersion: null,
+      os: process.platform,
+      browser: runner === "nvda" ? "chromium" : "webkit",
+      command: "next",
+      utterances,
+      capturedAt: new Date().toISOString(),
+    };
+  } finally {
+    await screenReader.stop();
   }
-
-  const utterances = await (runner === "nvda" ? run(guidepup.nvda) : run(guidepup.voiceOver));
-  return {
-    source: runner,
-    atVersion: null,
-    os: process.platform,
-    browser: runner === "nvda" ? "chromium" : "webkit",
-    command: steps.commands.join(" -> "),
-    utterances,
-    capturedAt: new Date().toISOString(),
-  };
 }

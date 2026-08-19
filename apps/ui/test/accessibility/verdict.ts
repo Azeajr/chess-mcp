@@ -146,29 +146,39 @@ function checkBackgroundExclusion(
   };
 }
 
-function checkFocusReturn(bundle: EvidenceBundle, expectedFocusTargetName: string): Finding | null {
-  const traceIndex = bundle.keyboardTraces.length - 1;
-  const trace = bundle.keyboardTraces[traceIndex];
-  if (!trace) return null;
-  const lastStep = trace.steps[trace.steps.length - 1];
-  if (!lastStep) return null;
-  const returned = lastStep.activeElementAfter?.name === expectedFocusTargetName;
-  return {
-    id: nextFindingId(),
-    severity: returned ? "minor" : "serious",
-    confidence: 1,
-    status: returned ? "confirmed-pass" : "confirmed-failure",
-    wcag: ["2.4.3"],
-    assertionId: "focus-return",
-    summary: returned
-      ? `Focus returned to "${expectedFocusTargetName}" after the trace's final key press.`
-      : `Focus did not return to "${expectedFocusTargetName}" after the trace's final key press.`,
-    expected: `Active element is "${expectedFocusTargetName}".`,
-    actual: `Active element is ${lastStep.activeElementAfter ? `"${lastStep.activeElementAfter.name}"` : "none (document body)"}.`,
-    evidence: [ref("keyboardTrace", traceIndex)],
-    reasoning: "deterministic",
-    platformScope: [trace.browser],
-  };
+/**
+ * One finding per captured trace, not just the last array entry. mergeBundles can legitimately
+ * combine traces from multiple browsers and multiple CI jobs (e.g. browser-evidence's headless
+ * chromium and at-nvda's headed chromium both contribute a trace) — checking only the last one
+ * silently ignores every other trace's focus-return correctness depending on merge order.
+ */
+function checkFocusReturn(
+  bundle: EvidenceBundle,
+  expectedFocusTargetName: string,
+): readonly Finding[] {
+  return bundle.keyboardTraces.flatMap((trace, traceIndex) => {
+    const lastStep = trace.steps[trace.steps.length - 1];
+    if (!lastStep) return [];
+    const returned = lastStep.activeElementAfter?.name === expectedFocusTargetName;
+    return [
+      {
+        id: nextFindingId(),
+        severity: returned ? ("minor" as const) : ("serious" as const),
+        confidence: 1,
+        status: returned ? ("confirmed-pass" as const) : ("confirmed-failure" as const),
+        wcag: ["2.4.3"],
+        assertionId: "focus-return",
+        summary: returned
+          ? `Focus returned to "${expectedFocusTargetName}" after the trace's final key press.`
+          : `Focus did not return to "${expectedFocusTargetName}" after the trace's final key press.`,
+        expected: `Active element is "${expectedFocusTargetName}".`,
+        actual: `Active element is ${lastStep.activeElementAfter ? `"${lastStep.activeElementAfter.name}"` : "none (document body)"}.`,
+        evidence: [ref("keyboardTrace", traceIndex)],
+        reasoning: "deterministic" as const,
+        platformScope: [trace.browser],
+      },
+    ];
+  });
 }
 
 function checkKeyboardTrapsAndEscapes(bundle: EvidenceBundle): readonly Finding[] {
@@ -276,9 +286,7 @@ export function computeDialogVerdict(
     ...[checkBackgroundExclusion(bundle, expectation.backgroundControlName)].filter(
       (finding): finding is Finding => finding !== null,
     ),
-    ...[checkFocusReturn(bundle, expectation.expectedFocusReturnTargetName)].filter(
-      (finding): finding is Finding => finding !== null,
-    ),
+    ...checkFocusReturn(bundle, expectation.expectedFocusReturnTargetName),
     ...checkKeyboardTrapsAndEscapes(bundle),
     ...axeFindings(bundle),
     ...infrastructureFindings(bundle),
