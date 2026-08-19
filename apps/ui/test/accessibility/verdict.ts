@@ -231,87 +231,156 @@ function axeFindings(bundle: EvidenceBundle): readonly Finding[] {
 }
 
 const AT_SOURCES = ["nvda", "voiceover"] as const;
+const AT_CLAIMS = ["dialog-announcement", "focus-report", "focus-return"] as const;
 
 /**
- * The AT tier, one finding per screen reader. A real utterance is only evidence if it names the
- * control that actually had DOM focus when it was captured — and that target is not hardcoded
- * here: it comes from the same bundle's keyboard trace (`steps[0].activeElementBefore`), recorded
- * moments later on the same page. So this stays a comparison between two real observations rather
- * than an assertion about an expected string.
+ * What each AG-1 claim requires a real utterance to contain, and why. Every expectation resolves
+ * from the bundle or the scenario expectation rather than being hardcoded per screen reader —
+ * NVDA and VoiceOver phrase everything differently, so the check is "does the utterance contain
+ * the right real name", never "does it match this exact sentence".
+ */
+function atClaimExpectation(
+  claim: (typeof AT_CLAIMS)[number],
+  bundle: EvidenceBundle,
+  observation: EvidenceBundle["atObservations"][number],
+  expectation: DialogScenarioExpectation,
+): { readonly needles: readonly string[]; readonly description: string } | null {
+  if (claim === "dialog-announcement") {
+    // AG-1's wording: "announced with its name and as a dialog" — both halves, hence two needles.
+    return {
+      needles: [expectation.dialogName, "dialog"],
+      description: `names "${expectation.dialogName}" and identifies it as a dialog`,
+    };
+  }
+  if (claim === "focus-return") {
+    return {
+      needles: [expectation.expectedFocusReturnTargetName],
+      description: `names the opener "${expectation.expectedFocusReturnTargetName}" after the dialog closes`,
+    };
+  }
+  // focus-report: the target is not hardcoded — it comes from the same bundle's keyboard trace,
+  // recorded on the same page, so this stays a comparison between two real observations.
+  const focusTarget = bundle.keyboardTraces.find((trace) => trace.browser === observation.browser)
+    ?.steps[0]?.activeElementBefore?.name;
+  if (focusTarget === undefined || focusTarget === "") return null;
+  return {
+    needles: [focusTarget],
+    description: `names the control that actually had focus, "${focusTarget}"`,
+  };
+}
+
+/**
+ * The AT tier: one finding per screen reader per AG-1 claim. AG-1 asks a human NVDA session and a
+ * human VoiceOver session to confirm three separate things, so three separate utterances are
+ * scored rather than one standing in for all of them.
  *
  * A source with no observation anywhere in the merged bundle falls back to the
- * InfrastructureLimitation the non-supporting workers filed for it. A limitation is only
- * inconclusive when nothing covered that source: once the Windows worker has captured NVDA, the
- * Linux worker's "nvda requires win32" note is a description of the split, not a gap.
+ * InfrastructureLimitation the non-supporting workers filed for it, once, rather than repeating
+ * the same gap per claim. A limitation is only inconclusive when nothing covered that source:
+ * once the Windows worker has captured NVDA, the Linux worker's "nvda requires win32" note is a
+ * description of the split, not a gap.
  */
-function atFindings(bundle: EvidenceBundle): readonly Finding[] {
-  return AT_SOURCES.map((source) => {
-    const observationIndex = bundle.atObservations.findIndex(
-      (observation) => observation.source === source,
-    );
-    const observation = bundle.atObservations[observationIndex];
-    if (observation === undefined) {
+function atFindings(
+  bundle: EvidenceBundle,
+  expectation: DialogScenarioExpectation,
+): readonly Finding[] {
+  return AT_SOURCES.flatMap((source) => {
+    if (!bundle.atObservations.some((observation) => observation.source === source)) {
       const limitation = bundle.infrastructureLimitations.find((entry) => entry.runner === source);
-      return {
-        id: nextFindingId(),
-        severity: "minor" as const,
-        confidence: 1,
-        status: "automation-inconclusive" as FindingStatus,
-        wcag: [],
-        assertionId: `at-runner:${source}`,
-        summary: limitation
-          ? `${source} evidence not collected: ${limitation.reason}`
-          : `${source} evidence not collected, and no worker reported why.`,
-        expected: `Real ${source} output for this scenario.`,
-        actual: limitation
-          ? `Worker platform is ${limitation.currentPlatform}; ${source} requires ${limitation.requiredPlatform}.`
-          : `No ${source} observation and no InfrastructureLimitation in the merged bundle.`,
-        evidence: [],
-        reasoning: "deterministic" as const,
-        platformScope: limitation ? [limitation.requiredPlatform] : [],
-      };
+      return [
+        {
+          id: nextFindingId(),
+          severity: "minor" as const,
+          confidence: 1,
+          status: "automation-inconclusive" as FindingStatus,
+          wcag: [],
+          assertionId: `at-runner:${source}`,
+          summary: limitation
+            ? `${source} evidence not collected: ${limitation.reason}`
+            : `${source} evidence not collected, and no worker reported why.`,
+          expected: `Real ${source} output for this scenario.`,
+          actual: limitation
+            ? `Worker platform is ${limitation.currentPlatform}; ${source} requires ${limitation.requiredPlatform}.`
+            : `No ${source} observation and no InfrastructureLimitation in the merged bundle.`,
+          evidence: [],
+          reasoning: "deterministic" as const,
+          platformScope: limitation ? [limitation.requiredPlatform] : [],
+        },
+      ];
     }
 
-    const traceIndex = bundle.keyboardTraces.findIndex(
-      (trace) => trace.browser === observation.browser,
-    );
-    const focusTarget = bundle.keyboardTraces[traceIndex]?.steps[0]?.activeElementBefore?.name;
-    const utterances = observation.utterances.join(" | ");
-    const evidence = [ref("atObservation", observationIndex)];
-    if (focusTarget === undefined || focusTarget === "") {
-      return {
-        id: nextFindingId(),
-        severity: "minor" as const,
-        confidence: 1,
-        status: "automation-inconclusive" as FindingStatus,
-        wcag: ["4.1.2"],
-        assertionId: `at-runner:${source}`,
-        summary: `${source} produced an utterance, but no keyboard trace names what had focus when it was captured.`,
-        expected: `A ${observation.browser} keyboard trace whose first step records the focused control.`,
-        actual: `${source} said "${utterances}"; no comparable trace for ${observation.browser}.`,
-        evidence,
-        reasoning: "deterministic" as const,
-        platformScope: [observation.os],
-      };
-    }
+    return AT_CLAIMS.flatMap((claim): Finding[] => {
+      const observationIndex = bundle.atObservations.findIndex(
+        (entry) => entry.source === source && entry.claim === claim,
+      );
+      const observation = bundle.atObservations[observationIndex];
+      if (observation === undefined) {
+        return [
+          {
+            id: nextFindingId(),
+            severity: "minor",
+            confidence: 1,
+            status: "automation-inconclusive",
+            wcag: ["4.1.2"],
+            assertionId: `at-runner:${source}:${claim}`,
+            summary: `${source} produced evidence for this scenario but nothing for the ${claim} claim.`,
+            expected: `A real ${source} utterance covering ${claim}.`,
+            actual: `The ${source} session recorded no ${claim} observation.`,
+            evidence: [],
+            reasoning: "deterministic",
+            platformScope: [],
+          },
+        ];
+      }
 
-    const named = observation.utterances.some((utterance) => utterance.includes(focusTarget));
-    return {
-      id: nextFindingId(),
-      severity: named ? ("minor" as const) : ("serious" as const),
-      confidence: 1,
-      status: named ? ("confirmed-pass" as FindingStatus) : ("confirmed-failure" as FindingStatus),
-      wcag: ["4.1.2"],
-      assertionId: `at-runner:${source}`,
-      summary: named
-        ? `${source} named the control that actually had focus: "${focusTarget}".`
-        : `${source} did not name the control that actually had focus: "${focusTarget}".`,
-      expected: `A real ${source} utterance naming "${focusTarget}".`,
-      actual: `${source} on ${observation.os}/${observation.browser} (${observation.command}) said "${utterances}".`,
-      evidence: [...evidence, ...(traceIndex === -1 ? [] : [ref("keyboardTrace", traceIndex)])],
-      reasoning: "deterministic" as const,
-      platformScope: [observation.os],
-    };
+      const utterances = observation.utterances.join(" | ") || "(nothing)";
+      const evidence = [ref("atObservation", observationIndex)];
+      const claimExpectation = atClaimExpectation(claim, bundle, observation, expectation);
+      if (claimExpectation === null) {
+        return [
+          {
+            id: nextFindingId(),
+            severity: "minor",
+            confidence: 1,
+            status: "automation-inconclusive",
+            wcag: ["4.1.2"],
+            assertionId: `at-runner:${source}:${claim}`,
+            summary: `${source} produced an utterance, but no keyboard trace names what had focus when it was captured.`,
+            expected: `A ${observation.browser} keyboard trace whose first step records the focused control.`,
+            actual: `${source} said "${utterances}"; no comparable trace for ${observation.browser}.`,
+            evidence,
+            reasoning: "deterministic",
+            platformScope: [observation.os],
+          },
+        ];
+      }
+
+      const missing = claimExpectation.needles.filter(
+        (needle) =>
+          !observation.utterances.some((utterance) =>
+            utterance.toLowerCase().includes(needle.toLowerCase()),
+          ),
+      );
+      const satisfied = missing.length === 0;
+      return [
+        {
+          id: nextFindingId(),
+          severity: satisfied ? "minor" : "serious",
+          confidence: 1,
+          status: satisfied ? "confirmed-pass" : "confirmed-failure",
+          wcag: ["4.1.2", ...(claim === "focus-return" ? ["2.4.3"] : [])],
+          assertionId: `at-runner:${source}:${claim}`,
+          summary: satisfied
+            ? `${source} ${claimExpectation.description}.`
+            : `${source} never ${claimExpectation.description} — missing: ${missing.join(", ")}.`,
+          expected: `A real ${source} utterance that ${claimExpectation.description}.`,
+          actual: `${source} on ${observation.os}/${observation.browser} (${observation.command}) said "${utterances}".`,
+          evidence,
+          reasoning: "deterministic",
+          platformScope: [observation.os],
+        },
+      ];
+    });
   });
 }
 
@@ -356,7 +425,7 @@ export function computeDialogVerdict(
     ...checkFocusReturn(bundle, expectation.expectedFocusReturnTargetName),
     ...checkKeyboardTrapsAndEscapes(bundle),
     ...axeFindings(bundle),
-    ...atFindings(bundle),
+    ...atFindings(bundle, expectation),
   ];
   return {
     scenarioId: bundle.scenarioId,

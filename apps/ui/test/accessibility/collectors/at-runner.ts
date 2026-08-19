@@ -81,27 +81,52 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
   };
 }
 
+/** How long to let a screen reader finish speaking before reading the log it spoke into. */
+const SETTLE_MS = 1500;
+
 /**
- * Starts the real screen reader, asks it to report whatever currently has real focus, and
- * returns its actual spoken output. Throws if called on an unsupported platform — callers must
- * check currentPlatformSupports() first and record an InfrastructureLimitation instead of
- * calling this. Callers are responsible for ensuring real DOM focus is already where it should
- * be (e.g. the Dialog primitive's own initial-focus behavior) before calling this — this function
- * only asks the AT to report focus, it does not set it.
+ * The caller's dialog, expressed as the two real user actions this session needs to drive. Both
+ * run while the screen reader is live, which is the entire point: an announcement that is not
+ * spoken during a real session is not evidence that it would be.
  */
-export async function captureAtObservation(
+export interface AtDialogSteps {
+  /** Close the open dialog the way a user would, from the keyboard. */
+  readonly close: () => Promise<void>;
+  /** Reopen it, so the screen reader's own entry announcement lands in the spoken log. */
+  readonly reopen: () => Promise<void>;
+}
+
+/**
+ * Runs one real screen-reader session across a full open/close/reopen cycle and returns what it
+ * actually said at each point, as one AtObservation per AG-1 claim.
+ *
+ * Ordering matters and is not arbitrary. The dialog is already open when this is called (the
+ * browser-tier collectors need it open, and running them with a screen reader live would bury the
+ * utterances that matter in unrelated chatter), so the cycle is: report focus → close → report
+ * focus again → reopen. That yields the focus report, the focus-return-on-close report, and the
+ * entry announcement from a single session, and it deliberately ends with the dialog open again
+ * so the keyboard trace that runs after this is unaffected.
+ *
+ * The announcement specifically cannot be captured any other way: spokenPhraseLog() only contains
+ * what was spoken since start(), and the screen reader starts long after the dialog first opened.
+ *
+ * Throws if called on an unsupported platform — callers must check currentPlatformSupports()
+ * first and record an InfrastructureLimitation instead of calling this.
+ */
+export async function captureAtObservations(
   runner: AtRunnerId,
-  page?: Page,
-): Promise<AtObservation> {
+  page: Page | undefined,
+  steps: AtDialogSteps,
+): Promise<readonly AtObservation[]> {
   if (!currentPlatformSupports(runner)) {
     throw new Error(
-      `captureAtObservation(${runner}) called on ${process.platform}; check currentPlatformSupports() first.`,
+      `captureAtObservations(${runner}) called on ${process.platform}; check currentPlatformSupports() first.`,
     );
   }
   // Dynamic import: @guidepup/guidepup has no Linux build, so a static import would break
   // typecheck/build on every non-Windows, non-MacOS worker, including this repo's own CI Node job.
   const { nvda, voiceOver, macOSActivate } = await import("@guidepup/guidepup");
-  const commandName = FOCUS_COMMAND[runner];
+  const focusCommandName = FOCUS_COMMAND[runner];
 
   async function run<T extends { keyboardCommands: object }>(
     screenReader: T & {
@@ -110,7 +135,7 @@ export async function captureAtObservation(
       spokenPhraseLog(): Promise<string[]>;
       perform(command: T["keyboardCommands"][keyof T["keyboardCommands"]]): Promise<void>;
     },
-  ): Promise<readonly string[]> {
+  ): Promise<readonly AtObservation[]> {
     await screenReader.start();
     try {
       if (runner === "voiceover") {
@@ -123,23 +148,57 @@ export async function captureAtObservation(
         string,
         T["keyboardCommands"][keyof T["keyboardCommands"]] | undefined
       >;
-      const command = commands[commandName];
-      if (!command) throw new Error(`Unknown ${runner} keyboard command: ${commandName}`);
-      await screenReader.perform(command);
-      return await screenReader.spokenPhraseLog();
+      const focusCommand = commands[focusCommandName];
+      if (!focusCommand) throw new Error(`Unknown ${runner} keyboard command: ${focusCommandName}`);
+
+      // spokenPhraseLog() is cumulative from start(), so each claim reads only the phrases spoken
+      // since the previous one. Without this every observation would restate the whole session
+      // and "did the screen reader say X here" would collapse into "did it ever say X".
+      let spokenSoFar = 0;
+      const since = async (): Promise<readonly string[]> => {
+        await page?.waitForTimeout(SETTLE_MS);
+        const log = await screenReader.spokenPhraseLog();
+        const fresh = log.slice(spokenSoFar);
+        spokenSoFar = log.length;
+        return fresh;
+      };
+      const observe = (
+        claim: AtObservation["claim"],
+        command: string,
+        utterances: readonly string[],
+      ): AtObservation => ({
+        source: runner,
+        claim,
+        atVersion: null,
+        os: process.platform,
+        browser: runner === "nvda" ? "chromium" : "webkit",
+        command,
+        utterances,
+        capturedAt: new Date().toISOString(),
+      });
+
+      // Discard whatever the screen reader said while starting up — its own greeting, the desktop,
+      // the browser chrome. None of it is evidence about this dialog.
+      await since();
+
+      await screenReader.perform(focusCommand);
+      const focusReport = observe("focus-report", focusCommandName, await since());
+
+      await steps.close();
+      await screenReader.perform(focusCommand);
+      const focusReturn = observe("focus-return", focusCommandName, await since());
+
+      await steps.reopen();
+      // No command here: the entry announcement is spoken by the screen reader on its own when
+      // focus enters the dialog. Asking it to report focus instead would capture the answer to a
+      // different question.
+      const announcement = observe("dialog-announcement", "(unprompted on open)", await since());
+
+      return [announcement, focusReport, focusReturn];
     } finally {
       await screenReader.stop();
     }
   }
 
-  const utterances = await (runner === "nvda" ? run(nvda) : run(voiceOver));
-  return {
-    source: runner,
-    atVersion: null,
-    os: process.platform,
-    browser: runner === "nvda" ? "chromium" : "webkit",
-    command: commandName,
-    utterances,
-    capturedAt: new Date().toISOString(),
-  };
+  return runner === "nvda" ? run(nvda) : run(voiceOver);
 }

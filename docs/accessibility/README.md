@@ -195,23 +195,52 @@ a macOS keyboard setting, one from a DOM-visibility assumption, one from a macOS
 convention.
 
 Not fixed here: `ReplacementLab.tsx` carries the same boundary-only focus trap and is therefore
-expected to have the same Tab defect on macOS Safari. It is outside AG-1's scenario, has no AT-tier
-evidence of its own yet, and is left for a follow-up with its own verification.
+expected to have the same Tab defect on macOS. It is outside this scenario, has no AT-tier evidence
+and no keyboard e2e coverage of its own, and no work package owns it. Deliberately deferred and
+recorded under "Known accessibility defects" in `ROADMAP.md`, including the trap that porting only
+half the fix would create.
 
 One pipeline defect was found alongside them. The verdict engine never turned an `AtObservation`
 into a finding — only the `InfrastructureLimitation` filed by workers that cannot run a given
 screen reader. Since every run has at least one such limitation, every run carried at least one
 `automation-inconclusive` finding, so `overallStatus` could never reach `confirmed-pass` no matter
 what NVDA and VoiceOver actually said: the gate this workflow is written against was unreachable
-by construction. `atFindings()` now emits one finding per screen reader, comparing the real
-utterance against the control that actually had DOM focus when it was captured — taken from the
-same bundle's keyboard trace rather than hardcoded — and falls back to the limitation only when no
-worker covered that source at all.
+by construction. `atFindings()` now emits one finding per screen reader per AG-1 claim, and falls
+back to the limitation only when no worker covered that source at all. Every expectation resolves
+from the bundle or the scenario rather than being hardcoded per screen reader: the focus-report
+claim compares against the control the same bundle's keyboard trace recorded as focused, so it
+stays a comparison between two real observations. NVDA and VoiceOver phrase everything
+differently, so each check asks whether the utterance contains the right real name, never whether
+it matches an expected sentence.
 
 ## AG-1 status
 
-The evidence AG-1 asks for now exists. Run 32228856608 is `confirmed-pass` overall, with every
-finding passing and all three evidence jobs green:
+**AG-1 cannot be resolved yet, and not for an evidence reason.** Its scope is "`Dialog` primitive
+and its consumers", and its required automated evidence is "Dialog contract suite passing for all
+three overlays on three browsers". Checked against the repo rather than assumed:
+
+- `WP-007` is `not-started` in `docs/ui-ux-remediation/state.json`.
+- `src/components/primitives/Dialog.tsx` does not exist.
+- `core-dialogs.spec.ts`, the contract suite AG-1 names, does not exist.
+- AG-1's "three overlays" are Settings, Promotion, and Colour picker (plan §WP-007). The dialog
+  this pipeline captures — Strategic Fit — is none of them. It is the _extraction source_ for the
+  primitive, and migrates onto it last, in `WP-033`.
+
+So this pipeline is not currently producing AG-1's automated evidence at all; it is producing the
+AT-tier evidence AG-1's **manual** half asks for, against the dialog `WP-007` will extract from.
+That sequencing is deliberate and useful — the extraction source is now known-correct on macOS
+rather than known-broken — but it is not the gate.
+
+**Direct consequence for `WP-007`:** the plan's "Current behaviour" section describes
+`StrategicFitWorkspace.tsx`'s trap as "the correct pattern" and instructs extracting it verbatim.
+That was true only on Linux and Windows. Extracting the pre-`85b3e2a` version would have
+propagated all three macOS defects above into Settings, Promotion, and Colour picker at once.
+Extract the current version.
+
+### What the evidence does cover
+
+Run 32228856608 is `confirmed-pass` overall, with every finding passing and all three evidence
+jobs green:
 
 | Finding      | Claim                                               | Source                       |
 | ------------ | --------------------------------------------------- | ---------------------------- |
@@ -221,14 +250,28 @@ finding passing and all three evidence jobs green:
 | A11Y-008     | NVDA named the control that actually had focus      | real NVDA, Windows runner    |
 | A11Y-009     | VoiceOver named the control that actually had focus | real VoiceOver, macOS runner |
 
-The manual half of AG-1 as originally written — one human NVDA session, one human VoiceOver
-session — is what `at-nvda`/`at-voiceover` replace: NVDA reports `'Return to repertoire, button,
-focused'`, VoiceOver reports `'Return to repertoire button has keyboard focus'`. The same real
-target, from two independent real screen readers on two real OSes, each compared against the
-control that actually held DOM focus at capture time rather than against a hardcoded string.
+That run scored one AT finding per screen reader: each named the control that actually held DOM
+focus. AG-1's manual half asks for more than that — it asks each session to confirm three things:
 
-`docs/ui-ux-remediation/state.json` still records AG-1 as `unresolved`. Flipping it is a
-deliberate call to make with that evidence in hand, not a side effect of a green run.
+1. the dialog is announced with its name and as a dialog,
+2. the background is not reachable by virtual cursor,
+3. focus returns audibly on close.
+
+A single focus report answers none of them completely. The AT session now drives a real
+close-and-reopen cycle while the screen reader is live and scores claims 1 and 3 as their own
+findings, per screen reader. The announcement specifically could not be captured any other way:
+`spokenPhraseLog()` only returns what was spoken since `start()`, and the screen reader used to
+start long after the dialog had already opened, so the entry announcement was never in the log.
+
+Claim 2 — the virtual-cursor background sweep — is **not** implemented. It needs `next()`, which
+failed in runs 32206750401/32207555004 (NVDA read the page title, VoiceOver read "AccessibilityUI
+Server has no windows"). That failure's root cause, the browser window never holding real OS
+focus, was found and fixed later, so it is worth retrying — but it has not been retried, and until
+it is, claim 2 rests on browser-tier CDP ignored-node evidence, which is a different instrument
+answering a related question.
+
+`docs/ui-ux-remediation/state.json` records AG-1 as `unresolved`, which is correct for the
+structural reason above, independently of how much AT evidence accumulates.
 
 ## What this MVP is not
 

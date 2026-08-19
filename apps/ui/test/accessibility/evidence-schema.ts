@@ -114,8 +114,18 @@ export interface KeyboardTraceEvidence {
 // InfrastructureLimitation record instead of fabricating or skipping silently.
 // ---------------------------------------------------------------------------
 
+/**
+ * Which of AG-1's three manual claims a single utterance is evidence for. AG-1 asks a human
+ * NVDA session and a human VoiceOver session to confirm the dialog is announced with its name and
+ * as a dialog, that the background is not reachable by virtual cursor, and that focus returns
+ * audibly on close. One observation answers one of those, so each carries its claim rather than
+ * leaving the verdict engine to infer it from the command name.
+ */
+export type AtClaim = "dialog-announcement" | "focus-report" | "focus-return";
+
 export interface AtObservation {
   readonly source: "nvda" | "voiceover";
+  readonly claim: AtClaim;
   readonly atVersion: string | null;
   readonly os: string;
   readonly browser: string;

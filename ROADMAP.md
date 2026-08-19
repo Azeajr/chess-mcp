@@ -50,6 +50,29 @@ Phase 2 (add after phase 1 is clean and run for a while, one at a time, not bund
 Do not bundle phase 2 additions into one PR — each plugin needs its own signal-to-noise
 pass against this repo before enabling by default.
 
+## Known accessibility defects
+
+Real defects in shipped code, deliberately deferred. Each one names how it was found so it can be
+re-verified rather than re-argued.
+
+- **Replacement Lab's focus trap is broken on macOS.** `strategic-fit/ReplacementLab.tsx:196-220`
+  moves focus explicitly only at the wrap boundary and relies on native `Tab` traversal in
+  between. macOS ships Safari's "Full Keyboard Access" off by default, which makes native `Tab`
+  skip `<button>` elements entirely, so a Mac user tabbing through the Lab loses focus mid-dialog.
+  This is the same defect that real VoiceOver CI evidence caught in `StrategicFitWorkspace.tsx`
+  and that commit `85b3e2a` fixed there; the Lab was left alone because it has **no keyboard or
+  focus e2e coverage at all** and no AT-tier evidence of its own.
+  - Fixing it means porting all four parts of the Strategic Fit fix together — explicit `Tab`
+    movement, radio groups collapsed to one stop, contents of a closed `<details>` excluded, and
+    `tabindex="-1"` members excluded. Porting only the first part reintroduces a worse bug: the
+    Lab has two `<details>` (`:450`, `:614`), and focus would park on the first `<summary>`
+    permanently.
+  - No work package owns this. `WP-007` touches the Lab only for `UX-045` (adding `inert`
+    alongside `aria-hidden`), and `WP-033` migrates Strategic Fit, not the Lab, onto the `Dialog`
+    primitive. It needs either its own package or an explicit addition to one of those.
+  - Suggested order: write the missing keyboard e2e coverage first, then port the fix, then verify
+    on all three engines via `pnpm test:e2e:container`.
+
 ## Follow-up quality work
 
 - Add summary-to-detail references where any result still approaches model-context limits.

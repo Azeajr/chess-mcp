@@ -61,9 +61,10 @@ export async function runAg1Scenario(
   // now happen together inside captureAtObservation, right before the AT command — see
   // collectors/at-runner.ts.
   //
-  // The Dialog primitive sets its own initial focus inside a requestAnimationFrame callback,
-  // which dialog.waitFor({ state: "visible" }) does not guarantee has already run — wait
-  // explicitly for real DOM focus to land before asking the AT to report it. This check is
+  // StrategicFitWorkspace sets its own initial focus (closeButton.focus()) from onMount, which
+  // dialog.waitFor({ state: "visible" }) does not guarantee has already run — wait explicitly for
+  // real DOM focus to land before asking the AT to report it. (There is no `Dialog` primitive yet:
+  // WP-007 has not started, and this dialog is its intended extraction source.) This check is
   // OS-window-focus-independent (document.activeElement tracks DOM focus regardless of whether
   // the window has real OS focus), so it stays here rather than moving with bringToFront.
   if (options.attemptAtCapture) {
@@ -81,8 +82,22 @@ export async function runAg1Scenario(
         continue;
       }
       // Real capture path — see collectors/at-runner.ts module doc for its verification status.
-      const { captureAtObservation } = await import("../collectors/at-runner");
-      atObservations.push(await captureAtObservation(runner, page));
+      // The session drives a real close and reopen so the screen reader's own focus-return and
+      // entry announcement are spoken during it; it hands the dialog back open, so the keyboard
+      // trace below is unaffected by any of this.
+      const { captureAtObservations } = await import("../collectors/at-runner");
+      atObservations.push(
+        ...(await captureAtObservations(runner, page, {
+          close: async () => {
+            await page.keyboard.press("Escape");
+            await dialog.waitFor({ state: "detached" });
+          },
+          reopen: async () => {
+            await opener.click();
+            await dialog.waitFor({ state: "visible" });
+          },
+        })),
+      );
     }
   } else {
     for (const runner of AT_RUNNERS)
