@@ -195,6 +195,26 @@ export async function captureAtObservations(
       await screenReader.perform(focusCommand);
       const focusReport = observe("focus-report", focusCommandName, await since());
 
+      // Virtual-cursor sweep: AG-1 asks that the background not be reachable this way, and the
+      // review cursor is a different thing from DOM focus — which is exactly why it can reach
+      // content a Tab press cannot. It runs before the close/reopen, not after, because moving the
+      // review cursor drags DOM focus with it: run 32237617773 ended its session with focus on an
+      // unnamed radio deep in the dialog, so the keyboard trace that follows started from a
+      // different place on that worker than on every other engine. Reopening last means the
+      // dialog remounts and sets its own initial focus, handing the trace a clean, identical
+      // starting state everywhere.
+      await focusBrowser();
+      const sweep: string[] = [];
+      for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
+        await screenReader.next();
+        sweep.push(...(await since()));
+      }
+      const background = observe(
+        "background-unreachable",
+        `next() x${VIRTUAL_CURSOR_STEPS}`,
+        sweep,
+      );
+
       await focusBrowser();
       await screenReader.press("Escape");
       await steps.awaitClosed();
@@ -210,21 +230,6 @@ export async function captureAtObservations(
         "dialog-announcement",
         "press Enter on the opener",
         await since(),
-      );
-
-      // Virtual-cursor sweep: AG-1 asks that the background not be reachable this way, and the
-      // review cursor is a different thing from DOM focus — which is exactly why it can reach
-      // content a Tab press cannot.
-      await focusBrowser();
-      const sweep: string[] = [];
-      for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
-        await screenReader.next();
-        sweep.push(...(await since()));
-      }
-      const background = observe(
-        "background-unreachable",
-        `next() x${VIRTUAL_CURSOR_STEPS}`,
-        sweep,
       );
 
       return [announcement, background, focusReport, focusReturn];
