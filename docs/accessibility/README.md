@@ -147,7 +147,7 @@ immediately before the keyboard trace's first `Tab` press runs on the same page/
 live screen reader is not necessarily instantaneous at the macOS Accessibility API layer, and the
 trace's `Tab` presses may be landing during that teardown window. Not yet tested. The
 `guidepup/setup-action` `record: true` diagnostic was added to `at-voiceover` in case this needed
-visual inspection, but only records the *setup* step, not the later test run where this anomaly
+visual inspection, but only records the _setup_ step, not the later test run where this anomaly
 actually happens — it produced no output and isn't useful for this specific bug. Until this is
 fixed, `at-voiceover`'s own AT observation is trustworthy but the merged verdict for this scenario
 will keep failing on this unrelated keyboard-trace finding.
@@ -168,7 +168,7 @@ two independent real screen readers on two real OSes.
 
 AG-1 is still not marked resolved in `docs/ui-ux-remediation/state.json`, because the same run's
 merged verdict is `confirmed-failure` — the separate, still-open webkit keyboard-trace bug
-described above (`A11Y-006`/`A11Y-008`). Marking AG-1 resolved requires a run whose *overall*
+described above (`A11Y-006`/`A11Y-008`). Marking AG-1 resolved requires a run whose _overall_
 verdict is clean, not just its AT-tier findings — not before, and not by redefining the gate to
 drop a real, currently-failing finding.
 
