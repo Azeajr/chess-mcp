@@ -64,6 +64,7 @@ import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
 import Select from "./primitives/Select";
 import Status from "./primitives/Status";
+import InteractiveRow from "./primitives/InteractiveRow";
 import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
 import { STRATEGIC_FIT_ENTRY } from "../content/strategicFit";
 
@@ -140,6 +141,13 @@ export default function RepertoirePanel() {
     const ip = currentTree().indexPathOfSan(sans);
     if (ip) actions.goto(ip);
   };
+  const currentAt = (path: readonly number[]) =>
+    path.length === currentPath().length &&
+    path.every((index, position) => currentPath()[position] === index);
+  const currentAtSan = (sans: readonly string[]) => {
+    const path = currentTree().indexPathOfSan([...sans]);
+    return path ? currentAt(path) : false;
+  };
 
   // Stub connector: stage the whole engine-vetted sequence that rejoins prep.
   const onExtBridge = (b: ExtendedBridge) => {
@@ -172,8 +180,9 @@ export default function RepertoirePanel() {
   };
   // The whole prospective line is shown inline (numbered, continuing from the gap depth) — no hover.
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
-    <div
-      class="rep-row indent fill-row"
+    <InteractiveRow
+      class="indent fill-row"
+      current={currentAt(props.g.path)}
       onClick={() => {
         onFill(props.g, props.opt);
       }}
@@ -183,7 +192,7 @@ export default function RepertoirePanel() {
       <span class="fit">
         {props.label} · fit {props.opt.fit.toFixed(2)}
       </span>
-    </div>
+    </InteractiveRow>
   );
 
   return (
@@ -242,8 +251,8 @@ export default function RepertoirePanel() {
         {commandStatus("audit_repertoire_moves")}
         <For each={rows("audit_repertoire_moves", "findings")}>
           {(finding) => (
-            <div
-              class="rep-row"
+            <InteractiveRow
+              current={currentAtSan(finding.path as string[])}
               onClick={() => {
                 navSan(finding.path as string[]);
               }}
@@ -256,7 +265,7 @@ export default function RepertoirePanel() {
                 {String(finding.best_move)}
               </span>
               <span class="ev">−{(Number(finding.cp_loss) / 100).toFixed(2)}</span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
       </details>
@@ -270,8 +279,8 @@ export default function RepertoirePanel() {
         {commandStatus("find_only_moves")}
         <For each={rows("find_only_moves", "findings")}>
           {(finding) => (
-            <div
-              class="rep-row"
+            <InteractiveRow
+              current={currentAtSan(finding.path as string[])}
               onClick={() => {
                 navSan(finding.path as string[]);
               }}
@@ -281,7 +290,7 @@ export default function RepertoirePanel() {
                 {(finding.path as string[]).join(" ") || "Start"} · {String(finding.best_move)}
               </span>
               <span class="fit">margin {Number(finding.margin)}cp</span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
         <Show when={state("find_only_moves").status === "completed"}>
@@ -334,15 +343,15 @@ export default function RepertoirePanel() {
         {commandStatus("find_structures")}
         <For each={rows("find_structures", "matches")}>
           {(match) => (
-            <div
-              class="rep-row"
+            <InteractiveRow
+              current={currentAtSan(match.path as string[])}
               onClick={() => {
                 navSan(match.path as string[]);
               }}
             >
               <span class="san">{(match.path as string[]).join(" ")}</span>
               <span class="fit">{String(match.structure)}</span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
       </details>
@@ -363,7 +372,9 @@ export default function RepertoirePanel() {
         {commandStatus("prep_vs_opponent")}
         <For each={rows("prep_vs_opponent", "lines")}>
           {(line) => (
-            <div class="rep-row">
+            // A summary line, not an action. Rendering it as a button to satisfy the row-reachability
+            // check would put a focus stop in the Tab order that announces "button" and does nothing.
+            <div class="rep-row-static">
               <span class="san">{String(line.name)}</span>
               <span class="fit">
                 {String(line.games)} games · {String(line.hit_rate)}% in prep
@@ -458,8 +469,8 @@ export default function RepertoirePanel() {
             };
             return (
               <div class="rep-flag">
-                <div
-                  class="rep-row"
+                <InteractiveRow
+                  current={currentAt(g.path)}
                   onClick={() => {
                     actions.goto(g.path);
                   }}
@@ -470,7 +481,7 @@ export default function RepertoirePanel() {
                     <span class="muted">{gapLine(g)}</span> · {g.uncoveredMove}
                   </span>
                   <span class="ev">{evaluationText({ cp: g.evalCp, mate: g.mate })}</span>
-                </div>
+                </InteractiveRow>
                 <button
                   class="fix-btn fill-btn"
                   onClick={() => {
@@ -506,8 +517,9 @@ export default function RepertoirePanel() {
         {/* Replies that look uncovered but transpose into prep — false gaps, shown muted. */}
         <For each={covered()}>
           {(c: CoveredGap) => (
-            <div
-              class="rep-row covered"
+            <InteractiveRow
+              class="covered"
+              current={currentAt(c.path)}
               onClick={() => {
                 actions.goto(c.path);
               }}
@@ -516,7 +528,7 @@ export default function RepertoirePanel() {
               <span class="sev">✓</span>
               <span class="san">{c.uncoveredMove}</span>
               <span class="fit">covered → {c.joinsPath.at(-1)}</span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
       </details>
@@ -545,8 +557,8 @@ export default function RepertoirePanel() {
         {/* A stopped line continued by the color's engine-best moves until it rejoins existing prep. */}
         <For each={extBridges() ?? []}>
           {(b: ExtendedBridge) => (
-            <div
-              class="rep-row"
+            <InteractiveRow
+              current={currentAtSan(b.fromPath)}
               onClick={() => {
                 onExtBridge(b);
               }}
@@ -557,7 +569,7 @@ export default function RepertoirePanel() {
                 {b.fromPath.join(" ")} → {b.moves.join(" ")}
               </span>
               <span class="fit">joins {b.joinsPath.at(-1)}</span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
       </details>
@@ -609,37 +621,40 @@ export default function RepertoirePanel() {
         <For each={pruneSuggestions() ?? []}>
           {(p: PruneSuggestion) => (
             <>
-              <div
-                class="rep-row"
-                onClick={() => {
-                  onPrune(p);
-                }}
-                title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${centipawnDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
-              >
-                <span class="bridge-icon">✂</span>
-                <span class="san">
-                  {p.atPath.join(" ")} → {p.rerouteMove}
-                </span>
-                <Show when={p.bestSavings}>
-                  <span class="pick-badge sav" title="most moves saved on this line">
-                    ↓
+              <div class="rep-row-action">
+                <InteractiveRow
+                  current={currentAtSan(p.atPath)}
+                  onClick={() => {
+                    onPrune(p);
+                  }}
+                  title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${centipawnDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
+                >
+                  <span class="bridge-icon">✂</span>
+                  <span class="san">
+                    {p.atPath.join(" ")} → {p.rerouteMove}
                   </span>
-                </Show>
-                <Show when={p.bestEval}>
-                  <span
-                    class="pick-badge eval"
-                    title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}
-                  >
-                    ★
+                  <Show when={p.bestSavings}>
+                    <span class="pick-badge sav" title="most moves saved on this line">
+                      ↓
+                    </span>
+                  </Show>
+                  <Show when={p.bestEval}>
+                    <span
+                      class="pick-badge eval"
+                      title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}
+                    >
+                      ★
+                    </span>
+                  </Show>
+                  <span class="fit">
+                    −{p.savedPlies}ply{centipawnDelta(p.evalDelta)}
                   </span>
-                </Show>
-                <span class="fit">
-                  −{p.savedPlies}ply{centipawnDelta(p.evalDelta)}
-                </span>
+                </InteractiveRow>
                 <button
                   class={`inspect-btn${inspectKey() === shortcutKey(p) ? " on" : ""}`}
+                  aria-label="Inspect quality and coverage safety"
                   title="Inspect: quality (eval + fit) and coverage safety"
-                  onClick={(e) => (e.stopPropagation(), void inspectShortcut(p))}
+                  onClick={() => void inspectShortcut(p)}
                 >
                   ?
                 </button>
@@ -730,11 +745,7 @@ export default function RepertoirePanel() {
         </Show>
         <For each={complementary() ?? []}>
           {(m) => (
-            <div
-              class="rep-row"
-              onClick={() => stagePreviewLine(currentPath(), [m.move])}
-              title={m.pv}
-            >
+            <InteractiveRow onClick={() => stagePreviewLine(currentPath(), [m.move])} title={m.pv}>
               <span class="san">{m.move}</span>
               <span class="ev">{centipawnText(m.eval)}</span>
               <span class="fit">
@@ -744,7 +755,7 @@ export default function RepertoirePanel() {
                     ? `sharp ${m.sharpness}`
                     : ""}
               </span>
-            </div>
+            </InteractiveRow>
           )}
         </For>
       </details>

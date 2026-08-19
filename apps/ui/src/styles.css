@@ -670,9 +670,21 @@ img,
 }
 
 .move-tree .move {
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
   padding: 0 0.2rem;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: middle;
+  cursor: pointer;
 }
 
 .move-tree .move:hover {
@@ -688,6 +700,17 @@ img,
 .move-tree .move.move-preview {
   box-shadow: 0 0 0 1px var(--status-warning) inset;
   background: rgba(227, 179, 65, 0.15);
+}
+
+@media (pointer: coarse) {
+  .move-tree .move,
+  .move-tree .collapse-toggle {
+    min-width: var(--target-touch);
+    min-height: var(--target-touch);
+  }
+  .move-tree .collapse-toggle {
+    height: var(--target-touch);
+  }
 }
 
 .move-tree .moveno {
@@ -1412,14 +1435,33 @@ img,
   padding: 0.15rem 0;
 }
 
-.rep-row {
+.rep-row-static {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--target-min);
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0;
-  cursor: pointer;
-  border-radius: 4px;
   font-size: 0.82rem;
+}
+.rep-row {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--target-min);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .rep-row:hover {
   background: var(--border-default);
@@ -1428,7 +1470,8 @@ img,
   padding-left: 0.9rem;
   color: var(--text-code);
 }
-.rep-row .san {
+.rep-row .san,
+.rep-row-static .san {
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1450,13 +1493,31 @@ img,
   opacity: 0.6;
 }
 .rep-row .ev,
-.rep-row .fit {
+.rep-row .fit,
+.rep-row-static .fit {
   margin-left: auto;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 /* Fill suggestions: show the whole prospective line inline (wrap, no ellipsis, no hover needed). */
+.rep-row-action {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.rep-row-action .rep-row {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .rep-row {
+    min-height: var(--target-touch);
+  }
+}
+
 .rep-row.fill-row {
   align-items: flex-start;
 }

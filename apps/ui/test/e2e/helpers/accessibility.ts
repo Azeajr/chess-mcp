@@ -98,7 +98,15 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
     }
 
     const headings = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].filter(visible);
-    if (headings.length === 0 || headings[0]!.tagName !== "H1") {
+    // A document scope needs an h1, and so does a dialog: WP-007 established that a dialog root is
+    // its own heading outline, which is why every Dialog titles itself with an h1. A panel inside
+    // the page is neither - it must preserve the hierarchy it contains without inventing a page
+    // heading whose real owner is elsewhere in the document.
+    const requiresDocumentHeading =
+      container === document.body ||
+      container === document.documentElement ||
+      container.matches(".app, .app-main, main, [role='main'], [role='dialog']");
+    if (requiresDocumentHeading && (headings.length === 0 || headings[0]!.tagName !== "H1")) {
       issues.push("visible heading outline does not start with h1");
     }
     let previousLevel = 0;

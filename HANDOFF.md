@@ -1,231 +1,310 @@
-# Handoff: AG-1 accessibility pipeline — VoiceOver + keyboard-trap bug
+# Handoff: hermes-work salvage — AG-3 remains
 
-Branch: `salvage` (also fast-forwarded onto `main` as of commit `68914a4`). **Do not delete
-`salvage`.** Uncommitted changes exist on top of `68914a4` — see "Uncommitted state" below.
-This doc is a checkpoint for a fresh session; delete it once the work below lands.
+Branch: `salvage`, fast-forwarded onto `main`. HEAD `25a863b`. **Do not delete `salvage`.**
+This file is tracked (it last changed in `cf5e83c`). Delete it once S4 and S5 have been committed
+and AG-3 is resolved.
 
-## Mission context
+---
 
-Two nested missions:
+## 1. Mission
 
-1. **Original (paused, not abandoned):** salvage the abandoned `hermes-work` branch on `salvage`
-   (off `main`), re-landing only reviewed/fixed slices gated on a full container e2e suite.
-2. **Current active work:** a fully automated, zero-human accessibility evidence pipeline
-   (`apps/ui/test/accessibility/`) targeting **AG-1** — the dialog accessibility gate in
-   `docs/ui-ux-remediation-plan.md`, which originally required a human NVDA session and a human
-   VoiceOver session before the `Dialog` primitive (WP-007) could ship. Full design/status is in
-   `docs/accessibility/README.md` — read that first, it's kept up to date with every real run.
+Salvage the abandoned `hermes-work` branch onto `salvage` (branched off `main`), re-landing only
+reviewed and fixed slices, each gated on a **full** container e2e suite.
 
-Constraints established this session, still binding:
+`hermes-work` still exists and is untouched — it is the record. 16 of its commits are still
+unsalvaged. Nothing is cherry-picked: every slice is rebuilt, reviewed, and gated.
 
-- pnpm, not npm, for all package operations.
-- No `Co-Authored-By` trailer in commit messages (see memory `no-co-authored-by-trailer.md`).
-- LLM synthesis layer (`llm-review.mjs`) stays opt-in (`A11Y_LLM_REVIEW=1`), never wired into CI.
-- Workflow (`.github/workflows/accessibility.yml`) stays `workflow_dispatch`-only until a clean
-  run (`overallStatus: confirmed-pass`) has actually been observed.
-- Established loop: diagnose from real evidence → fix → typecheck → verify locally (Docker) →
-  full check suite → commit → push `salvage` → fast-forward `main`
-  (`git push origin salvage:main`) → retrigger workflow via `gh workflow run accessibility.yml
---ref main --repo Azeajr/chess-mcp`. `workflow_dispatch` workflows must exist on the _default_
-  branch to be dispatchable — this is why `main` gets fast-forwarded each time instead of PR'd.
+### Why this salvage exists
 
-## What's proven solid (do not re-litigate)
+`hermes-work` shipped 12 e2e regressions. The root cause was structural, not carelessness:
+`scripts/ux-test.mjs` runs only the commands a package's manifest lists — typically
+`--grep "WP-0NN"` against its own spec. There was no full-suite regression gate anywhere in the
+`ux:task` → implement → `ux:test` → record-complete loop, so two packages passed their own greps,
+were recorded complete with "validation evidence", and regressed two previously-completed packages.
 
-- Deterministic browser-tier evidence (Chromium/Firefox/WebKit via Docker,
-  `A11Y_CONTAINER=1 pnpm a11y:capture`): stable, green, unchanged across every iteration.
-- **NVDA**: proven correct across 4 consecutive real CI runs. `reportCurrentFocus` reports
-  `'Return to repertoire, button, focused'` — real, correct, stable. Don't touch `at-runner.ts`'s
-  NVDA path.
-- **VoiceOver AT observation** (as of run `32210865750`, commit `1c7a34b`): also now correct —
-  `describeItemWithKeyboardFocus` reports `'Return to repertoire button has keyboard focus'`,
-  matching NVDA's real target, confirmed stable on run `32212195952` too. The fix was ordering:
-  `macOSActivate` (app-level) then `page.bringToFront()` (tab-level), back-to-back, immediately
-  before the AT command — ported from `@guidepup/guidepup-playwright`'s own
-  `navigateToWebContent()` reference implementation. This part is done; do not reopen it.
+That gate now exists (`validateCompletionEvidence` in `scripts/lib/ux-task-contract.mjs`) and
+rejects any completion whose evidence names no e2e run, or only spec-scoped ones.
 
-## The real bug this session found (in progress, not yet verified green)
+The branch also relaxed its own governance mid-run (auto-commit/auto-push in AGENTS.md, four design
+gates self-resolved by the agent). `salvage` branched fresh off `main`, so none of that came along.
 
-Every CI run (4 through 9) also showed a **separate, unrelated** failure: `keyboardTrace[3]`
-(webkit, captured by the `at-voiceover` job only) — a real `Tab` press losing DOM focus
-(`activeElementAfter: None`) mid-sequence. Reproduced identically 6 times, survived every
-AT-activation fix, and survived a tested-and-disproven "VoiceOver teardown race" theory (a 1s
-settle delay after `screenReader.stop()` — added in run 9, zero effect, already reverted in the
-uncommitted diff).
+---
 
-**Root cause, confirmed by reading source, not guessed:** `StrategicFitWorkspace.tsx`'s focus-trap
-`keydown` handler (`trapFocus`, originally ~line 339) only called `.focus()` explicitly at the
-_wrap boundary_ (`active === first` / `active === last`), relying on native browser Tab traversal
-for every press in between. **macOS Safari's default "Full Keyboard Access" setting is OFF by
-default** on a fresh install (including GitHub's `macos-latest` runners) — this makes native Tab
-skip every `<button>` entirely, only stopping on text fields/lists. So real Mac users with default
-settings hit this exact bug in production: Tab from "Advanced preferences" would jump clean over
-"Skip for now" and the profile submit button, landing nowhere. **This is a genuine,
-previously-undiscovered production accessibility bug**, not a CI/pipeline artifact — exactly the
-kind of finding this whole pipeline exists to catch.
+## 2. The salvage plan
 
-## Fix applied so far (uncommitted, in `StrategicFitWorkspace.tsx`)
+The original plan was never written to a file — it lives in a previous Claude session transcript
+(`~/.claude/projects/-home-spark343-github-chess-mcp/1ed4bb32-*.jsonl`, line 463). Transcribed here
+so it stops being lost.
 
-Rewrote `trapFocus`'s Tab handling to always move focus explicitly (compute next/prev candidate
-index itself for _every_ Tab press, not just at the boundary), removing the dependency on native
-Tab semantics entirely:
+| Phase | Content                                                                                            | State                                            |
+| ----- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 0     | regression gate; revert governance changes; reopen self-resolved gates; drop `settings.local.json` | done (`6e56085` + branching off `main`)          |
+| 1     | baseline on `salvage` — the real baseline is **zero** container failures                           | done                                             |
+| 2     | six gated slices, S1–S6                                                                            | **6 of 6 implemented; WP-011 awaits AG-3**       |
+| 3     | drop `playwright-low-impact.mjs`, prototype HTML                                                   | done by construction (never on `salvage`)        |
+| 4     | phone default tab decision                                                                         | **decided: keep Analysis**, drop hermes's change |
 
-```ts
-const active = document.activeElement;
-const activeIndex = candidates.findIndex((element) => element === active);
-event.preventDefault();
-if (event.shiftKey) {
-  const prevIndex = activeIndex <= 0 ? candidates.length - 1 : activeIndex - 1;
-  candidates[prevIndex]?.focus();
-} else {
-  const nextIndex =
-    activeIndex === -1 || activeIndex === candidates.length - 1 ? 0 : activeIndex + 1;
-  candidates[nextIndex]?.focus();
-}
-```
+### Slice ledger
 
-This first version **broke the real e2e suite** (`pnpm test:e2e:container`): treating every
-element matched by the `FOCUSABLE` selector as an independent Tab stop breaks native
-**radio-group** semantics — a set of `<input type="radio" name="strategic-fit-profile">` sharing
-one `name` is natively ONE Tab stop (the checked radio), not N stops; arrow keys (untouched,
-native) move the selection within the group. Fixed by collapsing radio groups to one
-representative (checked wins, else first-seen) inside `focusable()`:
+| Slice  | What                                                      | State                                        |
+| ------ | --------------------------------------------------------- | -------------------------------------------- |
+| S1     | `docs-consistency.mjs` query-string fix                   | ✅ `fafa3b5`                                 |
+| S2     | Arrow legend (WP-038)                                     | ✅ `5021ee3`                                 |
+| S3     | `Dialog` primitive + shortcut registry (WP-007)           | ✅ `cf5e83c`, AG-1 resolved, WP-007 complete |
+| S4     | Document-close guard + snapshot recovery (WP-003, WP-004) | ✅ working tree, uncommitted — see §4        |
+| **S5** | **WP-011 keyboard + `InteractiveRow`**                    | **gated green, AG-3 owed — see §5**          |
+| S6     | Chat/tool content registry (WP-025)                       | ✅ `2d6a662`, WP-025 complete                |
 
-```ts
-const focusable = () => {
-  const raw = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-    (element) =>
-      element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true",
-  );
-  const groupRepresentative = new Map<string, HTMLInputElement>();
-  for (const element of raw) {
-    if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name)
-      continue;
-    if (element.checked || !groupRepresentative.has(element.name)) {
-      groupRepresentative.set(element.name, element);
-    }
-  }
-  return raw.filter((element) => {
-    if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name)
-      return true;
-    return groupRepresentative.get(element.name) === element;
-  });
-};
-```
+Also landed opportunistically: WP-023 (`db8dfd3`).
 
-That fixed the `close → Balanced radio` transition (previously failing). **Still failing after
-that fix**, identically across chromium/firefox/webkit (3/3, so a real logic bug, not a
-browser-engine quirk):
+---
+
+## 3. Standing constraints
+
+- **pnpm**, never npm.
+- **No `Co-Authored-By` trailer** in commit messages (memory: `no-co-authored-by-trailer.md`).
+- Commit messages and code comments: normal prose, not caveman.
+- **The gate for any production change is the full container suite**, unnarrowed:
+  `pnpm test:e2e:container`. Current baseline: **409 passed, 14 configured skips, zero failures**
+  (361 before S4 and S5 added their checks).
+  A package-scoped run cannot show whether a package regressed another one, and `ux:plan-check`
+  rejects completion evidence that names only scoped runs.
+- Do not stage or commit unless asked.
+- The accessibility workflow stays `workflow_dispatch`-only (user's explicit decision).
+- Do not resolve a gate by writing its decision yourself. Gates are the user's call.
+
+### Established loop
 
 ```
-test/e2e/strategic-fit-accessibility.spec.ts:57
-test/e2e/strategic-fit-findings.spec.ts:2354
-test/e2e/strategic-fit-profile-setup.spec.ts (same pattern)
+pnpm ux:task WP-NNN          # capsule: readiness, ACs, allowed files, protocol
+… implement …
+pnpm -r typecheck && pnpm lint && pnpm format && pnpm ux:plan-check
+pnpm test:e2e:container      # the real gate, full suite
+… record completion evidence in docs/ui-ux-remediation/state.json …
+pnpm ux:plan-check
+git push origin salvage && git push origin salvage:main
 ```
 
-Expected sequence: `close → Balanced radio → "Advanced preferences" summary → "Skip for now"
-button → "Use Balanced profile" submit`. The `close → radio → summary` part now passes. The
-**next** Tab (`summary → "Skip for now"`) fails: `expect(skipButton).toBeFocused()` times out,
-"Received: inactive" — meaning something _other_ than Skip has focus, not necessarily nothing.
+`main` gets fast-forwarded because `workflow_dispatch` workflows must exist on the default branch
+to be dispatchable.
 
-**This was not yet diagnosed.** I was about to start a local `pnpm dev` server to inspect the live
-DOM/focus state directly (evaluate `focusable()`'s candidate list and `document.activeElement` by
-hand in the browser) when the user interrupted to request this handoff doc instead.
+---
 
-## Hypotheses not yet tested, for the next session
+## 4. S4 — WP-003 and WP-004 (DONE, uncommitted)
 
-1. **`<details>` closed-state content still in `raw`.** `ProfileSetup.tsx`'s `<details open=
-{advancedOpen()}>` wraps a large block of range/number inputs (`strategic-fit-profile-fields`).
-   `advancedOpen()` defaults to `initial.mode === "custom"` — for the "Balanced" scenario used in
-   these tests, that's `false`, so the details should be closed and its children should have
-   `getClientRects().length === 0`. **Verify this assumption is actually true in a live browser**
-   — if some CSS override (`display: contents`, `visibility` tricks, or a transition) keeps
-   children laid-out-but-hidden, `getClientRects()` could still return non-empty rects, which
-   would insert a large number of extra "focusable" candidates between summary and Skip, shifting
-   every subsequent index and explaining exactly this class of failure. Check
-   `apps/ui/src/index.css` or wherever `.strategic-fit-profile-advanced` / `details:not([open])`
-   rules live.
-2. **Ordering/identity mismatch in `raw` vs what the DOM actually reports as next.** Add a
-   temporary `console.log` (or a Playwright `page.evaluate` probe from a scratch script) printing
-   `candidates.map(c => c.outerHTML.slice(0,80))` right before the `.focus()` call, run headed
-   locally, and read it directly rather than guessing further.
-3. Double check `Skip for now` and `Use {mode} profile` aren't themselves inside some element that
-   independently reacts to focus-in a way that redirects it (unlikely, but rule out).
+Both packages are implemented, gated, and recorded complete in `state.json`. Nothing is staged or
+committed: the working tree holds the whole slice, ready for two commits (WP-003, then WP-004).
 
-**Do not guess further without running it.** The established pattern this whole session used
-successfully every time real evidence was available: read the actual DOM/state, don't speculate
-from error text alone. A local `pnpm dev --host 127.0.0.1 --port <free port>` plus either the
-Playwright MCP tools or a throwaway script under `$CLAUDE_JOB_DIR/tmp` (or wherever this session's
-scratch dir is) to evaluate `focusable()`'s logic live in the actual rendered page is the fastest
-path — that's what was about to happen when interrupted.
+Gate runs, both full and unnarrowed in the version-matched Playwright container:
 
-## Uncommitted state right now
+- WP-003: **379 passed, 14 skipped, zero failures**
+- WP-004: **382 passed, 14 skipped, zero failures** — the current baseline
 
+The first WP-003 gate run failed six times (`core-dialogs.spec.ts` × three engines). The guard makes
+`Open PGN` a two-step flow, and that spec's colour-picker fixture clicked straight through to the
+picker. That is the regression class the full-suite gate exists to catch, and it was invisible to
+any package-scoped run.
+
+### What was fixed relative to hermes
+
+Of the five known defects in §4b of the previous handoff:
+
+1. **The two lint errors are avoided by construction.** They appear when `continueDocumentClose`
+   becomes async in WP-004; both call sites are wrapped in `void`.
+2. **Idle snapshots now have change detection** — an `idle` capture whose PGN matches the last
+   captured one is skipped, so the ring no longer fills with copies and evicts `before-replace`.
+3. **`deleteSnapshot` no longer races `captureSnapshot`** — every snapshot mutation, and
+   `listSnapshots`, runs through one queue.
+4. **A malformed index entry can no longer make `trimSnapshotIndex` compute `NaN`** — the index is
+   normalized on read, and rows without an id are dropped.
+5. **The false reversibility copy does not exist on `salvage`.** `apps/ui/src/content/chat.ts` is a
+   hermes-only file; S6 rebuilt that content without the claim. Nothing to fix — verified by
+   grepping for the sentence and for `undo` across `apps/ui/src/content`.
+
+Defects 2–4 each have a test in `apps/ui/test/persist-snapshots.test.ts` that fails when its fix is
+reverted; that was verified by probe, not assumed.
+
+### Environment note that will cost you an hour otherwise
+
+On Node 25 (this host), ~40 of the `apps/ui` unit suites fail at import with
+`TypeError: localStorage.getItem is not a function`. Node 25 defines a `localStorage` global with no
+Web Storage methods, so the store modules feature-detect it as present and then call it. This is
+**pre-existing and unrelated** — confirmed by stashing the whole working tree and reproducing it on
+a clean `HEAD`. To run the unit suites here, preload a shim:
+
+```js
+// localstorage-stub.mjs — anywhere outside the repo
+const store = new Map();
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: {
+    getItem: (key) => (store.has(String(key)) ? store.get(String(key)) : null),
+    setItem: (key, value) => store.set(String(key), String(value)),
+    removeItem: (key) => store.delete(String(key)),
+    clear: () => store.clear(),
+    key: (index) => [...store.keys()][index] ?? null,
+    get length() {
+      return store.size;
+    },
+  },
+});
 ```
-$ git status --short
- M .github/workflows/accessibility.yml
- M apps/ui/src/components/StrategicFitWorkspace.tsx
- M apps/ui/test/accessibility/collectors/at-runner.ts
- M docs/accessibility/README.md
-```
-
-- `.github/workflows/accessibility.yml`: removed the `record: true` diagnostic on
-  `guidepup/setup-action` in the `at-voiceover` job (confirmed useless — it only records the
-  _setup_ step, not the later test run where the keyboard-trace anomaly happens) and its
-  artifact-upload step. Updated the job's header comment to reflect VoiceOver now being proven.
-- `apps/ui/test/accessibility/collectors/at-runner.ts`: reverted the disproven 1s
-  `VOICEOVER_TEARDOWN_SETTLE_MS` delay (see "teardown race" theory above — tested in run 9,
-  disproven, removed). Doc comment updated to record that this bug turned out to be unrelated to
-  this module entirely.
-- `apps/ui/src/components/StrategicFitWorkspace.tsx`: the focus-trap fix described above — **this
-  is the file with the still-failing e2e regression, needs the debugging above before it's safe to
-  commit.**
-- `docs/accessibility/README.md`: updated to describe the real bug found and the fix (written
-  optimistically, before the e2e regression was discovered — **will need a correction pass once
-  the fix actually passes the full suite**, since right now it slightly overstates completeness).
-
-## Next steps, in order
-
-1. Diagnose the `summary → Skip for now` Tab failure using live DOM inspection (see hypotheses
-   above), fix `StrategicFitWorkspace.tsx`.
-2. Full local Docker e2e suite must be 100% green: `pnpm test:e2e:container` (no subset — this
-   touched production dialog code, needs the real full-suite gate per this repo's own Phase 0
-   requirement, not just the accessibility-scoped specs).
-3. `pnpm -r typecheck`, `pnpm lint`, `pnpm format:check` (or `pnpm format` then re-check) — all
-   must be clean.
-4. Local accessibility capture too, to confirm the keyboard-trace anomaly is actually gone:
-   `cd apps/ui && A11Y_CONTAINER=1 node test/accessibility/capture.mjs && pnpm a11y:verdict` — this
-   only proves browser-tier (no AT on Linux), so the _real_ confirmation only comes from a fresh
-   triggered CI run (step 6).
-5. Correct `docs/accessibility/README.md` if needed to match what actually shipped (don't leave it
-   overstating a fix that turned out to need more work).
-6. Commit (no `Co-Authored-By` trailer), push `salvage`, fast-forward `main`
-   (`git push origin salvage:main`), trigger workflow:
-   `gh workflow run accessibility.yml --ref main --repo Azeajr/chess-mcp`.
-7. Download and inspect real evidence from that run (pattern used all session:
-   `gh run download <id> --repo Azeajr/chess-mcp --dir <scratch-dir>`, then read the JSON directly
-   — don't trust summaries). Confirm `keyboardTrace[3]`'s anomaly is gone and `overallStatus` is
-   `confirmed-pass`.
-8. Once genuinely green: update `docs/accessibility/README.md`'s AG-1 status section, and check in
-   with the user before marking AG-1 resolved in `docs/ui-ux-remediation/state.json` (that file
-   hasn't been touched yet this whole session — it's the actual final step, not done).
-9. Delete this `HANDOFF.md` once superseded by the real docs.
-
-## Useful commands from this session
 
 ```bash
-# Trigger workflow (must target main — workflow_dispatch requires default-branch presence)
-gh workflow run accessibility.yml --ref main --repo Azeajr/chess-mcp
-
-# Check status
-gh run list --workflow=accessibility.yml --limit 3 --repo Azeajr/chess-mcp
-gh run view <id> --repo Azeajr/chess-mcp --json status,conclusion,jobs -q '.status, .conclusion, (.jobs[] | "\(.name): \(.status) \(.conclusion)")'
-
-# Download evidence (explicit --repo and --dir avoid a git-discovery bug in this shell env)
-gh run download <id> --repo Azeajr/chess-mcp --dir <scratch-dir>
-
-# Local full Docker e2e (the real gate for any production-code change)
-pnpm test:e2e:container
-
-# Local accessibility capture (Docker, all 3 engines, no AT — Linux has neither NVDA nor VoiceOver)
-cd apps/ui && A11Y_CONTAINER=1 node test/accessibility/capture.mjs && pnpm a11y:verdict
+cd apps/ui && pnpm exec tsx --import /path/to/localstorage-stub.mjs --test test/*.test.ts
 ```
+
+With the shim: **300 passed, zero failures**, including the two Strategic Fit suites that hold the
+document-transaction pause/rollback contract.
+
+## 5. S5 — WP-011 keyboard + `InteractiveRow` (IMPLEMENTED, uncommitted, AG-3 owed)
+
+The implementation is in the working tree and gated: **409 passed, 14 skipped, zero failures** in
+the full container suite. WP-011 is **not** recorded complete, and must not be: `AG-3` is an
+unresolved completion gate, and `ux:plan-check` rejects a package recorded complete while one is
+open. Its `state.json` status is still `not-started` — `in-progress` is invalid for an executable
+package, which this one still is.
+
+Source commit: `dd7dc12`, applied with `git apply --3way` (clean except `styles.css`, which had to
+be merged by hand because S3/S6 moved it).
+
+### What the four "known defects" turned out to be
+
+1. **The WP-002 AC-2 regression does not reproduce on `salvage`.** `core-layout.spec.ts` is
+   byte-identical to hermes's, and it passes on all three engines in the container with WP-011
+   applied. Measured directly: the lowest `.rep-section button` at 768×1024 ends at y=992 of 1024,
+   so there is 32 px of headroom — and the 11 buttons are scan/action buttons, not rows, so the row
+   target floor does not move them at all. The failure was specific to hermes's own layout state.
+   The 32 px margin is thin and owned by WP-002/WP-017, not by this package.
+   Note this test fails **locally** on this host (one violation, "Suggest") both with and without
+   WP-011 — a host font-metric difference, not a regression.
+2. **Unreachable tab stop when `currentPath()` is `[]` — fixed.** `entryPath()` falls back to the
+   first move, because the root has no rendered item and `[]` matches nothing.
+3. **Focus lost on Enter — fixed.** Navigation rebuilds every item, so activation re-focuses the
+   item it activated.
+4. `InteractiveRow` was taken as-is, with one change: the opponent-prep summary rows are **not**
+   buttons. hermes made them `InteractiveRow` with an `aria-label` and no handler purely to satisfy
+   the `.rep-row` reachability check — a Tab stop that announces "button" and does nothing. They are
+   `.rep-row-static` divs here.
+
+Two further defects surfaced only by running it, both fixed with a test that fails without the fix:
+
+- **Collapsing a branch had become pointer-only.** The collapse toggle is `tabIndex={-1}` (a tree
+  with one tab stop cannot also hand out one per branch), so hermes's port left no keyboard path to
+  it at all — in the package whose objective is keyboard operability. `Space` on a move whose parent
+  has variations now toggles that branch; on any other move it falls through to native activation.
+  DV-2's arrow semantics are untouched.
+- **hermes's `accessibility.ts` change exempted every scoped region from the `h1` rule, dialogs
+  included**, which quietly undid a WP-007 finding (a dialog root is its own heading outline). The
+  exemption here covers panels but still requires an `h1` for `[role='dialog']`.
+
+### Discharging AG-3 — NOT DONE, and bigger than it looks
+
+AG-3 needs NVDA + VoiceOver confirming tree role, level, and expanded state are announced, and that
+traversal does not read the entire tree on every key.
+
+The previous handoff said "the scenario runner is already parameterized; add a move-tree scenario
+definition". That is optimistic. `scenarios/dialog-scenario.ts` is parameterized **over dialogs**:
+it opens by opener name, waits for `role=dialog`, and hands the AT collector `awaitOpen` /
+`awaitClosed` / `refocusDialog`. `collectors/at-runner.ts` drives one fixed cycle (report focus →
+Escape → Enter → virtual-cursor sweep) and emits `AtObservation`s tagged with **AG-1's** claims.
+`verdict.ts` scores those claims specifically.
+
+A move-tree scenario therefore needs, at minimum:
+
+- a tree scenario runner (no opener, no dialog, focus enters via Tab),
+- an AT cycle that presses `ArrowRight` / `ArrowDown` / `Space` **with the screen reader** and keeps
+  one utterance per key (see §6 — a Playwright key press produces speech that is dropped),
+- new claim identifiers in `evidence-schema.ts` and matching checks in `verdict.ts`,
+- an `ag-3-move-tree.spec.ts`, plus `capture.mjs`'s container branch, which hardcodes
+  `ag-1-dialog.spec.ts` as the only spec it runs,
+- a `.github/workflows/accessibility.yml` job wiring so the NVDA and VoiceOver runners capture it.
+
+None of that is salvage — hermes never built it. It is also only meaningful once dispatched on CI,
+and **the gate is the user's to resolve**, so it was deliberately left for a decision rather than
+started.
+
+---
+
+## 6. The accessibility evidence pipeline (built this session, working)
+
+Full design and history: `docs/accessibility/README.md`. Read it before touching the pipeline.
+
+State: **`confirmed-pass`**, run `32242062146`, both dialog scenarios, 15 findings each, all four
+AG-1 claims scored on real NVDA (Windows) and real VoiceOver (macOS).
+
+```bash
+# Local, all three engines via Docker, no AT (Linux has neither NVDA nor VoiceOver)
+cd apps/ui && A11Y_CONTAINER=1 node test/accessibility/capture.mjs && pnpm a11y:verdict
+
+# Real AT evidence — CI only
+gh workflow run accessibility.yml --ref main --repo Azeajr/chess-mcp
+gh run list --workflow=accessibility.yml --limit 3 --repo Azeajr/chess-mcp
+gh run download <id> --repo Azeajr/chess-mcp --dir <scratch>   # then read the JSON directly
+```
+
+### The one thing that will waste your time if you don't know it
+
+**Both guidepup drivers record speech only while one of their own actions is in flight.**
+`NVDAClient.js` pushes into its spoken-phrase log inside the queued-action path;
+`VoiceOverClient.enqueueAndTap` captures "the logs for the performed action". Speech provoked by a
+**Playwright** key press is emitted and then dropped. Two CI rounds were spent on timing theories
+before this was found by reading the driver source. If you need an announcement captured, the
+**screen reader** must press the key (`screenReader.press(...)`), never Playwright.
+
+Related: the virtual-cursor sweep (`next()`) drags DOM focus with it, so DOM focus must be
+re-established before any key press that follows a sweep, and the sweep must not be the last thing
+a session does or it corrupts the keyboard trace that runs next.
+
+---
+
+## 7. Production accessibility bugs found and fixed this session
+
+All macOS-only. None reachable from Linux CI. Listed because they are the pattern to expect:
+
+1. **Focus trap relied on native Tab.** macOS ships Safari's "Full Keyboard Access" off by default,
+   which makes native Tab skip every `<button>`. Fixed by driving Tab explicitly (`85b3e2a`).
+2. **A closed `<details>` still reports client rects**, so its contents stayed in the focus-trap
+   candidate list where `.focus()` silently no-ops, parking focus on the summary forever.
+3. **macOS browsers do not focus a `<button>` on click**, so a pointer-opened dialog stored no
+   focus-return target and restored focus nowhere on close. Fixed as a class in the `Dialog`
+   primitive via a last-pointer-activated fallback (`72242cf`).
+4. A `copy`-event listener race in `core-a11y.spec.ts` (real test flake, fixed).
+
+---
+
+## 8. Deferred, recorded, not lost
+
+- **`ReplacementLab.tsx` focus trap** — same macOS defect as #1 above, deliberately deferred.
+  Recorded under **"Known accessibility defects"** in `ROADMAP.md`, including the trap that porting
+  only half the fix would create (it has two `<details>`; explicit Tab without the collapsed-details
+  exclusion parks focus on the first `<summary>` permanently). No work package owns it.
+- **AG-1 scope note** — the automated contract suite covers all three overlays; the AT tier covers
+  Settings plus Strategic Fit, not Promotion or Colour picker. Recorded in `state.json`.
+
+---
+
+## 9. Known flakes (not regressions — verify before chasing)
+
+Each failed once in a full run and passed alone and on rerun:
+
+- `strategic-fit-sidecar.spec.ts:206` — "Confirm metadata import" not enabled.
+- `strategic-fit-profile-setup.spec.ts:339` — webkit.
+- `guidepup/setup-action` on macOS — transient TCC failure
+  (`Not authorized to send Apple events to System Events`). Rerun the failed job.
+
+---
+
+## 10. Gate and package state
+
+```
+gates:    AG-1 resolved · DV-2 resolved · PD-1 resolved · PD-2 resolved · 16 unresolved
+packages: 16 complete of 39
+ready:    WP-011 (S5) — implemented and gated in the working tree; AG-3 owed before completion
+blocked:  WP-015 (needs WP-011) · WP-005 and WP-018 (need WP-009, held by AG-5; WP-005 also PD-3)
+```
+
+`completionGates` is a mechanism landed this session (`507d295`, `559d266`): a gate whose own
+required evidence is produced by the package it guards is checked at **completion** rather than at
+start. It changes _when_ a gate is checked, never _whether_. `ux:plan-check` rejects any package
+recorded complete while one of its completion gates is unresolved — verified by probe.
