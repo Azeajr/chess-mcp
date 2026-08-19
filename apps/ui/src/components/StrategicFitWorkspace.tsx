@@ -419,23 +419,26 @@ export default function StrategicFitWorkspace() {
       window.removeEventListener("beforeprint", beforePrint);
       window.removeEventListener("afterprint", afterPrint);
       setStrategicFitPrintExportMode(false);
-      // One attempt is not enough on real macOS WebKit: run 32225391111's VoiceOver-tier trace
-      // left focus on the body after Escape while Chromium, Firefox, and headless Linux WebKit
-      // all restored the opener from this same call. Retry on the next frame when the first call
-      // did not take — by then the background container's `inert` removal has certainly been
-      // painted, whichever ordering the engine chose for it.
-      const restoreFocus = (allowRetry: boolean) => {
+      // Re-assert across the next frames rather than restoring once. Real macOS WebKit resets the
+      // document's focus to the body *after* this cleanup runs, because the element that had focus
+      // (something inside the dialog) was just removed — so a single restore lands and is then
+      // wiped, leaving the opener unfocused. Run 32226854386's probe ruled out every other
+      // candidate: at that point the opener is connected, has no `inert` ancestor, the dialog is
+      // gone, and an explicit focus() from the probe itself takes immediately. Only the timing was
+      // ever wrong. Chromium and Firefox do that reset synchronously during removal, before this
+      // callback, which is why they never needed more than one attempt.
+      const restoreFocus = (attemptsLeft: number) => {
         const target = returnFocus;
         if (!target?.isConnected) return;
-        target.focus();
-        if (allowRetry && document.activeElement !== target) {
+        if (document.activeElement !== target) target.focus();
+        if (attemptsLeft > 0) {
           requestAnimationFrame(() => {
-            restoreFocus(false);
+            restoreFocus(attemptsLeft - 1);
           });
         }
       };
       queueMicrotask(() => {
-        restoreFocus(true);
+        restoreFocus(2);
       });
     });
   });
