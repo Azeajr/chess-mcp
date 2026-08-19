@@ -225,7 +225,21 @@
       }
     },
     "WP-025": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm test:e2e:container (361 passed, 14 configured skips across Chromium, Firefox, and WebKit, zero failures)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm check:content",
+          "pnpm docs:check",
+          "pnpm ux:plan-check"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched Playwright container: 361 passed, 14 configured skips, zero failures across all three engines. core-status.spec.ts's UX-015/UX-016 baseline check turns from test.fixme into a real assertion that seeds a tool call and result first - an empty chat log cannot violate anything - then checks the chip, the result header, and the navigation rows, asserts no navigation label contains an underscore, and asserts the row still resolves to the same board path.",
+        "scope": "Navigation rows for an unknown payload key now read as a bare ordinal rather than being labelled \"Line\". The salvaged implementation labelled every unrecognized key a line, which asserts a chess meaning the payload may not have; a confident wrong noun is worse than an unspecific right one.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (39b3d8a), reviewed rather than cherry-picked. Only that commit's WP-025 hunks were taken; its WP-023 half had already landed separately as db8dfd3."
+      }
     },
     "WP-026": {
       "status": "not-started"

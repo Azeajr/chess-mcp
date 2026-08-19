@@ -36,8 +36,9 @@ import {
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
 import Status from "./primitives/Status";
-import { countLabel, diffValue, displayValue, titleCase } from "../content/format";
+import { countLabel, diffValue, displayValue, numbered, titleCase } from "../content/format";
 import { errorContent } from "../content/errors";
+import { navigationLabel } from "../content/tools";
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -80,23 +81,30 @@ function NavigationRows(props: { data: Data }) {
         return;
       }
       const item = value as Data;
-      const path = [item.path, item.san_path, item.variation_path, item.pivot_path].find(
-        (candidate) =>
-          Array.isArray(candidate) && candidate.every((move) => typeof move === "string"),
+      const pathEntry = [
+        ["path", item.path],
+        ["san_path", item.san_path],
+        ["variation_path", item.variation_path],
+        ["pivot_path", item.pivot_path],
+      ].find(
+        (entry): entry is [string, string[]] =>
+          Array.isArray(entry[1]) && entry[1].every((move) => typeof move === "string"),
       );
-      if (path?.length) {
+      const rowIndex = out.length + 1;
+      if (pathEntry?.[1].length) {
+        const path = pathEntry[1];
         const indexPath = currentTree().indexPathOfSan(path);
         if (indexPath)
           out.push({
-            label: key,
-            value: path.join(" "),
+            label: navigationLabel(pathEntry[0], rowIndex),
+            value: numbered(path),
             go: () => {
               actions.goto(indexPath);
             },
           });
       } else if (typeof item.fen === "string")
         out.push({
-          label: `${key} position`,
+          label: navigationLabel("fen", rowIndex),
           value: item.fen,
           go: () => {
             navigateFen(item.fen as string);
@@ -107,7 +115,7 @@ function NavigationRows(props: { data: Data }) {
         try {
           currentTree().nodeAt(mainline);
           out.push({
-            label: key,
+            label: navigationLabel("ply", rowIndex),
             value: `Ply ${item.ply}`,
             go: () => {
               actions.goto(mainline);

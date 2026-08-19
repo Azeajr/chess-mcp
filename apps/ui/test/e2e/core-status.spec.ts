@@ -1,5 +1,21 @@
-import { expect, test } from "playwright/test";
-import { openApp } from "./helpers/app";
+import { expect, test, type Page } from "playwright/test";
+import { currentPath, openApp } from "./helpers/app";
+
+type ToolHarness = {
+  loadPgn(pgn: string, name?: string): void;
+  appendToolResultForTesting(operation: string, result: unknown): void;
+};
+
+const chess = <T>(page: Page, fn: (api: ToolHarness, arg: T) => unknown, arg?: T) =>
+  page.evaluate(
+    ({ source, arg }) =>
+      Function(
+        "api",
+        "arg",
+        `return (${source})(api, arg)`,
+      )((window as unknown as { __chess: ToolHarness }).__chess, arg),
+    { source: fn.toString(), arg },
+  );
 import { rawIdentifierViolations } from "./helpers/accessibility";
 
 type AnnouncementScenario =
@@ -52,11 +68,40 @@ test.fixme("UX-012 every required event produces exactly one live-region announc
   }
 });
 
-test.fixme("UX-015 UX-016 chat and Strategic Fit never expose raw identifiers", async ({
+test("WP-025 AC-1 AC-2 AC-3 chat and Strategic Fit never expose raw identifiers", async ({
   page,
 }) => {
   await openApp(page);
-  expect(await rawIdentifierViolations(page.locator(".chat-wrap"))).toEqual([]);
+  // An empty chat log cannot violate anything, so seed a real tool call and result first: the
+  // chip, the result header, and the navigation rows are the three places a raw identifier
+  // actually reaches the user.
+  await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6"));
+  await chess(page, (api) =>
+    api.appendToolResultForTesting("audit_repertoire_moves", {
+      color: "white",
+      positions_scanned: 2,
+      moves_audited: 2,
+      findings: [
+        { path: ["e4", "e5", "Nf3"], cp_loss: 90, classification: "inaccuracy", best_move: "Nc3" },
+      ],
+    }),
+  );
+  const chat = page.locator(".chat-wrap");
+  await expect(chat.getByText("Prescribed-move audit").last()).toBeVisible();
+  expect(await rawIdentifierViolations(chat)).toEqual([]);
+
+  // AC-2: every navigation row reads as a chess description or an ordinal.
+  const navLabels = await page.locator(".tool-result .result-nav").allTextContents();
+  expect(navLabels.length).toBeGreaterThan(0);
+  for (const label of navLabels) {
+    expect(label).not.toMatch(/_/u);
+  }
+
+  // AC-3: the row still resolves to the same board position it did before relabelling.
+  await page.locator(".tool-result .result-nav").last().click();
+  await expect(page.locator(".move.current").first()).toContainText("Nf3");
+  expect(await currentPath(page)).toEqual([0, 0, 0]);
+
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   expect(
     await rawIdentifierViolations(page.getByRole("dialog", { name: "Strategic Fit" })),
