@@ -17,14 +17,13 @@ const uiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..
 const headed = process.env.A11Y_ATTEMPT_AT === "1";
 
 // Real screen-reader round trips (AppleScript/UI-Automation control, speech synthesis) are
-// inherently slower than a scripted DOM check. Both VoiceOver attempts in .github/workflows/
-// accessibility.yml runs 32206066681 and 32206750401 landed within a couple seconds of the
-// previous 30s limit regardless of which command was used, before either the ordering bug or the
-// AT-cursor-sync bug (both fixed alongside this) were addressed — treat that as a real timing
-// signal, not just a symptom of those bugs, until a run proves otherwise.
+// inherently slower than a scripted DOM check — github.com/guidepup/guidepup-playwright's own
+// examples/playwright-voiceover/webkit.config.ts (a real, working reference, not a guess) uses a
+// 5-minute timeout for exactly this reason. Matching it here rather than the 90s this repo
+// guessed first, which was itself a guess made without that reference in hand.
 export default defineConfig({
   testDir: ".",
-  timeout: headed ? 90_000 : 30_000,
+  timeout: headed ? 5 * 60_000 : 30_000,
   fullyParallel: false,
   use: { baseURL: "http://127.0.0.1:4173", headless: !headed },
   projects: [

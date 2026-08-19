@@ -11,8 +11,20 @@
  * synced to it — NVDA read the page title, VoiceOver read "AccessibilityUIServer has no windows".
  * Both these commands instead report whatever the OS currently considers focused, sidestepping
  * cursor-position entirely — confirmed real by reading the installed @guidepup/guidepup package's
- * own windows/NVDA/keyCodeCommands.d.ts and macOS/VoiceOver/keyCodeCommands.d.ts directly, not
- * guessed from README prose. Not yet re-verified by an actual run.
+ * own windows/NVDA/keyCodeCommands.d.ts and macOS/VoiceOver/keyCodeCommands.d.ts directly.
+ *
+ * Run 32208455039 fixed NVDA for real ("Return to repertoire, button, focused" — correct) but
+ * VoiceOver still reported "Desktop group has keyboard focus": the browser window itself never
+ * received real OS-level focus on that macOS runner (confirmed by keyboardTraces[3] on the same
+ * run reproducing the exact same Tab-loses-focus pattern seen on two prior runs, now with the
+ * dialog-heading click ruled out as the cause — one root cause, not two). macOSActivate is
+ * exported directly from @guidepup/guidepup (not @guidepup/playwright, so no dependency
+ * collision) and is exactly what @guidepup/guidepup-playwright's own real
+ * VoiceOverPlaywright.navigateToWebContent() implementation calls first, before anything else,
+ * to fix this same problem — read directly from
+ * github.com/guidepup/guidepup-playwright/blob/main/src/voiceOverTest.ts, not guessed.
+ * "Playwright" is that same file's applicationNameMap.webkit value — the real macOS application
+ * name Playwright's bundled WebKit build registers as, not a guess.
  */
 import type { AtObservation, InfrastructureLimitation } from "../evidence-schema";
 
@@ -27,6 +39,8 @@ const FOCUS_COMMAND: Record<AtRunnerId, string> = {
   nvda: "reportCurrentFocus",
   voiceover: "describeItemWithKeyboardFocus",
 };
+
+const WEBKIT_MACOS_APPLICATION_NAME = "Playwright";
 
 export function currentPlatformSupports(runner: AtRunnerId): boolean {
   return process.platform === PLATFORM_REQUIREMENT[runner];
@@ -57,7 +71,7 @@ export async function captureAtObservation(runner: AtRunnerId): Promise<AtObserv
   }
   // Dynamic import: @guidepup/guidepup has no Linux build, so a static import would break
   // typecheck/build on every non-Windows, non-MacOS worker, including this repo's own CI Node job.
-  const { nvda, voiceOver } = await import("@guidepup/guidepup");
+  const { nvda, voiceOver, macOSActivate } = await import("@guidepup/guidepup");
   const commandName = FOCUS_COMMAND[runner];
 
   async function run<T extends { keyboardCommands: object }>(
@@ -70,6 +84,10 @@ export async function captureAtObservation(runner: AtRunnerId): Promise<AtObserv
   ): Promise<readonly string[]> {
     await screenReader.start();
     try {
+      if (runner === "voiceover") {
+        // The one real fix for "Desktop group has keyboard focus" — see module doc comment.
+        await macOSActivate(WEBKIT_MACOS_APPLICATION_NAME);
+      }
       const commands = screenReader.keyboardCommands as Record<
         string,
         T["keyboardCommands"][keyof T["keyboardCommands"]] | undefined

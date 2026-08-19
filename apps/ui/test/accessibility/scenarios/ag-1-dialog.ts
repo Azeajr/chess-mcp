@@ -50,18 +50,20 @@ export async function runAg1Scenario(
   // dialog was already closed by the time it ran).
   //
   // Runs 32206750401/32207555004 also tried forcing focus with a raw click on the dialog's
-  // heading. That was worse, not better: a click on a non-focusable element blurs whatever was
-  // previously focused without focusing the click target, which likely wiped out the Dialog
-  // primitive's own initial-focus behavior (Dialog.tsx's onMount, requestAnimationFrame) rather
-  // than helping it. Removed. The AT commands themselves changed instead — see
-  // collectors/at-runner.ts — to ones that report real DOM focus rather than an AT-internal
-  // cursor position, so they should correctly observe whatever the Dialog primitive already
-  // focuses on its own, with no synthetic click needed.
+  // heading, on the theory that OS window focus was the problem. Run 32208455039 disproved that
+  // theory directly: with the click already removed, the exact same webkit keyboard-trace
+  // anomaly (Tab losing focus) reproduced a third time, and VoiceOver's own real, correct report
+  // ("Desktop group has keyboard focus" via describeItemWithKeyboardFocus) named the actual cause
+  // — the browser window itself never received real OS-level focus on that macOS runner. Real
+  // fix for that lives in collectors/at-runner.ts (macOSActivate). page.bringToFront() here is
+  // the Playwright-side half of the same fix — see @guidepup/guidepup-playwright's own
+  // navigateToWebContent(), which calls both, in that order.
   //
-  // What remains here: since that initial focus is set inside a requestAnimationFrame callback,
-  // dialog.waitFor({ state: "visible" }) above is not guaranteed to happen after it has run —
-  // wait explicitly for real DOM focus to land inside the dialog before asking the AT to report it.
+  // Separately: the Dialog primitive sets its own initial focus inside a requestAnimationFrame
+  // callback, which dialog.waitFor({ state: "visible" }) does not guarantee has already run —
+  // wait explicitly for real DOM focus to land before asking the AT to report it.
   if (options.attemptAtCapture) {
+    await page.bringToFront();
     await page.waitForFunction(
       () => document.activeElement !== null && document.activeElement !== document.body,
     );
