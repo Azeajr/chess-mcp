@@ -11,6 +11,9 @@ const BRANCHING_PGN = "1. e4 e5 2. Nf3 Nc6 (2... d6 3. d4) (2... Nf6 3. Nxe5) 3.
 const moveItem = (page: Page, path: readonly number[]) =>
   page.locator(`.move-tree [role="treeitem"][data-move-path="${path.join(",")}"]`);
 
+const branchToggle = (page: Page, path: readonly number[]) =>
+  page.locator(`.move-tree .collapse-toggle[data-branch-path="${path.join(",")}"]`);
+
 const setCurrentPath = (page: Page, path: number[]) =>
   page.evaluate(
     (nextPath) =>
@@ -175,25 +178,59 @@ test("WP-011 AC-4 current state and branch expansion remain truthful", async ({ 
   await setCurrentPath(page, branch);
 
   const current = moveItem(page, branch);
-  const toggle = page.locator(`[aria-controls="move-tree-group-${branch.join("-")}"]`);
+  const toggle = branchToggle(page, branch);
   const group = page.locator(`#move-tree-group-${branch.join("-")}`);
+  // The expanded state belongs to the tree item that owns the group, not to the toggle: arrow
+  // traversal only ever lands on tree items, so state on the toggle is state a screen-reader user
+  // never hears while traversing.
+  const owner = moveItem(page, [...branch, 0]);
   await expect(current).toHaveAttribute("aria-current", "true");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(owner).toHaveAttribute("aria-controls", `move-tree-group-${branch.join("-")}`);
+  await expect(owner).toHaveAttribute("aria-owns", `move-tree-group-${branch.join("-")}`);
+  await expect(owner).toHaveAttribute("aria-expanded", "true");
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(owner).toHaveAttribute("aria-expanded", "false");
   await expect(group).toBeHidden();
 
   await current.focus();
   await page.keyboard.press("ArrowRight");
   await expect(moveItem(page, firstVariation)).toBeFocused();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(owner).toHaveAttribute("aria-expanded", "true");
   await expect(group).toBeVisible();
 
   await page.keyboard.press("Enter");
   await expect.poll(() => currentPath(page)).toEqual(firstVariation);
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(owner).toHaveAttribute("aria-expanded", "true");
   await expect(group).toBeVisible();
+});
+
+test("WP-011 AC-3 reports variation depth as the level, not ply depth", async ({ page }) => {
+  await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
+
+  // Ply depth would make every mainline move its own aria-level, so a screen reader announces a
+  // level change on every arrow press along the mainline — AG-3's speech-flood failure condition.
+  for (const path of [[0], [0, 0], [0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0, 0]]) {
+    await expect(moveItem(page, path)).toHaveAttribute("aria-level", "1");
+  }
+  for (const path of [
+    [0, 0, 0, 1],
+    [0, 0, 0, 1, 0],
+    [0, 0, 0, 2],
+    [0, 0, 0, 2, 0],
+  ]) {
+    await expect(moveItem(page, path)).toHaveAttribute("aria-level", "2");
+  }
+
+  // "1 of 1" on every mainline move is verbosity with no information in it. Position is reported
+  // only where there is a genuine set of alternatives, and counted over that set.
+  const mainlineReply = moveItem(page, [0, 0, 0, 0]);
+  await expect(mainlineReply).not.toHaveAttribute("aria-posinset");
+  await expect(mainlineReply).not.toHaveAttribute("aria-setsize");
+  await expect(moveItem(page, [0, 0, 0, 1])).toHaveAttribute("aria-posinset", "1");
+  await expect(moveItem(page, [0, 0, 0, 1])).toHaveAttribute("aria-setsize", "2");
+  await expect(moveItem(page, [0, 0, 0, 2])).toHaveAttribute("aria-posinset", "2");
+  await expect(moveItem(page, [0, 0, 0, 2])).toHaveAttribute("aria-setsize", "2");
 });
 
 test("WP-011 AC-4 keeps branch collapsing keyboard-operable from inside the tree", async ({
@@ -204,7 +241,7 @@ test("WP-011 AC-4 keeps branch collapsing keyboard-operable from inside the tree
   await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
   await setCurrentPath(page, branch);
 
-  const toggle = page.locator(`[aria-controls="move-tree-group-${branch.join("-")}"]`);
+  const toggle = branchToggle(page, branch);
   const group = page.locator(`#move-tree-group-${branch.join("-")}`);
   // The toggle is deliberately not a page-level Tab stop, so the tree itself has to carry the
   // control; without it, collapsing a branch would be reachable only with a pointer.
@@ -214,12 +251,12 @@ test("WP-011 AC-4 keeps branch collapsing keyboard-operable from inside the tree
   await item.focus();
   const before = await currentPath(page);
   await page.keyboard.press(" ");
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(item).toHaveAttribute("aria-expanded", "false");
   await expect(group).toBeHidden();
   await expect(item).toBeFocused();
 
   await page.keyboard.press(" ");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(item).toHaveAttribute("aria-expanded", "true");
   await expect(group).toBeVisible();
   expect(await currentPath(page)).toEqual(before);
 });

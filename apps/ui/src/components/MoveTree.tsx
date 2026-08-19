@@ -17,6 +17,16 @@ const pathKey = (path: Path) => (path.length ? path.join(",") : "root");
 const itemId = (path: Path) => `move-tree-item-${path.length ? path.join("-") : "root"}`;
 const groupId = (path: Path) => `move-tree-group-${path.length ? path.join("-") : "root"}`;
 
+/**
+ * How deep into variations a move sits, which is what `aria-level` reports. Deliberately not the
+ * path length: a PGN path grows one index per ply, so ply depth would make every mainline move its
+ * own level and screen readers announce a level on every change — an announcement per arrow press
+ * along the mainline, which is AG-3's "traversal produces speech floods" failure condition. Only a
+ * non-zero index means a variation was entered, so counting those gives the mainline a single flat
+ * level and matches what a repertoire user means by depth.
+ */
+const variationLevel = (path: Path) => 1 + path.filter((index) => index >= 1).length;
+
 function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Element {
   const moveNo = Math.floor((ply - 1) / 2) + 1;
   const isWhite = ply % 2 === 1;
@@ -199,20 +209,33 @@ export default function MoveTree() {
     const previewed = previewedKeys();
     const collapsedSet = collapsed();
 
+    /**
+     * `position` is set only on variations, where "2 of 3" says something; a mainline move is not
+     * one of a set of alternatives and reporting "1 of 1" on every move is pure verbosity.
+     * `branch` is set only on the move that owns a variation group, and carries that group into
+     * `aria-expanded`/`aria-controls`/`aria-owns` — see the toggle below for why the state lives
+     * here rather than on the toggle itself.
+     */
     const moveButton = (
       node: ChildNode<PgnNodeData>,
       path: Path,
       blackDots: boolean,
-      siblingCount: number,
+      position?: { posinset: number; setsize: number },
+      branch?: { expanded: boolean; group: string },
     ): JSX.Element => (
       <MoveButton
         id={itemId(path)}
         role="treeitem"
         data-move-path={path.join(",")}
         aria-current={pathEq(path, current) ? "true" : undefined}
-        aria-level={path.length}
-        aria-posinset={(path.at(-1) ?? 0) + 1}
-        aria-setsize={siblingCount}
+        aria-level={variationLevel(path)}
+        aria-posinset={position?.posinset}
+        aria-setsize={position?.setsize}
+        aria-expanded={branch ? branch.expanded : undefined}
+        aria-controls={branch?.group}
+        // Reparents the variation group under this item in the accessibility tree. The group is a
+        // DOM sibling because a tree item here is a <button>, which cannot legally contain one.
+        aria-owns={branch?.group}
         tabIndex={isActive(path) ? 0 : -1}
         current={pathEq(path, current)}
         previewed={previewed.has(path.join(","))}
@@ -240,15 +263,28 @@ export default function MoveTree() {
         const main = cursor.children.at(0);
         if (main === undefined) break;
         const mainPath = [...path, 0];
-        parts.push(moveButton(main, mainPath, dots, cursor.children.length), " ");
 
         // A branch point: ≥2 children. The separate control avoids a nested button and is not a
         // page-level tab stop; ArrowRight gives keyboard users the agreed variation entry path.
+        // Resolved before the mainline move renders, because that move is the one that owns the
+        // group and has to carry its expanded state.
         const branch = cursor.children.length > 1;
+        const branchPath = [...path];
+        const isCollapsed =
+          branch && collapsedSet.has(pathKey(branchPath)) && !currentInsideVariation(branchPath);
+
+        parts.push(
+          moveButton(
+            main,
+            mainPath,
+            dots,
+            undefined,
+            branch ? { expanded: !isCollapsed, group: groupId(branchPath) } : undefined,
+          ),
+          " ",
+        );
+
         if (branch) {
-          const branchPath = [...path];
-          const isCollapsed =
-            collapsedSet.has(pathKey(branchPath)) && !currentInsideVariation(branchPath);
           const hidden = cursor.children.length - 1;
           const variations: JSX.Element[] = [];
           for (let index = 1; index < cursor.children.length; index += 1) {
@@ -257,20 +293,31 @@ export default function MoveTree() {
             const variationPath = [...branchPath, index];
             variations.push(
               <div class="variation">
-                ({moveButton(variation, variationPath, true, cursor.children.length)}{" "}
+                (
+                {moveButton(variation, variationPath, true, {
+                  posinset: index,
+                  setsize: cursor.children.length - 1,
+                })}{" "}
                 {renderLine(variation, variationPath, false)})
               </div>,
             );
           }
           parts.push(
             <div class="variation-group">
+              {/*
+                A pointer affordance, not the group's ARIA owner. `aria-expanded` lives on the
+                mainline tree item instead: this toggle is tabIndex -1 and role button, so arrow
+                traversal never lands on it and a tree item with variations would announce nothing
+                about its expanded state. Its own label already states show-versus-hide, so it
+                needs no second copy of the state. `data-branch-path` is for test targeting, the
+                same split `data-move-path` already makes on the tree items.
+              */}
               <button
                 class="collapse-toggle"
                 type="button"
                 tabIndex={-1}
+                data-branch-path={branchPath.join(",")}
                 aria-label={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
-                aria-expanded={!isCollapsed}
-                aria-controls={groupId(branchPath)}
                 title={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
                 onClick={(event) => {
                   event.stopPropagation();
