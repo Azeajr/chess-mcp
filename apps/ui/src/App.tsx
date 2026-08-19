@@ -13,6 +13,7 @@ import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
 import { actions } from "./store/game";
+import { backgroundSuspended, dispatchShortcut, registerShortcut } from "./store/shortcuts";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
 import {
@@ -55,33 +56,49 @@ export default function App() {
       await restoreStrategicFitTrainingPerformance();
       void restoreLastFile();
     })();
+    // Registrations rather than an inline chain: an overlay suspends every global shortcut by
+    // pushing a scope, so "is a modal open" is asked in one place instead of re-derived per key.
+    // Cmd/Ctrl+S saves even from a text field (nothing else claims it). Everything else must NOT
+    // fire while typing — Ctrl+Z especially: undo() deletes a leaf node, so hijacking the
+    // text-edit undo would silently mutate the repertoire.
+    const disposeShortcuts = [
+      registerShortcut({
+        id: "document.save",
+        key: "s",
+        allowInTextFields: true,
+        handler: () => {
+          void saveFile();
+        },
+      }),
+      registerShortcut({
+        id: "document.undo",
+        key: "z",
+        handler: () => {
+          actions.undo();
+        },
+      }),
+      registerShortcut({
+        id: "position.back",
+        key: "ArrowLeft",
+        handler: () => {
+          actions.back();
+        },
+      }),
+      registerShortcut({
+        id: "position.forward",
+        key: "ArrowRight",
+        handler: () => {
+          actions.forward();
+        },
+      }),
+    ];
     const onKey = (e: KeyboardEvent) => {
-      if (strategicFitWorkspaceOpen()) return;
-      // Cmd/Ctrl+S saves even from a text field (nothing else claims it). Everything below must NOT
-      // fire while typing: Ctrl+Z especially — undo() deletes a leaf node, so hijacking the text-edit
-      // undo would silently mutate the repertoire.
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void saveFile();
-        return;
-      }
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      )
-        return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        actions.undo();
-        return;
-      }
-      if (e.key === "ArrowLeft") actions.back();
-      else if (e.key === "ArrowRight") actions.forward();
+      dispatchShortcut(e);
     };
     window.addEventListener("keydown", onKey);
     onCleanup(() => {
       window.removeEventListener("keydown", onKey);
+      for (const dispose of disposeShortcuts) dispose();
     });
   });
 
@@ -89,8 +106,8 @@ export default function App() {
     <div class="app">
       <div
         class="app-main"
-        inert={strategicFitWorkspaceOpen()}
-        aria-hidden={strategicFitWorkspaceOpen() ? "true" : undefined}
+        inert={backgroundSuspended()}
+        aria-hidden={backgroundSuspended() ? "true" : undefined}
       >
         <TopBar />
         <Show when={strategicFitMetadataWarning()}>
@@ -171,10 +188,13 @@ export default function App() {
             <ChatPanel />
           </div>
         </div>
-        <SettingsDrawer />
-        <PromotionModal />
-        <ColorPickerModal />
       </div>
+      {/* Overlays render outside .app-main because they make it inert: an overlay nested inside
+          the region it suspends would be inert itself, and disappear from the accessibility tree
+          the moment it opened. */}
+      <SettingsDrawer />
+      <PromotionModal />
+      <ColorPickerModal />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>

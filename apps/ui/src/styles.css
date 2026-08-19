@@ -2072,6 +2072,53 @@ img,
 }
 
 /* Settings drawer */
+.ui-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: var(--z-dialog);
+}
+.ui-dialog-backdrop-drawer {
+  justify-content: flex-end;
+}
+.ui-dialog {
+  position: relative;
+  max-width: min(90vw, 36rem);
+  max-height: min(90vh, 48rem);
+  overflow: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 24px 80px #000b;
+}
+.ui-dialog-drawer {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  max-height: none;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ui-dialog-compact {
+  padding: 1rem;
+}
+.ui-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+}
+.ui-dialog-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-xs);
+}
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -2090,6 +2137,26 @@ img,
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.ui-dialog-drawer.drawer {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+}
+/* The drawer's own close affordance: the Dialog primitive renders a title, never a close button,
+   because not every dialog wants one in the same place. */
+.drawer-close {
+  align-self: flex-end;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: var(--space-1);
+}
+.drawer-close:hover {
+  color: var(--text);
 }
 .drawer-head {
   display: flex;
@@ -2151,6 +2218,19 @@ img,
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.6rem;
+}
+.ui-dialog-compact.promo {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem;
+}
+.ui-dialog-compact.promo .ui-dialog-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .promo-piece {
   width: 64px;
@@ -2216,6 +2296,13 @@ img,
   flex-direction: column;
   gap: 1rem;
   min-width: 260px;
+}
+.ui-dialog-compact.color-picker-modal {
+  min-width: 260px;
+  padding: 1.4rem 1.6rem;
+}
+.ui-dialog-compact.color-picker-modal .ui-dialog-title {
+  font-size: 1rem;
 }
 .color-picker-title {
   font-weight: 600;

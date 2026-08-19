@@ -51,6 +51,7 @@ import {
 } from "../store/ui";
 import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
 import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
+import { pushShortcutScope } from "../store/shortcuts";
 import PanelHeader from "./primitives/PanelHeader";
 import RegionState from "./primitives/RegionState";
 import Status from "./primitives/Status";
@@ -414,9 +415,14 @@ export default function StrategicFitWorkspace() {
     window.addEventListener("beforeprint", beforePrint);
     window.addEventListener("afterprint", afterPrint);
 
+    // The workspace is not on the Dialog primitive yet (WP-033 migrates it), but it is an overlay,
+    // so it declares itself one: the scope suspends global shortcuts and holds .app-main inert,
+    // replacing App.tsx's former strategicFitWorkspaceOpen() early return.
+    const disposeScope = pushShortcutScope("workspace");
     document.addEventListener("keydown", trapFocus, true);
     closeButton.focus();
     onCleanup(() => {
+      disposeScope();
       document.removeEventListener("keydown", trapFocus, true);
       compactQuery.removeEventListener("change", updateStageSemantics);
       window.removeEventListener("beforeprint", beforePrint);
@@ -453,6 +459,7 @@ export default function StrategicFitWorkspace() {
         class="strategic-fit-workspace"
         role="dialog"
         aria-modal="true"
+        inert={replacementLabSnapshot().open}
         aria-hidden={replacementLabSnapshot().open ? "true" : undefined}
         aria-labelledby="strategic-fit-workspace-title"
         aria-describedby="strategic-fit-workspace-description"

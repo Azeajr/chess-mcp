@@ -2527,6 +2527,10 @@ test("Replacement Lab opens only from an actionable current finding and closes w
 
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
   await expect(lab).toBeVisible();
+  // WP-007 AC-7 (UX-045): the workspace behind the Lab was aria-hidden but still interactive.
+  const workspace = page.locator(".strategic-fit-workspace");
+  await expect(workspace).toHaveAttribute("aria-hidden", "true");
+  await expect(workspace).toHaveJSProperty("inert", true);
   await expect(lab).toContainText("Different center plan");
   await expect(lab).toContainText("Findingfinding:01");
   await expect(lab).toContainText("Semantic findingsemantic:finding:01");
