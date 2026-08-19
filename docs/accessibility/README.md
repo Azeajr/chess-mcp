@@ -104,15 +104,21 @@ ones. These are UX findings unrelated to AG-1 itself; worth a look, not yet acti
 jobs are written against Guidepup's documented API
 (github.com/guidepup/guidepup, github.com/guidepup/guidepup-playwright,
 github.com/guidepup/setup-action — all fetched and confirmed real during design, not recalled
-from training data) but have **never executed**. This machine has no Windows or macOS to test on,
-and Docker cannot substitute — NVDA and VoiceOver hook into their OS's real UI Automation /
-Accessibility API; there is no Linux-container equivalent. `windows-latest` and `macos-latest`
-GitHub-hosted runners are real VMs / real Apple hardware, not containers.
+from training data). This machine has no Windows or macOS to test on, and Docker cannot
+substitute — NVDA and VoiceOver hook into their OS's real UI Automation / Accessibility API;
+there is no Linux-container equivalent. `windows-latest` and `macos-latest` GitHub-hosted
+runners are real VMs / real Apple hardware, not containers.
 
-The workflow is `workflow_dispatch`-only — nothing runs automatically. First real signal comes
-from triggering it manually and reading the actual `at-nvda`/`at-voiceover`/`merge-report` job
-output. Until that happens, treat those two jobs as designed-not-proven. **Do not promote this
-workflow to run on every `pull_request` before that first manual run has been inspected.**
+The workflow is `workflow_dispatch`-only — nothing runs automatically. **First triggered run**
+(run 32205343813): `browser-evidence` and `merge-report` passed; `at-nvda` and `at-voiceover`
+both failed with the same root cause — `guidepup/setup-action` only performs the OS-level
+`@guidepup/setup setup` half of Guidepup's own two-step setup. It does not run the
+project-scoped `@guidepup/setup install {nvda,voiceover}` half (screen-reader assets matched to
+this project's installed `@guidepup/guidepup` version), which both jobs now run as an explicit
+step, added directly in response to that run's actual error output rather than guessed in
+advance. Re-triggering after that fix is the next real signal. Until a clean run has been
+inspected, treat those two jobs as designed-not-proven. **Do not promote this workflow to run
+on every `pull_request` before that has happened.**
 
 ## AG-1 status
 

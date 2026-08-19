@@ -65,6 +65,11 @@ jobs:
       - run: pnpm --filter @chess-mcp/chess-tools build
       - run: pnpm exec playwright install chromium
         working-directory: apps/ui
+      # guidepup/setup-action only configures the OS (the `@guidepup/setup setup` half). It does
+      # not install the project-scoped screen reader assets — the run that failed here without
+      # this step errored "NVDA is not installed" and named this exact missing command.
+      - run: npx @guidepup/setup install nvda
+        working-directory: apps/ui
       - name: Capture NVDA evidence (headed — NVDA reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project chromium
@@ -93,6 +98,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @chess-mcp/chess-tools build
       - run: pnpm exec playwright install webkit
+        working-directory: apps/ui
+      # Same missing step as at-nvda — the actual run here failed with "Failed to mount Guidepup
+      # preferences" and named this exact command as the fix.
+      - run: npx @guidepup/setup install voiceover
         working-directory: apps/ui
       - name: Capture VoiceOver evidence (headed — VoiceOver reads the real screen)
         working-directory: apps/ui
