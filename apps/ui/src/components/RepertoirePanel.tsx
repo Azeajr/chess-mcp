@@ -203,7 +203,16 @@ export default function RepertoirePanel() {
           variant="primary"
           type="button"
           class="strategic-fit-open-button"
-          onClick={() => setStrategicFitWorkspaceOpen(true)}
+          onClick={(event) => {
+            // macOS browsers do not give a <button> DOM focus when it is clicked — a platform
+            // convention WebKit and Chrome both follow, and one Linux CI never exercises. Without
+            // this the workspace captured document.body as its return target, so closing the
+            // dialog restored focus to nothing: reproduced on every real macOS run (32225391111,
+            // 32226854386, 32228019888), never once on Linux. Focusing here makes the opener a
+            // real return target on every platform.
+            event.currentTarget.focus();
+            setStrategicFitWorkspaceOpen(true);
+          }}
         >
           {STRATEGIC_FIT_ENTRY.action}
         </Button>

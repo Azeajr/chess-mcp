@@ -352,7 +352,10 @@ export default function StrategicFitWorkspace() {
   };
 
   onMount(() => {
-    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // document.body is not a focus target — restoring to it is indistinguishable from restoring
+    // nothing, and accepting it here is what silently hid the missing opener focus above.
+    const opener = document.activeElement;
+    returnFocus = opener instanceof HTMLElement && opener !== document.body ? opener : null;
     const compactQuery = window.matchMedia("(max-width: 820px)");
     const updateStageSemantics = () => setUsesStageTabs(compactQuery.matches);
     updateStageSemantics();
