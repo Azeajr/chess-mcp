@@ -97,6 +97,7 @@ export default function SettingsDrawer() {
           <span class="ui-field-label">Recovery</span>
           <button
             type="button"
+            class="settings-recover"
             onClick={() => {
               setSettingsOpen(false);
               setRecoverDialogOpen(true);

@@ -2210,6 +2210,28 @@ img,
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* Buttons in these three places carry no class that paints them, and this app has no base rule
+   for a bare <button> — every other one is reached by a scoped selector like `.topbar button`.
+   Without a background they fall through to the user agent's own: WebKit paints #c0c0c0, which
+   against the dialog's inherited text is 1.82:1 where WCAG AA requires 4.5:1. Measured on all
+   five affected buttons before and after. The danger and confirm variants below re-style on top
+   of this and stay unaffected — they are more specific. */
+.document-close-actions button,
+.recover-item button,
+.settings-recover {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-control);
+  padding: 0.35rem 0.7rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.document-close-actions button:hover,
+.recover-item button:hover,
+.settings-recover:hover {
+  border-color: var(--accent);
+}
 .document-close-actions button:last-child {
   border-color: var(--status-danger-border);
   background: var(--status-danger-surface);
