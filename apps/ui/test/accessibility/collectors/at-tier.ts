@@ -8,11 +8,7 @@
  * what turned that class of failure into something diagnosable.
  */
 import type { AtObservation, InfrastructureLimitation } from "../evidence-schema";
-import {
-  currentPlatformSupports,
-  infrastructureLimitationFor,
-  type AtRunnerId,
-} from "./at-runner";
+import { currentPlatformSupports, infrastructureLimitationFor, type AtRunnerId } from "./at-runner";
 
 const AT_RUNNERS: readonly AtRunnerId[] = ["nvda", "voiceover"];
 
