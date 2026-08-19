@@ -89,7 +89,13 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
+      # record: true screen-records the setup flow to ./recordings/ — a diagnostic safety net.
+      # Runs 4-7 each produced a different, still-wrong VoiceOver utterance from text alone;
+      # if run 8 (macOSActivate/bringToFront reordered — see collectors/at-runner.ts) is still
+      # wrong, this recording is the next real signal instead of another guess from text.
       - uses: guidepup/setup-action@0.21.0
+        with:
+          record: true
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -114,6 +120,12 @@ jobs:
           name: a11y-evidence-voiceover
           path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
           if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-voiceover-setup-recording
+          path: recordings/
+          if-no-files-found: ignore
 
   merge-report:
     name: Merge evidence and compute verdict

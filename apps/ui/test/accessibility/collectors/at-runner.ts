@@ -25,8 +25,21 @@
  * github.com/guidepup/guidepup-playwright/blob/main/src/voiceOverTest.ts, not guessed.
  * "Playwright" is that same file's applicationNameMap.webkit value — the real macOS application
  * name Playwright's bundled WebKit build registers as, not a guess.
+ *
+ * Run 32209308823: VoiceOver moved from "Desktop group has keyboard focus" to "VoiceOver Settings
+ * activity" — progress, but still not page content, and keyboardTraces[3] reproduced the same
+ * Tab-loses-focus anomaly a 4th consecutive time. Root cause found by re-reading
+ * navigateToWebContent() call order, not guessed: the reference calls macOSActivate (app-level
+ * activation) THEN page.bringToFront() (tab-level, within that now-frontmost app) — in that order,
+ * back-to-back. This module previously only did macOSActivate; ag-1-dialog.ts called
+ * page.bringToFront() separately, earlier, before the AT loop even started. Net effect: the two
+ * calls ran in reverse order with an unrelated capture step (browser-tier evidence collection)
+ * between them, giving the OS time to refocus something else — plausibly VoiceOver's own Settings
+ * UI — before the AT command actually ran. Fixed by taking page here and issuing both calls
+ * back-to-back, in the reference's order, immediately before the focus-report command.
  */
 import type { AtObservation, InfrastructureLimitation } from "../evidence-schema";
+import type { Page } from "playwright/test";
 
 export type AtRunnerId = "nvda" | "voiceover";
 
@@ -63,7 +76,10 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
  * be (e.g. the Dialog primitive's own initial-focus behavior) before calling this — this function
  * only asks the AT to report focus, it does not set it.
  */
-export async function captureAtObservation(runner: AtRunnerId): Promise<AtObservation> {
+export async function captureAtObservation(
+  runner: AtRunnerId,
+  page?: Page,
+): Promise<AtObservation> {
   if (!currentPlatformSupports(runner)) {
     throw new Error(
       `captureAtObservation(${runner}) called on ${process.platform}; check currentPlatformSupports() first.`,
@@ -85,8 +101,10 @@ export async function captureAtObservation(runner: AtRunnerId): Promise<AtObserv
     await screenReader.start();
     try {
       if (runner === "voiceover") {
-        // The one real fix for "Desktop group has keyboard focus" — see module doc comment.
+        // App-level activation, THEN tab-level bringToFront, back-to-back, right before the
+        // command — reference order, see module doc comment.
         await macOSActivate(WEBKIT_MACOS_APPLICATION_NAME);
+        await page?.bringToFront();
       }
       const commands = screenReader.keyboardCommands as Record<
         string,

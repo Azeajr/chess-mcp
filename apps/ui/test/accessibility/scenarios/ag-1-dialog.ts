@@ -52,18 +52,21 @@ export async function runAg1Scenario(
   // Runs 32206750401/32207555004 also tried forcing focus with a raw click on the dialog's
   // heading, on the theory that OS window focus was the problem. Run 32208455039 disproved that
   // theory directly: with the click already removed, the exact same webkit keyboard-trace
-  // anomaly (Tab losing focus) reproduced a third time, and VoiceOver's own real, correct report
-  // ("Desktop group has keyboard focus" via describeItemWithKeyboardFocus) named the actual cause
-  // — the browser window itself never received real OS-level focus on that macOS runner. Real
-  // fix for that lives in collectors/at-runner.ts (macOSActivate). page.bringToFront() here is
-  // the Playwright-side half of the same fix — see @guidepup/guidepup-playwright's own
-  // navigateToWebContent(), which calls both, in that order.
+  // anomaly (Tab losing focus) reproduced a third time.
   //
-  // Separately: the Dialog primitive sets its own initial focus inside a requestAnimationFrame
-  // callback, which dialog.waitFor({ state: "visible" }) does not guarantee has already run —
-  // wait explicitly for real DOM focus to land before asking the AT to report it.
+  // page.bringToFront() used to happen here, before the AT loop. Run 32209308823 found that wrong:
+  // it put daylight (a whole browser-tier capture step) between it and at-runner.ts's
+  // macOSActivate call, in the wrong order versus @guidepup/guidepup-playwright's
+  // navigateToWebContent() reference (macOSActivate THEN bringToFront, back-to-back). Both calls
+  // now happen together inside captureAtObservation, right before the AT command — see
+  // collectors/at-runner.ts.
+  //
+  // The Dialog primitive sets its own initial focus inside a requestAnimationFrame callback,
+  // which dialog.waitFor({ state: "visible" }) does not guarantee has already run — wait
+  // explicitly for real DOM focus to land before asking the AT to report it. This check is
+  // OS-window-focus-independent (document.activeElement tracks DOM focus regardless of whether
+  // the window has real OS focus), so it stays here rather than moving with bringToFront.
   if (options.attemptAtCapture) {
-    await page.bringToFront();
     await page.waitForFunction(
       () => document.activeElement !== null && document.activeElement !== document.body,
     );
@@ -79,7 +82,7 @@ export async function runAg1Scenario(
       }
       // Real capture path — see collectors/at-runner.ts module doc for its verification status.
       const { captureAtObservation } = await import("../collectors/at-runner");
-      atObservations.push(await captureAtObservation(runner));
+      atObservations.push(await captureAtObservation(runner, page));
     }
   } else {
     for (const runner of AT_RUNNERS)
