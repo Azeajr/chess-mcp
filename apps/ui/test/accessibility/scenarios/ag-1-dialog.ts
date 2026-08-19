@@ -93,7 +93,12 @@ export async function runAg1Scenario(
             await dialog.waitFor({ state: "detached" });
           },
           reopen: async () => {
-            await opener.click();
+            // Keyboard activation, not a synthetic mouse click. Closing restores focus to the
+            // opener (real NVDA confirmed it in run 32231445756: "Open Strategic Fit, button,
+            // focused"), so pressing Enter is both what a screen-reader user actually does and
+            // the activation path most likely to raise the focus-change event an AT announces.
+            await opener.focus();
+            await page.keyboard.press("Enter");
             await dialog.waitFor({ state: "visible" });
           },
         })),

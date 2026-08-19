@@ -81,8 +81,11 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
   };
 }
 
-/** How long to let a screen reader finish speaking before reading the log it spoke into. */
+/** How long to let a screen reader finish responding to a command before reading its log. */
 const SETTLE_MS = 1500;
+/** How long to wait for an unprompted announcement, which has no completion signal to await. */
+const SPEECH_TIMEOUT_MS = 8000;
+const SETTLE_POLL_MS = 250;
 
 /**
  * The caller's dialog, expressed as the two real user actions this session needs to drive. Both
@@ -151,13 +154,32 @@ export async function captureAtObservations(
       const focusCommand = commands[focusCommandName];
       if (!focusCommand) throw new Error(`Unknown ${runner} keyboard command: ${focusCommandName}`);
 
+      // Re-assert app focus before every command, not once per session. Run 32231445756 showed
+      // VoiceOver falling back to "VoiceOver Settings activity" — the exact symptom run
+      // 32209308823 diagnosed — because this session is long enough, with real page interactions
+      // in it, for macOS to hand focus back to VoiceOver's own UI between commands. Activating
+      // once at the top was sufficient only while the session was a single command long.
+      const focusBrowser = async () => {
+        if (runner !== "voiceover") return;
+        await macOSActivate(WEBKIT_MACOS_APPLICATION_NAME);
+        await page?.bringToFront();
+      };
+
       // spokenPhraseLog() is cumulative from start(), so each claim reads only the phrases spoken
       // since the previous one. Without this every observation would restate the whole session
       // and "did the screen reader say X here" would collapse into "did it ever say X".
       let spokenSoFar = 0;
-      const since = async (): Promise<readonly string[]> => {
-        await page?.waitForTimeout(SETTLE_MS);
-        const log = await screenReader.spokenPhraseLog();
+      const since = async ({ awaitSpeech = false } = {}): Promise<readonly string[]> => {
+        // An unprompted announcement has no completion signal to await, so poll for the log to
+        // grow rather than sleeping a fixed guess. Run 32231445756 read "(nothing)" from both
+        // screen readers after a fixed 1.5s — too short to distinguish "said nothing" from
+        // "had not finished saying it yet", which are very different findings.
+        const deadline = Date.now() + (awaitSpeech ? SPEECH_TIMEOUT_MS : SETTLE_MS);
+        let log = await screenReader.spokenPhraseLog();
+        while (Date.now() < deadline && (!awaitSpeech || log.length === spokenSoFar)) {
+          await page?.waitForTimeout(SETTLE_POLL_MS);
+          log = await screenReader.spokenPhraseLog();
+        }
         const fresh = log.slice(spokenSoFar);
         spokenSoFar = log.length;
         return fresh;
@@ -179,20 +201,27 @@ export async function captureAtObservations(
 
       // Discard whatever the screen reader said while starting up — its own greeting, the desktop,
       // the browser chrome. None of it is evidence about this dialog.
+      await focusBrowser();
       await since();
 
       await screenReader.perform(focusCommand);
       const focusReport = observe("focus-report", focusCommandName, await since());
 
       await steps.close();
+      await focusBrowser();
       await screenReader.perform(focusCommand);
       const focusReturn = observe("focus-return", focusCommandName, await since());
 
+      await focusBrowser();
       await steps.reopen();
       // No command here: the entry announcement is spoken by the screen reader on its own when
       // focus enters the dialog. Asking it to report focus instead would capture the answer to a
       // different question.
-      const announcement = observe("dialog-announcement", "(unprompted on open)", await since());
+      const announcement = observe(
+        "dialog-announcement",
+        "(unprompted on open)",
+        await since({ awaitSpeech: true }),
+      );
 
       return [announcement, focusReport, focusReturn];
     } finally {
