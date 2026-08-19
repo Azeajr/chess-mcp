@@ -656,7 +656,8 @@
     },
     "WP-011": {
       "dependencies": ["WP-000", "WP-006"],
-      "blockingGates": ["DV-2", "AG-3"],
+      "blockingGates": ["DV-2"],
+      "completionGates": ["AG-3"],
       "ownedAuditFindings": ["UX-004", "UX-014"],
       "primaryFiles": [
         "apps/ui/src/components/RepertoirePanel.tsx",
