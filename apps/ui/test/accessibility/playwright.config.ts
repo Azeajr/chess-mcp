@@ -20,10 +20,13 @@ const headed = process.env.A11Y_ATTEMPT_AT === "1";
 // inherently slower than a scripted DOM check — github.com/guidepup/guidepup-playwright's own
 // examples/playwright-voiceover/webkit.config.ts (a real, working reference, not a guess) uses a
 // 5-minute timeout for exactly this reason. Matching it here rather than the 90s this repo
-// guessed first, which was itself a guess made without that reference in hand.
+// guessed first, which was itself a guess made without that reference in hand. Raised to 8
+// minutes once each AT job began covering two dialog scenarios rather than one: run 32238998739's
+// VoiceOver worker timed out mid-session, and a session cut off partway leaves the next one
+// reading a screen reader that never finished the last thing it was asked to do.
 export default defineConfig({
   testDir: ".",
-  timeout: headed ? 5 * 60_000 : 30_000,
+  timeout: headed ? 8 * 60_000 : 30_000,
   fullyParallel: false,
   use: { baseURL: "http://127.0.0.1:4173", headless: !headed },
   projects: [

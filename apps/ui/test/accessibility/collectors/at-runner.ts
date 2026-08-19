@@ -204,15 +204,18 @@ export async function captureAtObservations(
       // dialog remounts and sets its own initial focus, handing the trace a clean, identical
       // starting state everywhere.
       await focusBrowser();
-      const sweep: string[] = [];
       for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
         await screenReader.next();
-        sweep.push(...(await since()));
       }
+      // Drained once after the whole sweep rather than after each step. The claim is about where
+      // the cursor got to across the sweep, not about any individual step, and each drain costs a
+      // full settle — twelve of them pushed the VoiceOver worker past its test timeout in run
+      // 32238998739. Each next() is a guidepup action, so every step's speech is already in the
+      // log by the time this reads it.
       const background = observe(
         "background-unreachable",
         `next() x${VIRTUAL_CURSOR_STEPS}`,
-        sweep,
+        await since(),
       );
 
       await focusBrowser();
