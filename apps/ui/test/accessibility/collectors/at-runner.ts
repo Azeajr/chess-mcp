@@ -39,17 +39,17 @@
  * back-to-back, in the reference's order, immediately before the focus-report command.
  *
  * Run 32210865750: the ordering fix above worked — VoiceOver now reports real page content
- * ("Return to repertoire button has keyboard focus", matching NVDA's real target). A separate,
- * still-unexplained bug remains: the scenario's keyboard trace, which runs immediately after this
- * function returns, shows a real Tab press losing DOM focus mid-sequence — reproduced identically
- * on 5 consecutive runs (4-8), only when this function's VoiceOver path has just run beforehand,
- * never on the same scenario's headless capture. Untested hypothesis: screenReader.stop() tears
- * down VoiceOver's live hook into the macOS Accessibility API, and that teardown is not
- * necessarily complete by the time this function returns — the caller's next interaction (the
- * trace's first Tab press) could land while the OS AX layer is still unwinding VoiceOver's
- * observers. SETTLE_DELAY_MS below tests exactly that: if the trace anomaly stops reproducing
- * once callers wait past this delay, that confirms the theory; if it still reproduces, this delay
- * should be removed and the real cause looked for elsewhere (not left in speculatively).
+ * ("Return to repertoire button has keyboard focus", matching NVDA's real target).
+ *
+ * That run also showed a separate bug: the scenario's keyboard trace, run immediately after this
+ * function returns, showed a real Tab press losing DOM focus mid-sequence. Tried and disproved:
+ * screenReader.stop() leaving the macOS Accessibility API mid-teardown when the trace's first Tab
+ * press landed (run 32212195952 added a 1s settle delay after stop() — anomaly reproduced
+ * identically, 6th consecutive time, delay removed). Root cause found by reading the dialog's own
+ * focus-trap handler (StrategicFitWorkspace.tsx): it only called .focus() explicitly at the wrap
+ * boundary, relying on native Tab traversal in between — and macOS Safari's default "Full Keyboard
+ * Access" setting (off by default) makes native Tab skip every <button> entirely. Nothing to do
+ * with this module or VoiceOver; fixed in the dialog's own trap handler instead.
  */
 import type { AtObservation, InfrastructureLimitation } from "../evidence-schema";
 import type { Page } from "playwright/test";
@@ -67,9 +67,6 @@ const FOCUS_COMMAND: Record<AtRunnerId, string> = {
 };
 
 const WEBKIT_MACOS_APPLICATION_NAME = "Playwright";
-
-// See module doc comment (run 32210865750) — untested hypothesis under test, not a confirmed fix.
-const VOICEOVER_TEARDOWN_SETTLE_MS = 1_000;
 
 export function currentPlatformSupports(runner: AtRunnerId): boolean {
   return process.platform === PLATFORM_REQUIREMENT[runner];
@@ -132,9 +129,6 @@ export async function captureAtObservation(
       return await screenReader.spokenPhraseLog();
     } finally {
       await screenReader.stop();
-      if (runner === "voiceover") {
-        await new Promise((resolve) => setTimeout(resolve, VOICEOVER_TEARDOWN_SETTLE_MS));
-      }
     }
   }
 

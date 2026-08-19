@@ -73,6 +73,19 @@ const FOCUSABLE = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
+/**
+ * A closed `<details>` still lays its content out: Chromium puts that content in a
+ * `content-visibility: hidden` subtree whose descendants keep non-empty client rects, so a
+ * rect-based visibility test alone leaves every collapsed "Advanced preferences" control in the
+ * focus-trap candidate list. `.focus()` silently no-ops on them, which parked keyboard focus on
+ * the summary permanently. Only the summary itself is reachable while its details is closed.
+ */
+const insideCollapsedDetails = (element: HTMLElement) => {
+  const collapsed = element.closest("details:not([open])");
+  if (collapsed === null) return false;
+  return !(element.tagName === "SUMMARY" && element.parentElement === collapsed);
+};
+
 export default function StrategicFitWorkspace() {
   let dialog!: HTMLElement;
   let closeButton!: HTMLButtonElement;
@@ -281,11 +294,35 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
     });
   };
-  const focusable = () =>
-    [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+  const focusable = () => {
+    const raw = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
       (element) =>
-        element.getClientRects().length > 0 && element.getAttribute("aria-hidden") !== "true",
+        element.getClientRects().length > 0 &&
+        element.getAttribute("aria-hidden") !== "true" &&
+        // Roving-tabindex members (the unselected stage tabs) match `button:not([disabled])` but
+        // are deliberately not Tab stops — arrow keys move within the tablist instead.
+        element.getAttribute("tabindex") !== "-1" &&
+        !insideCollapsedDetails(element),
     );
+    // Native radio-group semantics: same `name` is one Tab stop (the checked radio, or the first
+    // if none checked) — arrow keys, not Tab, move the selection within the group. Explicitly
+    // driving Tab over every individual radio broke this (Tab from the header close button
+    // stopped landing on the checked "Balanced" radio) — the trap now has to preserve the same
+    // grouping browsers already give it for free.
+    const groupRepresentative = new Map<string, HTMLInputElement>();
+    for (const element of raw) {
+      if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name)
+        continue;
+      if (element.checked || !groupRepresentative.has(element.name)) {
+        groupRepresentative.set(element.name, element);
+      }
+    }
+    return raw.filter((element) => {
+      if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name)
+        return true;
+      return groupRepresentative.get(element.name) === element;
+    });
+  };
   const selectStageFromKeyboard = (
     event: KeyboardEvent,
     currentStage: StrategicFitWorkspaceStage,
@@ -344,16 +381,24 @@ export default function StrategicFitWorkspace() {
         dialog.focus();
         return;
       }
-      const first = candidates.at(0);
-      if (first === undefined) return;
-      const last = candidates.at(-1) ?? first;
+      // Always move focus explicitly, not just at the wrap boundary. macOS Safari's default
+      // "Full Keyboard Access" setting (off by default — most Mac users have it off) makes
+      // native Tab skip every <button> entirely, jumping straight from the last text-like
+      // control to nothing tabbable; only JS-driven .focus() calls bypass that restriction.
+      // Real accessibility bug, not a test artifact: confirmed via real VoiceOver/macOS CI runs
+      // (guidepup, real macOS runner) reproducing an identical Tab-loses-focus pattern every
+      // time it ran on real macOS WebKit, never once on headless Linux WebKit — same dialog,
+      // same DOM, only the OS's native Tab semantics differed.
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || !dialog.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
-        event.preventDefault();
-        first.focus();
+      const activeIndex = candidates.findIndex((element) => element === active);
+      event.preventDefault();
+      if (event.shiftKey) {
+        const prevIndex = activeIndex <= 0 ? candidates.length - 1 : activeIndex - 1;
+        candidates[prevIndex]?.focus();
+      } else {
+        const nextIndex =
+          activeIndex === -1 || activeIndex === candidates.length - 1 ? 0 : activeIndex + 1;
+        candidates[nextIndex]?.focus();
       }
     };
 

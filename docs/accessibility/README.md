@@ -7,8 +7,9 @@ substitute for it — so AG-1 can be decided from captured evidence instead of a
 
 **Status as of this writing:** the deterministic browser tier is proven, real, and passing. The
 AT tier now produces real, correct evidence from both NVDA and VoiceOver (run 32210865750) — see
-"What's unverified" below for how each got there. AG-1 itself is **not yet resolved**: a separate,
-still-open keyboard-trace bug keeps the merged verdict at `confirmed-failure`.
+"What's unverified" below for how each got there, including a real keyboard-accessibility bug the
+pipeline found and that has now been fixed in the dialog itself. AG-1 status: pending one more
+triggered run to confirm the fix against real evidence.
 
 ## Architecture
 
@@ -136,25 +137,48 @@ implementation); and finally the fix landed in the wrong place and the wrong ord
 wrong. Moving both calls together into `captureAtObservation`, in the reference's order,
 immediately before the AT command, is what finally produced the correct observation.
 
-**One separate, still-open bug**: `keyboardTrace[3]` (webkit, captured by the `at-voiceover` job)
-shows a real `Tab` press losing DOM focus (`activeElementAfter: None`) mid-sequence, reproduced
-identically across five consecutive runs (4 through 8) and unaffected by any of the AT-activation
-fixes above. It never reproduces on the same scenario's headless webkit capture
-(`browser-evidence`, always clean). This makes `overallStatus: confirmed-failure` on every run so
-far despite both AT observations now being correct — the two problems are independent. Leading
-hypothesis, not yet confirmed: `captureAtObservation` calls `screenReader.stop()` on VoiceOver
-immediately before the keyboard trace's first `Tab` press runs on the same page/window; stopping a
-live screen reader is not necessarily instantaneous at the macOS Accessibility API layer, and the
-trace's `Tab` presses may be landing during that teardown window. Not yet tested. The
-`guidepup/setup-action` `record: true` diagnostic was added to `at-voiceover` in case this needed
-visual inspection, but only records the _setup_ step, not the later test run where this anomaly
-actually happens — it produced no output and isn't useful for this specific bug. Until this is
-fixed, `at-voiceover`'s own AT observation is trustworthy but the merged verdict for this scenario
-will keep failing on this unrelated keyboard-trace finding.
+**Found and fixed: a real accessibility bug in the dialog itself**, not a pipeline defect.
+`keyboardTrace[3]` (webkit, captured by the `at-voiceover` job) showed a real `Tab` press losing
+DOM focus (`activeElementAfter: None`) mid-sequence, reproduced identically across six consecutive
+runs (4 through 9) and unaffected by every AT-activation fix above, including a tested-and-rejected
+teardown-race delay (run 9, `VOICEOVER_TEARDOWN_SETTLE_MS` — 6th identical reproduction, removed).
+It never reproduced on the same scenario's headless webkit capture (`browser-evidence`, always
+clean) — the one real clue: same DOM, same browser engine family, only the OS's native Tab
+semantics differed between headless Linux WebKit and real macOS WebKit.
 
-Until this keyboard-trace bug is fixed, treat the workflow's overall verdict as failing for a real,
-understood reason, not a pipeline defect. **Do not promote this workflow to run on every
-`pull_request` before that has happened.**
+Root cause, found by reading `StrategicFitWorkspace.tsx`'s own focus-trap `keydown` handler rather
+than guessed: it only called `.focus()` explicitly at the wrap boundary (`active === first` /
+`active === last`), relying on the browser's native Tab traversal for every press in between.
+macOS Safari's default "Full Keyboard Access" setting — off by default on a fresh macOS install,
+including GitHub's `macos-latest` runners — makes native Tab skip `<button>` elements entirely,
+only stopping on text fields and lists. Real Mac users with default settings would hit this exact
+bug: Tab from "Advanced preferences" would jump clean over "Skip for now" and the profile submit
+button, landing nowhere. Fixed by making the trap handler always move focus explicitly by
+computing the next/previous candidate index itself, for every `Tab` press, not just at the
+boundary — removing the dependency on native Tab semantics (and the platform inconsistency between
+them) entirely.
+
+Driving Tab explicitly also means the trap's own candidate list has to be exactly right, where
+before the browser silently corrected it. Three corrections were needed, each verified against a
+live DOM probe in the container rather than reasoned about:
+
+- **Radio groups are one Tab stop, not N.** Inputs sharing a `name` collapse to the checked radio
+  (or the first if none is checked); arrow keys, still native, move the selection within the group.
+- **A closed `<details>` still lays its content out.** Chromium keeps collapsed content in a
+  `content-visibility: hidden` subtree whose descendants report non-empty client rects, so the
+  existing rect-based visibility filter left all 16 collapsed "Advanced preferences" controls in the
+  list. `.focus()` no-ops silently on them, which parked focus on the summary permanently — every
+  further `Tab` did nothing. Only a closed `<details>`'s own `<summary>` is reachable.
+- **Roving-tabindex members are not Tab stops.** The unselected stage tabs carry `tabindex="-1"` but
+  still match `button:not([disabled])`, so they needed an explicit exclusion.
+
+This is exactly the kind of finding this pipeline exists to catch: real automated evidence
+surfaced a genuine, previously-undiscovered keyboard-accessibility bug that a spec-scoped or
+Chromium-only test suite would never have exercised.
+
+Not fixed here: `ReplacementLab.tsx` carries the same boundary-only focus trap and is therefore
+expected to have the same defect on macOS Safari. It is outside AG-1's scenario, has no AT-tier
+evidence of its own yet, and is left for a follow-up with its own verification.
 
 ## AG-1 status
 
@@ -166,11 +190,12 @@ real, correct evidence (run 32210865750): NVDA reports `'Return to repertoire, b
 VoiceOver reports `'Return to repertoire button has keyboard focus'` — the same real target, from
 two independent real screen readers on two real OSes.
 
-AG-1 is still not marked resolved in `docs/ui-ux-remediation/state.json`, because the same run's
-merged verdict is `confirmed-failure` — the separate, still-open webkit keyboard-trace bug
-described above (`A11Y-006`/`A11Y-008`). Marking AG-1 resolved requires a run whose _overall_
-verdict is clean, not just its AT-tier findings — not before, and not by redefining the gate to
-drop a real, currently-failing finding.
+AG-1 is still not marked resolved in `docs/ui-ux-remediation/state.json`. Run 32210865750's
+merged verdict was `confirmed-failure` on the webkit keyboard-trace bug described above
+(`A11Y-006`/`A11Y-008`) — since fixed in `StrategicFitWorkspace.tsx`'s focus-trap handler.
+Marking AG-1 resolved requires a fresh triggered run confirming that fix against real evidence,
+with an `overallStatus` of `confirmed-pass` — not before, and not by redefining the gate to drop
+a real, currently-failing finding.
 
 ## What this MVP is not
 

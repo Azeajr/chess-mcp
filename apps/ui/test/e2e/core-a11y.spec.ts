@@ -213,18 +213,23 @@ test("WP-006 AC-4 and AC-5 analysis text is copyable but the board is not select
     };
   }, fen);
   if (browserName !== "webkit") {
-    const copied = page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
+    // Register the listener in its own awaited evaluate: starting the round trip and pressing the
+    // key without awaiting it races, and the copy event is missed whenever the press lands first.
+    await page.evaluate(() => {
+      (window as unknown as { copiedText: Promise<string> }).copiedText = new Promise<string>(
+        (resolve) => {
           document.addEventListener(
             "copy",
             () => resolve(window.getSelection()?.toString() ?? ""),
             { once: true },
           );
-        }),
-    );
+        },
+      );
+    });
     await page.keyboard.press("ControlOrMeta+C");
-    expect(await copied).toBe(fen);
+    expect(
+      await page.evaluate(() => (window as unknown as { copiedText: Promise<string> }).copiedText),
+    ).toBe(fen);
   } else {
     expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(fen);
   }
