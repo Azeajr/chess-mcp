@@ -26,6 +26,36 @@ const insideCollapsedDetails = (element: HTMLElement) => {
   return !(element.tagName === "SUMMARY" && element.parentElement === collapsed);
 };
 
+/**
+ * macOS browsers do not give a `<button>` DOM focus when it is clicked — a platform convention
+ * WebKit and Chrome both follow. A dialog opened by pointer therefore sees `document.activeElement`
+ * as the body and has nothing to return focus to on close, which is a WCAG 2.4.3 failure that only
+ * appears on macOS. Remembering the last pointer-activated control recovers exactly the
+ * information that convention discards, without changing what the platform chooses to focus.
+ *
+ * Real evidence: run 32241021324's VoiceOver worker could not reopen the Settings dialog at all,
+ * because closing it had left focus nowhere for Enter to act on.
+ */
+let lastPointerActivated: HTMLElement | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const target = event.target;
+      lastPointerActivated =
+        target instanceof HTMLElement
+          ? target.closest<HTMLElement>("button, a[href], [tabindex]:not([tabindex='-1'])")
+          : null;
+    },
+    true,
+  );
+}
+
+/** The control a dialog should return focus to when the platform did not focus its opener. */
+export function openerFallback(): HTMLElement | null {
+  return lastPointerActivated?.isConnected === true ? lastPointerActivated : null;
+}
+
 export interface DialogProps {
   title: string;
   description?: string;
@@ -47,8 +77,10 @@ export default function Dialog(props: DialogProps) {
     // document.body is not a focus target: restoring to it is indistinguishable from restoring
     // nothing, and accepting it silently hides an opener that never took focus. macOS browsers do
     // not focus a <button> on click, so an opener that does not focus itself lands here as body.
-    const opener = document.activeElement;
-    returnFocus = opener instanceof HTMLElement && opener !== document.body ? opener : null;
+    const activeOnOpen = document.activeElement;
+    const focusedOpener =
+      activeOnOpen instanceof HTMLElement && activeOnOpen !== document.body ? activeOnOpen : null;
+    returnFocus = focusedOpener ?? openerFallback();
 
     const disposeScope = pushShortcutScope("modal");
     const focusable = () => {

@@ -52,6 +52,7 @@ import {
 import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
 import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
 import { pushShortcutScope } from "../store/shortcuts";
+import { openerFallback } from "./primitives/Dialog";
 import PanelHeader from "./primitives/PanelHeader";
 import RegionState from "./primitives/RegionState";
 import Status from "./primitives/Status";
@@ -355,8 +356,10 @@ export default function StrategicFitWorkspace() {
   onMount(() => {
     // document.body is not a focus target — restoring to it is indistinguishable from restoring
     // nothing, and accepting it here is what silently hid the missing opener focus above.
-    const opener = document.activeElement;
-    returnFocus = opener instanceof HTMLElement && opener !== document.body ? opener : null;
+    const activeOnOpen = document.activeElement;
+    const focusedOpener =
+      activeOnOpen instanceof HTMLElement && activeOnOpen !== document.body ? activeOnOpen : null;
+    returnFocus = focusedOpener ?? openerFallback();
     const compactQuery = window.matchMedia("(max-width: 820px)");
     const updateStageSemantics = () => setUsesStageTabs(compactQuery.matches);
     updateStageSemantics();
