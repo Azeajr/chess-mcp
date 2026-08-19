@@ -82,7 +82,22 @@
       }
     },
     "WP-007": {
-      "status": "in-progress"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm test:e2e:container (361 passed, 14 configured skips across Chromium, Firefox, and WebKit, zero failures)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm ux:plan-check",
+          "pnpm docs:check",
+          "apps/ui/test/shortcuts.test.ts (3 passed)"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched Playwright container: 361 passed, 14 configured skips, zero failures across all three engines. core-dialogs.spec.ts turns from a test.fixme placeholder into the real contract suite and passes for Settings, Promotion, and the Colour picker on all three browsers (9 tests).",
+        "scope": "Three defects in the salvaged implementation were fixed rather than carried: per-dialog inert save/restore that a nested dialog corrupts, replaced by a refcount that is the scope stack itself; stopPropagation on Escape, which does not stop other listeners on the same node and closed a nested dialog and its parent together; and a dead branch in matches(). Two more surfaced only by running it: the three overlays rendered inside .app-main, the element they now make inert, so each went inert and left the accessibility tree the moment it opened; and the dialog title needed to be an h1 because a dialog root is its own heading outline. AC-7's inert assertion lands beside the existing Replacement Lab test, the only place the Lab is already open.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (bc3aafe), reviewed rather than cherry-picked. That branch extracted StrategicFitWorkspace's focus trap as it then stood, which carried three macOS-only defects real VoiceOver CI evidence has since found and 85b3e2a fixed; extracting it verbatim would have shipped all three into all three overlays at once. Dialog extracts the fixed trap. A fourth macOS defect - openers that the platform never focuses on click, leaving nothing to return focus to - was found by this package's own AT evidence in run 32241021324 and fixed as a class in the primitive.",
+        "gates": "AG-1 resolved by run 32242062146 before completion was recorded, as its completion gate requires."
+      }
     },
     "WP-008": {
       "status": "not-started"
@@ -340,8 +355,18 @@
   },
   "gates": {
     "AG-1": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-19",
+        "decision": [
+          "Automated half: core-dialogs.spec.ts passes for Settings, Promotion, and the Colour picker across Chromium, Firefox, and WebKit, including basicAccessibilityViolations empty per dialog root and ArrowLeft/ArrowRight/Mod+Z inert behind each overlay.",
+          "Manual half: replaced by real screen-reader sessions rather than substituted for. Run 32242062146 scored all four claims for both NVDA on Windows and VoiceOver on macOS against the Settings dialog, a real Dialog primitive consumer.",
+          "Dialog announced with its name and as a dialog: NVDA said \"Settings, dialog\"; VoiceOver said \"Settings web dialog with 5 items Close settings button\".",
+          "Background not reachable by virtual cursor: twelve next() steps in each screen reader stayed inside the dialog and never reached the background control.",
+          "Focus returns audibly on close: NVDA said \"Settings, button, focused\"; VoiceOver said \"Settings button has keyboard focus\"."
+        ],
+        "source": "Automated evidence pipeline, apps/ui/test/accessibility. Run 32242062146: overallStatus confirmed-pass for both the ag-1-settings-dialog and ag-1-strategic-fit-dialog scenarios, 15 findings each, zero non-passing findings. Scope note recorded deliberately: the automated contract suite covers all three overlays, while the AT tier covers Settings (one of the three) plus Strategic Fit, which is the primitive's extraction source and WP-033's migration target. AG-1 asks for one NVDA and one VoiceOver session; both were run against a real consumer of the primitive."
+      }
     },
     "AG-2": {
       "status": "unresolved",
