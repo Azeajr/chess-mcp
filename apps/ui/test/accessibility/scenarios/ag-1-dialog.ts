@@ -45,20 +45,31 @@ export async function runAg1Scenario(
   const axe = [await captureAxe(page, browser)];
 
   // AT capture must happen here, while the dialog is genuinely open — not after the keyboard
-  // trace below, whose last step presses Escape and closes it. Run 32206750401 captured a real
-  // VoiceOver observation ("guidepup-voiceover-preferences-macos-26 Volume") that named neither
-  // the dialog nor any page content: with the old ordering, .next() ran against the closed-dialog
-  // state, and with no prior click into the page the AT cursor was never synced onto the web
-  // content at all — it read whatever OS-level UI (Guidepup's own preferences pane) it already
-  // happened to be on. The dialog click below forces real OS window activation and nudges the AT
-  // cursor onto page content before capture; not yet re-verified by an actual run.
+  // trace below, whose last step presses Escape and closes it (run 32206750401's real VoiceOver
+  // observation named neither the dialog nor any page content, because by the old ordering the
+  // dialog was already closed by the time it ran).
+  //
+  // Runs 32206750401/32207555004 also tried forcing focus with a raw click on the dialog's
+  // heading. That was worse, not better: a click on a non-focusable element blurs whatever was
+  // previously focused without focusing the click target, which likely wiped out the Dialog
+  // primitive's own initial-focus behavior (Dialog.tsx's onMount, requestAnimationFrame) rather
+  // than helping it. Removed. The AT commands themselves changed instead — see
+  // collectors/at-runner.ts — to ones that report real DOM focus rather than an AT-internal
+  // cursor position, so they should correctly observe whatever the Dialog primitive already
+  // focuses on its own, with no synthetic click needed.
+  //
+  // What remains here: since that initial focus is set inside a requestAnimationFrame callback,
+  // dialog.waitFor({ state: "visible" }) above is not guaranteed to happen after it has run —
+  // wait explicitly for real DOM focus to land inside the dialog before asking the AT to report it.
+  if (options.attemptAtCapture) {
+    await page.waitForFunction(
+      () => document.activeElement !== null && document.activeElement !== document.body,
+    );
+  }
+
   const atObservations: EvidenceBundle["atObservations"][number][] = [];
   const infrastructureLimitations: EvidenceBundle["infrastructureLimitations"][number][] = [];
   if (options.attemptAtCapture) {
-    // The dialog's heading, not a raw pixel offset: guaranteed non-interactive (no click
-    // handler) and always present per the Dialog primitive, so this can't accidentally trigger
-    // a button and can't drift out of bounds if the dialog's padding ever changes.
-    await dialog.getByRole("heading").first().click();
     for (const runner of AT_RUNNERS) {
       if (!currentPlatformSupports(runner)) {
         infrastructureLimitations.push(infrastructureLimitationFor(runner));
