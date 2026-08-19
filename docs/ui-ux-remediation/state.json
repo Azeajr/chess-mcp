@@ -358,8 +358,17 @@
       "evidence": null
     },
     "DV-2": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-19",
+        "decision": [
+          "Up/Down move between siblings at the same depth",
+          "Right enters a variation group; Left exits to the parent",
+          "Home/End jump to the first/last sibling",
+          "Enter navigates to the move"
+        ],
+        "source": "User decision, accepting the arrow-key model proposed in ui-ux-remediation-plan.md WP-011 without the two-repertoire-builder prototype session the gate originally called for. Speed/rigor tradeoff made deliberately and by the gate's owner."
+      }
     },
     "DV-3": {
       "status": "unresolved",
@@ -385,8 +394,16 @@
       }
     },
     "PD-2": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-19",
+        "decision": [
+          "Five snapshots, with a 2 MB total budget, whichever binds first",
+          "Recover dialog presents a list ordered newest-first",
+          "Each row shows timestamp, filename, and size"
+        ],
+        "source": "User decision, accepting the recommendation recorded for PD-2 in ui-ux-remediation-plan.md §14 without the three-user validation session the gate originally called for. Speed/rigor tradeoff made deliberately and by the gate's owner."
+      }
     },
     "PD-3": {
       "status": "unresolved",

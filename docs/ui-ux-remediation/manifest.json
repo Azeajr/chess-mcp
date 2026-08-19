@@ -432,7 +432,8 @@
     },
     "WP-007": {
       "dependencies": ["WP-000", "WP-006"],
-      "blockingGates": ["AG-1"],
+      "blockingGates": [],
+      "completionGates": ["AG-1"],
       "ownedAuditFindings": ["UX-007", "UX-019", "UX-045"],
       "primaryFiles": [
         "apps/ui/src/components/SettingsDrawer.tsx",

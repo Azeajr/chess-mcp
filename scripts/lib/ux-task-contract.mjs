@@ -99,6 +99,14 @@ export const deriveTaskLifecycle = (item, packageState, state) => {
   const unresolvedGates = item.blockingGates.filter(
     (gate) => state.gates[gate]?.status !== "resolved",
   );
+  // Completion gates deliberately do not affect readiness. A gate whose own required evidence is
+  // produced by the package it guards (AG-1 needs the Dialog contract suite, which WP-007 creates)
+  // can never be resolved before that package starts, so blocking on it is a deadlock rather than
+  // a safeguard. It is still enforced, just at the other end: ux-plan-check rejects a package
+  // recorded complete while one of its completion gates is unresolved.
+  const unresolvedCompletionGates = (item.completionGates ?? []).filter(
+    (gate) => state.gates[gate]?.status !== "resolved",
+  );
   const unresolvedFoundations = (item.prerequisites ?? []).filter(
     (foundation) => state.foundations?.[foundation]?.status !== "complete",
   );
@@ -108,7 +116,14 @@ export const deriveTaskLifecycle = (item, packageState, state) => {
         ? "blocked"
         : "ready"
       : "not-executable";
-  return { status, readiness, unresolvedDependencies, unresolvedGates, unresolvedFoundations };
+  return {
+    status,
+    readiness,
+    unresolvedDependencies,
+    unresolvedGates,
+    unresolvedCompletionGates,
+    unresolvedFoundations,
+  };
 };
 
 const section = (title, values, empty = "none") =>
@@ -124,6 +139,7 @@ export const renderAgentExecutionProtocol = (id) =>
     `- Implement ${id} only, preserve unrelated working-tree changes, and stay within its allowed primary files unless repository evidence requires a directly related supporting file.`,
     `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
     `- Run the full end-to-end suite unnarrowed by any spec path or --grep before recording completion. A package-scoped run cannot show whether ${id} regressed another package, and completion evidence that names only scoped runs is rejected.`,
+    `- Resolve every completion gate listed above before recording completion, and never by writing the gate's decision yourself. A completion gate names evidence or a decision this package produces but does not own; ux:plan-check rejects ${id} as complete while one is unresolved.`,
     `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
     `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
     "- Inspect the current manifest and state after completion. In the final response, name the next executable package, or state that none is ready and summarize the blockers.",
@@ -171,6 +187,9 @@ export const buildTaskCapsule = (id, item, state) => {
   const gates = item.blockingGates.map(
     (gate) => `${gate}: ${state.gates[gate]?.status ?? "missing"}`,
   );
+  const completionGates = (item.completionGates ?? []).map(
+    (gate) => `${gate}: ${state.gates[gate]?.status ?? "missing"}`,
+  );
   return {
     executable: lifecycle.readiness === "ready",
     text: [
@@ -178,6 +197,10 @@ export const buildTaskCapsule = (id, item, state) => {
       `${id} — readiness: ${lifecycle.readiness}`,
       section("dependency status", dependencies),
       section("gate status", gates),
+      section(
+        "completion gate status (must be resolved before recording complete)",
+        completionGates,
+      ),
       section("allowed primary files", item.primaryFiles),
       section("relevant symbols", item.relevantSymbols, "none explicitly named"),
       section(

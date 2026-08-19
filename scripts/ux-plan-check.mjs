@@ -30,6 +30,11 @@ for (const [id, item] of Object.entries(packages)) {
   for (const gate of item.blockingGates) {
     if (!state.gates[gate]) errors.push(`${id}: unknown gate ${gate}`);
   }
+  for (const gate of item.completionGates ?? []) {
+    if (!state.gates[gate]) errors.push(`${id}: unknown completion gate ${gate}`);
+    if (item.blockingGates.includes(gate))
+      errors.push(`${id}: ${gate} is listed as both a blocking and a completion gate`);
+  }
   for (const foundation of item.prerequisites ?? []) {
     if (!foundations[foundation])
       errors.push(`${id}: unknown prerequisite foundation ${foundation}`);
@@ -86,6 +91,10 @@ for (const [id, item] of Object.entries(packages)) {
     errors.push(`${id}: completed package is executable`);
   if (packageState?.status === "in-progress" && lifecycle.readiness !== "not-executable")
     errors.push(`${id}: in-progress package is executable`);
+  if (packageState?.status === "complete" && lifecycle.unresolvedCompletionGates.length)
+    errors.push(
+      `${id}: completed package has unresolved completion gate(s) ${lifecycle.unresolvedCompletionGates.join(", ")}`,
+    );
   for (const error of validateCompletionEvidence(id, packageState)) errors.push(`${id}: ${error}`);
 }
 

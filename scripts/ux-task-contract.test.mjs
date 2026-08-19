@@ -44,6 +44,7 @@ test("completed packages derive not-executable and emit no actionable capsule", 
     readiness: "not-executable",
     unresolvedDependencies: [],
     unresolvedGates: [],
+    unresolvedCompletionGates: [],
     unresolvedFoundations: [],
   });
   const capsule = buildTaskCapsule("WP-001", item, state("complete"));
@@ -67,6 +68,35 @@ test("ready and blocked packages remain distinct", () => {
     deriveTaskLifecycle(item, { status: "in-progress" }, state("in-progress")).readiness,
     "not-executable",
   );
+});
+
+test("a completion gate never blocks readiness but is still reported", () => {
+  // AG-1 guards WP-007 with evidence WP-007 itself produces. Blocking on it deadlocks; the gate
+  // is enforced at completion instead, which is what ux-plan-check asserts.
+  const gated = { ...item, completionGates: ["AG-1"] };
+  const withGate = (gateStatus) => ({
+    ...state("not-started"),
+    gates: { "AG-1": { status: gateStatus } },
+  });
+  const lifecycle = deriveTaskLifecycle(gated, { status: "not-started" }, withGate("unresolved"));
+  assert.equal(lifecycle.readiness, "ready");
+  assert.deepEqual(lifecycle.unresolvedCompletionGates, ["AG-1"]);
+  assert.deepEqual(
+    deriveTaskLifecycle(gated, { status: "not-started" }, withGate("resolved"))
+      .unresolvedCompletionGates,
+    [],
+  );
+});
+
+test("a ready capsule names its completion gates and forbids self-resolving them", () => {
+  const gated = { ...item, completionGates: ["AG-1"] };
+  const capsule = buildTaskCapsule("WP-001", gated, {
+    ...state("not-started"),
+    gates: { "AG-1": { status: "unresolved" } },
+  });
+  assert.equal(capsule.executable, true);
+  assert.match(capsule.text, /completion gate status[^\n]*\n- AG-1: unresolved/u);
+  assert.match(capsule.text, /never by writing the gate's decision yourself/u);
 });
 
 test("completion evidence must name an end-to-end run that was not spec-scoped", () => {
