@@ -419,8 +419,23 @@ export default function StrategicFitWorkspace() {
       window.removeEventListener("beforeprint", beforePrint);
       window.removeEventListener("afterprint", afterPrint);
       setStrategicFitPrintExportMode(false);
+      // One attempt is not enough on real macOS WebKit: run 32225391111's VoiceOver-tier trace
+      // left focus on the body after Escape while Chromium, Firefox, and headless Linux WebKit
+      // all restored the opener from this same call. Retry on the next frame when the first call
+      // did not take — by then the background container's `inert` removal has certainly been
+      // painted, whichever ordering the engine chose for it.
+      const restoreFocus = (allowRetry: boolean) => {
+        const target = returnFocus;
+        if (!target?.isConnected) return;
+        target.focus();
+        if (allowRetry && document.activeElement !== target) {
+          requestAnimationFrame(() => {
+            restoreFocus(false);
+          });
+        }
+      };
       queueMicrotask(() => {
-        if (returnFocus?.isConnected) returnFocus.focus();
+        restoreFocus(true);
       });
     });
   });
