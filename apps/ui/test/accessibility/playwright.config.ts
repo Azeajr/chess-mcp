@@ -16,9 +16,15 @@ const uiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..
 // (the default, including every Docker-container invocation) stay headless.
 const headed = process.env.A11Y_ATTEMPT_AT === "1";
 
+// Real screen-reader round trips (AppleScript/UI-Automation control, speech synthesis) are
+// inherently slower than a scripted DOM check. Both VoiceOver attempts in .github/workflows/
+// accessibility.yml runs 32206066681 and 32206750401 landed within a couple seconds of the
+// previous 30s limit regardless of which command was used, before either the ordering bug or the
+// AT-cursor-sync bug (both fixed alongside this) were addressed — treat that as a real timing
+// signal, not just a symptom of those bugs, until a run proves otherwise.
 export default defineConfig({
   testDir: ".",
-  timeout: 30_000,
+  timeout: headed ? 90_000 : 30_000,
   fullyParallel: false,
   use: { baseURL: "http://127.0.0.1:4173", headless: !headed },
   projects: [

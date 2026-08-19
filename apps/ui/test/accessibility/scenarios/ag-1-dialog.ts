@@ -44,18 +44,21 @@ export async function runAg1Scenario(
 
   const axe = [await captureAxe(page, browser)];
 
-  const keyboardTraces: KeyboardTraceEvidence[] = [
-    await traceKeyboard(
-      page,
-      browser,
-      ["Tab", "Tab", "Tab", "Shift+Tab", "Escape"],
-      ".strategic-fit-workspace, [role='dialog']",
-    ),
-  ];
-
+  // AT capture must happen here, while the dialog is genuinely open — not after the keyboard
+  // trace below, whose last step presses Escape and closes it. Run 32206750401 captured a real
+  // VoiceOver observation ("guidepup-voiceover-preferences-macos-26 Volume") that named neither
+  // the dialog nor any page content: with the old ordering, .next() ran against the closed-dialog
+  // state, and with no prior click into the page the AT cursor was never synced onto the web
+  // content at all — it read whatever OS-level UI (Guidepup's own preferences pane) it already
+  // happened to be on. The dialog click below forces real OS window activation and nudges the AT
+  // cursor onto page content before capture; not yet re-verified by an actual run.
   const atObservations: EvidenceBundle["atObservations"][number][] = [];
   const infrastructureLimitations: EvidenceBundle["infrastructureLimitations"][number][] = [];
   if (options.attemptAtCapture) {
+    // The dialog's heading, not a raw pixel offset: guaranteed non-interactive (no click
+    // handler) and always present per the Dialog primitive, so this can't accidentally trigger
+    // a button and can't drift out of bounds if the dialog's padding ever changes.
+    await dialog.getByRole("heading").first().click();
     for (const runner of AT_RUNNERS) {
       if (!currentPlatformSupports(runner)) {
         infrastructureLimitations.push(infrastructureLimitationFor(runner));
@@ -69,6 +72,15 @@ export async function runAg1Scenario(
     for (const runner of AT_RUNNERS)
       infrastructureLimitations.push(infrastructureLimitationFor(runner));
   }
+
+  const keyboardTraces: KeyboardTraceEvidence[] = [
+    await traceKeyboard(
+      page,
+      browser,
+      ["Tab", "Tab", "Tab", "Shift+Tab", "Escape"],
+      ".strategic-fit-workspace, [role='dialog']",
+    ),
+  ];
 
   return {
     scenarioId: AG1_SCENARIO_ID,
