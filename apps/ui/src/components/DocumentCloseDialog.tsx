@@ -8,6 +8,7 @@ import {
   saveAndContinueDocumentClose,
   savingDocumentClose,
 } from "../store/files";
+import { setRecoverDialogOpen } from "../store/persist";
 import Dialog from "./primitives/Dialog";
 
 const intentLabel = {
@@ -24,6 +25,22 @@ const discardLabel = {
 
 function currentDocumentName() {
   return fileName() ?? "the current repertoire";
+}
+
+/** The guard is where a replacement is contemplated, so it is also where an earlier one is found. */
+function RecoverLink() {
+  return (
+    <button
+      type="button"
+      class="document-close-recover"
+      onClick={() => {
+        cancelDocumentClose();
+        setRecoverDialogOpen(true);
+      }}
+    >
+      Recover an earlier repertoire
+    </button>
+  );
 }
 
 export default function DocumentCloseDialog() {
@@ -63,20 +80,25 @@ export default function DocumentCloseDialog() {
                     <button data-document-close-safe onClick={cancelDocumentClose}>
                       Cancel
                     </button>
-                    <button onClick={continueDocumentClose}>Continue</button>
+                    <RecoverLink />
+                    <button onClick={() => void continueDocumentClose()}>Continue</button>
                   </>
                 }
               >
                 <button data-document-close-safe onClick={cancelDocumentClose}>
                   Keep working
                 </button>
+                <RecoverLink />
                 <button
                   disabled={savingDocumentClose()}
                   onClick={() => void saveAndContinueDocumentClose()}
                 >
                   Save to file first
                 </button>
-                <button disabled={savingDocumentClose()} onClick={continueDocumentClose}>
+                <button
+                  disabled={savingDocumentClose()}
+                  onClick={() => void continueDocumentClose()}
+                >
                   {discardLabel[pending().intent]}
                 </button>
               </Show>

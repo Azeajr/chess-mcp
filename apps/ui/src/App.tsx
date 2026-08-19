@@ -12,6 +12,7 @@ import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import DocumentCloseDialog from "./components/DocumentCloseDialog";
+import RecoverDialog from "./components/RecoverDialog";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
 import { actions } from "./store/game";
 import { backgroundSuspended, dispatchShortcut, registerShortcut } from "./store/shortcuts";
@@ -197,6 +198,7 @@ export default function App() {
       <PromotionModal />
       <ColorPickerModal />
       <DocumentCloseDialog />
+      <RecoverDialog />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>

@@ -8,7 +8,7 @@ import {
   requestDocumentClose,
 } from "../src/store/files.ts";
 
-test("document-close resume runs at most once", () => {
+test("document-close resume runs at most once", async () => {
   cancelDocumentClose();
   let resumes = 0;
 
@@ -18,8 +18,11 @@ test("document-close resume runs at most once", () => {
   requestDocumentClose("open", () => {
     resumes += 100;
   });
-  continueDocumentClose();
-  continueDocumentClose();
+  // Both are issued before either awaits: WP-004 made the resume path asynchronous (it captures a
+  // snapshot first), so a second Continue must find the pending close already claimed.
+  const first = continueDocumentClose();
+  const second = continueDocumentClose();
+  await Promise.all([first, second]);
 
   assert.equal(resumes, 1);
   assert.equal(pendingDocumentClose(), null);

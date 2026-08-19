@@ -15,6 +15,7 @@ import {
   MODEL_SUGGESTIONS,
 } from "../store/settings";
 import Field from "./primitives/Field";
+import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
   return (
@@ -90,6 +91,26 @@ export default function SettingsDrawer() {
             localStorage (plaintext).
           </small>
         </Field>
+
+        {/* A label would claim the button as its control; recovery is an action, not a field. */}
+        <div class="ui-field field">
+          <span class="ui-field-label">Recovery</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsOpen(false);
+              setRecoverDialogOpen(true);
+            }}
+          >
+            Recover a repertoire
+          </button>
+          <small>Restore one of the last five working documents saved in this browser.</small>
+          <Show when={snapshotsUnavailable()}>
+            <small class="document-close-error" role="alert">
+              Snapshot history unavailable. Your current repertoire is still autosaved.
+            </small>
+          </Show>
+        </div>
       </Dialog>
     </Show>
   );

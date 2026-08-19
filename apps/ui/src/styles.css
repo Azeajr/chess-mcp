@@ -2159,6 +2159,42 @@ img,
   color: var(--status-danger-text);
   font-size: var(--type-xs);
 }
+.document-close-recover {
+  margin-right: auto;
+}
+.recover-dialog {
+  width: min(90vw, 36rem);
+}
+.recover-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.recover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+}
+.recover-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.recover-item label span {
+  display: flex;
+  flex-direction: column;
+}
+.recover-preview {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
 .drawer-backdrop {
   position: fixed;
   inset: 0;

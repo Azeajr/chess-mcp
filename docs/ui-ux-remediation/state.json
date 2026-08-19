@@ -71,7 +71,29 @@
       }
     },
     "WP-004": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm test:e2e:container (382 passed, 14 configured skips across Chromium, Firefox, and WebKit, zero failures)",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm -r typecheck",
+          "pnpm check:content",
+          "pnpm docs:check",
+          "pnpm ux:plan-check",
+          "apps/ui/test/persist-snapshots.test.ts (9 passed)",
+          "apps/ui unit suite, 300 passed including strategic-fit-changes.test.ts and strategic-fit-resumable.test.ts (26 passed), which hold the document-transaction pause/rollback contract"
+        ],
+        "playwright": "Full unnarrowed suite in the version-matched Playwright container: 382 passed, 14 configured skips, zero failures across all three engines. core-document.spec.ts gains the WP-004 round trip (three engines): New is guarded, Continue captures a before-replace snapshot, Settings opens Recover, the row carries a parseable timestamp, a size, a move count and a line count, the PGN preview shows the replaced document, and Restore as new document returns the exact pre-New PGN under a different documentId. The dialog also passes basicAccessibilityViolations.",
+        "defectsFixed": [
+          "Idle capture had no change detection. A 10-minute timer that fires while dirty() spends all five ring slots on identical copies and evicts the before-replace snapshot - the one taken at the only moment that loses data - within an hour. Capture now skips an idle reason whose PGN matches the last captured one.",
+          "deleteSnapshot raced captureSnapshot. Both are read-modify-write over one index record; concurrently they lose one another's changes, leaving a resurrected snapshot or an orphaned payload. All snapshot mutations and listSnapshots now run through one queue.",
+          "A malformed index entry made trimSnapshotIndex compute NaN. Summing an undefined byteSize yields NaN, NaN > MAX_SNAPSHOT_BYTES is false, and the 2 MB budget silently switched itself off while the unlabeled row stayed in the Recover list forever. The index is normalized on every read: fields are coerced, and rows without an id - which name no payload and no actionable row - are dropped. Each of the three has a test that fails when its fix is reverted, verified by probe."
+        ],
+        "scope": "PD-2 fixes the row to timestamp, filename, and size; AC-1 also names move count and line count, so a row shows all five rather than re-deciding the gate. Files outside the package's allowed list are the wiring the package doc and plan section 8 already name: SettingsDrawer.tsx (the Recover entry), DocumentCloseDialog.tsx (the secondary link), App.tsx (mounting RecoverDialog outside .app-main, which is made inert), store/files.ts (the before-replace capture point inside the resume path) and styles.css. test/files.test.ts changed because continueDocumentClose became asynchronous: the test now issues both Continues before awaiting either, which is the stronger assertion. The snapshot list is a ul with li rows rather than an aria-labelled div, because aria-label on a role-less element is prohibited and axe flags it.",
+        "rollback": "Reverting the commit loses no user data. The working document keeps its exact record shape and key, so the pre-change build reads it unchanged; the snapshot index and payload keys become inert data an older build never reads. Do not delete the snapshot keys on rollback - they are the recovery history. A snapshot write that fails, including a simulated QuotaExceededError, never touches workingRepertoire: the test asserts the live record byte-for-byte after two forced failures.",
+        "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (7703615), reviewed rather than cherry-picked. Its two @typescript-eslint/no-misused-promises errors - reintroduced at that branch's tip when continueDocumentClose became asynchronous - are avoided here by wrapping both call sites in void. Its state.json and NEXT.md hunks were not taken."
+      }
     },
     "WP-005": {
       "status": "not-started"

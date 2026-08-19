@@ -94,7 +94,9 @@ test("WP-003 AC-2 AC-3 saves unexported work before starting a new document", as
     )
     .toEqual([changed]);
   await expect(dialog).toHaveCount(0);
-  expect(await currentPgn(page)).not.toBe(changed);
+  // Continuing captures a before-replace snapshot (WP-004) before the resume runs, so the
+  // replacement lands a turn of the event loop after the dialog closes.
+  await expect.poll(() => currentPgn(page)).not.toBe(changed);
 });
 
 test("WP-003 AC-3 leaves the document and guard in place when saving is cancelled", async ({
@@ -213,6 +215,46 @@ test("WP-003 AC-6 names the downloaded file when save cannot re-link it", async 
   await expect(page.getByRole("status")).toContainText(
     "Downloaded rich-repertoire.pgn. This browser cannot re-link that file for future saves.",
   );
+});
+
+test("WP-004 AC-1 AC-2 recovers a replaced document as a new identity", async ({ page }) => {
+  await openApp(page);
+  const before = await currentPgn(page);
+  const beforeId = await page.evaluate(() =>
+    (window as unknown as { __chess: { documentId(): string } }).__chess.documentId(),
+  );
+
+  await page.getByRole("button", { name: "New" }).click();
+  const guard = documentCloseDialog(page);
+  await expect(guard.getByRole("button", { name: "Recover an earlier repertoire" })).toBeVisible();
+  await guard.getByRole("button", { name: "Continue" }).click();
+  await expect(guard).toHaveCount(0);
+  await expect.poll(() => currentPgn(page)).not.toBe(before);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Recover a repertoire" }).click();
+  const recover = page.getByRole("dialog", { name: "Recover a repertoire" });
+  await expect(recover).toBeVisible();
+
+  const row = recover.locator(".recover-item", { hasText: "rich-repertoire.pgn" });
+  await expect(row).toHaveCount(1);
+  const metadata = (await row.locator("small").innerText()).split(" · ");
+  expect(metadata).toHaveLength(4);
+  expect(Number.isFinite(Date.parse(metadata[0]!))).toBe(true);
+  expect(metadata[1]).toMatch(/^\d+(\.\d+)? (B|KB|MB)$/);
+  expect(metadata[2]).toMatch(/^\d+ moves$/);
+  expect(metadata[3]).toMatch(/^\d+ lines$/);
+  await expect(recover.getByLabel("Snapshot PGN preview")).toContainText("1. d4 Nf6");
+  expect(await basicAccessibilityViolations(recover)).toEqual([]);
+
+  await recover.getByRole("button", { name: "Restore as new document" }).click();
+  await expect(recover).toHaveCount(0);
+  expect(await currentPgn(page)).toBe(before);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { __chess: { documentId(): string } }).__chess.documentId(),
+    ),
+  ).not.toBe(beforeId);
 });
 
 test.fixme("UX-005 mutation application, undo, and redo preserve exact PGN", async ({ page }) => {

@@ -8,6 +8,7 @@ import { createSignal } from "solid-js";
 import { actions, fileName } from "./game";
 import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
+import { captureSnapshot } from "./persist";
 import { GameTree } from "@chess-mcp/chess-tools";
 
 type Perm = "granted" | "denied" | "prompt";
@@ -127,21 +128,24 @@ export function cancelDocumentClose() {
   setPendingDocumentClose(null);
 }
 
-function resumeDocumentClose(pending: PendingDocumentClose) {
+async function resumeDocumentClose(pending: PendingDocumentClose) {
   if (pendingDocumentClose() !== pending) return;
   setSavingDocumentClose(false);
   setDocumentCloseError(null);
   setPendingDocumentClose(null);
-  void Promise.resolve(pending.resume()).catch((error: unknown) => {
+  // The snapshot has to be taken here, before the resume replaces the tree: this is the one moment
+  // where the working document stops being reachable any other way.
+  await captureSnapshot("before-replace");
+  await Promise.resolve(pending.resume()).catch((error: unknown) => {
     setFileNotice({
       message: `Could not continue: ${error instanceof Error ? error.message : String(error)}`,
     });
   });
 }
 
-export function continueDocumentClose() {
+export async function continueDocumentClose(): Promise<void> {
   const pending = pendingDocumentClose();
-  if (pending) resumeDocumentClose(pending);
+  if (pending) await resumeDocumentClose(pending);
 }
 
 async function loadFromHandle(h: FilePickerHandle) {
@@ -253,7 +257,7 @@ export async function saveAndContinueDocumentClose() {
     setDocumentCloseError(`Could not save the file: ${result.message}`);
     return;
   }
-  resumeDocumentClose(pending);
+  await resumeDocumentClose(pending);
 }
 
 /**
