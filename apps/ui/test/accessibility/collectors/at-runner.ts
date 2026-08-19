@@ -85,6 +85,8 @@ export function infrastructureLimitationFor(runner: AtRunnerId): InfrastructureL
 const SETTLE_MS = 1000;
 /** How many virtual-cursor steps to take when checking the background is unreachable. */
 const VIRTUAL_CURSOR_STEPS = 12;
+/** How long any single dialog state change may take before the session gives up on it. */
+const STEP_TIMEOUT_MS = 20_000;
 
 /**
  * The caller's dialog, expressed as the DOM settling this session must wait for. The key presses
@@ -95,6 +97,36 @@ export interface AtDialogSteps {
   readonly awaitClosed: () => Promise<void>;
   /** Resolve once the dialog is present, after the screen reader activated the opener. */
   readonly awaitOpen: () => Promise<void>;
+  /**
+   * Put real DOM focus back inside the open dialog. The virtual-cursor sweep moves the review
+   * cursor, and the review cursor drags DOM focus with it, so after a sweep the next key press has
+   * no predictable target. Run 32239829988's VoiceOver worker hung here until its test timed out.
+   */
+  readonly refocusDialog: () => Promise<void>;
+}
+
+/** Thrown when a dialog never reached the state a step was waiting for. */
+class AtStepTimeout extends Error {}
+
+/**
+ * Bounds a wait so a stuck dialog becomes a recorded, diagnosable observation instead of an opaque
+ * job timeout with no evidence attached to it.
+ */
+async function within(label: string, ms: number, step: () => Promise<void>): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      step(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new AtStepTimeout(`${label} did not happen within ${ms}ms`)),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
@@ -218,9 +250,11 @@ export async function captureAtObservations(
         await since(),
       );
 
+      // Put DOM focus back somewhere real before pressing anything: the sweep just moved it.
+      await steps.refocusDialog();
       await focusBrowser();
       await screenReader.press("Escape");
-      await steps.awaitClosed();
+      await within("dialog close", STEP_TIMEOUT_MS, steps.awaitClosed);
       await screenReader.perform(focusCommand);
       const focusReturn = observe("focus-return", focusCommandName, await since());
 
@@ -228,7 +262,7 @@ export async function captureAtObservations(
       // Enter on the opener, which the close just restored focus to. Activating through the
       // screen reader is what makes the dialog's own entry announcement land in the log.
       await screenReader.press("Enter");
-      await steps.awaitOpen();
+      await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
       const announcement = observe(
         "dialog-announcement",
         "press Enter on the opener",

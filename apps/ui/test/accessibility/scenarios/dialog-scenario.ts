@@ -75,17 +75,37 @@ export async function runDialogScenario(
     }
     // Real capture path — see collectors/at-runner.ts module doc for its verification status.
     const { captureAtObservations } = await import("../collectors/at-runner");
-    atObservations.push(
-      ...(await captureAtObservations(runner, page, {
-        // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
-        awaitClosed: async () => {
-          await dialog.waitFor({ state: "detached" });
-        },
-        awaitOpen: async () => {
-          await dialog.waitFor({ state: "visible" });
-        },
-      })),
-    );
+    try {
+      atObservations.push(
+        ...(await captureAtObservations(runner, page, {
+          // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
+          awaitClosed: async () => {
+            await dialog.waitFor({ state: "detached" });
+          },
+          awaitOpen: async () => {
+            await dialog.waitFor({ state: "visible" });
+          },
+          refocusDialog: async () => {
+            await dialog.evaluate((element: HTMLElement) => {
+              const target = element.querySelector<HTMLElement>(
+                "button:not([disabled]), [href], input:not([disabled])",
+              );
+              (target ?? element).focus();
+            });
+          },
+        })),
+      );
+    } catch (error) {
+      // A screen-reader session that gets stuck is evidence, not a reason to lose the whole run.
+      // Recording why keeps the failure diagnosable instead of surfacing as an opaque job timeout
+      // with no artifact attached — which is exactly what runs 32238998739 and 32239829988 gave.
+      infrastructureLimitations.push({
+        ...infrastructureLimitationFor(runner),
+        reason: `${runner} session did not complete for ${definition.dialogName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
   }
 
   const keyboardTraces: KeyboardTraceEvidence[] = [
