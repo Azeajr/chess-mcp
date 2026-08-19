@@ -12,13 +12,7 @@ import type { EvidenceBundle, KeyboardTraceEvidence } from "../evidence-schema";
 import { captureAriaSnapshot, captureCdpAxTree, supportsCdpAxTree } from "../collectors/browser-ax";
 import { captureAxe } from "../collectors/axe";
 import { traceKeyboard } from "../collectors/keyboard-trace";
-import {
-  currentPlatformSupports,
-  infrastructureLimitationFor,
-  type AtRunnerId,
-} from "../collectors/at-runner";
-
-const AT_RUNNERS: readonly AtRunnerId[] = ["nvda", "voiceover"];
+import { collectAtTier } from "../collectors/at-tier";
 
 export interface DialogScenarioDefinition {
   readonly id: string;
@@ -66,47 +60,31 @@ export async function runDialogScenario(
     );
   }
 
-  const atObservations: EvidenceBundle["atObservations"][number][] = [];
-  const infrastructureLimitations: EvidenceBundle["infrastructureLimitations"][number][] = [];
-  for (const runner of AT_RUNNERS) {
-    if (!options.attemptAtCapture || !currentPlatformSupports(runner)) {
-      infrastructureLimitations.push(infrastructureLimitationFor(runner));
-      continue;
-    }
-    // Real capture path — see collectors/at-runner.ts module doc for its verification status.
-    const { captureAtObservations } = await import("../collectors/at-runner");
-    try {
-      atObservations.push(
-        ...(await captureAtObservations(runner, page, {
-          // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
-          awaitClosed: async () => {
-            await dialog.waitFor({ state: "detached" });
-          },
-          awaitOpen: async () => {
-            await dialog.waitFor({ state: "visible" });
-          },
-          refocusDialog: async () => {
-            await dialog.evaluate((element: HTMLElement) => {
-              const target = element.querySelector<HTMLElement>(
-                "button:not([disabled]), [href], input:not([disabled])",
-              );
-              (target ?? element).focus();
-            });
-          },
-        })),
-      );
-    } catch (error) {
-      // A screen-reader session that gets stuck is evidence, not a reason to lose the whole run.
-      // Recording why keeps the failure diagnosable instead of surfacing as an opaque job timeout
-      // with no artifact attached — which is exactly what runs 32238998739 and 32239829988 gave.
-      infrastructureLimitations.push({
-        ...infrastructureLimitationFor(runner),
-        reason: `${runner} session did not complete for ${definition.dialogName}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+  const { atObservations, infrastructureLimitations } = await collectAtTier({
+    attemptAtCapture: options.attemptAtCapture,
+    label: definition.dialogName,
+    capture: async (runner) => {
+      // Real capture path — see collectors/at-runner.ts module doc for its verification status.
+      const { captureDialogObservations } = await import("../collectors/at-runner");
+      return captureDialogObservations(runner, page, {
+        // The screen reader presses the keys; these only wait for the DOM to settle afterwards.
+        awaitClosed: async () => {
+          await dialog.waitFor({ state: "detached" });
+        },
+        awaitOpen: async () => {
+          await dialog.waitFor({ state: "visible" });
+        },
+        refocusDialog: async () => {
+          await dialog.evaluate((element: HTMLElement) => {
+            const target = element.querySelector<HTMLElement>(
+              "button:not([disabled]), [href], input:not([disabled])",
+            );
+            (target ?? element).focus();
+          });
+        },
       });
-    }
-  }
+    },
+  });
 
   const keyboardTraces: KeyboardTraceEvidence[] = [
     await traceKeyboard(page, browser, definition.traceKeys, definition.scopeSelector),

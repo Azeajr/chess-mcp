@@ -7,7 +7,8 @@
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DIALOG_SCENARIOS, mergeBundles, scenarioById } from "./scenarios/ag-1-dialog";
+import { DIALOG_SCENARIOS, scenarioById } from "./scenarios/ag-1-dialog";
+import { mergeBundles } from "./scenarios/merge";
 import { computeDialogVerdict } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";

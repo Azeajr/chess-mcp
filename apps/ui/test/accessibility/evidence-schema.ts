@@ -115,17 +115,27 @@ export interface KeyboardTraceEvidence {
 // ---------------------------------------------------------------------------
 
 /**
- * Which of AG-1's three manual claims a single utterance is evidence for. AG-1 asks a human
- * NVDA session and a human VoiceOver session to confirm the dialog is announced with its name and
- * as a dialog, that the background is not reachable by virtual cursor, and that focus returns
- * audibly on close. One observation answers one of those, so each carries its claim rather than
- * leaving the verdict engine to infer it from the command name.
+ * Which manual claim a single utterance is evidence for. Each gate asks a human NVDA session and a
+ * human VoiceOver session to confirm several separate things, and one observation answers exactly
+ * one of them, so each observation carries its claim rather than leaving the verdict engine to
+ * infer it from the command name.
+ *
+ * AG-1 (dialogs): the dialog is announced with its name and as a dialog, the background is not
+ * reachable by virtual cursor, and focus returns audibly on close.
+ *
+ * AG-3 (move tree): tree role, level, and expanded state are announced, and traversal does not read
+ * the entire tree on every key. `traversal-verbosity` is the one claim scored by counting
+ * utterances rather than matching a name — see verdict.ts.
  */
 export type AtClaim =
   | "dialog-announcement"
   | "background-unreachable"
   | "focus-report"
-  | "focus-return";
+  | "focus-return"
+  | "tree-role"
+  | "item-level"
+  | "expanded-state"
+  | "traversal-verbosity";
 
 export interface AtObservation {
   readonly source: "nvda" | "voiceover";
