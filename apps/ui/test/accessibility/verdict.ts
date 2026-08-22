@@ -642,33 +642,35 @@ function treeAtFindings(
       const utterances = observation.utterances;
       const spoken = utterances.join(" | ");
       const lower = spoken.toLowerCase();
+      // Native AT commonly inserts a pause/space between the piece-file token and rank ("Nf 3",
+      // "Nc 6"). Ignore only whitespace when matching fixture SAN; role/state/level vocabulary
+      // and the utterance-count bound remain exact.
+      const compact = lower.replaceAll(/\s+/gu, "");
+      const mentions = (san: string) => compact.includes(san.toLowerCase().replaceAll(/\s+/gu, ""));
       let satisfied = false;
       let expected = "";
       if (claim === "tree-role") {
         const roleWords = source === "voiceover" ? ["tree", "outline"] : ["tree"];
         satisfied =
-          lower.includes(expectation.entryMoveSan.toLowerCase()) &&
-          roleWords.some((word) => lower.includes(word));
+          mentions(expectation.entryMoveSan) && roleWords.some((word) => lower.includes(word));
         expected = `The focused ${expectation.entryMoveSan} item is identified using ${source}'s tree/outline vocabulary.`;
       } else if (claim === "item-level") {
         satisfied =
-          lower.includes(expectation.entryMoveSan.toLowerCase()) &&
+          mentions(expectation.entryMoveSan) &&
           new RegExp(`level\\s*${expectation.expectedLevel}(?:\\D|$)`, "iu").test(spoken);
         expected = `${expectation.entryMoveSan} is announced at level ${expectation.expectedLevel}.`;
       } else if (claim === "expanded-state") {
         satisfied =
-          lower.includes(expectation.branchMoveSan.toLowerCase()) &&
+          mentions(expectation.branchMoveSan) &&
           lower.includes("expanded") &&
           lower.includes("collapsed");
         expected = `${expectation.branchMoveSan} is announced expanded and then collapsed after Space.`;
       } else {
-        const forbidden = expectation.otherMoveSans.filter((san) =>
-          lower.includes(san.toLowerCase()),
-        );
+        const forbidden = expectation.otherMoveSans.filter(mentions);
         satisfied =
           utterances.length > 0 &&
           utterances.length <= expectation.floodThreshold &&
-          lower.includes(expectation.traversalTargetSan.toLowerCase()) &&
+          mentions(expectation.traversalTargetSan) &&
           forbidden.length === 0;
         expected = `One traversal reports only ${expectation.traversalTargetSan} in at most ${expectation.floodThreshold} utterances.`;
       }

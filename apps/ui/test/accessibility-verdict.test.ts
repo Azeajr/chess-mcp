@@ -88,3 +88,18 @@ test("AG-3 verdict rejects traversal speech containing another move", () => {
   const verdict = computeTreeVerdict({ ...evidence, atObservations }, expectation);
   assert.equal(verdict.overallStatus, "confirmed-failure");
 });
+
+test("AG-3 verdict accepts screen-reader spacing inside SAN tokens", () => {
+  const evidence = bundle();
+  const atObservations = evidence.atObservations.map((entry) => {
+    if (entry.source !== "nvda") return entry;
+    return {
+      ...entry,
+      utterances: entry.utterances.map((utterance) =>
+        utterance.replaceAll("Nf3", "Nf 3").replaceAll("Nc6", "Nc 6"),
+      ),
+    };
+  });
+  const verdict = computeTreeVerdict({ ...evidence, atObservations }, expectation);
+  assert.equal(verdict.overallStatus, "confirmed-pass");
+});

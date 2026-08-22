@@ -7,7 +7,7 @@ import type { Node as PgnNode, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
 import { previewedKeys } from "../store/suggestions";
 import { focusLine } from "../store/chat";
-import MoveButton from "./primitives/MoveButton";
+import MoveButton, { MoveTreeItem } from "./primitives/MoveButton";
 import type { Path } from "@chess-mcp/chess-tools";
 
 const pathEq = (a: Path, b: Path) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -183,8 +183,7 @@ export default function MoveTree() {
     }
     // The collapse toggle is not a page-level Tab stop — a tree with one tab stop cannot also hand
     // out one per branch — so the branch it controls needs a key inside the tree, or collapsing
-    // becomes pointer-only. Space, which no DV-2 arrow semantics claim; on a move with no
-    // variations it falls through to the button's native activation, matching the rows.
+    // becomes pointer-only. Space, which no DV-2 arrow semantics claim, activates a leaf move.
     if (event.key === " ") {
       const branchPath = active.slice(0, -1);
       if (currentTree().nodeAt(branchPath).children.length > 1) {
@@ -195,6 +194,10 @@ export default function MoveTree() {
         focusItem(active);
         return;
       }
+      event.preventDefault();
+      event.stopPropagation();
+      activateMove(active, true);
+      return;
     }
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
       return;
@@ -223,7 +226,7 @@ export default function MoveTree() {
       position?: { posinset: number; setsize: number },
       branch?: { expanded: boolean; group: string },
     ): JSX.Element => (
-      <MoveButton
+      <MoveTreeItem
         id={itemId(path)}
         role="treeitem"
         data-move-path={path.join(",")}
@@ -234,7 +237,7 @@ export default function MoveTree() {
         aria-expanded={branch ? branch.expanded : undefined}
         aria-controls={branch?.group}
         // Reparents the variation group under this item in the accessibility tree. The group is a
-        // DOM sibling because a tree item here is a <button>, which cannot legally contain one.
+        // DOM sibling because the visual variation gutter sits beside the move label.
         aria-owns={branch?.group}
         tabIndex={isActive(path) ? 0 : -1}
         current={pathEq(path, current)}
@@ -245,7 +248,7 @@ export default function MoveTree() {
         }}
       >
         {moveLabel(node.data.san, path.length, blackDots)}
-      </MoveButton>
+      </MoveTreeItem>
     );
 
     // Render one line (a node's descendants): mainline inline, each sibling variation as an

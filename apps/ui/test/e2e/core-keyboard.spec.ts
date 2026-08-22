@@ -110,14 +110,15 @@ test("WP-011 AC-3 uses one roving tree tab stop and DV-2 traversal without board
 
   const tree = page.getByRole("tree", { name: "Repertoire moves" });
   const current = moveItem(page, branch);
+  await expect(current).toHaveJSProperty("tagName", "DIV");
   await expect(current).toHaveAttribute("tabindex", "0");
   expect(
     await tree
-      .locator("button:visible")
-      .evaluateAll((buttons) =>
-        buttons
-          .filter((button) => (button as HTMLButtonElement).tabIndex >= 0)
-          .map((button) => button.getAttribute("data-move-path")),
+      .locator('[role="treeitem"]:visible')
+      .evaluateAll((items) =>
+        items
+          .filter((item) => (item as HTMLElement).tabIndex >= 0)
+          .map((item) => item.getAttribute("data-move-path")),
       ),
   ).toEqual([branch.join(",")]);
 
@@ -157,11 +158,11 @@ test("WP-011 AC-3 offers a tab stop from the start position, where no move is cu
   const tree = page.getByRole("tree", { name: "Repertoire moves" });
   expect(
     await tree
-      .locator("button:visible")
-      .evaluateAll((buttons) =>
-        buttons
-          .filter((button) => (button as HTMLButtonElement).tabIndex >= 0)
-          .map((button) => button.getAttribute("data-move-path")),
+      .locator('[role="treeitem"]:visible')
+      .evaluateAll((items) =>
+        items
+          .filter((item) => (item as HTMLElement).tabIndex >= 0)
+          .map((item) => item.getAttribute("data-move-path")),
       ),
   ).toEqual(["0"]);
 
