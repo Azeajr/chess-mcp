@@ -10,6 +10,15 @@ import {
   isAbortError,
   type ExecutionStatus,
 } from "../application/execution-status";
+import { registerOperation, settleOperation, updateOperation } from "./operations";
+
+/**
+ * Human-readable label for a chat tool call. The registry's announcement policy speaks in
+ * operations, not raw tool names; this mirrors the display names the UI already uses.
+ */
+function toolDisplayName(name: string): string {
+  return name.replaceAll("_", " ");
+}
 
 const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Use local tools for chess claims. Be concise. Tool results may be compacted; retrieve current document data with the scoped retrieval tools when needed.`;
 const MAX_ROUNDS = 12;
@@ -258,6 +267,13 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
       continue;
     }
     updateRun(tc.id, { status: "running" });
+    // WP-010: each chat tool call is a registry operation. The registry owns the announcements.
+    const operationId = registerOperation({
+      kind: "chat-tool",
+      label: toolDisplayName(tc.function.name),
+      surface: "chat",
+      cancel: () => controller?.abort(),
+    });
     let result: unknown;
     try {
       let raw: unknown;
@@ -270,18 +286,31 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         signal,
         onProgress: (done, total, detail) => {
           updateRun(tc.id, { done, total, detail });
+          updateOperation(operationId, { done, total, detail });
         },
       });
-      updateRun(tc.id, { status: executionOutcome(signal.aborted) });
+      const outcome = executionOutcome(signal.aborted);
+      updateRun(tc.id, { status: outcome });
+      settleOperation(
+        operationId,
+        outcome === "completed" ? "completed" : outcome,
+        outcome === "failed" ? { detail: "tool error" } : undefined,
+      );
     } catch (e) {
       const isCancelled = isAbortError(e) || signal.aborted;
       result = isCancelled
         ? { error: "cancelled" }
         : { error: e instanceof Error ? e.message : String(e) };
+      const outcome = executionOutcome(isCancelled, true);
       updateRun(tc.id, {
-        status: executionOutcome(isCancelled, true),
+        status: outcome,
         error: isCancelled ? undefined : (result as { error: string }).error,
       });
+      settleOperation(
+        operationId,
+        outcome,
+        outcome === "failed" ? { detail: (result as { error: string }).error } : undefined,
+      );
     }
     setHistory((h) => [
       ...h,

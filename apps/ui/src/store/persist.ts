@@ -7,6 +7,7 @@
 import { createSignal, createEffect, onCleanup } from "solid-js";
 import { idbGet, idbSet, idbMutateAtomically } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
+import { announce } from "./announce";
 import {
   currentTree,
   path,
@@ -92,7 +93,9 @@ export interface SnapshotListEntry extends SnapshotIndexEntry {
 
 const [snapshotsUnavailable, setSnapshotsUnavailable] = createSignal(false);
 const [recoverDialogOpen, setRecoverDialogOpen] = createSignal(false);
-export { snapshotsUnavailable, recoverDialogOpen, setRecoverDialogOpen };
+// WP-018 AC-4: epoch millis of the last successful working-copy write, or null before the first.
+const [lastAutosaveAt, setLastAutosaveAt] = createSignal<number | null>(null);
+export { snapshotsUnavailable, recoverDialogOpen, setRecoverDialogOpen, lastAutosaveAt };
 
 function snapshotKey(id: string) {
   return `${SNAPSHOT_KEY_PREFIX}${id}`;
@@ -311,7 +314,12 @@ function executePendingAutosave(): Promise<void> {
   autosaveTimer = null;
   const next = autosaveTail
     .catch(() => undefined)
-    .then(() => idbSet(WORKING_REPERTOIRE_STORAGE_KEY, saved));
+    .then(() => idbSet(WORKING_REPERTOIRE_STORAGE_KEY, saved))
+    // WP-018 AC-4: the browser indicator reports when the working copy was last written, so the
+    // timestamp is recorded where the write actually lands rather than when one was scheduled.
+    .then(() => {
+      setLastAutosaveAt(Date.now());
+    });
   autosaveTail = next;
   return next;
 }
@@ -392,6 +400,11 @@ export async function restoreWorking() {
       actions.setColor(saved.color);
       actions.goto(probePath(saved.path));
       if (saved.dirty) actions.markDirty(saved.changesSinceExport);
+      announce(
+        saved.fileName
+          ? `Restored your working document ${saved.fileName} from autosave.`
+          : "Restored your working document from autosave.",
+      );
     }
   } catch {
     /* corrupt/empty — start fresh */

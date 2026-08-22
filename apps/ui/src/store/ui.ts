@@ -3,7 +3,13 @@ import { createSignal } from "solid-js";
 
 export const [settingsOpen, setSettingsOpen] = createSignal(false);
 
-/** Phone-only (≤720px) panel selector: which panel shows under the pinned board. */
+/**
+ * Phone-only (≤720px) panel selector: which panel shows under the pinned board.
+ *
+ * WP-015 evaluated making "moves" the first-load tab. It is deliberately still "analysis": the
+ * repertoire panel (and with it the Strategic Fit entry point) lives in that tab, so defaulting
+ * elsewhere hides the app's primary analysis affordance behind an extra tap on first run.
+ */
 export type MobileTab = "analysis" | "moves" | "chat";
 export const [mobileTab, setMobileTab] = createSignal<MobileTab>("analysis");
 

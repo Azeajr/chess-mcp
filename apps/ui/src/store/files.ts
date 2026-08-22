@@ -9,6 +9,7 @@ import { actions, fileName } from "./game";
 import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
 import { captureSnapshot } from "./persist";
+import { announce } from "./announce";
 import { GameTree } from "@chess-mcp/chess-tools";
 
 type Perm = "granted" | "denied" | "prompt";
@@ -209,6 +210,7 @@ export async function saveFile(): Promise<SaveFileResult> {
       await ws.write(pgn);
       await ws.close();
       actions.markSaved();
+      announce(`Saved ${handle.name}.`);
       return { via: "handle", fileName: handle.name };
     }
     if (w.showSaveFilePicker) {
@@ -218,6 +220,7 @@ export async function saveFile(): Promise<SaveFileResult> {
       await ws.write(pgn);
       await ws.close();
       actions.markSaved();
+      announce(`Saved ${h.name}.`);
       return { via: "picker", fileName: h.name };
     }
     const downloadedFileName = fileName() ?? "repertoire.pgn";
@@ -228,15 +231,18 @@ export async function saveFile(): Promise<SaveFileResult> {
     a.click();
     URL.revokeObjectURL(a.href);
     actions.markSaved();
+    announce(`Saved ${downloadedFileName}.`);
     setFileNotice({
       message: `Downloaded ${downloadedFileName}. This browser cannot re-link that file for future saves.`,
     });
     return { via: "download", fileName: downloadedFileName };
   } catch (error) {
     if (wasCancelled(error)) return { via: "cancelled" };
+    const message = error instanceof Error ? error.message : String(error);
+    announce(`Could not save the file: ${message}`, { assertive: true });
     return {
       via: "failed",
-      message: error instanceof Error ? error.message : String(error),
+      message,
     };
   }
 }

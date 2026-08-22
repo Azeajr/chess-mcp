@@ -2799,6 +2799,51 @@ img,
   white-space: nowrap;
   border: 0;
 }
+
+/* WP-009 Toast primitive — anchored bottom-centre, safe-area aware. */
+.ui-toast {
+  position: fixed;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-warning);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(92vw, 34rem);
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow-translucent);
+  font-size: var(--type-sm);
+}
+.ui-toast-success {
+  border-color: var(--status-success-text);
+}
+.ui-toast-danger {
+  border-color: #9a5058;
+  background: #2c1d21;
+  color: #ffc9cd;
+}
+.ui-toast-message {
+  flex: 1;
+}
+.ui-toast-action {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  padding: 0.2rem 0.55rem;
+}
+.ui-toast-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
 .strategic-fit-profile-setup {
   flex: 1 1 0;
   min-height: 0;
@@ -7595,4 +7640,207 @@ img,
     background: none;
     break-inside: auto;
   }
+}
+
+/*
+ * WP-013 tabpanel wrappers. They exist for the tab semantics only: `display: contents` keeps the
+ * side panel's own box model, so adding them changes no measured geometry at any tier.
+ */
+.mobile-panel {
+  display: contents;
+}
+
+/* WP-017/018 DocumentStatus and DocumentMenu */
+.document-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  /* Shrink-only: the status must never force the action row to wrap, because that is what makes
+     the top bar grow a second row and push panel content below the fold. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(40ch, 45%);
+  overflow: hidden;
+  font-size: var(--type-xs);
+  color: var(--muted);
+}
+
+.document-status > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Compact tier (WP-017 AC-1): the top bar must fit a 40-character filename in 96px. The phone
+ * layout hides the browser-storage line — the file indicator carries the actionable fact — and
+ * tightens the chrome rhythm. Control sizing is untouched so touch-target floors still hold.
+ */
+@media (max-width: 45em) {
+  .document-status-browser {
+    display: none;
+  }
+  .topbar {
+    gap: var(--space-2);
+    row-gap: var(--space-1);
+    padding: var(--space-2);
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top));
+    padding-left: calc(var(--space-2) + env(safe-area-inset-left));
+    padding-right: calc(var(--space-2) + env(safe-area-inset-right));
+  }
+  /*
+   * DV-3 on the phone: Save stays visible, and the actions that the Repertoire menu already
+   * offers collapse into it rather than being listed twice. Wider tiers keep both affordances,
+   * so nothing a pointer user relies on disappears where there is room for it.
+   */
+  .topbar > [data-topbar-duplicate] {
+    display: none;
+  }
+  .topbar .title {
+    font-size: var(--type-sm);
+  }
+}
+
+/*
+ * Short phone viewports: the pinned board, the tab bar, and the panel floor together need every
+ * row, so the decorative <h1> gives up its line. It stays in the accessibility tree — this hides
+ * the painted text, not the document structure.
+ */
+@media (max-width: 45em) and (max-height: 34em) {
+  .topbar .title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .topbar {
+    row-gap: var(--space-1);
+    padding-top: calc(var(--space-1) + env(safe-area-inset-top));
+    padding-bottom: var(--space-1);
+  }
+}
+
+.document-status-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.document-status-icon {
+  font-size: 0.9rem;
+}
+
+.document-status-filename,
+.document-status-name {
+  min-width: 0;
+  max-width: min(32ch, 40%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-status-changes,
+.document-status-changes-only,
+.document-status-autosave {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--type-xs);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--status-warning-surface);
+  color: var(--status-warning-text);
+  border: 1px solid var(--status-warning-border);
+}
+
+.document-status-autosave {
+  background: var(--status-info-action);
+  color: var(--status-info-text);
+  border-color: var(--status-info-surface);
+}
+
+/* DocumentMenu */
+.document-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.document-menu-trigger {
+  background: var(--surface-control);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.document-menu-trigger:hover {
+  border-color: var(--accent);
+}
+
+.document-menu-list {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: var(--z-popover);
+  min-width: 220px;
+  max-width: min(90vw, 320px);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow-solid);
+  overflow: hidden;
+}
+
+.document-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.document-menu-group + .document-menu-group {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+}
+
+.document-menu-group-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.document-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.document-menu-item:hover,
+.document-menu-item.active {
+  background: var(--surface-control);
+}
+
+.document-menu-item:focus {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }

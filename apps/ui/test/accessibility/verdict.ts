@@ -735,3 +735,135 @@ export function computeTreeVerdict(
     overallStatus: overallStatus(findings),
   };
 }
+
+// ---------------------------------------------------------------------------
+// AG-5 — live-region message completeness and rate
+// ---------------------------------------------------------------------------
+
+export interface LiveRegionScenarioExpectation {
+  readonly scenarios: readonly {
+    readonly scenario: string;
+    readonly requiredTokens: readonly string[];
+    readonly forbiddenTokens: readonly string[];
+    readonly maxUtterances: number;
+  }[];
+}
+
+/**
+ * Deterministic AG-5 verdict: the two live regions expose exactly the polite/assertive roles, and
+ * every policy operation produces one bounded utterance set containing the full expected token
+ * sequence with no progress-tick speech, from both real screen readers.
+ */
+export function computeLiveRegionVerdict(
+  bundle: EvidenceBundle,
+  expectation: LiveRegionScenarioExpectation,
+): ScenarioVerdict {
+  findingCounter = 0;
+  const snapshotText = bundle.ariaSnapshots.map((entry) => entry.snapshot).join("\n");
+  const regionsExposed = /status/iu.test(snapshotText) || /alert/iu.test(snapshotText);
+  const findings: Finding[] = [
+    checkBrowserCoverage(bundle),
+    {
+      id: nextFindingId(),
+      severity: regionsExposed ? "minor" : "serious",
+      confidence: 1,
+      status: regionsExposed ? "confirmed-pass" : "confirmed-failure",
+      wcag: ["4.1.3"],
+      assertionId: "live-region-roles",
+      summary: regionsExposed
+        ? "The app-root live regions expose status/alert semantics in every captured browser."
+        : "No app-root live region exposed status or alert semantics.",
+      expected: "Polite and assertive live regions at the app root in every browser's AX tree.",
+      actual: `Captured snapshots matched: ${regionsExposed}`,
+      evidence: bundle.ariaSnapshots.map((_, index) => ref("ariaSnapshot", index)),
+      reasoning: "deterministic",
+      platformScope: bundle.ariaSnapshots.map((entry) => entry.browser),
+    },
+    ...AT_SOURCES.flatMap((source): Finding[] => {
+      const sourceObservations = bundle.atObservations.filter(
+        (observation) => observation.source === source,
+      );
+      if (sourceObservations.length === 0) {
+        const limitationIndex = bundle.infrastructureLimitations.findIndex(
+          (entry) => entry.runner === source,
+        );
+        const limitation = bundle.infrastructureLimitations[limitationIndex];
+        return [
+          {
+            id: nextFindingId(),
+            severity: "serious",
+            confidence: 1,
+            status: "automation-inconclusive",
+            wcag: ["4.1.3"],
+            assertionId: `at-runner:${source}`,
+            summary: limitation
+              ? `${source} evidence not collected: ${limitation.reason}`
+              : `${source} evidence not collected, and no worker reported why.`,
+            expected: `Real ${source} utterances for every AG-5 policy operation.`,
+            actual: "No matching AT observations.",
+            evidence: limitation ? [ref("infrastructureLimitation", limitationIndex)] : [],
+            reasoning: "deterministic",
+            platformScope: limitation ? [limitation.requiredPlatform] : [],
+          },
+        ];
+      }
+      return expectation.scenarios.map((scenario): Finding => {
+        const observationIndex = bundle.atObservations.findIndex(
+          (entry) => entry.source === source && entry.claim === `live-region:${scenario.scenario}`,
+        );
+        const observation = bundle.atObservations[observationIndex];
+        if (!observation) {
+          return {
+            id: nextFindingId(),
+            severity: "serious",
+            confidence: 1,
+            status: "automation-inconclusive",
+            wcag: ["4.1.3"],
+            assertionId: `at-runner:${source}:${scenario.scenario}`,
+            summary: `${source} produced live-region evidence but no ${scenario.scenario} observation.`,
+            expected: `One ${source} utterance set for ${scenario.scenario}.`,
+            actual: "No observation captured.",
+            evidence: [],
+            reasoning: "deterministic",
+            platformScope: [],
+          };
+        }
+        const spoken = observation.utterances.join(" | ");
+        const lower = spoken.toLowerCase();
+        const missing = scenario.requiredTokens.filter(
+          (token) => !lower.includes(token.toLowerCase()),
+        );
+        const forbidden = scenario.forbiddenTokens.filter((token) =>
+          lower.includes(token.toLowerCase()),
+        );
+        const satisfied =
+          observation.utterances.length > 0 &&
+          observation.utterances.length <= scenario.maxUtterances &&
+          missing.length === 0 &&
+          forbidden.length === 0;
+        return {
+          id: nextFindingId(),
+          severity: satisfied ? "minor" : "serious",
+          confidence: 1,
+          status: satisfied ? "confirmed-pass" : "confirmed-failure",
+          wcag: ["4.1.3"],
+          assertionId: `at-runner:${source}:${scenario.scenario}`,
+          summary: satisfied
+            ? `${source} announced ${scenario.scenario} within the utterance bound and without progress speech.`
+            : `${source} did not announce ${scenario.scenario} as specified.`,
+          expected: `Exactly the tokens [${scenario.requiredTokens.join(", ")}] in at most ${scenario.maxUtterances} utterances, none naming [${scenario.forbiddenTokens.join(", ") || "—"}].`,
+          actual: `${observation.command}: ${spoken || "(nothing)"} (${observation.utterances.length} utterances${missing.length ? `; missing ${missing.join(", ")}` : ""}${forbidden.length ? `; forbidden ${forbidden.join(", ")}` : ""}).`,
+          evidence: [ref("atObservation", observationIndex)],
+          reasoning: "deterministic",
+          platformScope: [observation.os],
+        };
+      });
+    }),
+  ];
+  return {
+    scenarioId: bundle.scenarioId,
+    runId: bundle.runId,
+    findings,
+    overallStatus: overallStatus(findings),
+  };
+}

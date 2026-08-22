@@ -9,8 +9,9 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DIALOG_SCENARIOS } from "./scenarios/ag-1-dialog";
 import { MOVE_TREE_SCENARIO } from "./scenarios/ag-3-move-tree";
+import { AG5_SCENARIO_ID, ANNOUNCEMENT_SCENARIOS } from "./scenarios/ag-5-live-region";
 import { mergeBundles } from "./scenarios/merge";
-import { computeDialogVerdict, computeTreeVerdict } from "./verdict";
+import { computeDialogVerdict, computeLiveRegionVerdict, computeTreeVerdict } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";
 
@@ -35,6 +36,18 @@ const SCENARIO_REGISTRY = [
         traversalTargetSan: MOVE_TREE_SCENARIO.traversalTargetSan,
         otherMoveSans: MOVE_TREE_SCENARIO.otherMoveSans,
         floodThreshold: MOVE_TREE_SCENARIO.floodThreshold,
+      }),
+  },
+  {
+    id: AG5_SCENARIO_ID,
+    computeVerdict: (bundle: EvidenceBundle) =>
+      computeLiveRegionVerdict(bundle, {
+        scenarios: ANNOUNCEMENT_SCENARIOS.map((scenario) => ({
+          scenario: scenario.scenario,
+          requiredTokens: scenario.requiredTokens,
+          forbiddenTokens: scenario.forbiddenTokens,
+          maxUtterances: scenario.maxUtterances,
+        })),
       }),
   },
 ] as const;

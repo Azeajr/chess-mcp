@@ -13,6 +13,8 @@ import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import DocumentCloseDialog from "./components/DocumentCloseDialog";
 import RecoverDialog from "./components/RecoverDialog";
+import ShortcutHelpDialog from "./components/ShortcutHelpDialog";
+import AppLiveRegion from "./components/AppLiveRegion";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
 import { actions } from "./store/game";
 import { backgroundSuspended, dispatchShortcut, registerShortcut } from "./store/shortcuts";
@@ -169,10 +171,27 @@ export default function App() {
             onEnd={persistLayout}
             onReset={resetLayout}
           />
+          {/* WP-013: each phone tab owns a real tabpanel. The wrappers are inert at wider tiers
+              (the stylesheet only reacts to .workspace[data-mtab]), so they add semantics without
+              changing the grid or flex geometry any panel already had. */}
           <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
-            <AnalysisPanel />
-            <RepertoirePanel />
-            <MoveTree />
+            <div
+              id="mobile-panel-analysis"
+              role="tabpanel"
+              aria-labelledby="mobile-tab-analysis"
+              class="mobile-panel"
+            >
+              <AnalysisPanel />
+              <RepertoirePanel />
+            </div>
+            <div
+              id="mobile-panel-moves"
+              role="tabpanel"
+              aria-labelledby="mobile-tab-moves"
+              class="mobile-panel"
+            >
+              <MoveTree />
+            </div>
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
           <Divider
@@ -186,7 +205,13 @@ export default function App() {
             onEnd={persistLayout}
             onReset={resetLayout}
           />
-          <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
+          <div
+            id="mobile-panel-chat"
+            role="tabpanel"
+            aria-labelledby="mobile-tab-chat"
+            class="chat-wrap"
+            style={{ width: `${effChatWidth()}px` }}
+          >
             <ChatPanel />
           </div>
         </div>
@@ -194,11 +219,13 @@ export default function App() {
       {/* Overlays render outside .app-main because they make it inert: an overlay nested inside
           the region it suspends would be inert itself, and disappear from the accessibility tree
           the moment it opened. */}
+      <AppLiveRegion />
       <SettingsDrawer />
       <PromotionModal />
       <ColorPickerModal />
       <DocumentCloseDialog />
       <RecoverDialog />
+      <ShortcutHelpDialog />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>

@@ -135,7 +135,10 @@ export type AtClaim =
   | "tree-role"
   | "item-level"
   | "expanded-state"
-  | "traversal-verbosity";
+  | "traversal-verbosity"
+  // AG-5: one claim per live-region policy operation. The scenario id rides in the claim so the
+  // verdict engine can match an observation to its expectation without a second field.
+  | `live-region:${string}`;
 
 export interface AtObservation {
   readonly source: "nvda" | "voiceover";

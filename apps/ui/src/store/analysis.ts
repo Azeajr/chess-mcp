@@ -10,6 +10,17 @@ import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
 import { fen, currentTree, currentPath, color } from "./game";
 import { analyseLive } from "../engine/stockfish";
 import { analysisDepth } from "./engine-settings";
+import { announce } from "./announce";
+import { registerOperation, updateOperationStatus } from "./operations";
+
+/**
+ * Settle an analysis-pass operation without the registry's announcement: live analysis completes
+ * many times per minute while browsing, and announcing each would be exactly the speech flood
+ * WP-009 exists to prevent. The registry entry still settles for activity views.
+ */
+function settleSilent(id: string, status: "completed" | "failed") {
+  updateOperationStatus(id, status);
+}
 
 export interface EngineLine {
   uci: string;
@@ -71,6 +82,15 @@ const analysisState = (): AnalysisState =>
 /** Re-run the live-worker request without changing any analysis preferences. */
 const reloadAnalysis = () => setAnalysisReload((version) => version + 1);
 
+/**
+ * WP-009 test seam: exercise the offline announcement without a real dead engine. It runs the
+ * same transition the search-failure path uses, including the sticky-banner guard.
+ */
+export function announceEngineOfflineForTesting() {
+  if (!engineOffline()) announce("The chess engine went offline.", { assertive: true });
+  setEngineOffline(true);
+}
+
 export {
   engineLines,
   engineArrows,
@@ -121,11 +141,29 @@ createEffect(() => {
   let cancelled = false;
   const t = setTimeout(() => {
     setAnalysing(true);
+    // WP-010: the live analysis pass registers as an operation so the registry answers "what is
+    // running right now?" uniformly. Settled silently — the analysis pass completes many times
+    // per minute while browsing, and announcing each would be exactly the speech flood WP-009
+    // exists to prevent. The registry entry still shows in any activity view.
+    const operationId = registerOperation({
+      kind: "live-analysis",
+      label: "Live engine analysis",
+      surface: "analysis",
+    });
     // Dedicated live worker (P1): browsing positions never queues behind a scan burst.
+    // The continuation runs after the search resolves, outside any tracked scope on purpose: it
+    // reports a finished operation rather than deriving reactive state.
+    // eslint-disable-next-line solid/reactivity
     void analyseLive(f, MULTIPV, depth).then((res) => {
       if (cancelled) return;
       setAnalysing(false);
+      settleSilent(operationId, res ? "completed" : "failed");
       if (!res) {
+        // Announce only on the offline transition, not per failed search — a dead engine would
+        // otherwise re-announce on every position change. engineOffline() is read once, here,
+        // as a plain value: this callback runs outside any tracked scope by design.
+        const wasOffline = engineOffline();
+        if (!wasOffline) announce("The chess engine went offline.", { assertive: true });
         setEngineOffline(true);
         setLines([]);
         setArrows([]);

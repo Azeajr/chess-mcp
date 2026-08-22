@@ -10,8 +10,9 @@ import { schemaSemanticDifferences } from "./lib/schema-semantics.mjs";
 const root = new URL("../", import.meta.url);
 const mcpSource = await readFile(new URL("apps/mcp-server/src/index.ts", root), "utf8");
 const names = (source, pattern) => [...source.matchAll(pattern)].map((match) => match[1]);
+// registerTool(name, {...}) since f4981867 migrated off the deprecated server.tool() API.
 const registrations = {
-  mcp: names(mcpSource, /server\.tool\(\s*[\r\n ]*"([a-z_]+)"/g),
+  mcp: names(mcpSource, /server\.registerTool\(\s*[\r\n ]*"([a-z_]+)"/g),
   browser: browserCommandRegistrations.map(([name]) => name),
 };
 const actual = {
@@ -39,7 +40,7 @@ if (unregisteredBrowserKeys.length) {
 }
 const mcpCanonicalDescriptions = names(
   mcpSource,
-  /server\.tool\(\s*"([a-z_]+)"\s*,\s*toolContract\("\1"\)\.description/g,
+  /server\.registerTool\(\s*"([a-z_]+)"\s*,\s*\{[^}]*?description: toolContract\("\1"\)\.description/gs,
 );
 if (mcpCanonicalDescriptions.length !== actual.mcp.size) {
   failed = true;

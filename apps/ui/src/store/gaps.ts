@@ -9,6 +9,13 @@ import { createSignal } from "solid-js";
 import { type Severity, type Path } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
+import {
+  registerOperation,
+  settleOperation,
+  updateOperation,
+  runningOperations,
+  type Operation,
+} from "./operations";
 
 export interface Gap {
   path: Path;
@@ -32,11 +39,22 @@ const LIMIT = 12;
 
 const [gaps, setGaps] = createSignal<Gap[]>([]);
 const [covered, setCovered] = createSignal<CoveredGap[]>([]);
-const [scanning, setScanning] = createSignal(false);
-const [progress, setProgress] = createSignal<{ done: number; total: number } | null>(null);
 const [scanError, setScanError] = createSignal<string | null>(null);
+export { gaps, covered, scanError };
 
-export { gaps, covered, scanning, progress, scanError };
+/**
+ * WP-010: the scan's running state lives in the operation registry. The gaps operation is the
+ * one running entry of kind "gaps-scan"; its progress rides the registry's done/total.
+ */
+export const scanning = () =>
+  runningOperations().some((operation) => operation.kind === "gaps-scan");
+export const progress = (): { done: number; total: number } | null => {
+  const operation = runningOperations().find(
+    (entry): entry is Operation & { done: number; total: number } =>
+      entry.kind === "gaps-scan" && entry.done !== undefined && entry.total !== undefined,
+  );
+  return operation ? { done: operation.done, total: operation.total } : null;
+};
 
 // --- per-gap fill suggestions (on-demand: best-eval + best-fit reply to the uncovered move) ---
 
@@ -126,12 +144,15 @@ export async function fillGap(g: Gap) {
 }
 
 let scanController: AbortController | null = null;
+let scanOperationId: string | null = null;
 
 export function cancelScan() {
   scanController?.abort();
   scanController = null;
-  setScanning(false);
-  setProgress(null);
+  if (scanOperationId !== null) {
+    settleOperation(scanOperationId, "cancelled");
+    scanOperationId = null;
+  }
 }
 
 export async function scanGaps() {
@@ -144,8 +165,16 @@ export async function scanGaps() {
   setCovered([]);
   setFills({});
   fillGen++; // discard any in-flight fill from the previous scan
-  setScanning(true);
-  setProgress({ done: 0, total: 0 });
+  const id = registerOperation({
+    kind: "gaps-scan",
+    label: "Gaps scan",
+    surface: "repertoire",
+    cancel: () => {
+      cancelScan();
+    },
+  });
+  scanOperationId = id;
+  updateOperation(id, { done: 0, total: 0 });
 
   try {
     const res = (await executeBrowserCommand(
@@ -159,7 +188,8 @@ export async function scanGaps() {
       {
         signal: controller.signal,
         onProgress: (done, total) => {
-          if (scanController === controller) setProgress({ done, total: total ?? 0 });
+          if (scanController === controller && scanOperationId !== null)
+            updateOperation(scanOperationId, { done, total: total ?? 0 });
         },
       },
     )) as {
@@ -202,8 +232,15 @@ export async function scanGaps() {
   } finally {
     if (scanController === controller) {
       scanController = null;
-      setScanning(false);
-      setProgress(null);
+      // The cancelled path already settled through cancelScan; only an unobserved settle
+      // (completed or failed) lands here. scanError() is read once as a plain value: this
+      // finally block runs outside any tracked scope.
+      const failed = scanError() !== null;
+      const opId = scanOperationId;
+      if (typeof opId === "string") {
+        settleOperation(opId, failed ? "failed" : "completed");
+        scanOperationId = null;
+      }
     }
   }
 }
