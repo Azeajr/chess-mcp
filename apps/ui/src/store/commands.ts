@@ -34,6 +34,8 @@ export interface CommandState {
   result?: Record<string, unknown>;
   error?: string;
   progress?: { done: number; total?: number; detail?: string };
+  /** Epoch millis of the last transition to a settled status — drives WP-022 AC-4 summaries. */
+  completedAt?: number;
 }
 
 const initial = (): CommandState => ({ status: "idle" });
@@ -64,7 +66,12 @@ export function cancelCommand(command: DirectCommand) {
   controllers.delete(command);
   setCommandStates((all) => ({
     ...all,
-    [command]: { ...all[command], status: "cancelled", progress: undefined },
+    [command]: {
+      ...all[command],
+      status: "cancelled",
+      progress: undefined,
+      completedAt: Date.now(),
+    },
   }));
   // WP-010: the registry settles the operation and owns the announcement.
   const operationId = commandOperationIds.get(command);
@@ -128,8 +135,8 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     setCommandStates((all) => ({
       ...all,
       [command]: error
-        ? { status: executionOutcome(false, true), result, error }
-        : { status: executionOutcome(false), result },
+        ? { status: executionOutcome(false, true), result, error, completedAt: Date.now() }
+        : { status: executionOutcome(false), result, completedAt: Date.now() },
     }));
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -140,6 +147,7 @@ export async function executeCommand(command: DirectCommand, args: Record<string
       [command]: {
         status: "failed",
         error: message,
+        completedAt: Date.now(),
       },
     }));
   } finally {

@@ -82,7 +82,7 @@ import {
   strategicFitSidecarImportError,
   strategicFitSidecarImportPreview,
 } from "./store/strategic-fit-sidecar";
-import { commandStates } from "./store/commands";
+import { commandStates, setCommandStateForTesting } from "./store/commands";
 import {
   setStrategicFitWorkspaceRegionState,
   strategicFitWorkspaceOpen,
@@ -114,6 +114,7 @@ if (import.meta.env.DEV) {
     fileName,
     setReopenHandleForTesting,
     commandStates,
+    setCommandStateForTesting,
     addSuggestion,
     acceptSuggestion,
     suggestions,

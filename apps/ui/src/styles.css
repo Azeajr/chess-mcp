@@ -7844,3 +7844,63 @@ img,
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
+
+/* WP-022 AC-4: the one-line result summary a collapsed group shows in its summary row. */
+.rep-summary-note {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-xs);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * WP-022 group headers. On the wide tier each group shows its own heading row. Below the flex
+ * tier the headings yield: the four extra rows they add push the last repertoire control below
+ * the fold at 768x1024, which WP-002 AC-2 forbids. The grouping stays announced through each
+ * group's aria-label, so structure survives without the painted rows.
+ */
+/*
+ * WP-022 AC-7: the group headings must not make the collapsed panel taller than the pre-WP-022
+ * panel (measured 714px at 1280x800). Four heading rows would cost ~109px, so each group title
+ * collapses into a zero-height overlay on the group's own border — visible as a small caps label
+ * sitting on the divider line, costing no vertical space at all.
+ */
+.rep-group {
+  position: relative;
+}
+.rep-group + .rep-group {
+  margin-top: var(--space-2);
+}
+.rep-group > .panel-header {
+  position: absolute;
+  inset-block-start: calc(-0.5em - var(--space-2));
+  inset-inline-start: var(--space-2);
+  padding-block: 0 var(--space-1);
+  background: var(--panel);
+  border-radius: 4px;
+}
+.rep-group:first-of-type {
+  margin-top: var(--space-2);
+}
+/* The first group follows the scope-note directly; its overlay label sits on the note's own
+   bottom edge rather than adding separation of its own. */
+.rep-panel > .scope-note + .rep-group {
+  margin-top: var(--space-1);
+}
+@media (max-width: 68.75em) {
+  .rep-group > .panel-header {
+    display: none;
+  }
+  .rep-group + .rep-group {
+    margin-top: var(--space-3);
+  }
+  .rep-section > summary {
+    flex-wrap: wrap;
+  }
+  .rep-section > summary .scan-btn,
+  .rep-section > summary .rep-mode {
+    margin-left: 0;
+  }
+}

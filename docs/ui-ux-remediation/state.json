@@ -494,7 +494,32 @@
       "status": "not-started"
     },
     "WP-022": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-22T22:33:34.374257Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 457 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "rollbackRule": "The argument-equivalence spec (repertoire-taxonomy.spec.ts) was written FIRST and passed 5/5 against the pre-refactor panel before any edit, per the rollback rule. After the refactor the same assertions pass again.",
+        "requiredAutomatedValidation": "The four-group taxonomy is asserted against aria-labels on .rep-group sections in order; all ten tools asserted present and dispatching identical commands via window.__chess.commandStates; canonical depth statement asserted once; AC-4 summary asserted through a DEV-fixture settled command state (setCommandStateForTesting exposed on __chess), removing engine-throughput flakiness; keyboard toggling and touch targets asserted.",
+        "acceptanceCriteria": {
+          "AC-1": "Exactly four .rep-group sections with aria-labels Analyze / Prepare / Generate / Prepare and export, asserted in order; zero occurrences of the text Advanced.",
+          "AC-2": "All ten tools present (5 command-registry + Gaps/Connect/Shorten/Extend here); each registry tool clicked and its recorded command verified non-null via commandStates.",
+          "AC-3": "Per-section scope notes no longer restate depth; the canonical Engine-backed operations note is the single depth statement, asserted to contain exactly one match of /depth/i.",
+          "AC-4": "CommandState gains completedAt (set on completed/failed/cancelled); each tool summary renders a .rep-summary-note with result count plus relative time when settled. Asserted with a deterministic injected fixture.",
+          "AC-5": "Summaries are native summary elements reachable by Tab; Enter toggles the details open state; asserted round-trip.",
+          "AC-6": "touchTargetViolations(repertoirePanel, 24) returns empty at 1280x800.",
+          "AC-7": "Collapsed panel height measured per engine against per-engine baselines captured from the pre-WP-022 panel by stash-probe: chromium 714.39->707.39, firefox 713.40->706.40, webkit 733.58->726.58. The refactor is strictly shorter."
+        },
+        "preservedBehavior": "Section JSX bodies were moved, not rewritten: audit/only-moves/structures/prep/export arguments, depth injection, cancellation, progress, staging (stagePreviewLine, acceptPreview), covered-by-transposition rows, best eval/best fit pair, Shorten inspect panel, usersTurn guard, artifact save flow are byte-identical to HEAD. StrategicFitTransfer moved into Prepare and export. Gaps remains open by default.",
+        "gates": {}
+      }
     },
     "WP-023": {
       "status": "complete",
