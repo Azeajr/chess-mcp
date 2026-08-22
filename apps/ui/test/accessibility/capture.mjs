@@ -19,13 +19,18 @@ import { LAST_RUN_ID_FILE } from "./run-context.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../../../..");
+const uiRoot = path.resolve(here, "../..");
 const runId = process.env.A11Y_RUN_ID ?? new Date().toISOString().replace(/[:.]/gu, "-");
 const passthroughArgs = process.argv.slice(2);
 const selectedSpec = process.env.A11Y_SPEC;
 const containerSpec = selectedSpec
   ? path.posix.join("apps/ui/test/accessibility", path.basename(selectedSpec))
   : undefined;
-const localSpec = selectedSpec ? path.join(here, path.basename(selectedSpec)) : undefined;
+// Playwright treats file arguments as patterns. A Windows absolute path contains backslashes,
+// which the matcher interprets as escapes; use a package-relative POSIX path on every host.
+const localSpec = selectedSpec
+  ? path.posix.join("test/accessibility", path.basename(selectedSpec))
+  : undefined;
 
 const [command, args] =
   process.env.A11Y_CONTAINER === "1"
@@ -55,7 +60,7 @@ const [command, args] =
 
 const result = spawnSync(command, args, {
   stdio: "inherit",
-  cwd: process.env.A11Y_CONTAINER === "1" ? repoRoot : undefined,
+  cwd: process.env.A11Y_CONTAINER === "1" ? repoRoot : uiRoot,
   env: { ...process.env, A11Y_RUN_ID: runId },
   shell: process.platform === "win32",
 });
