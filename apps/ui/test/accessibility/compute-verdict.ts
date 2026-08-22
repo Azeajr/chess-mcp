@@ -7,11 +7,37 @@
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DIALOG_SCENARIOS, scenarioById } from "./scenarios/ag-1-dialog";
+import { DIALOG_SCENARIOS } from "./scenarios/ag-1-dialog";
+import { MOVE_TREE_SCENARIO } from "./scenarios/ag-3-move-tree";
 import { mergeBundles } from "./scenarios/merge";
-import { computeDialogVerdict } from "./verdict";
+import { computeDialogVerdict, computeTreeVerdict } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";
+
+const SCENARIO_REGISTRY = [
+  ...DIALOG_SCENARIOS.map((definition) => ({
+    id: definition.id,
+    computeVerdict: (bundle: EvidenceBundle) =>
+      computeDialogVerdict(bundle, {
+        dialogName: definition.dialogName,
+        backgroundControlName: definition.backgroundControlName,
+        expectedFocusReturnTargetName: definition.openerName,
+      }),
+  })),
+  {
+    id: MOVE_TREE_SCENARIO.id,
+    computeVerdict: (bundle: EvidenceBundle) =>
+      computeTreeVerdict(bundle, {
+        treeName: MOVE_TREE_SCENARIO.treeName,
+        entryMoveSan: MOVE_TREE_SCENARIO.entryMoveSan,
+        branchMoveSan: MOVE_TREE_SCENARIO.branchMoveSan,
+        expectedLevel: MOVE_TREE_SCENARIO.expectedLevel,
+        traversalTargetSan: MOVE_TREE_SCENARIO.traversalTargetSan,
+        otherMoveSans: MOVE_TREE_SCENARIO.otherMoveSans,
+        floodThreshold: MOVE_TREE_SCENARIO.floodThreshold,
+      }),
+  },
+] as const;
 
 async function resolveRunId(): Promise<string> {
   if (process.env.A11Y_RUN_ID) return process.env.A11Y_RUN_ID;
@@ -57,7 +83,7 @@ function renderMarkdown(verdict: ScenarioVerdict, bundle: EvidenceBundle): strin
 async function main() {
   const runId = await resolveRunId();
   const dir = path.join(EVIDENCE_ROOT, runId);
-  const scenarioIds = new Set(DIALOG_SCENARIOS.map((scenario) => scenario.id));
+  const scenarioIds = new Set(SCENARIO_REGISTRY.map((scenario) => scenario.id));
   const files = (await readdir(dir)).filter(
     (name) => name.endsWith(".json") && [...scenarioIds].some((id) => name.startsWith(`${id}-`)),
   );
@@ -68,22 +94,17 @@ async function main() {
     files.map(async (name) => JSON.parse(await readFile(path.join(dir, name), "utf8"))),
   );
 
-  // One verdict per scenario, never one merged across them: a dialog's findings are only
-  // meaningful against its own expected names, and merging Settings evidence with Strategic Fit
-  // evidence would compare each screen reader's utterance against the wrong dialog.
+  // One verdict per scenario, never one merged across them: findings are meaningful only against
+  // their own expected names, interactions, and required evidence sources.
   const reports = [];
-  for (const scenario of DIALOG_SCENARIOS) {
+  for (const scenario of SCENARIO_REGISTRY) {
     const forScenario = bundles.filter((bundle) => bundle.scenarioId === scenario.id);
-    if (forScenario.length === 0) continue;
+    if (forScenario.length === 0) {
+      throw new Error(`No evidence bundle found for required scenario ${scenario.id}.`);
+    }
     const merged = mergeBundles(forScenario);
-    const definition = scenarioById(merged.scenarioId);
-    if (!definition) throw new Error(`No scenario definition for ${merged.scenarioId}.`);
     reports.push({
-      verdict: computeDialogVerdict(merged, {
-        dialogName: definition.dialogName,
-        backgroundControlName: definition.backgroundControlName,
-        expectedFocusReturnTargetName: definition.openerName,
-      }),
+      verdict: scenario.computeVerdict(merged),
       evidence: merged,
     });
   }

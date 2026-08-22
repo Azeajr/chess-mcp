@@ -78,6 +78,7 @@ jobs:
         run: node test/accessibility/capture.mjs --project chromium
         env:
           A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-1-dialog.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -113,6 +114,7 @@ jobs:
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-1-dialog.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -120,9 +122,69 @@ jobs:
           path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
           if-no-files-found: warn
 
+  at-nvda-tree:
+    name: AG-3 tree evidence — NVDA (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: guidepup/setup-action@0.21.0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm exec playwright install chromium
+        working-directory: apps/ui
+      - run: npx @guidepup/setup install nvda
+        working-directory: apps/ui
+      - name: Capture move-tree NVDA evidence
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project chromium
+        env:
+          A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-3-move-tree.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-evidence-nvda-tree
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
+          if-no-files-found: warn
+
+  at-voiceover-tree:
+    name: AG-3 tree evidence — VoiceOver (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: guidepup/setup-action@0.21.0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm exec playwright install webkit
+        working-directory: apps/ui
+      - run: npx @guidepup/setup install voiceover
+        working-directory: apps/ui
+      - name: Capture move-tree VoiceOver evidence
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project webkit
+        env:
+          A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-3-move-tree.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a11y-evidence-voiceover-tree
+          path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
+          if-no-files-found: warn
+
   merge-report:
     name: Merge evidence and compute verdict
-    needs: [browser-evidence, at-nvda, at-voiceover]
+    needs: [browser-evidence, at-nvda, at-voiceover, at-nvda-tree, at-voiceover-tree]
     if: always()
     runs-on: ubuntu-latest
     steps:

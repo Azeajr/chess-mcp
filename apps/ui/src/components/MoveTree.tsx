@@ -316,8 +316,8 @@ export default function MoveTree() {
                 class="collapse-toggle"
                 type="button"
                 tabIndex={-1}
+                aria-hidden="true"
                 data-branch-path={branchPath.join(",")}
-                aria-label={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
                 title={isCollapsed ? `Show ${hidden} variation(s)` : "Hide variations"}
                 onClick={(event) => {
                   event.stopPropagation();

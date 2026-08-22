@@ -105,6 +105,20 @@ export interface AtDialogSteps {
   readonly refocusDialog: () => Promise<void>;
 }
 
+export interface AtTreeSteps {
+  /** Put DOM focus on the tree entry item used for role and level evidence. */
+  readonly focusEntryItem: () => Promise<void>;
+  /** Put DOM focus on the item that owns the variation group's expanded state. */
+  readonly focusBranchItem: () => Promise<void>;
+  /** Put DOM focus on the expected target when an AT intercepts the traversal key. */
+  readonly focusTraversalTarget: () => Promise<void>;
+  /** True when the app received the traversal key and moved focus to the expected item. */
+  readonly traversalReachedTarget: () => Promise<boolean>;
+  /** Resolve once the branch item exposes the requested expanded state. */
+  readonly awaitExpanded: (expanded: boolean) => Promise<void>;
+  readonly traversalKey: string;
+}
+
 /** Thrown when a dialog never reached the state a step was waiting for. */
 class AtStepTimeout extends Error {}
 
@@ -329,5 +343,80 @@ export function captureDialogObservations(
     );
 
     return [announcement, background, focusReport, focusReturn];
+  });
+}
+
+/**
+ * Captures the four AG-3 claims in one real screen-reader session. DOM focus is established
+ * silently before each observation; every announcement-bearing command is issued through
+ * Guidepup so its utterance log actually records the speech.
+ */
+export function captureTreeObservations(
+  runner: AtRunnerId,
+  page: Page,
+  steps: AtTreeSteps,
+): Promise<readonly AtObservation[]> {
+  return withScreenReader(runner, page, async (session) => {
+    await session.focusBrowser();
+    await session.since();
+
+    await steps.focusEntryItem();
+    await session.focusBrowser();
+    await session.since();
+    await session.reportFocus();
+    const entryUtterances = await session.since();
+    const treeRole = session.observe("tree-role", session.focusCommandName, entryUtterances);
+    const itemLevel = session.observe("item-level", session.focusCommandName, entryUtterances);
+
+    await steps.focusBranchItem();
+    await session.focusBrowser();
+    await session.since();
+    await session.reportFocus();
+    const expandedUtterances = await session.since();
+
+    await session.focusBrowser();
+    await session.press("Space");
+    await within("tree branch collapse", STEP_TIMEOUT_MS, () => steps.awaitExpanded(false));
+    const toggleUtterances = await session.since();
+    await session.focusBrowser();
+    await session.reportFocus();
+    const collapsedUtterances = await session.since();
+    const expandedState = session.observe(
+      "expanded-state",
+      `${session.focusCommandName}; press Space; ${session.focusCommandName}`,
+      [...expandedUtterances, ...toggleUtterances, ...collapsedUtterances],
+    );
+
+    // Restore the fixture before traversal so this session leaves the page in its initial state.
+    await session.focusBrowser();
+    await session.press("Space");
+    await within("tree branch expand", STEP_TIMEOUT_MS, () => steps.awaitExpanded(true));
+    await session.since();
+
+    await steps.focusBranchItem();
+    await session.focusBrowser();
+    await session.since();
+    await session.press(steps.traversalKey);
+    let traversalUtterances = await session.since();
+    let traversalCommand = `press ${steps.traversalKey}`;
+
+    // NVDA browse mode and VoiceOver Quick Nav may consume arrows instead of forwarding them to
+    // the web app. The browser contract already proves the app handler; in that case move DOM
+    // focus silently and ask the real AT to describe the resulting item.
+    if (!(await steps.traversalReachedTarget())) {
+      await steps.focusTraversalTarget();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportFocus();
+      traversalUtterances = await session.since();
+      traversalCommand = `focus target via DOM; ${session.focusCommandName} (${steps.traversalKey} intercepted)`;
+    }
+    const traversalVerbosity = session.observe(
+      "traversal-verbosity",
+      traversalCommand,
+      traversalUtterances,
+    );
+
+    return [treeRole, itemLevel, expandedState, traversalVerbosity];
   });
 }

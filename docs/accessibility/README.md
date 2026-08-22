@@ -1,7 +1,8 @@
 # Automated accessibility evidence pipeline
 
-Origin: AG-1 requires proof that real NVDA and VoiceOver convey the dialog contract. This pipeline
-produces and scores that proof unattended—real screen-reader output, not a simulator—under the
+Origin: AG-1 and AG-3 require proof that real NVDA and VoiceOver convey the dialog and move-tree
+contracts. This pipeline produces and scores that proof unattended—real screen-reader output, not
+a simulator—under the
 [automated completion policy](../ui-ux-remediation/AUTOMATED_COMPLETION.md). Reports are diagnostic;
 the deterministic command is the gate.
 
@@ -28,8 +29,11 @@ apps/ui/test/accessibility/
                              not a simulator. Platform-gated: returns an
                              InfrastructureLimitation record on any worker that can't run it,
                              never a fabricated pass.
-  scenarios/ag-1-dialog.ts  The concrete scenario: open Strategic Fit, run every collector this
-                             worker supports, return one EvidenceBundle.
+  scenarios/ag-1-dialog.ts  Dialog definitions for Settings and Strategic Fit.
+  scenarios/ag-3-move-tree.ts
+                             The branching move-tree definition and deterministic expectations.
+  scenarios/dialog-scenario.ts / tree-scenario.ts
+                             Run every supported collector and return one EvidenceBundle.
   verdict.ts                Deterministic classification. Every Finding cites an EvidenceRef —
                              an index into the bundle that produced it. Never calls an LLM.
   llm-review.mjs            Opt-in only (A11Y_LLM_REVIEW=1). The reasoning layer, not the source
@@ -37,8 +41,8 @@ apps/ui/test/accessibility/
                              citations that don't resolve are rejected before anyone sees them.
   run-context.mjs           Shared run-ID computation (capture.mjs, compute-verdict.ts, and the
                              Playwright spec all import this — one source, not three copies).
-  capture.mjs               Entry point. Computes one A11Y_RUN_ID, runs the capture spec under
-                             it (locally or via A11Y_CONTAINER=1 through Docker), writes
+  capture.mjs               Entry point. Computes one A11Y_RUN_ID, runs all capture specs (or the
+                             A11Y_SPEC selection) locally or via A11Y_CONTAINER=1 through Docker, writes
                              .last-run-id so compute-verdict.ts can find it without the caller
                              propagating the env var.
   compute-verdict.ts        Reads every browser's evidence file for a run, merges them,
@@ -72,6 +76,10 @@ A11Y_LLM_REVIEW=1 pnpm --filter @chess-mcp/ui a11y:llm-review
 ```
 
 Reports land at `apps/ui/test-results/accessibility/<runId>/report.{json,md}`.
+
+`A11Y_SPEC=ag-1-dialog.spec.ts` or `A11Y_SPEC=ag-3-move-tree.spec.ts` isolates capture cost for an
+AT worker. The final merge command still requires every registered scenario and every declared
+browser/AT source; a focused artifact cannot accidentally resolve the project gate.
 
 ## What's proven
 
@@ -220,13 +228,26 @@ report, and audible focus return. `docs/ui-ux-remediation/state.json` records th
 The result requires no replay or approval. Any future consumer migration that names AG-1 reruns
 the same command; missing AT evidence or any non-pass finding blocks completion.
 
+## AG-3 status
+
+The move-tree browser tier is implemented and confirmed across Chromium, Firefox, and WebKit. It
+asserts the named tree, variation-depth level, branch-expanded state, and absence of tree-scoped
+axe violations. The first browser capture exposed the pointer-only collapse button as an invalid
+tree child; the button is now hidden from the accessibility tree while the branch-owning tree item
+retains `aria-expanded` and the Space-key contract.
+
+Separate Windows/NVDA and macOS/VoiceOver jobs capture role, level, expanded/collapsed state, and a
+bounded one-item traversal utterance. The deterministic verdict requires all four claims from both
+AT sources. Until a merged remote run reports `confirmed-pass`, AG-3 remains unresolved.
+
 ## What this MVP is not
 
 The original design brief for this pipeline described a much larger system: autonomous state
 exploration (crawl the app's interactive states, not just one hardcoded scenario), changed-code
 targeting (map a diff to the scenarios that exercise it), LLM-generated candidate scenarios,
 cross-run reliability infrastructure (retries, duplicate-run comparison, stale-AT-output
-detection, clean VM snapshots). None of that exists yet. What exists is one scenario
-(`ag-1-dialog.ts`) proving the full evidence → verdict → (optional) LLM-synthesis pipeline works
-end to end, with real citations traceable back to real observations at every layer. Extending it
-to more scenarios means writing more files under `scenarios/`, not a different architecture.
+detection, clean VM snapshots). None of that exists yet. The current concrete coverage is two
+dialog scenarios and one move-tree scenario, proving the full evidence → verdict → (optional)
+LLM-synthesis pipeline works end to end, with real citations traceable back to real observations
+at every layer. Extending it further means writing more files under `scenarios/`, not a different
+architecture.

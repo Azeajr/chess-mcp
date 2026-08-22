@@ -21,6 +21,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../../../..");
 const runId = process.env.A11Y_RUN_ID ?? new Date().toISOString().replace(/[:.]/gu, "-");
 const passthroughArgs = process.argv.slice(2);
+const selectedSpec = process.env.A11Y_SPEC;
+const containerSpec = selectedSpec
+  ? path.posix.join("apps/ui/test/accessibility", path.basename(selectedSpec))
+  : undefined;
+const localSpec = selectedSpec ? path.join(here, path.basename(selectedSpec)) : undefined;
 
 const [command, args] =
   process.env.A11Y_CONTAINER === "1"
@@ -31,7 +36,7 @@ const [command, args] =
           "--",
           "--config",
           "apps/ui/test/accessibility/playwright.config.ts",
-          "apps/ui/test/accessibility/ag-1-dialog.spec.ts",
+          ...(containerSpec ? [containerSpec] : []),
           ...passthroughArgs,
         ],
       ]
@@ -43,6 +48,7 @@ const [command, args] =
           "test",
           "--config",
           path.join(here, "playwright.config.ts"),
+          ...(localSpec ? [localSpec] : []),
           ...passthroughArgs,
         ],
       ];

@@ -244,8 +244,10 @@ test("WP-011 AC-4 keeps branch collapsing keyboard-operable from inside the tree
   const toggle = branchToggle(page, branch);
   const group = page.locator(`#move-tree-group-${branch.join("-")}`);
   // The toggle is deliberately not a page-level Tab stop, so the tree itself has to carry the
-  // control; without it, collapsing a branch would be reachable only with a pointer.
+  // control; without it, collapsing a branch would be reachable only with a pointer. It is also
+  // hidden from the accessibility tree so the tree's group contains only valid tree items.
   await expect(toggle).toHaveAttribute("tabindex", "-1");
+  await expect(toggle).toHaveAttribute("aria-hidden", "true");
 
   const item = moveItem(page, mainlineReply);
   await item.focus();

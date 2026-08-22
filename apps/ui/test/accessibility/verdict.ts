@@ -230,6 +230,55 @@ function axeFindings(bundle: EvidenceBundle): readonly Finding[] {
   );
 }
 
+function treeAxeFindings(bundle: EvidenceBundle): readonly Finding[] {
+  return bundle.axe.flatMap((evidence, index) =>
+    evidence.violations
+      .filter((violation) =>
+        violation.targets.some(
+          (target) => target.includes('[role="tree"]') || target.includes(".move-tree"),
+        ),
+      )
+      .map((violation) => ({
+        id: nextFindingId(),
+        severity: "serious" as const,
+        confidence: 1,
+        status: "confirmed-failure" as const,
+        wcag: violation.wcagTags,
+        assertionId: `tree-axe:${violation.ruleId}`,
+        summary: violation.help,
+        expected: "The move tree has no deterministic axe violations.",
+        actual: violation.failureSummary ?? `Targets: ${violation.targets.join(", ")}`,
+        evidence: [ref("axe", index)],
+        reasoning: "deterministic" as const,
+        platformScope: [evidence.browser],
+      })),
+  );
+}
+
+const REQUIRED_BROWSERS = ["chromium", "firefox", "webkit"] as const;
+
+function checkBrowserCoverage(bundle: EvidenceBundle): Finding {
+  const captured = new Set(bundle.ariaSnapshots.map((snapshot) => snapshot.browser));
+  const missing = REQUIRED_BROWSERS.filter((browser) => !captured.has(browser));
+  const satisfied = missing.length === 0;
+  return {
+    id: nextFindingId(),
+    severity: satisfied ? "minor" : "serious",
+    confidence: 1,
+    status: satisfied ? "confirmed-pass" : "automation-inconclusive",
+    wcag: [],
+    assertionId: "browser-evidence-coverage",
+    summary: satisfied
+      ? "Chromium, Firefox, and WebKit evidence are all present."
+      : `Required browser evidence is missing: ${missing.join(", ")}.`,
+    expected: "Accessibility-tree evidence from Chromium, Firefox, and WebKit.",
+    actual: `Captured: ${[...captured].join(", ") || "none"}.`,
+    evidence: bundle.ariaSnapshots.map((_, index) => ref("ariaSnapshot", index)),
+    reasoning: "deterministic",
+    platformScope: [...captured],
+  };
+}
+
 const AT_SOURCES = ["nvda", "voiceover"] as const;
 const AT_CLAIMS = [
   "dialog-announcement",
@@ -444,6 +493,7 @@ export function computeDialogVerdict(
 ): ScenarioVerdict {
   findingCounter = 0;
   const findings: Finding[] = [
+    checkBrowserCoverage(bundle),
     checkDialogNameAndRole(bundle, expectation.dialogName),
     ...[checkBackgroundExclusion(bundle, expectation.backgroundControlName)].filter(
       (finding): finding is Finding => finding !== null,
@@ -452,6 +502,229 @@ export function computeDialogVerdict(
     ...checkKeyboardTrapsAndEscapes(bundle),
     ...axeFindings(bundle),
     ...atFindings(bundle, expectation),
+  ];
+  return {
+    scenarioId: bundle.scenarioId,
+    runId: bundle.runId,
+    findings,
+    overallStatus: overallStatus(findings),
+  };
+}
+
+export interface TreeScenarioExpectation {
+  readonly treeName: string;
+  readonly entryMoveSan: string;
+  readonly branchMoveSan: string;
+  readonly expectedLevel: string;
+  readonly traversalTargetSan: string;
+  readonly otherMoveSans: readonly string[];
+  readonly floodThreshold: number;
+}
+
+function treeSnapshotFinding(
+  bundle: EvidenceBundle,
+  assertionId: string,
+  expected: string,
+  matches: (snapshot: string) => boolean,
+): Finding {
+  const observations = bundle.ariaSnapshots.map((snapshot, index) => ({
+    browser: snapshot.browser,
+    index,
+    matched: matches(snapshot.snapshot),
+  }));
+  const matched = observations.filter((entry) => entry.matched);
+  const evidence = observations.map((entry) => ref("ariaSnapshot", entry.index));
+  const platforms = [...new Set(observations.map((entry) => entry.browser))];
+  if (observations.length === 0) {
+    return {
+      id: nextFindingId(),
+      severity: "serious",
+      confidence: 0,
+      status: "automation-inconclusive",
+      wcag: ["4.1.2"],
+      assertionId,
+      summary: `No browser evidence was captured for ${assertionId}.`,
+      expected,
+      actual: "No ariaSnapshot evidence collected.",
+      evidence: [],
+      reasoning: "deterministic",
+      platformScope: [],
+    };
+  }
+  const allMatched = matched.length === observations.length;
+  const noneMatched = matched.length === 0;
+  return {
+    id: nextFindingId(),
+    severity: allMatched ? "minor" : "serious",
+    confidence: 1,
+    status: allMatched
+      ? "confirmed-pass"
+      : noneMatched
+        ? "confirmed-failure"
+        : "cross-platform-disagreement",
+    wcag: ["4.1.2"],
+    assertionId,
+    summary: allMatched
+      ? `${expected} Confirmed in every captured browser.`
+      : `${expected} Missing in ${observations
+          .filter((entry) => !entry.matched)
+          .map((entry) => entry.browser)
+          .join(", ")}.`,
+    expected,
+    actual: `Matched: ${matched.map((entry) => entry.browser).join(", ") || "none"}.`,
+    evidence,
+    reasoning: "deterministic",
+    platformScope: platforms,
+  };
+}
+
+const treeItemLine = (snapshot: string, san: string): string | undefined =>
+  snapshot
+    .split("\n")
+    .find((line) => /treeitem/iu.test(line) && line.toLowerCase().includes(san.toLowerCase()));
+
+function treeAtFindings(
+  bundle: EvidenceBundle,
+  expectation: TreeScenarioExpectation,
+): readonly Finding[] {
+  const claims = ["tree-role", "item-level", "expanded-state", "traversal-verbosity"] as const;
+  return AT_SOURCES.flatMap((source) => {
+    const sourceObservations = bundle.atObservations.filter(
+      (observation) => observation.source === source,
+    );
+    if (sourceObservations.length === 0) {
+      const limitationIndex = bundle.infrastructureLimitations.findIndex(
+        (entry) => entry.runner === source,
+      );
+      const limitation = bundle.infrastructureLimitations[limitationIndex];
+      return [
+        {
+          id: nextFindingId(),
+          severity: "serious" as const,
+          confidence: 1,
+          status: "automation-inconclusive" as const,
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}`,
+          summary: limitation
+            ? `${source} evidence not collected: ${limitation.reason}`
+            : `${source} evidence not collected, and no worker reported why.`,
+          expected: `Real ${source} output for every AG-3 tree claim.`,
+          actual: "No matching AT observations.",
+          evidence: limitation ? [ref("infrastructureLimitation", limitationIndex)] : [],
+          reasoning: "deterministic" as const,
+          platformScope: limitation ? [limitation.requiredPlatform] : [],
+        },
+      ];
+    }
+
+    return claims.map((claim): Finding => {
+      const observationIndex = bundle.atObservations.findIndex(
+        (entry) => entry.source === source && entry.claim === claim,
+      );
+      const observation = bundle.atObservations[observationIndex];
+      if (!observation) {
+        return {
+          id: nextFindingId(),
+          severity: "serious",
+          confidence: 1,
+          status: "automation-inconclusive",
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}:${claim}`,
+          summary: `${source} produced tree evidence but no ${claim} observation.`,
+          expected: `One real ${source} observation for ${claim}.`,
+          actual: "No observation captured.",
+          evidence: [],
+          reasoning: "deterministic",
+          platformScope: [],
+        };
+      }
+
+      const utterances = observation.utterances;
+      const spoken = utterances.join(" | ");
+      const lower = spoken.toLowerCase();
+      let satisfied = false;
+      let expected = "";
+      if (claim === "tree-role") {
+        const roleWords = source === "voiceover" ? ["tree", "outline"] : ["tree"];
+        satisfied =
+          lower.includes(expectation.entryMoveSan.toLowerCase()) &&
+          roleWords.some((word) => lower.includes(word));
+        expected = `The focused ${expectation.entryMoveSan} item is identified using ${source}'s tree/outline vocabulary.`;
+      } else if (claim === "item-level") {
+        satisfied =
+          lower.includes(expectation.entryMoveSan.toLowerCase()) &&
+          new RegExp(`level\\s*${expectation.expectedLevel}(?:\\D|$)`, "iu").test(spoken);
+        expected = `${expectation.entryMoveSan} is announced at level ${expectation.expectedLevel}.`;
+      } else if (claim === "expanded-state") {
+        satisfied =
+          lower.includes(expectation.branchMoveSan.toLowerCase()) &&
+          lower.includes("expanded") &&
+          lower.includes("collapsed");
+        expected = `${expectation.branchMoveSan} is announced expanded and then collapsed after Space.`;
+      } else {
+        const forbidden = expectation.otherMoveSans.filter((san) =>
+          lower.includes(san.toLowerCase()),
+        );
+        satisfied =
+          utterances.length > 0 &&
+          utterances.length <= expectation.floodThreshold &&
+          lower.includes(expectation.traversalTargetSan.toLowerCase()) &&
+          forbidden.length === 0;
+        expected = `One traversal reports only ${expectation.traversalTargetSan} in at most ${expectation.floodThreshold} utterances.`;
+      }
+
+      return {
+        id: nextFindingId(),
+        severity: satisfied ? "minor" : "serious",
+        confidence: 1,
+        status: satisfied ? "confirmed-pass" : "confirmed-failure",
+        wcag: ["4.1.2"],
+        assertionId: `at-runner:${source}:${claim}`,
+        summary: satisfied
+          ? `${source} confirmed ${claim}.`
+          : `${source} did not confirm ${claim}.`,
+        expected,
+        actual: `${observation.command}: ${spoken || "(nothing)"} (${utterances.length} utterances).`,
+        evidence: [ref("atObservation", observationIndex)],
+        reasoning: "deterministic",
+        platformScope: [observation.os],
+      };
+    });
+  });
+}
+
+/** Deterministic AG-3 verdict for browser tree semantics and real NVDA/VoiceOver output. */
+export function computeTreeVerdict(
+  bundle: EvidenceBundle,
+  expectation: TreeScenarioExpectation,
+): ScenarioVerdict {
+  findingCounter = 0;
+  const escapedTreeName = expectation.treeName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const findings: Finding[] = [
+    checkBrowserCoverage(bundle),
+    treeSnapshotFinding(
+      bundle,
+      "tree-name-and-role",
+      `A tree named "${expectation.treeName}" is exposed.`,
+      (snapshot) => new RegExp(`tree\\s+"${escapedTreeName}"`, "iu").test(snapshot),
+    ),
+    treeSnapshotFinding(
+      bundle,
+      "tree-item-level",
+      `${expectation.entryMoveSan} exposes level ${expectation.expectedLevel}.`,
+      (snapshot) =>
+        new RegExp(`level=${expectation.expectedLevel}(?:\\D|$)`, "iu").test(
+          treeItemLine(snapshot, expectation.entryMoveSan) ?? "",
+        ),
+    ),
+    treeSnapshotFinding(
+      bundle,
+      "tree-expanded-state",
+      `${expectation.branchMoveSan} exposes expanded state.`,
+      (snapshot) => /expanded/iu.test(treeItemLine(snapshot, expectation.branchMoveSan) ?? ""),
+    ),
+    ...treeAxeFindings(bundle),
+    ...treeAtFindings(bundle, expectation),
   ];
   return {
     scenarioId: bundle.scenarioId,
