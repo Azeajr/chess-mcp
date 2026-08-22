@@ -153,10 +153,14 @@ export interface AtSession {
   readonly runner: AtRunnerId;
   /** The runner's own "report what currently has focus" command name, for the `command` field. */
   readonly focusCommandName: string;
+  /** Command sequence that describes the focused item's full accessibility semantics. */
+  readonly semanticFocusCommandName: string;
   /** Re-assert OS-level focus on the browser. Call immediately before every command. */
   focusBrowser(): Promise<void>;
   /** Run the runner's own report-current-focus command. */
   reportFocus(): Promise<void>;
+  /** Describe the focused item through the AT cursor, including composite role/state context. */
+  reportSemanticFocus(): Promise<void>;
   /** Press a key *as the screen reader*, so whatever it says is recorded. */
   press(key: string): Promise<void>;
   /** Advance the screen reader's own review/browse cursor by one step. */
@@ -213,6 +217,11 @@ export async function withScreenReader<T>(
       >;
       const focusCommand = commands[focusCommandName];
       if (!focusCommand) throw new Error(`Unknown ${runner} keyboard command: ${focusCommandName}`);
+      const cursorToFocusCommand = commands.moveCursorToKeyboardFocus;
+      const describeCursorCommand = commands.describeItem;
+      if (runner === "voiceover" && (!cursorToFocusCommand || !describeCursorCommand)) {
+        throw new Error("VoiceOver semantic focus commands are unavailable.");
+      }
 
       // Re-assert app focus before every command, not once per session. Run 32231445756 showed
       // VoiceOver falling back to "VoiceOver Settings activity" — the exact symptom run
@@ -239,9 +248,19 @@ export async function withScreenReader<T>(
       return await body({
         runner,
         focusCommandName,
+        semanticFocusCommandName:
+          runner === "voiceover" ? "moveCursorToKeyboardFocus; describeItem" : focusCommandName,
         focusBrowser,
         since,
         reportFocus: async () => {
+          await screenReader.perform(focusCommand);
+        },
+        reportSemanticFocus: async () => {
+          if (runner === "voiceover") {
+            await screenReader.perform(cursorToFocusCommand!);
+            await screenReader.perform(describeCursorCommand!);
+            return;
+          }
           await screenReader.perform(focusCommand);
         },
         press: async (key) => {
@@ -363,15 +382,23 @@ export function captureTreeObservations(
     await steps.focusEntryItem();
     await session.focusBrowser();
     await session.since();
-    await session.reportFocus();
+    await session.reportSemanticFocus();
     const entryUtterances = await session.since();
-    const treeRole = session.observe("tree-role", session.focusCommandName, entryUtterances);
-    const itemLevel = session.observe("item-level", session.focusCommandName, entryUtterances);
+    const treeRole = session.observe(
+      "tree-role",
+      session.semanticFocusCommandName,
+      entryUtterances,
+    );
+    const itemLevel = session.observe(
+      "item-level",
+      session.semanticFocusCommandName,
+      entryUtterances,
+    );
 
     await steps.focusBranchItem();
     await session.focusBrowser();
     await session.since();
-    await session.reportFocus();
+    await session.reportSemanticFocus();
     const expandedUtterances = await session.since();
 
     await session.focusBrowser();
@@ -379,11 +406,11 @@ export function captureTreeObservations(
     await within("tree branch collapse", STEP_TIMEOUT_MS, () => steps.awaitExpanded(false));
     const toggleUtterances = await session.since();
     await session.focusBrowser();
-    await session.reportFocus();
+    await session.reportSemanticFocus();
     const collapsedUtterances = await session.since();
     const expandedState = session.observe(
       "expanded-state",
-      `${session.focusCommandName}; press Space; ${session.focusCommandName}`,
+      `${session.semanticFocusCommandName}; press Space; ${session.semanticFocusCommandName}`,
       [...expandedUtterances, ...toggleUtterances, ...collapsedUtterances],
     );
 
@@ -407,9 +434,9 @@ export function captureTreeObservations(
       await steps.focusTraversalTarget();
       await session.focusBrowser();
       await session.since();
-      await session.reportFocus();
+      await session.reportSemanticFocus();
       traversalUtterances = await session.since();
-      traversalCommand = `focus target via DOM; ${session.focusCommandName} (${steps.traversalKey} intercepted)`;
+      traversalCommand = `focus target via DOM; ${session.semanticFocusCommandName} (${steps.traversalKey} intercepted)`;
     }
     const traversalVerbosity = session.observe(
       "traversal-verbosity",
