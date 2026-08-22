@@ -71,7 +71,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: guidepup/setup-action@0.21.0
+      - id: guidepup_setup
+        uses: guidepup/setup-action@0.21.0
+        continue-on-error: true
+      - name: Retry Guidepup OS setup after an infrastructure failure
+        if: steps.guidepup_setup.outcome == 'failure'
+        uses: guidepup/setup-action@0.21.0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -108,7 +113,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: guidepup/setup-action@0.21.0
+      - id: guidepup_setup
+        uses: guidepup/setup-action@0.21.0
+        continue-on-error: true
+      - name: Retry Guidepup OS setup after an infrastructure failure
+        if: steps.guidepup_setup.outcome == 'failure'
+        uses: guidepup/setup-action@0.21.0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
