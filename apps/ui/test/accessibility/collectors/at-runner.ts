@@ -297,89 +297,80 @@ export async function withScreenReader<T>(
  * cycle is report focus → virtual-cursor sweep → Escape → report focus → Enter. It deliberately
  * ends with the dialog open again so the keyboard trace that runs after this is unaffected.
  */
-export function captureDialogObservations(
+export async function captureDialogObservations(
   runner: AtRunnerId,
   page: Page | undefined,
   steps: AtDialogSteps,
 ): Promise<readonly AtObservation[]> {
-  return withScreenReader(runner, page, async (session) => {
-    // Discard whatever the screen reader said while starting up — its own greeting, the desktop,
-    // the browser chrome. None of it is evidence about this dialog.
-    await session.focusBrowser();
-    await session.since();
+  const captureOnce = () =>
+    withScreenReader(runner, page, async (session) => {
+      // Discard whatever the screen reader said while starting up — its own greeting, the desktop,
+      // the browser chrome. None of it is evidence about this dialog.
+      await session.focusBrowser();
+      await session.since();
 
-    await session.reportFocus();
-    const focusReport = session.observe(
-      "focus-report",
-      session.focusCommandName,
-      await session.since(),
-    );
+      await session.reportFocus();
+      const focusReport = session.observe(
+        "focus-report",
+        session.focusCommandName,
+        await session.since(),
+      );
 
-    // Virtual-cursor sweep: AG-1 asks that the background not be reachable this way, and the
-    // review cursor is a different thing from DOM focus — which is exactly why it can reach
-    // content a Tab press cannot. It runs before the close/reopen, not after, because moving the
-    // review cursor drags DOM focus with it: run 32237617773 ended its session with focus on an
-    // unnamed radio deep in the dialog, so the keyboard trace that follows started from a
-    // different place on that worker than on every other engine. Reopening last means the
-    // dialog remounts and sets its own initial focus, handing the trace a clean, identical
-    // starting state everywhere.
-    await session.focusBrowser();
-    for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
-      await session.next();
-    }
-    // Drained once after the whole sweep rather than after each step. The claim is about where
-    // the cursor got to across the sweep, not about any individual step, and each drain costs a
-    // full settle — twelve of them pushed the VoiceOver worker past its test timeout in run
-    // 32238998739. Each next() is a guidepup action, so every step's speech is already in the
-    // log by the time this reads it.
-    const background = session.observe(
-      "background-unreachable",
-      `next() x${VIRTUAL_CURSOR_STEPS}`,
-      await session.since(),
-    );
+      // Virtual-cursor sweep: AG-1 asks that the background not be reachable this way, and the
+      // review cursor is a different thing from DOM focus — which is exactly why it can reach
+      // content a Tab press cannot. It runs before the close/reopen, not after, because moving the
+      // review cursor drags DOM focus with it: run 32237617773 ended its session with focus on an
+      // unnamed radio deep in the dialog, so the keyboard trace that follows started from a
+      // different place on that worker than on every other engine. Reopening last means the
+      // dialog remounts and sets its own initial focus, handing the trace a clean, identical
+      // starting state everywhere.
+      await session.focusBrowser();
+      for (let step = 0; step < VIRTUAL_CURSOR_STEPS; step += 1) {
+        await session.next();
+      }
+      // Drained once after the whole sweep rather than after each step. The claim is about where
+      // the cursor got to across the sweep, not about any individual step, and each drain costs a
+      // full settle — twelve of them pushed the VoiceOver worker past its test timeout in run
+      // 32238998739. Each next() is a guidepup action, so every step's speech is already in the
+      // log by the time this reads it.
+      const background = session.observe(
+        "background-unreachable",
+        `next() x${VIRTUAL_CURSOR_STEPS}`,
+        await session.since(),
+      );
 
-    // Put DOM focus back somewhere real before pressing anything: the sweep just moved it.
-    await steps.refocusDialog();
-    await session.focusBrowser();
-    await session.press("Escape");
-    await within("dialog close", STEP_TIMEOUT_MS, steps.awaitClosed);
-    await session.reportFocus();
-    const focusReturn = session.observe(
-      "focus-return",
-      session.focusCommandName,
-      await session.since(),
-    );
-
-    await session.focusBrowser();
-    // Enter on the opener, which the close just restored focus to. Activating through the
-    // screen reader is what makes the dialog's own entry announcement land in the log.
-    await session.press("Enter");
-    await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
-    let announcementUtterances = await session.since();
-    let announcementCommand = "press Enter on the opener";
-    // A native AT command can occasionally complete without Guidepup receiving any speech event.
-    // Retry that transport-level absence once by repeating the real close/reopen cycle. Semantic
-    // mismatches are never retried or interpreted here, and a second empty result still fails.
-    if (announcementUtterances.length === 0) {
+      // Put DOM focus back somewhere real before pressing anything: the sweep just moved it.
       await steps.refocusDialog();
       await session.focusBrowser();
       await session.press("Escape");
-      await within("dialog retry close", STEP_TIMEOUT_MS, steps.awaitClosed);
-      await session.since();
-      await session.focusBrowser();
-      await session.press("Enter");
-      await within("dialog retry reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
-      announcementUtterances = await session.since();
-      announcementCommand = "press Enter on the opener (automatic empty-log retry)";
-    }
-    const announcement = session.observe(
-      "dialog-announcement",
-      announcementCommand,
-      announcementUtterances,
-    );
+      await within("dialog close", STEP_TIMEOUT_MS, steps.awaitClosed);
+      await session.reportFocus();
+      const focusReturn = session.observe(
+        "focus-return",
+        session.focusCommandName,
+        await session.since(),
+      );
 
-    return [announcement, background, focusReport, focusReturn];
-  });
+      await session.focusBrowser();
+      // Enter on the opener, which the close just restored focus to. Activating through the
+      // screen reader is what makes the dialog's own entry announcement land in the log.
+      await session.press("Enter");
+      await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
+      const announcement = session.observe(
+        "dialog-announcement",
+        "press Enter on the opener",
+        await session.since(),
+      );
+
+      return [announcement, background, focusReport, focusReturn];
+    });
+
+  const first = await captureOnce();
+  const announcement = first.find((observation) => observation.claim === "dialog-announcement");
+  // A native AT command can occasionally complete without Guidepup receiving any speech event.
+  // Restart the native session once for that transport-level absence. Semantic mismatches are
+  // never retried or interpreted here, and a second empty session still fails deterministically.
+  return announcement?.utterances.length === 0 ? captureOnce() : first;
 }
 
 /**
