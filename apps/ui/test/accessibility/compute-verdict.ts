@@ -87,13 +87,15 @@ function escapeWorkflowCommand(value: string, property = false): string {
 
 function annotateFailure(verdict: ScenarioVerdict, finding: ScenarioVerdict["findings"][number]) {
   if (process.env.GITHUB_ACTIONS !== "true" || finding.status === "confirmed-pass") return;
-  const title = escapeWorkflowCommand(`${verdict.scenarioId}: ${finding.id}`, true);
-  const message = escapeWorkflowCommand(
-    `${finding.summary} Expected: ${finding.expected} Actual: ${finding.actual}`,
-  );
-  console.log(
-    `::error file=apps/ui/test/accessibility/compute-verdict.ts,line=1,title=${title}::${message}`,
-  );
+  const chunks = finding.actual.match(/.{1,180}/gsu) ?? ["(no actual value)"];
+  for (const [index, chunk] of chunks.entries()) {
+    const part = chunks.length > 1 ? ` (${index + 1}/${chunks.length})` : "";
+    const title = escapeWorkflowCommand(`${verdict.scenarioId}: ${finding.id}${part}`, true);
+    const message = escapeWorkflowCommand(chunk);
+    console.log(
+      `::error file=apps/ui/test/accessibility/compute-verdict.ts,line=1,title=${title}::${message}`,
+    );
+  }
 }
 
 async function main() {
