@@ -80,6 +80,22 @@ function renderMarkdown(verdict: ScenarioVerdict, bundle: EvidenceBundle): strin
   return lines.join("\n");
 }
 
+function escapeWorkflowCommand(value: string, property = false): string {
+  const escaped = value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+  return property ? escaped.replaceAll(":", "%3A").replaceAll(",", "%2C") : escaped;
+}
+
+function annotateFailure(verdict: ScenarioVerdict, finding: ScenarioVerdict["findings"][number]) {
+  if (process.env.GITHUB_ACTIONS !== "true" || finding.status === "confirmed-pass") return;
+  const title = escapeWorkflowCommand(`${verdict.scenarioId}: ${finding.id}`, true);
+  const message = escapeWorkflowCommand(
+    `${finding.summary} Expected: ${finding.expected} Actual: ${finding.actual}`,
+  );
+  console.log(
+    `::error file=apps/ui/test/accessibility/compute-verdict.ts,line=1,title=${title}::${message}`,
+  );
+}
+
 async function main() {
   const runId = await resolveRunId();
   const dir = path.join(EVIDENCE_ROOT, runId);
@@ -125,6 +141,7 @@ async function main() {
     );
     for (const finding of verdict.findings) {
       console.log(`  ${finding.id} [${finding.status}] ${finding.summary}`);
+      annotateFailure(verdict, finding);
     }
     if (verdict.findings.some((finding) => finding.status !== "confirmed-pass")) failed = true;
   }
