@@ -55,6 +55,7 @@ jobs:
         run: node test/accessibility/capture.mjs
         env:
           A11Y_CONTAINER: "1"
+          A11Y_SPEC: ag-3-move-tree.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: a11y-evidence-browser
@@ -90,6 +91,7 @@ jobs:
         run: node test/accessibility/capture.mjs --project chromium
         env:
           A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-3-move-tree.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -125,6 +127,7 @@ jobs:
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-3-move-tree.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
