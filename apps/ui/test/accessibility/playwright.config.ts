@@ -28,6 +28,9 @@ export default defineConfig({
   testDir: ".",
   timeout: headed ? 8 * 60_000 : 30_000,
   fullyParallel: false,
+  // A native screen reader is a machine-wide singleton. Running the dialog and tree spec files in
+  // separate workers would make both processes drive the same NVDA/VoiceOver session concurrently.
+  workers: headed ? 1 : undefined,
   use: { baseURL: "http://127.0.0.1:4173", headless: !headed },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
