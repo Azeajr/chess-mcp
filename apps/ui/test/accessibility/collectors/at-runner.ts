@@ -355,10 +355,27 @@ export function captureDialogObservations(
     // screen reader is what makes the dialog's own entry announcement land in the log.
     await session.press("Enter");
     await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
+    let announcementUtterances = await session.since();
+    let announcementCommand = "press Enter on the opener";
+    // A native AT command can occasionally complete without Guidepup receiving any speech event.
+    // Retry that transport-level absence once by repeating the real close/reopen cycle. Semantic
+    // mismatches are never retried or interpreted here, and a second empty result still fails.
+    if (announcementUtterances.length === 0) {
+      await steps.refocusDialog();
+      await session.focusBrowser();
+      await session.press("Escape");
+      await within("dialog retry close", STEP_TIMEOUT_MS, steps.awaitClosed);
+      await session.since();
+      await session.focusBrowser();
+      await session.press("Enter");
+      await within("dialog retry reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
+      announcementUtterances = await session.since();
+      announcementCommand = "press Enter on the opener (automatic empty-log retry)";
+    }
     const announcement = session.observe(
       "dialog-announcement",
-      "press Enter on the opener",
-      await session.since(),
+      announcementCommand,
+      announcementUtterances,
     );
 
     return [announcement, background, focusReport, focusReturn];
