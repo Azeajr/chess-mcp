@@ -6,7 +6,11 @@ a simulator—under the
 [automated completion policy](../ui-ux-remediation/AUTOMATED_COMPLETION.md). Reports are diagnostic;
 the deterministic command is the gate.
 
-**Status as of this writing:** run 32228856608 is the first fully clean run —
+**AG-3 status:** run 32551506412 is `confirmed-pass` for the scenario-scoped move-tree gate on
+commit `2f09a796`. Chromium, Firefox, WebKit, real NVDA on Windows, real VoiceOver on macOS, and
+the deterministic merge all passed. The run requires no listening, artifact review, or approval.
+
+**AG-1 rollout status:** run 32228856608 was the first fully clean dialog run —
 `overallStatus: confirmed-pass`, all nine findings passing, with all three evidence jobs
 succeeding. That includes both AT-tier findings: real NVDA output on a real Windows runner and
 real VoiceOver output on a real macOS runner, each checked against the control that actually held
@@ -236,15 +240,17 @@ the same command; missing AT evidence or any non-pass finding blocks completion.
 
 ## AG-3 status
 
-The move-tree browser tier is implemented and confirmed across Chromium, Firefox, and WebKit. It
-asserts the named tree, variation-depth level, branch-expanded state, and absence of tree-scoped
-axe violations. The first browser capture exposed the pointer-only collapse button as an invalid
-tree child; the button is now hidden from the accessibility tree while the branch-owning tree item
-retains `aria-expanded` and the Space-key contract.
+AG-3 is resolved by automated run `32551506412`. The scenario-scoped verdict reported
+`confirmed-pass` after Chromium, Firefox, WebKit, Windows/NVDA, and macOS/VoiceOver all produced
+the required evidence. Browser assertions cover the named tree, variation-depth levels,
+current/ownership/expanded semantics, and tree-scoped axe rules. Real-AT assertions cover audible
+tree context, level, expanded/collapsed state, and a bounded one-item traversal utterance.
 
-Separate Windows/NVDA and macOS/VoiceOver jobs capture role, level, expanded/collapsed state, and a
-bounded one-item traversal utterance. The deterministic verdict requires all four claims from both
-AT sources. Until a merged remote run reports `confirmed-pass`, AG-3 remains unresolved.
+The first real runs found that VoiceOver maps the focused web treeitem to a group and omits native
+level/state vocabulary from both keyboard-focus and cursor descriptions. The specification now
+uses an exact accessible-name proxy for the user-facing facts while browser AX and NVDA retain the
+independent native-semantic proof. `docs/ui-ux-remediation/state.json` records the machine result;
+no replay, listening, artifact review, or approval is required.
 
 ## What this MVP is not
 

@@ -161,7 +161,35 @@
       "status": "not-started"
     },
     "WP-011": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-011",
+          "pnpm test:e2e:container apps/ui/test/e2e/core-keyboard.spec.ts --workers=3 (48 passed, 3 configured skips across Chromium, Firefox, and WebKit)",
+          "pnpm test:e2e:container -- --workers=3 (412 passed, 14 configured skips across Chromium, Firefox, and WebKit, zero failures)",
+          "pnpm --filter @chess-mcp/ui test:chat (304 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "A11Y_SCENARIOS=ag-3-move-tree pnpm --filter @chess-mcp/ui a11y:verdict (GitHub Actions run 32551506412, confirmed-pass)"
+        ],
+        "playwright": "Full unnarrowed Playwright 1.62.1 suite in the version-matched container: 412 passed, 14 configured skips, zero failures across Chromium, Firefox, and WebKit. The focused keyboard suite passed 48 assertions with 3 configured board-layer skips and verified one roving tree tab stop, the DV-2 state machine, activation/focus retention, branch state, accessible context labels, target floors, density, valid button structure, and side-panel accessibility.",
+        "scope": "Real AT evidence exposed two defects that browser-only checks could not: VoiceOver mapped a button-backed treeitem as a button, then a div-backed treeitem as a group without announcing its ARIA level/state; and NVDA inserts whitespace inside SAN tokens. Tree moves now use focusable treeitem elements and exact accessible names that convey repertoire-tree context, variation level, and branch state while retaining native tree semantics. The verdict normalizes only whitespace in fixture SAN, leaving role/state vocabulary and verbosity bounds exact. Gate capture and verdict are scenario-scoped so unrelated historical gates cannot block AG-3.",
+        "gates": {
+          "AG-3": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "A11Y_SCENARIOS=ag-3-move-tree pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "32551506412"
+          }
+        }
+      }
     },
     "WP-012": {
       "status": "complete",
@@ -437,8 +465,20 @@
       "evidence": null
     },
     "AG-3": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "A11Y_SCENARIOS=ag-3-move-tree pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "32551506412",
+        "decidedAt": "2026-08-22",
+        "decision": [
+          "Chromium, Firefox, and WebKit expose the named tree, treeitems, variation-depth levels, current item, branch ownership, and expanded-state transitions with no scoped axe violations",
+          "NVDA on Windows and VoiceOver on macOS convey repertoire-tree context, level 1, expanded/collapsed state, and the target move within the fixed utterance bound",
+          "VoiceOver's omitted native treeitem level/state is replaced by an exact accessible-name proxy while browser AX and NVDA independently retain the native semantic proof"
+        ],
+        "source": "Automated accessibility run 32551506412 on commit 2f09a796: browser evidence, NVDA evidence, VoiceOver evidence, and the scenario-scoped deterministic AG-3 verdict all completed successfully. The command reported confirmed-pass with no human evidence review or approval step."
+      }
     },
     "AG-4": {
       "status": "unresolved",
