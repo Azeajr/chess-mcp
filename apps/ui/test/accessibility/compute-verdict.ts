@@ -39,6 +39,24 @@ const SCENARIO_REGISTRY = [
   },
 ] as const;
 
+function selectedScenarios() {
+  const configured = process.env.A11Y_SCENARIOS;
+  if (!configured) return [...SCENARIO_REGISTRY];
+  const ids = new Set(
+    configured
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  const selected = SCENARIO_REGISTRY.filter((scenario) => ids.has(scenario.id));
+  const unknown = [...ids].filter(
+    (id) => !SCENARIO_REGISTRY.some((scenario) => scenario.id === id),
+  );
+  if (unknown.length > 0) throw new Error(`Unknown A11Y_SCENARIOS: ${unknown.join(", ")}.`);
+  if (selected.length === 0) throw new Error("A11Y_SCENARIOS selected no scenarios.");
+  return selected;
+}
+
 async function resolveRunId(): Promise<string> {
   if (process.env.A11Y_RUN_ID) return process.env.A11Y_RUN_ID;
   try {
@@ -101,7 +119,8 @@ function annotateFailure(verdict: ScenarioVerdict, finding: ScenarioVerdict["fin
 async function main() {
   const runId = await resolveRunId();
   const dir = path.join(EVIDENCE_ROOT, runId);
-  const scenarioIds = new Set(SCENARIO_REGISTRY.map((scenario) => scenario.id));
+  const scenarios = selectedScenarios();
+  const scenarioIds = new Set(scenarios.map((scenario) => scenario.id));
   const files = (await readdir(dir)).filter(
     (name) => name.endsWith(".json") && [...scenarioIds].some((id) => name.startsWith(`${id}-`)),
   );
@@ -115,7 +134,7 @@ async function main() {
   // One verdict per scenario, never one merged across them: findings are meaningful only against
   // their own expected names, interactions, and required evidence sources.
   const reports = [];
-  for (const scenario of SCENARIO_REGISTRY) {
+  for (const scenario of scenarios) {
     const forScenario = bundles.filter((bundle) => bundle.scenarioId === scenario.id);
     if (forScenario.length === 0) {
       throw new Error(`No evidence bundle found for required scenario ${scenario.id}.`);

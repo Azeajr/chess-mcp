@@ -86,8 +86,12 @@ this policy.
 Accessibility gates remain named because they group related assertions. Their status is determined
 only by the configured command and its machine-readable report. A gate is `resolved` exactly when
 the report says `confirmed-pass` for every required scenario and platform and the command exits
-zero. No person resolves a gate. Design/product `DV-*` and `PD-*` entries are decisions, not gates;
-their documented defaults are authoritative and packages test conformance to them.
+zero. Verdicts are gate-scoped: each scenario requires its complete browser and real-AT source set
+and fails closed on missing evidence, but evidence from an unrelated historical gate cannot block
+the gate being resolved. The unscoped local command still evaluates every registered scenario as a
+diagnostic aggregate. No person resolves a gate. Design/product `DV-*` and `PD-*` entries are
+decisions, not gates; their documented defaults are authoritative and packages test conformance to
+them.
 
 Historic manual notes in completed-package evidence are provenance only. They are not required,
 cannot satisfy a current assertion, and must not be copied into new completion records.

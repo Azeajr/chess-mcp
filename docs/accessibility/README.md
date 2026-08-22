@@ -78,8 +78,14 @@ A11Y_LLM_REVIEW=1 pnpm --filter @chess-mcp/ui a11y:llm-review
 Reports land at `apps/ui/test-results/accessibility/<runId>/report.{json,md}`.
 
 `A11Y_SPEC=ag-1-dialog.spec.ts` or `A11Y_SPEC=ag-3-move-tree.spec.ts` isolates capture cost for an
-AT worker. The final merge command still requires every registered scenario and every declared
-browser/AT source; a focused artifact cannot accidentally resolve the project gate.
+AT worker. `A11Y_SCENARIOS=ag-3-move-tree pnpm --filter @chess-mcp/ui a11y:verdict` scopes the
+deterministic verdict to one completion gate. It still requires every declared browser/AT source
+for that scenario; evidence from one gate cannot resolve or block another. With no
+`A11Y_SCENARIOS`, the command evaluates every registered scenario.
+
+The automatic workflow currently computes the AG-3 scenario gate. AG-1 is already resolved by its
+recorded confirmed-pass run and remains independently reproducible with the default all-scenario
+command or an explicit AG-1 scenario list.
 
 ## What's proven
 
