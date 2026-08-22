@@ -189,8 +189,13 @@ test("WP-011 AC-4 current state and branch expansion remain truthful", async ({ 
   await expect(owner).toHaveAttribute("aria-controls", `move-tree-group-${branch.join("-")}`);
   await expect(owner).toHaveAttribute("aria-owns", `move-tree-group-${branch.join("-")}`);
   await expect(owner).toHaveAttribute("aria-expanded", "true");
+  await expect(owner).toHaveAttribute("aria-label", "Nc6, repertoire tree item, level 1, expanded");
   await toggle.click();
   await expect(owner).toHaveAttribute("aria-expanded", "false");
+  await expect(owner).toHaveAttribute(
+    "aria-label",
+    "Nc6, repertoire tree item, level 1, collapsed",
+  );
   await expect(group).toBeHidden();
 
   await current.focus();

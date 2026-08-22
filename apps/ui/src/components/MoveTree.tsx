@@ -41,6 +41,20 @@ function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Eleme
   );
 }
 
+function moveAccessibleLabel(
+  san: string,
+  ply: number,
+  forceBlackDots: boolean,
+  level: number,
+  branch?: { expanded: boolean },
+): string {
+  const moveNo = Math.floor((ply - 1) / 2) + 1;
+  const isWhite = ply % 2 === 1;
+  const prefix = isWhite ? `${moveNo}. ` : forceBlackDots ? `${moveNo}... ` : "";
+  const state = branch ? `, ${branch.expanded ? "expanded" : "collapsed"}` : "";
+  return `${prefix}${san}, repertoire tree item, level ${level}${state}`;
+}
+
 export default function MoveTree() {
   // Feature 3: per-branch collapse state, session-only (keyed by the parent's index path).
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
@@ -230,6 +244,13 @@ export default function MoveTree() {
         id={itemId(path)}
         role="treeitem"
         data-move-path={path.join(",")}
+        aria-label={moveAccessibleLabel(
+          node.data.san,
+          path.length,
+          blackDots,
+          variationLevel(path),
+          branch,
+        )}
         aria-current={pathEq(path, current) ? "true" : undefined}
         aria-level={variationLevel(path)}
         aria-posinset={position?.posinset}
