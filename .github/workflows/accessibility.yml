@@ -2,6 +2,16 @@ name: Accessibility
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main, salvage]
+    paths:
+      - ".github/workflows/accessibility.yml"
+      - "apps/ui/src/**"
+      - "apps/ui/test/accessibility/**"
+      - "apps/ui/package.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "packages/chess-tools/**"
   pull_request:
     paths:
       - ".github/workflows/accessibility.yml"

@@ -117,7 +117,7 @@ real AT automation. The notes below preserve the rollout failures that establish
 setup and focus sequence.
 
 The workflow originally required `workflow_dispatch`; it now runs automatically on relevant pull
-requests. The **first historical triggered run**
+requests and pushes to `main` or `salvage`. The **first historical triggered run**
 (run 32205343813): `browser-evidence` and `merge-report` passed; `at-nvda` and `at-voiceover`
 both failed with the same root cause — `guidepup/setup-action` only performs the OS-level
 `@guidepup/setup setup` half of Guidepup's own two-step setup. It does not run the
