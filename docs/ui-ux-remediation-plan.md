@@ -131,6 +131,7 @@ Top bar (all nine controls), file open/save/reopen flows, colour-picker modal, p
 3. The audit's runtime harness (headless Chromium driven through `window.__chess`) is the measurement baseline; `WP-000` promotes it into `test/e2e`.
 4. Copy in this plan and in the audit §6 is a starting draft, not final approved product copy. Where copy carries a decision (persistence language, Strategic Fit framing) it is flagged.
 5. No design system exists to adopt; tokens are extracted from the Strategic Fit stylesheet, which is the repository's own most-developed visual language.
+6. [The automated completion policy](ui-ux-remediation/AUTOMATED_COMPLETION.md) governs every package, criterion, gate, and milestone. Validation is unattended and deterministic; missing or inconclusive evidence fails closed.
 
 ### Non-goals
 
@@ -140,7 +141,8 @@ Top bar (all nine controls), file open/save/reopen flows, colour-picker modal, p
 - **No Tailwind, CSS-in-JS, or CSS modules.** The audit found missing abstractions, not a missing tool.
 - **No removal of expert chess or engine information.** Centipawns, depth, multi-PV, SAN, FEN, structure names, and only-move margins all stay. Only _product-internal_ vocabulary is replaced.
 - **No redesign for visual novelty.** Every visual change in this plan cites a finding.
-- **No unvalidated Strategic Fit split.** `WP-035` is a validation checkpoint, not an implementation package.
+- **No Strategic Fit split in this roadmap.** PD-5 is fixed to retain one workspace; `WP-035` is an automated journey checkpoint, not a research study or implementation package.
+- **No human completion gates.** Research may inform a future roadmap, but visual inspection, UI operation, AT listening, preference studies, and evidence approval cannot block or satisfy this roadmap.
 - **No weakening of staged-mutation safeguards.** Revision binding, `pending`/`accepted`/`rejected`/`stale` states, explicit Accept/Reject, and the "nothing is saved until you accept" copy survive every package that touches them.
 - **No internationalisation framework.** The content registry is a typed module with formatter helpers, sized for one locale (§6 `WP-024`).
 - **No new runtime dependencies** unless a package states one and justifies it against D12.
@@ -422,7 +424,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** This package _is_ the tests. Fixtures: `RICH_PGN` must produce ≥1 comparable Strategic Fit route so `WP-031`'s terminal-state test has a positive control.
 
-**Manual validation.** Confirm the WebKit and Firefox runs are not flaky over three consecutive CI runs before making the job required.
+**Automated completion validation.** Run the complete Chromium, Firefox, and WebKit job three consecutive times; a flake detector requires identical pass sets and zero retries, timeouts, or unexpected skips.
 
 **Failure and rollback.** Risk is CI flakiness blocking unrelated work. Detection: three-run soak. Mitigation: mark engine-backed specs `test.slow()` and, if WebKit proves unstable for engine tests, restrict WebKit to layout and dialog specs and record that narrowing here. Rollback: make the job non-required; do not delete it.
 
@@ -470,11 +472,11 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-layout.spec.ts`: baseline check 1 flips from `fixme` to passing; add the 360×740/390×844 no-regression assertions with recorded baseline numbers as a fixture constant.
 
-**Manual validation.** Real iOS Safari at 200% text zoom and in landscape on a small phone; confirm the board does not jump while the URL bar shows and hides (`100dvh` interaction).
+**Automated completion validation.** WebKit automation uses the 200% CSS-viewport equivalent and scripted `visualViewport` height changes in landscape; board and panel bounding boxes must remain within the stated pixel tolerances.
 
 **Failure and rollback.** Regression mode: the pinned-board layout starts scrolling at normal phone heights, which would feel broken. Detection: the ±2 px baseline assertions. Rollback: revert one CSS hunk; no data implications.
 
-**Definition of done.** Typecheck green; baseline check 1 passing on all three browsers; phone baseline assertions green; iOS manual note recorded in the PR.
+**Definition of done.** Typecheck green; baseline check 1 passes on all three browsers; phone baseline and scripted visual-viewport assertions are green at the 200% equivalent and landscape sizes.
 
 ---
 
@@ -516,7 +518,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-layout.spec.ts`: baseline check 2 flips to passing. Add a one-row assertion at 1280×800 to catch over-wrapping.
 
-**Manual validation.** None beyond CI; this is a pure layout change with full automated coverage.
+**Automated completion validation.** The three-engine overflow sweep, bounding-box checks, title assertion, one-row check, and touch-target assertions all pass.
 
 **Failure and rollback.** Regression mode: the bar wraps to two rows at widths where it previously fit, costing vertical space. Detection: the 1280×800 one-row assertion. Rollback: single CSS revert.
 
@@ -565,7 +567,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-document.spec.ts`: clean-document `New` guarded; three-action dialog contents; save-then-continue; escape leaves PGN identical; denial branch message (mock `queryPermission`/`requestPermission` through a dev-only seam or a Playwright route stub). Store test for `changesSinceExport()` increment/reset.
 
-**Manual validation.** Firefox and WebKit (no File System Access): confirm the download path message. Chromium with a real handle: confirm `Save to file first` writes to the same file.
+**Automated completion validation.** Playwright runs the no-File-System-Access fallback in Firefox and WebKit and an injected writable-handle path in Chromium, asserting exact message text, filename, bytes written, cancellation, and continuation count.
 
 **Failure and rollback.** Regression mode: a dialog appears where users expect none, or the resume callback fires twice. Detection: the byte-identical assertions and a store test that `resume` runs at most once. Rollback: revert; no persisted state is created by this package.
 
@@ -615,7 +617,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Store suite `test/persist-snapshots.test.ts`: ring eviction, atomic write (assert both keys present or neither), corrupt payload, quota degradation, pause respect, forward/backward record compatibility. Playwright `core-document.spec.ts`: `New` → `Recover` → restore round trip asserting PGN equality.
 
-**Manual validation.** Fill storage near quota in a real browser and confirm graceful degradation. Confirm behaviour in a private/incognito window where IndexedDB may be ephemeral.
+**Automated completion validation.** Store and browser tests inject quota failures and an ephemeral IndexedDB implementation, asserting one eviction/retry, a non-fatal second failure, byte-identical live autosave, and recovery after a new context.
 
 **Failure and rollback.** Highest-risk regression is a snapshot write corrupting or blocking the live slot. Detection: the pause-respect and forward/backward-compat tests, plus the DEV diagnostics. Rollback: revert the commit — the extra keys become inert data the old build ignores; **no user data is lost by reverting**. Do not delete snapshot keys on rollback.
 
@@ -669,7 +671,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `test/history.test.ts`: round trips per mutation kind, revision monotonicity, clear-on-replace, eviction, byte cap, Strategic-Fit refusal. Playwright `core-keyboard.spec.ts`: baseline check 6 flips to passing; arrow-key-in-text-field regression; delete confirmation and toast.
 
-**Manual validation.** Drag-play a long sequence and undo repeatedly, watching for Chessground desync (the board syncs from `fen()` via `createEffect`, so this should hold, but it is the most likely visual regression).
+**Automated completion validation.** A long deterministic move/variation sequence is played through pointer input and repeatedly undone/redone; after every step Chessground FEN, store FEN, PGN, current path, dirty state, and rendered pieces must agree.
 
 **Failure and rollback.** Regression modes: a wrong inverse silently altering the tree; Chessground desync after undo; staged cards not going stale. Detection: the round-trip suite runs on every mutation kind; add an invariant assertion in DEV that `history.undo()` produces a PGN equal to the recorded `beforePgn`. Rollback: revert; history is in-memory so nothing persists. Note that reverting restores the destructive `Ctrl+Z` — if `WP-005` is reverted, also revert `WP-014` if merged.
 
@@ -720,7 +722,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-a11y.spec.ts` using the extended `helpers/accessibility.ts`; Playwright emulation for `reducedMotion` and `forcedColors`; a selection test using `page.evaluate` over `getSelection()`; the density guard as a measured assertion with baseline constants.
 
-**Manual validation.** Real iOS Safari: piece drag, long-press over a piece, and text selection in the chat log. Windows High Contrast mode: the core status indicators.
+**Automated completion validation.** WebKit touch automation asserts drag and long-press behavior plus chat selection, while Chromium forced-colors automation asserts every core status retains a text/icon distinction and required contrast.
 
 **Failure and rollback.** Regression modes: touch drag broken by the selection inversion; panels visibly taller from the target floors. Detection: the drag test and the density guard. Rollback: the selection inversion and the target floors are separate CSS hunks and can be reverted independently — keep them as separate commits within the PR.
 
@@ -772,7 +774,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-dialogs.spec.ts` — one parameterised contract suite over the three overlays (baseline check 5 flips to passing). Store test for `shortcuts.ts` scope stacking and the text-field rule. Extend `strategic-fit-accessibility.spec.ts` with the `inert` assertion for `UX-045`.
 
-**Manual validation.** VoiceOver (macOS/iOS) and NVDA (Windows): confirm the dialog is announced as a dialog with its name, and that the background is not reachable by virtual-cursor navigation. This is an accessibility review gate (§13, gate AG-1).
+**Automated completion validation.** The AG-1 command must report `confirmed-pass` for all browser contract assertions and every required real NVDA/VoiceOver utterance claim; missing or inconclusive AT evidence fails.
 
 **Failure and rollback.** Regression modes: focus lost to `<body>` on close; the Strategic Fit trap double-handling `Escape` after the scope change; the promotion revert breaking. Detection: the contract suite plus the untouched Strategic Fit specs. Rollback: revert; the three overlays return to their current (broken but familiar) behaviour with no data impact.
 
@@ -810,7 +812,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Playwright: `?` behaviour in and out of a text field; list contents assertion; contract suite inclusion.
 
-**Manual validation.** None beyond CI.
+**Automated completion validation.** The named CI assertions are the complete validation.
 
 **Failure and rollback.** Low risk; revert removes the dialog and the `?` registration.
 
@@ -851,7 +853,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Playwright reads the live-region text content after each triggering action and asserts message counts (baseline check 7). Store test for de-duplication and rate limiting.
 
-**Manual validation.** NVDA and VoiceOver: confirm messages are spoken once and are not interrupted by the next one. Gate AG-5.
+**Automated completion validation.** Real NVDA and VoiceOver automation slices the utterance log per operation and asserts exactly one complete expected message, no progress-tick speech, no truncation, and no overlap with the next message.
 
 **Failure and rollback.** Regression mode: announcement storms during scans. Detection: the "no message per progress tick" assertion. Rollback: revert; no persisted state.
 
@@ -891,7 +893,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `test/operations.test.ts` for registration, settle, linger, eviction. Extend `test/cancellation.test.ts` with registry assertions. Playwright: a running scan appears in `operations()` via `window.__chess` (extend the dev handle with `operations`).
 
-**Manual validation.** None.
+**Automated completion validation.** The named store and browser assertions are the complete validation.
 
 **Failure and rollback.** Regression mode: a store forgets to settle, leaving a permanent "running" entry. Detection: an operations test per store plus a DEV warning if an operation exceeds 10 minutes. Rollback: per-store revert is possible because migration is store-by-store.
 
@@ -940,7 +942,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-keyboard.spec.ts` (baseline check 4 flips to passing); a move-tree traversal spec with a branching fixture; density guard assertions; a DOM validity assertion for nested buttons.
 
-**Manual validation.** Screen-reader pass over the move tree — tree semantics are frequently mis-announced and this is accessibility gate AG-3. Touch pass on a real phone for row activation.
+**Automated completion validation.** AG-3 must report `confirmed-pass` for browser semantics, keyboard traversal, real NVDA/VoiceOver role-level-state utterances, and the per-key verbosity bound; a touch-context test asserts row activation and target geometry.
 
 **Failure and rollback.** Regression modes: row click handlers that relied on event bubbling from a child; the collapse toggle firing row navigation; panels growing too tall. Detection: the density guard, the nested-button assertion, and per-section click tests. Rollback: `MoveTree` and `RepertoirePanel` migrations should be separate commits so either can be reverted alone.
 
@@ -980,7 +982,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-keyboard.spec.ts`: focus, each key, bounds, reset, persistence across reload. A pointer-drag regression test asserting the existing clamp behaviour.
 
-**Manual validation.** Touch drag on a real phone for the horizontal board resizer.
+**Automated completion validation.** A touch-enabled browser context performs the resizer pointer sequence and asserts value changes, clamps, adjacent click-through, persistence, and reset.
 
 **Failure and rollback.** Regression mode: the enlarged hit area intercepting clicks meant for adjacent panels. Detection: a click-through test on the first row of each adjacent panel. Rollback: single-file revert.
 
@@ -1026,7 +1028,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-status.spec.ts` for the cross-tab visibility and cancel; a tablist keyboard spec; element-identity assertions for mount preservation.
 
-**Manual validation.** Screen reader on a real phone — tab patterns are commonly mis-announced (gate AG-2).
+**Automated completion validation.** The tab-pattern suite passes in all engines and real VoiceOver automation asserts tab role, ordinal position, selection state, and associated panel for each tab; absent or inconclusive speech fails.
 
 **Failure and rollback.** Regression modes: the wrapper elements changing the compact layout; the strip eating panel height. Detection: the `WP-001` height assertions re-run here. Rollback: single revert.
 
@@ -1057,7 +1059,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - Cursor state and selection state live in a new `src/store/board-cursor.ts`, deriving legal destinations from the existing `dests()` and playing through the existing `actions.play` so promotion, history (`WP-005`), and staleness all behave identically to a drag.
 - Square descriptions come from `content/analysis.ts`; announcements go through `announce()` (`WP-009`).
 - Orientation-aware mapping: the cursor follows the visual board, so `ArrowUp` means "up the screen", not "toward rank 8", when the board is flipped.
-- **`DV-1` gate.** Before implementation: build the layer as a throwaway prototype on a branch, run the §14 `DV-1` task with two keyboard-only or screen-reader users, and record whether the two-step select/place model or a coordinate-entry model (type `e2e4`) performs better. The default if inconclusive is the two-step cursor model above, because it matches the established pattern in Lichess and chess.com board accessibility.
+- **DV-1 decision.** Use the two-step cursor model above because it supports people who do not know algebraic input and conforms to the established composite-widget pattern. Automation verifies the complete interaction; comparative preference over coordinate entry is not claimed.
 
 **Existing behaviour to preserve.** Pointer and touch dragging, `showDests` highlighting, the last-move highlight, check highlighting, all four arrow overlays (repertoire green, engine fit-coloured, suggestion blue, preview gold) and their de-duplication logic (`Board.tsx:74–87`), the promotion revert, and the board re-sync effect. Engine-worker scheduling must be untouched.
 
@@ -1071,11 +1073,11 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - `Escape` clears the selection without changing the position.
 - With the layer unfocused, pointer drag, click-to-move, and touch drag are byte-identical to the pre-change behaviour (assert via an interaction test on all three).
 - The board cursor does not fire while any dialog is open.
-- A keyboard-only user completes: open a PGN → navigate to move 6 → add a variation → save (this is the milestone `M-2` journey).
+- An automated pointer-free Playwright journey completes: open a PGN → navigate to move 6 → add a variation → save, with zero pointer events (the `M-2` journey).
 
 **Automated tests.** `core-keyboard.spec.ts` full journey; a pointer non-regression suite (drag, click-move, touch drag); a promotion-by-keyboard test; an orientation test with the board flipped.
 
-**Manual validation.** Mandatory screen-reader session (NVDA + VoiceOver) — accessibility gate AG-4. Mandatory prototype validation before implementation (DV-1).
+**Automated completion validation.** The fixed two-step cursor model must pass the full keyboard journey, pointer non-regression, orientation, promotion, and real NVDA/VoiceOver square-piece-destination-confirmation utterance assertions; all unknown results fail.
 
 **Failure and rollback.** Highest-risk regression is pointer interference. Detection: the pointer non-regression suite runs in all three browsers. Rollback: the layer is a single additive component; reverting removes it and restores today's (inaccessible) board without any other change.
 
@@ -1114,7 +1116,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-layout.spec.ts` position assertions at three viewports; a default-tab assertion.
 
-**Manual validation.** None.
+**Automated completion validation.** The named CI assertions are the complete validation.
 
 **Failure and rollback.** Regression mode: the analysis panel pushed below the fold instead. Detection: the analysis-visible assertion. Rollback: reorder back.
 
@@ -1164,7 +1166,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Playwright `core-analysis.spec.ts` covering the four states, the eval-bar name, the depth-notice persistence, and the depth propagation to a direct command. Store test for `analysisState()`.
 
-**Manual validation.** Confirm the disclosure does not cause layout shift when opened on a 1280×800 laptop.
+**Automated completion validation.** Before/after bounding boxes at 1280×800 assert that opening the disclosure does not move the board or panel frame beyond the package pixel threshold.
 
 **Failure and rollback.** Regression mode: depth no longer reaching engine-backed commands. Detection: the propagation assertion. Rollback: revert; controls return to the top bar.
 
@@ -1190,7 +1192,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 **Target behaviour.** Three visually separated groups: **document** (filename + persistence state + a `Repertoire ▾` menu containing Open, Re-link, Save to file, New, Recover), **board** (colour/orientation), **app** (activity strip, Settings, help). At 360 px the bar occupies no more than 96 px. All actions remain reachable in at most one additional interaction.
 
 **Implementation approach.** `TopBar.tsx` restructures into three `<div>` groups with `role="group"` and `aria-label`s. A new `src/components/DocumentMenu.tsx` (a menu button, not a `Dialog` — it is a lightweight popup with `aria-expanded`/`aria-controls` and roving focus). The persistence indicators come from `WP-018`. Depth and eval have already left in `WP-016`. `styles.css` gains group separators using surface elevation rather than borders.
-**`DV-3` gate.** Validate the menu-versus-visible-buttons choice before implementation: burying `Save` behind a menu is a real cost for a frequent action. Default if inconclusive: keep `Save to file` as a visible button and move only `Open`, `Re-link`, `New`, and `Recover` into the menu.
+**DV-3 decision.** Keep `Save to file` visible and move only `Open`, `Re-link`, `New`, and `Recover` into the menu. Automation asserts visibility, interaction count, ordering, keyboard reachability, and overflow; perceived findability is not claimed.
 
 **Existing behaviour to preserve.** `Cmd/Ctrl+S` continues to save regardless of the menu. The `Reopen <name>` affordance still appears only when a stored handle exists. The colour select still drives `actions.setColor` and board orientation. Safe-area padding.
 
@@ -1206,7 +1208,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-layout.spec.ts` height assertions; a menu keyboard spec; the overflow sweep re-run.
 
-**Manual validation.** DV-3 task with two existing users before implementation; post-implementation check that `Save` is still found within 5 s by a first-time user.
+**Automated completion validation.** The fixed top-bar decision is asserted: Save is visible without opening a menu, reachable in the documented keyboard order, and activates in one interaction; menu inventory and overflow checks also pass.
 
 **Failure and rollback.** Regression mode: users cannot find Save or New. Detection: DV-3 and the ≤2-interaction criterion. Rollback: single-file revert.
 
@@ -1247,7 +1249,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** `core-document.spec.ts`: indicator text across linked/download/none states, change-count reset, restore toast, denial message. Store test for `fileLinkState`.
 
-**Manual validation.** Firefox and WebKit for the download-only state.
+**Automated completion validation.** Firefox and WebKit run the download-only fixture and assert the exact status, change count, filename, restore message, and available action set.
 
 **Failure and rollback.** Regression mode: announcement noise from the change counter. Detection: the announcement-count assertion. Rollback: single revert.
 
@@ -1286,9 +1288,9 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion in CI that `dist/manifest.webmanifest` and the wasm precache entry exist.
 
-**Manual validation.** Deploy to a preview, install the PWA on iOS and Android, deploy again, and confirm the toast appears and `Reload` picks up the new build. This is the one item that cannot be validated without a real deploy (D13).
+**Automated completion validation.** A deployed test environment publishes build A then build B; service-worker instrumentation asserts update detection, toast deferral/dismissal, reload, and build-id transition. Any platform-specific claim requires an unattended device-lab job.
 
-**Failure and rollback.** Regression mode: switching from `autoUpdate` to `prompt` leaves users on a stale build if the toast fails to render. Detection: the toast test plus a manual post-deploy check. Rollback: revert to `autoUpdate` — a one-line change.
+**Failure and rollback.** Regression mode: switching from `autoUpdate` to `prompt` leaves clients on a stale build if the toast fails to render. Detection: the deployed build-A/build-B service-worker lifecycle test. Rollback: revert to `autoUpdate` — a one-line change.
 
 ---
 
@@ -1330,7 +1332,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** A continuous-resize sweep asserting the cliff bound and the minimums; a `styles.css` lint-style assertion (a small `node --test` script) that raw breakpoint literals appear only in the tier block.
 
-**Manual validation.** Drag a browser window across 1100 px and confirm the transition is not visually jarring.
+**Automated completion validation.** A continuous resize sweep across 1100/1101 px asserts the board discontinuity bound, panel minimums, absence of overlap/overflow, and width round-trip with no drift.
 
 **Failure and rollback.** Regression mode: the seeding logic fighting the persisted widths, producing drift on every transition. Detection: a test that crossing the boundary twice returns to the original widths. Rollback: revert the store change alone; the CSS reorganisation is independently safe.
 
@@ -1354,7 +1356,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 **Current behaviour.** `.chat-wrap` is always rendered at the persisted width (default 360 px). Verified at 1440×900: 360 px of full-height column containing only the panel head and `No API key. Open Settings`. `hasApiKey()` (`store/settings.ts`) is false until a key is entered.
 
 **Target behaviour.** While `hasApiKey()` is false in the wide tier, the chat column collapses to a ~48 px vertical rail with a labelled `Set up the assistant` control and a one-sentence description on hover/focus. Activating it opens Settings focused on the API-key field. Once a key exists, the column expands to the persisted width. On mobile the Chat tab remains but its panel shows the setup call to action.
-**`PD-4`.** Collapsing a panel by default is a product judgement — an alternative is to keep the column and simply replace its content with a proper setup call to action. Default if inconclusive: keep the column at full width but replace the terse error line with the setup card, because collapsing risks users never discovering the assistant.
+**PD-4 decision.** Keep the column at full width and replace the terse error line with the setup card. Automation asserts layout, action presence, transition, and mount identity; perceived discoverability is not claimed.
 
 **Implementation approach.** `App.tsx` chooses the chat width from `hasApiKey()`; `store/layout.ts` gains a `chatCollapsed()` derived value so the divider is disabled and the persisted width is untouched while collapsed. `ChatPanel.tsx` renders a `ChatSetupCard` when `!hasApiKey()`. `SettingsDrawer` accepts an `initialFocus` target.
 
@@ -1370,7 +1372,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Playwright: collapsed width, restore-to-persisted-width, focus target, mobile tab presence.
 
-**Manual validation.** PD-4 task before implementation.
+**Automated completion validation.** The fixed setup decision is asserted: the chat column remains present at full width, exposes the setup action and assistant description, and reaches the configured state without remounting adjacent panels.
 
 **Failure and rollback.** Regression mode: the persisted width lost on collapse. Detection: the restore assertion. Rollback: single revert.
 
@@ -1396,7 +1398,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 **Target behaviour.** Four goal groups per audit §12: **Check my repertoire** (book-move audit, unanswered opponent moves, critical positions), **Extend it** (suggest next moves, finish unfinished lines), **Simplify it** (shorten what you memorise), **Prepare and export** (opponent prep, structure search, annotated PGN, drill deck). Each collapsed group shows a one-line summary of its last result. The depth statement appears once, in the panel header. The `Advanced` divider is removed.
 
 **Implementation approach.** `RepertoirePanel.tsx` is decomposed into `RepertoireToolGroup` + one component per tool (`AuditTool`, `GapsTool`, `OnlyMovesTool`, `StructureTool`, `PrepTool`, `AnnotateTool`, `ExtendTool`, `ConnectTool`, `ShortenTool`, `DrillDeckTool`) under `src/components/repertoire/`. Each tool owns its own store bindings; the panel owns only grouping and the shared depth statement. Last-result summaries derive from the existing `commandStates` results and the scan stores. Group titles and tool titles from `content/repertoire.ts`.
-**`DV-4` gate.** The four-group taxonomy is an information-architecture proposal. Validate with a card sort against the ten current tool names before implementation. Default if inconclusive: the four groups above, because they map to the audit's user-goal analysis and to the ROADMAP's repertoire-building framing.
+**DV-4 decision.** Use the four groups above because they map to the audit's goal analysis and the ROADMAP framing. An exhaustive tool-to-group fixture verifies conformance; taxonomy preference is not a completion claim.
 
 **Existing behaviour to preserve.** Every tool's arguments, depth passing (`RepertoirePanel.tsx:86`), cancellation, progress rendering, result rows, staging behaviour (`stagePreviewLine`, `acceptPreview`), the covered-by-transposition muted rows, the `best eval`/`best fit` fill pair, the Shorten inspect panel's data, the `usersTurn()` guard on Extend, and the artifact save flow. Gaps stays open by default. `StrategicFitTransfer` keeps its current behaviour and moves into "Prepare and export".
 
@@ -1412,7 +1414,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** A per-tool argument-equivalence spec (the strongest guard against a regrouping regression); group summary assertions; keyboard toggling.
 
-**Manual validation.** DV-4 card sort before implementation.
+**Automated completion validation.** The fixed four-group taxonomy is asserted against an exhaustive tool-to-group map; labels, ordering, keyboard toggling, summaries, and per-tool argument equivalence must pass.
 
 **Failure and rollback.** Regression mode: a tool losing an argument during the move. Detection: the argument-equivalence spec, which must be written **before** the refactor and pass against the current code first. Rollback: revert; the decomposition is one PR.
 
@@ -1450,7 +1452,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** A copy assertion and the no-analysis assertion in `strategic-fit-workspace.spec.ts`.
 
-**Manual validation.** None.
+**Automated completion validation.** The named CI assertions are the complete validation.
 
 ---
 
@@ -1494,7 +1496,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** The unchanged-text proof is the existing suite. Add `test/content.test.ts` asserting formatter output parity against fixtures captured from the current implementations, and a check-script self-test.
 
-**Manual validation.** None.
+**Automated completion validation.** The named CI assertions are the complete validation.
 
 **Failure and rollback.** Regression mode: a subtle wording change slipping in during the move. Detection: the zero-text-change requirement on the existing suite. Rollback: revert; no behaviour depends on the registry until later packages.
 
@@ -1574,7 +1576,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Fixture-driven card-tier spec; a technical-details on/off spec; an error-action spec per action kind; text-preservation assertions for the staged-mutation copy.
 
-**Manual validation.** Forced-colors check of the tier differentiation.
+**Automated completion validation.** Chromium forced-colors automation asserts each tier has a non-color text/icon distinction, distinct computed border/outline state, and no hidden action or clipped label.
 
 **Failure and rollback.** Regression mode: hiding `Raw JSON` removes a debugging affordance developers rely on. Mitigation: the setting is discoverable in Settings and defaults on in DEV builds. Rollback: revert the gating condition alone.
 
@@ -1624,7 +1626,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Extend `test/chat.test.ts` with per-call cancellation (a fake executor that blocks on the second call), run-history persistence across turns, and context-summary parity with `systemMessage()`. Playwright for the chip and the cancel control.
 
-**Manual validation.** A real OpenRouter turn with a long-running tool, to confirm cancel latency is acceptable.
+**Automated completion validation.** A controllable delayed executor asserts per-call cancel settles within the numeric deadline, preserves completed runs, continues the turn, and leaves request-level stop behavior distinct.
 
 **Failure and rollback.** Regression mode: the child-controller wiring leaking so a per-run cancel aborts the turn. Detection: the blocking-executor test. Rollback: revert; run history returns to per-turn.
 
@@ -1698,7 +1700,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** A field-presence spec written before the change and passing against current code; state-distinction specs per tool; a single-action export spec asserting exactly one button and one download.
 
-**Manual validation.** Forced-colors check of the error-versus-empty distinction.
+**Automated completion validation.** Forced-colors automation asserts error and empty states differ by text and icon in the accessibility tree and computed styles; field-presence and single-action export assertions also pass.
 
 **Failure and rollback.** Regression mode: an evidence field lost under the disclosure refactor. Detection: the field-presence spec. Rollback: per-tool revert is possible because `WP-022` split them into separate components.
 
@@ -1739,7 +1741,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** A name-derivation store test including the collision case and a cohort with no findings; the raw-identifier sweep; the unchanged existing suites.
 
-**Manual validation.** Review with a chess-literate reader that the derived names are recognisable.
+**Automated completion validation.** Fixture-driven name derivation asserts dominant-opening coverage, collision handling, stable numbering, line counts, and the `Comparison group` fallback whenever coverage is below one half.
 
 **Failure and rollback.** Regression mode: a name derived from too few findings being misleading. Mitigation: fall back to `Comparison group N (k lines)` when the dominant opening covers under half the cohort. Rollback: revert; ids return.
 
@@ -1779,7 +1781,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Three-state spec driven by fixture reports through `window.__chess.setResolutionProofForTesting`-style seams or a fixture lifecycle result; a positive-control end-to-end run.
 
-**Manual validation.** Confirm with a chess reader that the remedies are actionable ("extend your main lines past move 12" must be something a user can actually do).
+**Automated completion validation.** The terminal-state fixture asserts thresholds come from the payload, at least two remedy actions are rendered, each action routes to an executable edit or rerun path, and full-evidence fixtures bypass the terminal state.
 
 **Failure and rollback.** Regression mode: the terminal state hiding findings that were in fact useful. Mitigation: it triggers only on `comparable_route_count === 0`, and the raw report stays available under technical details. Rollback: revert.
 
@@ -1840,7 +1842,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 **Target behaviour.** A persistent stage indicator at all widths showing `Overview → Findings → Evidence → Decide` with the current stage marked and completed stages indicated. Wide viewports keep three visible columns but gain a fourth decide column or a persistent decide region — resolved by `DV-5`. Resolution actions are rendered once.
 
 **Implementation approach.** Extract the duplicated `ResolutionActions`/`TrainException`/`CohortEditor` block into one `ResolutionPanel` component rendered in exactly one place per tier. Replace `usesStageTabs` with a single stage model that renders a progress strip at all widths and switches only the _panel visibility_ strategy by tier. Migrate the workspace's focus trap onto `Dialog` (`nested` support already required for the Replacement Lab).
-**`DV-5` gate.** Whether the wide tier gains a fourth column or a persistent decide region below the evidence column is a layout decision with real trade-offs at 1101–1440 px, where four columns would each be ~280 px. Default if inconclusive: keep three columns and render the decide region at the bottom of the evidence column, with the stage strip making the progression explicit — this is closest to today's behaviour and lowest risk.
+**DV-5 decision.** Keep three columns and render the decide region at the bottom of the evidence column, with the stage strip making progression explicit. Automation asserts geometry, stage-state equality, one resolution render, and overflow; layout preference is not claimed.
 
 **Existing behaviour to preserve.** Every Strategic Fit accessibility behaviour verified today: focus trap, `Escape`, focus restoration, `inert` + `aria-hidden` on `.app-main`, the roving-tabindex tablist with `Home`/`End` in the compact tier, print/export mode, reduced motion, forced colors, and the chart/table fallbacks. The 22 existing specs are the gate. The resolution-blocked message when the report is `stale` (`StrategicFitWorkspace.tsx:224–233, 651–655`).
 
@@ -1855,7 +1857,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** Duplicate-render assertions; stage-indicator presence at four widths; the existing suite as the regression gate; the `Dialog` contract suite extended to the workspace and the Lab.
 
-**Manual validation.** Screen-reader pass after the `Dialog` migration (gate AG-1 re-run).
+**Automated completion validation.** The AG-1 suite reruns against the migrated workspace and Lab and must report `confirmed-pass` for browser and real-AT claims; duplicate-render, stage, stale-state, and existing Strategic Fit suites also pass.
 
 **Failure and rollback.** Highest risk in the Strategic Fit workstream. Mitigation: split into two PRs — (a) de-duplicate the resolution block and add the stage strip, (b) migrate to `Dialog` — so a focus regression can be reverted without losing the stage work.
 
@@ -1883,7 +1885,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 **Implementation approach.** All strings move to `content/strategicFit.ts` (already created by `WP-024`) and are then reworded. Expert terms are retained through the `{ plain, expert }` pair so `Pareto-optimal` still appears for readers who want it. No component logic changes.
 **`PD-8`.** Renaming `resolution proof` and `training exception` changes vocabulary that appears in the workflow contract prompts (`packages/chess-tools/src/workflow-contract.ts`) and in the generated skills. Decide whether the UI diverges from the contract vocabulary (UI-only rename, contract unchanged) or both change together. Default: **UI-only rename**, because the contract vocabulary is consumed by the assistant and by MCP hosts, and changing it is out of this plan's scope.
 
-**Existing behaviour to preserve.** **Every bounded-evidence and staged-mutation statement's meaning.** Specifically: "Withheld evidence exists; it is not absent, and it cannot be cited in a plan", "Nothing is saved until you accept", "Nothing is bound and no preference was saved", "This route shares no supported comparable evidence with an anchor route, so a position would be fabricated rather than measured", and the "Analysis in progress / Nothing is current until the report completes" copy. These may be shortened only if the reviewer confirms the meaning is intact. The profile wizard's structure, `RECOMMENDED` badge, consequence statement, and `Skip for now` are preserved exactly.
+**Existing behaviour to preserve.** **Every bounded-evidence and staged-mutation proposition.** Specifically: "Withheld evidence exists; it is not absent, and it cannot be cited in a plan", "Nothing is saved until you accept", "Nothing is bound and no preference was saved", "This route shares no supported comparable evidence with an anchor route, so a position would be fabricated rather than measured", and the "Analysis in progress / Nothing is current until the report completes" copy. These five strings are canonical and remain exact. The profile wizard's structure, `RECOMMENDED` badge, consequence statement, and `Skip for now` are preserved exactly.
 
 **Acceptance criteria.**
 
@@ -1892,12 +1894,12 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - `resolution proof` and `training exception` do not appear as primary labels (subject to `PD-8`).
 - `strategic distance` is defined in prose before its first use on any surface where it appears.
 - The four advanced-preference fields share one definition and have distinct, non-repeated help text.
-- Each of the five preserved statements listed above is still present, verbatim or with a reviewer-approved equivalent, asserted by text match.
+- Each of the five canonical protected statements listed above is present verbatim and asserted by text match.
 - `packages/chess-tools` is unmodified.
 
 **Automated tests.** Text-presence assertions for the preserved statements; a vocabulary sweep asserting the retired primary labels are absent from rendered text.
 
-**Manual validation.** A chess-literate reviewer confirms the rewordings do not change meaning — this is the merge gate for this package.
+**Automated completion validation.** Canonical protected propositions remain exact, retired primary labels are absent, required definitions precede first use, allowed UI-only vocabulary changes are exhaustive, and `packages/chess-tools` has no diff.
 
 ---
 
@@ -1910,17 +1912,17 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 | **Severity reduced**         | —                                                                                                               |
 | **Type**                     | Workflow (research)                                                                                             |
 | **Decision**                 | **Product decision required** (`PD-5`, §14)                                                                     |
-| **Size**                     | S (this package is the study, not the split)                                                                    |
-| **Risk**                     | Low as a study; XL if the split proceeds                                                                        |
+| **Size**                     | S (automated validation only; no split)                                                                         |
+| **Risk**                     | Low; no production code changes                                                                                 |
 | **Dependencies**             | WP-031, WP-032, WP-033                                                                                          |
 | **Blocks**                   | any future split                                                                                                |
 | **Parallel with**            | WP-036–WP-038                                                                                                   |
 
 **Rationale.** The audit recommends considering a split but is explicit that it is not an automatic implementation requirement, and that `WP-033`'s stage strip may already resolve the overload. Committing to an XL restructuring before that is measured would be exactly the "redesign to appear comprehensive" the audit warns against.
 
-**Approach.** After `WP-033` ships, run the §14 `PD-5` study: five participants, two tasks (a review task ending in a decision, and a redesign task ending in an applied change set), measuring time to first finding, number of times a participant enters a redesign surface while doing review work, and self-reported clarity of where they are. Recommend a split only if participants enter redesign surfaces unintentionally in ≥2 of 5 sessions or cannot state their current stage.
+**Approach.** After `WP-033` ships, retain one workspace and run two automated journeys: a review journey ending in a decision and a redesign journey ending in an applied change set. The review journey must never enter redesign state without the explicit redesign action; the stage indicator must equal application state after every transition; the redesign journey must reach apply without duplicate resolution controls. Subjective clarity is not claimed.
 
-**Acceptance criteria.** A written recommendation in `docs/` with the measurements, a recommendation, and — if the split is recommended — a scoped follow-up package proposal. No production code changes in this package.
+**Acceptance criteria.** A machine-generated report records both transition traces, stage-state equality, explicit redesign-entry count, duplicate-control count, and pass/fail against the fixed thresholds. No production code changes and no split proposal are part of this package.
 
 ---
 
@@ -1961,11 +1963,11 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - `z-index` literals appear only in the token block.
 - Step 1 produces a zero-pixel visual diff across the Strategic Fit snapshot suite.
 - After step 2, no panel's rendered height at 1280×800 grows by more than 15% versus the pre-change baseline.
-- Any snapshot update is accompanied by a reviewer note stating what changed and why.
+- Any snapshot update is limited to the named expected files and passes pixel-diff masks, geometry, density, clipping, contrast, and text-size assertions.
 
 **Automated tests.** The existing Strategic Fit visual snapshots as the primary gate; the density guard assertions; a stylesheet assertion that raw hexes and `z-index` literals do not appear outside allowed regions.
 
-**Manual validation.** A side-by-side review of the type migration at 1280×800 and 390×844 before merge.
+**Automated completion validation.** The additive token step produces zero snapshot diff; the type migration passes deterministic screenshot diffs, density bounds, clipping/overflow checks, contrast, and text-size assertions at desktop and phone viewports.
 
 **Failure and rollback.** Regression mode: the type floor breaking dense analytical layouts. Mitigation: step 2 is a separate commit; the density guard fails before merge. Rollback: revert step 2 alone, keeping the tokens.
 
@@ -1999,14 +2001,14 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 - Exactly one progress component renders in the app; `grep` finds no `.scan-bar-fill` or `.scan-meter` class.
 - Exactly one status component; the five class families are gone or are thin aliases of it.
 - Every panel uses `PanelHeader`; `.outcome-label` and `.panel-head` no longer both appear on the same panel.
-- Buttons expose exactly three variants plus `danger`; a reviewer can state which variant every button in the app uses.
+- Buttons expose exactly three variants plus `danger`; an exhaustive rendered-control inventory maps every button to one allowed variant.
 - No panel's rendered height grows by more than 10% versus the `WP-036` baseline.
 - All Strategic Fit snapshots pass or have reviewed, justified updates.
 - `basicAccessibilityViolations` is empty for every migrated surface.
 
 **Automated tests.** Class-absence assertions; density guards; the snapshot suite; the accessibility helper across core-app roots.
 
-**Manual validation.** Visual review at 390×844, 1280×800, and 1440×900 before merge.
+**Automated completion validation.** At all three viewports, snapshot diffs, class-absence checks, exhaustive primitive/variant mapping, density bounds, overflow checks, and accessibility assertions pass.
 
 **Failure and rollback.** Mechanical but broad. Mitigation: one primitive per commit, each independently revertible.
 
@@ -2046,7 +2048,7 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Automated tests.** An arrow-count assertion for a position with overlapping repertoire and engine suggestions; a legend content assertion; a persistence assertion.
 
-**Manual validation.** Confirm the repertoire/engine distinction is visible at the smallest board size (160 px) and under forced colors.
+**Automated completion validation.** At a 160 px board and under forced colors, repertoire and engine arrows retain distinct computed stroke/pattern or accompanying text semantics; legend, overlap-count, and persistence assertions pass.
 
 ---
 
@@ -2196,7 +2198,7 @@ Ten packages close all seven Critical findings. Each link is a real dependency:
 | P4    | `WP-015` ∥ `WP-016` ∥ `WP-018` ∥ `WP-021` ∥ `WP-023` | `WP-015` touches `App.tsx` order only; `WP-016` `AnalysisPanel`+`TopBar`; `WP-018` `TopBar`; `WP-021` `App.tsx`+`ChatPanel`; `WP-023` `RepertoirePanel` — see the contention note below |
 | P5    | `WP-025` ∥ `WP-030` ∥ `WP-029`                       | Chat labels, Strategic Fit names, and repertoire copy are separate content modules and separate components                                                                              |
 | P6    | `WP-032` ∥ `WP-034` ∥ `WP-028`                       | Strategic Fit telemetry, Strategic Fit copy, and chat back-references are disjoint                                                                                                      |
-| P7    | `WP-035` ∥ `WP-036`                                  | A study and a stylesheet migration                                                                                                                                                      |
+| P7    | `WP-035` ∥ `WP-036`                                  | An automated journey checkpoint and a stylesheet migration                                                                                                                              |
 
 **Not parallelisable:** `WP-003`/`WP-004`/`WP-005` (a single data-safety chain); `WP-036`/`WP-037` (the primitives consume the tokens); `WP-031`/`WP-032` (telemetry collapse assumes the evidence state exists); `WP-017` with anything else touching `TopBar.tsx`.
 
@@ -2252,7 +2254,7 @@ Twenty-six PRs. "Independent" means the PR can merge to `main` and deploy on its
 | 27  | `feat(design): tokens`                                                          | WP-036                                 | `styles.css`                                                                                        | Design system               | Zero-diff step 1; density guard step 2; snapshot review               | Yes                   | Four commits, each revertible                                                                 |
 | 28  | `feat(design): presentation primitives`                                         | WP-037                                 | `primitives/*`, all panels                                                                          | Design system               | Class-absence assertions; snapshots                                   | Yes                   | One primitive per commit                                                                      |
 | 29  | `feat(analysis): board arrow legend`                                            | WP-038                                 | `ArrowLegend.tsx`, `Board.tsx`, `content/analysis.ts`                                               | Chess domain, design        | Arrow de-duplication assertion                                        | Yes                   | —                                                                                             |
-| 30  | `docs: Strategic Fit Review/Redesign split study`                               | WP-035                                 | `docs/`                                                                                             | Product research            | Study write-up                                                        | Yes                   | No code                                                                                       |
+| 30  | `test: verify Strategic Fit review/redesign state boundaries`                   | WP-035                                 | `docs/`, journey fixtures                                                                           | Automated validation        | Machine-generated transition report                                   | Yes                   | No production code                                                                            |
 
 PR 26 is explicitly marked non-independent and must be split into three; it is listed as one row because the five packages share `StrategicFitWorkspace.tsx` and must be sequenced.
 
@@ -2287,25 +2289,24 @@ Copy changes are **not** given their own PRs. `WP-024` moves strings without rew
 
 **Accessibility checks.** The existing `helpers/accessibility.ts` (`basicAccessibilityViolations`, `touchTargetViolations`, `contrastViolations`) is extended, not replaced, and is pointed at core-app roots. No `axe-core` dependency is added — the helper already covers duplicate ids, broken `aria-*` references, missing accessible names, target size, and contrast, and adding a dependency would need justification against D12.
 
-**Visual/layout assertions.** Geometry assertions (heights, widths, overflow, position relative to the viewport) rather than screenshots for interaction correctness. Screenshots are used only where they already exist (three Strategic Fit snapshot directories) and are reviewed, never blanket-updated.
+**Visual/layout assertions.** Geometry assertions (heights, widths, overflow, position relative to the viewport) carry interaction correctness. Existing Strategic Fit screenshots are compared deterministically. Baseline changes are restricted to named files and must also pass pixel masks, geometry, density, clipping, contrast, and text-size assertions; no visual approval step exists.
 
 **Regression fixtures.** `RICH_PGN` (≥12 routes past ply 12 — required as the positive control for `WP-031`), `SIMPLE_PGN`, `BRANCHING_PGN` (for move-tree traversal), `LONG_FILENAME`, and a set of fixture tool-result payloads for `ToolResult` rendering injected via `appendToolResultForTesting`.
 
 ### 11.3 Browser and device matrix
 
-| Dimension              | Values                                                                                                                       | CI or manual                                                                                |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Browsers               | Chromium, Firefox, WebKit                                                                                                    | **CI** (all three, via Playwright projects)                                                 |
-| Viewports              | 360×740, 390×844, 640×400, 720×900, 721×900, 768×1024, 1024×768, 1100×800, 1101×800, 1280×800, 1280×600, 1440×900, 1920×1080 | **CI** (layout specs only; interaction specs run at 1280×800 and 390×844)                   |
-| Zoom equivalents       | 125% (1024×640), 150% (853×533), 200% (640×400)                                                                              | **CI** as reduced CSS viewports                                                             |
-| Real browser zoom      | 125/150/200% via browser UI                                                                                                  | **Manual**, once per phase — CSS-viewport emulation is not identical to real zoom for `dvh` |
-| Coarse pointer         | `hasTouch: true` contexts                                                                                                    | **CI**                                                                                      |
-| Reduced motion         | `reducedMotion: "reduce"`                                                                                                    | **CI**                                                                                      |
-| Forced colors          | `forcedColors: "active"`                                                                                                     | **CI** (Chromium only — Playwright support)                                                 |
-| Keyboard only          | Tab/arrow-driven specs                                                                                                       | **CI**                                                                                      |
-| Screen reader          | NVDA on Windows, VoiceOver on macOS/iOS                                                                                      | **Manual**, at gates AG-1..AG-7                                                             |
-| Real iOS/iPadOS device | Virtual keyboard, installed PWA, touch drag, long-press                                                                      | **Manual**, at the end of Phases 1, 2, and 3                                                |
-| Installed PWA update   | Deploy → update → toast → reload                                                                                             | **Manual**, once, after `WP-019` (needs a real deploy, D13)                                 |
+| Dimension                | Values                                                                                                                       | Automated execution                                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browsers                 | Chromium, Firefox, WebKit                                                                                                    | Playwright projects in CI.                                                                                                                         |
+| Viewports                | 360×740, 390×844, 640×400, 720×900, 721×900, 768×1024, 1024×768, 1100×800, 1101×800, 1280×800, 1280×600, 1440×900, 1920×1080 | Layout specs at the full matrix; interaction specs at 1280×800 and 390×844.                                                                        |
+| Zoom equivalents         | 125% (1024×640), 150% (853×533), 200% (640×400)                                                                              | Reduced CSS viewports plus scripted `visualViewport` changes. Exact browser-chrome zoom is not claimed unless a browser-control runner is added.   |
+| Coarse pointer           | `hasTouch: true` contexts                                                                                                    | Touch/pointer event traces in CI.                                                                                                                  |
+| Reduced motion           | `reducedMotion: "reduce"`                                                                                                    | Playwright emulation plus animation-state assertions.                                                                                              |
+| Forced colors            | `forcedColors: "active"`                                                                                                     | Chromium emulation plus computed-style, text, and icon assertions.                                                                                 |
+| Keyboard only            | Tab/arrow-driven specs                                                                                                       | Playwright journeys assert that no pointer events occur.                                                                                           |
+| Screen reader            | NVDA on Windows, VoiceOver on macOS                                                                                          | Guidepup CI jobs capture per-command utterance logs; deterministic verdicts fail closed. iOS VoiceOver is not claimed without a device-lab runner. |
+| Physical mobile behavior | Touch drag, long-press, visual viewport, installed PWA                                                                       | Browser automation covers platform-neutral contracts. Exact iOS/Android hardware claims require an unattended hosted device-lab job.               |
+| Installed PWA update     | Deploy build A → install → deploy build B → toast → reload                                                                   | A controlled deployment job asserts service-worker state and build-id transition.                                                                  |
 
 ### 11.4 Performance and stability checks
 
@@ -2397,70 +2398,77 @@ If evidence later shows users expect cross-session undo, the snapshot ring is th
 
 ---
 
-## 13. Accessibility review gates
+## 13. Automated accessibility gates
 
-Each gate blocks merge of the listed packages. **Presence of ARIA attributes is never sufficient evidence for any gate.**
+Each gate is a deterministic command, not an evidence-review task. Presence of ARIA attributes
+alone is insufficient, but no person listens to or approves the captured output. The verdict engine
+scores browser trees, interaction traces, and real AT utterances against predeclared assertions.
 
-| Gate     | Scope                                | Required automated evidence                                                                                                                                                  | Required manual evidence                                                                                                                                                                                       | Reviewer                                                       | Blocks merge when                                                                        |
-| -------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **AG-1** | `Dialog` primitive and its consumers | Dialog contract suite passing for all three overlays on three browsers; `basicAccessibilityViolations` empty per dialog root; `ArrowRight`/`Mod+Z` inert behind each overlay | One NVDA and one VoiceOver session confirming: the dialog is announced with its name and as a dialog; the background is not reachable by virtual cursor; focus returns audibly on close                        | Accessibility reviewer                                         | Any dialog fails to announce its name, or the background is reachable                    |
-| **AG-2** | Mobile tabs                          | Complete tab-pattern assertions (ids, `aria-controls`, `tabpanel`, roving tabindex, arrow keys); baseline check 9                                                            | VoiceOver on a real iPhone confirming tab role, position ("tab 2 of 3"), and selection state are announced                                                                                                     | Accessibility reviewer                                         | Tabs announce as plain buttons, or panel association is not announced                    |
-| **AG-3** | Move tree                            | `keyboardReachable` empty; single tab stop; `aria-current` on the active move; `aria-expanded` on toggles                                                                    | NVDA and VoiceOver confirming tree role, level, and expanded state are announced, and that traversal does not read the entire tree on every key                                                                | Accessibility reviewer + chess-domain reviewer                 | Tree semantics are mis-announced, or traversal produces speech floods                    |
-| **AG-4** | Board keyboard layer                 | Full keyboard journey; pointer non-regression on three browsers; orientation test                                                                                            | NVDA and VoiceOver confirming square identity, piece identity, legal-destination announcement, and move confirmation are all spoken and comprehensible; a keyboard-only user completes the M-2 journey unaided | Accessibility reviewer + a keyboard-only or screen-reader user | The M-2 journey cannot be completed, or pointer behaviour regresses                      |
-| **AG-5** | Live-region announcement policy      | Exact message-count assertions per operation; no message on progress ticks or streaming                                                                                      | NVDA and VoiceOver confirming messages are spoken once, are not truncated by the next, and do not interrupt user input                                                                                         | Accessibility reviewer                                         | Announcement storms, or a required event is silent                                       |
-| **AG-6** | Resizable divider                    | `aria-valuenow/min/max`, name, key handling, bounds, reset                                                                                                                   | Screen-reader confirmation that the separator reports its value and that value changes are perceivable                                                                                                         | Accessibility reviewer                                         | The separator is unfocusable, unnamed, or does not report its value                      |
-| **AG-7** | Forced colors and reduced motion     | Playwright emulation assertions for both, covering severity, fit, tab selection, progress, and card tiers                                                                    | Windows High Contrast pass over the core app and Strategic Fit; a reduced-motion pass confirming no piece animation                                                                                            | Accessibility reviewer                                         | Any status is distinguishable only by colour, or motion persists with the preference set |
+| Gate     | Intent                                                                  | Required deterministic assertions                                                                                                                                                                                                     | Required sources                                                                   | Pass condition                                                                                                     |
+| -------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **AG-1** | Dialog semantics, containment, and focus return                         | Three-engine dialog contract; AX background exclusion; real utterances contain dialog name/role and returned-focus target; virtual-cursor sweep never reaches the named background control                                            | Chromium, Firefox, WebKit, NVDA/Windows, VoiceOver/macOS                           | Every finding is `confirmed-pass`.                                                                                 |
+| **AG-2** | Mobile tab semantics and state                                          | Tab ids/controls/panels, roving tabindex, arrow state machine; VoiceOver utterances contain tab role, ordinal position, selected state, and associated panel name                                                                     | Three engines plus VoiceOver/macOS WebKit                                          | Every finding is `confirmed-pass`; no iPhone-specific claim is made.                                               |
+| **AG-3** | Move-tree operability, structure, conveyed state, and bounded verbosity | One tab stop; exact traversal state machine; `aria-current`, variation-depth level, branch ownership and expanded-state transitions; NVDA/VoiceOver role-level-state tokens; per-key utterance bound and forbidden non-target SAN set | Three engines, CDP AX, NVDA/Windows, VoiceOver/macOS                               | Every finding is `confirmed-pass`.                                                                                 |
+| **AG-4** | Board keyboard parity and spoken move state                             | Pointer-free M-2 journey; three-engine pointer non-regression; orientation and promotion; AT utterances contain the exact square, piece, destination count/state, and move confirmation expected from the fixture                     | Three engines, NVDA/Windows, VoiceOver/macOS                                       | Every finding is `confirmed-pass`. Subjective comprehensibility is not claimed.                                    |
+| **AG-5** | Live-region message completeness and rate                               | Exact utterance count and full expected token sequence per operation; zero progress-tick speech; no truncation or overlap before the next message                                                                                     | Browser live-region trace, NVDA/Windows, VoiceOver/macOS                           | Every finding is `confirmed-pass`.                                                                                 |
+| **AG-6** | Resizer value semantics                                                 | Three-engine accessibility snapshots expose name and `aria-valuenow/min/max`; key traces assert the value changes once, remains bounded, resets, and persists                                                                         | Chromium, Firefox, WebKit accessibility trees and interaction traces               | Every finding is `confirmed-pass`. The gate claims exposed dynamic value semantics, not a preferred spoken phrase. |
+| **AG-7** | Forced-color distinction and reduced-motion compliance                  | Computed text/icon/border distinctions for every status and tier; required contrast; zero piece/card transition duration when reduction is active                                                                                     | Chromium forced-colors and reduced-motion emulation, Firefox/WebKit reduced-motion | Every finding is `confirmed-pass`.                                                                                 |
 
-Gate evidence is recorded in the PR description as a short written note naming the AT, version, OS, and what was observed. A gate cannot be satisfied by a screenshot.
+`automation-inconclusive`, absent platform evidence, infrastructure failure, cross-platform
+disagreement, and every failure status exit nonzero. JSON and Markdown reports are diagnostic
+artifacts only. Gate status is recorded from the machine report without owner approval.
 
 ---
 
-## 14. Product and design validation gates
+## 14. Fixed product and design decisions
 
-Each gate names the decision, the smallest prototype that answers it, the task, the evidence, and the default if results are inconclusive. **Defaults exist so no gate can block the roadmap indefinitely.**
+`DV-*` and `PD-*` entries are not completion gates. Preference, recognisability, findability, and
+subjective comprehension cannot be decided by unattended validation. This roadmap therefore adopts
+its previously documented defaults as product decisions and tests only observable conformance.
 
-| ID       | Decision to validate                                                                               | Smallest testable prototype                                                                     | Representative user task                                                                   | Evidence required                                                                                 | Default if inconclusive                                                                                                                                                                               | Blocks                       |
-| -------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **DV-1** | The board keyboard interaction model: two-step cursor select/place vs coordinate entry             | A standalone HTML page with the 8×8 focus grid over a static board, both models behind a switch | "Play 1.e4, then navigate to the resulting position and play 1…c5" using only the keyboard | 2 keyboard-only or screen-reader participants; completion, time, error count, stated preference   | **Two-step cursor model** — it matches the established pattern in Lichess and chess.com board accessibility, and coordinate entry excludes users unfamiliar with algebraic input                      | WP-014                       |
-| **DV-2** | Move-tree arrow semantics: `→` enters a variation vs advances the mainline                         | The move tree alone, both mappings behind a query flag                                          | "Find the second variation after 2.Nf3 and go to its last move"                            | 2 repertoire builders; wrong-key rate, time, stated model                                         | **`→` enters a variation, `↓`/`↑` move between siblings** — it matches the tree role's ARIA pattern, which screen readers already teach                                                               | WP-011                       |
-| **DV-3** | Top bar: `Save` visible vs inside the `Repertoire ▾` menu                                          | Two static mockups at 360, 768, and 1280 px                                                     | "Save your work to a file" and "Start a new repertoire"                                    | 3 users, 2 existing and 1 new; time to locate each action                                         | **`Save to file` stays a visible button; only Open, Re-link, New, and Recover move into the menu** — burying a frequent action is the larger risk                                                     | WP-017                       |
-| **DV-4** | Repertoire tool taxonomy: the four goal groups                                                     | An open card sort of the ten current tool names                                                 | "Group these tools the way you'd look for them"                                            | 4 repertoire builders; agreement rate with the proposed grouping                                  | **The four groups in §12 of the audit** — they map to the user-goal analysis and the ROADMAP framing                                                                                                  | WP-022                       |
-| **DV-5** | Strategic Fit wide-tier decide surface: fourth column vs decide region below evidence              | A layout mockup at 1101 and 1440 px with real content lengths                                   | "Review the top finding and record a decision"                                             | 3 users; time to decide, backtracking count, column-width complaints                              | **Three columns with the decide region at the bottom of the evidence column, plus a stage strip** — closest to today's behaviour, lowest regression risk on the best-tested surface                   | WP-033                       |
-| **PD-1** | Persistence vocabulary: "Stored in this browser" vs "Saved here" vs "Draft"                        | Copy variants in a static mockup of the top bar                                                 | "Where is your work right now, and what happens if you close this tab?"                    | 4 users; correct answer rate per variant                                                          | **"Stored in this browser · autosaved HH:MM" + "File: name — N changes not exported"** — the audit's proposal, which is literal and testable                                                          | WP-018, WP-003 copy          |
-| **PD-2** | Snapshot retention count and presentation (5 vs 10; list vs timeline)                              | The Recover dialog with seeded snapshots                                                        | "Get back the repertoire you had before you clicked New"                                   | 3 users; success rate, time                                                                       | **5 snapshots, a list ordered newest-first with timestamp, filename, and size**                                                                                                                       | WP-004                       |
-| **PD-3** | Global `Ctrl+Z` on a Strategic-Fit-applied change set: block vs perform-and-supersede              | Behaviour toggle behind a dev flag                                                              | "Undo the change Strategic Fit just applied"                                               | 3 users; whether they expect the proof to update, and whether a blocked undo reads as broken      | **Block with a message pointing at the Lab** — performing it would silently invalidate the resolution proof, which is a correctness risk, not a preference                                            | WP-005                       |
-| **PD-4** | Collapse the chat column before setup, or keep it and replace its content                          | Two mockups at 1440 px                                                                          | "Ask the assistant about this position" starting from a fresh install                      | 3 new users; discovery rate of the assistant                                                      | **Keep the column at full width with a proper setup card** — collapsing risks users never discovering the assistant, and the audit's density complaint is satisfied by replacing the terse error line | WP-021                       |
-| **PD-5** | Split Strategic Fit into Review and Redesign                                                       | Post-`WP-033` build, unchanged                                                                  | (a) "Review the top finding and decide"; (b) "Replace this line and confirm the change"    | 5 users; unintended entries into redesign surfaces during (a); ability to state the current stage | **Do not split.** Recommend a split only if ≥2 of 5 sessions show unintended redesign entry or an inability to state the stage                                                                        | WP-035, and any future split |
-| **PD-6** | Cohort naming: dominant opening vs structural signature                                            | The findings pane with both naming schemes                                                      | "Which comparison group does this finding belong to, and what else is in it?"              | 3 chess-literate users; correct grouping rate                                                     | **Dominant opening plus a line count**, falling back to `Comparison group N` when the dominant opening covers under half the cohort                                                                   | WP-030                       |
-| **PD-7** | Insufficient-evidence copy: a specific threshold ("12 plies, 6 routes") vs a qualitative one       | Two variants of the terminal state                                                              | "What would you do next to get results from this?"                                         | 3 repertoire builders; whether they name a concrete next action                                   | **State the specific numbers, read from the preflight payload** — a qualitative threshold gives no action                                                                                             | WP-031                       |
-| **PD-8** | Rename `resolution proof` and `training exception` in the UI only, or in the workflow contract too | A diff listing every contract and skill occurrence                                              | — (a scope decision, not a user test)                                                      | Owner decision, recorded                                                                          | **UI-only rename** — the contract vocabulary is consumed by the assistant and by MCP hosts, and changing it is outside this plan's scope                                                              | WP-034                       |
+| ID       | Authoritative decision                                                                                          | Automated conformance contract                                                                           | Unsupported claim intentionally omitted                          |
+| -------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **DV-1** | Board uses two-step cursor select/place, not coordinate entry.                                                  | Exact key/state table, legal-move and promotion journeys, both orientations.                             | Comparative preference.                                          |
+| **DV-2** | `↑`/`↓` move among siblings, `→` enters variations, `←` exits, Home/End bound the sibling set, Enter activates. | Three-engine state-transition fixture plus AG-3 utterance assertions.                                    | Which model repertoire builders prefer.                          |
+| **DV-3** | Save remains visible; Open, Re-link, New, and Recover move into the repertoire menu.                            | Save visible and one interaction away; menu inventory/order, keyboard path, overflow matrix.             | Time-to-find or perceived discoverability.                       |
+| **DV-4** | Use the audit's four goal groups.                                                                               | Exhaustive tool-to-group fixture, order/labels, keyboard toggling, argument equivalence.                 | Taxonomy preference.                                             |
+| **DV-5** | Three wide columns with the decide region at the bottom of evidence plus a persistent stage strip.              | Geometry at 1101/1440 px, one resolution render, stage-state equality, no overflow.                      | Perceived workload or preferred layout.                          |
+| **PD-1** | `Stored in this browser · autosaved HH:MM` and `File: name — N changes not exported`.                           | Exact state/copy matrix across linked, download-only, and no-file states.                                | Whether another phrase feels clearer.                            |
+| **PD-2** | Five snapshots, 2 MB bound, newest-first list with timestamp, filename, and size.                               | Retention, budget, order, metadata, corruption, and quota tests.                                         | Preferred history depth/presentation.                            |
+| **PD-3** | Block global undo for Strategic-Fit-applied revisions and direct to the Lab.                                    | Origin-tag matrix, unchanged PGN/revision, exact message and Lab action.                                 | Whether blocked undo feels surprising.                           |
+| **PD-4** | Keep the chat column at full width and show the setup card.                                                     | Fresh-install layout, card/action presence, configuration transition, mount identity.                    | Perceived assistant discoverability.                             |
+| **PD-5** | Do not split Strategic Fit in this roadmap.                                                                     | Review/redesign transition traces, explicit redesign entry, stage-state equality, no duplicate controls. | Subjective clarity; future research may authorize a new roadmap. |
+| **PD-6** | Dominant opening plus line count; fall back to `Comparison group N` below 50% coverage.                         | Coverage, collision, empty-cohort, stability, and raw-id fixtures.                                       | Human recognisability.                                           |
+| **PD-7** | State specific thresholds from the preflight payload.                                                           | Payload-derived numbers, executable remedy actions, limited/full evidence controls.                      | Perceived actionability beyond the executable paths.             |
+| **PD-8** | Rename UI vocabulary only; keep workflow contracts and generated skills unchanged.                              | Exhaustive UI vocabulary sweep, exact protected propositions, zero contract/skill diff.                  | Copy preference.                                                 |
 
-Gates run **before** their package's implementation begins, not before its merge. A gate that returns the default costs one session, not a phase.
+Changing one of these decisions is a new product-scope request, not completion validation for the
+package that implements it.
 
 ---
 
 ## 15. Risk register
 
-| Risk                                                         | Trigger                                                                            | Impact                                                                            | Likelihood                          | Affected packages              | Mitigation                                                                                                                         | Detection                                                                    | Rollback                                                            |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Snapshot writes corrupt or block the live autosave slot      | Concurrent snapshot and autosave writes, or a quota failure mid-transaction        | Loss of the only copy of a repertoire                                             | Low                                 | WP-004                         | `idbMutateAtomically` for index+payload; respect `autosavePauseDepth`; snapshot failure never propagates to the live write         | Pause-respect and quota-degradation store tests; DEV diagnostics per write   | Revert; snapshot keys become inert; **no data lost**                |
-| A wrong inverse silently corrupts a repertoire               | An undo entry whose `beforePgn` was captured after a partial mutation              | Silent data corruption the user may not notice for days                           | Low                                 | WP-005                         | Capture `beforePgn` synchronously before the mutation; DEV invariant asserting the undo result equals the recorded `beforePgn`     | Round-trip suite per mutation kind; DEV invariant                            | Revert; history is in-memory, nothing persists. Revert `WP-014` too |
-| IndexedDB migration breaks existing users                    | A schema change or a key rename                                                    | App starts with an empty repertoire                                               | Very low (no schema change planned) | WP-004                         | No version bump, no key rename, additive keys only                                                                                 | Forward/backward record-compatibility tests                                  | Revert                                                              |
-| Focus regressions from the `Dialog` extraction               | The extracted trap behaving differently from the Strategic Fit original            | Keyboard users stranded; a worse state than today                                 | Medium                              | WP-007, WP-033                 | Extract verbatim; migrate the three simple overlays first and Strategic Fit last; 22 SF specs as the gate                          | Dialog contract suite; SF specs; AG-1                                        | Revert; overlays return to today's behaviour                        |
-| Board pointer regression from the keyboard layer             | The overlay intercepting pointer events                                            | The app's core gesture breaks                                                     | Medium                              | WP-014, WP-006                 | `pointer-events: none` on the layer except while focused; pointer non-regression suite on all three browsers                       | Drag, click-move, and touch-drag interaction tests                           | Revert; the layer is purely additive                                |
-| Keyboard conflicts between global shortcuts and new controls | Arrow keys in the move tree, board cursor, and divider all claiming arrows         | Unpredictable behaviour depending on focus                                        | Medium                              | WP-005, WP-011, WP-012, WP-014 | The shortcut registry owns global keys; component-local arrow handling never registers globally and always calls `stopPropagation` | A focus-context matrix test: for each focus target, assert which handler ran | Revert the offending component's key handling                       |
-| Responsive regression at normal phone heights                | The `dvh` board term or the panel minimum firing where it should not               | The pinned-board phone layout starts scrolling                                    | Medium                              | WP-001, WP-020                 | ±2 px baseline assertions at 360×740 and 390×844                                                                                   | Baseline assertions in CI                                                    | Single CSS hunk revert                                              |
-| CSS cascade regression from token migration                  | A token value differing from the rule it replaced                                  | Widespread subtle visual drift                                                    | Medium                              | WP-036, WP-037                 | Step 1 is additive with a zero-diff requirement; migration is one region per commit; snapshots reviewed not updated                | Strategic Fit snapshot suite; density guards                                 | Per-commit revert                                                   |
-| Density loss from target-size floors                         | Padding pushing panels taller                                                      | Less information visible; the audit's explicit anti-goal                          | Medium                              | WP-006, WP-011, WP-037         | Reach floors with hit-area and padding, not layout; 15%/10% growth guards                                                          | Density guard assertions with baseline constants                             | Revert the floors commit alone                                      |
-| Engine performance degradation                               | Extra reactive work in the analysis path or the operation registry                 | Slower board interaction, queued analyses                                         | Low                                 | WP-010, WP-016                 | The registry stores plain data and is written on transitions only, not per progress tick beyond the existing rate                  | Board-responsiveness timing test; `analyseLive` availability during a scan   | Revert the registry migration for the offending store               |
-| Chat cancellation regression                                 | Child-controller wiring aborting the turn instead of one call                      | `Stop` and per-run cancel become indistinguishable, or cancellation stops working | Medium                              | WP-027                         | Child controller linked one-way to the turn signal; a blocking-executor test proving one call cancels while the turn continues     | `chat.test.ts` extensions; `cancellation.test.ts` unchanged                  | Revert to the shared turn signal                                    |
-| PWA users stranded on a stale build                          | The update toast failing to render after switching from `autoUpdate` to `prompt`   | Users never receive fixes                                                         | Low                                 | WP-019                         | Dev simulation seam; a manual post-deploy check on the first release                                                               | Toast test; manual installed-PWA check                                       | One-line revert to `autoUpdate`                                     |
-| Browser capability differences                               | File System Access absent on Firefox/WebKit; `@container` support; `inert` support | Divergent behaviour or a broken flow on one browser                               | Medium                              | WP-003, WP-018, WP-020, WP-007 | Three-browser CI from `WP-000`; explicit fallback copy for the download path; a media-query fallback for `@container`              | Three-browser CI                                                             | Per-browser feature detection, already the pattern in `files.ts`    |
-| Strategic Fit evidence misinterpretation                     | The insufficient-evidence terminal state hiding findings that were useful          | The user loses access to real analysis                                            | Low                                 | WP-031                         | Trigger only on `comparable_route_count === 0`; the full report stays available under technical details                            | The positive-control `RICH_PGN` fixture must still reach the resolution step | Revert the terminal state; the banner alone remains                 |
-| Strategic Fit strengths weakened during rewording            | A shortened sentence losing a bounded-evidence qualification                       | The app starts overclaiming — the opposite of its current strength                | Medium                              | WP-026, WP-030, WP-031, WP-034 | Text-presence assertions for each protected statement; a chess-literate reviewer sign-off as the merge gate                        | Protected-statement assertions in CI                                         | Revert the content commit                                           |
-| Argument drift during the repertoire regroup                 | A tool losing a parameter while being moved into a new component                   | A scan silently runs with wrong bounds or depth                                   | Medium                              | WP-022                         | Write the per-tool argument-equivalence spec **first** and prove it passes against current code before refactoring                 | Argument-equivalence spec                                                    | Per-tool revert (components are separate files)                     |
-| CI flakiness blocking the roadmap                            | WebKit or engine-backed specs timing out                                           | The team disables the gate that protects everything                               | Medium                              | WP-000                         | Three-run soak before making the job required; `test.slow()` for engine specs; narrow WebKit scope if needed                       | Soak results                                                                 | Make the job non-required; never delete it                          |
-| Deploy-on-merge exposes a regression to users immediately    | Any merged package with a defect                                                   | Users hit the defect before it is noticed                                         | Medium                              | all                            | Keep PRs small and independently revertible (§10); the plan's revert notes are per-commit where possible                           | CI plus the next session's manual check                                      | `git revert` and let `deploy-ui.yml` re-run                         |
+| Risk                                                         | Trigger                                                                            | Impact                                                                            | Likelihood                          | Affected packages              | Mitigation                                                                                                                                          | Detection                                                                    | Rollback                                                            |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Snapshot writes corrupt or block the live autosave slot      | Concurrent snapshot and autosave writes, or a quota failure mid-transaction        | Loss of the only copy of a repertoire                                             | Low                                 | WP-004                         | `idbMutateAtomically` for index+payload; respect `autosavePauseDepth`; snapshot failure never propagates to the live write                          | Pause-respect and quota-degradation store tests; DEV diagnostics per write   | Revert; snapshot keys become inert; **no data lost**                |
+| A wrong inverse silently corrupts a repertoire               | An undo entry whose `beforePgn` was captured after a partial mutation              | Silent data corruption the user may not notice for days                           | Low                                 | WP-005                         | Capture `beforePgn` synchronously before the mutation; DEV invariant asserting the undo result equals the recorded `beforePgn`                      | Round-trip suite per mutation kind; DEV invariant                            | Revert; history is in-memory, nothing persists. Revert `WP-014` too |
+| IndexedDB migration breaks existing users                    | A schema change or a key rename                                                    | App starts with an empty repertoire                                               | Very low (no schema change planned) | WP-004                         | No version bump, no key rename, additive keys only                                                                                                  | Forward/backward record-compatibility tests                                  | Revert                                                              |
+| Focus regressions from the `Dialog` extraction               | The extracted trap behaving differently from the Strategic Fit original            | Keyboard users stranded; a worse state than today                                 | Medium                              | WP-007, WP-033                 | Extract verbatim; migrate the three simple overlays first and Strategic Fit last; 22 SF specs as the gate                                           | Dialog contract suite; SF specs; AG-1                                        | Revert; overlays return to today's behaviour                        |
+| Board pointer regression from the keyboard layer             | The overlay intercepting pointer events                                            | The app's core gesture breaks                                                     | Medium                              | WP-014, WP-006                 | `pointer-events: none` on the layer except while focused; pointer non-regression suite on all three browsers                                        | Drag, click-move, and touch-drag interaction tests                           | Revert; the layer is purely additive                                |
+| Keyboard conflicts between global shortcuts and new controls | Arrow keys in the move tree, board cursor, and divider all claiming arrows         | Unpredictable behaviour depending on focus                                        | Medium                              | WP-005, WP-011, WP-012, WP-014 | The shortcut registry owns global keys; component-local arrow handling never registers globally and always calls `stopPropagation`                  | A focus-context matrix test: for each focus target, assert which handler ran | Revert the offending component's key handling                       |
+| Responsive regression at normal phone heights                | The `dvh` board term or the panel minimum firing where it should not               | The pinned-board phone layout starts scrolling                                    | Medium                              | WP-001, WP-020                 | ±2 px baseline assertions at 360×740 and 390×844                                                                                                    | Baseline assertions in CI                                                    | Single CSS hunk revert                                              |
+| CSS cascade regression from token migration                  | A token value differing from the rule it replaced                                  | Widespread subtle visual drift                                                    | Medium                              | WP-036, WP-037                 | Step 1 is additive with a zero-diff requirement; migration is one region per commit; baselines are restricted by named deterministic diff contracts | Strategic Fit snapshot suite; pixel/geometry/density guards                  | Per-commit revert                                                   |
+| Density loss from target-size floors                         | Padding pushing panels taller                                                      | Less information visible; the audit's explicit anti-goal                          | Medium                              | WP-006, WP-011, WP-037         | Reach floors with hit-area and padding, not layout; 15%/10% growth guards                                                                           | Density guard assertions with baseline constants                             | Revert the floors commit alone                                      |
+| Engine performance degradation                               | Extra reactive work in the analysis path or the operation registry                 | Slower board interaction, queued analyses                                         | Low                                 | WP-010, WP-016                 | The registry stores plain data and is written on transitions only, not per progress tick beyond the existing rate                                   | Board-responsiveness timing test; `analyseLive` availability during a scan   | Revert the registry migration for the offending store               |
+| Chat cancellation regression                                 | Child-controller wiring aborting the turn instead of one call                      | `Stop` and per-run cancel become indistinguishable, or cancellation stops working | Medium                              | WP-027                         | Child controller linked one-way to the turn signal; a blocking-executor test proving one call cancels while the turn continues                      | `chat.test.ts` extensions; `cancellation.test.ts` unchanged                  | Revert to the shared turn signal                                    |
+| PWA users stranded on a stale build                          | The update toast failing to render after switching from `autoUpdate` to `prompt`   | Users never receive fixes                                                         | Low                                 | WP-019                         | Dev simulation seam plus controlled build-A/build-B deployment automation                                                                           | Toast state tests; service-worker state and build-id transition              | One-line revert to `autoUpdate`                                     |
+| Browser capability differences                               | File System Access absent on Firefox/WebKit; `@container` support; `inert` support | Divergent behaviour or a broken flow on one browser                               | Medium                              | WP-003, WP-018, WP-020, WP-007 | Three-browser CI from `WP-000`; explicit fallback copy for the download path; a media-query fallback for `@container`                               | Three-browser CI                                                             | Per-browser feature detection, already the pattern in `files.ts`    |
+| Strategic Fit evidence misinterpretation                     | The insufficient-evidence terminal state hiding findings that were useful          | The user loses access to real analysis                                            | Low                                 | WP-031                         | Trigger only on `comparable_route_count === 0`; the full report stays available under technical details                                             | The positive-control `RICH_PGN` fixture must still reach the resolution step | Revert the terminal state; the banner alone remains                 |
+| Strategic Fit strengths weakened during rewording            | A shortened sentence losing a bounded-evidence qualification                       | The app starts overclaiming — the opposite of its current strength                | Medium                              | WP-026, WP-030, WP-031, WP-034 | The five protected propositions remain canonical exact strings; forbidden-overclaim and ordering assertions run in CI                               | Protected-proposition assertions in CI                                       | Revert the content commit                                           |
+| Argument drift during the repertoire regroup                 | A tool losing a parameter while being moved into a new component                   | A scan silently runs with wrong bounds or depth                                   | Medium                              | WP-022                         | Write the per-tool argument-equivalence spec **first** and prove it passes against current code before refactoring                                  | Argument-equivalence spec                                                    | Per-tool revert (components are separate files)                     |
+| CI flakiness blocking the roadmap                            | WebKit or engine-backed specs timing out                                           | The team disables the gate that protects everything                               | Medium                              | WP-000                         | Three-run soak before making the job required; `test.slow()` for engine specs; narrow WebKit scope if needed                                        | Soak results                                                                 | Make the job non-required; never delete it                          |
+| Deploy-on-merge exposes a regression to users immediately    | Any merged package with a defect                                                   | Users hit the defect before it is noticed                                         | Medium                              | all                            | Keep PRs small and independently revertible (§10); the plan's revert notes are per-commit where possible                                            | Required CI plus automated post-deploy smoke against the deployed build id   | `git revert` and let `deploy-ui.yml` re-run                         |
 
 ---
 
@@ -2475,14 +2483,14 @@ Gates run **before** their package's implementation begins, not before its merge
 - No core panel measures zero height at 640×400, 360×640, 720×500, or 800×450.
 - `New` on a saved document requires an explicit choice; a snapshot of the replaced document exists and restores.
 - `Ctrl+Z` and `Ctrl+Shift+Z` round-trip every mutation kind; no key path deletes without a confirmation and an undo.
-- All three overlays satisfy the `Dialog` contract; AG-1 evidence recorded.
-- Every board square, move, and result row is keyboard reachable; AG-3 and AG-4 evidence recorded.
+- All three overlays satisfy the `Dialog` contract; AG-1 reports `confirmed-pass`.
+- Every board square, move, and result row is keyboard operable; AG-3 and AG-4 report `confirmed-pass`.
   **Packages:** `WP-000`–`WP-007`, `WP-009`, `WP-011`, `WP-014`.
 
 ### M-2 — Keyboard-only core journey succeeds
 
-**Condition:** a keyboard-only user, unaided, completes: open a PGN → navigate to move 6 → add a variation → save to file → undo the variation → redo it.
-**Evidence:** an automated Playwright run of the journey using only keyboard events, plus one observed session with a keyboard-only or screen-reader user (AG-4).
+**Condition:** the pointer-free journey completes: open a PGN → navigate to move 6 → add a variation → save to file → undo the variation → redo it.
+**Evidence:** Playwright asserts the full state transition using only keyboard events and zero pointer events; AG-4 deterministically asserts the required NVDA and VoiceOver utterances.
 **Packages:** through `WP-014`.
 
 ### M-3 — Core UX stabilised
@@ -2516,9 +2524,9 @@ Gates run **before** their package's implementation begins, not before its merge
 - Core and Strategic Fit consume one token set; one status, progress, empty, error, header, button, and field primitive each.
 - No rendered body text below 12 px.
 - The arrow system has a legend and repertoire arrows are distinguishable from engine arrows.
-- All seven accessibility gates have recorded evidence.
-- All thirteen validation gates have a recorded decision (default or measured).
-- The Review/Redesign study is written up with a recommendation.
+- All seven accessibility gate commands report `confirmed-pass` with every required source present.
+- All thirteen fixed product/design decisions pass their automated conformance contracts.
+- The Review/Redesign transition report passes the fixed no-split journey thresholds.
 - No package left a `test.fixme` behind.
   **Packages:** all.
 
@@ -2530,9 +2538,9 @@ No audit finding is deferred or rejected. Four _implementation approaches_ sugge
 
 | Item                                                                 | Audit position                                                             | Plan position                                                                                                           | Why                                                                                                                                                                                                                | Risk of the plan's position                                           | Reconsideration trigger                                                                                    | Interim mitigation                                                                                |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Splitting Strategic Fit into Review and Redesign** (audit §13 E2)  | Listed as an XL option, explicitly conditional                             | Not scheduled; a study (`WP-035`) is scheduled instead                                                                  | The audit itself says the split is "only if E1 shows the stage strip is still overloaded". Committing to XL restructuring of the best-tested surface without evidence contradicts the plan's own principles        | The workspace may remain overloaded for another cycle                 | `PD-5` measures unintended redesign entry in ≥2 of 5 sessions, or an inability to state the current stage  | `WP-033`'s persistent stage strip and single-render resolution panel address the measured symptom |
+| **Splitting Strategic Fit into Review and Redesign** (audit §13 E2)  | Listed as an XL option, explicitly conditional                             | Not scheduled; `WP-035` deterministically validates the fixed one-workspace transition contract                         | Subjective overload cannot be established by unattended completion validation; this roadmap adopts no split and tests explicit state boundaries instead                                                            | The workspace may remain subjectively overloaded                      | A future separately authorized research initiative may change the product decision                         | `WP-033`'s persistent stage strip and single-render resolution panel address the measured symptom |
 | **Converting core "tables" to `<table>`** (audit §10 data-table row) | "Use `<table>` for tabular findings, or ARIA grid roles on the flex rows"  | Rows become `<button>`s in lists (`WP-011`); only genuinely tabular Strategic Fit findings keep `<table>`               | The analysis lines and repertoire rows are lists of _actions_, not data grids; a grid role would make each row's activation harder to expose, and Strategic Fit already uses real tables where the data is tabular | A screen-reader user does not get column semantics for engine lines   | If AG-3 testing shows users expect column navigation for engine lines                                      | Each row's accessible name carries all its fields in order                                        |
-| **Adding `axe-core`**                                                | Not proposed by the audit; a natural instinct when writing an a11y harness | Not added; the existing `helpers/accessibility.ts` is extended                                                          | The helper already covers duplicate ids, broken ARIA references, missing names, target size, and contrast; a new dependency needs justification against COEP (D12) and adds CI surface                             | Some WCAG rules the helper does not implement go unchecked            | If a gate finds a class of defect the helper cannot express                                                | The seven manual accessibility gates cover what static analysis cannot                            |
+| **Adding `axe-core` to the core helper**                             | Not proposed by the audit; a natural instinct when writing an a11y harness | Not added to the core helper; the separate AT evidence engine retains its existing axe collector                        | The core helper covers duplicate ids, broken ARIA references, missing names, target size, and contrast; the evidence engine covers named gate scenarios                                                            | Some WCAG rules remain outside the core helper                        | If a deterministic gate exposes a rule class neither layer can express                                     | Browser AX, interaction traces, axe scenarios, and real-AT verdicts cover the named gate intent   |
 | **Linting and formatting as part of Definition of Done**             | Implied                                                                    | Added: `pnpm lint` and `pnpm format:check` run with the existing `typecheck`, documentation, skills, and content checks | ESLint 9 and Oxfmt are now configured and the repository has been brought into compliance; the remaining task is to make those checks part of the normal package and CI gate                                       | New rules may initially expose a false positive in a specialised path | Narrow or document a rule exception only when the code's intent cannot be expressed clearly under the rule | Type checking plus linting, formatting, and the content check cover complementary failure modes   |
 
 Nothing is deferred because it is difficult. `WP-014` (board keyboard layer) is the hardest package in the plan and is on the critical path.
@@ -2570,8 +2578,8 @@ Nothing is deferred because it is difficult. `WP-014` (board keyboard layer) is 
 19. All 22 Strategic Fit specs and all 43 store suites pass unchanged, or every change is individually justified in the PR description.
 20. Any Strategic Fit snapshot update carries a written note stating what changed and why. Blanket snapshot updates are not acceptable.
 21. Density guards pass: no panel grew more than its package's stated bound.
-22. Required manual validation is done and recorded in the PR description, naming the browser, OS, device, or assistive technology and what was observed.
-23. Required accessibility gate evidence is recorded as prose, not a screenshot.
+22. The manifest's `requiredAutomatedValidation` contract is covered by named green assertions, and their command results are recorded.
+23. Every completion gate reports `confirmed-pass`; missing, unsupported, disagreeing, or inconclusive evidence fails closed without human approval.
 24. The rollback note in the PR description states exactly what reverting does to user data. For `WP-004` and `WP-005` this is mandatory.
 25. `docs/ui-ux-remediation-plan.md` §7 is updated: the finding's "Status after roadmap" moves to Closed and any "pending" gate note is removed.
 26. If the package changed a documented command, `AGENTS.md` is updated.
@@ -2579,6 +2587,6 @@ Nothing is deferred because it is difficult. `WP-014` (board keyboard layer) is 
 ### Before declaring a milestone complete
 
 26. Every package listed under the milestone is merged.
-27. Every condition in the milestone is verified by a named, green test or a recorded manual session.
+27. Every condition in the milestone is verified by a named green test or deterministic gate command.
 28. No `test.fixme` remains anywhere in `apps/ui/test`.
 29. The coverage matrix in §7 has no remaining "pending" entries for findings owned by that milestone.

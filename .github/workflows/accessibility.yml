@@ -1,10 +1,16 @@
 name: Accessibility
 
-# Manual trigger only. Two jobs here (nvda, voiceover) have never executed — see the comments on
-# each for what is proven versus designed-but-unverified. Promote to `pull_request` only once a
-# real triggered run has been inspected; see docs/accessibility/README.md.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/accessibility.yml"
+      - "apps/ui/src/**"
+      - "apps/ui/test/accessibility/**"
+      - "apps/ui/package.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "packages/chess-tools/**"
 
 permissions:
   contents: read
@@ -45,11 +51,8 @@ jobs:
           path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}/*.json
           if-no-files-found: error
 
-  # UNVERIFIED — no Windows machine available to test this on. Written against Guidepup's
-  # documented API and guidepup/setup-action's documented usage (both fetched and confirmed real
-  # from github.com/guidepup during design), but has never executed. First real signal comes from
-  # manually triggering this workflow and reading its actual output — do not treat this job as
-  # trustworthy until that has happened at least once.
+  # Proven by the AG-1 runs recorded in docs/accessibility/README.md. Missing artifacts or an
+  # inconclusive utterance verdict fail the merge job; no artifact inspection is required.
   at-nvda:
     name: AT evidence — NVDA (Windows)
     runs-on: windows-latest

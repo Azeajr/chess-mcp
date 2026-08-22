@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   deriveTaskLifecycle,
+  validateAutomatedCompletionContract,
+  validateCompletionGateEvidence,
   validateCompletionEvidence,
+  validateGateResolution,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
   validateRemediationAgentInstructions,
@@ -29,11 +32,15 @@ for (const [id, item] of Object.entries(packages)) {
   }
   for (const gate of item.blockingGates) {
     if (!state.gates[gate]) errors.push(`${id}: unknown gate ${gate}`);
+    if (/^(?:DV|PD)-\d+$/u.test(gate))
+      errors.push(`${id}: product/design decision ${gate} cannot be a blocking gate`);
   }
   for (const gate of item.completionGates ?? []) {
     if (!state.gates[gate]) errors.push(`${id}: unknown completion gate ${gate}`);
     if (item.blockingGates.includes(gate))
       errors.push(`${id}: ${gate} is listed as both a blocking and a completion gate`);
+    if (!/^AG-\d+$/u.test(gate))
+      errors.push(`${id}: completion gate ${gate} is not an automated accessibility gate`);
   }
   for (const foundation of item.prerequisites ?? []) {
     if (!foundations[foundation])
@@ -41,6 +48,12 @@ for (const [id, item] of Object.entries(packages)) {
     if (!state.foundations?.[foundation])
       errors.push(`${id}: missing prerequisite foundation state ${foundation}`);
   }
+}
+
+for (const [id, gate] of Object.entries(state.gates)) {
+  for (const error of validateGateResolution(id, gate)) errors.push(`${id}: ${error}`);
+  if (/^(?:DV|PD)-\d+$/u.test(id) && gate.status !== "resolved")
+    errors.push(`${id}: product/design decision must be fixed, not an unresolved completion gate`);
 }
 
 const visiting = new Set();
@@ -96,17 +109,36 @@ for (const [id, item] of Object.entries(packages)) {
       `${id}: completed package has unresolved completion gate(s) ${lifecycle.unresolvedCompletionGates.join(", ")}`,
     );
   for (const error of validateCompletionEvidence(id, packageState)) errors.push(`${id}: ${error}`);
+  for (const error of validateCompletionGateEvidence(item, packageState))
+    errors.push(`${id}: ${error}`);
+  for (const error of validateAutomatedCompletionContract(item)) errors.push(`${id}: ${error}`);
 }
 
 for (const command of validateWp000RequiredCommands(packages["WP-000"]))
   errors.push(`WP-000: required validation omits ${command}`);
 
-const [plan, wp000, wp011, wp014] = await Promise.all([
+const packageDocuments = await Promise.all(
+  ids.map((id) => readText(`docs/ui-ux-remediation/work-packages/${id}.md`)),
+);
+const [plan, policy, wp000, wp011, wp014] = await Promise.all([
   readText("docs/ui-ux-remediation-plan.md"),
+  readText("docs/ui-ux-remediation/AUTOMATED_COMPLETION.md"),
   readText("docs/ui-ux-remediation/work-packages/WP-000.md"),
   readText("docs/ui-ux-remediation/work-packages/WP-011.md"),
   readText("docs/ui-ux-remediation/work-packages/WP-014.md"),
 ]);
+for (const [name, source] of [
+  ["source plan", plan],
+  ["automated completion policy", policy],
+  ...ids.map((id, index) => [`${id} package`, packageDocuments[index]]),
+]) {
+  if (
+    /\*\*Manual validation\.\*\*|## Automated and manual tests|Required manual (?:evidence|validation)/iu.test(
+      source,
+    )
+  )
+    errors.push(`${name}: contains a forbidden manual completion requirement`);
+}
 for (const error of validateCompositeWidgetContract([
   packages["WP-000"].acceptanceCriteria.map((criterion) => criterion.text).join("\n"),
   packages["WP-011"].acceptanceCriteria.map((criterion) => criterion.text).join("\n"),

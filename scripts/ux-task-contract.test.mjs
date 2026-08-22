@@ -10,6 +10,9 @@ import {
   deriveTaskLifecycle,
   normalizePrimaryFile,
   validateCompletionEvidence,
+  validateCompletionGateEvidence,
+  validateAutomatedCompletionContract,
+  validateGateResolution,
   validateCompositeWidgetContract,
   validatePrimaryFiles,
   validateRemediationAgentInstructions,
@@ -24,6 +27,8 @@ const item = {
   relevantSymbols: [],
   acceptanceCriteria: [],
   requiredTests: { files: [], commands: [] },
+  requiredAutomatedValidation:
+    "A named test asserts the observable behavior and exits nonzero on failure.",
 };
 const state = (status, dependencyStatus = "complete") => ({
   packages: { "WP-000": { status: dependencyStatus }, "WP-001": { status } },
@@ -88,7 +93,7 @@ test("a completion gate never blocks readiness but is still reported", () => {
   );
 });
 
-test("a ready capsule names its completion gates and forbids self-resolving them", () => {
+test("a ready capsule names its completion gates and makes automation decisive", () => {
   const gated = { ...item, completionGates: ["AG-1"] };
   const capsule = buildTaskCapsule("WP-001", gated, {
     ...state("not-started"),
@@ -96,7 +101,70 @@ test("a ready capsule names its completion gates and forbids self-resolving them
   });
   assert.equal(capsule.executable, true);
   assert.match(capsule.text, /completion gate status[^\n]*\n- AG-1: unresolved/u);
-  assert.match(capsule.text, /never by writing the gate's decision yourself/u);
+  assert.match(capsule.text, /deterministic exit status is the decision/u);
+  assert.match(capsule.text, /Never request human approval/u);
+});
+
+test("manual completion requirements are rejected", () => {
+  assert.deepEqual(validateAutomatedCompletionContract(item), []);
+  assert.match(
+    validateAutomatedCompletionContract({
+      ...item,
+      requiredManualValidation: "listen to NVDA",
+    }).join("\n"),
+    /forbidden requiredManualValidation/u,
+  );
+  assert.match(
+    validateAutomatedCompletionContract({
+      ...item,
+      requiredAutomatedValidation: "A reviewer performs a visual review.",
+    }).join("\n"),
+    /human completion language/u,
+  );
+});
+
+test("resolved accessibility gates require a recorded automatic pass", () => {
+  assert.deepEqual(
+    validateGateResolution("AG-3", {
+      status: "resolved",
+      evidence: {
+        mode: "automated",
+        outcome: "confirmed-pass",
+        command: "pnpm a11y:verdict",
+        runId: "run-123",
+      },
+    }),
+    [],
+  );
+  assert.match(
+    validateGateResolution("AG-3", { status: "resolved", evidence: {} }).join("\n"),
+    /not automated/u,
+  );
+  assert.deepEqual(validateGateResolution("PD-3", { status: "resolved" }), []);
+});
+
+test("completed packages bind completion gates to their own automatic run", () => {
+  const gated = { ...item, completionGates: ["AG-3"] };
+  assert.match(
+    validateCompletionGateEvidence(gated, { status: "complete", evidence: {} }).join("\n"),
+    /AG-3 lacks package-bound/u,
+  );
+  assert.deepEqual(
+    validateCompletionGateEvidence(gated, {
+      status: "complete",
+      evidence: {
+        gates: {
+          "AG-3": {
+            mode: "automated",
+            outcome: "confirmed-pass",
+            command: "pnpm a11y:verdict",
+            runId: "run-123",
+          },
+        },
+      },
+    }),
+    [],
+  );
 });
 
 test("completion evidence must name an end-to-end run that was not spec-scoped", () => {

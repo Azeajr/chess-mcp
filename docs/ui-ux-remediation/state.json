@@ -115,7 +115,15 @@
           "pnpm --filter @chess-mcp/ui build",
           "git diff --check"
         ],
-        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified the global focus ring, reduced-motion CSS and board behavior, forced-colors differentiators, selectable output and board selection suppression, Chromium touch drag, 24/44 px target floors, and the 15% density guard. The complete configured suite passed on Chromium, Firefox, and WebKit."
+        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified the global focus ring, reduced-motion CSS and board behavior, forced-colors differentiators, selectable output and board selection suppression, Chromium touch drag, 24/44 px target floors, and the 15% density guard. The complete configured suite passed on Chromium, Firefox, and WebKit.",
+        "gates": {
+          "AG-7": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm test:e2e:container",
+            "runId": "WP-006-289-pass"
+          }
+        }
       }
     },
     "WP-007": {
@@ -133,7 +141,14 @@
         "playwright": "Full unnarrowed suite in the version-matched Playwright container: 361 passed, 14 configured skips, zero failures across all three engines. core-dialogs.spec.ts turns from a test.fixme placeholder into the real contract suite and passes for Settings, Promotion, and the Colour picker on all three browsers (9 tests).",
         "scope": "Three defects in the salvaged implementation were fixed rather than carried: per-dialog inert save/restore that a nested dialog corrupts, replaced by a refcount that is the scope stack itself; stopPropagation on Escape, which does not stop other listeners on the same node and closed a nested dialog and its parent together; and a dead branch in matches(). Two more surfaced only by running it: the three overlays rendered inside .app-main, the element they now make inert, so each went inert and left the accessibility tree the moment it opened; and the dialog title needed to be an h1 because a dialog root is its own heading outline. AC-7's inert assertion lands beside the existing Replacement Lab test, the only place the Lab is already open.",
         "provenance": "Reimplemented on the salvage branch from the abandoned hermes-work branch (bc3aafe), reviewed rather than cherry-picked. That branch extracted StrategicFitWorkspace's focus trap as it then stood, which carried three macOS-only defects real VoiceOver CI evidence has since found and 85b3e2a fixed; extracting it verbatim would have shipped all three into all three overlays at once. Dialog extracts the fixed trap. A fourth macOS defect - openers that the platform never focuses on click, leaving nothing to return focus to - was found by this package's own AT evidence in run 32241021324 and fixed as a class in the primitive.",
-        "gates": "AG-1 resolved by run 32242062146 before completion was recorded, as its completion gate requires."
+        "gates": {
+          "AG-1": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "32242062146"
+          }
+        }
       }
     },
     "WP-008": {
@@ -164,7 +179,15 @@
           "pnpm test:e2e:container (307 passed, 20 expected pre-roadmap test.fixme cases skipped across Chromium, Firefox, and WebKit)",
           "git diff --check"
         ],
-        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified focusable and named separator semantics, 16/64 px keyboard resizing, clamped Home/End bounds, keyup persistence and reload, Enter/double-click reset, pointer capture outside the divider, 24/44 px hit areas, phone board clamping, and adjacent-panel click-through across Chromium, Firefox, and WebKit."
+        "playwright": "Playwright 1.61.0 in version-matched mcr.microsoft.com/playwright:v1.61.0-noble verified focusable and named separator semantics, 16/64 px keyboard resizing, clamped Home/End bounds, keyup persistence and reload, Enter/double-click reset, pointer capture outside the divider, 24/44 px hit areas, phone board clamping, and adjacent-panel click-through across Chromium, Firefox, and WebKit.",
+        "gates": {
+          "AG-6": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm test:e2e:container",
+            "runId": "WP-012-307-pass"
+          }
+        }
       }
     },
     "WP-013": {
@@ -394,10 +417,14 @@
     "AG-1": {
       "status": "resolved",
       "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "32242062146",
         "decidedAt": "2026-08-19",
         "decision": [
           "Automated half: core-dialogs.spec.ts passes for Settings, Promotion, and the Colour picker across Chromium, Firefox, and WebKit, including basicAccessibilityViolations empty per dialog root and ArrowLeft/ArrowRight/Mod+Z inert behind each overlay.",
-          "Manual half: replaced by real screen-reader sessions rather than substituted for. Run 32242062146 scored all four claims for both NVDA on Windows and VoiceOver on macOS against the Settings dialog, a real Dialog primitive consumer.",
+          "Real-AT tier: run 32242062146 deterministically scored all four claims for both NVDA on Windows and VoiceOver on macOS against the Settings dialog, a real Dialog primitive consumer.",
           "Dialog announced with its name and as a dialog: NVDA said \"Settings, dialog\"; VoiceOver said \"Settings web dialog with 5 items Close settings button\".",
           "Background not reachable by virtual cursor: twelve next() steps in each screen reader stayed inside the dialog and never reached the background control.",
           "Focus returns audibly on close: NVDA said \"Settings, button, focused\"; VoiceOver said \"Settings button has keyboard focus\"."
@@ -422,16 +449,42 @@
       "evidence": null
     },
     "AG-6": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "pnpm test:e2e:container",
+        "runId": "WP-012-307-pass",
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Three-engine separator name/value/min/max exposure",
+          "Dynamic key, bound, persistence, reset, pointer-capture, and click-through assertions"
+        ],
+        "source": "WP-012 recorded full-suite run: 307 passed with zero failures. AG-6 is reformulated as exposed dynamic value semantics; subjective spoken-phrase preference is not claimed."
+      }
     },
     "AG-7": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "pnpm test:e2e:container",
+        "runId": "WP-006-289-pass",
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Forced-color statuses retain non-color distinctions",
+          "Reduced-motion preference disables board and CSS motion"
+        ],
+        "source": "WP-006 recorded full-suite run: 289 passed with zero failures across Chromium, Firefox, and WebKit; forced-colors checks ran where Playwright supports them."
+      }
     },
     "DV-1": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": ["Two-step cursor select/place model; no coordinate-entry mode"],
+        "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, pointer-parity, and AT assertions; comparative preference is not claimed."
+      }
     },
     "DV-2": {
       "status": "resolved",
@@ -443,20 +496,39 @@
           "Home/End jump to the first/last sibling",
           "Enter navigates to the move"
         ],
-        "source": "User decision, accepting the arrow-key model proposed in ui-ux-remediation-plan.md WP-011 without the two-repertoire-builder prototype session the gate originally called for. Speed/rigor tradeoff made deliberately and by the gate's owner."
+        "source": "Fixed product decision under the automated-completion policy. WP-011 and AG-3 verify the exact transition table and conveyed semantics; comparative preference is not claimed."
       }
     },
     "DV-3": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Save to file remains visible",
+          "Open, Re-link, New, and Recover move into the Repertoire menu"
+        ],
+        "source": "The automated-completion policy adopts the roadmap's documented default. WP-017 verifies visibility, action count, ordering, keyboard reachability, and overflow; findability preference is not claimed."
+      }
     },
     "DV-4": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": ["Use the four audit-defined repertoire goal groups"],
+        "source": "The automated-completion policy adopts the roadmap's documented default. WP-022 verifies an exhaustive tool mapping, labels, ordering, keyboard behavior, summaries, and argument equivalence; taxonomy preference is not claimed."
+      }
     },
     "DV-5": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Three wide columns",
+          "Decide region at the bottom of Evidence",
+          "Persistent stage strip"
+        ],
+        "source": "The automated-completion policy adopts the roadmap's documented default. WP-033 verifies geometry, stage-state equality, single resolution rendering, and overflow; layout preference is not claimed."
+      }
     },
     "PD-1": {
       "status": "resolved",
@@ -466,7 +538,7 @@
           "Stored in this browser · autosaved HH:MM",
           "File: name — N changes not exported"
         ],
-        "source": "User-approved audit recommendation"
+        "source": "Fixed product decision retained by the automated-completion policy; exact state/copy matrices are machine-verified."
       }
     },
     "PD-2": {
@@ -478,32 +550,68 @@
           "Recover dialog presents a list ordered newest-first",
           "Each row shows timestamp, filename, and size"
         ],
-        "source": "User decision, accepting the recommendation recorded for PD-2 in ui-ux-remediation-plan.md §14 without the three-user validation session the gate originally called for. Speed/rigor tradeoff made deliberately and by the gate's owner."
+        "source": "Fixed product decision retained by the automated-completion policy; retention, ordering, corruption, budget, and quota behavior are machine-verified."
       }
     },
     "PD-3": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Block global undo on Strategic-Fit-applied revisions",
+          "Direct the action to Replacement Lab"
+        ],
+        "source": "The automated-completion policy adopts the correctness-preserving roadmap default. WP-005 verifies origin handling, unchanged document state, message, and Lab action; perceived surprise is not claimed."
+      }
     },
     "PD-4": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Keep the chat column at full width before setup",
+          "Replace the error line with the setup card"
+        ],
+        "source": "The automated-completion policy adopts the roadmap's documented default. WP-021 verifies layout, action presence, transition, and mount identity; perceived discoverability is not claimed."
+      }
     },
     "PD-5": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": ["Do not split Strategic Fit into Review and Redesign in this roadmap"],
+        "source": "Subjective clarity cannot be a completion gate. WP-035 instead machine-verifies explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
+      }
     },
     "PD-6": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Dominant opening plus line count",
+          "Fall back to Comparison group N below 50 percent coverage"
+        ],
+        "source": "The automated-completion policy adopts the roadmap's deterministic naming rule. WP-030 verifies coverage, collisions, stability, empty cohorts, and raw-id exclusion; recognisability is not claimed."
+      }
     },
     "PD-7": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": ["State specific thresholds read from the preflight payload"],
+        "source": "The automated-completion policy adopts the roadmap's documented default. WP-031 verifies payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
+      }
     },
     "PD-8": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "decidedAt": "2026-08-21",
+        "decision": [
+          "Rename vocabulary in the UI only",
+          "Leave workflow contracts and generated skills unchanged"
+        ],
+        "source": "Fixed scope decision under the automated-completion policy. WP-034 verifies exhaustive vocabulary and protected propositions plus a zero diff in packages/chess-tools and generated skills."
+      }
     }
   },
   "foundations": {

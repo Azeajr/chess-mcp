@@ -13,12 +13,6 @@ import { computeDialogVerdict } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";
 
-const FAILING_STATUSES = new Set([
-  "confirmed-failure",
-  "cross-platform-disagreement",
-  "infrastructure-failure",
-]);
-
 async function resolveRunId(): Promise<string> {
   if (process.env.A11Y_RUN_ID) return process.env.A11Y_RUN_ID;
   try {
@@ -111,7 +105,7 @@ async function main() {
     for (const finding of verdict.findings) {
       console.log(`  ${finding.id} [${finding.status}] ${finding.summary}`);
     }
-    if (verdict.findings.some((finding) => FAILING_STATUSES.has(finding.status))) failed = true;
+    if (verdict.findings.some((finding) => finding.status !== "confirmed-pass")) failed = true;
   }
   console.log(`\nFull report: ${path.join(dir, "report.md")}`);
   if (failed) process.exitCode = 1;

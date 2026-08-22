@@ -66,6 +66,54 @@ export const validateWp000RequiredCommands = (item) =>
     (command) => !item.requiredTests.commands.includes(command),
   );
 
+const HUMAN_COMPLETION_LANGUAGE =
+  /\b(?:manual(?:ly)?|reviewer|participant|user study|card sort|visual review|side-by-side review|listen(?:ing)?|approval|sign-off)\b/iu;
+
+export const validateAutomatedCompletionContract = (item) => {
+  const errors = [];
+  if (Object.hasOwn(item, "requiredManualValidation"))
+    errors.push("uses the forbidden requiredManualValidation field");
+  if (
+    typeof item.requiredAutomatedValidation !== "string" ||
+    item.requiredAutomatedValidation.trim() === ""
+  )
+    errors.push("must define non-empty requiredAutomatedValidation");
+  else if (HUMAN_COMPLETION_LANGUAGE.test(item.requiredAutomatedValidation))
+    errors.push("requiredAutomatedValidation contains human completion language");
+  return errors;
+};
+
+export const validateGateResolution = (id, gate) => {
+  if (!/^AG-\d+$/u.test(id) || gate?.status !== "resolved") return [];
+  const evidence = gate.evidence;
+  const errors = [];
+  if (evidence?.mode !== "automated") errors.push("resolved accessibility gate is not automated");
+  if (evidence?.outcome !== "confirmed-pass")
+    errors.push("resolved accessibility gate lacks confirmed-pass outcome");
+  if (typeof evidence?.command !== "string" || evidence.command.trim() === "")
+    errors.push("resolved accessibility gate lacks validation command");
+  if (typeof evidence?.runId !== "string" || evidence.runId.trim() === "")
+    errors.push("resolved accessibility gate lacks run id");
+  return errors;
+};
+
+export const validateCompletionGateEvidence = (item, packageState) => {
+  if (packageState?.status !== "complete") return [];
+  return (item.completionGates ?? []).flatMap((gate) => {
+    const evidence = packageState.evidence?.gates?.[gate];
+    if (
+      evidence?.mode === "automated" &&
+      evidence?.outcome === "confirmed-pass" &&
+      typeof evidence?.command === "string" &&
+      evidence.command.trim() !== "" &&
+      typeof evidence?.runId === "string" &&
+      evidence.runId.trim() !== ""
+    )
+      return [];
+    return [`completion gate ${gate} lacks package-bound automated confirmed-pass evidence`];
+  });
+};
+
 // A completion record is only trustworthy if it names an e2e run that was not narrowed to the
 // package's own spec file or grep. Scoped runs pass while the package silently regresses another
 // package's acceptance criteria, which is exactly how WP-011 shipped a WP-002 AC-2 regression and
@@ -139,7 +187,7 @@ export const renderAgentExecutionProtocol = (id) =>
     `- Implement ${id} only, preserve unrelated working-tree changes, and stay within its allowed primary files unless repository evidence requires a directly related supporting file.`,
     `- Satisfy every acceptance criterion and preserved behavior contract without weakening tests. Run pnpm ux:test ${id}, every required test/check above, and the repository's canonical test workflow.`,
     `- Run the full end-to-end suite unnarrowed by any spec path or --grep before recording completion. A package-scoped run cannot show whether ${id} regressed another package, and completion evidence that names only scoped runs is rejected.`,
-    `- Resolve every completion gate listed above before recording completion, and never by writing the gate's decision yourself. A completion gate names evidence or a decision this package produces but does not own; ux:plan-check rejects ${id} as complete while one is unresolved.`,
+    `- Run every completion gate's configured automation before recording completion. The command's deterministic exit status is the decision: pass records the gate as resolved; failure, missing evidence, and inconclusive evidence block completion. Never request human approval of the artifacts.`,
     `- Only after all required validation passes, record ${id} alone as complete with validation evidence in docs/ui-ux-remediation/state.json, then run pnpm ux:plan-check.`,
     `- Rerun pnpm ux:task ${id} and verify that it exits nonzero as complete/non-executable.`,
     "- Inspect the current manifest and state after completion. In the final response, name the next executable package, or state that none is ready and summarize the blockers.",
@@ -216,6 +264,7 @@ export const buildTaskCapsule = (id, item, state) => {
         ],
       ),
       section("required tests", [...item.requiredTests.files, ...item.requiredTests.commands]),
+      `required automated validation:\n- ${item.requiredAutomatedValidation}`,
       `rollback rule:\n- ${item.rollbackRule ?? "See the package capsule's Failure and rollback contract."}`,
       renderAgentExecutionProtocol(id),
     ].join("\n\n"),

@@ -1,18 +1,21 @@
 # Next step
 
-The next executable UI/UX remediation package is **WP-011 — `InteractiveRow` and `MoveButton`:
-keyboard-operable rows and move tree**.
+The next executable UI/UX remediation packages are:
+
+- **WP-009 — app live region and announcement policy**
+- **WP-011 — `InteractiveRow` and `MoveButton`: keyboard-operable rows and move tree**
 
 ```sh
+pnpm ux:task WP-009
 pnpm ux:task WP-011
 ```
 
-`AG-3` is a completion gate on WP-011: it does not block starting, and it must be resolved — by its
-owner, from real NVDA and VoiceOver evidence — before WP-011 can be recorded complete.
-`docs/accessibility/README.md` describes the pipeline that produces that evidence.
+AG-5 and AG-3 are completion gates, not start blockers. Each resolves only when its configured
+browser and real-AT automation reports `confirmed-pass`; missing or inconclusive evidence fails.
+No evidence inspection or approval step exists. `docs/accessibility/README.md` and
+`AUTOMATED_COMPLETION.md` define the pipeline and policy.
 
-WP-003 and WP-004 (the document-close guard and the autosave snapshot ring) are complete. That
-unblocks nothing further on its own: WP-005 and WP-018 both wait on WP-009, which is held by gate
-`AG-5`, and WP-005 additionally on gate `PD-3`. WP-011 is the only ready package.
+WP-005 and WP-018 still wait on WP-009. Product/design records are fixed decisions rather than
+blocking gates. No package implementation was started by the automated-completion audit.
 
 Do not stage or commit unless explicitly requested.

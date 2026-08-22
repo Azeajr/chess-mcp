@@ -1,12 +1,13 @@
 # AG-3 implementation plan — move-tree assistive-technology evidence
 
-Status at time of writing: `WP-011` is implemented, gated green (409 passed / 14 skipped / 0 failures
-in the full container suite) and committed as `4718f2c` on `salvage` and `main`. It is **not**
-recorded complete, because `AG-3` is an unresolved completion gate and `ux:plan-check` rejects a
-package recorded complete while one is open.
+Status: the former P2 path was stopped before implementation and reconciled with
+[`AUTOMATED_COMPLETION.md`](docs/ui-ux-remediation/AUTOMATED_COMPLETION.md). `WP-011` is implemented,
+its last recorded full container run was 409 passed / 14 skipped / 0 failures, and it remains
+incomplete because AG-3 has not yet produced an automated `confirmed-pass` verdict.
 
-This plan covers only what is needed to put a real, decidable AG-3 verdict in front of its owner.
-It does not resolve the gate — that is the user's call (`HANDOFF.md` §3).
+This plan builds the unattended AG-3 gate. No evidence-review or owner-approval step exists. The
+pipeline itself collects every required browser and real-AT observation, computes a deterministic
+verdict, fails closed on every non-pass status, and records the machine result.
 
 ---
 
@@ -14,13 +15,13 @@ It does not resolve the gate — that is the user's call (`HANDOFF.md` §3).
 
 From `docs/ui-ux-remediation-plan.md:2408`:
 
-| Field               | Content                                                                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Scope**           | Move tree                                                                                                                                       |
-| **Automated proof** | `keyboardReachable` empty; single tab stop; `aria-current` on the active move; `aria-expanded` on toggles                                       |
-| **Manual proof**    | NVDA and VoiceOver confirming tree role, level, and expanded state are announced, and that traversal does not read the entire tree on every key |
-| **Owner**           | Accessibility reviewer + chess-domain reviewer                                                                                                  |
-| **Fails if**        | Tree semantics are mis-announced, or traversal produces speech floods                                                                           |
+| Field               | Content                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Scope**           | Move tree                                                                                                                    |
+| **Automated proof** | `keyboardReachable` empty; single tab stop; `aria-current` on the active move; `aria-expanded` on toggles                    |
+| **Real-AT proof**   | Automated NVDA and VoiceOver utterance assertions for tree role, level, expanded state, and bounded per-key traversal output |
+| **Verdict owner**   | Deterministic gate command; no human owner                                                                                   |
+| **Fails if**        | Tree semantics are mis-announced, or traversal produces speech floods                                                        |
 
 ### 1.1 The automated half is already done
 
@@ -36,10 +37,10 @@ container suite:
 **No work is required here.** Do not rebuild it in the accessibility engine. (Line numbers are
 omitted deliberately — P0 moved them once already.)
 
-### 1.2 The manual half has no pipeline
+### 1.2 The conveyed-semantics half needs a tree scenario
 
-AG-3's manual column decomposes into **four** distinct claims, none of which the current engine can
-capture:
+AG-3's real-AT column decomposes into **four** distinct claims. P2 adds the scenario that captures
+and scores them automatically:
 
 | Claim ID (proposed)   | What a real utterance must show                                                    |
 | --------------------- | ---------------------------------------------------------------------------------- |
@@ -60,8 +61,9 @@ the claims above _as designed_, not as a bug in the pipeline. All three were rea
 `aria-level` variation depth rather than ply depth; establish group ownership with `aria-owns` and
 drop the "1 of 1" position noise. Sequencing: fix first, then capture.**
 
-These are implementation-model decisions inside WP-011. **They are not AG-3's resolution** — AG-3
-stays unresolved until its owner reads real NVDA and VoiceOver evidence at P5.
+These are implementation-model decisions inside WP-011. AG-3 stays unresolved until the merged
+browser, NVDA, and VoiceOver report deterministically scores every required finding
+`confirmed-pass`.
 
 ### D-1 — `aria-expanded` is on the toggle, not on the tree item
 
@@ -97,8 +99,8 @@ The alternative model — level = variation depth (mainline is level 1 throughou
 level 2; a variation inside a variation is level 3) — matches both what a repertoire user means by
 "level" and the ARIA tree pattern's intent, and it silences the per-move announcement.
 
-This is precisely why AG-3's owner is "Accessibility reviewer **+ chess-domain reviewer**". It is a
-domain-semantics decision, not an implementation detail.
+This is a chess-domain semantics decision, now fixed in the specification instead of delegated to
+a completion reviewer.
 
 **Decided:** variation depth — `aria-level = 1 + (number of path indices >= 1)`. Against the
 `core-keyboard.spec.ts` fixture that gives `e4 e5 Nf3 Nc6 Bb5` level 1 throughout, the `d6 d4` and
@@ -142,7 +144,8 @@ Test targeting note: with `aria-controls` moving to the tree item, `core-keyboar
 carries a `data-branch-path` attribute for tests instead, matching how `data-move-path` already
 separates test targeting from ARIA on the tree items.
 
-**Do not write the AG-3 decision record. Gates are the user's call.**
+The AG-3 record is written from the deterministic report only. A `confirmed-pass` report resolves
+it; every other status leaves it unresolved. No person supplies a verdict.
 
 ---
 
@@ -221,6 +224,12 @@ Imports `DIALOG_SCENARIOS`/`scenarioById` from `scenarios/ag-1-dialog` and calls
 **Change:** replace with a scenario registry — `scenarioId → { definition, computeVerdict(bundle) }` —
 so the merge loop becomes generic. Keep "one verdict per scenario, never merged across scenarios";
 that invariant is the reason the loop exists at all.
+
+Also make the command fail closed. Its failing-status set must include
+`automation-inconclusive`, and the registry must require every scenario's declared browser and AT
+sources before an overall pass is possible. A missing artifact, skipped AT worker, unknown
+vocabulary, infrastructure limitation, or cross-platform disagreement exits nonzero. The optional
+LLM reviewer is excluded from the completion command.
 
 **Gotcha:** the evidence-file filter matches `name.startsWith(`${id}-`)` (line 67). The tree
 scenario's id must not be a prefix of any other scenario id.
@@ -357,8 +366,8 @@ no change to its download step. Add both to `merge-report`'s `needs:` list.
 Benefits: a hanging tree session cannot destroy the dialog evidence, and either job can be re-run
 alone.
 
-The workflow stays `workflow_dispatch`-only. That is the user's explicit standing decision
-(`HANDOFF.md` §3).
+The workflow runs automatically on relevant pull requests. `workflow_dispatch` remains available
+only for diagnostic reruns (`HANDOFF.md` §3 is superseded on this point).
 
 ---
 
@@ -400,15 +409,15 @@ belongs to whichever package owns the Settings dialog's palette.
 
 ## 7. Execution order
 
-| Phase  | Work                                                                                                                  | Gate before moving on                                                                                                                         |
-| ------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P0** | ✅ **Done.** D-1/D-2/D-3 decided (§2) and applied to `MoveTree.tsx` + `core-keyboard.spec.ts`.                        | `pnpm test:e2e:container` full, unnarrowed, zero failures                                                                                     |
-| **P1** | ✅ **Done.** Schema claims (§3.1), `withScreenReader` extraction (§3.2), `at-tier.ts` + `merge.ts` (§3.3–3.4).        | `pnpm -r typecheck && pnpm lint`; AG-1 verdict still reproduces unchanged                                                                     |
-| **P2** | `tree-scenario.ts`, `computeTreeVerdict`, registry in `compute-verdict.ts`, `ag-3-move-tree.spec.ts` (§3.5–3.6, §4).  | `A11Y_CONTAINER=1 node test/accessibility/capture.mjs && pnpm a11y:verdict` produces a browser-tier tree verdict locally on all three engines |
-| **P3** | `capture.mjs` spec selection + two new CI jobs (§3.7, §5).                                                            | Workflow parses; dispatch reaches the new jobs                                                                                                |
-| **P4** | Dispatch, download, read raw evidence. Expect 2–3 rounds: needle vocabulary (§4.3) and the arrow-key question (§4.2). | Real NVDA **and** real VoiceOver utterances scored for all four claims                                                                        |
-| **P5** | Hand the report to the gate owner. **User** resolves AG-3 in `state.json`.                                            | `pnpm ux:plan-check` accepts                                                                                                                  |
-| **P6** | Record WP-011 complete with full-suite e2e evidence; delete `HANDOFF.md` and this file.                               | `pnpm ux:plan-check` green; push `salvage` and fast-forward `main`                                                                            |
+| Phase  | Work                                                                                                                                               | Gate before moving on                                                                                                                         |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0** | ✅ **Done.** D-1/D-2/D-3 decided (§2) and applied to `MoveTree.tsx` + `core-keyboard.spec.ts`.                                                     | `pnpm test:e2e:container` full, unnarrowed, zero failures                                                                                     |
+| **P1** | ✅ **Done.** Schema claims (§3.1), `withScreenReader` extraction (§3.2), `at-tier.ts` + `merge.ts` (§3.3–3.4).                                     | `pnpm -r typecheck && pnpm lint`; AG-1 verdict still reproduces unchanged                                                                     |
+| **P2** | `tree-scenario.ts`, `computeTreeVerdict`, registry in `compute-verdict.ts`, `ag-3-move-tree.spec.ts` (§3.5–3.6, §4).                               | `A11Y_CONTAINER=1 node test/accessibility/capture.mjs && pnpm a11y:verdict` produces a browser-tier tree verdict locally on all three engines |
+| **P3** | `capture.mjs` spec selection + two new CI jobs (§3.7, §5).                                                                                         | Workflow parses; dispatch reaches the new jobs                                                                                                |
+| **P4** | Dispatch the workflow and let the merge job score raw evidence. Vocabulary changes require fixture assertions, never ad hoc report interpretation. | Real NVDA **and** real VoiceOver observations are present and all four claims score `confirmed-pass`; every other outcome exits nonzero.      |
+| **P5** | Record the successful machine report as AG-3 evidence and set its state to resolved without requesting approval.                                   | The recorded run id, command, platforms, and `confirmed-pass` outcome satisfy `pnpm ux:plan-check`.                                           |
+| **P6** | Record WP-011 complete with full-suite e2e evidence; delete `HANDOFF.md` and this file.                                                            | `pnpm ux:plan-check` green; push `salvage` and fast-forward `main`                                                                            |
 
 P1 is the natural stopping point if this needs to be split across sessions: it lands a real
 refactor, is verifiable without CI, and leaves AG-1 provably unchanged.
@@ -431,15 +440,18 @@ gh run download <id> --repo Azeajr/chess-mcp --dir <scratch>   # then read the J
 ```
 
 Standing constraints (`HANDOFF.md` §3): **pnpm**, never npm. No `Co-Authored-By` trailer. Commit
-messages and code comments in normal prose. Do not stage or commit unless asked. Do not resolve a
-gate by writing its decision.
+messages and code comments in normal prose. Do not stage or commit unless asked. A gate may be
+recorded resolved only from its configured deterministic command; no approval or subjective
+decision is requested.
 
 ---
 
 ## 9. What this plan deliberately does not do
 
-- **It does not resolve AG-3.** It produces the evidence a reviewer needs to resolve it.
+- **It does not ask anyone to resolve AG-3.** The deterministic verdict command resolves the gate
+  automatically when—and only when—all required findings are `confirmed-pass`.
 - **It does not rebuild AG-3's automated column.** `core-keyboard.spec.ts` already covers it (§1.1).
-- **It does not promote `accessibility.yml` beyond `workflow_dispatch`.** Standing user decision.
+- **It does not require a workflow dispatch.** `accessibility.yml` runs on relevant pull requests;
+  `workflow_dispatch` remains only as a diagnostic rerun option.
 - **It does not touch `ReplacementLab.tsx`'s deferred focus trap.** Recorded under "Known
   accessibility defects" in `ROADMAP.md`; no work package owns it.

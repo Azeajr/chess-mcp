@@ -2,6 +2,10 @@
 
 This directory is a derived execution layer for [the source roadmap](../ui-ux-remediation-plan.md). The source plan remains the design record; each package capsule retains its operational sections verbatim where the plan supplies them. `manifest.json` is the machine-readable routing index, and `state.json` is the only progress record.
 
+[AUTOMATED_COMPLETION.md](AUTOMATED_COMPLETION.md) is the authoritative completion policy. It
+forbids manual or subjective completion steps and defines how formerly human checks are replaced by
+instrumentation, automation, deterministic proxies, or explicit non-claims.
+
 ## Normalized execution corrections
 
 1. **WP-008 uses a small content-label foundation, not the full WP-024 migration.** The source lists `WP-024` only for shortcut labels, but making the whole registry migration an early dependency would pull a broad, later content refactor onto the accessibility path. `content-label-foundation` is a separately tracked prerequisite: it contains only the six shortcut labels and platform-key formatter needed by WP-008. WP-024 remains in its original later position and absorbs this foundation during its full, zero-copy-change migration.
@@ -11,9 +15,11 @@ This directory is a derived execution layer for [the source roadmap](../ui-ux-re
 
 ## State rules
 
-- A package starts as `not-started`; it becomes execution-ready only when every manifest dependency is `complete` and every blocking gate is `resolved` with evidence recorded in `state.json`.
-- A **completion gate** (`completionGates`) is resolved before a package may be recorded `complete`, not before it may start. It exists for the case where a gate's own required evidence is produced by the package it guards — `AG-1` requires the `Dialog` contract suite, which `WP-007` creates, so blocking `WP-007` on `AG-1` is a deadlock rather than a safeguard. `ux:plan-check` rejects any package recorded `complete` while one of its completion gates is unresolved, and rejects a gate listed as both blocking and completion. This is a narrower exception than it looks: it changes _when_ a gate is checked, never _whether_, and it never authorizes the implementing agent to write the gate's decision. `AG-3` is a completion gate on `WP-011` for the same structural reason: it requires `aria-current` on the active move, `aria-expanded` on the toggles, and a single tab stop, and `WP-011` is the package that adds all three.
+- A package starts as `not-started`; it becomes execution-ready only when every manifest dependency is `complete` and every fixed design prerequisite is present.
+- A **completion gate** (`completionGates`) is resolved before a package may be recorded `complete`, not before it may start. It exists for the case where a gate's own required evidence is produced by the package it guards. The configured automation is the decision: a deterministic pass resolves the gate and any failure, missing platform, or inconclusive result blocks completion. No owner approval exists. `AG-3` is a completion gate on `WP-011` because that package adds the semantics and interaction that its browser and real-AT automation verifies.
 - A package lifecycle is `not-started`, `in-progress`, or `complete`; blocked/ready are derived readiness states. Completion requires the package capsule's Definition of Done.
+- `DV-*` and `PD-*` records are fixed product/design decisions, not validation gates. Their documented defaults are authoritative; automation verifies conformance to the chosen behavior.
+- `requiredAutomatedValidation` is mandatory for every manifest package. `requiredManualValidation` is forbidden and `pnpm ux:plan-check` rejects it.
 - Do not use a source-plan claim as proof of completion. The initial state intentionally marks every package `not-started`.
 - The normal Codex CLI request is `Implement WP-NNN.` Repository instructions make the agent inspect the tree, run `pnpm ux:task WP-NNN`, stop unless it is ready, and follow the emitted capsule through validation and completion verification. Every completed-package handoff names the next executable package from the current manifest and state, or reports that none is ready and summarizes the blockers. `AGENTS.md` is the standing execution protocol; the manifest, package document, and capsule remain authoritative for package-specific requirements.
 - Run `pnpm ux:plan-check` after changing the manifest or state. Use `pnpm ux:test WP-NNN` for only that package's mapped tests.

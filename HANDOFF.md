@@ -1,5 +1,10 @@
 # Handoff: hermes-work salvage — AG-3 remains
 
+> Completion-policy update (2026-08-21): the former owner-reviewed gate instructions in this
+> handoff are superseded by `docs/ui-ux-remediation/AUTOMATED_COMPLETION.md` and `AG-3-PLAN.md`.
+> AG-3 resolves only from a fail-closed deterministic browser + NVDA + VoiceOver verdict. No user
+> approval, UI operation, listening, or evidence inspection is part of completion.
+
 Branch: `salvage`, fast-forwarded onto `main`. HEAD `25a863b`. **Do not delete `salvage`.**
 This file is tracked (it last changed in `cf5e83c`). Delete it once S4 and S5 have been committed
 and AG-3 is resolved.
@@ -70,8 +75,10 @@ Also landed opportunistically: WP-023 (`db8dfd3`).
   A package-scoped run cannot show whether a package regressed another one, and `ux:plan-check`
   rejects completion evidence that names only scoped runs.
 - Do not stage or commit unless asked.
-- The accessibility workflow stays `workflow_dispatch`-only (user's explicit decision).
-- Do not resolve a gate by writing its decision yourself. Gates are the user's call.
+- The accessibility workflow runs automatically on relevant pull requests; `workflow_dispatch`
+  remains available only for diagnostic reruns.
+- Record a gate resolved only from its configured deterministic `confirmed-pass` report. No person
+  supplies or approves the verdict.
 
 ### Established loop
 
@@ -221,8 +228,8 @@ A move-tree scenario therefore needs, at minimum:
 - a `.github/workflows/accessibility.yml` job wiring so the NVDA and VoiceOver runners capture it.
 
 None of that is salvage — hermes never built it. It is also only meaningful once dispatched on CI,
-and **the gate is the user's to resolve**, so it was deliberately left for a decision rather than
-started.
+and the older process required owner resolution, so it was deliberately left rather than started.
+That process is superseded: the gate now resolves only from the fail-closed automated verdict.
 
 ---
 

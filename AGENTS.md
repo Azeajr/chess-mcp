@@ -122,3 +122,10 @@ next executable package. The final response must name that package, or state tha
 summarize the blockers. Do not stage or commit unless the user separately requests it. The final
 response must also concisely report the implementation and actual command results; never claim a
 pass without evidence.
+
+Every package follows [the automated completion policy](docs/ui-ux-remediation/AUTOMATED_COMPLETION.md).
+No acceptance criterion, gate, package, or milestone may require a person to inspect output, operate
+the UI, listen to assistive technology, or approve evidence. Replace subjective requirements with
+objective assertions or a fixed product decision. Missing, unsupported, or inconclusive automation
+fails closed. Completion-gate commands decide their own status; record their machine result without
+requesting human approval.

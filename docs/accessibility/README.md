@@ -1,9 +1,9 @@
 # Automated accessibility evidence pipeline
 
-Origin: AG-1, the dialog accessibility gate in `docs/ui-ux-remediation-plan.md`, requires a human
-NVDA session and a human VoiceOver session before the `Dialog` primitive (WP-007) can ship. This
-pipeline exists to produce the same evidence automatically — real screen-reader output, not a
-substitute for it — so AG-1 can be decided from captured evidence instead of a manual pass.
+Origin: AG-1 requires proof that real NVDA and VoiceOver convey the dialog contract. This pipeline
+produces and scores that proof unattended—real screen-reader output, not a simulator—under the
+[automated completion policy](../ui-ux-remediation/AUTOMATED_COMPLETION.md). Reports are diagnostic;
+the deterministic command is the gate.
 
 **Status as of this writing:** run 32228856608 is the first fully clean run —
 `overallStatus: confirmed-pass`, all nine findings passing, with all three evidence jobs
@@ -18,7 +18,7 @@ unverified" below.
 ```
 apps/ui/test/accessibility/
   evidence-schema.ts       Normalized shapes every collector produces and the verdict engine
-                            and LLM reviewer consume. Nothing downstream reads raw DOM state.
+                             and optional LLM summarizer consume. Nothing downstream reads raw DOM state.
   collectors/
     browser-ax.ts           Playwright ariaSnapshot() (cross-engine) + CDP getFullAXTree
                              (Chromium-only, diagnostic depth: ignored-node reasons)
@@ -40,11 +40,11 @@ apps/ui/test/accessibility/
   capture.mjs               Entry point. Computes one A11Y_RUN_ID, runs the capture spec under
                              it (locally or via A11Y_CONTAINER=1 through Docker), writes
                              .last-run-id so compute-verdict.ts can find it without the caller
-                             manually propagating the env var.
+                             propagating the env var.
   compute-verdict.ts        Reads every browser's evidence file for a run, merges them,
                              classifies, writes report.json + report.md. This is the actual gate
-                             — exits non-zero on confirmed-failure / cross-platform-disagreement
-                             / infrastructure-failure. The Playwright specs themselves only
+                             — exits non-zero on every status except confirmed-pass, including
+                             missing or inconclusive evidence. The Playwright specs themselves only
                              assert capture-stage sanity (a dialog opened, axe ran).
 ```
 
@@ -101,18 +101,15 @@ description with no separation. Both citations were verified against the raw
 `keyboardTraces`/`ariaSnapshots` arrays before being accepted — real observations, not invented
 ones. These are UX findings unrelated to AG-1 itself; worth a look, not yet actioned here.
 
-## What's unverified
+## Historical rollout notes
 
-`collectors/at-runner.ts` and `.github/workflows/accessibility.yml`'s `at-nvda` / `at-voiceover`
-jobs are written against Guidepup's documented API
-(github.com/guidepup/guidepup, github.com/guidepup/guidepup-playwright,
-github.com/guidepup/setup-action — all fetched and confirmed real during design, not recalled
-from training data). This machine has no Windows or macOS to test on, and Docker cannot
-substitute — NVDA and VoiceOver hook into their OS's real UI Automation / Accessibility API;
-there is no Linux-container equivalent. `windows-latest` and `macos-latest` GitHub-hosted
-runners are real VMs / real Apple hardware, not containers.
+The Windows NVDA and macOS VoiceOver jobs are now proven. Docker cannot substitute for either
+because they hook into their OS accessibility APIs; GitHub-hosted Windows and macOS workers run the
+real AT automation. The notes below preserve the rollout failures that established the required
+setup and focus sequence.
 
-The workflow is `workflow_dispatch`-only — nothing runs automatically. **First triggered run**
+The workflow originally required `workflow_dispatch`; it now runs automatically on relevant pull
+requests. The **first historical triggered run**
 (run 32205343813): `browser-evidence` and `merge-report` passed; `at-nvda` and `at-voiceover`
 both failed with the same root cause — `guidepup/setup-action` only performs the OS-level
 `@guidepup/setup setup` half of Guidepup's own two-step setup. It does not run the
@@ -215,63 +212,13 @@ it matches an expected sentence.
 
 ## AG-1 status
 
-**AG-1 cannot be resolved yet, and not for an evidence reason.** Its scope is "`Dialog` primitive
-and its consumers", and its required automated evidence is "Dialog contract suite passing for all
-three overlays on three browsers". Checked against the repo rather than assumed:
+AG-1 is resolved by automated run `32242062146`. Both dialog scenarios reported
+`overallStatus: confirmed-pass`, with browser assertions green and all required NVDA/Windows and
+VoiceOver/macOS claims present: name/role announcement, virtual-cursor background exclusion, focus
+report, and audible focus return. `docs/ui-ux-remediation/state.json` records that machine result.
 
-- `WP-007` is `not-started` in `docs/ui-ux-remediation/state.json`.
-- `src/components/primitives/Dialog.tsx` does not exist.
-- `core-dialogs.spec.ts`, the contract suite AG-1 names, does not exist.
-- AG-1's "three overlays" are Settings, Promotion, and Colour picker (plan §WP-007). The dialog
-  this pipeline captures — Strategic Fit — is none of them. It is the _extraction source_ for the
-  primitive, and migrates onto it last, in `WP-033`.
-
-So this pipeline is not currently producing AG-1's automated evidence at all; it is producing the
-AT-tier evidence AG-1's **manual** half asks for, against the dialog `WP-007` will extract from.
-That sequencing is deliberate and useful — the extraction source is now known-correct on macOS
-rather than known-broken — but it is not the gate.
-
-**Direct consequence for `WP-007`:** the plan's "Current behaviour" section describes
-`StrategicFitWorkspace.tsx`'s trap as "the correct pattern" and instructs extracting it verbatim.
-That was true only on Linux and Windows. Extracting the pre-`85b3e2a` version would have
-propagated all three macOS defects above into Settings, Promotion, and Colour picker at once.
-Extract the current version.
-
-### What the evidence does cover
-
-Run 32228856608 is `confirmed-pass` overall, with every finding passing and all three evidence
-jobs green:
-
-| Finding      | Claim                                               | Source                       |
-| ------------ | --------------------------------------------------- | ---------------------------- |
-| A11Y-001     | Dialog role and accessible name                     | chromium, firefox, webkit    |
-| A11Y-002     | Background control excluded from the AX tree        | chromium (CDP)               |
-| A11Y-003–007 | Focus returns to the opener, one per captured trace | all five traces              |
-| A11Y-008     | NVDA named the control that actually had focus      | real NVDA, Windows runner    |
-| A11Y-009     | VoiceOver named the control that actually had focus | real VoiceOver, macOS runner |
-
-That run scored one AT finding per screen reader: each named the control that actually held DOM
-focus. AG-1's manual half asks for more than that — it asks each session to confirm three things:
-
-1. the dialog is announced with its name and as a dialog,
-2. the background is not reachable by virtual cursor,
-3. focus returns audibly on close.
-
-A single focus report answers none of them completely. The AT session now drives a real
-close-and-reopen cycle while the screen reader is live and scores claims 1 and 3 as their own
-findings, per screen reader. The announcement specifically could not be captured any other way:
-`spokenPhraseLog()` only returns what was spoken since `start()`, and the screen reader used to
-start long after the dialog had already opened, so the entry announcement was never in the log.
-
-Claim 2 — the virtual-cursor background sweep — is **not** implemented. It needs `next()`, which
-failed in runs 32206750401/32207555004 (NVDA read the page title, VoiceOver read "AccessibilityUI
-Server has no windows"). That failure's root cause, the browser window never holding real OS
-focus, was found and fixed later, so it is worth retrying — but it has not been retried, and until
-it is, claim 2 rests on browser-tier CDP ignored-node evidence, which is a different instrument
-answering a related question.
-
-`docs/ui-ux-remediation/state.json` records AG-1 as `unresolved`, which is correct for the
-structural reason above, independently of how much AT evidence accumulates.
+The result requires no replay or approval. Any future consumer migration that names AG-1 reruns
+the same command; missing AT evidence or any non-pass finding blocks completion.
 
 ## What this MVP is not
 
