@@ -101,21 +101,25 @@ test("UX-001 / WP-001 core panels retain usable height on short viewports", asyn
   }
 });
 
-test("WP-001 preserves normal phone-height geometry", async ({ page, browserName }) => {
-  const baselines = NORMAL_PHONE_BASELINES[browserName];
-  for (const [label, expected] of Object.entries(baselines)) {
-    const [width, height] = label.split("×").map(Number);
-    await openApp(page, { width, height });
-    await page.getByRole("tab", { name: "Analysis" }).click();
-    const actual = await panelDimensions(page);
-    for (const [selector, expectedHeight] of Object.entries(expected)) {
-      expect(
-        Math.abs((actual[selector] ?? Number.NaN) - expectedHeight),
-        `${browserName} ${selector} at ${label}`,
-      ).toBeLessThanOrEqual(2);
+test(
+  "WP-001 preserves normal phone-height geometry",
+  { tag: "@visual" },
+  async ({ page, browserName }) => {
+    const baselines = NORMAL_PHONE_BASELINES[browserName];
+    for (const [label, expected] of Object.entries(baselines)) {
+      const [width, height] = label.split("×").map(Number);
+      await openApp(page, { width, height });
+      await page.getByRole("tab", { name: "Analysis" }).click();
+      const actual = await panelDimensions(page);
+      for (const [selector, expectedHeight] of Object.entries(expected)) {
+        expect(
+          Math.abs((actual[selector] ?? Number.NaN) - expectedHeight),
+          `${browserName} ${selector} at ${label}`,
+        ).toBeLessThanOrEqual(2);
+      }
     }
-  }
-});
+  },
+);
 
 test("WP-001 scrolls the Analysis panel through the workspace without remounting the board", async ({
   page,
@@ -436,8 +440,9 @@ test("WP-017 AC-6 AC-7 a 120-character filename never overflows and Cmd/Ctrl+S s
   page,
 }) => {
   const longName = `${"long-repertoire-file-name-".repeat(4)}pad.pgn`;
+  await openApp(page, { ...VIEWPORTS[0], fileName: longName });
   for (const viewport of VIEWPORTS) {
-    await openApp(page, { ...viewport, fileName: longName });
+    await page.setViewportSize(viewport);
     const widths = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,

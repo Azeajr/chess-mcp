@@ -83,7 +83,11 @@ import {
   strategicFitSidecarImportError,
   strategicFitSidecarImportPreview,
 } from "./store/strategic-fit-sidecar";
-import { commandStates, setCommandStateForTesting } from "./store/commands";
+import {
+  commandStates,
+  recordDirectCommandForTesting,
+  setCommandStateForTesting,
+} from "./store/commands";
 import {
   setStrategicFitWorkspaceRegionState,
   strategicFitWorkspaceOpen,
@@ -119,6 +123,14 @@ if (import.meta.env.DEV) {
     setReopenHandleForTesting,
     commandStates,
     setCommandStateForTesting,
+    // WP-026 AC-4 e2e seam: seed the "last direct command" so the Retry button's guard
+    // (a prior dispatch must exist) is satisfiable deterministically in specs.
+    recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => {
+      recordDirectCommandForTesting(
+        command as Parameters<typeof recordDirectCommandForTesting>[0],
+        args,
+      );
+    },
     addSuggestion,
     acceptSuggestion,
     suggestions,
@@ -256,7 +268,10 @@ if (import.meta.env.DEV) {
           const commands = await import("./store/commands");
           const command = "audit_repertoire_moves" as const;
           if (scenario === "operation-cancelled") {
-            const pending = commands.executeCommand(command, { depth: 1, min_severity: 40 });
+            const pending = commands.executeCommand(command, {
+              depth: 1,
+              min_severity: 40,
+            });
             commands.cancelCommand(command);
             await pending.catch(() => undefined);
             return;
@@ -268,7 +283,12 @@ if (import.meta.env.DEV) {
             return;
           }
           await commands
-            .executeCommand(command, { depth: 1, min_cp_loss: 50, max_positions: 2, limit: 1 })
+            .executeCommand(command, {
+              depth: 1,
+              min_cp_loss: 50,
+              max_positions: 2,
+              limit: 1,
+            })
             .catch(() => undefined);
           return;
         }
@@ -282,7 +302,9 @@ if (import.meta.env.DEV) {
           const { announce } = await import("./store/announce");
           // A real staged edit through the suggestion writer: add d5 as a new reply at move
           // one (RICH_PGN's first game opens 1.d4, so "d4" always resolves), then optionally undo.
-          const staged = suggestionsStore.stageEdit("add", ["d4"], { addMoves: ["d5"] });
+          const staged = suggestionsStore.stageEdit("add", ["d4"], {
+            addMoves: ["d5"],
+          });
           if (staged.ok) {
             const applied = suggestionsStore.acceptStagedEdit(staged.action_id);
             if (scenario === "mutation-undone") {

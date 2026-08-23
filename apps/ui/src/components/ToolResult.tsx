@@ -35,7 +35,7 @@ import {
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
-import { executeCommand, type DirectCommand } from "../store/commands";
+import { executeCommand, lastDirectCommandRequest } from "../store/commands";
 import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import Status from "./primitives/Status";
@@ -44,14 +44,9 @@ import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
 
 /**
- * WP-026 AC-4: the last direct-panel command the user ran, so an error card's Retry re-issues
- * exactly what failed. Recorded by ToolResult's command path, not by the store.
+ * WP-026 AC-4: Retry re-issues the last direct-panel command, tracked by the command store at
+ * its single dispatch point — no component-local recording to forget.
  */
-let lastDirectCommand: { command: DirectCommand; args: Record<string, unknown> } | null = null;
-export function recordDirectCommandForRetry(command: DirectCommand, args: Record<string, unknown>) {
-  lastDirectCommand = { command, args };
-}
-const lastDirectCommandRequest = () => lastDirectCommand;
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -419,7 +414,8 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
             </div>
             <div class="strategic-fit-counts" aria-label="Strategic Fit counts">
               <span>
-                {summary().finding_count} finding{summary().finding_count === 1 ? "" : "s"}
+                {summary().finding_count} finding
+                {summary().finding_count === 1 ? "" : "s"}
               </span>
               <span>{summary().summary.unresolved_finding_count} unresolved</span>
               <span>
@@ -918,6 +914,22 @@ function StrategicFitPortfolioResultCard(props: { data: Data }) {
   );
 }
 
+/**
+ * WP-026 AC-3 consequences sentence, derived from the staged action so a prune or reorder card
+ * never claims to "add moves". Only add carries a move count; line scope follows the data.
+ */
+function stagedConsequences(action: string | undefined, line: unknown): string {
+  const moves = Array.isArray(line) ? (line as unknown[]).length : 0;
+  const scope = moves > 0 ? "this line" : "a new line";
+  const change =
+    action === "prune"
+      ? "Removes this line's continuation"
+      : action === "reorder"
+        ? "Re-promotes the mainline here"
+        : `Adds ${moves} move${moves === 1 ? "" : "s"} on ${scope}`;
+  return `${change} — acceptance changes the working repertoire in this browser and can be undone.`;
+}
+
 function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
@@ -941,12 +953,11 @@ function StagedEditResult(props: { data: Data }) {
         {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
         {displayValue((props.data.after as Data | undefined)?.leaves)}
       </div>
-      {/* WP-026 AC-3: the card states what changes, where it applies, and that it is undoable. */}
+      {/* WP-026 AC-3: the card states what changes, where it applies, and that it is undoable.
+          The change description follows props.data.action — an add appends moves, a prune removes
+          a line, a reorder re-promotes; only add carries a move count. */}
       <div class="result-summary staged-consequences">
-        Adds {(props.data.line as string[] | undefined)?.length ?? 0} move
-        {((props.data.line as string[] | undefined)?.length ?? 0) === 1 ? "" : "s"} on{" "}
-        {(props.data.line as string[] | undefined)?.length ? "this line" : "a new line"} —
-        acceptance changes the working repertoire in this browser and can be undone.
+        {stagedConsequences(props.data.action as string | undefined, props.data.line)}
       </div>
       <Show
         when={edit()?.status === "pending"}
@@ -1040,12 +1051,15 @@ function ErrorResult(props: { data: Data }) {
       <Show when={showTechnicalDetails()}>
         <div class="result-code">{code()}</div>
       </Show>
-      <Show when={content().action === "Retry"}>
-        <button class="fix-btn" onClick={onRetry}>
-          Retry
-        </button>
+      {/* Actions are matched on a stable key, never on the display label. */}
+      <Show when={content().actionKey === "retry" && lastDirectCommandRequest()}>
+        {(_) => (
+          <button class="fix-btn" onClick={onRetry}>
+            Retry
+          </button>
+        )}
       </Show>
-      <Show when={content().action === "Add Lichess token"}>
+      <Show when={content().actionKey === "add-token"}>
         <button class="fix-btn" onClick={onAddToken}>
           Add Lichess token
         </button>

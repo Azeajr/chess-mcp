@@ -18,13 +18,20 @@ test("WP-026 AC-1 the technical toggle gates Raw JSON and raw codes", async ({ p
   await expect(toggle).toBeVisible();
 
   // Off by default: append a raw tool result and assert no disclosure and no code text.
+  // The retry seam is seeded so the recovery action renders (a prior dispatch must exist).
   await page.evaluate(() => {
     type Harness = {
       __chess: {
         appendToolResultForTesting: (op: string, payload: unknown) => void;
+        recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => void;
       };
     };
-    (window as unknown as Harness).__chess.appendToolResultForTesting("engine_unavailable", {
+    const api = (window as unknown as Harness).__chess;
+    api.recordDirectCommandForTesting("audit_repertoire_moves", {
+      depth: 1,
+      min_cp_loss: 50,
+    });
+    api.appendToolResultForTesting("engine_unavailable", {
       error: "engine_unavailable",
       reason: "The local engine is not running.",
     });
@@ -158,12 +165,22 @@ test("WP-026 AC-4 engine_unavailable offers Retry and explorer_auth_required ope
 }) => {
   await openApp(page, { width: 1280, height: 800 });
 
-  // Retry: inject an engine failure, then confirm the card's Retry re-dispatches.
+  // Retry: seed the last direct command through the DEV seam, inject an engine failure, then
+  // confirm the card's Retry actually RE-DISPATCHES — visible as a fresh running/failed cycle in
+  // commandStates, not just a click that does nothing.
   await page.evaluate(() => {
     type Harness = {
-      __chess: { appendToolResultForTesting: (op: string, payload: unknown) => void };
+      __chess: {
+        appendToolResultForTesting: (op: string, payload: unknown) => void;
+        recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => void;
+      };
     };
-    (window as unknown as Harness).__chess.appendToolResultForTesting("engine_unavailable", {
+    const api = (window as unknown as Harness).__chess;
+    api.recordDirectCommandForTesting("audit_repertoire_moves", {
+      depth: 1,
+      min_cp_loss: 50,
+    });
+    api.appendToolResultForTesting("engine_unavailable", {
       error: "engine_unavailable",
       reason: "The local engine is not running.",
     });
@@ -172,10 +189,28 @@ test("WP-026 AC-4 engine_unavailable offers Retry and explorer_auth_required ope
   await expect(retryButton).toBeVisible();
   await retryButton.click();
 
+  // The retry re-issued audit_repertoire_moves: its state left idle and settled again.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const states = (
+          window as unknown as {
+            __chess: {
+              commandStates: () => Record<string, { status: string }>;
+            };
+          }
+        ).__chess.commandStates();
+        return states.audit_repertoire_moves?.status;
+      }),
+    )
+    .not.toBe("idle");
+
   // Add Lichess token: focus lands on the token input inside Settings.
   await page.evaluate(() => {
     type Harness = {
-      __chess: { appendToolResultForTesting: (op: string, payload: unknown) => void };
+      __chess: {
+        appendToolResultForTesting: (op: string, payload: unknown) => void;
+      };
     };
     (window as unknown as Harness).__chess.appendToolResultForTesting("engine_unavailable", {
       error: "explorer_auth_required",

@@ -18,9 +18,8 @@ node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
-pnpm --filter @chess-mcp/ui test:e2e
+pnpm test:e2e:container          # authoritative e2e run (see below)
 pnpm --filter @chess-mcp/ui build
-pnpm exec playwright test --config apps/ui/playwright.config.ts
 pnpm dev                       # use dev:host for LAN
 pnpm mcp
 ```
@@ -28,6 +27,26 @@ pnpm mcp
 CI uses Node 26. `SMOKE_NETWORK=0` skips live Lichess/Chess.com assertions, not engine/local paths.
 `EVAL_CACHE_DIR=0` disables the persistent evaluation cache. `pnpm bench:strategic-fit` reads the
 UI's exported render bounds from source, so it needs a Node release that strips TypeScript types.
+
+### e2e: which command to trust
+
+`pnpm test:e2e:container` (root, needs Docker) is the **authoritative** e2e run — it executes
+`scripts/playwright-container.mjs`, which runs the suite inside `mcr.microsoft.com/playwright:v<ver>-noble`,
+the same image family CI uses. Treat any failure it reproduces as real.
+
+`pnpm --filter @chess-mcp/ui test:e2e` (needs `pnpm exec playwright install chromium firefox webkit`
+once, locally) is faster to iterate with but runs on whatever the host OS actually has. On
+non-Ubuntu hosts (e.g. Arch) this is a known source of false signal:
+
+- WebKit may fail outright with missing system libs (`libgstreamer`, `libgtk-4`, `libicudata.so.74`,
+  `libavif`, `flite`, `libmanette`, `enchant`, `hyphen`, …) — an environment gap, not a bug.
+  `icu`/`flite`/`libmanette` in particular can be unavailable or version-mismatched via `pacman`.
+- `toHaveScreenshot` and pixel-geometry assertions can fail on font/AA rendering differences from
+  the OS the baselines were captured on.
+
+Before reporting an e2e failure found via the host command as a real bug, reproduce it with
+`pnpm test:e2e:container` first. To rebaseline screenshots, use
+`pnpm test:e2e:update-snapshots` (also container-based) — never regenerate baselines from a host run.
 
 ## Boundaries and sources of truth
 

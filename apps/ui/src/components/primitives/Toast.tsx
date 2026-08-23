@@ -21,6 +21,13 @@ export interface ToastProps {
   readonly tone?: "neutral" | "success" | "danger";
   readonly action?: ToastAction;
   readonly onDismiss: () => void;
+  /**
+   * Mirror the message through announce() so the live regions match the visual toast.
+   * Pass false when the same event is ALREADY announced elsewhere (e.g. the WP-010 operation
+   * registry announces every operation start and settle) — a double announcement violates the
+   * WP-009 exactly-one-message-per-event policy.
+   */
+  readonly mirrorToLiveRegion?: boolean;
 }
 
 const AUTO_DISMISS_MS = 8_000;
@@ -31,7 +38,9 @@ export default function Toast(props: ToastProps): JSX.Element {
   };
   // Mirroring happens on mount, once per shown toast — not reactively on every prop change.
   onMount(() => {
-    announce(props.message, { assertive: props.tone === "danger" });
+    if (props.mirrorToLiveRegion !== false) {
+      announce(props.message, { assertive: props.tone === "danger" });
+    }
     if (props.action === undefined) {
       const timer = setTimeout(() => {
         dismiss();

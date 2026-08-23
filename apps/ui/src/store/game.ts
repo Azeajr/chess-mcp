@@ -72,6 +72,22 @@ export const lastMove = () => {
 
 export { color, path, dirty, changesSinceExport, fileName, version, documentId };
 
+/**
+ * WP-005: restore a tree snapshot WITHOUT rotating the document identity or clearing history.
+ * This is the only restore path undo/redo may use — actions.loadPgn is a document boundary
+ * (new browserDocumentId + clearHistory) and would destroy the stack mid-undo.
+ */
+export function restoreSnapshotForHistory(pgn: string, nextPath: Path): void {
+  batch(() => {
+    setTree(GameTree.fromPgn(pgn));
+    setPath([...nextPath]);
+    bump();
+  });
+}
+
+/** Module-level PGN read for history capture (avoids importing the actions object). */
+export const toPgn = () => tree().toPgn();
+
 /** Read-only handle to the tree for rendering the move list (read version() to subscribe). */
 export const currentTree = () => {
   version();
@@ -164,7 +180,7 @@ export const actions = {
     // WP-005: describe the branch before it is pruned — afterwards the nodes are gone. The
     // delete confirmation and the undo toast both read this record.
     const prunedBranch = action === "prune" ? describePrunedBranch(sanPath) : undefined;
-    const applyEditToTree = () => {
+    const applyEditToTree = (): { ok: true; revision: number } | { ok: false; error: string } => {
       const result = tree().edit(action, sanPath, opts);
       if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
       setTree(result.tree);
@@ -179,8 +195,13 @@ export const actions = {
       recordDocumentChange();
       return { ok: true, revision: version() };
     };
-    recordMutation(action === "prune" ? "deleteLine" : "play", applyEditToTree, prunedBranch);
-    return { ok: true, revision: version() };
+    // recordMutation propagates the inner result, so a rejected edit reports failure here
+    // instead of being masked as success; it also drops the placeholder undo entry.
+    return recordMutation(
+      action === "prune" ? "deleteLine" : "play",
+      applyEditToTree,
+      prunedBranch,
+    );
   },
 
   /** Publish one already-validated clone as exactly one document revision. */

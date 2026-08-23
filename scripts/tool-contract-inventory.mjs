@@ -40,7 +40,10 @@ if (unregisteredBrowserKeys.length) {
 }
 const mcpCanonicalDescriptions = names(
   mcpSource,
-  /server\.registerTool\(\s*"([a-z_]+)"\s*,\s*\{[^}]*?description: toolContract\("\1"\)\.description/gs,
+  // Match registerTool(name, { ... description: toolContract("name").description ... }) without
+  // assuming where `description` sits in the options object or that it contains no nested braces:
+  // scan forward from each registration to its description line, bounded by the next registration.
+  /server\.registerTool\(\s*"([a-z_]+)"[\s\S]*?description:\s*toolContract\("\1"\)\.description/g,
 );
 if (mcpCanonicalDescriptions.length !== actual.mcp.size) {
   failed = true;

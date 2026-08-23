@@ -8,7 +8,12 @@ import {
 } from "../application/browser-commands/client";
 import type { BrowserCommandName } from "../application/browser-commands/types";
 import { executionOutcome, type ExecutionStatus } from "../application/execution-status";
-import { registerOperation, settleOperation, updateOperation } from "./operations";
+import {
+  registerOperation,
+  settleOperation,
+  settleOperationQuietly,
+  updateOperation,
+} from "./operations";
 
 /** Direct-control adapter; dependency injection keeps equivalence tests deterministic. */
 export function executeDirectBrowserCommand(
@@ -94,10 +99,38 @@ const COMMAND_LABELS: Record<DirectCommand, string> = {
 
 const commandOperationIds = new Map<DirectCommand, string>();
 
+/**
+ * WP-026 AC-4: the most recent direct-panel command request, so an error card's Retry re-issues
+ * exactly what failed. Tracked here — at the single dispatch point — so every caller (panel
+ * buttons, deck/export follow-ups) is covered, not just one component.
+ */
+let lastCommandRequest: {
+  command: DirectCommand;
+  args: Record<string, unknown>;
+} | null = null;
+
+/** The last command this session dispatched, for ErrorResult's Retry action. */
+export function lastDirectCommandRequest(): {
+  command: DirectCommand;
+  args: Record<string, unknown>;
+} | null {
+  return lastCommandRequest;
+}
+
+/** DEV/e2e seam: seed the last-command record without dispatching. */
+export function recordDirectCommandForTesting(
+  command: DirectCommand,
+  args: Record<string, unknown>,
+) {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  lastCommandRequest = { command, args: { ...args } };
+}
+
 export async function executeCommand(command: DirectCommand, args: Record<string, unknown> = {}) {
   cancelCommandSilently(command);
   const controller = new AbortController();
   controllers.set(command, controller);
+  lastCommandRequest = { command, args: { ...args } };
   setCommandStates((all) => ({ ...all, [command]: { status: "running" } }));
   // WP-010: registration announces the start; settle announces the outcome. No double speech.
   const operationId = registerOperation({
@@ -123,23 +156,40 @@ export async function executeCommand(command: DirectCommand, args: Record<string
         }));
       },
     });
-    if (controller.signal.aborted) return;
+    if (controller.signal.aborted) {
+      // The superseding run (or cancelCommand) already settled this operation; settle quietly so
+      // the entry cannot linger as running forever when no supersede happened to register.
+      settleOperationQuietly(operationId, "cancelled");
+      commandOperationIds.delete(command);
+      return;
+    }
     const result = value as Record<string, unknown>;
     const error = typeof result.error === "string" ? result.error : undefined;
     if (error) {
       settleOperation(operationId, "failed", { detail: error });
     } else {
-      settleOperation(operationId, "completed", { detail: `${resultCount(result)} result(s)` });
+      settleOperation(operationId, "completed", {
+        detail: `${resultCount(result)} result(s)`,
+      });
     }
     commandOperationIds.delete(command);
     setCommandStates((all) => ({
       ...all,
       [command]: error
-        ? { status: executionOutcome(false, true), result, error, completedAt: Date.now() }
+        ? {
+            status: executionOutcome(false, true),
+            result,
+            error,
+            completedAt: Date.now(),
+          }
         : { status: executionOutcome(false), result, completedAt: Date.now() },
     }));
   } catch (error) {
-    if (controller.signal.aborted) return;
+    if (controller.signal.aborted) {
+      settleOperationQuietly(operationId, "cancelled");
+      commandOperationIds.delete(command);
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     settleOperation(operationId, "failed", { detail: message });
     setCommandStates((all) => ({
@@ -175,11 +225,11 @@ function cancelCommandSilently(command: DirectCommand) {
     ...all,
     [command]: { ...all[command], status: "cancelled", progress: undefined },
   }));
-  // Supersede: drop the superseded operation without a cancelled announcement — a new run of
-  // the same command replacing the old one is bookkeeping, not user feedback.
+  // Supersede: settle the superseded operation QUIETLY — a new run of the same command replacing
+  // the old one is bookkeeping, not user feedback. Only cancelCommand announces "cancelled."
   const operationId = commandOperationIds.get(command);
   if (operationId !== undefined) {
-    settleOperation(operationId, "cancelled");
+    settleOperationQuietly(operationId, "cancelled");
     commandOperationIds.delete(command);
   }
 }

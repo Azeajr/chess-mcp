@@ -805,9 +805,7 @@
       "status": "resolved",
       "evidence": {
         "decidedAt": "2026-08-21",
-        "decision": [
-          "Two-step cursor select/place model; no coordinate-entry mode"
-        ],
+        "decision": ["Two-step cursor select/place model; no coordinate-entry mode"],
         "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, pointer-parity, and AT assertions; comparative preference is not claimed."
       }
     },
@@ -839,9 +837,7 @@
       "status": "resolved",
       "evidence": {
         "decidedAt": "2026-08-21",
-        "decision": [
-          "Use the four audit-defined repertoire goal groups"
-        ],
+        "decision": ["Use the four audit-defined repertoire goal groups"],
         "source": "The automated-completion policy adopts the roadmap's documented default. WP-022 verifies an exhaustive tool mapping, labels, ordering, keyboard behavior, summaries, and argument equivalence; taxonomy preference is not claimed."
       }
     },
@@ -906,9 +902,7 @@
       "status": "resolved",
       "evidence": {
         "decidedAt": "2026-08-21",
-        "decision": [
-          "Do not split Strategic Fit into Review and Redesign in this roadmap"
-        ],
+        "decision": ["Do not split Strategic Fit into Review and Redesign in this roadmap"],
         "source": "Subjective clarity cannot be a completion gate. WP-035 instead machine-verifies explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
       }
     },
@@ -927,9 +921,7 @@
       "status": "resolved",
       "evidence": {
         "decidedAt": "2026-08-21",
-        "decision": [
-          "State specific thresholds read from the preflight payload"
-        ],
+        "decision": ["State specific thresholds read from the preflight payload"],
         "source": "The automated-completion policy adopts the roadmap's documented default. WP-031 verifies payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
       }
     },

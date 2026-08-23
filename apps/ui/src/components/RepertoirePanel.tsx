@@ -4,7 +4,7 @@
  * (Extend, Fix) whose rows stage a preview line (gold arrow + Accept, reusing Feature 1).
  * Everything runs on the local engine / pure tree math; chat is the interpretive layer on top.
  */
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, createEffect, onCleanup } from "solid-js";
 import {
   gaps,
   covered,
@@ -93,8 +93,19 @@ export default function RepertoirePanel() {
     // Exports carry an artifact rather than rows; one artifact is the produced result.
     return result.artifact_id ? 1 : null;
   };
+  const [nowTick, setNowTick] = createSignal(Date.now());
+  // WP-022 AC-4: summaries show "how long ago" — keep the clock moving so a settled timestamp
+  // doesn't freeze at "just now". The timer only runs while any command has completedAt.
+  createEffect(() => {
+    const states = commandStates();
+    if (!Object.values(states).some((entry) => entry.completedAt !== undefined)) return;
+    const interval = setInterval(() => setNowTick(Date.now()), 30_000);
+    onCleanup(() => {
+      clearInterval(interval);
+    });
+  });
   const relativeTime = (at: number): string => {
-    const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
+    const seconds = Math.max(0, Math.round((nowTick() - at) / 1000));
     if (seconds < 5) return "just now";
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);
@@ -316,7 +327,9 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("find_only_moves")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("find_only_moves", "Find", () => ({ max_positions: 60 }))}
+            {commandButton("find_only_moves", "Find", () => ({
+              max_positions: 60,
+            }))}
           </summary>
           <div class="scope-note">Up to 60 positions · cancellable</div>
           {commandStatus("find_only_moves")}
@@ -377,7 +390,9 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("find_structures")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("find_structures", "Search", () => ({ structure: structure() }))}
+            {commandButton("find_structures", "Search", () => ({
+              structure: structure(),
+            }))}
           </summary>
           <div class="command-input">
             <input
@@ -413,7 +428,9 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("prep_vs_opponent")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("prep_vs_opponent", "Prepare", () => ({ username: opponent() }))}
+            {commandButton("prep_vs_opponent", "Prepare", () => ({
+              username: opponent(),
+            }))}
           </summary>
           <div class="command-input">
             <input

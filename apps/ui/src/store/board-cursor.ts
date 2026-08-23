@@ -75,10 +75,12 @@ export function confirmMove(): void {
   const from = squareKey(sel.file, sel.rank);
   const to = squareKey(cur.file, cur.rank);
 
+  // Validate against the SELECTED square's own destinations, not the union of every piece's —
+  // a square legal for a different piece must not dispatch an illegal play call.
   const d = dests();
-  const legalDests = new Set<string>(Array.from(d.values()).flat());
+  const legalFromSel = new Set<string>(d.get(from) ?? []);
 
-  if (legalDests.has(to)) {
+  if (legalFromSel.has(to)) {
     actions.play(from, to);
     setSelectedSquare(null);
     setHighlightedDests(new Set<string>());

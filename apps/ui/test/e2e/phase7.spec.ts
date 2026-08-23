@@ -245,6 +245,8 @@ test("structured command errors render as distinct result cards", async ({ page 
     }),
   );
   await expect(page.getByRole("alert")).toContainText("Search criteria required");
+  // WP-026 AC-1: the raw error code is hidden behind the technical-details toggle.
+  await page.getByRole("checkbox", { name: /technical details/i }).check();
   await expect(page.getByRole("alert")).toContainText("missing_criteria");
 });
 

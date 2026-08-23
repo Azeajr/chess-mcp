@@ -13,6 +13,7 @@
     "postbuild": "node scripts/check-worker-boundary.mjs",
     "test:chat": "tsx --test test/*.test.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e:host": "playwright test --config playwright.config.ts --project=chromium --project=firefox --grep-invert @visual --workers=1",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p test/accessibility/tsconfig.json --noEmit",
     "a11y:capture": "node test/accessibility/capture.mjs",

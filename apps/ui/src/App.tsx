@@ -77,8 +77,13 @@ export default function App() {
       registerShortcut({
         id: "document.undo",
         key: "z",
-        handler: () => {
-          actions.undo();
+        // Shift+Z is redo: matches() normalises case and ignores shiftKey, so one "z"
+        // registration owns both directions and branches on the modifier itself.
+        handler: (e) => {
+          void import("./store/history").then((h) => {
+            if (e.shiftKey) h.redo();
+            else h.undo();
+          });
         },
       }),
       registerShortcut({

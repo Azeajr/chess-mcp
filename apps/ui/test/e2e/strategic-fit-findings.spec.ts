@@ -2452,64 +2452,68 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(opener).toBeFocused();
 });
 
-test("completed desktop and phone review pass accessibility, overflow, and visual baselines", async ({
-  page,
-}) => {
-  const { dialog } = await bootstrap(page);
-  const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
-  await firstFinding.click();
-  const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
-  const expert = evidencePane.locator(".strategic-fit-evidence-expert");
+test(
+  "completed desktop and phone review pass accessibility, overflow, and visual baselines",
+  { tag: "@visual" },
+  async ({ page }) => {
+    const { dialog } = await bootstrap(page);
+    const firstFinding = dialog.locator("[data-finding-id='finding:01'] [data-finding-select]");
+    await firstFinding.click();
+    const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
+    const expert = evidencePane.locator(".strategic-fit-evidence-expert");
 
-  const close = dialog.getByRole("button", { name: "Return to repertoire" });
-  await close.focus();
-  await page.keyboard.press("Shift+Tab");
-  const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
-  await expect(previewAdjustment).toBeFocused();
-  expect(
-    await previewAdjustment.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
-    }),
-  ).toBe(true);
-  await page.keyboard.press("Tab");
-  await expect(close).toBeFocused();
+    const close = dialog.getByRole("button", { name: "Return to repertoire" });
+    await close.focus();
+    await page.keyboard.press("Shift+Tab");
+    const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
+    await expect(previewAdjustment).toBeFocused();
+    expect(
+      await previewAdjustment.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
+      }),
+    ).toBe(true);
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
 
-  await expert.locator("summary").click();
-  await evidencePane
-    .getByRole("combobox", {
-      name: "Affected source line",
-      exact: true,
-    })
-    .selectOption("4");
-  await expectBasicAccessibility(dialog);
-  expect(await contrastViolations(dialog)).toEqual([]);
-  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-    true,
-  );
-  await expect(dialog).toHaveScreenshot("strategic-fit-review-desktop.png", {
-    animations: "disabled",
-    caret: "hide",
-  });
+    await expert.locator("summary").click();
+    await evidencePane
+      .getByRole("combobox", {
+        name: "Affected source line",
+        exact: true,
+      })
+      .selectOption("4");
+    await expectBasicAccessibility(dialog);
+    expect(await contrastViolations(dialog)).toEqual([]);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    expect(
+      await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+    await expect(dialog).toHaveScreenshot("strategic-fit-review-desktop.png", {
+      animations: "disabled",
+      caret: "hide",
+    });
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
-  await expectBasicAccessibility(dialog);
-  expect(await touchTargetViolations(dialog)).toEqual([]);
-  expect(await contrastViolations(dialog)).toEqual([]);
-  expect(await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-    true,
-  );
-  await expect(dialog).toHaveScreenshot("strategic-fit-review-phone.png", {
-    animations: "disabled",
-    caret: "hide",
-  });
-});
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
+    await expectBasicAccessibility(dialog);
+    expect(await touchTargetViolations(dialog)).toEqual([]);
+    expect(await contrastViolations(dialog)).toEqual([]);
+    expect(
+      await evidencePane.evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+    await expect(dialog).toHaveScreenshot("strategic-fit-review-phone.png", {
+      animations: "disabled",
+      caret: "hide",
+    });
+  },
+);
 
 test("Replacement Lab opens only from an actionable current finding and closes without mutation", async ({
   page,

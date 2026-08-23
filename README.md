@@ -106,11 +106,21 @@ node scripts/structure-accuracy.mjs
 SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
-pnpm exec playwright test --config apps/ui/playwright.config.ts
+pnpm test:e2e:container          # authoritative e2e run — matches CI's image; needs Docker
 ```
 
 The network-gated MCP smoke still exercises the bundled engine and local paths. CI runs on Node 26.
 Use `pnpm docs:generate` after changing the canonical registry; do not edit the generated catalog.
+
+`pnpm test:e2e:container` runs the e2e suite inside `mcr.microsoft.com/playwright:v<ver>-noble` via
+`scripts/playwright-container.mjs` — treat what it reports as ground truth. `pnpm --filter
+@chess-mcp/ui test:e2e` runs the same suite against whatever browsers are installed on the host
+(`pnpm exec playwright install chromium firefox webkit` once, first) and is faster to iterate with,
+but on a non-Ubuntu host it can produce false failures: WebKit needs system libs Ubuntu ships and
+Arch/others may not (GStreamer, GTK4, an ICU build matching the exact `.so` version, flite,
+libmanette, …), and screenshot/pixel-geometry assertions can drift from OS font rendering.
+Reproduce any host-only e2e failure with the container command before treating it as real, and
+rebaseline screenshots with `pnpm test:e2e:update-snapshots`, not from a host run.
 
 ## Repository guide
 

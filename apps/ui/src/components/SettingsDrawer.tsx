@@ -34,7 +34,11 @@ export default function SettingsDrawer() {
         size="drawer"
         class="drawer"
         dismissOnBackdrop
-        initialFocus="input[data-settings-field='lichess-token']"
+        initialFocus={
+          settingsFocusTarget() === "lichess-token"
+            ? "input[data-settings-field='lichess-token']"
+            : undefined
+        }
         onClose={() => {
           setSettingsOpen(false);
           setSettingsFocusTarget(null);

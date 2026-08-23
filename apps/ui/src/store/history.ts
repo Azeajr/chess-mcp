@@ -19,7 +19,13 @@
  * No persistence to IndexedDB — the working document autosave already handles page reload recovery.
  */
 import { createSignal } from "solid-js";
-import { actions, version, path as gamePath, color } from "./game";
+import {
+  restoreSnapshotForHistory,
+  version,
+  path as gamePath,
+  color,
+  toPgn as gameToPgn,
+} from "./game";
 import { announce } from "./announce";
 
 export type MutationType =
@@ -43,7 +49,12 @@ export interface HistoryEntry {
   readonly colorBefore: "white" | "black";
   readonly colorAfter: "white" | "black";
   readonly type: MutationType;
-  readonly deletedSubtreeInfo?: { firstMove: string; continuationCount: number };
+  readonly deletedSubtreeInfo?: {
+    firstMove: string;
+    continuationCount: number;
+  };
+  /** False for a placeholder captured before the mutation ran; true once committed. */
+  readonly committed?: boolean;
 }
 
 const MAX_HISTORY_BYTES = 2 * 1024 * 1024; // 2 MB (AC-11)
@@ -69,8 +80,8 @@ function captureBeforeMutation(
   type: MutationType,
   deletedSubtreeInfo?: HistoryEntry["deletedSubtreeInfo"],
 ): number {
-  const pgnBefore = actions.toPgn();
-  const pathBefore = gamePath();
+  const pgnBefore = gameToPgn();
+  const pathBefore = [...gamePath()];
   const revisionBefore = version();
   const colorBefore = color();
   const id = (nextId += 1);
@@ -93,15 +104,13 @@ function captureBeforeMutation(
 
   setUndoStack((stack) => {
     const newStack = [...stack, entry];
-    // Enforce byte budget by evicting oldest entries until under budget.
-    let totalBytes = 0;
-    for (let i = newStack.length - 1; i >= 0; i--) {
-      totalBytes += JSON.stringify(newStack[i]).length;
-      if (totalBytes > MAX_HISTORY_BYTES) {
-        newStack.splice(0, 1);
-      } else {
-        break;
-      }
+    // Enforce the byte budget by evicting oldest entries until under it. Sizes are computed once
+    // per entry (never re-serialized per pass), then the head is trimmed in a single forward pass.
+    const sizes = newStack.map((e) => JSON.stringify(e).length);
+    let totalBytes = sizes.reduce((sum, n) => sum + n, 0);
+    while (newStack.length > 1 && totalBytes > MAX_HISTORY_BYTES) {
+      totalBytes -= sizes.shift() ?? 0;
+      newStack.shift();
     }
     return newStack;
   });
@@ -114,8 +123,8 @@ function captureBeforeMutation(
  * Must be called immediately after the mutation that `captureBeforeMutation` was called for.
  */
 export function commitAfterMutation(id: number, type: MutationType): void {
-  const pgnAfter = actions.toPgn();
-  const pathAfter = gamePath();
+  const pgnAfter = gameToPgn();
+  const pathAfter = [...gamePath()];
   const revisionAfter = version();
   const colorAfter = color();
 
@@ -123,8 +132,7 @@ export function commitAfterMutation(id: number, type: MutationType): void {
     const idx = stack.findIndex((entry) => entry.id === id);
     if (idx === -1) return stack;
     const entry = stack[idx];
-    if (!entry) return stack;
-    if (entry.pgnAfter) return stack; // already committed (idempotent)
+    if (!entry || entry.committed) return stack; // already committed (idempotent)
     const newStack = [...stack];
     newStack[idx] = {
       ...entry,
@@ -133,6 +141,7 @@ export function commitAfterMutation(id: number, type: MutationType): void {
       revisionAfter,
       colorAfter,
       type,
+      committed: true,
     };
     return newStack;
   });
@@ -145,7 +154,7 @@ export function undo(): void {
   const stack = undoStack();
   if (!stack.length) return;
   const entry = stack[stack.length - 1];
-  if (!entry) return;
+  if (!entry?.committed) return; // never undo an uncommitted placeholder
   const pgnBefore = entry.pgnBefore;
   const pathBefore = entry.pathBefore;
   const revisionBefore = entry.revisionBefore;
@@ -153,15 +162,14 @@ export function undo(): void {
   const type = entry.type;
 
   // The current state becomes the redo entry
-  const pgnAfter = actions.toPgn();
-  const pathAfter = gamePath();
+  const pgnAfter = gameToPgn();
+  const pathAfter = [...gamePath()];
   const revisionAfter = version();
   const colorAfter = color();
 
-  // Restore
-  actions.loadPgn(pgnBefore);
-  actions.setColor(colorBefore);
-  actions.setPath(pathBefore);
+  // Restore through the history-only snapshot primitive: actions.loadPgn would rotate the
+  // document identity and clearHistory() (WP-005 AC-5), destroying this very stack.
+  restoreSnapshotForHistory(pgnBefore, pathBefore);
 
   // Move to redo stack
   setUndoStack((entries) => entries.slice(0, -1));
@@ -200,14 +208,12 @@ export function redo(): void {
   const colorAfter = entry.colorAfter;
   const type = entry.type;
 
-  const pgnBefore = actions.toPgn();
-  const pathBefore = gamePath();
+  const pgnBefore = gameToPgn();
+  const pathBefore = [...gamePath()];
   const revisionBefore = version();
   const colorBefore = color();
 
-  actions.loadPgn(pgnAfter);
-  actions.setColor(colorAfter);
-  actions.setPath(pathAfter);
+  restoreSnapshotForHistory(pgnAfter, pathAfter);
 
   setRedoStack((entries) => entries.slice(0, -1));
   setUndoStack((entries) => [
@@ -247,17 +253,41 @@ function mutationTypeMessage(type: MutationType, direction: "undone" | "redone")
 }
 
 /**
- * Called by `actions.applyEdit` / `actions.deleteLine` / etc. to record a mutation.
- * The mutation function itself is responsible for calling this before AND after.
+ * Called by `actions.applyEdit` / etc. to record a mutation. Runs the mutation between capture
+ * and commit and PROPAGATES its return value, so a rejected edit reports failure to the caller.
+ * A failed mutation leaves no undo entry: the placeholder is removed instead of committed.
  */
-export function recordMutation(
+export function recordMutation<R>(
   type: MutationType,
-  mutationFn: () => void,
+  mutationFn: () => R,
   deletedSubtreeInfo?: HistoryEntry["deletedSubtreeInfo"],
-): void {
+): R {
   const id = captureBeforeMutation(type, deletedSubtreeInfo);
-  mutationFn();
+  let result: R;
+  try {
+    result = mutationFn();
+  } catch (error) {
+    discardEntry(id);
+    throw error;
+  }
+  // A mutation that reports failure (e.g. applyEdit returning { ok:false }) changed nothing:
+  // drop the placeholder so undo cannot pop a phantom step.
+  if (isFailedResult(result)) {
+    discardEntry(id);
+    return result;
+  }
   commitAfterMutation(id, type);
+  return result;
+}
+
+/** applyEdit's `{ ok: false }` shape — a failed result means no state change happened. */
+function isFailedResult(result: unknown): boolean {
+  return typeof result === "object" && result !== null && "ok" in result && result.ok === false;
+}
+
+/** Remove an uncommitted placeholder entry (failed or thrown mutation). */
+function discardEntry(id: number): void {
+  setUndoStack((stack) => stack.filter((entry) => entry.id !== id));
 }
 
 /** Clear all history (newGame, loadPgn, restoreDocument). */
@@ -268,6 +298,9 @@ export function clearHistory(): void {
 }
 
 /** Debug/test seam: get raw stacks. */
-export function getStacksForTesting(): { undo: HistoryEntry[]; redo: HistoryEntry[] } {
+export function getStacksForTesting(): {
+  undo: HistoryEntry[];
+  redo: HistoryEntry[];
+} {
   return { undo: undoStack(), redo: redoStack() };
 }

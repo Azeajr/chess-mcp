@@ -101,7 +101,12 @@ export function settleOperation(
   setOperations((all) =>
     all.map((entry) =>
       entry.id === id
-        ? { ...entry, status, detail: result?.detail ?? entry.detail, cancel: undefined }
+        ? {
+            ...entry,
+            status,
+            detail: result?.detail ?? entry.detail,
+            cancel: undefined,
+          }
         : entry,
     ),
   );
@@ -112,6 +117,31 @@ export function settleOperation(
         ? `${current.label} cancelled.`
         : `${current.label} failed${result?.detail ? `: ${result.detail}` : "."}`;
   announce(message, { assertive: status === "failed" });
+  scheduleEviction(id);
+}
+
+/** Operations currently in the running state, oldest first. */
+export function runningOperations(): readonly Operation[] {
+  return operations().filter((operation) => operation.status === "running");
+}
+
+/**
+ * Silent settle: flips status and schedules eviction WITHOUT announcing. Two callers:
+ * - a superseded run replaced by a new run of the same command (bookkeeping, not feedback);
+ * - an aborted run observed after the fact, where the abort was already announced.
+ */
+export function settleOperationQuietly(id: string, status: Exclude<OperationStatus, "running">) {
+  const current = operations().find((entry) => entry.id === id);
+  if (current?.status !== "running") return;
+  setOperations((all) =>
+    all.map((entry) =>
+      entry.id === id ? { ...entry, status, detail: undefined, cancel: undefined } : entry,
+    ),
+  );
+  scheduleEviction(id);
+}
+
+function scheduleEviction(id: string) {
   const existing = evictionTimers.get(id);
   if (existing) clearTimeout(existing);
   evictionTimers.set(
@@ -121,11 +151,6 @@ export function settleOperation(
       setOperations((all) => all.filter((entry) => entry.id !== id));
     }, LINGER_MS),
   );
-}
-
-/** Operations currently in the running state, oldest first. */
-export function runningOperations(): readonly Operation[] {
-  return operations().filter((operation) => operation.status === "running");
 }
 
 /**
@@ -139,11 +164,5 @@ export function updateOperationStatus(id: string, status: Exclude<OperationStatu
   setOperations((all) =>
     all.map((entry) => (entry.id === id ? { ...entry, status, cancel: undefined } : entry)),
   );
-  evictionTimers.set(
-    id,
-    setTimeout(() => {
-      evictionTimers.delete(id);
-      setOperations((all) => all.filter((entry) => entry.id !== id));
-    }, LINGER_MS),
-  );
+  scheduleEviction(id);
 }
