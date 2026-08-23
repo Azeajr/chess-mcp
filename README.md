@@ -122,6 +122,10 @@ libmanette, …), and screenshot/pixel-geometry assertions can drift from OS fon
 Reproduce any host-only e2e failure with the container command before treating it as real, and
 rebaseline screenshots with `pnpm test:e2e:update-snapshots`, not from a host run.
 
+`pnpm test:e2e` runs in a `systemd-run`-capped cgroup by default (Linux/systemd only) so it doesn't
+saturate a shared machine; see AGENTS.md's "Interactive validation limits" for the resource caps,
+their env-var overrides, and `pnpm --filter @chess-mcp/ui test:e2e:host`, a faster capped subset.
+
 ## Repository guide
 
 - [AGENTS.md](AGENTS.md): current commands and operational constraints for coding agents.

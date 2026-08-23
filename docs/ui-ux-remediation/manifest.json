@@ -3,7 +3,8 @@
   "sourcePlan": "docs/ui-ux-remediation-plan.md",
   "corrections": [
     "WP-005 additionally depends on WP-009 so Toast is introduced with the live-region infrastructure before its first planned consumer.",
-    "WP-008 remains dependent on WP-024; dependency order is authoritative over the earlier phase/PR placement."
+    "WP-008 remains dependent on WP-024; dependency order is authoritative over the earlier phase/PR placement.",
+    "WP-015's plan (move tree first on desktop; mobile defaults to Moves) never fully shipped: the mobile default was implemented and then deliberately reversed (store/ui.ts: defaulting to Moves hides the Repertoire panel, and with it the Strategic Fit entry point, behind an extra tap), and the desktop reorder was never carried out. AC-1 and AC-3 below were rewritten on 2026-08-23 to describe the decided/shipped behavior after live measurement (apps/ui side panel at 1024×600/1280×800/1440×900: move tree top edge 1000–1200px down, 0 rows visible without scrolling) showed the prior text was false. state.json's WP-015 evidence was corrected to match."
   ],
   "packages": {
     "WP-000": {
@@ -896,15 +897,15 @@
       "acceptanceCriteria": [
         {
           "id": "WP-015 AC-1",
-          "text": "- At 1024×600, 1280×800, and 1440×900, the move tree's top edge is within the viewport without scrolling `.side-panel`, and at least three move rows are visible."
+          "text": "- Superseded: the desktop reorder was never carried out. `.side-panel` keeps its pre-WP-015 order — `AnalysisPanel`, then `RepertoirePanel`, then `MoveTree` — and the move tree's top edge is not within the viewport at 1024×600, 1280×800, or 1440×900 (measured 2026-08-23: ~1000–1200px down; 0 rows visible without scrolling `.side-panel`)."
         },
         {
           "id": "WP-015 AC-2",
-          "text": "- The analysis panel's engine-lines area is visible without scrolling at 1280×800."
+          "text": "- The analysis panel's engine-lines area is visible without scrolling at 1280×800. Confirmed still true (measured 2026-08-23: `.analysis`'s bottom edge stays within the viewport at all three matrix widths)."
         },
         {
           "id": "WP-015 AC-3",
-          "text": "- At 390×844 the default tab on first load is `Moves`."
+          "text": "- Superseded: at 390×844 (and other ≤720px viewports) the default tab on first load is `Analysis`, not `Moves`. `store/ui.ts` deliberately keeps this default — the Repertoire panel, and with it the Strategic Fit entry point, lives in the `Analysis` mobile tab, so defaulting to `Moves` would hide it behind an extra tap on first run."
         },
         {
           "id": "WP-015 AC-4",
@@ -918,14 +919,14 @@
       "requiredTests": {
         "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
-        "description": "`core-layout.spec.ts` position assertions at three viewports; a default-tab assertion."
+        "description": "`core-layout.spec.ts` asserts the decided mobile default tab (`Analysis`) and the decided desktop panel order (`AnalysisPanel`, `RepertoirePanel`, `MoveTree`), so a future change to either is a deliberate, reviewed diff rather than silent drift."
       },
-      "requiredAutomatedValidation": "Position, default-tab, ordering, and viewport assertions pass in all configured engines.",
+      "requiredAutomatedValidation": "Default-tab and desktop-order assertions pass in all configured engines.",
       "riskLevel": "Low",
       "preservedBehaviorContracts": [
         "The side panel's single scroll container at ≥1101 px and its `overscroll-behavior: contain`. Mobile panel mounting. The Gaps section's `open` default."
       ],
-      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the analysis panel pushed below the fold instead. Detection: the analysis-visible assertion. Rollback: reorder back.\n\n---"
+      "rollbackRule": "**Planned risk.** Low\n\nThis package's original reorder was never applied, so there is nothing to roll back. If a future attempt reorders the desktop panel to move-tree-first, its regression mode is the analysis panel getting pushed below the fold — detect with an analysis-visible assertion before shipping.\n\n---"
     },
     "WP-016": {
       "dependencies": ["WP-000", "WP-024"],

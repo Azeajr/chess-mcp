@@ -58,6 +58,29 @@ const panelDimensions = (page: import("playwright/test").Page) =>
     ),
   );
 
+test("WP-015 pins the decided (non-reordered) side panel and mobile default", async ({ page }) => {
+  // WP-015 planned a move-tree-first desktop order and a Moves mobile default; both were
+  // superseded (see docs/ui-ux-remediation/work-packages/WP-015.md). This test exists so a future
+  // change to either is a deliberate diff, not silent drift back into a false "complete" record.
+  await openApp(page, { width: 1280, height: 800 });
+  const order = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll(
+        ".side-panel .analysis, .side-panel .rep-panel, .side-panel .move-tree",
+      ),
+    ].map((el) => el.className),
+  );
+  expect(order[0]).toContain("analysis");
+  expect(order[1]).toBe("rep-panel");
+  expect(order[2]).toBe("move-tree");
+
+  await openApp(page, { width: 390, height: 844 });
+  await expect(page.getByRole("tab", { name: "Analysis" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
   for (const viewport of [
     { width: 640, height: 400 },

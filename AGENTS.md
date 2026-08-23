@@ -34,7 +34,7 @@ UI's exported render bounds from source, so it needs a Node release that strips 
 `scripts/playwright-container.mjs`, which runs the suite inside `mcr.microsoft.com/playwright:v<ver>-noble`,
 the same image family CI uses. Treat any failure it reproduces as real.
 
-`pnpm --filter @chess-mcp/ui test:e2e` (needs `pnpm exec playwright install chromium firefox webkit`
+`pnpm test:e2e` (root or `apps/ui`, needs `pnpm exec playwright install chromium firefox webkit`
 once, locally) is faster to iterate with but runs on whatever the host OS actually has. On
 non-Ubuntu hosts (e.g. Arch) this is a known source of false signal:
 
@@ -43,10 +43,37 @@ non-Ubuntu hosts (e.g. Arch) this is a known source of false signal:
   `icu`/`flite`/`libmanette` in particular can be unavailable or version-mismatched via `pacman`.
 - `toHaveScreenshot` and pixel-geometry assertions can fail on font/AA rendering differences from
   the OS the baselines were captured on.
+- Under the `systemd-run`-capped profiles below, iteration-heavy tests (e.g. the 320–2560px width
+  sweeps in `core-layout.spec.ts`) can hit Playwright's fixed 30-second per-test timeout: CPU
+  throttling slows wall-clock execution, but the timeout budget doesn't scale with it. Confirmed
+  2026-08-23: the same tests pass cleanly in `test:e2e:container` (unthrottled).
 
 Before reporting an e2e failure found via the host command as a real bug, reproduce it with
 `pnpm test:e2e:container` first. To rebaseline screenshots, use
 `pnpm test:e2e:update-snapshots` (also container-based) — never regenerate baselines from a host run.
+
+`pnpm --filter @chess-mcp/ui test:e2e:host` is a capped, chromium+firefox-only, non-`@visual`
+subset — the fastest way to get trustworthy behavioral signal locally without Docker or a webkit
+install. See "Interactive validation limits" below for how it's capped and why.
+
+### Interactive validation limits
+
+`pnpm test:e2e -- [Playwright args]` (root or `apps/ui`) runs one worker inside a `systemd-run
+--user` cgroup capped at 30% CPU, 2 GiB `MemoryHigh`, 3 GiB `MemoryMax`, nice level 15, and a
+15-minute hard runtime limit — requires Linux/systemd. Those defaults are calibrated for a
+`--grep`- or path-scoped run of one package's tests, not the full suite; an unscoped `pnpm test:e2e`
+will hit the 15-minute wall on this codebase's current size and get SIGTERM'd mid-run. Scope it
+(`pnpm test:e2e -- apps/ui/test/e2e/core-layout.spec.ts` or `-- --grep WP-NNN`), or override
+`E2E_RUNTIME_MAX` deliberately for a broader pass.
+
+`pnpm --filter @chess-mcp/ui test:e2e:host` runs the same wrapper with a profile suited to its
+broader (chromium+firefox, non-`@visual`) scope: `E2E_CPU_QUOTA=60%`, `E2E_RUNTIME_MAX=45min`,
+same 2 GiB/3 GiB memory caps and nice 15.
+
+Override any of `E2E_CPU_QUOTA`, `E2E_MEMORY_HIGH`, `E2E_MEMORY_MAX`, `E2E_NICE`, `E2E_RUNTIME_MAX`
+as env vars. The named user service is `chess-mcp-playwright-low-impact`; stop it with
+`systemctl --user stop chess-mcp-playwright-low-impact.service` if needed, or inspect it with
+`systemctl --user status chess-mcp-playwright-low-impact.service`.
 
 ## Boundaries and sources of truth
 
