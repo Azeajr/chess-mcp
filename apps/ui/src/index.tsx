@@ -26,6 +26,7 @@ import {
   acceptStagedEdit,
   rejectStagedEdit,
 } from "./store/suggestions";
+import { setStagedEditsForTesting, stagedEdits } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting } from "./store/chat";
@@ -88,7 +89,10 @@ import {
   strategicFitWorkspaceOpen,
   strategicFitWorkspaceRegions,
   strategicFitWorkspaceStage,
+  settingsOpen,
+  setSettingsOpen,
 } from "./store/ui";
+import { settingsFocusTarget, setSettingsFocusTarget } from "./store/settings";
 import { replacementLab } from "./store/strategic-fit-replacement";
 import {
   strategicFitResolutionProof,
@@ -131,7 +135,13 @@ if (import.meta.env.DEV) {
     artifactById,
     saveArtifact,
     appendToolResultForTesting,
+    setStagedEditsForTesting,
+    stagedEdits,
     runTool,
+    settingsOpen,
+    setSettingsOpen,
+    settingsFocusTarget,
+    setSettingsFocusTarget,
     strategicFitMetadata,
     strategicFitMetadataStatus,
     strategicFitMetadataIssues,

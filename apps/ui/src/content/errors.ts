@@ -1,15 +1,17 @@
 export interface ErrorContent {
   readonly title: string;
   readonly cause?: string;
+  /** Label for the card's recovery action, if the failure has one the user can act on. */
   readonly action?: string;
 }
 
 export const ERROR_CONTENT = {
   invalid_arguments: { title: "Invalid command arguments" },
   invalid_fen: { title: "invalid fen" },
-  engine_unavailable: { title: "Local engine unavailable" },
+  // WP-026 AC-4: retryable and token-gated failures carry their recovery action.
+  engine_unavailable: { title: "Local engine unavailable", action: "Retry" },
   cancelled: { title: "Cancelled" },
-  explorer_auth_required: { title: "Lichess token required" },
+  explorer_auth_required: { title: "Lichess token required", action: "Add Lichess token" },
   fetch_failed: { title: "Network request failed" },
   missing_arg: { title: "missing arg" },
   missing_criteria: { title: "Search criteria required" },

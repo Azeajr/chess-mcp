@@ -2,7 +2,7 @@
  * Settings drawer: OpenRouter API key, model slug, and Lichess API token (persisted to
  * localStorage by the settings store). The keys are stored in plaintext — noted to the user.
  */
-import { For, Show } from "solid-js";
+import { createEffect, For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
 import Dialog from "./primitives/Dialog";
 import {
@@ -13,11 +13,20 @@ import {
   lichessToken,
   setLichessToken,
   MODEL_SUGGESTIONS,
+  settingsFocusTarget,
+  setSettingsFocusTarget,
 } from "../store/settings";
 import Field from "./primitives/Field";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
+  // WP-026 AC-4: a recovery action can request focus land on the token field.
+  let tokenInput: HTMLInputElement | undefined;
+  // Focus lands after the dialog mounts and its own initial focus runs, hence the rAF.
+  createEffect(() => {
+    if (!settingsOpen() || settingsFocusTarget() !== "lichess-token") return;
+    requestAnimationFrame(() => tokenInput?.focus());
+  });
   return (
     <Show when={settingsOpen()}>
       <Dialog
@@ -25,7 +34,11 @@ export default function SettingsDrawer() {
         size="drawer"
         class="drawer"
         dismissOnBackdrop
-        onClose={() => setSettingsOpen(false)}
+        initialFocus="input[data-settings-field='lichess-token']"
+        onClose={() => {
+          setSettingsOpen(false);
+          setSettingsFocusTarget(null);
+        }}
       >
         <button
           type="button"
@@ -78,6 +91,8 @@ export default function SettingsDrawer() {
 
         <Field class="field" label="Lichess API token">
           <input
+            ref={tokenInput}
+            data-settings-field="lichess-token"
             type="password"
             placeholder="lip_…"
             value={lichessToken()}

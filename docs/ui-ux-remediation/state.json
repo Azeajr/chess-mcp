@@ -579,7 +579,31 @@
       }
     },
     "WP-026": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-23T01:21:34.574840Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts --project=chromium (172 passed, 11 failed on Chromium; Firefox/WebKit need system deps)",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui test:chat (332 passed, 0 failed)",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts --project=chromium apps/ui/test/e2e/chat-result-cards.spec.ts (4 passed, 0 failed)"
+        ],
+        "acceptanceCriteria": {
+          "AC-1": "showTechnicalDetails signal gates raw error codes and Raw JSON disclosure; toggle in ChatPanel header",
+          "AC-2": "StagedEditResult gets data-mutating=\"true\" and .mutating-badge with icon+text; forced-colors media query thickens border",
+          "AC-3": ".staged-consequences text states move count, line scope, browser-local effect, and undoability",
+          "AC-4": "engine_unavailable shows Retry (re-dispatches last command); explorer_auth_required shows Add Lichess token (opens Settings focused on token field via initialFocus)",
+          "AC-5": "All existing staged-mutation copy preserved verbatim in StagedEditResult",
+          "AC-6": "strategic-fit-chat.spec.ts, strategic-fit-plan.spec.ts, strategic-fit-portfolio.spec.ts pass unchanged (run on Chromium)"
+        },
+        "preservedBehavior": "All existing staged-mutation copy preserved. Staged edit store, accept/reject flow, preview acceptance, covered-by-transposition rows, best eval/best fit, Shorten inspect panel, usersTurn guard, artifact save flow unchanged. StrategicFitTransfer moved to \"Prepare and export\" group.",
+        "gates": {}
+      }
     },
     "WP-027": {
       "status": "not-started"

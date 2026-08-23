@@ -88,3 +88,26 @@ export function setChatMode(m: ChatMode) {
 }
 
 export const hasApiKey = () => apiKey().length > 0;
+
+const KEY_TECHNICAL = "chess.chat.technical";
+// WP-026: the Show technical details toggle. Off (the default) hides raw error codes and the
+// per-result Raw JSON disclosure; on, both render for debugging.
+const [showTechnicalDetails, setShowTechnicalDetailsRaw] = createSignal(
+  read(KEY_TECHNICAL, "false") === "true",
+);
+export { showTechnicalDetails };
+export function setShowTechnicalDetails(v: boolean) {
+  setShowTechnicalDetailsRaw(v);
+  localStorage.setItem(KEY_TECHNICAL, String(v));
+}
+
+/**
+ * WP-026 AC-4: which field a Settings opening should land focus on. Null means default focus.
+ * Error recovery actions (e.g. "Add Lichess token") set this before opening Settings.
+ */
+export type SettingsFocusTarget = "lichess-token" | null;
+const [settingsFocusTarget, setSettingsFocusTargetRaw] = createSignal<SettingsFocusTarget>(null);
+export { settingsFocusTarget };
+export function setSettingsFocusTarget(target: SettingsFocusTarget) {
+  setSettingsFocusTargetRaw(target);
+}

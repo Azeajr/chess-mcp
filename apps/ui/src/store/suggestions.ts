@@ -55,6 +55,10 @@ export { suggestions };
 let nextId = 1;
 const [stagedEdits, setStagedEdits] = createSignal<StagedEdit[]>([]);
 export { stagedEdits };
+export function setStagedEditsForTesting(edits: StagedEdit[]) {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  setStagedEdits(edits);
+}
 
 /** Validate and retain a non-mutating edit preview. The full preview tree never enters chat. */
 export function stageEdit(

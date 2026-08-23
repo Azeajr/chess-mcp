@@ -15,7 +15,13 @@ import {
   retry,
   toolRuns,
 } from "../store/chat";
-import { hasApiKey, chatMode, setChatMode } from "../store/settings";
+import {
+  hasApiKey,
+  chatMode,
+  setChatMode,
+  showTechnicalDetails,
+  setShowTechnicalDetails,
+} from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
 import type { ChatMessage } from "../llm/openrouter";
@@ -64,6 +70,17 @@ export default function ChatPanel() {
     <div class="chat">
       <PanelHeader>
         <span>Chat</span>
+        {/* WP-026 AC-1: the technical-details toggle gates raw codes and Raw JSON disclosures. */}
+        <label class="chat-technical-toggle" title="Show raw error codes and raw JSON in results">
+          <input
+            type="checkbox"
+            checked={showTechnicalDetails()}
+            onChange={(e) => {
+              setShowTechnicalDetails(e.currentTarget.checked);
+            }}
+          />
+          Technical details
+        </label>
         <Select
           class="chat-mode"
           title="Optional workflow guidance; all tools remain available"

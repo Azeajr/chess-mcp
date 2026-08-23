@@ -35,10 +35,23 @@ import {
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
+import { executeCommand, type DirectCommand } from "../store/commands";
+import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
+import { setSettingsOpen } from "../store/ui";
 import Status from "./primitives/Status";
 import { countLabel, diffValue, displayValue, numbered, titleCase } from "../content/format";
 import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
+
+/**
+ * WP-026 AC-4: the last direct-panel command the user ran, so an error card's Retry re-issues
+ * exactly what failed. Recorded by ToolResult's command path, not by the store.
+ */
+let lastDirectCommand: { command: DirectCommand; args: Record<string, unknown> } | null = null;
+export function recordDirectCommandForRetry(command: DirectCommand, args: Record<string, unknown>) {
+  lastDirectCommand = { command, args };
+}
+const lastDirectCommandRequest = () => lastDirectCommand;
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -910,7 +923,11 @@ function StagedEditResult(props: { data: Data }) {
   const edit = () => stagedEdit(id());
   const stale = () => edit()?.status === "stale";
   return (
-    <div class="result-card staged-card">
+    <div class="result-card staged-card" data-mutating="true">
+      {/* WP-022 AC-2 / WP-026 AC-2: a mutating card carries a non-colour badge. */}
+      <span class="mutating-badge" title="This action changes the working repertoire">
+        ✎ mutates
+      </span>
       <div class="result-title">Proposed {displayValue(props.data.action)} edit</div>
       <div class="result-line">
         {(props.data.path as string[] | undefined)?.join(" ") ?? "Start position"}
@@ -923,6 +940,13 @@ function StagedEditResult(props: { data: Data }) {
         {displayValue((props.data.after as Data | undefined)?.nodes)} · leaves{" "}
         {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
         {displayValue((props.data.after as Data | undefined)?.leaves)}
+      </div>
+      {/* WP-026 AC-3: the card states what changes, where it applies, and that it is undoable. */}
+      <div class="result-summary staged-consequences">
+        Adds {(props.data.line as string[] | undefined)?.length ?? 0} move
+        {((props.data.line as string[] | undefined)?.length ?? 0) === 1 ? "" : "s"} on{" "}
+        {(props.data.line as string[] | undefined)?.length ? "this line" : "a new line"} —
+        acceptance changes the working repertoire in this browser and can be undone.
       </div>
       <Show
         when={edit()?.status === "pending"}
@@ -995,13 +1019,37 @@ function ArtifactRows(props: { data: Data }) {
 
 function ErrorResult(props: { data: Data }) {
   const code = () => displayValue(props.data.error ?? "command_failed");
+  const content = () => errorContent(code());
+  // WP-026 AC-4: retryable failures re-run their command; token-gated ones open Settings on the
+  // token field. Both only render for codes that declare an action.
+  const onRetry = () => {
+    const last = lastDirectCommandRequest();
+    if (last) void executeCommand(last.command, last.args);
+  };
+  const onAddToken = () => {
+    setSettingsFocusTarget("lichess-token");
+    setSettingsOpen(true);
+  };
   return (
     <div class={`result-card result-error-card error-${code()}`} role="alert">
-      <div class="result-title">{errorContent(code()).title}</div>
+      <div class="result-title">{content().title}</div>
       <Show when={props.data.reason}>
         <div class="result-summary">{String(props.data.reason)}</div>
       </Show>
-      <div class="result-code">{code()}</div>
+      {/* WP-026 AC-1: the raw error code is technical detail, hidden behind the toggle. */}
+      <Show when={showTechnicalDetails()}>
+        <div class="result-code">{code()}</div>
+      </Show>
+      <Show when={content().action === "Retry"}>
+        <button class="fix-btn" onClick={onRetry}>
+          Retry
+        </button>
+      </Show>
+      <Show when={content().action === "Add Lichess token"}>
+        <button class="fix-btn" onClick={onAddToken}>
+          Add Lichess token
+        </button>
+      </Show>
     </div>
   );
 }
@@ -1174,10 +1222,13 @@ export default function ToolResult(props: Props) {
       >
         {(value) => <ErrorResult data={value()} />}
       </Show>
-      <details class="tool-result-raw">
-        <summary>Raw JSON</summary>
-        <pre>{props.content}</pre>
-      </details>
+      {/* WP-026 AC-1: raw JSON is technical detail, shown only with the toggle on. */}
+      <Show when={showTechnicalDetails()}>
+        <details class="tool-result-raw">
+          <summary>Raw JSON</summary>
+          <pre>{props.content}</pre>
+        </details>
+      </Show>
     </>
   );
 }

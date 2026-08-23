@@ -7904,3 +7904,39 @@ img,
     margin-left: 0;
   }
 }
+
+/* WP-026 AC-2: mutating cards carry a non-colour badge (icon + text), not a colour-only cue.
+   Under forced-colors the border thickens as well, so the distinction survives palettes. */
+.staged-card {
+  position: relative;
+  border-width: 2px;
+}
+.mutating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: 0.1rem 0.4rem;
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+}
+@media (forced-colors: active) {
+  .staged-card[data-mutating="true"] {
+    border: 3px double CanvasText;
+  }
+}
+
+/* WP-026 AC-1: the technical-details toggle in the chat header. */
+.chat-technical-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  font-size: var(--type-xs);
+  color: var(--muted);
+  cursor: pointer;
+}
