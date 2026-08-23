@@ -65,6 +65,20 @@ export async function runLiveRegionScenario(
   const politeRegion = page.locator("[data-app-live-region='polite']");
   await politeRegion.waitFor({ state: "attached" });
 
+  // Both regions are empty until a message lands (Show renders nothing), so a snapshot taken now
+  // would prove nothing about live-region semantics. Fire one real operation first — its start
+  // announcement fills the polite region, its failure fills the assertive one with role="alert" —
+  // so the browser-tier snapshot below observes real, present content rather than an empty
+  // container. This exercise is independent of the AT-tier loop below: by the time it re-triggers
+  // "operation-failed" the 500 ms de-duplication window has long elapsed, so it re-announces.
+  await page.evaluate(() => {
+    const chess = (
+      window as unknown as { __chess: { exerciseAnnouncementScenario(s: string): Promise<void> } }
+    ).__chess;
+    return chess.exerciseAnnouncementScenario("operation-failed");
+  });
+  await page.waitForTimeout(300);
+
   const ariaSnapshots = [
     await captureAriaSnapshot(page.locator(".app-live-regions"), browser, "app live regions root"),
   ];

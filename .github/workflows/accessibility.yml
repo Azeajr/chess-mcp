@@ -50,12 +50,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @chess-mcp/chess-tools build
-      - name: Capture deterministic evidence (Docker, all three engines)
+      - name: Capture deterministic evidence — AG-3 move tree (Docker, all three engines)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs
         env:
           A11Y_CONTAINER: "1"
           A11Y_SPEC: ag-3-move-tree.spec.ts
+      - name: Capture deterministic evidence — AG-5 live region (Docker, all three engines)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs
+        env:
+          A11Y_CONTAINER: "1"
+          A11Y_SPEC: ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: a11y-evidence-browser
@@ -91,12 +97,18 @@ jobs:
       # this step errored "NVDA is not installed" and named this exact missing command.
       - run: npx @guidepup/setup install nvda
         working-directory: apps/ui
-      - name: Capture NVDA evidence (headed — NVDA reads the real screen)
+      - name: Capture NVDA evidence — AG-3 move tree (headed — NVDA reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project chromium
         env:
           A11Y_ATTEMPT_AT: "1"
           A11Y_SPEC: ag-3-move-tree.spec.ts
+      - name: Capture NVDA evidence — AG-5 live region (headed — NVDA reads the real screen)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project chromium
+        env:
+          A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -132,12 +144,18 @@ jobs:
       # preferences" and named this exact command as the fix.
       - run: npx @guidepup/setup install voiceover
         working-directory: apps/ui
-      - name: Capture VoiceOver evidence (headed — VoiceOver reads the real screen)
+      - name: Capture VoiceOver evidence — AG-3 move tree (headed — VoiceOver reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
           A11Y_SPEC: ag-3-move-tree.spec.ts
+      - name: Capture VoiceOver evidence — AG-5 live region (headed — VoiceOver reads the real screen)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project webkit
+        env:
+          A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -146,7 +164,7 @@ jobs:
           if-no-files-found: warn
 
   merge-report:
-    name: Compute AG-3 gate verdict
+    name: Compute AG-3/AG-5 gate verdicts
     needs: [browser-evidence, at-nvda, at-voiceover]
     if: always()
     runs-on: ubuntu-latest
@@ -168,7 +186,7 @@ jobs:
         working-directory: apps/ui
         run: pnpm a11y:verdict
         env:
-          A11Y_SCENARIOS: ag-3-move-tree
+          A11Y_SCENARIOS: ag-3-move-tree,ag-5-live-region
       - uses: actions/upload-artifact@v4
         if: always()
         with:
