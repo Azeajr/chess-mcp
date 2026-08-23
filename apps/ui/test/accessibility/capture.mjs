@@ -22,15 +22,23 @@ const repoRoot = path.resolve(here, "../../../..");
 const uiRoot = path.resolve(here, "../..");
 const runId = process.env.A11Y_RUN_ID ?? new Date().toISOString().replace(/[:.]/gu, "-");
 const passthroughArgs = process.argv.slice(2);
-const selectedSpec = process.env.A11Y_SPEC;
-const containerSpec = selectedSpec
-  ? path.posix.join("apps/ui/test/accessibility", path.basename(selectedSpec))
-  : undefined;
+// Comma-separated, e.g. "ag-3-move-tree.spec.ts,ag-5-live-region.spec.ts". Playwright's own
+// outputDir (apps/ui/test-results, the same tree EVIDENCE_ROOT lives under) is wiped at the start
+// of every `playwright test` invocation, so capturing N scenarios in one CI job means N specs in
+// ONE invocation here — never N separate calls to this script, which would each erase the
+// previous call's evidence before merge-report ever saw it.
+const selectedSpecs = (process.env.A11Y_SPEC ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean);
+const containerSpecs = selectedSpecs.map((spec) =>
+  path.posix.join("apps/ui/test/accessibility", path.basename(spec)),
+);
 // Playwright treats file arguments as patterns. A Windows absolute path contains backslashes,
 // which the matcher interprets as escapes; use a package-relative POSIX path on every host.
-const localSpec = selectedSpec
-  ? path.posix.join("test/accessibility", path.basename(selectedSpec))
-  : undefined;
+const localSpecs = selectedSpecs.map((spec) =>
+  path.posix.join("test/accessibility", path.basename(spec)),
+);
 
 const [command, args] =
   process.env.A11Y_CONTAINER === "1"
@@ -41,7 +49,7 @@ const [command, args] =
           "--",
           "--config",
           "apps/ui/test/accessibility/playwright.config.ts",
-          ...(containerSpec ? [containerSpec] : []),
+          ...containerSpecs,
           ...passthroughArgs,
         ],
       ]
@@ -53,7 +61,7 @@ const [command, args] =
           "test",
           "--config",
           path.join(here, "playwright.config.ts"),
-          ...(localSpec ? [localSpec] : []),
+          ...localSpecs,
           ...passthroughArgs,
         ],
       ];
