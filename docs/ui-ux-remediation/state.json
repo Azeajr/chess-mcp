@@ -806,7 +806,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["Two-step cursor select/place model; no coordinate-entry mode"],
-        "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, pointer-parity, and AT assertions; comparative preference is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, and pointer-parity assertions, all green; comparative preference is not claimed. Real AT assertions (NVDA/VoiceOver) are the separate, still-unresolved AG-4 gate — WP-014 itself is \"in-progress\", not \"complete\", for exactly that reason."
       }
     },
     "DV-2": {
@@ -850,7 +850,7 @@
           "Decide region at the bottom of Evidence",
           "Persistent stage strip"
         ],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-033 verifies geometry, stage-state equality, single resolution rendering, and overflow; layout preference is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-033 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify geometry, stage-state equality, single resolution rendering, and overflow; layout preference is not claimed."
       }
     },
     "PD-1": {
@@ -895,7 +895,7 @@
           "Keep the chat column at full width before setup",
           "Replace the error line with the setup card"
         ],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-021 verifies layout, action presence, transition, and mount identity; perceived discoverability is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-021 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify layout, action presence, transition, and mount identity; perceived discoverability is not claimed."
       }
     },
     "PD-5": {
@@ -903,7 +903,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["Do not split Strategic Fit into Review and Redesign in this roadmap"],
-        "source": "Subjective clarity cannot be a completion gate. WP-035 instead machine-verifies explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
+        "source": "Subjective clarity cannot be a completion gate. WP-035 is not started (status \"not-started\", 2026-08-23) and has not machine-verified anything yet. Once implemented, it is expected to verify explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
       }
     },
     "PD-6": {
@@ -922,7 +922,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["State specific thresholds read from the preflight payload"],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-031 verifies payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-031 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
       }
     },
     "PD-8": {
@@ -933,7 +933,7 @@
           "Rename vocabulary in the UI only",
           "Leave workflow contracts and generated skills unchanged"
         ],
-        "source": "Fixed scope decision under the automated-completion policy. WP-034 verifies exhaustive vocabulary and protected propositions plus a zero diff in packages/chess-tools and generated skills."
+        "source": "Fixed scope decision under the automated-completion policy. WP-034 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet — it also depends on WP-031, WP-032, and WP-033, none of which have started either. Once implemented, it is expected to verify exhaustive vocabulary and protected propositions plus a zero diff in packages/chess-tools and generated skills."
       }
     }
   },
