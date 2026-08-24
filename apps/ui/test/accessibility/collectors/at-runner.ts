@@ -167,6 +167,15 @@ export interface AtSession {
   next(): Promise<void>;
   /** Phrases spoken since the previous call, blank ones dropped. */
   since(): Promise<readonly string[]>;
+  /**
+   * Speech spoken during an action driven by an external tool (Playwright), not the screen
+   * reader's own press/perform. `since()` cannot see this speech at all — see this module's
+   * top comment on `withScreenReader` for why — so a passive aria-live announcement triggered by
+   * `page.evaluate` must go through this instead, which wraps Guidepup's own `capture()` (built
+   * for exactly this: "the action can be performed using an external automation tool such as
+   * Playwright").
+   */
+  captureExternalAction<T>(action: () => Promise<T>): Promise<{ result: T; spokenPhrase: string }>;
   observe(claim: AtClaim, command: string, utterances: readonly string[]): AtObservation;
 }
 
@@ -207,6 +216,10 @@ export async function withScreenReader<T>(
       press(key: string): Promise<void>;
       next(): Promise<void>;
       perform(command: T2["keyboardCommands"][keyof T2["keyboardCommands"]]): Promise<void>;
+      capture<T3>(
+        action: () => Promise<T3>,
+        options?: { capture?: boolean | "initial" },
+      ): Promise<{ result: T3; spokenPhrase: string }>;
     },
   ): Promise<T> {
     await screenReader.start();
@@ -252,6 +265,16 @@ export async function withScreenReader<T>(
           runner === "voiceover" ? "moveCursorToKeyboardFocus; describeItem" : focusCommandName,
         focusBrowser,
         since,
+        // capture() draws from the same cumulative spokenPhraseLog() since() diffs against, so
+        // resync spokenSoFar afterward — otherwise the next since() would re-return this speech.
+        captureExternalAction: async (action) => {
+          // Default "initial" capture only grabs the first "page" of speech; a live-region
+          // message plus its role announcement can run longer than that, so ask for everything.
+          const captured = await screenReader.capture(action, { capture: true });
+          const log = await screenReader.spokenPhraseLog();
+          spokenSoFar = log.length;
+          return { result: captured.result, spokenPhrase: captured.spokenPhrase };
+        },
         reportFocus: async () => {
           await screenReader.perform(focusCommand);
         },

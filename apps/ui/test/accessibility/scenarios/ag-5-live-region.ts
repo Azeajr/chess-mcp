@@ -96,20 +96,25 @@ export async function runLiveRegionScenario(
         const observations: AtObservation[] = [];
         for (const expectation of ANNOUNCEMENT_SCENARIOS) {
           await session.focusBrowser();
-          await session.since(); // drain before the operation
-          await page.evaluate((scenarioId) => {
-            const chess = (
-              window as unknown as {
-                __chess: {
-                  exerciseAnnouncementScenario(scenario: string): Promise<void>;
-                };
-              }
-            ).__chess;
-            return chess.exerciseAnnouncementScenario(scenarioId);
-          }, expectation.scenario);
-          // The screen reader needs to actually speak the live-region update before we slice.
-          await page.waitForTimeout(1_500);
-          const utterances = await session.since();
+          await session.since(); // drain stale state before the operation
+          // The live-region update is triggered by page.evaluate — an external (Playwright)
+          // action, not a screen-reader-driven press/perform — so since()'s spokenPhraseLog
+          // diffing cannot see its speech at all (see withScreenReader's top comment). Guidepup's
+          // own capture() exists for exactly this: it records speech spoken during an
+          // externally-driven action.
+          const { spokenPhrase } = await session.captureExternalAction(() =>
+            page.evaluate((scenarioId) => {
+              const chess = (
+                window as unknown as {
+                  __chess: {
+                    exerciseAnnouncementScenario(scenario: string): Promise<void>;
+                  };
+                }
+              ).__chess;
+              return chess.exerciseAnnouncementScenario(scenarioId);
+            }, expectation.scenario),
+          );
+          const utterances = spokenPhrase.trim() ? [spokenPhrase] : [];
           observations.push({
             source: runner,
             claim: `live-region:${expectation.scenario}`,
