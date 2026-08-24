@@ -102,8 +102,15 @@ export async function runLiveRegionScenario(
           // diffing cannot see its speech at all (see withScreenReader's top comment). Guidepup's
           // own capture() exists for exactly this: it records speech spoken during an
           // externally-driven action.
-          const { spokenPhrase } = await session.captureExternalAction(() =>
-            page.evaluate((scenarioId) => {
+          // The trailing wait is INSIDE the captured action on purpose: the DOM update ->
+          // OS-accessibility-notification -> speech-synthesis pipeline has real latency after
+          // the app promise resolves, and capture() only records speech while its action is in
+          // flight (same constraint as since(), see withScreenReader's top comment). Run
+          // 32675591143 confirmed the pipeline works but came back with a mix of empty and
+          // bled-together utterances — consistent with the window closing before trailing speech
+          // settled, not with the mechanism itself being wrong.
+          const { spokenPhrase } = await session.captureExternalAction(async () => {
+            await page.evaluate((scenarioId) => {
               const chess = (
                 window as unknown as {
                   __chess: {
@@ -112,8 +119,9 @@ export async function runLiveRegionScenario(
                 }
               ).__chess;
               return chess.exerciseAnnouncementScenario(scenarioId);
-            }, expectation.scenario),
-          );
+            }, expectation.scenario);
+            await page.waitForTimeout(1_000);
+          });
           const utterances = spokenPhrase.trim() ? [spokenPhrase] : [];
           observations.push({
             source: runner,
