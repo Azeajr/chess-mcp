@@ -516,6 +516,38 @@ export function captureTreeObservations(
  * utterances at all. A second empty session still fails deterministically — this is not a retry
  * for wrong content, only for nothing having been captured at all.
  */
+/**
+ * Real run 32680688687: after the whole-session retry above fired (for the transport-level empty
+ * seen on the prior run), the retried session's very first `reportSemanticFocus()` — the
+ * `moveCursorToKeyboardFocus`; `describeItem` pair VoiceOver uses — landed on "VoiceOver Settings
+ * activity" instead of the real page, confirmed from the raw evidence
+ * (atObservation[5]/[6] in that run's report.json: two utterances, the first literally the string
+ * checked below, the second describing an unrelated cell). This is the exact historical race this
+ * file's own header already named and fixed for the *first* use of `focusBrowser()` in a session
+ * (macOS handing focus back to VoiceOver's own UI): evidently a second, freshly-restarted session
+ * can hit it again on its own first use. Every claim built from `press()` in the very same run
+ * captured correctly — that path never depends on VoiceOver's own cursor being synced to real DOM
+ * focus, only this cursor-move-then-describe path does — so the fix is scoped to exactly that
+ * command, not the whole session.
+ */
+const VOICEOVER_SETTLE_FAILURE = /voiceover settings activity/iu;
+
+async function reportSemanticFocusReliably(
+  session: AtSession,
+  focus: () => Promise<void>,
+): Promise<readonly string[]> {
+  let utterances: readonly string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await focus();
+    await session.focusBrowser();
+    await session.since();
+    await session.reportSemanticFocus();
+    utterances = await session.since();
+    if (!utterances.some((utterance) => VOICEOVER_SETTLE_FAILURE.test(utterance))) break;
+  }
+  return utterances;
+}
+
 export function captureBoardObservations(
   runner: AtRunnerId,
   page: Page,
@@ -528,11 +560,7 @@ export function captureBoardObservations(
 
       // grid-role / square-description: one command's utterance answers both claims, same pattern
       // AG-3 uses for tree-role/item-level.
-      await steps.focusEntryCell();
-      await session.focusBrowser();
-      await session.since();
-      await session.reportSemanticFocus();
-      const entryUtterances = await session.since();
+      const entryUtterances = await reportSemanticFocusReliably(session, steps.focusEntryCell);
       const gridRole = session.observe(
         "grid-role",
         session.semanticFocusCommandName,
@@ -584,11 +612,10 @@ export function captureBoardObservations(
       // contract already proves the app handler; when an AT intercepts the key, move DOM focus
       // silently and ask the real AT to describe the resulting cell instead.
       if (!(await steps.traversalReachedTarget())) {
-        await steps.focusTraversalTargetCell();
-        await session.focusBrowser();
-        await session.since();
-        await session.reportSemanticFocus();
-        traversalUtterances = await session.since();
+        traversalUtterances = await reportSemanticFocusReliably(
+          session,
+          steps.focusTraversalTargetCell,
+        );
         traversalCommand = `focus target via DOM; ${session.semanticFocusCommandName} (${steps.traversalKey} intercepted)`;
       }
       const traversalVerbosity = session.observe(
