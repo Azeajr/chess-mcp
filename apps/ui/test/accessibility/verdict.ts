@@ -863,9 +863,14 @@ function boardAtFindings(
       let satisfied = false;
       let expected = "";
       if (claim === "grid-role") {
-        const roleWords = source === "voiceover" ? ["grid", "table", "outline"] : ["grid", "table"];
+        // Real run 32680247211: NVDA's actual utterance was "e 2, white pawn, cell, focused" —
+        // it renders the ARIA gridcell role as "cell", not "grid"/"table". That is NVDA's
+        // standard, correct rendering of role=gridcell, not a miss — "cell" is added rather than
+        // assumed away.
+        const roleWords =
+          source === "voiceover" ? ["grid", "table", "outline"] : ["grid", "table", "cell"];
         satisfied = mentions("e2") && roleWords.some((word) => lower.includes(word));
-        expected = "The focused e2 cell is identified using this AT's grid/table vocabulary.";
+        expected = "The focused e2 cell is identified using this AT's grid/table/cell vocabulary.";
       } else if (claim === "square-description") {
         satisfied = mentions("e2") && lower.includes("pawn");
         expected = `The focused cell announces "${expectation.entrySquareDescription}".`;
