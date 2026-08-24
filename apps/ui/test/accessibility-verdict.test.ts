@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AtClaim, EvidenceBundle } from "./accessibility/evidence-schema";
-import { computeTreeVerdict, type TreeScenarioExpectation } from "./accessibility/verdict";
+import {
+  computeBoardVerdict,
+  computeTreeVerdict,
+  type BoardScenarioExpectation,
+  type TreeScenarioExpectation,
+} from "./accessibility/verdict";
 
 const snapshot =
   '- tree "Repertoire moves":\n  - group:\n    - treeitem "2. Nf3" [level=1]\n    - treeitem "Nc6" [expanded] [level=1]';
@@ -27,6 +32,10 @@ const observations = (source: "nvda" | "voiceover") => {
     "background-unreachable": [],
     "focus-report": [],
     "focus-return": [],
+    "grid-role": [],
+    "square-description": [],
+    "selection-count": [],
+    "illegal-refusal": [],
   };
   return (["tree-role", "item-level", "expanded-state", "traversal-verbosity"] as const).map(
     (claim) => ({
@@ -101,5 +110,129 @@ test("AG-3 verdict accepts screen-reader spacing inside SAN tokens", () => {
     };
   });
   const verdict = computeTreeVerdict({ ...evidence, atObservations }, expectation);
+  assert.equal(verdict.overallStatus, "confirmed-pass");
+});
+
+// ---------------------------------------------------------------------------
+// AG-4 — board keyboard layer (WP-014)
+// ---------------------------------------------------------------------------
+
+const boardSnapshot =
+  '- grid "Chessboard. White to move.":\n  - row:\n    - gridcell "e2, white pawn"\n    - gridcell "e3, empty"';
+
+const boardExpectation: BoardScenarioExpectation = {
+  gridName: "Chessboard. White to move.",
+  entrySquareDescription: "e2, white pawn",
+  expectedDestinationCount: 2,
+  illegalTargetSquare: "e5",
+  traversalTargetSquare: "e3",
+  otherSquareTokens: ["e4", "e5", "d3", "f3"],
+  floodThreshold: 4,
+};
+
+const boardObservations = (source: "nvda" | "voiceover") => {
+  const roleWord = source === "voiceover" ? "outline" : "grid";
+  const utterances: Record<AtClaim, readonly string[]> = {
+    "grid-role": [`e2, white pawn, ${roleWord}`],
+    "square-description": [`e2, white pawn, ${roleWord}`],
+    "selection-count": ["2 legal destinations."],
+    "illegal-refusal": ["e5 is not a legal destination."],
+    "traversal-verbosity": ["e3, empty"],
+    "tree-role": [],
+    "item-level": [],
+    "expanded-state": [],
+    "dialog-announcement": [],
+    "background-unreachable": [],
+    "focus-report": [],
+    "focus-return": [],
+  };
+  return (
+    [
+      "grid-role",
+      "square-description",
+      "selection-count",
+      "illegal-refusal",
+      "traversal-verbosity",
+    ] as const
+  ).map((claim) => ({
+    source,
+    claim,
+    atVersion: null,
+    os: source === "nvda" ? "win32" : "darwin",
+    browser: source === "nvda" ? "chromium" : "webkit",
+    command: "fixture",
+    utterances: utterances[claim],
+    capturedAt: "2026-08-23T00:00:00.000Z",
+  }));
+};
+
+const boardBundle = (): EvidenceBundle => ({
+  scenarioId: "ag-4-board-keyboard",
+  runId: "fixture",
+  stateFingerprint: "fixture",
+  ariaSnapshots: (["chromium", "firefox", "webkit"] as const).map((browser) => ({
+    source: "playwright-aria-snapshot",
+    browser,
+    locatorDescription: "grid",
+    snapshot: boardSnapshot,
+    capturedAt: "2026-08-23T00:00:00.000Z",
+  })),
+  cdpAxTrees: [],
+  axe: [],
+  keyboardTraces: [],
+  atObservations: [...boardObservations("nvda"), ...boardObservations("voiceover")],
+  infrastructureLimitations: [],
+});
+
+test("AG-4 verdict confirms complete browser and real-AT evidence", () => {
+  const verdict = computeBoardVerdict(boardBundle(), boardExpectation);
+  assert.equal(verdict.overallStatus, "confirmed-pass");
+  assert.ok(verdict.findings.every((finding) => finding.status === "confirmed-pass"));
+});
+
+test("AG-4 verdict fails closed when one AT source is absent", () => {
+  const evidence = boardBundle();
+  const verdict = computeBoardVerdict(
+    {
+      ...evidence,
+      atObservations: evidence.atObservations.filter((entry) => entry.source === "nvda"),
+    },
+    boardExpectation,
+  );
+  assert.equal(verdict.overallStatus, "automation-inconclusive");
+});
+
+test("AG-4 verdict rejects a selection-count utterance that omits the count", () => {
+  const evidence = boardBundle();
+  const atObservations = evidence.atObservations.map((entry) =>
+    entry.source === "nvda" && entry.claim === "selection-count"
+      ? { ...entry, utterances: ["Selected."] }
+      : entry,
+  );
+  const verdict = computeBoardVerdict({ ...evidence, atObservations }, boardExpectation);
+  assert.equal(verdict.overallStatus, "confirmed-failure");
+});
+
+test("AG-4 verdict rejects traversal speech naming a square other than the target", () => {
+  const evidence = boardBundle();
+  const atObservations = evidence.atObservations.map((entry) =>
+    entry.source === "voiceover" && entry.claim === "traversal-verbosity"
+      ? { ...entry, utterances: ["e3, empty", "e4, empty"] }
+      : entry,
+  );
+  const verdict = computeBoardVerdict({ ...evidence, atObservations }, boardExpectation);
+  assert.equal(verdict.overallStatus, "confirmed-failure");
+});
+
+test("AG-4 verdict accepts screen-reader spacing inside a square token", () => {
+  const evidence = boardBundle();
+  const atObservations = evidence.atObservations.map((entry) => {
+    if (entry.source !== "nvda") return entry;
+    return {
+      ...entry,
+      utterances: entry.utterances.map((utterance) => utterance.replaceAll("e2", "e 2")),
+    };
+  });
+  const verdict = computeBoardVerdict({ ...evidence, atObservations }, boardExpectation);
   assert.equal(verdict.overallStatus, "confirmed-pass");
 });

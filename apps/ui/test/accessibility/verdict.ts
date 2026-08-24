@@ -737,6 +737,211 @@ export function computeTreeVerdict(
 }
 
 // ---------------------------------------------------------------------------
+// AG-4 — board keyboard layer (WP-014): real focusable gridcells, one roving tab stop.
+// ---------------------------------------------------------------------------
+
+export interface BoardScenarioExpectation {
+  readonly gridName: string;
+  readonly entrySquareDescription: string;
+  readonly expectedDestinationCount: number;
+  readonly illegalTargetSquare: string;
+  readonly traversalTargetSquare: string;
+  readonly otherSquareTokens: readonly string[];
+  readonly floodThreshold: number;
+}
+
+const gridCellLine = (snapshot: string, needle: string): string | undefined =>
+  snapshot
+    .split("\n")
+    .find((line) => /gridcell/iu.test(line) && line.toLowerCase().includes(needle.toLowerCase()));
+
+// The app has no landmark elements anywhere (confirmed by a real capture: axe's own
+// `landmark-one-main` flags `html` itself), which makes its `region` rule flag nearly every
+// top-level block on the page — including `.board-keyboard-layer`, purely because it is a DOM
+// sibling of other unlandmarked content, not because of anything specific to the board. Site-wide
+// landmark structure is a distinct, unrelated undertaking no single widget's package can fix in
+// isolation; scoring AG-4 against it would fail the gate forever on something WP-014 did not
+// cause and the package does not own. Excluded by rule family, not by suppressing the finding —
+// a genuine board-specific violation under a different rule still fails closed below.
+const PAGE_STRUCTURE_AXE_RULES = /^(?:region|landmark-)/u;
+
+function boardAxeFindings(bundle: EvidenceBundle): readonly Finding[] {
+  return bundle.axe.flatMap((evidence, index) =>
+    evidence.violations
+      .filter(
+        (violation) =>
+          violation.targets.some((target) => target.includes(".board-keyboard-layer")) &&
+          !PAGE_STRUCTURE_AXE_RULES.test(violation.ruleId),
+      )
+      .map((violation) => ({
+        id: nextFindingId(),
+        severity: "serious" as const,
+        confidence: 1,
+        status: "confirmed-failure" as const,
+        wcag: violation.wcagTags,
+        assertionId: `board-axe:${violation.ruleId}`,
+        summary: violation.help,
+        expected: "The board keyboard layer has no deterministic axe violations.",
+        actual: violation.failureSummary ?? `Targets: ${violation.targets.join(", ")}`,
+        evidence: [ref("axe", index)],
+        reasoning: "deterministic" as const,
+        platformScope: [evidence.browser],
+      })),
+  );
+}
+
+function boardAtFindings(
+  bundle: EvidenceBundle,
+  expectation: BoardScenarioExpectation,
+): readonly Finding[] {
+  const claims = [
+    "grid-role",
+    "square-description",
+    "selection-count",
+    "illegal-refusal",
+    "traversal-verbosity",
+  ] as const;
+  return AT_SOURCES.flatMap((source) => {
+    const sourceObservations = bundle.atObservations.filter(
+      (observation) => observation.source === source,
+    );
+    if (sourceObservations.length === 0) {
+      const limitationIndex = bundle.infrastructureLimitations.findIndex(
+        (entry) => entry.runner === source,
+      );
+      const limitation = bundle.infrastructureLimitations[limitationIndex];
+      return [
+        {
+          id: nextFindingId(),
+          severity: "serious" as const,
+          confidence: 1,
+          status: "automation-inconclusive" as const,
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}`,
+          summary: limitation
+            ? `${source} evidence not collected: ${limitation.reason}`
+            : `${source} evidence not collected, and no worker reported why.`,
+          expected: `Real ${source} output for every AG-4 board claim.`,
+          actual: "No matching AT observations.",
+          evidence: limitation ? [ref("infrastructureLimitation", limitationIndex)] : [],
+          reasoning: "deterministic" as const,
+          platformScope: limitation ? [limitation.requiredPlatform] : [],
+        },
+      ];
+    }
+
+    return claims.map((claim): Finding => {
+      const observationIndex = bundle.atObservations.findIndex(
+        (entry) => entry.source === source && entry.claim === claim,
+      );
+      const observation = bundle.atObservations[observationIndex];
+      if (!observation) {
+        return {
+          id: nextFindingId(),
+          severity: "serious",
+          confidence: 1,
+          status: "automation-inconclusive",
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}:${claim}`,
+          summary: `${source} produced board evidence but no ${claim} observation.`,
+          expected: `One real ${source} observation for ${claim}.`,
+          actual: "No observation captured.",
+          evidence: [],
+          reasoning: "deterministic",
+          platformScope: [],
+        };
+      }
+
+      const utterances = observation.utterances;
+      const spoken = utterances.join(" | ");
+      const lower = spoken.toLowerCase();
+      const compact = lower.replaceAll(/\s+/gu, "");
+      // Native AT commonly inserts a pause/space between a file letter and rank ("e 2"); ignore
+      // only whitespace when matching a square token, same allowance AG-3 makes for SAN.
+      const mentions = (token: string) =>
+        compact.includes(token.toLowerCase().replaceAll(/\s+/gu, ""));
+      let satisfied = false;
+      let expected = "";
+      if (claim === "grid-role") {
+        const roleWords = source === "voiceover" ? ["grid", "table", "outline"] : ["grid", "table"];
+        satisfied = mentions("e2") && roleWords.some((word) => lower.includes(word));
+        expected = "The focused e2 cell is identified using this AT's grid/table vocabulary.";
+      } else if (claim === "square-description") {
+        satisfied = mentions("e2") && lower.includes("pawn");
+        expected = `The focused cell announces "${expectation.entrySquareDescription}".`;
+      } else if (claim === "selection-count") {
+        satisfied =
+          mentions(String(expectation.expectedDestinationCount)) && lower.includes("destination");
+        expected = `Selecting the piece announces ${expectation.expectedDestinationCount} legal destinations.`;
+      } else if (claim === "illegal-refusal") {
+        satisfied =
+          mentions(expectation.illegalTargetSquare) &&
+          lower.includes("not") &&
+          lower.includes("legal");
+        expected = `Confirming ${expectation.illegalTargetSquare} is audibly refused as not a legal destination.`;
+      } else {
+        const forbidden = expectation.otherSquareTokens.filter(mentions);
+        satisfied =
+          utterances.length > 0 &&
+          utterances.length <= expectation.floodThreshold &&
+          mentions(expectation.traversalTargetSquare) &&
+          forbidden.length === 0;
+        expected = `One traversal reports only ${expectation.traversalTargetSquare} in at most ${expectation.floodThreshold} utterances.`;
+      }
+
+      return {
+        id: nextFindingId(),
+        severity: satisfied ? "minor" : "serious",
+        confidence: 1,
+        status: satisfied ? "confirmed-pass" : "confirmed-failure",
+        wcag: ["4.1.2"],
+        assertionId: `at-runner:${source}:${claim}`,
+        summary: satisfied
+          ? `${source} confirmed ${claim}.`
+          : `${source} did not confirm ${claim}.`,
+        expected,
+        actual: `${observation.command}: ${spoken || "(nothing)"} (${utterances.length} utterances).`,
+        evidence: [ref("atObservation", observationIndex)],
+        reasoning: "deterministic",
+        platformScope: [observation.os],
+      };
+    });
+  });
+}
+
+/** Deterministic AG-4 verdict for the board keyboard layer's browser AX tree and real AT output. */
+export function computeBoardVerdict(
+  bundle: EvidenceBundle,
+  expectation: BoardScenarioExpectation,
+): ScenarioVerdict {
+  findingCounter = 0;
+  const escapedGridName = expectation.gridName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const findings: Finding[] = [
+    checkBrowserCoverage(bundle),
+    treeSnapshotFinding(
+      bundle,
+      "grid-name-and-role",
+      `A grid named "${expectation.gridName}" is exposed.`,
+      (snapshot) => new RegExp(`grid\\s+"${escapedGridName}"`, "iu").test(snapshot),
+    ),
+    treeSnapshotFinding(
+      bundle,
+      "entry-square-description",
+      `The entry cell exposes "${expectation.entrySquareDescription}".`,
+      (snapshot) => (gridCellLine(snapshot, expectation.entrySquareDescription) ?? "").length > 0,
+    ),
+    ...boardAxeFindings(bundle),
+    ...boardAtFindings(bundle, expectation),
+  ];
+  return {
+    scenarioId: bundle.scenarioId,
+    runId: bundle.runId,
+    findings,
+    overallStatus: overallStatus(findings),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // AG-5 — live-region message completeness and rate
 // ---------------------------------------------------------------------------
 

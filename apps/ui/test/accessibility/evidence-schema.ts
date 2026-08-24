@@ -126,6 +126,11 @@ export interface KeyboardTraceEvidence {
  * AG-3 (move tree): tree role, level, and expanded state are announced, and traversal does not read
  * the entire tree on every key. `traversal-verbosity` is the one claim scored by counting
  * utterances rather than matching a name — see verdict.ts.
+ *
+ * AG-4 (board keyboard layer, WP-014): the focused gridcell conveys its square and piece, picking
+ * up a piece announces its legal-destination count (AC-3), an illegal confirm is audibly refused
+ * (AC-3), and — reusing AG-3's own `traversal-verbosity` claim, same concept, different widget —
+ * one arrow-key traversal reports only the target square, not a flood of every square crossed.
  */
 export type AtClaim =
   | "dialog-announcement"
@@ -136,6 +141,10 @@ export type AtClaim =
   | "item-level"
   | "expanded-state"
   | "traversal-verbosity"
+  | "grid-role"
+  | "square-description"
+  | "selection-count"
+  | "illegal-refusal"
   // AG-5: one claim per live-region policy operation. The scenario id rides in the claim so the
   // verdict engine can match an observation to its expectation without a second field.
   | `live-region:${string}`;

@@ -340,29 +340,29 @@
       "evidence": {
         "validation": [
           "pnpm ux:test WP-014",
-          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm --filter @chess-mcp/ui test:chat (353 passed)",
           "pnpm -r typecheck",
-          "pnpm lint (0 new errors)",
+          "pnpm lint",
           "pnpm format:check",
           "pnpm docs:check",
           "pnpm check:skills",
+          "pnpm check:content",
           "pnpm check:legacy-imports",
-          "pnpm --filter @chess-mcp/ui build",
           "pnpm ux:plan-check",
-          "git diff --check",
-          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+          "node scripts/playwright-container.mjs -- --config apps/ui/playwright.config.ts (full unnarrowed suite: 512 passed, 7 skipped, 0 failed, on Chromium, Firefox, and WebKit, run twice)",
+          "A11Y_CONTAINER=1 A11Y_SPEC=ag-4-board-keyboard.spec.ts node test/accessibility/capture.mjs && A11Y_SCENARIOS=ag-4-board-keyboard pnpm a11y:verdict (browser-tier findings confirmed-pass on Chromium/Firefox/WebKit; NVDA/VoiceOver automation-inconclusive on this Linux workstation, as expected — see AG-4 below)"
         ],
-        "playwright": "Full unnarrowed Playwright suite: core-keyboard spec 48 passed across Chromium, Firefox, WebKit. All WP-014 AC-1 through AC-9 assertions green: single tab stop with position summary; arrow navigation in both orientations; piece selection with legal destination count; keyboard move produces same tree mutation/history as drag; promotion dialog with focus; Escape clears selection; pointer non-regression; no cursor during dialogs; M-2 pointer-free journey.",
-        "scope": "WP-014 introduces the two-step keyboard cursor model (DV-1). Created BoardCursor store (board-cursor.ts) with cursor position, state (idle/selecting/moving), selectedSquare, highlightedDests. Created BoardKeyboardLayer component with full keydown handling (arrows, Enter/Space, Escape). Arrow keys move cursor by one square respecting board orientation. Selecting a piece highlights legal destinations only. Playing a move by keyboard calls actions.play() producing identical tree mutation/history entry as drag. Promotion handled via existing pendingPromo mechanism. Pointer/touch drag unchanged (no regression). Cursor disabled during dialogs via scope check. M-2 pointer-free journey verified.",
+        "playwright": "core-keyboard.spec.ts: 87 passed across Chromium, Firefox, WebKit (run twice, stable). Every WP-014 AC has a named, green assertion: AC-1 one tab stop + entry announcement + visible focus outline; AC-2 orientation-aware arrow navigation (white and flipped); AC-3 selection announces legal-destination count, illegal confirm refused with an announcement and no state change; AC-4 keyboard move produces the same path/dirty state as actions.play, verified undo-reversible; AC-5 promotion opens the dialog with focus inside, completing it plays the chosen piece (not an auto-queen); AC-6 Escape clears selection without moving the cursor or the position; AC-7 click-to-move, pointer drag, and touch (two real Playwright touchscreen.tap()s) unchanged with the layer unfocused; AC-8 arrow presses while a dialog is open do not reach the (inert) board; AC-9 the M-2 journey (navigate to move 6 via the tree, add a variation via the board, save) completes with a zero-count real pointerdown/mousedown/touchstart/click listener. UX-003's baseline (`test.fixme` since removed) now asserts the board is reachable as one roving Tab stop.",
+        "scope": "WP-014 is a from-scratch build, not a gap-fill of the pre-existing dead code: BoardKeyboardLayer.tsx was previously unmounted and architected as a global window keydown listener with no real DOM structure. Rebuilt as 64 real, individually-focusable `role=\"gridcell\"` elements (roving tabindex, one at a time `tabindex=\"0\"`) inside a `role=\"grid\"` container laid absolutely over `.cg-wrap`, mirroring AG-3's MoveTree pattern — `role=\"application\"` (WP-014.md's narrative text) was tried and rejected: axe's aria-required-parent flags bare `role=\"gridcell\"` without a grid/row ancestor, and the 9 binding ACs never require that specific role string. board-cursor.ts (rewritten) derives the default cursor from the position's last move (or e1/e8), dispatches through the identical `isPromotion`/`actions.play`/`setPendingPromo` path Board.tsx's pointer handler already uses — never through chessground's `Api` (`Api.selectSquare` looked safe but its own source shows it also plays moves once a square is already selected, which would have made every cursor step double as a click). Square/position text lives in a new `packages/chess-tools/src/board.ts` (`pieceAt`, `isCheck`) plus `content/analysis.ts` (`describeSquare`, `boardPositionSummary`) per WP-014.md's own file plan. Real bugs found and fixed only by running this against the real app, not by inspection: (1) ArrowLeft/ArrowRight collided with App.tsx's global position.back/position.forward shortcuts because the handler didn't stopPropagation — MoveTree's own onTreeKeyDown already does this for the identical reason, missed on first pass; (2) queueMicrotask-deferred focus in a 64-cell *static* grid (unlike MoveTree's list, nothing is ever inserted/removed) was an unnecessary source of timing flakiness, fixed by focusing synchronously; (3) a bare `?` handler for the narrative-only \"reads the position\" behavior collided with WP-008's existing Ctrl/Cmd+? shortcut-help dialog and was dropped — not one of the 9 binding ACs. `pnpm test:chat` gained 16 new store-level unit tests (board-cursor.test.ts: 11; AG-4 verdict fixtures in accessibility-verdict.test.ts: 5) that do not depend on a browser.",
         "gates": {
           "AG-4": {
             "mode": "automated",
             "outcome": "pending-ci",
-            "command": "A11Y_SCENARIOS=ag-4-board-cursor pnpm --filter @chess-mcp/ui a11y:verdict",
-            "note": "Requires NVDA/VoiceOver CI runners; browser + DOM evidence passes locally"
+            "command": "A11Y_SCENARIOS=ag-4-board-keyboard pnpm --filter @chess-mcp/ui a11y:verdict",
+            "note": "Wired into .github/workflows/accessibility.yml alongside AG-3/AG-5 (same comma-separated A11Y_SPEC/A11Y_SCENARIOS lists, per the one-capture-invocation-per-job constraint). Browser-tier evidence (grid name/role, entry-cell square+piece description, axe scoped to .board-keyboard-layer) is confirmed-pass locally via A11Y_CONTAINER=1 on Chromium/Firefox/WebKit. Real NVDA/VoiceOver evidence requires windows-latest/macos-latest CI runners this Linux workstation cannot provide, so the gate has no confirmed-pass evidence yet and the package is not recorded complete."
           }
         },
-        "blockedOn": "Implementation and browser-tier evidence are complete and green in the full suite. AG-4 additionally requires real assistive-technology evidence (NVDA on windows-latest, VoiceOver on macos-latest) from .github/workflows/accessibility.yml. That automation cannot run on this Linux workstation, so the gate has no confirmed-pass evidence and the package is not recorded complete."
+        "blockedOn": "Implementation, unit, and full browser-tier Playwright evidence are complete and green (see validation above). AG-4 additionally requires real assistive-technology evidence (NVDA on windows-latest, VoiceOver on macos-latest) from .github/workflows/accessibility.yml, triggered by pushing this work to origin/salvage. Until that run reports confirmed-pass for every required AG-4 finding, the gate and this package remain open."
       }
     },
     "WP-015": {

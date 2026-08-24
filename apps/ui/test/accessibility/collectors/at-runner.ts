@@ -105,6 +105,26 @@ export interface AtDialogSteps {
   readonly refocusDialog: () => Promise<void>;
 }
 
+export interface AtBoardSteps {
+  /** Put DOM focus silently on the cell used for the grid-role/square-description evidence. */
+  readonly focusEntryCell: () => Promise<void>;
+  /** Put DOM focus silently on the cell that holds the piece to select. */
+  readonly focusSelectionCell: () => Promise<void>;
+  /** Resolve once the selected cell's legal destinations are highlighted (real state, not timing). */
+  readonly awaitSelected: () => Promise<void>;
+  /** Put DOM focus silently on a square that is not one of the selected piece's legal destinations. */
+  readonly focusIllegalTargetCell: () => Promise<void>;
+  /** Clear the selection (a plain Escape key press, not AT-driven — housekeeping between claims). */
+  readonly clearSelection: () => Promise<void>;
+  /** Put DOM focus silently on the square the traversal key is pressed from. */
+  readonly focusTraversalStartCell: () => Promise<void>;
+  /** True when the app received the traversal key and moved focus to the expected cell. */
+  readonly traversalReachedTarget: () => Promise<boolean>;
+  /** Put DOM focus on the expected target when an AT intercepts the traversal key. */
+  readonly focusTraversalTargetCell: () => Promise<void>;
+  readonly traversalKey: string;
+}
+
 export interface AtTreeSteps {
   /** Put DOM focus on the tree entry item used for role and level evidence. */
   readonly focusEntryItem: () => Promise<void>;
@@ -476,5 +496,94 @@ export function captureTreeObservations(
     );
 
     return [treeRole, itemLevel, expandedState, traversalVerbosity];
+  });
+}
+
+/**
+ * Captures the four AG-4 claims (WP-014's board keyboard layer) in one real screen-reader session.
+ * DOM focus is established silently before each observation; every announcement-bearing command —
+ * `reportSemanticFocus`, and critically `press("Enter")`/`press(traversalKey)` — is issued through
+ * Guidepup itself, not `page.evaluate`/`page.keyboard`, per the AG-5 lesson recorded in
+ * docs/accessibility/README.md: `since()`'s spokenPhraseLog diffing only sees speech spoken while a
+ * screen-reader-driven command is actually in flight, so an externally-triggered key press would
+ * silently capture nothing.
+ */
+export function captureBoardObservations(
+  runner: AtRunnerId,
+  page: Page,
+  steps: AtBoardSteps,
+): Promise<readonly AtObservation[]> {
+  return withScreenReader(runner, page, async (session) => {
+    await session.focusBrowser();
+    await session.since();
+
+    // grid-role / square-description: one command's utterance answers both claims, same pattern
+    // AG-3 uses for tree-role/item-level.
+    await steps.focusEntryCell();
+    await session.focusBrowser();
+    await session.since();
+    await session.reportSemanticFocus();
+    const entryUtterances = await session.since();
+    const gridRole = session.observe(
+      "grid-role",
+      session.semanticFocusCommandName,
+      entryUtterances,
+    );
+    const squareDescription = session.observe(
+      "square-description",
+      session.semanticFocusCommandName,
+      entryUtterances,
+    );
+
+    // selection-count (AC-3): a real Enter, driven by the screen reader, picks up the piece.
+    await steps.focusSelectionCell();
+    await session.focusBrowser();
+    await session.since();
+    await session.press("Enter");
+    await within("piece selection", STEP_TIMEOUT_MS, steps.awaitSelected);
+    const selectionCount = session.observe("selection-count", "press Enter", await session.since());
+
+    // illegal-refusal (AC-3): a real Enter on a square that is not among the legal destinations
+    // just highlighted. The selection from the step above is still active — confirming an illegal
+    // target does not clear it, matching the app's own behaviour (board-cursor.ts's confirmMove).
+    await steps.focusIllegalTargetCell();
+    await session.focusBrowser();
+    await session.since();
+    await session.press("Enter");
+    const illegalRefusal = session.observe(
+      "illegal-refusal",
+      "press Enter (illegal target)",
+      await session.since(),
+    );
+
+    // Housekeeping, not a claim: clear the selection before the traversal check below so its
+    // utterance isn't carrying a stale ", legal destination" suffix on unrelated squares.
+    await steps.clearSelection();
+
+    await steps.focusTraversalStartCell();
+    await session.focusBrowser();
+    await session.since();
+    await session.press(steps.traversalKey);
+    let traversalUtterances = await session.since();
+    let traversalCommand = `press ${steps.traversalKey}`;
+
+    // Same NVDA-browse-mode/VoiceOver-Quick-Nav caveat AG-3's traversal check carries: the browser
+    // contract already proves the app handler; when an AT intercepts the key, move DOM focus
+    // silently and ask the real AT to describe the resulting cell instead.
+    if (!(await steps.traversalReachedTarget())) {
+      await steps.focusTraversalTargetCell();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportSemanticFocus();
+      traversalUtterances = await session.since();
+      traversalCommand = `focus target via DOM; ${session.semanticFocusCommandName} (${steps.traversalKey} intercepted)`;
+    }
+    const traversalVerbosity = session.observe(
+      "traversal-verbosity",
+      traversalCommand,
+      traversalUtterances,
+    );
+
+    return [gridRole, squareDescription, selectionCount, illegalRefusal, traversalVerbosity];
   });
 }

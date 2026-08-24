@@ -578,12 +578,66 @@ img,
   width: min(70vh, calc(100% - 26px));
   aspect-ratio: 1;
   overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
+  position: relative; /* anchors .board-keyboard-layer's absolute overlay */
 }
 
 /* chessground sizes to its container */
 .cg-wrap {
   width: 100%;
   height: 100%;
+}
+
+/* WP-014: an 8x8 grid of real focusable gridcells laid over the board. `pointer-events: none`
+   until the layer holds focus is the mechanism that guarantees AC-7 (byte-identical pointer/touch
+   behaviour on Chessground below while this layer is unfocused) — :focus-within flips it to `auto`
+   only while a keyboard user is actually navigating the board. */
+.board-keyboard-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.board-keyboard-layer:focus-within {
+  pointer-events: auto;
+}
+
+/* .bkl-row is deliberately unstyled (plain default display:block): every gridcell inside
+   positions itself absolutely against .board-keyboard-layer's containing block, skipping over
+   this wrapper entirely, so it needs no layout role of its own. display:contents would remove it
+   (and historically, on some WebKit builds, its accessibility semantics) from the box tree
+   instead — avoided on purpose since nothing here depends on it. */
+
+.bkl-cell {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  box-sizing: border-box;
+  border-radius: 2px;
+}
+
+.bkl-cell.selected {
+  background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+/* A legal-destination dot, independent of Chessground's own showDests highlight underneath (this
+   layer never touches Chessground state) — small and centred so it reads as a marker, not a fill. */
+.bkl-cell.legal-dest::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-primary) 55%, transparent);
+  pointer-events: none;
+}
+
+.bkl-cell:focus-visible {
+  outline: var(--focus-ring) !important;
+  outline-offset: -2px !important;
+  z-index: 1;
 }
 
 .eval-bar {

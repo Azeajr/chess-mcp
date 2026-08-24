@@ -9,9 +9,15 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DIALOG_SCENARIOS } from "./scenarios/ag-1-dialog";
 import { MOVE_TREE_SCENARIO } from "./scenarios/ag-3-move-tree";
+import { BOARD_KEYBOARD_SCENARIO } from "./scenarios/ag-4-board-keyboard";
 import { AG5_SCENARIO_ID, ANNOUNCEMENT_SCENARIOS } from "./scenarios/ag-5-live-region";
 import { mergeBundles } from "./scenarios/merge";
-import { computeDialogVerdict, computeLiveRegionVerdict, computeTreeVerdict } from "./verdict";
+import {
+  computeBoardVerdict,
+  computeDialogVerdict,
+  computeLiveRegionVerdict,
+  computeTreeVerdict,
+} from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
 import { EVIDENCE_ROOT, LAST_RUN_ID_FILE } from "./run-context.mjs";
 
@@ -36,6 +42,19 @@ const SCENARIO_REGISTRY = [
         traversalTargetSan: MOVE_TREE_SCENARIO.traversalTargetSan,
         otherMoveSans: MOVE_TREE_SCENARIO.otherMoveSans,
         floodThreshold: MOVE_TREE_SCENARIO.floodThreshold,
+      }),
+  },
+  {
+    id: BOARD_KEYBOARD_SCENARIO.id,
+    computeVerdict: (bundle: EvidenceBundle) =>
+      computeBoardVerdict(bundle, {
+        gridName: BOARD_KEYBOARD_SCENARIO.gridName,
+        entrySquareDescription: BOARD_KEYBOARD_SCENARIO.entrySquareDescription,
+        expectedDestinationCount: BOARD_KEYBOARD_SCENARIO.expectedDestinationCount,
+        illegalTargetSquare: BOARD_KEYBOARD_SCENARIO.illegalTargetSquare,
+        traversalTargetSquare: BOARD_KEYBOARD_SCENARIO.traversalTargetSquare,
+        otherSquareTokens: BOARD_KEYBOARD_SCENARIO.otherSquareTokens,
+        floodThreshold: BOARD_KEYBOARD_SCENARIO.floodThreshold,
       }),
   },
   {

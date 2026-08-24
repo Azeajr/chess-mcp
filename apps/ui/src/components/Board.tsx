@@ -14,6 +14,7 @@ import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
 import { engineArrows, repertoireArrows, type Arrow } from "../store/analysis";
 import { suggestionArrows, previewArrow } from "../store/suggestions";
 import { pendingPromo, setPendingPromo } from "../store/promotion";
+import BoardKeyboardLayer from "./BoardKeyboardLayer";
 
 export default function Board() {
   let el!: HTMLDivElement;
@@ -112,6 +113,9 @@ export default function Board() {
   return (
     <div class="board-wrap">
       <div ref={el} class="cg-wrap" />
+      {/* WP-014: additive overlay only — see BoardKeyboardLayer's own header for why this never
+          touches the chessground `Api` above, which is what keeps this safe to add here. */}
+      <BoardKeyboardLayer />
     </div>
   );
 }

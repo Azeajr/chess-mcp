@@ -1,5 +1,6 @@
 import type { AnalysisState } from "../store/analysis";
 import type { Fit, Weight } from "@chess-mcp/chess-tools";
+import { isCheck, pieceAt } from "@chess-mcp/chess-tools";
 import { evaluationText, type EvaluationValue } from "./format";
 
 export const CLOUD_EVALUATION_PRIVACY_NOTE =
@@ -101,4 +102,29 @@ export function evaluationAriaLabel(state: AnalysisState, value: EvaluationValue
     return `Evaluation unavailable — engine ${state === "starting" ? "starting" : "analysing"}`;
   }
   return `Evaluation: ${evaluationText(value)}, ${evaluationSummary(value)}`;
+}
+
+// ---------------------------------------------------------------------------
+// WP-014 — board keyboard layer square/position descriptions. AT reads these as each gridcell's
+// own accessible name on real focus movement, so they must stay per-square and event-free: no
+// caller here goes through announce() (WP-009's flood policy governs the discrete entry/selection
+// events separately, in store/board-cursor.ts).
+// ---------------------------------------------------------------------------
+
+/** "e4, empty" / "e4, white pawn" / "e4, white pawn, legal destination". */
+export function describeSquare(
+  fen: string,
+  square: string,
+  options: { legalDestination?: boolean } = {},
+): string {
+  const piece = pieceAt(fen, square);
+  const pieceText = piece ? `${piece.color} ${piece.role}` : "empty";
+  const suffix = options.legalDestination ? ", legal destination" : "";
+  return `${square}, ${pieceText}${suffix}`;
+}
+
+/** One-time announcement on entering the board (AC-1) — never per cursor move. */
+export function boardPositionSummary(fen: string, turn: "white" | "black"): string {
+  const turnText = turn === "white" ? "White" : "Black";
+  return `Chessboard. ${turnText} to move${isCheck(fen) ? ", in check" : ""}.`;
 }
