@@ -8,6 +8,7 @@ import RepertoirePanel from "./components/RepertoirePanel";
 import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
 import MobileTabs from "./components/MobileTabs";
+import ActivityStrip from "./components/ActivityStrip";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
@@ -160,6 +161,9 @@ export default function App() {
             onEnd={persistBoard}
             onReset={resetBoard}
           />
+          {/* Phone-only: names whatever's running behind a hidden tab, so switching tabs never
+              hides it. Renders nothing when idle (WP-013). */}
+          <ActivityStrip />
           {/* Phone-only panel switcher; hidden above 720px. */}
           <MobileTabs />
           {/* board│side boundary: drag right shrinks side so the board grows — the divider follows

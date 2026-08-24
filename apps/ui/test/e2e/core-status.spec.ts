@@ -183,13 +183,18 @@ test("WP-025 AC-1 AC-2 AC-3 chat and Strategic Fit never expose raw identifiers"
   ).toEqual([]);
 });
 
-test.fixme("UX-011 a running Gaps scan remains visible after switching to Chat on a phone", async ({
+test("UX-011 a running Gaps scan remains visible after switching to Chat on a phone", async ({
   page,
 }) => {
   await openApp(page, { width: 390, height: 844 });
-  const gaps = page.locator("details.rep-section", { hasText: "Gaps" });
+  // Exact summary-span match: "Gaps" is also a substring of the Analyze group's blurb text
+  // ("...gaps, and congruence..."), which a plain hasText substring filter also matches.
+  const gaps = page
+    .locator("details.rep-section")
+    .filter({ has: page.locator("summary span", { hasText: /^Gaps$/ }) });
   await gaps.evaluate((element) => ((element as HTMLDetailsElement).open = true));
   await gaps.getByRole("button", { name: "Scan" }).click();
-  await page.getByRole("button", { name: "Chat" }).click();
+  // WP-013 gives the mobile tab buttons role="tab", not the native button role.
+  await page.getByRole("tab", { name: "Chat" }).click();
   await expect(page.getByText(/Gaps.*running|Running.*Gaps/i)).toBeVisible();
 });

@@ -5,14 +5,31 @@
  *
  * WP-013: full ARIA tab semantics plus roving-tabindex keyboard traversal.
  */
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import { mobileTab, setMobileTab, type MobileTab } from "../store/ui";
+import { operations, type OperationSurface } from "../store/operations";
 
 const TABS: readonly [{ id: MobileTab; label: string }, ...{ id: MobileTab; label: string }[]] = [
   { id: "analysis", label: "Analysis" },
   { id: "moves", label: "Moves" },
   { id: "chat", label: "Chat" },
 ];
+
+// AnalysisPanel and RepertoirePanel both render inside the "analysis" mobile panel
+// (App.tsx#mobile-panel-analysis), so both surfaces indicate on that one tab. "moves" has no
+// operation surface of its own and never indicates.
+const TAB_SURFACES: Record<MobileTab, readonly OperationSurface[]> = {
+  analysis: ["analysis", "repertoire"],
+  moves: [],
+  chat: ["chat"],
+};
+
+function tabHasRunningOperation(tab: MobileTab): boolean {
+  const surfaces = TAB_SURFACES[tab];
+  return operations().some(
+    (operation) => operation.status === "running" && surfaces.includes(operation.surface),
+  );
+}
 
 /** Wrap-around sibling lookup; the array is a module constant so an index always resolves. */
 function tabAt(index: number): MobileTab {
@@ -52,6 +69,9 @@ export default function MobileTabs() {
             }}
           >
             {tab.label}
+            <Show when={tabHasRunningOperation(tab.id)}>
+              <span class="mobile-tab-indicator" aria-hidden="true" />
+            </Show>
           </button>
         )}
       </For>

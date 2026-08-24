@@ -408,6 +408,27 @@ img,
   background: var(--accent);
 }
 
+/* Names whatever's running behind a hidden phone tab — hidden until the compact tier flips it to
+   flex, same as .mobile-tabs below. Renders nothing (zero height) whenever nothing is running,
+   regardless of tier, because ActivityStrip itself unmounts it via <Show>. */
+.activity-strip {
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+.activity-strip-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--surface-control);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
 /* Phone panel switcher — hidden until the compact tier flips it to flex. */
 .mobile-tabs {
   display: none;
@@ -428,6 +449,15 @@ img,
   background: var(--accent);
   color: var(--text-inverse);
   border-color: var(--accent);
+}
+.mobile-tab-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
 }
 
 /* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
@@ -478,6 +508,9 @@ img,
      beats the base `.board-wrap` rule, which sits later in the source. */
   .workspace .board-wrap {
     width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 26px))), calc(100% - 26px));
+  }
+  .activity-strip {
+    display: flex;
   }
   .mobile-tabs {
     display: flex;
