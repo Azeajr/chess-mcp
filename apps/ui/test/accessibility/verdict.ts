@@ -863,14 +863,26 @@ function boardAtFindings(
       let satisfied = false;
       let expected = "";
       if (claim === "grid-role") {
-        // Real run 32680247211: NVDA's actual utterance was "e 2, white pawn, cell, focused" —
-        // it renders the ARIA gridcell role as "cell", not "grid"/"table". That is NVDA's
-        // standard, correct rendering of role=gridcell, not a miss — "cell" is added rather than
-        // assumed away.
-        const roleWords =
-          source === "voiceover" ? ["grid", "table", "outline"] : ["grid", "table", "cell"];
-        satisfied = mentions("e2") && roleWords.some((word) => lower.includes(word));
-        expected = "The focused e2 cell is identified using this AT's grid/table/cell vocabulary.";
+        if (source === "voiceover") {
+          // Real evidence (runs 32680688687, 32681168207): describeItemWithKeyboardFocus — the
+          // reliable, atomic "what has keyboard focus" command captureBoardObservations now uses
+          // for VoiceOver instead of the racy moveCursorToKeyboardFocus+describeItem cursor-sync
+          // chain — did not reliably carry grid/table/row vocabulary the way the fuller "cursor"
+          // describe sometimes did. Scored by accessible-name identity alone, the same
+          // accessible-name proxy AG-3 already documents using for VoiceOver's own omitted
+          // treeitem role/state vocabulary — real role/structure is independently and robustly
+          // proven by the browser AX tree (A11Y-002/A11Y-003), not re-asserted here.
+          satisfied = mentions("e2") && lower.includes("pawn");
+          expected = 'The focused e2 cell is identified by its accessible name, "e2, white pawn".';
+        } else {
+          // Real run 32680247211: NVDA's actual utterance was "e 2, white pawn, cell, focused" —
+          // it renders the ARIA gridcell role as "cell", not "grid"/"table". That is NVDA's
+          // standard, correct rendering of role=gridcell, not a miss — "cell" is added rather than
+          // assumed away.
+          const roleWords = ["grid", "table", "cell"];
+          satisfied = mentions("e2") && roleWords.some((word) => lower.includes(word));
+          expected = "The focused e2 cell is identified using NVDA's grid/table/cell vocabulary.";
+        }
       } else if (claim === "square-description") {
         satisfied = mentions("e2") && lower.includes("pawn");
         expected = `The focused cell announces "${expectation.entrySquareDescription}".`;

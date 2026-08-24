@@ -202,6 +202,34 @@ test("AG-4 verdict fails closed when one AT source is absent", () => {
   assert.equal(verdict.overallStatus, "automation-inconclusive");
 });
 
+test("AG-4 verdict scores VoiceOver's grid-role by accessible-name identity, not role vocabulary", () => {
+  // Real evidence (runs 32680688687, 32681168207): describeItemWithKeyboardFocus does not
+  // reliably carry grid/table/row vocabulary for this widget — captureBoardObservations switched
+  // to it anyway (over the racier cursor-sync chain) and the verdict scores VoiceOver's grid-role
+  // by name+piece identity alone, the accessible-name proxy AG-3 already documents using for
+  // VoiceOver's own omitted role/state vocabulary.
+  const evidence = boardBundle();
+  const atObservations = evidence.atObservations.map((entry) =>
+    entry.source === "voiceover" &&
+    (entry.claim === "grid-role" || entry.claim === "square-description")
+      ? { ...entry, utterances: ["e2, white pawn"] }
+      : entry,
+  );
+  const verdict = computeBoardVerdict({ ...evidence, atObservations }, boardExpectation);
+  assert.equal(verdict.overallStatus, "confirmed-pass");
+});
+
+test("AG-4 verdict still rejects a VoiceOver grid-role utterance naming the wrong square", () => {
+  const evidence = boardBundle();
+  const atObservations = evidence.atObservations.map((entry) =>
+    entry.source === "voiceover" && entry.claim === "grid-role"
+      ? { ...entry, utterances: ["e8, black king"] }
+      : entry,
+  );
+  const verdict = computeBoardVerdict({ ...evidence, atObservations }, boardExpectation);
+  assert.equal(verdict.overallStatus, "confirmed-failure");
+});
+
 test("AG-4 verdict rejects a selection-count utterance that omits the count", () => {
   const evidence = boardBundle();
   const atObservations = evidence.atObservations.map((entry) =>

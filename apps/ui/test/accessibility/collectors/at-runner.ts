@@ -502,52 +502,39 @@ export function captureTreeObservations(
 /**
  * Captures the five AG-4 claims (WP-014's board keyboard layer) in one real screen-reader session.
  * DOM focus is established silently before each observation; every announcement-bearing command —
- * `reportSemanticFocus`, and critically `press("Enter")`/`press(traversalKey)` — is issued through
+ * `reportFocus`, and critically `press("Enter")`/`press(traversalKey)` — is issued through
  * Guidepup itself, not `page.evaluate`/`page.keyboard`, per the AG-5 lesson recorded in
  * docs/accessibility/README.md: `since()`'s spokenPhraseLog diffing only sees speech spoken while a
  * screen-reader-driven command is actually in flight, so an externally-triggered key press would
  * silently capture nothing.
  *
- * Run 32680247211's real VoiceOver evidence showed `selection-count` come back with 0 utterances
- * even though the identically-driven `illegal-refusal` claim later in the very same session
- * captured real speech — the same transport-level absence `captureDialogObservations` already
- * documents ("a native AT command can occasionally complete without Guidepup receiving any speech
- * event"). This applies its exact fix: retry the whole capture once if any claim came back with no
- * utterances at all. A second empty session still fails deterministically — this is not a retry
- * for wrong content, only for nothing having been captured at all.
+ * Uses `session.reportFocus()` (the AG-1-proven `reportCurrentFocus` / `describeItemWithKeyboardFocus`
+ * pair), not AG-3's `reportSemanticFocus()` (`moveCursorToKeyboardFocus` + `describeItem`) — real
+ * evidence from two runs (32680688687, 32681168207) showed that 2-step chain unreliable for this
+ * grid specifically: `describeItem` describes "the item **in the VoiceOver cursor**" — a distinct,
+ * separate concept from real keyboard focus that the prior `moveCursorToKeyboardFocus` step is
+ * supposed to sync but sometimes doesn't (report.json: `moveCursorToKeyboardFocus` correctly spoke
+ * "e2, white pawn", but the very next `describeItem` in the same call then spoke "e8, black king...
+ * row 1 of 8" — e8 being literally the first cell in DOM order, i.e. VoiceOver's cursor snapped to
+ * a grid anchor rather than following the sync). AG-3's own tree has a handful of items and never
+ * showed this; a flat 64-cell grid apparently triggers it. `describeItemWithKeyboardFocus`
+ * ("Describe the item that has the keyboard focus" — read directly from the installed
+ * `@guidepup/guidepup` package's own VoiceOver keyCodeCommands, not assumed) is the atomic,
+ * single-step command AG-1's dialog work already proved reliable for exactly this "what actually
+ * has focus" question, so this scenario uses that same command instead of chasing the 2-step
+ * chain's races further. Because it may not carry the tree's fuller "cursor" describe context, the
+ * verdict for `grid-role` scores VoiceOver by accessible-name identity alone, the same
+ * accessible-name proxy AG-3 already documents using for VoiceOver's own omitted role/state
+ * vocabulary — NVDA keeps the stronger role-word requirement, unaffected by any of this.
+ *
+ * Run 32680247211's real VoiceOver evidence also showed `selection-count` come back with 0
+ * utterances even though the identically-driven `illegal-refusal` claim later in the very same
+ * session captured real speech — the same transport-level absence `captureDialogObservations`
+ * already documents ("a native AT command can occasionally complete without Guidepup receiving any
+ * speech event"). This applies its exact fix: retry the whole capture once if any claim came back
+ * with no utterances at all. A second empty session still fails deterministically — this is not a
+ * retry for wrong content, only for nothing having been captured at all.
  */
-/**
- * Real run 32680688687: after the whole-session retry above fired (for the transport-level empty
- * seen on the prior run), the retried session's very first `reportSemanticFocus()` — the
- * `moveCursorToKeyboardFocus`; `describeItem` pair VoiceOver uses — landed on "VoiceOver Settings
- * activity" instead of the real page, confirmed from the raw evidence
- * (atObservation[5]/[6] in that run's report.json: two utterances, the first literally the string
- * checked below, the second describing an unrelated cell). This is the exact historical race this
- * file's own header already named and fixed for the *first* use of `focusBrowser()` in a session
- * (macOS handing focus back to VoiceOver's own UI): evidently a second, freshly-restarted session
- * can hit it again on its own first use. Every claim built from `press()` in the very same run
- * captured correctly — that path never depends on VoiceOver's own cursor being synced to real DOM
- * focus, only this cursor-move-then-describe path does — so the fix is scoped to exactly that
- * command, not the whole session.
- */
-const VOICEOVER_SETTLE_FAILURE = /voiceover settings activity/iu;
-
-async function reportSemanticFocusReliably(
-  session: AtSession,
-  focus: () => Promise<void>,
-): Promise<readonly string[]> {
-  let utterances: readonly string[] = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await focus();
-    await session.focusBrowser();
-    await session.since();
-    await session.reportSemanticFocus();
-    utterances = await session.since();
-    if (!utterances.some((utterance) => VOICEOVER_SETTLE_FAILURE.test(utterance))) break;
-  }
-  return utterances;
-}
-
 export function captureBoardObservations(
   runner: AtRunnerId,
   page: Page,
@@ -559,16 +546,17 @@ export function captureBoardObservations(
       await session.since();
 
       // grid-role / square-description: one command's utterance answers both claims, same pattern
-      // AG-3 uses for tree-role/item-level.
-      const entryUtterances = await reportSemanticFocusReliably(session, steps.focusEntryCell);
-      const gridRole = session.observe(
-        "grid-role",
-        session.semanticFocusCommandName,
-        entryUtterances,
-      );
+      // AG-3 uses for tree-role/item-level (there, via reportSemanticFocus — see this function's
+      // own header for why this scenario uses the simpler, atomic reportFocus instead).
+      await steps.focusEntryCell();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportFocus();
+      const entryUtterances = await session.since();
+      const gridRole = session.observe("grid-role", session.focusCommandName, entryUtterances);
       const squareDescription = session.observe(
         "square-description",
-        session.semanticFocusCommandName,
+        session.focusCommandName,
         entryUtterances,
       );
 
@@ -610,13 +598,15 @@ export function captureBoardObservations(
 
       // Same NVDA-browse-mode/VoiceOver-Quick-Nav caveat AG-3's traversal check carries: the browser
       // contract already proves the app handler; when an AT intercepts the key, move DOM focus
-      // silently and ask the real AT to describe the resulting cell instead.
+      // silently and ask the real AT to describe the resulting cell instead — via reportFocus, for
+      // the same reliability reason as the entry-cell capture above.
       if (!(await steps.traversalReachedTarget())) {
-        traversalUtterances = await reportSemanticFocusReliably(
-          session,
-          steps.focusTraversalTargetCell,
-        );
-        traversalCommand = `focus target via DOM; ${session.semanticFocusCommandName} (${steps.traversalKey} intercepted)`;
+        await steps.focusTraversalTargetCell();
+        await session.focusBrowser();
+        await session.since();
+        await session.reportFocus();
+        traversalUtterances = await session.since();
+        traversalCommand = `focus target via DOM; ${session.focusCommandName} (${steps.traversalKey} intercepted)`;
       }
       const traversalVerbosity = session.observe(
         "traversal-verbosity",
