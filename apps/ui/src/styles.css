@@ -2946,8 +2946,36 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
+/*
+ * WP-033 AC-1: the stage strip is present at every width. Above the compact tier it is a progress
+ * indicator (plain buttons, aria-current="step"); at/below 820px the same markup becomes the
+ * tablist, whose grid/touch-target rules live in the compact media query.
+ */
 .strategic-fit-stage-nav {
-  display: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: #202228;
+}
+.strategic-fit-stage-nav button[data-stage-state="completed"] {
+  /*
+   * Not var(--muted): against this strip's #202228 it measures 4.46:1, just under the 4.5:1 gate.
+   * The completed state is carried by the check mark, so the label stays at full text contrast.
+   */
+  color: var(--text-primary);
+}
+.strategic-fit-stage-nav button[data-stage-state="completed"]::before {
+  content: "✓";
+  margin-right: 0.3rem;
+  color: var(--status-success-text-strong);
+}
+.strategic-fit-stage-nav button[data-stage-state="current"],
+.strategic-fit-stage-nav button.active {
+  border-color: var(--accent);
+  background: #294466;
+  color: #f0f6ff;
 }
 .strategic-fit-profile-loading {
   display: flex;
@@ -3878,11 +3906,35 @@ img,
   color: #cbd2dc;
   overflow-wrap: anywhere;
 }
+/*
+ * WP-033 AC-2 / DV-5: resolution renders exactly once. Above the compact tier the pane is not a
+ * fourth column — it sits at the foot of the evidence column, which keeps three columns while
+ * removing the duplicate render that previously served wide viewports.
+ */
 .strategic-fit-workspace-body {
   display: grid;
   grid-template-columns: minmax(13rem, 0.75fr) minmax(17rem, 1fr) minmax(19rem, 1.2fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, max-content);
   flex: 1 1 0;
   min-height: 0;
+}
+.strategic-fit-overview-pane,
+.strategic-fit-findings-pane,
+.strategic-fit-evidence-pane {
+  grid-row: 1;
+}
+.strategic-fit-resolution-pane {
+  grid-column: 3;
+  grid-row: 2;
+  /*
+   * The decide region shares the evidence column, so it must be a bounded strip rather than an
+   * auto-sized block: an unbounded one grows with its content until it covers the column above and
+   * swallows that column's pointer events, which is a real interaction defect, not a test artifact.
+   */
+  min-height: 0;
+  max-height: 30vh;
+  border-top: 1px solid var(--border);
+  border-right: 0;
 }
 .strategic-fit-workspace-pane {
   min-width: 0;
@@ -3901,9 +3953,6 @@ img,
 }
 .strategic-fit-findings-pane {
   background: #202228;
-}
-.strategic-fit-resolution-pane {
-  display: none;
 }
 .strategic-fit-pane-heading {
   display: block;
@@ -6861,7 +6910,7 @@ img,
     min-width: 0;
     min-height: 44px;
     padding: 0.38rem 0.15rem;
-    color: #a7abb3;
+    color: var(--text-primary);
     font-size: var(--type-xs);
   }
   .strategic-fit-stage-nav button.active {
@@ -6872,6 +6921,13 @@ img,
   .strategic-fit-workspace-body {
     display: block;
     overflow: hidden;
+  }
+  /* The compact tier is one visible panel at a time, so the wide grid placement must not apply. */
+  .strategic-fit-resolution-pane {
+    grid-column: auto;
+    grid-row: auto;
+    max-height: none;
+    border-top: 0;
   }
   .strategic-fit-workspace-pane {
     display: none;

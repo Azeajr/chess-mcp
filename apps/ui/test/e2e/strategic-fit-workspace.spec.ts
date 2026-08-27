@@ -147,11 +147,13 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await expect(
     dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
   ).toBeVisible();
-  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(3);
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
   await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Findings" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Evidence / comparison" })).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "Resolution" })).toBeHidden();
+  // WP-033 DV-5: the resolution region is rendered once and is visible in the wide tier, at the
+  // foot of the evidence column, instead of being duplicated into it and hidden as a pane.
+  await expect(dialog.getByRole("heading", { name: "Resolution" })).toBeVisible();
   await expect(dialog.locator("[data-region-state='empty']")).toHaveCount(4);
   expect(await snapshot(page)).toEqual(before);
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
@@ -173,15 +175,23 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
   const overview = dialog.locator("#strategic-fit-pane-overview");
-  const evidence = dialog.locator("#strategic-fit-pane-evidence");
+  // WP-033 renders the resolution region once, at the foot of the evidence column, so it is now
+  // the last focusable pane in the wide tier and Shift+Tab from the close button wraps onto it.
+  const lastPane = dialog.locator("#strategic-fit-pane-resolution");
 
   await expect(close).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(evidence).toBeFocused();
+  await expect(lastPane).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
+  // WP-033 AC-1 puts the stage strip in the tab order at every width, between the analysis action
+  // and the first pane. In the wide tier these are plain buttons, so each is its own Tab stop.
+  for (const stage of ["Overview", "Findings", "Evidence", "Resolution"]) {
+    await page.keyboard.press("Tab");
+    await expect(dialog.locator(`#strategic-fit-stage-${stage.toLowerCase()}`)).toBeFocused();
+  }
   await page.keyboard.press("Tab");
   await expect(overview).toBeFocused();
 

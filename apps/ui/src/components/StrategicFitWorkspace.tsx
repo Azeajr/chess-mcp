@@ -204,17 +204,12 @@ export default function StrategicFitWorkspace() {
           finding,
         };
   };
-  const resolutionFallbackState = (): StrategicFitWorkspaceRegionState => {
-    const lifecycle = strategicFitLifecycle();
-    if (lifecycle.status === "stale") {
-      return {
-        status: "error",
-        message:
-          "Resolution actions are blocked while this report is stale. Cohort adjustment actions are also blocked. Analyze again before recording a decision.",
-      };
-    }
-    return strategicFitWorkspaceRegions().resolution;
-  };
+  /**
+   * WP-033 AC-3: the stale case is rendered once, by the dedicated blocked alert in the resolution
+   * pane. This fallback therefore reports the ordinary region state and does not restate it.
+   */
+  const resolutionFallbackState = (): StrategicFitWorkspaceRegionState =>
+    strategicFitWorkspaceRegions().resolution;
   const resolveCurrentEvidenceLine = (
     reportId: string,
     findingId: string,
@@ -539,12 +534,23 @@ export default function StrategicFitWorkspace() {
                   role={usesStageTabs() ? "tablist" : undefined}
                 >
                   <For each={STAGES}>
-                    {(stage) => (
+                    {(stage, index) => (
                       <button
                         id={`strategic-fit-stage-${stage.id}`}
                         type="button"
                         role={usesStageTabs() ? "tab" : undefined}
                         aria-controls={`strategic-fit-pane-${stage.id}`}
+                        aria-current={
+                          strategicFitWorkspaceStage() === stage.id ? "step" : undefined
+                        }
+                        data-stage-state={
+                          index() <
+                          STAGES.findIndex((item) => item.id === strategicFitWorkspaceStage())
+                            ? "completed"
+                            : strategicFitWorkspaceStage() === stage.id
+                              ? "current"
+                              : "upcoming"
+                        }
                         aria-selected={
                           usesStageTabs() ? strategicFitWorkspaceStage() === stage.id : undefined
                         }
@@ -818,38 +824,6 @@ export default function StrategicFitWorkspace() {
                           />
                         )}
                       </Show>
-                      <Show when={!usesStageTabs() && currentResolution()}>
-                        {(resolution) => (
-                          <div class="strategic-fit-review-actions">
-                            <ResolutionActions
-                              completed={resolution().completed}
-                              reportId={resolution().reportId}
-                              finding={resolution().finding}
-                            />
-                            <TrainException
-                              reportId={resolution().reportId}
-                              report={resolution().report}
-                              finding={resolution().finding}
-                            />
-                            <CohortEditor
-                              reportId={resolution().reportId}
-                              report={resolution().report}
-                              finding={resolution().finding}
-                            />
-                          </div>
-                        )}
-                      </Show>
-                      <Show when={!usesStageTabs() && strategicFitLifecycle().status === "stale"}>
-                        <div
-                          class="strategic-fit-resolution-blocked"
-                          role="alert"
-                          data-resolution-blocked
-                        >
-                          Resolution actions are blocked while this report is stale. Cohort
-                          adjustment actions are also blocked. Analyze again before recording a
-                          decision.
-                        </div>
-                      </Show>
                     </section>
 
                     <section
@@ -869,8 +843,24 @@ export default function StrategicFitWorkspace() {
                         title="Resolution"
                         titleId="strategic-fit-pane-resolution-title"
                       />
+                      {/*
+                        WP-033 AC-3: the stale-report block is a property of the report, not of the
+                        viewport tier, so it renders here at every width rather than only in the
+                        wide-tier copy that AC-2 removed.
+                      */}
+                      <Show when={strategicFitLifecycle().status === "stale"}>
+                        <div
+                          class="strategic-fit-resolution-blocked"
+                          role="alert"
+                          data-resolution-blocked
+                        >
+                          Resolution actions are blocked while this report is stale. Cohort
+                          adjustment actions are also blocked. Analyze again before recording a
+                          decision.
+                        </div>
+                      </Show>
                       <Show
-                        when={usesStageTabs() && currentResolution()}
+                        when={currentResolution()}
                         fallback={
                           <RegionState region="resolution" state={resolutionFallbackState()} />
                         }
