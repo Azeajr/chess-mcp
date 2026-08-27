@@ -195,13 +195,14 @@
       "completedAt": "2026-08-22T16:35:00.523131Z"
     },
     "WP-009": {
-      "status": "in-progress",
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
       "evidence": {
         "validation": [
           "pnpm ux:test WP-009",
-          "pnpm --filter @chess-mcp/ui test:chat (310 passed)",
+          "pnpm --filter @chess-mcp/ui test:chat (355 passed)",
           "pnpm -r typecheck",
-          "pnpm lint (0 errors, 1 pre-existing warning)",
+          "pnpm lint (0 errors, 0 warnings)",
           "pnpm format:check",
           "pnpm docs:check",
           "pnpm check:skills",
@@ -209,19 +210,19 @@
           "pnpm --filter @chess-mcp/ui build",
           "pnpm ux:plan-check",
           "git diff --check",
-          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 512 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
         ],
         "playwright": "Full unnarrowed Playwright 1.62.1 suite in the version-matched container: 12 passed across Chromium, Firefox, and WebKit. All UX-012 AC-1 through AC-7 assertions green: regions exist outside inert; save/restore/scan/mutation/engine-offline each produce exactly one announcement via the polite/assertive regions; de-duplication at 500ms works; streaming chat produces no announcements; no storm rendering.",
         "scope": "WP-009 introduces the app-root live-region policy (polite + assertive), the single reusable Toast primitive, and the announce() store with 500ms rate-limit and consecutive de-duplication. Wired: file save/failure, autosave restore, command start/complete/cancel/fail (no progress ticks), engine-offline transition. Existing role=\"alert\" metadata warnings preserved as visible text, not duplicated. AG-5 gate machinery added (scenario ag-5-live-region, computeLiveRegionVerdict in verdict.ts).",
         "gates": {
           "AG-5": {
             "mode": "automated",
-            "outcome": "pending-ci",
+            "outcome": "confirmed-pass",
             "command": "A11Y_SCENARIOS=ag-5-live-region pnpm --filter @chess-mcp/ui a11y:verdict",
-            "note": "Requires NVDA/Windows and VoiceOver/macOS CI runners (GitHub Actions); cannot run locally. The browser-tier evidence is captured locally; AT-tier awaits CI execution. All browser + DOM assertions pass (12/12 across 3 engines)."
+            "runId": "33033376006",
+            "note": "Real-AT evidence from .github/workflows/accessibility.yml run 33033376006 on commit d4072cc: NVDA on windows-latest and VoiceOver on macos-latest both convey all five policy events as exactly one utterance each, and the deterministic verdict reports confirmed-pass across all twelve findings. The run surfaced a genuine app defect first — a live region nested inside a live region made NVDA speak one failure three times and VoiceOver drop it entirely — which is fixed in d4072cc."
           }
-        },
-        "blockedOn": "Implementation and browser-tier evidence are complete and green in the full suite. AG-5 additionally requires real assistive-technology evidence (NVDA on windows-latest, VoiceOver on macos-latest) from .github/workflows/accessibility.yml. That automation cannot run on this Linux workstation, so the gate has no confirmed-pass evidence and the package is not recorded complete."
+        }
       }
     },
     "WP-010": {
@@ -781,8 +782,21 @@
       }
     },
     "AG-5": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "A11Y_SCENARIOS=ag-5-live-region pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "33033376006",
+        "decidedAt": "2026-08-26",
+        "decision": [
+          "Chromium, Firefox, and WebKit expose the app-root live regions with status/alert semantics in every captured browser AX snapshot",
+          "NVDA on Windows conveys all five policy events as exactly one utterance each, including the previously triple-spoken failure, now \"alert, Prescribed-move audit failed: invalid arguments\"",
+          "VoiceOver on macOS conveys the same five policy events as one utterance each, including the previously silent failure, now \"Prescribed-move audit failed: invalid_arguments\"",
+          "The assertive container's redundant aria-live was the defect: role=\"alert\" on its paragraph already implies aria-live=\"assertive\", so the two nested live regions made NVDA speak one event three times and VoiceOver drop it entirely"
+        ],
+        "source": "Automated accessibility run 33033376006 on commit d4072cc: browser evidence, NVDA evidence, and VoiceOver evidence all completed successfully, and the deterministic AG-5 verdict reported overallStatus confirmed-pass across all twelve findings (A11Y-001..A11Y-012), with no human evidence review or approval step. The workflow's Compute AG-3/AG-4/AG-5 gate verdicts job exits zero on this run."
+      }
     },
     "AG-6": {
       "status": "resolved",
