@@ -137,6 +137,12 @@
   --z-notice: 100;
   --z-warning: 120;
   --z-workspace: 200;
+  /*
+   * WP-033 AC-5: the Replacement Lab is a sibling of the workspace dialog, not a descendant, so it
+   * no longer inherits the workspace's stacking context and needs its own layer above it. Nested
+   * inside, the workspace's backdrop would paint over the lab and swallow every click in it.
+   */
+  --z-nested-dialog: 210;
 
   /* Compatibility aliases used throughout the existing stylesheet. */
   --bg: var(--surface-canvas);
@@ -3049,6 +3055,33 @@ img,
   background: #1b1d22;
   box-shadow: 0 24px 80px #000b;
 }
+/*
+ * WP-033 AC-5: the workspace and lab now render through the Dialog primitive, which owns the
+ * dialog element itself. Their content sits in a wrapper one level in, so the wrapper carries the
+ * layout the section used to provide; the outer element keeps the frame.
+ */
+.strategic-fit-workspace-inner {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.replacement-lab-inner {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  /*
+   * The wrapper must fill the dialog's single row rather than sizing to content: the lab's body is
+   * the scrolling region, and a content-sized wrapper pushes it past the dialog's max-height where
+   * it overflows the viewport and its controls stop being clickable.
+   */
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .strategic-fit-workspace:focus {
   outline: none;
 }
@@ -5800,7 +5833,7 @@ img,
 
 .replacement-lab-backdrop {
   position: fixed;
-  z-index: var(--z-popover);
+  z-index: var(--z-nested-dialog);
   inset: 0;
   display: grid;
   place-items: center;
@@ -5808,8 +5841,13 @@ img,
   background: rgba(7, 9, 12, 0.82);
 }
 .replacement-lab {
+  /*
+   * WP-033 AC-5: the row template moved to .replacement-lab-inner, which is now the single child
+   * holding the header and body. Leaving the two-row template here gave that wrapper only the
+   * `auto` row, so overflow:hidden clipped the lab's entire body away.
+   */
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   width: min(980px, 100%);
   max-height: calc(100dvh - 2rem);
   overflow: hidden;

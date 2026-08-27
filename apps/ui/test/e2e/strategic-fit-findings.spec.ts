@@ -2613,6 +2613,39 @@ test("Black Replacement Lab is keyboard-contained, touch-sized, and transient ac
   await expect(page.getByRole("dialog", { name: "Replacement Lab" })).toHaveCount(0);
 });
 
+/**
+ * WP-033 AC-5: the workspace and the lab are both on the Dialog primitive, so Escape must close the
+ * lab first and leave the workspace open. This is the ordering that breaks if only one of the two
+ * surfaces is migrated: every dialog listens on document in the capture phase, and the outer one
+ * registered first, so without the primitive's nesting stack the workspace would answer instead.
+ */
+test("Escape closes the nested Replacement Lab before the workspace behind it", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const { dialog } = await bootstrap(page, "white", true);
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await dialog
+    .locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" })
+    .click();
+
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await expect(lab).toBeVisible();
+
+  // First Escape: the lab closes, the workspace survives.
+  await page.keyboard.press("Escape");
+  await expect(lab).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+
+  // Second Escape: now the workspace itself closes, proving the stack popped correctly.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+});
+
 test("Replacement comparison synchronizes accessible table and Pareto selection without mutation", async ({
   page,
 }) => {

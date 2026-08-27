@@ -1786,8 +1786,12 @@
       "completionGates": ["AG-1"],
       "ownedAuditFindings": ["UX-033"],
       "primaryFiles": [
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/src/components/primitives/Dialog.tsx",
+        "apps/ui/src/components/strategic-fit/ReplacementLab.tsx",
         "apps/ui/src/styles.css",
-        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts"
+        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-findings.spec.ts"
       ],
       "relevantSymbols": [],
       "acceptanceCriteria": [
@@ -1817,9 +1821,12 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts"
+        ],
         "commands": [],
-        "description": "Duplicate-render assertions; stage-indicator presence at four widths; the existing suite as the regression gate; the `Dialog` contract suite extended to the workspace and the Lab."
+        "description": "Duplicate-render and four-width stage assertions; the existing accessibility regression gate; the shared Dialog contract exercised by the workspace and Lab; and an explicit nesting assertion that the first Escape closes the Lab while preserving the workspace and the second closes the workspace."
       },
       "requiredAutomatedValidation": "The AG-1 suite reruns against the migrated workspace and Lab and must report confirmed-pass for browser and real-AT claims; duplicate-render, stage, stale-state, and existing Strategic Fit suites also pass.",
       "riskLevel": "Medium",
