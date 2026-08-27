@@ -173,7 +173,7 @@ jobs:
         working-directory: apps/ui
         run: pnpm a11y:verdict
         env:
-          A11Y_SCENARIOS: ag-3-move-tree,ag-4-board-keyboard,ag-5-live-region
+          A11Y_SCENARIOS: ag-1-dialog,ag-3-move-tree,ag-4-board-keyboard,ag-5-live-region
       - uses: actions/upload-artifact@v4
         if: always()
         with:
