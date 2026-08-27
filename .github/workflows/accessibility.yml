@@ -53,12 +53,12 @@ jobs:
       # One capture.mjs invocation covering both specs: Playwright's own outputDir is the parent
       # of EVIDENCE_ROOT and is wiped at the start of every `playwright test` run, so a second
       # invocation here would erase the first invocation's evidence before merge-report saw it.
-      - name: Capture deterministic evidence — AG-3 + AG-4 + AG-5 (Docker, all three engines)
+      - name: Capture deterministic evidence — AG-1 + AG-3 + AG-4 + AG-5 (Docker, all three engines)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs
         env:
           A11Y_CONTAINER: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: a11y-evidence-browser
@@ -95,12 +95,12 @@ jobs:
       - run: npx @guidepup/setup install nvda
         working-directory: apps/ui
       # One invocation for the same reason as browser-evidence above — see its comment.
-      - name: Capture NVDA evidence — AG-3 + AG-4 + AG-5 (headed — NVDA reads the real screen)
+      - name: Capture NVDA evidence — AG-1 + AG-3 + AG-4 + AG-5 (headed — NVDA reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project chromium
         env:
           A11Y_ATTEMPT_AT: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -137,12 +137,12 @@ jobs:
       - run: npx @guidepup/setup install voiceover
         working-directory: apps/ui
       # One invocation for the same reason as browser-evidence above — see its comment.
-      - name: Capture VoiceOver evidence — AG-3 + AG-4 + AG-5 (headed — VoiceOver reads the real screen)
+      - name: Capture VoiceOver evidence — AG-1 + AG-3 + AG-4 + AG-5 (headed — VoiceOver reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -151,7 +151,7 @@ jobs:
           if-no-files-found: warn
 
   merge-report:
-    name: Compute AG-3/AG-4/AG-5 gate verdicts
+    name: Compute AG-1/AG-3/AG-4/AG-5 gate verdicts
     needs: [browser-evidence, at-nvda, at-voiceover]
     if: always()
     runs-on: ubuntu-latest
