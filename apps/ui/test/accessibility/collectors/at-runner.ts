@@ -50,6 +50,23 @@
  * boundary, relying on native Tab traversal in between — and macOS Safari's default "Full Keyboard
  * Access" setting (off by default) makes native Tab skip every <button> entirely. Nothing to do
  * with this module or VoiceOver; fixed in the dialog's own trap handler instead.
+ *
+ * Run 32681987352: AG-4's two live-region claims (selection-count, illegal-refusal) came back from
+ * VoiceOver as "(nothing)" and as the *previous* step's focus description, while the same two
+ * claims passed on NVDA. Root cause read out of the installed @guidepup/guidepup@0.33.2 source
+ * rather than inferred from the symptom: `spokenPhraseLog()` is not a running transcript of
+ * everything the screen reader says. VoiceOverClient appends exactly one entry per driver action,
+ * and only inside `enqueueAndTap`'s capture step — and `DEFAULT_CAPTURE` is `"initial"`
+ * (lib/constants.js), whose poll loop breaks unconditionally at the end of its first iteration.
+ * So a plain `press()` reads VoiceOver's caption once, 50 ms after the key went in, and whatever
+ * has not been spoken by then is never recorded anywhere. VoiceOver's own focus descriptions
+ * usually beat that window; an app announcement (Solid render -> DOM mutation -> AX live-region
+ * notification -> speech queue) reliably does not, which is why the stale caption from the step
+ * before kept landing in the next claim's slot. `{ capture: true }` instead polls until the spoken
+ * phrase stabilises, which is exactly how AG-5 already captures this app's live-region messages on
+ * VoiceOver — see pressAwaitingAnnouncement. NVDA's client is an event stream with a silence
+ * debounce rather than a caption poll, so it was never blind here; it takes the same option for
+ * the same reason (capture the whole announcement, not just its first phrase).
  */
 import type { AtClaim, AtObservation, InfrastructureLimitation } from "../evidence-schema";
 import type { Page } from "playwright/test";
@@ -183,6 +200,13 @@ export interface AtSession {
   reportSemanticFocus(): Promise<void>;
   /** Press a key *as the screen reader*, so whatever it says is recorded. */
   press(key: string): Promise<void>;
+  /**
+   * Press a key as the screen reader and hold the driver's capture open until the speech it
+   * provokes has stabilised, instead of Guidepup's default single reading taken 50 ms later.
+   * Use this — and only this — for a press whose evidence is an announcement the *app* emits
+   * asynchronously; see this module's header for why the default silently drops those.
+   */
+  pressAwaitingAnnouncement(key: string): Promise<void>;
   /** Advance the screen reader's own review/browse cursor by one step. */
   next(): Promise<void>;
   /** Phrases spoken since the previous call, blank ones dropped. */
@@ -233,7 +257,7 @@ export async function withScreenReader<T>(
       start(): Promise<void>;
       stop(): Promise<void>;
       spokenPhraseLog(): Promise<string[]>;
-      press(key: string): Promise<void>;
+      press(key: string, options?: { capture?: boolean | "initial" }): Promise<void>;
       next(): Promise<void>;
       perform(command: T2["keyboardCommands"][keyof T2["keyboardCommands"]]): Promise<void>;
       capture<T3>(
@@ -308,6 +332,9 @@ export async function withScreenReader<T>(
         },
         press: async (key) => {
           await screenReader.press(key);
+        },
+        pressAwaitingAnnouncement: async (key) => {
+          await screenReader.press(key, { capture: true });
         },
         next: async () => {
           await screenReader.next();
@@ -561,10 +588,13 @@ export function captureBoardObservations(
       );
 
       // selection-count (AC-3): a real Enter, driven by the screen reader, picks up the piece.
+      // The evidence here is the app's own live-region announcement rather than the screen
+      // reader's description of the focused cell, so this press has to hold the capture open —
+      // see this module's header on run 32681987352 for what the default press misses.
       await steps.focusSelectionCell();
       await session.focusBrowser();
       await session.since();
-      await session.press("Enter");
+      await session.pressAwaitingAnnouncement("Enter");
       await within("piece selection", STEP_TIMEOUT_MS, steps.awaitSelected);
       const selectionCount = session.observe(
         "selection-count",
@@ -578,7 +608,8 @@ export function captureBoardObservations(
       await steps.focusIllegalTargetCell();
       await session.focusBrowser();
       await session.since();
-      await session.press("Enter");
+      // Same live-region evidence as selection-count above, so the same held-open capture.
+      await session.pressAwaitingAnnouncement("Enter");
       const illegalRefusal = session.observe(
         "illegal-refusal",
         "press Enter (illegal target)",
