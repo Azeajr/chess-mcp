@@ -1133,9 +1133,16 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
-        "description": "Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion in CI that `dist/manifest.webmanifest` and the wasm precache entry exist."
+        "files": [
+          "apps/ui/test/e2e/pwa-update.spec.ts",
+          "apps/ui/test/pwa-build.test.mjs",
+          "apps/ui/test/pwa-lifecycle.mjs"
+        ],
+        "commands": [
+          "pnpm --filter @chess-mcp/ui build && node --test apps/ui/test/pwa-build.test.mjs",
+          "node apps/ui/test/pwa-lifecycle.mjs"
+        ],
+        "description": "Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion checks `dist/manifest.webmanifest` and the wasm precache entry. A real static deployment publishes production build A then B at one origin and drives the generated Workbox lifecycle through deferral, Later, and Reload."
       },
       "requiredAutomatedValidation": "A deployed test environment publishes build A then build B; service-worker instrumentation asserts update detection, toast deferral/dismissal, reload, and build-id transition. Any platform-specific claim requires an unattended device-lab job.",
       "riskLevel": "Low",

@@ -21,6 +21,8 @@ export interface ToastProps {
   readonly tone?: "neutral" | "success" | "danger";
   readonly action?: ToastAction;
   readonly onDismiss: () => void;
+  /** Optional visible label for a decision such as WP-019's `Later`; defaults to the × affordance. */
+  readonly dismissLabel?: string;
   /**
    * Mirror the message through announce() so the live regions match the visual toast.
    * Pass false when the same event is ALREADY announced elsewhere (e.g. the WP-010 operation
@@ -68,13 +70,13 @@ export default function Toast(props: ToastProps): JSX.Element {
         )}
       </Show>
       <button
-        class="ui-toast-dismiss"
-        aria-label="Dismiss notification"
+        class={`ui-toast-dismiss${props.dismissLabel ? " ui-toast-dismiss-labelled" : ""}`}
+        aria-label={props.dismissLabel ?? "Dismiss notification"}
         onClick={() => {
           dismiss();
         }}
       >
-        ×
+        {props.dismissLabel ?? "×"}
       </button>
     </div>
   );

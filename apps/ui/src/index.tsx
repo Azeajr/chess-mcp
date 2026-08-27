@@ -33,6 +33,13 @@ import { appendToolResultForTesting, appendUserMessageForTesting } from "./store
 import { setInspectResultForTesting, setPruneSuggestionsForTesting } from "./store/repertoire";
 import { setScanErrorForTesting } from "./store/gaps";
 import {
+  pwaUpdateSnapshotForTesting,
+  resetPwaUpdateForTesting,
+  settlePwaBlockingOperationForTesting,
+  simulatePwaUpdate,
+  startPwaBlockingOperationForTesting,
+} from "./pwa/updates";
+import {
   deleteStrategicFitMetadata,
   flushStrategicFitMetadata,
   replaceStrategicFitMetadata,
@@ -153,6 +160,11 @@ if (import.meta.env.DEV) {
     setInspectResultForTesting,
     setPruneSuggestionsForTesting,
     setScanErrorForTesting,
+    simulatePwaUpdate,
+    pwaUpdateSnapshotForTesting,
+    resetPwaUpdateForTesting,
+    startPwaBlockingOperationForTesting,
+    settlePwaBlockingOperationForTesting,
     setStagedEditsForTesting,
     stagedEdits,
     runTool,

@@ -17,7 +17,15 @@ import RecoverDialog from "./components/RecoverDialog";
 import ShortcutHelpDialog from "./components/ShortcutHelpDialog";
 import AppLiveRegion from "./components/AppLiveRegion";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
+import Toast from "./components/primitives/Toast";
+import {
+  PWA_UPDATE_MESSAGE,
+  deferPwaUpdate,
+  pwaUpdateVisible,
+  reloadPwaUpdate,
+} from "./pwa/updates";
 import { actions } from "./store/game";
+import { redo, undo } from "./store/history";
 import { backgroundSuspended, dispatchShortcut, registerShortcut } from "./store/shortcuts";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
@@ -81,10 +89,8 @@ export default function App() {
         // Shift+Z is redo: matches() normalises case and ignores shiftKey, so one "z"
         // registration owns both directions and branches on the modifier itself.
         handler: (e) => {
-          void import("./store/history").then((h) => {
-            if (e.shiftKey) h.redo();
-            else h.undo();
-          });
+          if (e.shiftKey) redo();
+          else undo();
         },
       }),
       registerShortcut({
@@ -113,7 +119,7 @@ export default function App() {
   });
 
   return (
-    <div class="app">
+    <div class="app" data-build-id={import.meta.env.VITE_PWA_TEST_BUILD_ID ?? undefined}>
       <div
         class="app-main"
         inert={backgroundSuspended()}
@@ -229,6 +235,19 @@ export default function App() {
           the region it suspends would be inert itself, and disappear from the accessibility tree
           the moment it opened. */}
       <AppLiveRegion />
+      {/*
+        WP-019: the shared Toast mirrors this message through the polite live region once on mount.
+        It is outside `.app-main` so an unrelated modal's inert background does not swallow an
+        update decision that became ready while the modal was open.
+      */}
+      <Show when={pwaUpdateVisible()}>
+        <Toast
+          message={PWA_UPDATE_MESSAGE}
+          action={{ label: "Reload", onClick: reloadPwaUpdate }}
+          dismissLabel="Later"
+          onDismiss={deferPwaUpdate}
+        />
+      </Show>
       <SettingsDrawer />
       <PromotionModal />
       <ColorPickerModal />

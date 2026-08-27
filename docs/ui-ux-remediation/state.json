@@ -466,7 +466,36 @@
       "completedAt": "2026-08-22T17:17:29.569628Z"
     },
     "WP-019": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-019",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed, 0 failed, 0 warnings)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 596 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Four browser assertions cover the dev waiting-worker seam: both visible choices without activation, operation deferral, Later across a reload, and exactly one polite announcement. The unnarrowed suite rose from 584 to 596 passing, exactly four checks across three engines with no regression.",
+        "deployedLifecycle": "An unattended production build-A/build-B test served both builds at one origin and drove the generated Workbox registration in headless Chromium. Build A controlled the page; build B installed and waited; a real operation-registry entry deferred the prompt; Later hid it for the page while leaving B waiting; reloading A showed it again; only Reload sent skipWaiting and transitioned the rendered build id from A to B. Exit 0. Both production builds completed with 0 warnings.",
+        "buildOutput": "The production build emitted manifest.webmanifest, sw.js, the Workbox runtime, and the Stockfish wasm. The automated assertion parsed the standalone manifest and verified the recursive wasm path is present in the generated precache. Workbox reported 10 precache entries totaling about 8.8 MiB.",
+        "implementation": "VitePWA now uses prompt registration. The registration callback feeds a Solid signal; visibility is derived from update pending, page dismissal, and the authoritative runningOperations set. The shared WP-009 Toast renders Reload and a visible Later dismissal, mirrors its message through the polite region once on mount, and gives both controls 44px touch targets. Reload alone calls updateSW(true); Later changes only page memory. A dev simulation stores pending state in sessionStorage so a reload behaves like a real waiting worker. workbox-window is now an explicit UI dependency.",
+        "acceptanceCriteria": {
+          "AC-1": "The simulated waiting update renders A new version is ready with Reload and Later; the snapshot proves no reload request before Reload, and choosing Reload causes navigation.",
+          "AC-2": "A real operation-registry entry holds the toast back until quiet settlement; the deployed A/B test proves the same behavior against a real waiting worker.",
+          "AC-3": "Later hides the prompt without clearing pending state; it reappears after reload in both the dev seam and the deployed A/B lifecycle.",
+          "AC-4": "The real production output remains standalone-installable and its generated service worker precaches the emitted Stockfish wasm.",
+          "AC-5": "The announcement-history assertion records A new version is ready exactly once through the Toast's polite mirroring path."
+        },
+        "warnings": "Production build, lint, and the canonical chat test complete with zero warnings. The ineffective dynamic history import was replaced with the already-loaded static module; the existing 1.28 MiB app-shell budget is declared at 1.3 MiB while check-worker-boundary continues to report and gate the actual payload. Node's experimental unconfigured localStorage global is disabled for store tests so their own deterministic mocks run without ExperimentalWarning noise.",
+        "preservedBehavior": "The PWA manifest name, icon, standalone display mode, static hosting, app-shell precache, and Stockfish wasm precache are unchanged. Existing Toast consumers retain their compact × dismissal because the visible dismiss label is optional. Reverting registerType to autoUpdate restores silent activation and loses only the user's update choice; it does not alter or discard repertoire data.",
+        "gates": {}
+      }
     },
     "WP-020": {
       "status": "complete",

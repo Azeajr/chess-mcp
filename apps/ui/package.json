@@ -11,7 +11,7 @@
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
     "postbuild": "node scripts/check-worker-boundary.mjs",
-    "test:chat": "tsx --test test/*.test.ts",
+    "test:chat": "node --no-experimental-webstorage --import tsx --test test/*.test.ts",
     "test:e2e": "node ../../scripts/playwright-low-impact.mjs",
     "test:e2e:host": "E2E_CPU_QUOTA=60% E2E_RUNTIME_MAX=45min node ../../scripts/playwright-low-impact.mjs --project=chromium --project=firefox --grep-invert @visual",
     "preview": "vite preview",
@@ -26,7 +26,8 @@
     "chessground": "^9.1.1",
     "chessops": "^0.14.2",
     "solid-js": "^1.9.3",
-    "stockfish": "^18.0.0"
+    "stockfish": "^18.0.0",
+    "workbox-window": "^7.4.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

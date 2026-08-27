@@ -3240,6 +3240,18 @@ img,
   font-size: 1rem;
   line-height: 1;
 }
+.ui-toast-dismiss-labelled {
+  min-height: 2.75rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: var(--type-sm);
+}
+/* WP-019's actionable decision uses two full touch targets; existing × dismissals stay compact. */
+.ui-toast:has(.ui-toast-dismiss-labelled) .ui-toast-action {
+  min-height: 2.75rem;
+}
 .strategic-fit-profile-setup {
   flex: 1 1 0;
   min-height: 0;

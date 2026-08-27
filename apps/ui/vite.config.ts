@@ -22,7 +22,7 @@ export default defineConfig({
     solid(),
     crossOriginIsolation,
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["icon.svg"],
       // SW only in the production build (dev keeps HMR + the COOP/COEP middleware simple).
       devOptions: { enabled: false },
@@ -42,6 +42,10 @@ export default defineConfig({
       },
     }),
   ],
+  // The app shell is deliberately dense and currently ~1.28 MB minified. Keep the threshold
+  // explicit rather than accepting Vite's generic 500 kB warning; check-worker-boundary.mjs still
+  // reports and gates the main-thread payload after every production build.
+  build: { chunkSizeWarningLimit: 1_300 },
   // Default bind is localhost. For LAN access run `pnpm dev:host` (vite --host).
   // stockfish ships its own worker/wasm; let it be served as-is, not pre-bundled.
   optimizeDeps: { exclude: ["stockfish"] },
