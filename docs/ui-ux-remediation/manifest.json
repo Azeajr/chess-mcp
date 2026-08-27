@@ -1201,15 +1201,15 @@
       "acceptanceCriteria": [
         {
           "id": "WP-021 AC-1",
-          "text": "- With no API key at 1440×900, `.chat-wrap` is ≤ 56 px wide and the board and side panel absorb the released width."
+          "text": "- With no API key at 1440×900, `.chat-wrap` keeps its persisted width and its panel body renders the setup card in place of the terse `No API key` line. (Rewritten from a ≤ 56 px rail: PD-4 fixed the opposite approach, and §7 of the plan states that a gate's answer changes the implementation and the acceptance criteria are rewritten accordingly before the package starts.)"
         },
         {
           "id": "WP-021 AC-2",
-          "text": "- The rail control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field."
+          "text": "- The setup card's control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field."
         },
         {
           "id": "WP-021 AC-3",
-          "text": "- Adding a key restores the chat column to its previously persisted width (assert the exact stored value)."
+          "text": "- Adding a key leaves the chat column at its previously persisted width (assert the exact stored value) and swaps the setup card for the live chat surface."
         },
         {
           "id": "WP-021 AC-4",
@@ -1217,20 +1217,20 @@
         },
         {
           "id": "WP-021 AC-5",
-          "text": "- The side│chat divider is not focusable and not draggable while collapsed."
+          "text": "- The side│chat divider stays focusable and draggable while the assistant is unconfigured, and the persisted width is never overwritten by the unconfigured state. (Rewritten with AC-1: PD-4 keeps the column at full width, so there is no collapsed state to disable the divider for.)"
         }
       ],
       "requiredTests": {
         "files": [],
         "commands": [],
-        "description": "Playwright: collapsed width, restore-to-persisted-width, focus target, mobile tab presence."
+        "description": "Playwright: persisted width preserved while unconfigured, setup card present in place of the terse line, focus target on the API-key field, mobile tab presence."
       },
       "requiredAutomatedValidation": "The fixed setup decision is asserted: the chat column remains present at full width, exposes the setup action and assistant description, and reaches the configured state without remounting adjacent panels.",
       "riskLevel": "Low",
       "preservedBehaviorContracts": [
-        "The persisted chat width must be restored unchanged when a key is added — collapsing must not overwrite it. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working."
+        "The persisted chat width must never be overwritten by the unconfigured state. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working."
       ],
-      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width lost on collapse. Detection: the restore assertion. Rollback: single revert.\n\n---"
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width overwritten while unconfigured. Detection: the persisted-width assertion. Rollback: single revert.\n\n---"
     },
     "WP-022": {
       "dependencies": ["WP-011", "WP-024"],
