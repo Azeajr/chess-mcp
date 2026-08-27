@@ -492,7 +492,36 @@
       }
     },
     "WP-021": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-021",
+          "pnpm --filter @chess-mcp/ui test:chat (355 passed)",
+          "pnpm test:strategic-fit (408 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 527 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/chat-setup.spec.ts adds five checks, one per acceptance criterion, green on Chromium, Firefox, and WebKit inside the version-matched container. The unnarrowed suite rose from 512 to 527 passing with no failures, which is those five checks across three engines and no regression elsewhere.",
+        "scope": "WP-021 replaces the terse `No API key. Open Settings` line with a setup card carrying a heading, a sentence describing what the assistant does, and a `Set up the assistant` control. The control reuses WP-026's settingsFocusTarget seam, extended with an `api-key` target, so Settings opens focused on the API-key field. SettingsDrawer's focus handling was generalised from a hardcoded token-field selector to one derived from the requested target, which also removed a redundant post-mount refocus effect that fought the dialog's own focus management.",
+        "acceptanceCriteria": {
+          "AC-1": "The column keeps its persisted width and renders the setup card; the terse line is gone. Verified against the stored value rather than a literal.",
+          "AC-2": "The control is a real focusable button with an accessible name, activated by keyboard, and Settings opens with the API-key field focused.",
+          "AC-3": "Adding a key swaps the card for the chat textarea at an unchanged width, and the persisted value is byte-identical before and after.",
+          "AC-4": "At 390x844 the Chat tab is present and its panel shows the card.",
+          "AC-5": "The divider stays visible, focusable, and operable by keyboard while unconfigured; the unconfigured state never writes the persisted width."
+        },
+        "specRewrite": "AC-1 and AC-5 originally specified a <= 56 px rail and a disabled divider. PD-4, resolved 2026-08-21, fixed the opposite approach, and section 7 of the plan states that a gate returning a different answer changes the implementation and the acceptance criteria are rewritten accordingly before the package starts. The criteria were rewritten in manifest.json, the package document, and the plan before any implementation, in commit 050493f.",
+        "preservedBehavior": "The persisted chat width is never written by the unconfigured state — configuration is not an input to width at all, so the contract holds by construction rather than by restore logic. The mobile Chat tab remains present. Opening Settings from the chat surface still works; the control that does it is now the setup card's button.",
+        "gates": {}
+      }
     },
     "WP-022": {
       "status": "complete",

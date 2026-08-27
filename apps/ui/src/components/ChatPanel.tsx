@@ -21,6 +21,7 @@ import {
   setChatMode,
   showTechnicalDetails,
   setShowTechnicalDetails,
+  setSettingsFocusTarget,
 } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
@@ -201,12 +202,27 @@ export default function ChatPanel() {
           </Show>
         </div>
       </Show>
+      {/*
+        WP-021 AC-1: while the assistant is unconfigured the column keeps its persisted width and
+        this card replaces the terse `No API key. Open Settings` line. PD-4 fixed full width over a
+        collapsed rail, so nothing here touches layout — the card is a body swap, not a resize.
+      */}
       <Show when={!hasApiKey()}>
-        <div class="chat-error">
-          No API key.{" "}
-          <a href="#" onClick={(e) => (e.preventDefault(), setSettingsOpen(true))}>
-            Open Settings
-          </a>
+        <div class="chat-setup-card" data-chat-setup-card>
+          <h3 class="chat-setup-title">Set up the assistant</h3>
+          <p class="chat-setup-body">
+            The assistant answers questions about the current position, game, and repertoire, and
+            can propose repertoire edits for you to review. It needs an OpenRouter API key to run.
+          </p>
+          <Button
+            class="chat-setup-action"
+            onClick={() => {
+              setSettingsFocusTarget("api-key");
+              setSettingsOpen(true);
+            }}
+          >
+            Set up the assistant
+          </Button>
         </div>
       </Show>
       <div class="chat-input">

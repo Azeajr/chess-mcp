@@ -2196,6 +2196,31 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
+/*
+ * WP-021 AC-1: the setup card that stands in for the chat surface while the assistant is
+ * unconfigured. PD-4 keeps the column at its persisted width, so this card sizes to that column
+ * and never constrains it — no width, min-width, or flex-basis here on purpose.
+ */
+.chat-setup-card {
+  margin: var(--space-2) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.chat-setup-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chat-setup-body {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .chat-error {
   color: var(--status-danger-text);
   font-size: 0.8rem;

@@ -96,7 +96,7 @@ import {
   settingsOpen,
   setSettingsOpen,
 } from "./store/ui";
-import { settingsFocusTarget, setSettingsFocusTarget } from "./store/settings";
+import { settingsFocusTarget, setSettingsFocusTarget, apiKey, setApiKey } from "./store/settings";
 import { replacementLab } from "./store/strategic-fit-replacement";
 import {
   strategicFitResolutionProof,
@@ -154,6 +154,8 @@ if (import.meta.env.DEV) {
     setSettingsOpen,
     settingsFocusTarget,
     setSettingsFocusTarget,
+    apiKey,
+    setApiKey,
     strategicFitMetadata,
     strategicFitMetadataStatus,
     strategicFitMetadataIssues,

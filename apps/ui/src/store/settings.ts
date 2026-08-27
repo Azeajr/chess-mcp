@@ -104,8 +104,11 @@ export function setShowTechnicalDetails(v: boolean) {
 /**
  * WP-026 AC-4: which field a Settings opening should land focus on. Null means default focus.
  * Error recovery actions (e.g. "Add Lichess token") set this before opening Settings.
+ *
+ * WP-021 AC-2 reuses the same seam for the chat setup card's "Set up the assistant" control,
+ * which must land focus on the API-key field rather than the dialog's default target.
  */
-export type SettingsFocusTarget = "lichess-token" | null;
+export type SettingsFocusTarget = "lichess-token" | "api-key" | null;
 const [settingsFocusTarget, setSettingsFocusTargetRaw] = createSignal<SettingsFocusTarget>(null);
 export { settingsFocusTarget };
 export function setSettingsFocusTarget(target: SettingsFocusTarget) {

@@ -2,7 +2,7 @@
  * Settings drawer: OpenRouter API key, model slug, and Lichess API token (persisted to
  * localStorage by the settings store). The keys are stored in plaintext — noted to the user.
  */
-import { createEffect, For, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
 import Dialog from "./primitives/Dialog";
 import {
@@ -20,13 +20,13 @@ import Field from "./primitives/Field";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
-  // WP-026 AC-4: a recovery action can request focus land on the token field.
-  let tokenInput: HTMLInputElement | undefined;
-  // Focus lands after the dialog mounts and its own initial focus runs, hence the rAF.
-  createEffect(() => {
-    if (!settingsOpen() || settingsFocusTarget() !== "lichess-token") return;
-    requestAnimationFrame(() => tokenInput?.focus());
-  });
+  // WP-026 AC-4 / WP-021 AC-2: a recovery action or the chat setup card can request that focus
+  // land on a specific field. Dialog's own initialFocus does the work, so the target is only a
+  // selector lookup — no post-mount refocus, which would fight the dialog's focus management.
+  const focusSelector = () => {
+    const target = settingsFocusTarget();
+    return target ? `input[data-settings-field='${target}']` : undefined;
+  };
   return (
     <Show when={settingsOpen()}>
       <Dialog
@@ -34,11 +34,7 @@ export default function SettingsDrawer() {
         size="drawer"
         class="drawer"
         dismissOnBackdrop
-        initialFocus={
-          settingsFocusTarget() === "lichess-token"
-            ? "input[data-settings-field='lichess-token']"
-            : undefined
-        }
+        initialFocus={focusSelector()}
         onClose={() => {
           setSettingsOpen(false);
           setSettingsFocusTarget(null);
@@ -55,6 +51,7 @@ export default function SettingsDrawer() {
 
         <Field class="field" label="OpenRouter API key">
           <input
+            data-settings-field="api-key"
             type="password"
             placeholder="sk-or-…"
             value={apiKey()}
@@ -95,7 +92,6 @@ export default function SettingsDrawer() {
 
         <Field class="field" label="Lichess API token">
           <input
-            ref={tokenInput}
             data-settings-field="lichess-token"
             type="password"
             placeholder="lip_…"

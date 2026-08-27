@@ -1221,7 +1221,7 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/chat-setup.spec.ts"],
         "commands": [],
         "description": "Playwright: persisted width preserved while unconfigured, setup card present in place of the terse line, focus target on the API-key field, mobile tab presence."
       },
