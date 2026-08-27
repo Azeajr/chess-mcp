@@ -424,7 +424,14 @@ export async function captureDialogObservations(
       await session.focusBrowser();
       // Enter on the opener, which the close just restored focus to. Activating through the
       // screen reader is what makes the dialog's own entry announcement land in the log.
-      await session.press("Enter");
+      //
+      // pressAwaitingAnnouncement, not press: this module's header records why. A plain press()
+      // reads VoiceOver's caption once, 50 ms after the key goes in. A light dialog's focus
+      // description beats that window, but a heavy one (Strategic Fit mounts a whole workspace:
+      // Solid render -> DOM mutation -> AX notification -> speech queue) does not, and its
+      // announcement was recorded as "(nothing)" while Settings passed in the very same session.
+      // Holding the capture open until the speech stabilises is the same fix AG-4 and AG-5 use.
+      await session.pressAwaitingAnnouncement("Enter");
       await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
       const announcement = session.observe(
         "dialog-announcement",
