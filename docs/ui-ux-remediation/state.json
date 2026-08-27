@@ -689,7 +689,32 @@
       }
     },
     "WP-029": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-029",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 584 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "The new repertoire-state coverage verifies the never-run call to action; forced-colors text, icon, and retry distinction; absence of the former second save buttons; verdict-first inspect presentation; visible badge labels; and preservation of every analytical field over a settled fixture. The unnarrowed suite rose from 569 to 584 passing, which is five new checks across three engines with no regression.",
+        "implementation": "A scanCompleted signal makes never-run and scanned-clean states structurally distinguishable instead of inferring both from an empty array. The failed state has its own alert treatment, glyph, copy, and retry. Drill-deck and annotated-repertoire exports now generate and download from one control instead of revealing a second save control. The Shorten inspect panel leads with a decision sentence, moves all six existing analytical fields under a keyboard-operable disclosure, gives the savings and evaluation glyphs visible text labels, and translates centipawn margins into plain readings while preserving exact values as expert text.",
+        "acceptanceCriteria": {
+          "AC-1": "The never-run state says Scan for unanswered replies and the completed-clean state says No gaps found; the strings and meanings differ.",
+          "AC-2": "Forced-colors automation proves the failed and empty states remain different by text and icon, and the failed state offers Run the scan again.",
+          "AC-3": "The drill-deck export is one Create drill deck control that shows Creating drill deck while it works, then saves its artifact; no Save CSV deck control appears.",
+          "AC-4": "The annotated-repertoire Generate control executes and saves the artifact in one action; no Save annotated PGN control appears.",
+          "AC-5": "The inspect panel's first rendered result line is a verdict sentence; its numbers are under Show the numbers; both ranking glyphs carry visible text.",
+          "AC-6": "Margins lead with negligible, slight, clear, or decisive margin while the exact centipawn value remains available as expert text.",
+          "AC-7": "The field-presence assertion verifies basis, evaluation change, both fit values, and both structure values from a deterministic settled fixture."
+        },
+        "preservedBehavior": "The scan command, cancellation, gap rows, transposition rows, prune suggestion navigation, accept/preview actions, analytical payload values, and export command arguments are unchanged. The new DEV-only seams inject settled presentation state for deterministic tests; production paths remain the existing stores and browser commands.",
+        "gates": {}
+      }
     },
     "WP-030": {
       "status": "complete",

@@ -11,6 +11,7 @@ import {
   scanning,
   progress,
   scanError,
+  scanCompleted,
   scanGaps,
   cancelScan,
   fills,
@@ -67,6 +68,7 @@ import Status from "./primitives/Status";
 import InteractiveRow from "./primitives/InteractiveRow";
 import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
 import { STRATEGIC_FIT_ENTRY } from "../content/strategicFit";
+import { GAPS_STATES, SHORTCUT_INSPECT, marginReading } from "../content/repertoire";
 
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
 
@@ -120,10 +122,17 @@ export default function RepertoirePanel() {
     const at = entry.completedAt;
     return `${count} ${count === 1 ? "result" : "results"}${at ? ` · ${relativeTime(at)}` : ""}`;
   };
+  const [deckExporting, setDeckExporting] = createSignal(false);
   const commandButton = (
     command: DirectCommand,
     label: string,
     args: () => Record<string, unknown> = () => ({}),
+    /**
+     * WP-029 AC-4: when set, the artifact this command produces downloads as soon as it exists,
+     * so the export is one action rather than a generate button followed by a save button that
+     * only appears afterwards.
+     */
+    downloadArtifact = false,
   ) => (
     <Show
       when={state(command).status === "running"}
@@ -132,7 +141,7 @@ export default function RepertoirePanel() {
           class="scan-btn"
           onClick={(e) => {
             e.preventDefault();
-            void executeCommand(command, {
+            const run = executeCommand(command, {
               ...args(),
               ...([
                 "audit_repertoire_moves",
@@ -141,6 +150,14 @@ export default function RepertoirePanel() {
               ].includes(command)
                 ? { depth: analysisDepth() }
                 : {}),
+            });
+            if (!downloadArtifact) {
+              void run;
+              return;
+            }
+            void run.then(() => {
+              const artifactId = state(command).result?.artifact_id;
+              if (typeof artifactId === "string") saveArtifact(artifactId);
             });
           }}
         >
@@ -345,41 +362,48 @@ export default function RepertoirePanel() {
                 <span class="san">
                   {(finding.path as string[]).join(" ") || "Start"} · {String(finding.best_move)}
                 </span>
-                <span class="fit">margin {Number(finding.margin)}cp</span>
+                {/*
+                  WP-029 AC-6: `margin 35cp` assumes the reader thinks in centipawns. The plain
+                  reading leads and the exact value stays in the title, so nothing is lost for a
+                  reader who wants it.
+                */}
+                <span class="fit" title={marginReading(Number(finding.margin)).exact}>
+                  {marginReading(Number(finding.margin)).plain}
+                </span>
               </InteractiveRow>
             )}
           </For>
+          {/*
+            WP-029 AC-3: one button. It previously generated the deck and then a *second* button
+            appeared to save it, so the user had to notice a new control to finish the job they
+            had already asked for. Now the same control runs the export and downloads the artifact
+            it produced, showing progress in between.
+          */}
           <Show when={state("find_only_moves").status === "completed"}>
             <button
               class="fix-btn"
-              onClick={() =>
+              data-export-deck
+              disabled={deckExporting()}
+              onClick={() => {
+                setDeckExporting(true);
                 void executeCommand("find_only_moves", {
                   max_positions: 60,
                   export_deck: true,
                   depth: analysisDepth(),
                 })
-              }
+                  .then(() => {
+                    const artifactId = (
+                      state("find_only_moves").result?.deck as Record<string, unknown> | undefined
+                    )?.artifact_id;
+                    if (typeof artifactId === "string") saveArtifact(artifactId);
+                  })
+                  .finally(() => {
+                    setDeckExporting(false);
+                  });
+              }}
             >
-              Generate CSV deck
+              {deckExporting() ? "Creating drill deck…" : "Create drill deck"}
             </button>
-          </Show>
-          <Show
-            when={
-              (state("find_only_moves").result?.deck as Record<string, unknown> | undefined)
-                ?.artifact_id
-            }
-          >
-            {(id) => (
-              <button
-                class="fix-btn"
-                onClick={() => {
-                  const artifactId = id();
-                  if (typeof artifactId === "string") saveArtifact(artifactId);
-                }}
-              >
-                Save CSV deck
-              </button>
-            )}
           </Show>
         </details>
 
@@ -465,25 +489,23 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("export_annotated_repertoire")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("export_annotated_repertoire", "Generate", () => ({
-              max_positions: 60,
-            }))}
+            {/*
+              WP-029 AC-4: the label stays "Generate" deliberately. The section heading already
+              says what is generated, and a longer label collides with the accessible-name and
+              text queries other specs use (Playwright matches names by case-insensitive
+              substring) and wraps the summary row past its height gate. The fix AC-4 asks for is
+              behavioural: one button that creates *and* downloads, rather than a second button
+              appearing afterwards.
+            */}
+            {commandButton(
+              "export_annotated_repertoire",
+              "Generate",
+              () => ({ max_positions: 60 }),
+              true,
+            )}
           </summary>
           <div class="scope-note">Audit, only moves, gaps, and congruence · up to 60 positions</div>
           {commandStatus("export_annotated_repertoire")}
-          <Show when={state("export_annotated_repertoire").result?.artifact_id}>
-            {(id) => (
-              <button
-                class="fix-btn"
-                onClick={() => {
-                  const artifactId = id();
-                  if (typeof artifactId === "string") saveArtifact(artifactId);
-                }}
-              >
-                Save annotated PGN
-              </button>
-            )}
-          </Show>
         </details>
 
         <StrategicFitTransfer />
@@ -532,11 +554,50 @@ export default function RepertoirePanel() {
               </div>
             )}
           </Show>
+          {/*
+            WP-029 AC-2: the error state is a distinct treatment, not the same `.empty` div the
+            empty state used — it carries its own icon and text, so it stays distinguishable under
+            forced colors where a colour-only difference would vanish.
+          */}
           <Show when={scanError()}>
-            <div class="empty">{scanError()}</div>
+            <div class="scan-error" data-scan-state="error" role="alert">
+              <span class="scan-state-icon" aria-hidden="true">
+                !
+              </span>
+              <div>
+                <strong>{GAPS_STATES.error.title}</strong>
+                <div class="scan-state-detail">{scanError()}</div>
+                <button
+                  class="scan-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void scanGaps();
+                  }}
+                >
+                  {GAPS_STATES.error.retry}
+                </button>
+              </div>
+            </div>
           </Show>
+          {/* WP-029 AC-1: never scanned and scanned-clean are different answers to the user. */}
           <Show when={!scanning() && gaps().length === 0 && !scanError()}>
-            <div class="empty">No scan yet — or no gaps.</div>
+            <div
+              class="empty scan-empty"
+              data-scan-state={scanCompleted() ? "clean" : "idle"}
+              data-gaps-empty
+            >
+              <span class="scan-state-icon" aria-hidden="true">
+                {scanCompleted() ? "✓" : "▸"}
+              </span>
+              <div>
+                <strong>
+                  {scanCompleted() ? GAPS_STATES.clean.title : GAPS_STATES.idle.title}
+                </strong>
+                <div class="scan-state-detail">
+                  {scanCompleted() ? GAPS_STATES.clean.body : GAPS_STATES.idle.body}
+                </div>
+              </div>
+            </div>
           </Show>
           <For each={gaps()}>
             {(g) => {
@@ -715,17 +776,22 @@ export default function RepertoirePanel() {
                     <span class="san">
                       {p.atPath.join(" ")} → {p.rerouteMove}
                     </span>
+                    {/*
+                      WP-029 AC-5: the glyphs carried their meaning only in a `title`, which is
+                      unavailable to touch and to most screen readers. Each now has a visible text
+                      label; the glyph stays as a compact marker beside it.
+                    */}
                     <Show when={p.bestSavings}>
-                      <span class="pick-badge sav" title="most moves saved on this line">
-                        ↓
+                      <span class="pick-badge sav" data-pick-badge="savings">
+                        <span aria-hidden="true">↓</span> {SHORTCUT_INSPECT.badges.savings}
                       </span>
                     </Show>
                     <Show when={p.bestEval}>
-                      <span
-                        class="pick-badge eval"
-                        title={`best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}`}
-                      >
-                        ★
+                      <span class="pick-badge eval" data-pick-badge="eval">
+                        <span aria-hidden="true">★</span>{" "}
+                        {p.evalConfirmed
+                          ? SHORTCUT_INSPECT.badges.evalConfirmed
+                          : SHORTCUT_INSPECT.badges.eval}
                       </span>
                     </Show>
                     <span class="fit">
@@ -749,40 +815,80 @@ export default function RepertoirePanel() {
                     <Show when={inspectError()}>
                       <span class="empty">{inspectError()}</span>
                     </Show>
+                    {/*
+                      WP-029 AC-5: the verdict leads. This panel used to open with
+                      `quality: take shortcut (eval)` over a row of raw metrics, which states a
+                      conclusion in the vocabulary of the thing that computed it rather than in
+                      terms of the decision the reader is making. AC-7 requires every field that
+                      was here before to still be here, so the numbers move under a disclosure
+                      rather than being dropped.
+                    */}
                     <Show when={comparison()}>
                       {(c) => (
-                        <div>
-                          <div>
-                            quality:{" "}
-                            <b>{c().recommend === "transpose" ? "take shortcut" : "keep line"}</b>{" "}
-                            <span class="muted">
-                              ({c().basis}
-                              {c().eval_disagrees_with_fit ? ", eval/fit disagree" : ""})
-                            </span>
-                          </div>
-                          <div class="muted">
-                            evalΔ{" "}
-                            {c().evalDelta == null ? "?" : ((c().evalDelta ?? 0) / 100).toFixed(2)}{" "}
-                            · fit {c().fitStay}→{c().fitTranspose} · {c().structureStay}→
-                            {c().structureTranspose}
-                          </div>
+                        <div data-inspect-result>
+                          <p class="inspect-verdict" data-inspect-verdict>
+                            {SHORTCUT_INSPECT.verdict(c().recommend, p.savedPlies)}
+                          </p>
+                          <Show when={c().eval_disagrees_with_fit}>
+                            <p class="warn" data-inspect-disagree>
+                              {SHORTCUT_INSPECT.disagree}
+                            </p>
+                          </Show>
                           {/* fit weak: the two branches' blended fit is within a rounding-width, so it
                             can't separate them — size-robust, unlike an absolute low-fit cutoff (a
                             large repertoire's on-theme leaves score lower than a small one's). */}
                           <Show when={Math.abs(c().fitStay - c().fitTranspose) < 0.05}>
-                            <div class="warn">
-                              fit weak — branches resemble the repertoire about equally
+                            <div class="warn" data-inspect-fit-weak>
+                              {SHORTCUT_INSPECT.fitWeak}
                             </div>
                           </Show>
+                          <details class="inspect-numbers">
+                            <summary>{SHORTCUT_INSPECT.detailsSummary}</summary>
+                            <dl data-inspect-fields>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.basisLabel}</dt>
+                                <dd data-inspect-field="basis">{c().basis}</dd>
+                              </div>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.fields.evalDelta}</dt>
+                                <dd data-inspect-field="evalDelta">
+                                  {c().evalDelta == null
+                                    ? "unknown"
+                                    : ((c().evalDelta ?? 0) / 100).toFixed(2)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.fields.fitStay}</dt>
+                                <dd data-inspect-field="fitStay">{c().fitStay}</dd>
+                              </div>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.fields.fitTranspose}</dt>
+                                <dd data-inspect-field="fitTranspose">{c().fitTranspose}</dd>
+                              </div>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.fields.structureStay}</dt>
+                                <dd data-inspect-field="structureStay">{c().structureStay}</dd>
+                              </div>
+                              <div>
+                                <dt>{SHORTCUT_INSPECT.fields.structureTranspose}</dt>
+                                <dd data-inspect-field="structureTranspose">
+                                  {c().structureTranspose}
+                                </dd>
+                              </div>
+                            </dl>
+                          </details>
                         </div>
                       )}
                     </Show>
                     <Show when={coverage()}>
                       {(cov) => (
-                        <div class={cov().introduces_gap ? "warn" : "safe"}>
+                        <div
+                          class={cov().introduces_gap ? "warn" : "safe"}
+                          data-inspect-coverage={cov().introduces_gap ? "gaps" : "safe"}
+                        >
                           {cov().introduces_gap
-                            ? `⚠ opens ${cov().new_gaps.length} new gap${cov().new_gaps.length === 1 ? "" : "s"}`
-                            : "✓ coverage-safe"}
+                            ? SHORTCUT_INSPECT.coverageGaps(cov().new_gaps.length)
+                            : SHORTCUT_INSPECT.coverageSafe}
                         </div>
                       )}
                     </Show>

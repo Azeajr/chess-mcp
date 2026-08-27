@@ -30,6 +30,8 @@ import { setStagedEditsForTesting, stagedEdits } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting, appendUserMessageForTesting } from "./store/chat";
+import { setInspectResultForTesting, setPruneSuggestionsForTesting } from "./store/repertoire";
+import { setScanErrorForTesting } from "./store/gaps";
 import {
   deleteStrategicFitMetadata,
   flushStrategicFitMetadata,
@@ -148,6 +150,9 @@ if (import.meta.env.DEV) {
     saveArtifact,
     appendToolResultForTesting,
     appendUserMessageForTesting,
+    setInspectResultForTesting,
+    setPruneSuggestionsForTesting,
+    setScanErrorForTesting,
     setStagedEditsForTesting,
     stagedEdits,
     runTool,

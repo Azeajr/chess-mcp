@@ -1472,8 +1472,15 @@ img,
   line-height: 1;
 }
 .rep-panel .pick-badge {
-  font-size: var(--type-xs);
+  font-size: var(--type-micro);
   padding: 0 0.15rem;
+  /*
+   * WP-029 AC-5: the badge now carries a text label rather than a bare glyph. The row is a
+   * horizontal strip inside a fixed-width panel, so the label must be allowed to shrink and wrap
+   * instead of pushing the row's action buttons outside the viewport.
+   */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .rep-panel .pick-badge.sav {
   color: var(--status-success);
@@ -2196,6 +2203,84 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
+/* WP-029 AC-5: the inspect panel's verdict-first layout. */
+.inspect-verdict {
+  margin: 0 0 var(--space-1);
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.inspect-numbers > summary {
+  cursor: pointer;
+  font-size: var(--type-micro);
+  color: var(--muted);
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+.inspect-numbers > summary:focus-visible {
+  outline: 2px solid rgba(110, 168, 254, 0.4);
+  outline-offset: 1px;
+}
+.inspect-numbers dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-micro);
+}
+.inspect-numbers dl > div {
+  display: contents;
+}
+.inspect-numbers dt {
+  color: var(--muted);
+}
+.inspect-numbers dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * WP-029 AC-2: the gap-scan states. Each carries a text label and a glyph, so error and empty stay
+ * distinguishable without relying on colour — which is what forced-colors mode removes.
+ */
+.scan-empty,
+.scan-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  /*
+   * WP-029: kept compact deliberately. This block sits above the Extend section's controls in a
+   * fixed-height panel, so extra vertical padding here pushes those controls below the fold on the
+   * 768x1024 tier that WP-002 AC-2 guards.
+   */
+  padding: var(--space-1) var(--space-2);
+  border-radius: 6px;
+  /*
+   * Body copy, so it stays at --type-xs: the scale's comment states body copy never goes below it
+   * and WP-036 AC-2 enforces that floor. Height is saved with padding and leading instead.
+   */
+  font-size: var(--type-xs);
+  line-height: 1.35;
+}
+.scan-error {
+  border: 1px solid var(--status-danger-marker);
+  background: var(--surface-raised);
+}
+.scan-state-icon {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.scan-state-detail {
+  display: inline;
+  margin-left: 0.3em;
+  color: var(--muted);
+}
+.scan-error .scan-btn {
+  margin-top: var(--space-2);
+}
+
 /* WP-028: the showing-on-board marker and suggestion source link. */
 .sug-showing {
   padding: 0.1rem 0.4rem;

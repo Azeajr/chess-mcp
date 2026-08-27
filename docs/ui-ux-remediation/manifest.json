@@ -1612,7 +1612,7 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/repertoire-states.spec.ts"],
         "commands": [],
         "description": "A field-presence spec written before the change and passing against current code; state-distinction specs per tool; a single-action export spec asserting exactly one button and one download."
       },

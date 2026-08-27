@@ -40,7 +40,20 @@ const LIMIT = 12;
 const [gaps, setGaps] = createSignal<Gap[]>([]);
 const [covered, setCovered] = createSignal<CoveredGap[]>([]);
 const [scanError, setScanError] = createSignal<string | null>(null);
-export { gaps, covered, scanError };
+/**
+ * WP-029 AC-1: whether a scan has completed in this session.
+ *
+ * Empty gaps alone cannot distinguish "not scanned yet" from "scanned and found nothing" — that
+ * conflation is the audit finding. The panel needs this to tell those two states apart.
+ */
+const [scanCompleted, setScanCompleted] = createSignal(false);
+export { gaps, covered, scanError, scanCompleted };
+
+/** WP-029 AC-2 test seam: put the scan into its failed state without an offline engine. */
+export function setScanErrorForTesting(message: string) {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  setScanError(message);
+}
 
 /**
  * WP-010: the scan's running state lives in the operation registry. The gaps operation is the
@@ -209,6 +222,7 @@ export async function scanGaps() {
       setScanError(res.error === "engine_unavailable" ? "engine offline" : res.error);
       return;
     }
+    setScanCompleted(true);
     setGaps(
       (res.gaps ?? []).map((gap) => ({
         path: gap.path,
