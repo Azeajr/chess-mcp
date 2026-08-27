@@ -2196,6 +2196,77 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
+/* WP-027: the chat context chip and per-run cancel control. */
+.chat-context-chip {
+  margin: var(--space-2) 0 0;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.chat-context-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.chat-context-summary:hover,
+.chat-context-summary:focus-visible {
+  background: var(--surface-control-subtle);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+.chat-context-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-context-values {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-context-block {
+  margin: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: ui-monospace, monospace;
+  font-size: var(--type-micro);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tool-run-cancel {
+  min-height: 2.75rem;
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+.tool-run-cancel:hover,
+.tool-run-cancel:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+
 /*
  * WP-031: the zero-comparable-route terminal state and the limited-evidence banner.
  */

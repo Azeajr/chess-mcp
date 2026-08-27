@@ -98,13 +98,50 @@ export function appendToolResultForTesting(operation: string, result: unknown) {
   ]);
 }
 
-function systemMessage(): ChatMessage {
+/**
+ * WP-027 AC-1: the exact context values injected into every turn's system prompt.
+ *
+ * The context chip renders from this same function rather than recomputing the values, so what the
+ * user is told the assistant can see cannot drift from what the assistant is actually sent.
+ */
+export interface ChatContextSnapshot {
+  readonly fen: string;
+  readonly color: string;
+  readonly sanPath: readonly string[];
+  readonly documentType: "repertoire" | "game";
+  readonly revision: number;
+  readonly fileName: string;
+  readonly nodes: number;
+  readonly leaves: number;
+  readonly maxDepth: number;
+}
+
+export function chatContextSnapshot(): ChatContextSnapshot {
   const tree = currentTree();
   const stats = tree.stats();
-  const selected = tree.sanPathAt(currentPath());
-  const type = stats.leaves > 1 ? "repertoire" : "game";
-  const ctx = `Current normalized FEN: ${fen()}\nRepertoire/user color: ${color()}\nSelected SAN path: ${selected.length ? selected.join(" ") : "(root)"}\nDocument: type=${type}, revision=${version()}, file=${fileName() ?? "untitled"}\nTree: nodes=${stats.nodes}, leaves=${stats.leaves}, max_depth=${stats.maxDepth}`;
-  return { role: "system", content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${ctx}` };
+  return {
+    fen: fen(),
+    color: color(),
+    sanPath: tree.sanPathAt(currentPath()),
+    documentType: stats.leaves > 1 ? "repertoire" : "game",
+    revision: version(),
+    fileName: fileName() ?? "untitled",
+    nodes: stats.nodes,
+    leaves: stats.leaves,
+    maxDepth: stats.maxDepth,
+  };
+}
+
+/** The context block verbatim, as appended to the system prompt. */
+export function chatContextBlock(snapshot: ChatContextSnapshot = chatContextSnapshot()): string {
+  return `Current normalized FEN: ${snapshot.fen}\nRepertoire/user color: ${snapshot.color}\nSelected SAN path: ${snapshot.sanPath.length ? snapshot.sanPath.join(" ") : "(root)"}\nDocument: type=${snapshot.documentType}, revision=${snapshot.revision}, file=${snapshot.fileName}\nTree: nodes=${snapshot.nodes}, leaves=${snapshot.leaves}, max_depth=${snapshot.maxDepth}`;
+}
+
+function systemMessage(): ChatMessage {
+  return {
+    role: "system",
+    content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${chatContextBlock()}`,
+  };
 }
 
 const REFERENCE_KEYS = new Set([
@@ -256,6 +293,20 @@ function updateRun(id: string, patch: Partial<ToolRunState>) {
   setToolRuns((runs) => runs.map((run) => (run.id === id ? { ...run, ...patch } : run)));
 }
 
+/**
+ * WP-027 AC-3: per-call abort controllers, one per tool run.
+ *
+ * The turn's own signal aborts every child (so `Stop this request` still stops everything), but a
+ * child aborting does not touch the turn — which is what lets one run be cancelled while earlier
+ * completed runs stay `completed` and the turn continues to the next call.
+ */
+const runControllers = new Map<string, AbortController>();
+
+export function cancelRun(id: string) {
+  const controllerForRun = runControllers.get(id);
+  if (controllerForRun) controllerForRun.abort();
+}
+
 async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
   setToolRuns((runs) => [
     ...runs,
@@ -266,13 +317,23 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
       updateRun(tc.id, { status: "cancelled" });
       continue;
     }
+    // A per-run controller linked to the turn: aborting the turn aborts this run, but cancelling
+    // this run leaves the turn's controller untouched.
+    const runController = new AbortController();
+    runControllers.set(tc.id, runController);
+    const abortRun = () => {
+      runController.abort();
+    };
+    signal.addEventListener("abort", abortRun, { once: true });
+    const runSignal = runController.signal;
+
     updateRun(tc.id, { status: "running" });
     // WP-010: each chat tool call is a registry operation. The registry owns the announcements.
     const operationId = registerOperation({
       kind: "chat-tool",
       label: toolDisplayName(tc.function.name),
       surface: "chat",
-      cancel: () => controller?.abort(),
+      cancel: abortRun,
     });
     let result: unknown;
     try {
@@ -283,13 +344,13 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         raw = null;
       }
       result = await toolExecutor(tc.function.name, raw, {
-        signal,
+        signal: runSignal,
         onProgress: (done, total, detail) => {
           updateRun(tc.id, { done, total, detail });
           updateOperation(operationId, { done, total, detail });
         },
       });
-      const outcome = executionOutcome(signal.aborted);
+      const outcome = executionOutcome(runSignal.aborted);
       updateRun(tc.id, { status: outcome });
       settleOperation(
         operationId,
@@ -297,7 +358,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         outcome === "failed" ? { detail: "tool error" } : undefined,
       );
     } catch (e) {
-      const isCancelled = isAbortError(e) || signal.aborted;
+      const isCancelled = isAbortError(e) || runSignal.aborted;
       result = isCancelled
         ? { error: "cancelled" }
         : { error: e instanceof Error ? e.message : String(e) };
@@ -311,12 +372,15 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         outcome,
         outcome === "failed" ? { detail: (result as { error: string }).error } : undefined,
       );
+    } finally {
+      signal.removeEventListener("abort", abortRun);
     }
     setHistory((h) => [
       ...h,
       { role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) },
     ]);
   }
+  for (const tc of calls) runControllers.delete(tc.id);
 }
 
 export async function send(userText: string) {
@@ -330,7 +394,8 @@ export async function send(userText: string) {
   setError(null);
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
-  setToolRuns([]);
+  // WP-027 AC-2: runs are conversation history, not per-turn scratch. They stay keyed by
+  // tool_call_id so a later turn never destroys the record of an earlier turn's work.
   controller = new AbortController();
   const signal = controller.signal;
   let trailingTools = false;

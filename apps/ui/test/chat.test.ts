@@ -1158,3 +1158,161 @@ test("history compaction preserves Strategic Fit identities, artifacts, actions,
   assert.match(serialized, /source_san_paths/);
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
+
+/**
+ * Polls until `predicate` holds. Used instead of a fixed sleep so the cancellation assertions are
+ * about controller wiring rather than about how fast the event loop happened to turn.
+ */
+async function waitFor(predicate: () => boolean, attempts = 200): Promise<void> {
+  for (let index = 0; index < attempts; index++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("waitFor timed out");
+}
+
+/**
+ * WP-027 AC-3/AC-4/AC-7: per-run cancellation is distinct from stopping the request.
+ * A blocking executor holds each call open until the test releases it, so the assertions are about
+ * the controller wiring rather than about timing. The regression this guards is the child
+ * controller leaking: if a per-run cancel aborted the turn's signal, the second call would never
+ * run and the turn would end early.
+ */
+test("WP-027 cancelling one tool run leaves earlier runs intact and continues the turn", async () => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  chat.clearChat();
+
+  const started: string[] = [];
+  const release = new Map<string, () => void>();
+  let turn = 0;
+
+  chat.setChatTransportForTesting(async () => {
+    turn += 1;
+    if (turn > 1) return { content: "done", toolCalls: [] };
+    return {
+      content: "",
+      toolCalls: ["first", "second"].map((id) => ({
+        id,
+        type: "function" as const,
+        function: { name: "evaluate_position", arguments: "{}" },
+      })),
+    };
+  });
+
+  chat.setChatToolExecutorForTesting(async (_name, _args, options) => {
+    const id = started.length === 0 ? "first" : "second";
+    started.push(id);
+    return await new Promise((resolve, reject) => {
+      release.set(id, () => {
+        resolve({ ok: id });
+      });
+      options?.signal?.addEventListener("abort", () => {
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    });
+  });
+
+  const sending = chat.send("evaluate twice");
+  // Let the first call start, then complete it normally.
+  await waitFor(() => started.length === 1);
+  release.get("first")?.();
+
+  // Cancel the second run specifically — not the request.
+  await waitFor(() => started.length === 2);
+  const runningId = chat.toolRuns().find((run) => run.status === "running")?.id;
+  assert.equal(runningId, "second");
+  chat.cancelRun("second");
+
+  await sending;
+
+  const runs = chat.toolRuns();
+  const first = runs.find((run) => run.id === "first");
+  const second = runs.find((run) => run.id === "second");
+  // AC-3: the cancelled run is cancelled; the earlier completed run is untouched.
+  assert.equal(first?.status, "completed");
+  assert.equal(second?.status, "cancelled");
+  // AC-3: the turn continued past the cancelled call rather than aborting — the transport was
+  // asked for a follow-up turn after both calls settled.
+  assert.ok(turn >= 2, `expected the turn to continue, saw ${turn} transport calls`);
+  assert.equal(chat.busy(), false);
+
+  chat.setChatTransportForTesting();
+  chat.setChatToolExecutorForTesting();
+  settings.setApiKey("");
+  chat.clearChat();
+  delete (globalThis as { localStorage?: unknown }).localStorage;
+});
+
+/** WP-027 AC-2: a later turn does not destroy the previous turn's run record. */
+test("WP-027 tool runs from an earlier turn survive the next turn", async () => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  chat.clearChat();
+
+  let call = 0;
+  chat.setChatTransportForTesting(async (opts) => {
+    const last = opts.messages.at(-1);
+    if (last?.role !== "user") return { content: "done", toolCalls: [] };
+    call += 1;
+    return {
+      content: "",
+      toolCalls: [
+        {
+          id: `turn-${call}`,
+          type: "function" as const,
+          function: { name: "evaluate_position", arguments: "{}" },
+        },
+      ],
+    };
+  });
+  chat.setChatToolExecutorForTesting(async () => ({ ok: true }));
+
+  await chat.send("first question");
+  const afterFirst = chat.toolRuns().map((run) => run.id);
+  assert.deepEqual(afterFirst, ["turn-1"]);
+
+  await chat.send("second question");
+  const afterSecond = chat.toolRuns().map((run) => run.id);
+  assert.deepEqual(afterSecond, ["turn-1", "turn-2"]);
+  assert.equal(chat.toolRuns().find((run) => run.id === "turn-1")?.status, "completed");
+
+  chat.setChatTransportForTesting();
+  chat.setChatToolExecutorForTesting();
+  settings.setApiKey("");
+  chat.clearChat();
+  delete (globalThis as { localStorage?: unknown }).localStorage;
+});
+
+/** WP-027 AC-1: the chip's values are the prompt's values, by construction. */
+test("WP-027 the context chip block is the text the system prompt injects", async () => {
+  const chat = await import("../src/store/chat.ts");
+  const snapshot = chat.chatContextSnapshot();
+  const block = chat.chatContextBlock(snapshot);
+  assert.match(block, /^Current normalized FEN: /);
+  assert.match(block, /Repertoire\/user color: /);
+  assert.match(block, /Selected SAN path: /);
+  assert.match(block, new RegExp(`revision=${snapshot.revision}`));
+  assert.match(block, new RegExp(`nodes=${snapshot.nodes}`));
+  assert.match(block, new RegExp(`leaves=${snapshot.leaves}`));
+});

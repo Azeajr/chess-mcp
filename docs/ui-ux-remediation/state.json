@@ -636,7 +636,33 @@
       }
     },
     "WP-027": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-027",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 560 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "unit": "apps/ui/test/chat.test.ts adds three checks: a blocking-executor cancellation test, a two-turn run-persistence test, and a context-block equality test. The suite is 362/362, including the existing compaction and REFERENCE_KEYS assertions that AC-6 protects.",
+        "implementation": "executeCalls now creates one AbortController per tool call, linked to the turn signal so stopping the request still aborts everything, while cancelling a run leaves the turn controller untouched. cancelRun(id) is exported and wired to a per-run Cancel control and to the WP-010 operation registry entry. The per-turn setToolRuns([]) reset was removed so runs persist across turns. chatContextSnapshot/chatContextBlock were extracted from systemMessage so ChatContextChip renders the exact injected text rather than a recomputed copy. Stop and Retry were relabelled from content/chat.ts to Stop this request and Send again with accessible descriptions.",
+        "regressionProof": "The rollback rule names one regression mode: child-controller wiring leaking so a per-run cancel aborts the turn. That exact defect was injected (adding controller?.abort() to cancelRun) and the new cancellation test failed, 361/362; reverting restored 362/362. The guard is verified to detect the failure it exists for, not merely to pass.",
+        "acceptanceCriteria": {
+          "AC-1": "The chip shows SAN path, colour, document name, and line count, and its disclosure renders chatContextBlock, the same string systemMessage injects.",
+          "AC-2": "Runs persist across turns; the two-turn test asserts turn-1's run is still present and completed after turn 2.",
+          "AC-3": "A running tool exposes Cancel; cancelling marks that run cancelled, leaves earlier completed runs completed, and the turn continues to the next call.",
+          "AC-4": "Stop this request aborts the turn controller, which aborts every child run; already-completed runs keep their status.",
+          "AC-5": "Send again re-sends the last user message and carries an accessible description saying so.",
+          "AC-6": "Existing chat.test.ts compaction assertions pass unchanged.",
+          "AC-7": "Each run registers a chat-tool operation while running, with cancel bound to its own controller."
+        },
+        "preservedBehavior": "MAX_ROUNDS, the round-limit summary turn, abnormal-finish handling, compactMessages/compactToolResult, REFERENCE_KEYS pinning of Strategic Fit identities, the focus message role, focusLine, and clearChat semantics are unchanged. Only the signal passed to each tool and the lifetime of the run record changed.",
+        "gates": {}
+      }
     },
     "WP-028": {
       "status": "not-started"

@@ -14,7 +14,10 @@ import {
   stop,
   retry,
   toolRuns,
+  cancelRun,
 } from "../store/chat";
+import { CHAT_CONTROLS } from "../content/chat";
+import ChatContextChip from "./ChatContextChip";
 import {
   hasApiKey,
   chatMode,
@@ -187,6 +190,21 @@ export default function ChatPanel() {
                   />
                 </Show>
               </Show>
+              {/* WP-027 AC-3: a running tool can be cancelled on its own, without stopping the turn. */}
+              <Show when={run.status === "running"}>
+                <button
+                  type="button"
+                  class="tool-run-cancel"
+                  data-tool-run-cancel={run.id}
+                  title={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                  aria-label={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                  onClick={() => {
+                    cancelRun(run.id);
+                  }}
+                >
+                  {CHAT_CONTROLS.cancelRun}
+                </button>
+              </Show>
             </div>
           )}
         </For>
@@ -196,8 +214,13 @@ export default function ChatPanel() {
         <div class="chat-error">
           {error()}{" "}
           <Show when={!busy()}>
-            <button class="chat-retry" onClick={retry}>
-              Retry
+            <button
+              class="chat-retry"
+              title={CHAT_CONTROLS.sendAgainDescription}
+              aria-label={CHAT_CONTROLS.sendAgainDescription}
+              onClick={retry}
+            >
+              {CHAT_CONTROLS.sendAgain}
             </button>
           </Show>
         </div>
@@ -225,6 +248,10 @@ export default function ChatPanel() {
           </Button>
         </div>
       </Show>
+      {/* WP-027 AC-1: the chip sits with the input, where the user decides what to ask. */}
+      <Show when={hasApiKey()}>
+        <ChatContextChip />
+      </Show>
       <div class="chat-input">
         <textarea
           aria-label="Chat message"
@@ -243,8 +270,13 @@ export default function ChatPanel() {
         <Show
           when={!busy()}
           fallback={
-            <button class="stop-btn" onClick={stop}>
-              Stop
+            <button
+              class="stop-btn"
+              title={CHAT_CONTROLS.stopRequestDescription}
+              aria-label={CHAT_CONTROLS.stopRequestDescription}
+              onClick={stop}
+            >
+              {CHAT_CONTROLS.stopRequest}
             </button>
           }
         >
