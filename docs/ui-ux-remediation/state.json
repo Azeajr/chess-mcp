@@ -673,7 +673,26 @@
       }
     },
     "WP-031": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-031",
+          "pnpm --filter @chess-mcp/ui test:chat (359 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 539 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/strategic-fit-evidence.spec.ts drives the real analysis through zero, limited, and full evidence states and verifies all six acceptance criteria. The canonical preflight spec's six tests pass unchanged. The container snapshot-validation run executed the entire suite across all three engines: 539 passed, 7 skipped, 0 failed.",
+        "unit": "apps/ui/test/strategic-fit-evidence-state.test.ts adds four pure tests for evidence-state derivation, lifecycle labels, payload-sourced thresholds and counts, and the threshold-absent fallback. test:chat is 359/359.",
+        "implementation": "strategicFitEvidenceState derives none/limited/full directly from the completed report's preflight payload. Zero comparable routes replace the findings/evidence/resolution panes with one terminal state while preserving the overview and PreflightResults. Limited reports retain findings and show a persistent banner. Full reports keep Analysis complete with no banner. The terminal state names payload route counts and the first_comparable_ply carried by the shallow-route issue, offers two remedies, and reruns through analyzeStrategicFit.",
+        "positiveControl": "WP-000's canonical RICH_PGN had 12 deep routes but every route ended after Black's move, leaving White to move. Preflight correctly excludes that shape as incomplete for a White repertoire, so the fixture produced zero comparable routes and could not satisfy WP-031 AC-5. The fixture now ends each route on White's seventh move (13 ply), leaving Black to move; it produces full evidence. Decision-flow and degraded-overview fixtures were corrected to intentionally provide comparable/limited evidence instead of accidentally relying on zero-comparable behavior.",
+        "visual": "The limited-evidence label/banner intentionally changes the completed Strategic Fit review. Both desktop and phone Linux baselines were regenerated in the version-matched Playwright container; the subsequent all-engine run was green.",
+        "preservedBehavior": "The analysis, preflight payload, route counts, issue list, finding-card bounded-evidence labels, and raw report are unchanged. Existing strategic-fit-preflight and preflight-presentation tests pass unchanged. Only presentation branches on the derived evidence state.",
+        "gates": {}
+      }
     },
     "WP-032": {
       "status": "not-started"

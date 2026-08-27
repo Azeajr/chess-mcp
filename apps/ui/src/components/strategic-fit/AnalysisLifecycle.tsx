@@ -4,6 +4,8 @@ import {
   cancelStrategicFitAnalysis,
   retryStrategicFitAnalysis,
   strategicFitLifecycle,
+  strategicFitEvidenceState,
+  type StrategicFitEvidenceState,
   type StrategicFitLifecycleStatus,
 } from "../../store/strategic-fit";
 import AnalysisProgress from "./AnalysisProgress";
@@ -22,6 +24,23 @@ export const STRATEGIC_FIT_LIFECYCLE_LABELS: Readonly<Record<StrategicFitLifecyc
 
 const isActive = (status: StrategicFitLifecycleStatus) =>
   status === "running" || status === "provisional";
+
+/**
+ * WP-031 AC-2/AC-3: the completed header states the evidence the report rests on, not just that
+ * the run finished. `STRATEGIC_FIT_LIFECYCLE_LABELS` is left intact — other callers use it as the
+ * lifecycle vocabulary, and this is a display concern layered over it.
+ */
+export const STRATEGIC_FIT_LIMITED_EVIDENCE_LABEL = "Analysis finished — limited evidence";
+
+export function lifecycleLabel(
+  status: StrategicFitLifecycleStatus,
+  evidence: StrategicFitEvidenceState | null,
+): string {
+  if (status === "completed" && (evidence === "limited" || evidence === "none")) {
+    return STRATEGIC_FIT_LIMITED_EVIDENCE_LABEL;
+  }
+  return STRATEGIC_FIT_LIFECYCLE_LABELS[status];
+}
 
 function actionLabel(status: StrategicFitLifecycleStatus): string {
   if (status === "completed") return "Analyze again";
@@ -43,10 +62,11 @@ export default function AnalysisLifecycle() {
       class={`strategic-fit-analysis-lifecycle strategic-fit-analysis-${state().status}`}
       aria-label="Strategic Fit analysis"
       data-analysis-state={state().status}
+      data-evidence-state={strategicFitEvidenceState() ?? "none-applicable"}
     >
       <div class="strategic-fit-analysis-lifecycle-main">
         <div class="strategic-fit-analysis-lifecycle-copy" aria-live="polite">
-          <strong>{STRATEGIC_FIT_LIFECYCLE_LABELS[state().status]}</strong>
+          <strong>{lifecycleLabel(state().status, strategicFitEvidenceState())}</strong>
           <Show when={state().status === "idle"}>
             <span>Run the engine-free structural review when you are ready.</span>
           </Show>

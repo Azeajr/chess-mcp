@@ -2197,6 +2197,75 @@ img,
   margin: 0.4rem 0;
 }
 /*
+ * WP-031: the zero-comparable-route terminal state and the limited-evidence banner.
+ */
+.strategic-fit-insufficient {
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.strategic-fit-insufficient-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.strategic-fit-insufficient-body {
+  margin: 0 0 var(--space-4);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-remedies-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-remedies {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.strategic-fit-insufficient-remedy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.strategic-fit-insufficient-remedy-title {
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.strategic-fit-insufficient-remedy-body {
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-footer {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-micro);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.strategic-fit-limited-evidence-banner {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--status-warning-border, var(--border-default));
+  border-radius: 6px;
+  background: var(--status-warning-surface, var(--surface-raised));
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--status-warning-text, var(--text-primary));
+}
+
+/*
  * WP-021 AC-1: the setup card that stands in for the chat surface while the assistant is
  * unconfigured. PD-4 keeps the column at its persisted width, so this card sizes to that column
  * and never constrains it — no width, min-width, or flex-basis here on purpose.

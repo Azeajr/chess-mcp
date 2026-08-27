@@ -21,22 +21,22 @@ const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: 
 const FLOW_REPERTOIRE = `[Event "Flow: move order A"]
 [Result "*"]
 
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 b6 *
+1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 *
 
 [Event "Flow: move order B"]
 [Result "*"]
 
-1. Nf3 d5 2. d4 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 b6 *
+1. Nf3 d5 2. d4 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 *
 
 [Event "Flow: early h6"]
 [Result "*"]
 
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 h6 6. Bh4 O-O 7. e3 b6 *
+1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 h6 6. Bh4 O-O 7. e3 *
 
 [Event "Flow: Nbd7 setup"]
 [Result "*"]
 
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 Nbd7 7. Rc1 c6 *`;
+1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 Nbd7 7. Rc1 *`;
 
 async function bootstrap(page: Page, pgn: string, name: string) {
   await page.goto("/");

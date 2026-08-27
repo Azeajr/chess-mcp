@@ -1713,9 +1713,12 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-evidence.spec.ts",
+          "apps/ui/test/strategic-fit-evidence-state.test.ts"
+        ],
         "commands": [],
-        "description": "Three-state spec driven by fixture reports through `window.__chess.setResolutionProofForTesting`-style seams or a fixture lifecycle result; a positive-control end-to-end run."
+        "description": "Three-state spec driven by real lifecycle fixture reports; a positive-control end-to-end run plus unit coverage for state derivation, payload-sourced thresholds, and labels."
       },
       "requiredAutomatedValidation": "The terminal-state fixture asserts thresholds come from the payload, at least two remedy actions are rendered, each action routes to an executable edit or rerun path, and full-evidence fixtures bypass the terminal state.",
       "riskLevel": "Low",
