@@ -695,7 +695,27 @@
       }
     },
     "WP-032": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-032",
+          "pnpm --filter @chess-mcp/ui test:chat (359 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 551 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/strategic-fit-disclosure.spec.ts covers completed-state first-finding geometry at 1280x800, active-state full progress, keyboard expansion/collapse with aria-expanded, print/export forcing, and beforeprint/afterprint forcing. The canonical lifecycle and preflight suites remain green after their completed-state payload assertions expand the new disclosures.",
+        "implementation": "Completed AnalysisProgress collapses to a one-line All six phases completed control; blocked preflight uses an honest blocked summary. Completed PreflightResults collapses to a one-line state/count summary. Both are real buttons with aria-expanded, keyboard activation, and a 44px minimum phone target. Running/provisional progress ignores collapse. A new run resets both choices. strategicFitPrintExportMode overrides both to expanded, so the existing toggle and beforeprint/afterprint handlers preserve every phase, count, and issue for print/export.",
+        "geometry": "At 1280x800 with a completed RICH_PGN analysis, both blocks start collapsed, the findings pane scrollTop is zero, and the first finding top edge is inside the viewport. The assertion measures getBoundingClientRect rather than a guessed pixel baseline.",
+        "visual": "The compact completed header intentionally changes workspace geometry. Desktop/phone review and strategic-map chart Linux baselines were regenerated in the version-matched Playwright container. The final all-engine run was green.",
+        "preservedBehavior": "Active-state phase history is still full size; expanding completed blocks renders all six phases plus the original preflight description, counts, and issue list unchanged. WP-031 zero/limited/full evidence presentation remains intact; its AC-4 test now expands preflight before asserting the retained payload.",
+        "gates": {}
+      }
     },
     "WP-033": {
       "status": "not-started"

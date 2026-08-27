@@ -65,6 +65,12 @@ async function analyze(dialog: ReturnType<Page["getByRole"]>) {
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
+  // WP-032: completed preflight is intentionally compact. This canonical preflight suite validates
+  // the unchanged counts and issue payload, so expand the disclosure before its existing assertions.
+  const phaseSummary = dialog.locator("[data-progress-collapsed='true'] button");
+  if (await phaseSummary.isVisible()) await phaseSummary.click();
+  const preflightSummary = dialog.locator("[data-preflight-collapsed='true'] button");
+  if (await preflightSummary.isVisible()) await preflightSummary.click();
 }
 
 async function expectNoQualityVerdict(dialog: ReturnType<Page["getByRole"]>) {

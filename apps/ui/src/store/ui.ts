@@ -46,6 +46,16 @@ export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] = c
  */
 export const [strategicFitPrintExportMode, setStrategicFitPrintExportMode] = createSignal(false);
 
+/**
+ * WP-032: completed-analysis disclosure state. Running/provisional progress ignores these signals
+ * and stays fully expanded; print/export mode also forces both blocks open. Keeping the user's
+ * completed-state choice here (rather than inside one render) preserves it across stage switches.
+ */
+export const [strategicFitAnalysisPhasesExpanded, setStrategicFitAnalysisPhasesExpanded] =
+  createSignal(false);
+export const [strategicFitPreflightExpanded, setStrategicFitPreflightExpanded] =
+  createSignal(false);
+
 export type StrategicFitFindingQueueFilter =
   | { readonly kind: "all" }
   | {

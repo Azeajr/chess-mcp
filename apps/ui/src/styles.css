@@ -3569,15 +3569,59 @@ img,
   border-top: 1px solid #3f444e;
   background: #1c1f25;
 }
+.strategic-fit-analysis-progress-card[data-progress-collapsed="true"],
+.strategic-fit-preflight[data-preflight-collapsed="true"] {
+  padding-block: 0.42rem;
+}
+.strategic-fit-analysis-progress-disclosure,
+.strategic-fit-preflight-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-xs);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.strategic-fit-analysis-progress-disclosure:hover,
+.strategic-fit-analysis-progress-disclosure:focus-visible,
+.strategic-fit-preflight-disclosure:hover,
+.strategic-fit-preflight-disclosure:focus-visible {
+  background: var(--surface-control-subtle);
+  outline: 2px solid rgba(110, 168, 254, 0.4);
+  outline-offset: 1px;
+}
+.strategic-fit-analysis-progress-collapse,
+.strategic-fit-preflight-collapse {
+  margin-bottom: var(--space-2);
+  color: var(--muted);
+  font-weight: 500;
+}
 .strategic-fit-analysis-progress-card > header,
-.strategic-fit-preflight > header {
+.strategic-fit-analysis-progress-card > #strategic-fit-analysis-phases-detail > header,
+.strategic-fit-preflight > header,
+.strategic-fit-preflight > #strategic-fit-preflight-detail > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
 .strategic-fit-analysis-progress-card > header span:first-child,
-.strategic-fit-preflight > header span:first-child {
+.strategic-fit-analysis-progress-card
+  > #strategic-fit-analysis-phases-detail
+  > header
+  span:first-child,
+.strategic-fit-preflight > header span:first-child,
+.strategic-fit-preflight > #strategic-fit-preflight-detail > header span:first-child {
   color: #91acd3;
   font-size: var(--type-xs);
   font-weight: 700;
@@ -3595,7 +3639,8 @@ img,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.strategic-fit-analysis-progress-card > progress {
+.strategic-fit-analysis-progress-card > progress,
+.strategic-fit-analysis-progress-card > #strategic-fit-analysis-phases-detail > progress {
   display: block;
   width: 100%;
   height: 0.55rem;

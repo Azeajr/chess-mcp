@@ -163,55 +163,91 @@ function PreflightIssueResult(props: { issue: PreflightIssue }) {
   );
 }
 
-export default function PreflightResults(props: { preflight: StrategicFitPreflight }) {
+export interface PreflightResultsProps {
+  readonly preflight: StrategicFitPreflight;
+  readonly collapsed?: boolean;
+  readonly onToggle?: () => void;
+}
+
+export default function PreflightResults(props: PreflightResultsProps) {
   const copy = () => stateCopy(props.preflight);
   const countsMeaningful = () => preflightCountsAreMeaningful(props.preflight);
+  const summary = () =>
+    countsMeaningful()
+      ? `${copy().label} · ${props.preflight.route_count} routes · ${props.preflight.comparable_route_count} comparable · ${props.preflight.incomplete_route_count} incomplete`
+      : `${copy().label} · route counts unavailable`;
 
   return (
     <section
       class={`strategic-fit-preflight strategic-fit-preflight-state-${props.preflight.state}`}
       data-preflight-state={props.preflight.state}
+      data-preflight-collapsed={String(props.collapsed === true)}
       aria-labelledby="strategic-fit-preflight-title"
     >
-      <header>
-        <div>
-          <span>Input and evidence check</span>
-          <h2 id="strategic-fit-preflight-title">Preflight results</h2>
-        </div>
-        <Status class="strategic-fit-preflight-state-label">{copy().label}</Status>
-      </header>
-      <p class="strategic-fit-preflight-summary">{copy().description}</p>
-
       <Show
-        when={countsMeaningful()}
+        when={props.collapsed !== true}
         fallback={
-          <p class="strategic-fit-preflight-counts-unavailable">
-            Route counts are withheld because the input could not be enumerated safely.
-          </p>
+          <button
+            type="button"
+            class="strategic-fit-preflight-disclosure"
+            aria-expanded="false"
+            onClick={() => props.onToggle?.()}
+          >
+            <span id="strategic-fit-preflight-title">{summary()}</span>
+            <span aria-hidden="true">▸</span>
+          </button>
         }
       >
-        <dl class="strategic-fit-preflight-counts" aria-label="Preflight route evidence counts">
-          <div>
-            <dt>Routes found</dt>
-            <dd>{props.preflight.route_count}</dd>
-          </div>
-          <div>
-            <dt>Comparable routes</dt>
-            <dd>{props.preflight.comparable_route_count}</dd>
-          </div>
-          <div>
-            <dt>Incomplete routes</dt>
-            <dd>{props.preflight.incomplete_route_count}</dd>
-          </div>
-        </dl>
-      </Show>
+        <div id="strategic-fit-preflight-detail">
+          <button
+            type="button"
+            class="strategic-fit-preflight-disclosure strategic-fit-preflight-collapse"
+            aria-expanded="true"
+            onClick={() => props.onToggle?.()}
+          >
+            Hide preflight details <span aria-hidden="true">▾</span>
+          </button>
+          <header>
+            <div>
+              <span>Input and evidence check</span>
+              <h2 id="strategic-fit-preflight-title">Preflight results</h2>
+            </div>
+            <Status class="strategic-fit-preflight-state-label">{copy().label}</Status>
+          </header>
+          <p class="strategic-fit-preflight-summary">{copy().description}</p>
 
-      <Show when={props.preflight.issues.length > 0}>
-        <ul class="strategic-fit-preflight-issues" aria-label="Preflight findings">
-          <For each={props.preflight.issues}>
-            {(issue) => <PreflightIssueResult issue={issue} />}
-          </For>
-        </ul>
+          <Show
+            when={countsMeaningful()}
+            fallback={
+              <p class="strategic-fit-preflight-counts-unavailable">
+                Route counts are withheld because the input could not be enumerated safely.
+              </p>
+            }
+          >
+            <dl class="strategic-fit-preflight-counts" aria-label="Preflight route evidence counts">
+              <div>
+                <dt>Routes found</dt>
+                <dd>{props.preflight.route_count}</dd>
+              </div>
+              <div>
+                <dt>Comparable routes</dt>
+                <dd>{props.preflight.comparable_route_count}</dd>
+              </div>
+              <div>
+                <dt>Incomplete routes</dt>
+                <dd>{props.preflight.incomplete_route_count}</dd>
+              </div>
+            </dl>
+          </Show>
+
+          <Show when={props.preflight.issues.length > 0}>
+            <ul class="strategic-fit-preflight-issues" aria-label="Preflight findings">
+              <For each={props.preflight.issues}>
+                {(issue) => <PreflightIssueResult issue={issue} />}
+              </For>
+            </ul>
+          </Show>
+        </div>
       </Show>
     </section>
   );

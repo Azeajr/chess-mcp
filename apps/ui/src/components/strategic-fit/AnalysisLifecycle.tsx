@@ -10,6 +10,13 @@ import {
 } from "../../store/strategic-fit";
 import AnalysisProgress from "./AnalysisProgress";
 import PreflightResults from "./PreflightResults";
+import {
+  strategicFitAnalysisPhasesExpanded,
+  setStrategicFitAnalysisPhasesExpanded,
+  strategicFitPreflightExpanded,
+  setStrategicFitPreflightExpanded,
+  strategicFitPrintExportMode,
+} from "../../store/ui";
 
 export const STRATEGIC_FIT_LIFECYCLE_LABELS: Readonly<Record<StrategicFitLifecycleStatus, string>> =
   {
@@ -52,6 +59,9 @@ export default function AnalysisLifecycle() {
   const state = strategicFitLifecycle;
   const run = () => {
     const status = state().status;
+    // A fresh completed report starts compact regardless of how the previous report was inspected.
+    setStrategicFitAnalysisPhasesExpanded(false);
+    setStrategicFitPreflightExpanded(false);
     void (status === "cancelled" || status === "failed" || status === "stale"
       ? retryStrategicFitAnalysis()
       : analyzeStrategicFit());
@@ -151,10 +161,26 @@ export default function AnalysisLifecycle() {
       </div>
 
       <Show when={state().request_id !== null}>
-        <AnalysisProgress state={state()} />
+        <AnalysisProgress
+          state={state()}
+          collapsed={
+            state().status === "completed" &&
+            !strategicFitAnalysisPhasesExpanded() &&
+            !strategicFitPrintExportMode()
+          }
+          onToggle={() =>
+            setStrategicFitAnalysisPhasesExpanded(!strategicFitAnalysisPhasesExpanded())
+          }
+        />
       </Show>
       <Show when={state().status === "completed" && state().current_result}>
-        {(current) => <PreflightResults preflight={current().result.preflight} />}
+        {(current) => (
+          <PreflightResults
+            preflight={current().result.preflight}
+            collapsed={!strategicFitPreflightExpanded() && !strategicFitPrintExportMode()}
+            onToggle={() => setStrategicFitPreflightExpanded(!strategicFitPreflightExpanded())}
+          />
+        )}
       </Show>
     </section>
   );

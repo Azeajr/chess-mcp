@@ -1762,9 +1762,9 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/strategic-fit-disclosure.spec.ts"],
         "commands": [],
-        "description": "A viewport assertion for first-finding visibility; a print-mode expansion assertion.\n\n---"
+        "description": "A viewport assertion for first-finding visibility; completed-state disclosure and keyboard assertions; active-state expansion; print/export and beforeprint expansion.\n\n---"
       },
       "requiredAutomatedValidation": "Completed-state geometry, disclosure state, print expansion, issue counts, keyboard operation, and first-finding viewport assertions pass at every required viewport.",
       "riskLevel": "Low",
