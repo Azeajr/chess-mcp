@@ -84,6 +84,16 @@ export function focusLine(path: Path) {
   }
 }
 
+/**
+ * WP-028 AC-2 test seam: append a user message so a suggestion can reference it by index.
+ * DEV-only, like the other harness seams.
+ */
+export function appendUserMessageForTesting(text: string): number {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  setHistory((all) => [...all, { role: "user", content: text }]);
+  return history().length - 1;
+}
+
 /** Development harness seam for typed result/action/artifact UI verification. */
 export function appendToolResultForTesting(operation: string, result: unknown) {
   const id = `test-tool-${history().length}`;

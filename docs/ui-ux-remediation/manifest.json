@@ -1561,7 +1561,7 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/analysis-suggestions.spec.ts"],
         "commands": [],
         "description": "Playwright: marker set, moved, and cleared; source link scroll target.\n\n---"
       },

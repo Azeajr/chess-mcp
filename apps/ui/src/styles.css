@@ -2196,6 +2196,37 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
+/* WP-028: the showing-on-board marker and suggestion source link. */
+.sug-showing {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--status-success-border);
+  border-radius: 999px;
+  background: var(--status-success-surface);
+  color: var(--status-success-text);
+  font-size: var(--type-micro);
+  white-space: nowrap;
+}
+.sug-goto,
+.sug-source {
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+.sug-goto:hover,
+.sug-goto:focus-visible,
+.sug-source:hover,
+.sug-source:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+
 /* WP-027: the chat context chip and per-run cancel control. */
 .chat-context-chip {
   margin: var(--space-2) 0 0;

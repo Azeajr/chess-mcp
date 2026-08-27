@@ -16,6 +16,11 @@ export interface Suggestion {
   sans: string[];
   comment?: string;
   firstUci?: string;
+  /**
+   * WP-028 AC-2: which chat message produced this suggestion, so the card can link back to it.
+   * Optional because suggestions predating the link still render; the link is simply absent.
+   */
+  sourceMessageIndex?: number;
 }
 
 /**
@@ -173,7 +178,7 @@ export function rejectStagedEdit(id: string) {
 export const stagedEdit = (id: string) => stagedEdits().find((item) => item.id === id);
 
 /** Validate against the current position and stage a proposal. Returns a tool-result payload. */
-export function addSuggestion(sans: string[], comment?: string) {
+export function addSuggestion(sans: string[], comment?: string, sourceMessageIndex?: number) {
   const check = validateLine(fen(), sans);
   if (!check.ok) {
     return { ok: false, reason: `illegal move at index ${check.badIndex} in proposed line` };
@@ -188,6 +193,7 @@ export function addSuggestion(sans: string[], comment?: string) {
     sans: check.canonical,
     comment,
     firstUci: check.firstUci,
+    sourceMessageIndex,
   };
   setSuggestions((prev) => [...prev, s]);
   return { ...staged, canonical: check.canonical, id: s.id };

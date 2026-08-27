@@ -29,7 +29,7 @@ import {
 import { setStagedEditsForTesting, stagedEdits } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
-import { appendToolResultForTesting } from "./store/chat";
+import { appendToolResultForTesting, appendUserMessageForTesting } from "./store/chat";
 import {
   deleteStrategicFitMetadata,
   flushStrategicFitMetadata,
@@ -147,6 +147,7 @@ if (import.meta.env.DEV) {
     artifactById,
     saveArtifact,
     appendToolResultForTesting,
+    appendUserMessageForTesting,
     setStagedEditsForTesting,
     stagedEdits,
     runTool,

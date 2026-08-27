@@ -665,7 +665,28 @@
       }
     },
     "WP-028": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-028",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 569 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/analysis-suggestions.spec.ts covers the marker being set, moved between cards, and cleared by both programmatic and keyboard navigation, plus the source link's focus target. The unnarrowed suite rose from 560 to 569 passing, which is these three checks across three engines with no regression.",
+        "implementation": "store/ui.ts gains lastNavigationSource. A suggestion card's Go to line navigates and then records itself as the source; AnalysisPanel holds an effect that watches the path signal and clears the marker whenever the path changes without the marker being re-set in the same tick. That inverts the problem: rather than enumerating every other way to navigate, anything that does not opt in clears the marker by default, which is what makes AC-3 hold for the move tree, arrow keys, and any future control. Suggestion gains an optional sourceMessageIndex, populated by proposeLine from the live chat history, and chat messages carry stable ids so the card's link can scroll to and focus the originating message.",
+        "acceptanceCriteria": {
+          "AC-1": "Go to line marks that card Showing on board; activating another card moves the single marker rather than adding a second.",
+          "AC-2": "The source link scrolls the chat log to the originating message and focuses it, asserted through document.activeElement rather than scroll position alone.",
+          "AC-3": "Programmatic navigation and an arrow key both clear the marker, verified separately."
+        },
+        "preservedBehavior": "acceptSuggestion and rejectSuggestion semantics, the blue suggestion arrows with their pathEq gating, and previewedKeys highlighting are untouched; the card gains controls beside the existing Accept and Reject rather than replacing them. sourceMessageIndex is optional, so suggestions created without one still render, simply without the link.",
+        "gates": {}
+      }
     },
     "WP-029": {
       "status": "not-started"

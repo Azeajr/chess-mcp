@@ -102,10 +102,13 @@ export default function ChatPanel() {
 
       <div class="chat-log">
         <For each={history()}>
-          {(m) => (
+          {(m, index) => (
             <>
+              {/* WP-028 AC-2: a stable id so a suggestion card can scroll to and focus its source. */}
               <Show when={m.role === "user"}>
-                <div class="msg user">{m.content}</div>
+                <div class="msg user" id={`chat-message-${index()}`} tabIndex={-1}>
+                  {m.content}
+                </div>
               </Show>
               <Show when={m.role === "focus"}>
                 <div
