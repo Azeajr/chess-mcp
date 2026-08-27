@@ -32,7 +32,7 @@ export function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapsho
   const active = state.phase_history.find((phase) => phase.state === "running");
   const cancelled = state.phase_history.find((phase) => phase.state === "cancelled");
   if (state.status === "completed" && blocked(state)) {
-    return "Preflight blocked analysis after normalization. One of six phases completed; five dependent phases were not run.";
+    return "The evidence check blocked analysis after normalization. One of six phases completed; five dependent phases were not run.";
   }
   if (state.status === "completed") return "All six analysis phases completed.";
   if (state.status === "cancelled") {
@@ -67,7 +67,7 @@ function phaseStatusLabel(
     if (lifecycleStatus === "stale") return "Cancelled when inputs changed";
     return "Cancelled";
   }
-  if (isBlocked) return "Not run — blocked by preflight";
+  if (isBlocked) return "Not run — blocked by the evidence check";
   if (lifecycleStatus === "cancelled") return "Not run after cancellation";
   if (lifecycleStatus === "failed") return "Not run after failure";
   return "Pending";
@@ -103,7 +103,7 @@ export default function AnalysisProgress(props: AnalysisProgressProps) {
           >
             <span id="strategic-fit-analysis-phases-title">
               {blocked(props.state)
-                ? "Preflight completed; five dependent phases were not run"
+                ? "Evidence check completed; five dependent phases were not run"
                 : "All six phases completed"}
             </span>
             <span aria-hidden="true">▸</span>

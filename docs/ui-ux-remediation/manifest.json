@@ -1869,8 +1869,8 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
+        "files": ["apps/ui/test/strategic-fit-vocabulary.test.ts"],
+        "commands": ["git diff --exit-code packages/chess-tools"],
         "description": "Text-presence assertions for the preserved statements; a vocabulary sweep asserting the retired primary labels are absent from rendered text."
       },
       "requiredAutomatedValidation": "Canonical protected propositions remain exact, retired primary labels are absent, required definitions precede first use, allowed UI-only vocabulary changes are exhaustive, and packages/chess-tools has no diff.\n\n---",

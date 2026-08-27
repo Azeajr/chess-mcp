@@ -8,6 +8,7 @@ import {
   type ReplacementStrategicScoreContribution,
   type StrategicFitSourceProvenance,
 } from "@chess-mcp/chess-tools";
+import { STRATEGIC_FIT_VOCABULARY, strategicFitTradeoffStatus } from "../../content/strategicFit";
 
 const AXIS_LABELS: Readonly<Record<ReplacementStrategicScoreAxis, string>> = {
   "strategic-fit": "Strategic fit",
@@ -161,7 +162,7 @@ export function buildCandidateComparisonRows(
       preview_error_code: candidatePreview?.error_code ?? null,
       preview_explanation: candidatePreview?.explanation ?? null,
       pareto_status: candidate.pareto.status,
-      pareto_reason: candidate.pareto.reason ?? "No Pareto explanation supplied.",
+      pareto_reason: candidate.pareto.reason ?? "No tradeoff explanation supplied.",
       dominated_by_candidate_ids: candidate.pareto.dominated_by_candidate_ids,
       active_pareto_axes: candidate.pareto.axis_ids,
       repertoire_pov_evaluation: evaluation(
@@ -214,14 +215,11 @@ export default function CandidateTable(props: CandidateTableProps) {
   return (
     <div class="replacement-candidate-table-wrap">
       <table class="replacement-candidate-table">
-        <caption>
-          Candidate comparison. Tradeoffs stay separate; Pareto status never means one aggregate
-          best candidate.
-        </caption>
+        <caption>{STRATEGIC_FIT_VOCABULARY.tradeoffs.caption}</caption>
         <thead>
           <tr>
             <th scope="col">Candidate</th>
-            <th scope="col">Pareto status</th>
+            <th scope="col">{STRATEGIC_FIT_VOCABULARY.tradeoffs.column}</th>
             <th scope="col">Repertoire evaluation</th>
             <th scope="col">Familiarity</th>
             <th scope="col">Memory burden</th>
@@ -258,11 +256,19 @@ export default function CandidateTable(props: CandidateTableProps) {
                     <span>Preview: {row.preview_status}</span>
                   </button>
                 </th>
-                <td data-label="Pareto status">
-                  <strong>{row.pareto_status}</strong>
-                  <Show when={row.dominated_by_candidate_ids.length > 0}>
-                    <small>Dominated by {row.dominated_by_candidate_ids.join(", ")}</small>
-                  </Show>
+                <td data-label={STRATEGIC_FIT_VOCABULARY.tradeoffs.column}>
+                  <strong>
+                    {
+                      strategicFitTradeoffStatus(row.pareto_status, row.dominated_by_candidate_ids)
+                        .plain
+                    }
+                  </strong>
+                  <small>
+                    {
+                      strategicFitTradeoffStatus(row.pareto_status, row.dominated_by_candidate_ids)
+                        .expert
+                    }
+                  </small>
                 </td>
                 <td data-label="Repertoire evaluation">
                   <strong>{row.repertoire_pov_evaluation}</strong>
@@ -441,7 +447,7 @@ export function CandidateDetails(props: CandidateDetailsProps) {
 
       <section aria-labelledby={`replacement-candidate-evaluation-${props.row.candidate_id}`}>
         <h5 id={`replacement-candidate-evaluation-${props.row.candidate_id}`}>
-          Evaluation and Pareto evidence
+          {STRATEGIC_FIT_VOCABULARY.tradeoffs.detailTitle}
         </h5>
         <p>
           <strong>{props.repertoireColor === "black" ? "Black" : "White"} repertoire POV:</strong>{" "}
@@ -452,7 +458,9 @@ export function CandidateDetails(props: CandidateDetailsProps) {
           <strong>White-POV engine transport:</strong> {props.row.white_pov_transport}.{" "}
           {props.row.engine_detail}.
         </p>
-        <p>{props.row.pareto_reason}</p>
+        <p>
+          <small>Expert evidence: {props.row.pareto_reason}</small>
+        </p>
         <p>
           Active canonical axes:{" "}
           {props.row.active_pareto_axes.length > 0

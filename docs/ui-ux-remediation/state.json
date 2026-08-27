@@ -822,7 +822,36 @@
       "status": "not-started"
     },
     "WP-034": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-034 (includes git diff --exit-code packages/chess-tools)",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 596 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "vocabularySweep": "apps/ui/test/strategic-fit-vocabulary.test.ts walks every UI source file rather than a known list, so a component added later cannot reintroduce a retired label without failing. Identifier, attribute, payload-field, and developer-throw occurrences are excluded by explicit pattern; assistant-facing prompt text is excluded by file because PD-8 keeps the contract vocabulary for the model and MCP hosts. The sweep was verified to bite: reinstating one heading produced 370 of 371 with the offending file and line named.",
+        "implementation": "All reworded strings live in content/strategicFit.ts. Preflight became the evidence check across PreflightResults, AnalysisProgress, StrategicOverview, and the chat report cards. The resolution proof became Check what changed with plain statuses, and Train the exception became Keep and train this line. Pareto status became a plain tradeoff reading paired with its expert term through strategicFitTradeoffStatus, keeping Pareto available as secondary text on the table, chart, and candidate detail. Strategic distance is defined once and rendered wherever the term appears. The four advanced preferences share one definition and carry distinct two-word effects.",
+        "acceptanceCriteria": {
+          "AC-1": "Pareto appears only as expert text; the sweep fails on any other rendered use, and the status pairing is asserted for optimal, dominated, and unscored.",
+          "AC-2": "No rendered preflight label remains; the sweep covers every source file.",
+          "AC-3": "Resolution proof and training exception are gone as labels; the UI-only rename honors PD-8 and the workflow contract is untouched.",
+          "AC-4": "The definition is asserted in prose, and every file mentioning strategic distance must also render the definition element.",
+          "AC-5": "One shared definition plus four distinct effects, asserted for uniqueness and two-word length.",
+          "AC-6": "All five canonical statements are matched verbatim across the UI and chess-tools sources, and the wizard's Recommended badge, engine consequence statement, and Skip for now are asserted present.",
+          "AC-7": "git diff --exit-code packages/chess-tools runs as a required command and exits zero."
+        },
+        "visualNote": "Three Linux baselines were regenerated in the version-matched container because the renamed evidence-check heading, tradeoff column, and status text intentionally change the rendered Strategic Fit review, phone review, and strategic map chart. The subsequent all-engine run was green.",
+        "preservedBehavior": "Only presentation strings changed. Analysis, preflight payloads, route counts, issue lists, candidate scoring, Pareto frontier computation, proof statuses, and training records are untouched, and every status key still maps one-to-one to its payload value. The first full run surfaced a real copy defect introduced by this package: a shortened table caption inverted the tradeoff disclaimer into implying an aggregate best. It was corrected before completion.",
+        "gates": {}
+      }
     },
     "WP-035": {
       "status": "not-started"

@@ -1,5 +1,5 @@
 import { For, Show, createMemo } from "solid-js";
-import { strategicFitPlanSectionLabel } from "../content/strategicFit";
+import { strategicFitPlanSectionLabel, STRATEGIC_FIT_VOCABULARY } from "../content/strategicFit";
 import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
@@ -288,7 +288,8 @@ function StrategicFitResult(props: { report: StrategicFitChatReport }) {
         <span>{props.report.summary.insufficient_evidence_branch_count} incomplete branches</span>
       </div>
       <div class="result-summary strategic-fit-preflight">
-        Preflight {titleCase(props.report.preflight.state)} · {issueCounts().blocking} blocking ·{" "}
+        {STRATEGIC_FIT_VOCABULARY.evidenceCheck.title.replace(" results", "")}{" "}
+        {titleCase(props.report.preflight.state)} · {issueCounts().blocking} blocking ·{" "}
         {issueCounts().degraded} degraded · {issueCounts().informational} informational
       </div>
       <Show when={props.report.preflight.issues.length > 0}>
@@ -306,8 +307,8 @@ function StrategicFitResult(props: { report: StrategicFitChatReport }) {
         when={props.report.findings.length > 0}
         fallback={
           <div class="strategic-fit-empty">
-            No findings are available from this report. Review the preflight evidence before drawing
-            a conclusion.
+            No findings are available from this report. Review the evidence-check results before
+            drawing a conclusion.
           </div>
         }
       >
@@ -427,9 +428,9 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
               </span>
             </div>
             <div class="result-summary strategic-fit-preflight">
-              Preflight {titleCase(summary().preflight.state)} ·{" "}
-              {summary().preflight.issue_counts.blocking} blocking ·{" "}
-              {summary().preflight.issue_counts.degraded} degraded ·{" "}
+              {STRATEGIC_FIT_VOCABULARY.evidenceCheck.title.replace(" results", "")}{" "}
+              {titleCase(summary().preflight.state)} · {summary().preflight.issue_counts.blocking}{" "}
+              blocking · {summary().preflight.issue_counts.degraded} degraded ·{" "}
               {summary().preflight.issue_counts.informational} informational
             </div>
             <Show when={summary().preflight.issues.length > 0}>

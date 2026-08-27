@@ -302,7 +302,7 @@ test("empty input blocks after normalization and never claims dependent phases r
   await expect(phases.nth(0)).toHaveAttribute("data-phase-state", "completed");
   for (let index = 1; index < 6; index++) {
     await expect(phases.nth(index)).toHaveAttribute("data-phase-state", "pending");
-    await expect(phases.nth(index)).toContainText("Not run — blocked by preflight");
+    await expect(phases.nth(index)).toContainText("Not run — blocked by the evidence check");
   }
   await expect(dialog.getByText(/five dependent phases were not run/i).first()).toBeVisible();
   await expect(dialog.getByRole("definition").nth(0)).toHaveText("0");
@@ -316,11 +316,11 @@ test("empty input blocks after normalization and never claims dependent phases r
   await expect(phases.nth(0)).toHaveAttribute("data-phase-state", "completed");
   for (let index = 1; index < 6; index++) {
     await expect(phases.nth(index)).toHaveAttribute("data-phase-state", "pending");
-    await expect(phases.nth(index)).toContainText("Not run — blocked by preflight");
+    await expect(phases.nth(index)).toContainText("Not run — blocked by the evidence check");
   }
   await expect(dialog.locator("[data-phase-state='cancelled']")).toHaveCount(0);
   await expect(dialog.getByRole("status")).toContainText(
-    "Preflight blocked analysis after normalization. One of six phases completed; five dependent phases were not run.",
+    "The evidence check blocked analysis after normalization. One of six phases completed; five dependent phases were not run.",
   );
 });
 
@@ -347,7 +347,7 @@ test("small, shallow, incomplete, and insufficient evidence remains a meaningful
   await expect(dialog.locator("[data-preflight-code='incomplete-route']")).toContainText(
     "Input warning",
   );
-  await expect(dialog.getByLabel("Preflight route evidence counts")).toContainText("Routes found1");
+  await expect(dialog.getByLabel("Evidence-check route counts")).toContainText("Routes found1");
   await expect(dialog.locator("[data-phase-state='completed']")).toHaveCount(6);
   await expectNoQualityVerdict(dialog);
 });
@@ -402,12 +402,12 @@ test("custom-start and malformed blocking evidence is explicit and withholds uns
   await expect(
     dialog.getByText("Route counts are withheld because the input could not be enumerated safely."),
   ).toBeVisible();
-  await expect(dialog.getByLabel("Preflight route evidence counts")).toHaveCount(0);
+  await expect(dialog.getByLabel("Evidence-check route counts")).toHaveCount(0);
   const incompleteOverview = dialog.locator("[data-overview-item='incomplete-branches']");
   await expect(incompleteOverview).toHaveAttribute("data-metric-state", "unavailable");
   await expect(incompleteOverview.locator("[data-overview-value]")).toHaveText("Unavailable");
   await expect(incompleteOverview).toContainText(
-    "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.",
+    "Incomplete-branch count is unavailable because the evidence check could not enumerate routes safely.",
   );
   await expect(incompleteOverview).not.toContainText("0");
   await expect(dialog.locator("[data-phase-state='completed']")).toHaveCount(1);
@@ -424,7 +424,7 @@ test("ready preflight is explicit about analyzability without becoming a quality
   await analyze(dialog);
 
   await expect(dialog.locator("[data-preflight-state='ready']")).toBeVisible();
-  await expect(dialog.getByText("Preflight ready", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Evidence check passed", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/confirms analyzability, not strategic quality/i)).toBeVisible();
   await expect(dialog.locator("[data-phase-state='completed']")).toHaveCount(6);
   await expectNoQualityVerdict(dialog);

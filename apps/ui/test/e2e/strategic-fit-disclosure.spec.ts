@@ -97,9 +97,9 @@ test("WP-032 AC-3 both completed summaries expand and collapse from the keyboard
   await expect(preflight).toHaveAttribute("aria-expanded", "false");
   await preflight.focus();
   await page.keyboard.press("Enter");
-  const hidePreflight = dialog.getByRole("button", { name: /Hide preflight details/ });
+  const hidePreflight = dialog.getByRole("button", { name: /Hide evidence-check details/ });
   await expect(hidePreflight).toHaveAttribute("aria-expanded", "true");
-  await expect(dialog.getByRole("list", { name: "Preflight findings" })).toBeVisible();
+  await expect(dialog.getByRole("list", { name: "Evidence-check findings" })).toBeVisible();
 });
 
 test("WP-032 AC-4 print/export and beforeprint force both disclosures fully open", async ({

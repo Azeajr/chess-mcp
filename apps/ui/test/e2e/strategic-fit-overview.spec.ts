@@ -232,7 +232,7 @@ test("blocked overview labels unavailable analysis values instead of zero", asyn
     overview.locator("[data-overview-item='incomplete-branches'] [data-overview-value]"),
   ).toHaveText("0");
   await expect(overview.locator("[data-overview-screen-reader-summary]")).toContainText(
-    "Preflight blocked position analysis",
+    "The evidence check blocked position analysis",
   );
   await expect(overview.getByRole("button")).toHaveCount(0);
 });

@@ -7,6 +7,7 @@ import type {
   StrategicFitPreflight,
 } from "@chess-mcp/chess-tools";
 import Status from "../primitives/Status";
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 export const PREFLIGHT_CODE_LABELS: Readonly<Record<PreflightIssueCode, string>> = {
   "empty-repertoire": "Empty repertoire",
@@ -73,25 +74,7 @@ export function preflightCountsAreMeaningful(preflight: StrategicFitPreflight): 
 }
 
 function stateCopy(preflight: StrategicFitPreflight): { label: string; description: string } {
-  if (preflight.state === "blocked") {
-    return {
-      label: "Preflight blocked",
-      description:
-        "Input validation stopped the analysis. Only move-order normalization ran; five dependent phases were not run.",
-    };
-  }
-  if (preflight.state === "degraded") {
-    return {
-      label: "Preflight degraded",
-      description:
-        "Analysis completed with evidence limitations. These limits constrain what the report can support.",
-    };
-  }
-  return {
-    label: "Preflight ready",
-    description:
-      "The repertoire could proceed through deterministic analysis. Preflight confirms analyzability, not strategic quality.",
-  };
+  return STRATEGIC_FIT_VOCABULARY.evidenceCheck.states[preflight.state];
 }
 
 const sourcePath = (path: readonly string[]) =>
@@ -205,12 +188,14 @@ export default function PreflightResults(props: PreflightResultsProps) {
             aria-expanded="true"
             onClick={() => props.onToggle?.()}
           >
-            Hide preflight details <span aria-hidden="true">▾</span>
+            {STRATEGIC_FIT_VOCABULARY.evidenceCheck.hide} <span aria-hidden="true">▾</span>
           </button>
           <header>
             <div>
-              <span>Input and evidence check</span>
-              <h2 id="strategic-fit-preflight-title">Preflight results</h2>
+              <span>{STRATEGIC_FIT_VOCABULARY.evidenceCheck.kicker}</span>
+              <h2 id="strategic-fit-preflight-title">
+                {STRATEGIC_FIT_VOCABULARY.evidenceCheck.title}
+              </h2>
             </div>
             <Status class="strategic-fit-preflight-state-label">{copy().label}</Status>
           </header>
@@ -224,7 +209,10 @@ export default function PreflightResults(props: PreflightResultsProps) {
               </p>
             }
           >
-            <dl class="strategic-fit-preflight-counts" aria-label="Preflight route evidence counts">
+            <dl
+              class="strategic-fit-preflight-counts"
+              aria-label={STRATEGIC_FIT_VOCABULARY.evidenceCheck.routeCountsLabel}
+            >
               <div>
                 <dt>Routes found</dt>
                 <dd>{props.preflight.route_count}</dd>
@@ -241,7 +229,10 @@ export default function PreflightResults(props: PreflightResultsProps) {
           </Show>
 
           <Show when={props.preflight.issues.length > 0}>
-            <ul class="strategic-fit-preflight-issues" aria-label="Preflight findings">
+            <ul
+              class="strategic-fit-preflight-issues"
+              aria-label={STRATEGIC_FIT_VOCABULARY.evidenceCheck.findingsLabel}
+            >
               <For each={props.preflight.issues}>
                 {(issue) => <PreflightIssueResult issue={issue} />}
               </For>

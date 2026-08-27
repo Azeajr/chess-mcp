@@ -2833,7 +2833,7 @@ test("resolution proof stays claimless before rescan, binds post-commit report e
     resolutionProofFixture(documentId, version + 1, "black"),
   );
   await expect(proof).toBeVisible();
-  await expect(proof.getByRole("heading", { name: "Rescan and resolution proof" })).toBeVisible();
+  await expect(proof.getByRole("heading", { name: "Check what changed" })).toBeVisible();
   await expect(proof).toHaveAttribute("data-proof-status", "superseded");
   await expect(proof).toContainText(
     "No success or resolution claim is made before a completed rescan",
