@@ -137,12 +137,26 @@ jobs:
       - run: npx @guidepup/setup install voiceover
         working-directory: apps/ui
       # One invocation for the same reason as browser-evidence above — see its comment.
-      - name: Capture VoiceOver evidence — AG-1 + AG-2 + AG-3 + AG-4 + AG-5 (headed — VoiceOver reads the real screen)
+      - name: Capture VoiceOver evidence — AG-1 + AG-3 + AG-4 + AG-5 (headed — VoiceOver reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
-          A11Y_SPEC: ag-1-dialog.spec.ts,ag-2-mobile-tabs.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
+      # AG-2 gets its own invocation, and therefore its own VoiceOver session, deliberately.
+      #
+      # Appending it to the run above put five scenarios in one session and broke three claims that
+      # had nothing to do with tabs: AG-1's focus report and two AG-5 announcements came back as
+      # "VoiceOver Settings activity" — macOS handing focus to VoiceOver's own UI, the exact
+      # long-session failure this collector documents at at-runner.ts. Proven, not assumed: run
+      # 33133285946 on the pre-AG-2 commit was 69/69 green, and two runs of the combined job failed
+      # the identical three claims. A separate step keeps every session the length it was.
+      - name: Capture VoiceOver evidence — AG-2 (separate session; see comment)
+        working-directory: apps/ui
+        run: node test/accessibility/capture.mjs --project webkit
+        env:
+          A11Y_ATTEMPT_AT: "1"
+          A11Y_SPEC: ag-2-mobile-tabs.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
