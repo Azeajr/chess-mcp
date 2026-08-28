@@ -819,7 +819,35 @@
       }
     },
     "WP-033": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-27T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-033",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed, 0 failed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 597 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Part (a) landed the stage strip, the single resolution render, and the stale-blocked alert. Part (b) migrated both the workspace and the Replacement Lab onto the Dialog primitive and added an explicit nesting assertion: the first Escape closes the lab and leaves the workspace open, the second closes the workspace. The unnarrowed suite rose from 596 to 597 passing with no regression.",
+        "scope": "AC-5 could not be met by migrating the workspace alone. Every dialog installs a capture-phase document listener, and capture listeners run in registration order, so the outer surface would have answered Escape on the lab's behalf and closed the wrong surface. The primitive gained an open-dialog stack so only the topmost entry acts, and the lab moved onto the same primitive; both changes are required for the ordering AC-5 specifies. Migrating the lab and the primitive is outside WP-033's originally listed files (styles.css plus the accessibility spec); the manifest now records the files the package actually needed, and the deletion of the two hand-rolled traps is the point of the package rather than scope creep.",
+        "defectsFound": "Three real defects surfaced only by running the migration. The lab rendered inside the workspace, which goes inert while the lab is open, and an inert subtree leaves the accessibility tree entirely, so the lab had no accessible name; it is now a sibling. As a sibling it no longer inherited the workspace's stacking context, so the workspace backdrop painted over it and swallowed every click; it now has its own layer above the workspace. The lab's two-row grid template stayed on the outer element after its content moved into a wrapper, so overflow:hidden clipped the entire body away.",
+        "ag1": "The AG-1 VoiceOver dialog-announcement claim was failing before this package. Proven pre-existing by running the same gate from a detached worktree at 6e8dd67, the commit before the migration, where it reproduces identically. Root cause is the capture window this repository already documents: a plain press() reads VoiceOver's caption once, 50 ms after the key, which a heavy dialog's mount announcement misses while a light one beats it. Capturing until the speech stabilises is the same fix AG-4 and AG-5 already use. VoiceOver now speaks \"Strategic Fit web dialog with 2 items Return to repertoire button\".",
+        "preservedBehavior": "Focus trap, Escape, focus restoration to the opener, inert plus aria-hidden on the background, the compact roving-tabindex tablist with Home and End, print and export mode, reduced motion, forced colors, and the chart and table fallbacks all still hold; the Strategic Fit accessibility suite passes on all three engines. The strategic-map print snapshot was regenerated in the version-matched container because the dialog wrapper changed its geometry; no other baseline moved.",
+        "gates": {
+          "AG-1": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "33128886276"
+          }
+        }
+      }
     },
     "WP-034": {
       "status": "complete",
