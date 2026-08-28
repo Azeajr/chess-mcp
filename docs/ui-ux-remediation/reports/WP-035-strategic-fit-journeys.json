@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "workPackage": "WP-035",
+  "decision": "no-split",
+  "journeys": [
+    {
+      "id": "review",
+      "metrics": {
+        "decisionCount": 1,
+        "confirmableAcceptanceCount": 0,
+        "transitionCount": 4,
+        "explicitRedesignEntryCount": 0,
+        "implicitRedesignEntryCount": 0,
+        "stageStateMismatchCount": 0,
+        "duplicateControlCount": 0,
+        "maximumHorizontalOverflowPixels": 0
+      },
+      "transitions": [
+        {
+          "sequence": 0,
+          "event": "analysis-completed",
+          "applicationState": "review-overview",
+          "projectedStage": "overview",
+          "observed": {
+            "storeStage": "overview",
+            "currentIndicatorId": "strategic-fit-stage-overview",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 0,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 0
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 1,
+          "event": "finding-selected",
+          "applicationState": "review-evidence",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 2,
+          "event": "decision-chosen",
+          "applicationState": "review-decision",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 3,
+          "event": "decision-saved",
+          "applicationState": "review-decided",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        }
+      ]
+    },
+    {
+      "id": "redesign",
+      "metrics": {
+        "decisionCount": 0,
+        "confirmableAcceptanceCount": 1,
+        "transitionCount": 6,
+        "explicitRedesignEntryCount": 1,
+        "implicitRedesignEntryCount": 0,
+        "stageStateMismatchCount": 0,
+        "duplicateControlCount": 0,
+        "maximumHorizontalOverflowPixels": 0
+      },
+      "transitions": [
+        {
+          "sequence": 0,
+          "event": "analysis-completed",
+          "applicationState": "review-overview",
+          "projectedStage": "overview",
+          "observed": {
+            "storeStage": "overview",
+            "currentIndicatorId": "strategic-fit-stage-overview",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 0,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 0
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 1,
+          "event": "finding-selected",
+          "applicationState": "review-evidence",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": false,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 2,
+          "event": "redesign-opened",
+          "applicationState": "redesign-lab-open",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": true,
+          "redesignOpen": true,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 3,
+          "event": "candidate-selected",
+          "applicationState": "redesign-candidate",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": true,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 4,
+          "event": "change-review-ready",
+          "applicationState": "redesign-review",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": true,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        },
+        {
+          "sequence": 5,
+          "event": "acceptance-confirmable",
+          "applicationState": "redesign-confirmable",
+          "projectedStage": "evidence",
+          "observed": {
+            "storeStage": "evidence",
+            "currentIndicatorId": "strategic-fit-stage-evidence",
+            "currentIndicatorCount": 1
+          },
+          "stageStateEqual": true,
+          "explicitRedesignAction": false,
+          "redesignOpen": true,
+          "resolutionControlCounts": {
+            "[data-resolution-finding-id]": 1,
+            ".strategic-fit-train-exception": 0,
+            ".strategic-fit-cohort-editor": 1
+          },
+          "duplicateControlCount": 0,
+          "horizontalOverflowPixels": 0
+        }
+      ]
+    }
+  ],
+  "recommendation": {
+    "decision": "retain-one-workspace",
+    "reason": "Both journeys complete in one workspace: review reaches a decision without ever entering redesign, and redesign reaches a revision-bound confirmable acceptance through a single explicit action. The stage indicator equalled the application's own stage at every transition and no resolution control rendered twice.",
+    "subjectiveClarityClaimed": false,
+    "appliedOutcomeCoverage": "apps/ui/test/strategic-fit-changes.test.ts stages through the real change controller and asserts the document revision increments by exactly one.",
+    "followUpPackageProposal": null
+  }
+}

@@ -1900,11 +1900,14 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
-        "description": "Not specified."
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts",
+          "scripts/wp035-strategic-fit-journeys.mjs"
+        ],
+        "commands": ["node scripts/wp035-strategic-fit-journeys.mjs"],
+        "description": "Two instrumented journeys through the single workspace. The review journey reaches a decision and never enters redesign; the redesign journey reaches a revision-bound confirmable acceptance through exactly one explicit action. Every transition asserts stage-state equality, a single current stage indicator, no duplicated resolution control, and no horizontal overflow. The generator validates every metric against the fixed thresholds in WP-035.md and fails closed without modifying the committed report."
       },
-      "requiredAutomatedValidation": "The fixed no-split decision is validated by two automated journeys: review never enters redesign without the explicit action, redesign reaches apply, the stage indicator matches state throughout, and layout/interaction complexity budgets pass.",
+      "requiredAutomatedValidation": "The fixed no-split decision is validated by two automated journeys: review never enters redesign without the explicit action, redesign reaches a revision-bound confirmable acceptance through one explicit action, the stage indicator matches application state at every transition, and the fixed thresholds in WP-035.md pass. Those thresholds replace the previously undefined complexity budgets. The applied change set itself is proven against the real change controller by apps/ui/test/strategic-fit-changes.test.ts, because the acceptance identity chain hashes the live document and cannot be satisfied from a browser test without a production seam outside this package's scope.",
       "riskLevel": "Low; automated validation only, with no split in scope",
       "preservedBehaviorContracts": ["Not specified."],
       "rollbackRule": "**Planned risk.** Low; this package records automated journey results only and changes no production code."

@@ -882,7 +882,28 @@
       }
     },
     "WP-035": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-27T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-035 (runs node scripts/wp035-strategic-fit-journeys.mjs)",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed, 0 failed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 599 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "recommendation": "Retain one workspace; no split. docs/ui-ux-remediation/WP-035-recommendation.md carries the measurements and the reasoning. No production code changed, and no follow-up split package is proposed.",
+        "playwright": "Two instrumented journeys through the single workspace, added to the existing findings suite so they reuse its deterministic worker fixture rather than duplicating roughly 700 lines of fixture data. Every transition records the application's stage, the visible indicator, per-selector resolution-control counts, redesign-surface presence, and horizontal overflow, and asserts each invariant at the point it is recorded so a failure names the transition. The unnarrowed suite rose from 597 to 599 passing.",
+        "measurements": "Review journey: 1 decision, 0 explicit and 0 implicit redesign entries, 0 stage-state mismatches, 0 duplicate controls, 0px overflow, and the PGN and navigation path unchanged. Redesign journey: 1 explicit redesign entry, 0 implicit, 1 revision-bound confirmable acceptance, 0 stage-state mismatches, 0 duplicate controls, 0px overflow, and no mutation from reaching the acceptance control. The measurements support the no-split decision directly: entering redesign is always an act rather than a drift, the stage indicator never disagreed with the application, and the duplicate-render defect WP-033 removed did not recur.",
+        "thresholds": "The plan required fixed thresholds without stating numbers and the manifest required layout and interaction complexity budgets that were never defined. Rather than invent a clicks-per-task budget, the thresholds are the counts PD-5 actually rests on and are now written into WP-035.md. scripts/wp035-strategic-fit-journeys.mjs validates every metric and every transition against them and fails closed: a failed run or any deviation leaves the committed report untouched and exits non-zero. Verified by tampering with one threshold, which failed with the exact mismatch named and left the report byte-identical.",
+        "scopeCorrection": "The approach said the redesign journey ends in an applied change set. The browser journey ends one step earlier, at a revision-bound confirmable atomic acceptance. snapshotMatches validates a nine-link identity chain whose tree and metadata identities are hashes of the live document, and the staged change set must apply cleanly to the live tree; only stageChangeSet produces those identities, from a change set constructed by packages/chess-tools against that exact tree. Neither is reachable from a browser test without a production DEV seam, which is outside this package's docs-only allowed files. Injecting an accepted presentation state would have made the report assert an applied change set that never happened. The applied outcome is proven instead by apps/ui/test/strategic-fit-changes.test.ts, which stages through the real change controller and asserts the revision increments by exactly one. The acceptance criterion was rewritten as an explicit reviewable edit before implementing, not worked around.",
+        "gates": {}
+      }
     },
     "WP-036": {
       "status": "complete",

@@ -2919,3 +2919,307 @@ test("resolution proof stays claimless before rescan, binds post-commit report e
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
   expect(await chess(page, (api) => api.version())).toBe(version);
 });
+
+/**
+ * WP-035 — the Review/Redesign split validation checkpoint.
+ *
+ * PD-5 fixes the product decision to *no split*: one workspace, not two focused modes. These two
+ * tests are that decision's automated evidence rather than a research study. They drive both
+ * journeys through the single workspace and record a machine-readable trace of every transition.
+ *
+ * Every transition asserts stage-state equality (the visible indicator equals the application's own
+ * stage), that exactly one stage is marked current, and that no resolution control renders twice —
+ * the duplicate-render regression WP-033 removed, and the strongest single piece of evidence that
+ * one workspace is not overloaded.
+ *
+ * Scope note on the redesign journey. It ends at a revision-bound, confirmable atomic acceptance,
+ * not at a mutated repertoire. Acceptance validates a nine-link identity chain
+ * (`strategic-fit-changes.ts:410`) whose tree and metadata identities are hashes of the live
+ * document, and whose change set must apply to the live tree. Only `stageChangeSet` can produce
+ * those, from a change set constructed by `packages/chess-tools` against that exact tree — neither
+ * is reachable from a browser test without adding a production seam, which is outside this
+ * package's `docs/`-only scope. The applied outcome is therefore proven where the machinery
+ * actually lives: `apps/ui/test/strategic-fit-changes.test.ts` stages through the real controller
+ * and asserts the revision increments by exactly one. These tests prove the reachability and
+ * safety of the redesign path; that test proves the apply. Neither claims the other's evidence.
+ */
+const WP035_CONTROL_SELECTORS = [
+  "[data-resolution-finding-id]",
+  ".strategic-fit-train-exception",
+  ".strategic-fit-cohort-editor",
+] as const;
+
+interface Wp035Lifecycle {
+  current_result?: { request_id?: string } | null;
+}
+
+interface Wp035Transition {
+  sequence: number;
+  event: string;
+  applicationState: string;
+  projectedStage: string;
+  observed: {
+    storeStage: string;
+    currentIndicatorId: string | null;
+    currentIndicatorCount: number;
+  };
+  stageStateEqual: boolean;
+  explicitRedesignAction: boolean;
+  redesignOpen: boolean;
+  resolutionControlCounts: Record<string, number>;
+  duplicateControlCount: number;
+  horizontalOverflowPixels: number;
+}
+
+interface Wp035Journey {
+  id: string;
+  transitions: Wp035Transition[];
+}
+
+const wp035Journeys: Wp035Journey[] = [];
+const wp035Metrics: Record<string, Record<string, number>> = {};
+
+/**
+ * Records one transition and asserts its invariants immediately, so a failure names the transition
+ * that broke instead of surfacing as a mismatched total at the end of the journey.
+ */
+async function wp035Record(
+  page: Page,
+  journey: Wp035Journey,
+  event: string,
+  applicationState: string,
+  projectedStage: string,
+  options: { explicitRedesignAction?: boolean } = {},
+): Promise<void> {
+  const dom = await page.evaluate(
+    (selectors) => {
+      const workspace = document.querySelector(".strategic-fit-workspace");
+      const body = workspace?.querySelector(".strategic-fit-workspace-body");
+      const current = workspace?.querySelectorAll("[data-stage-state='current']") ?? [];
+      const counts: Record<string, number> = {};
+      for (const selector of selectors)
+        counts[selector] = document.querySelectorAll(selector).length;
+      return {
+        storeStage: body?.getAttribute("data-stage") ?? "",
+        currentIndicatorId: current.length === 1 ? (current[0]?.id ?? null) : null,
+        currentIndicatorCount: current.length,
+        counts,
+        overflow: workspace
+          ? Math.max(0, Math.round(workspace.scrollWidth - workspace.clientWidth))
+          : 0,
+        redesignOpen: document.querySelectorAll(".replacement-lab").length > 0,
+      };
+    },
+    WP035_CONTROL_SELECTORS as unknown as string[],
+  );
+
+  // Every selector may render at most once; anything above one is a duplicate.
+  const duplicateControlCount = Object.values(dom.counts).reduce(
+    (total, count) => total + Math.max(0, count - 1),
+    0,
+  );
+  const stageStateEqual =
+    dom.storeStage === projectedStage &&
+    dom.currentIndicatorCount === 1 &&
+    dom.currentIndicatorId === `strategic-fit-stage-${projectedStage}`;
+
+  journey.transitions.push({
+    sequence: journey.transitions.length,
+    event,
+    applicationState,
+    projectedStage,
+    observed: {
+      storeStage: dom.storeStage,
+      currentIndicatorId: dom.currentIndicatorId,
+      currentIndicatorCount: dom.currentIndicatorCount,
+    },
+    stageStateEqual,
+    explicitRedesignAction: options.explicitRedesignAction ?? false,
+    redesignOpen: dom.redesignOpen,
+    resolutionControlCounts: dom.counts,
+    duplicateControlCount,
+    horizontalOverflowPixels: dom.overflow,
+  });
+
+  expect(dom.storeStage, `${journey.id}/${event}: stage`).toBe(projectedStage);
+  expect(dom.currentIndicatorCount, `${journey.id}/${event}: current stage markers`).toBe(1);
+  expect(dom.currentIndicatorId, `${journey.id}/${event}: current stage id`).toBe(
+    `strategic-fit-stage-${projectedStage}`,
+  );
+  expect(duplicateControlCount, `${journey.id}/${event}: duplicate controls`).toBe(0);
+  expect(dom.overflow, `${journey.id}/${event}: horizontal overflow`).toBe(0);
+}
+
+function wp035Summarize(
+  journey: Wp035Journey,
+  decisionCount: number,
+  confirmableAcceptanceCount: number,
+) {
+  const metrics = {
+    decisionCount,
+    confirmableAcceptanceCount,
+    transitionCount: journey.transitions.length,
+    explicitRedesignEntryCount: journey.transitions.filter((t) => t.explicitRedesignAction).length,
+    // A redesign surface that *became* open on a transition nobody asked for. This is the number
+    // PD-5 actually rests on: review must never slide into redesign on its own. It counts entries,
+    // not presence — the lab legitimately stays open across the transitions that follow.
+    implicitRedesignEntryCount: journey.transitions.filter(
+      (t, index) =>
+        t.redesignOpen &&
+        !t.explicitRedesignAction &&
+        !(journey.transitions[index - 1]?.redesignOpen ?? false),
+    ).length,
+    stageStateMismatchCount: journey.transitions.filter((t) => !t.stageStateEqual).length,
+    duplicateControlCount: journey.transitions.reduce(
+      (total, t) => Math.max(total, t.duplicateControlCount),
+      0,
+    ),
+    maximumHorizontalOverflowPixels: journey.transitions.reduce(
+      (total, t) => Math.max(total, t.horizontalOverflowPixels),
+      0,
+    ),
+  };
+  wp035Metrics[journey.id] = metrics;
+  return metrics;
+}
+
+test("WP-035 review journey reaches a decision and never enters redesign", async ({ page }) => {
+  const journey: Wp035Journey = { id: "review", transitions: [] };
+  wp035Journeys.push(journey);
+
+  const { dialog, before, pathBefore } = await bootstrap(page);
+  await wp035Record(page, journey, "analysis-completed", "review-overview", "overview");
+
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await wp035Record(page, journey, "finding-selected", "review-evidence", "evidence");
+
+  const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
+  await actions.getByRole("radio", { name: /Defer/ }).check();
+  await wp035Record(page, journey, "decision-chosen", "review-decision", "evidence");
+
+  // Saving a resolution re-runs the analysis, so wait for the new report the way the existing
+  // review tests do rather than racing the pane's re-render.
+  const requestId = () =>
+    chess(
+      page,
+      (api) => (api.strategicFitLifecycle() as Wp035Lifecycle).current_result?.request_id ?? null,
+    );
+  const beforeRequest = await requestId();
+  await actions.getByRole("button", { name: "Save resolution" }).click();
+  await expect.poll(requestId).not.toBe(beforeRequest);
+  // Re-selecting the finding after the re-analysis: saving a resolution produces a new report, and
+  // the resolution pane renders against the current report's selection.
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await expect(dialog.locator("[data-resolution-finding-id='finding:01']")).toHaveAttribute(
+    "data-resolution-state",
+    "defer",
+  );
+  await wp035Record(page, journey, "decision-saved", "review-decided", "evidence");
+
+  // Reviewing reaches a decision without mutating the repertoire.
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+
+  const metrics = wp035Summarize(journey, 1, 0);
+  expect(metrics.explicitRedesignEntryCount).toBe(0);
+  expect(metrics.implicitRedesignEntryCount).toBe(0);
+  expect(metrics.stageStateMismatchCount).toBe(0);
+});
+
+test("WP-035 redesign journey reaches a revision-bound acceptance through one explicit action", async ({
+  page,
+}) => {
+  const journey: Wp035Journey = { id: "redesign", transitions: [] };
+  wp035Journeys.push(journey);
+
+  const { dialog, before, pathBefore } = await bootstrap(page, "white", true);
+  await wp035Record(page, journey, "analysis-completed", "review-overview", "overview");
+
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+  await wp035Record(page, journey, "finding-selected", "review-evidence", "evidence");
+
+  // The redesign surface does not exist until the explicit action below opens it.
+  const lab = page.getByRole("dialog", { name: "Replacement Lab" });
+  await expect(lab).toHaveCount(0);
+  await dialog
+    .locator("[data-resolution-finding-id='finding:01']")
+    .getByRole("button", { name: "Open Replacement Lab" })
+    .click();
+  await expect(lab).toBeVisible();
+  await wp035Record(page, journey, "redesign-opened", "redesign-lab-open", "evidence", {
+    explicitRedesignAction: true,
+  });
+
+  await chess(
+    page,
+    (api, result) => api.setReplacementLabResultForTesting(result),
+    replacementComparisonFixture("white"),
+  );
+  await lab
+    .getByRole("table", { name: /Candidate comparison/ })
+    .locator("tbody th button")
+    .first()
+    .click();
+  await wp035Record(page, journey, "candidate-selected", "redesign-candidate", "evidence");
+
+  await chess(
+    page,
+    (api, review) => api.setReplacementLabReviewForTesting(review),
+    replacementChangeReviewFixture("white"),
+  );
+  const review = lab.locator(".replacement-change-review");
+  await expect(review).toBeVisible();
+  await wp035Record(page, journey, "change-review-ready", "redesign-review", "evidence");
+
+  // The acceptance is revision-bound and gated: the control names the exact revision it would
+  // apply at and stays disabled until that revision is explicitly confirmed.
+  const accept = review.getByRole("button", { name: /Accept one atomic change at revision/ });
+  await expect(accept).toBeDisabled();
+  await review.getByRole("checkbox", { name: /I confirm document revision/ }).check();
+  await expect(accept).toBeEnabled();
+  await wp035Record(page, journey, "acceptance-confirmable", "redesign-confirmable", "evidence");
+
+  // Reaching the acceptance control mutates nothing; only accepting can, and that path's applied
+  // outcome is proven against the real controller in apps/ui/test/strategic-fit-changes.test.ts.
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
+
+  const metrics = wp035Summarize(journey, 0, 1);
+  expect(metrics.explicitRedesignEntryCount).toBe(1);
+  expect(metrics.implicitRedesignEntryCount).toBe(0);
+  expect(metrics.stageStateMismatchCount).toBe(0);
+});
+
+test.afterAll(async () => {
+  const reportPath = process.env.WP035_REPORT_PATH;
+  if (!reportPath || wp035Journeys.length !== 2) return;
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const nodePath = await import("node:path");
+  const report = {
+    schemaVersion: 1,
+    workPackage: "WP-035",
+    decision: "no-split",
+    journeys: wp035Journeys.map((journey) => ({
+      id: journey.id,
+      metrics: wp035Metrics[journey.id],
+      transitions: journey.transitions,
+    })),
+    recommendation: {
+      decision: "retain-one-workspace",
+      reason:
+        "Both journeys complete in one workspace: review reaches a decision without ever entering redesign, and redesign reaches a revision-bound confirmable acceptance through a single explicit action. The stage indicator equalled the application's own stage at every transition and no resolution control rendered twice.",
+      subjectiveClarityClaimed: false,
+      appliedOutcomeCoverage:
+        "apps/ui/test/strategic-fit-changes.test.ts stages through the real change controller and asserts the document revision increments by exactly one.",
+      followUpPackageProposal: null,
+    },
+  };
+  await mkdir(nodePath.dirname(reportPath), { recursive: true });
+  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+});

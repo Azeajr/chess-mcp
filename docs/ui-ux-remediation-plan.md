@@ -1924,6 +1924,8 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Acceptance criteria.** A machine-generated report records both transition traces, stage-state equality, explicit redesign-entry count, duplicate-control count, and pass/fail against the fixed thresholds. No production code changes and no split proposal are part of this package.
 
+**Outcome.** Closed. The recommendation is [`ui-ux-remediation/WP-035-recommendation.md`](ui-ux-remediation/WP-035-recommendation.md): **retain one workspace, no split**. Both journeys met every fixed threshold — zero implicit redesign entries, zero stage-state mismatches, and zero duplicate resolution controls across both traces — so `WP-033`'s stage strip did resolve the overload the audit was reacting to. The thresholds the plan left unstated are now stated in the package doc, and the redesign journey's end state was corrected from "an applied change set" to a revision-bound confirmable acceptance: the acceptance identity chain hashes the live document, so the applied outcome is proven against the real controller in `apps/ui/test/strategic-fit-changes.test.ts` rather than fabricated in a browser test. No follow-up split package is proposed.
+
 ---
 
 ### WP-036 — Design tokens
