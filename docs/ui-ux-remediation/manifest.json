@@ -810,9 +810,12 @@
         }
       ],
       "requiredTests": {
-        "files": ["apps/ui/test/e2e/core-status.spec.ts"],
+        "files": [
+          "apps/ui/test/e2e/core-status.spec.ts",
+          "apps/ui/test/accessibility/ag-2-mobile-tabs.spec.ts"
+        ],
         "commands": [],
-        "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; a tablist keyboard spec; element-identity assertions for mount preservation."
+        "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; element-identity assertions for mount preservation. The tablist keyboard contract is the AG-2 scenario: `ag-2-mobile-tabs.spec.ts` captures the evidence and `computeTabVerdict` scores the arrow state machine, roving tabindex, keyboard containment, and tab/panel wiring across three engines plus real VoiceOver."
       },
       "requiredAutomatedValidation": "The tab-pattern suite passes in all engines and real VoiceOver automation asserts tab role, ordinal position, selection state, and associated panel for each tab; absent or inconclusive speech fails.",
       "riskLevel": "Low",
