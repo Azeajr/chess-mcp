@@ -178,6 +178,21 @@ export interface InfrastructureLimitation {
 // ---------------------------------------------------------------------------
 
 /**
+ * AG-2: how each tab is wired to the panel it controls. The AT tier can only claim VoiceOver spoke
+ * the *associated panel name* if the panel's accessible name is an established fact, so it is
+ * proven here in the browser tier rather than assumed from the markup.
+ */
+export interface TabPanelWiringEvidence {
+  readonly browser: string;
+  readonly tabId: string;
+  readonly tabLabel: string;
+  readonly ariaControls: string | null;
+  readonly panelExists: boolean;
+  readonly panelRole: string | null;
+  readonly panelAccessibleName: string | null;
+}
+
+/**
  * AG-2: what the arrow-key state machine did, one entry per key press. A tablist can expose every
  * correct attribute at rest and still move focus to the wrong tab, so the roving-tabindex and
  * arrow-state findings are scored from this rather than from a static snapshot.
@@ -202,6 +217,8 @@ export interface EvidenceBundle {
   readonly infrastructureLimitations: readonly InfrastructureLimitation[];
   /** Present only for tablist scenarios (AG-2). */
   readonly tabWalk?: readonly TabWalkStepEvidence[];
+  /** Present only for tablist scenarios (AG-2). */
+  readonly tabPanelWiring?: readonly TabPanelWiringEvidence[];
 }
 
 // ---------------------------------------------------------------------------

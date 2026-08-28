@@ -13,6 +13,7 @@ export function mergeBundles(bundles: readonly EvidenceBundle[]): EvidenceBundle
   // Concatenated, not taken from the first bundle: AG-2's arrow-state machine is scored per engine,
   // and keeping only one engine's walk would silently narrow a three-engine claim to one.
   const tabWalk = bundles.flatMap((bundle) => bundle.tabWalk ?? []);
+  const tabPanelWiring = bundles.flatMap((bundle) => bundle.tabPanelWiring ?? []);
   return {
     scenarioId: first.scenarioId,
     runId: first.runId,
@@ -26,6 +27,7 @@ export function mergeBundles(bundles: readonly EvidenceBundle[]): EvidenceBundle
       bundles.flatMap((bundle) => bundle.infrastructureLimitations),
     ),
     ...(tabWalk.length > 0 ? { tabWalk } : {}),
+    ...(tabPanelWiring.length > 0 ? { tabPanelWiring } : {}),
   };
 }
 

@@ -6,7 +6,11 @@
  * AT-tier bookkeeping and evidence envelope rather than each re-implementing them.
  */
 import type { Page } from "playwright/test";
-import type { EvidenceBundle, KeyboardTraceEvidence } from "../evidence-schema";
+import type {
+  EvidenceBundle,
+  KeyboardTraceEvidence,
+  TabPanelWiringEvidence,
+} from "../evidence-schema";
 import { captureAriaSnapshot, captureCdpAxTree, supportsCdpAxTree } from "../collectors/browser-ax";
 import { captureAxe } from "../collectors/axe";
 import { traceKeyboard } from "../collectors/keyboard-trace";
@@ -83,6 +87,35 @@ export async function runTabScenario(
   const cdpAxTrees = supportsCdpAxTree(browser) ? [await captureCdpAxTree(page)] : [];
   const axe = [await captureAxe(page, browser)];
 
+  /**
+   * Prove each tab's panel association in the browser tier: `aria-controls` resolves to a real
+   * element, that element is a tabpanel, and its accessible name is the tab's label (it is
+   * `aria-labelledby` the tab). The AT tier then claims only what a screen reader actually says.
+   */
+  const tabPanelWiring: TabPanelWiringEvidence[] = await page.evaluate(
+    ({ tabs, browserName }) =>
+      tabs.map((tab) => {
+        const tabElement = document.getElementById(`mobile-tab-${tab.id}`);
+        const ariaControls = tabElement?.getAttribute("aria-controls") ?? null;
+        const panel = ariaControls ? document.getElementById(ariaControls) : null;
+        const labelledBy = panel?.getAttribute("aria-labelledby");
+        const labelSource = labelledBy ? document.getElementById(labelledBy) : null;
+        return {
+          browser: browserName,
+          tabId: tab.id,
+          tabLabel: tab.label,
+          ariaControls,
+          panelExists: panel !== null,
+          panelRole: panel?.getAttribute("role") ?? null,
+          panelAccessibleName: labelSource?.textContent?.trim() ?? null,
+        };
+      }),
+    {
+      tabs: definition.tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+      browserName: browser,
+    },
+  );
+
   // Drive the state machine from the initial tab. Focus it explicitly first so the walk starts
   // from a known place on every engine rather than wherever page load happened to leave focus.
   await tabButton(page, definition.initialTabId).focus();
@@ -140,5 +173,6 @@ export async function runTabScenario(
     atObservations,
     infrastructureLimitations,
     tabWalk,
+    tabPanelWiring,
   };
 }

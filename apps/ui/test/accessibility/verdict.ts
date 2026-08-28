@@ -1357,8 +1357,14 @@ function tabAtFindings(
           );
         expected = `The selected tab is announced selected and an unselected sibling (${otherLabels.join(" or ")}) is not.`;
       } else {
-        satisfied = lower.includes(label) && /tab\s*group|tablist|panel selector/iu.test(spoken);
-        expected = `${spokenTab?.label} is announced within its named tab group so the panel it controls is identifiable.`;
+        // The panel is `aria-labelledby` its tab, so the panel's accessible name *is* the tab's
+        // label — proven deterministically by the tab-panel-wiring finding. Speaking "Chat" as a
+        // tab therefore does identify the associated panel. Requiring VoiceOver to also utter a
+        // container word ("tab group") would assert a phrasing preference, not an accessibility
+        // fact: VoiceOver says "Chat selected tab, 3 of 3" and names no group, which conveys the
+        // association correctly. AG-4 draws the same line by not claiming spoken comprehensibility.
+        satisfied = lower.includes(label) && /\btab\b/iu.test(spoken);
+        expected = `${spokenTab?.label} is spoken as a tab, naming the panel it controls (the panel is labelled by this tab).`;
       }
 
       return {
@@ -1379,6 +1385,65 @@ function tabAtFindings(
       };
     });
   });
+}
+
+/**
+ * Each tab's panel association, proven deterministically: `aria-controls` resolves to a real
+ * tabpanel whose accessible name is the tab's own label. This is what makes the AT-tier claim
+ * meaningful — when VoiceOver speaks "Chat", the panel it controls is *named* Chat, so the spoken
+ * description does identify the associated panel.
+ */
+function tabPanelWiringFindings(bundle: EvidenceBundle): readonly Finding[] {
+  const wiring = bundle.tabPanelWiring ?? [];
+  if (wiring.length === 0) {
+    return [
+      {
+        id: nextFindingId(),
+        severity: "serious",
+        confidence: 0,
+        status: "automation-inconclusive",
+        wcag: ["1.3.1", "4.1.2"],
+        assertionId: "tab-panel-wiring",
+        summary: "No tab/panel wiring evidence was captured.",
+        expected: "Every tab resolves aria-controls to a tabpanel named after the tab.",
+        actual: "No tabPanelWiring evidence collected.",
+        evidence: [],
+        reasoning: "deterministic",
+        platformScope: [],
+      },
+    ];
+  }
+  const broken = wiring.filter(
+    (entry) =>
+      !entry.panelExists ||
+      entry.panelRole !== "tabpanel" ||
+      entry.panelAccessibleName !== entry.tabLabel,
+  );
+  return [
+    {
+      id: nextFindingId(),
+      severity: broken.length > 0 ? "serious" : "minor",
+      confidence: 1,
+      status: broken.length > 0 ? "confirmed-failure" : "confirmed-pass",
+      wcag: ["1.3.1", "4.1.2"],
+      assertionId: "tab-panel-wiring",
+      summary:
+        broken.length > 0
+          ? `Broken tab/panel wiring: ${broken
+              .map(
+                (entry) =>
+                  `${entry.tabId} → ${entry.ariaControls ?? "(no aria-controls)"} (role ${entry.panelRole ?? "none"}, name ${entry.panelAccessibleName ?? "none"})`,
+              )
+              .join("; ")}.`
+          : "Every tab controls a tabpanel whose accessible name is that tab's label.",
+      expected:
+        "Each tab's aria-controls resolves to a role=tabpanel element named after the tab, so the tab's spoken name identifies its panel.",
+      actual: `${wiring.length} tab/panel pairs checked across the captured browsers; ${broken.length} broken.`,
+      evidence: [],
+      reasoning: "deterministic",
+      platformScope: [...new Set(wiring.map((entry) => entry.browser))],
+    },
+  ];
 }
 
 /**
@@ -1456,6 +1521,7 @@ export function computeTabVerdict(
     ),
     ...tabWalkFindings(bundle, expectation),
     tabContainmentFinding(bundle),
+    ...tabPanelWiringFindings(bundle),
     ...tabAxeFindings(bundle),
     ...tabAtFindings(bundle, expectation),
   ];
