@@ -194,8 +194,11 @@ test("WP-003 AC-4 AC-7 guards Reopen and offers Open PGN after permission is den
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Continue" }).click();
 
-  const notice = page.getByRole("status");
-  await expect(notice).toContainText("Permission to reopen denied-repertoire.pgn was denied.");
+  // Scoped to the visible file notice: WP-009's live region is also role="status".
+  const notice = page.locator(".file-notice");
+  await expect(notice).toContainText(
+    "Permission to reopen denied-repertoire.pgn was denied. Choose Open PGN",
+  );
   await expect(notice.getByRole("button", { name: "Open PGN" })).toBeVisible();
   expect(await currentPgn(page)).toBe(before);
 });
@@ -212,7 +215,8 @@ test("WP-003 AC-6 names the downloaded file when save cannot re-link it", async 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("rich-repertoire.pgn");
-  await expect(page.getByRole("status")).toContainText(
+  // Scoped to the visible file notice: WP-009's live region is also role="status".
+  await expect(page.locator(".file-notice")).toContainText(
     "Downloaded rich-repertoire.pgn. This browser cannot re-link that file for future saves.",
   );
 });

@@ -14,8 +14,18 @@ import {
   stop,
   retry,
   toolRuns,
+  cancelRun,
 } from "../store/chat";
-import { hasApiKey, chatMode, setChatMode } from "../store/settings";
+import { CHAT_CONTROLS } from "../content/chat";
+import ChatContextChip from "./ChatContextChip";
+import {
+  hasApiKey,
+  chatMode,
+  setChatMode,
+  showTechnicalDetails,
+  setShowTechnicalDetails,
+  setSettingsFocusTarget,
+} from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
 import type { ChatMessage } from "../llm/openrouter";
@@ -64,6 +74,17 @@ export default function ChatPanel() {
     <div class="chat">
       <PanelHeader>
         <span>Chat</span>
+        {/* WP-026 AC-1: the technical-details toggle gates raw codes and Raw JSON disclosures. */}
+        <label class="chat-technical-toggle" title="Show raw error codes and raw JSON in results">
+          <input
+            type="checkbox"
+            checked={showTechnicalDetails()}
+            onChange={(e) => {
+              setShowTechnicalDetails(e.currentTarget.checked);
+            }}
+          />
+          Technical details
+        </label>
         <Select
           class="chat-mode"
           title="Optional workflow guidance; all tools remain available"
@@ -81,10 +102,13 @@ export default function ChatPanel() {
 
       <div class="chat-log">
         <For each={history()}>
-          {(m) => (
+          {(m, index) => (
             <>
+              {/* WP-028 AC-2: a stable id so a suggestion card can scroll to and focus its source. */}
               <Show when={m.role === "user"}>
-                <div class="msg user">{m.content}</div>
+                <div class="msg user" id={`chat-message-${index()}`} tabIndex={-1}>
+                  {m.content}
+                </div>
               </Show>
               <Show when={m.role === "focus"}>
                 <div
@@ -169,6 +193,21 @@ export default function ChatPanel() {
                   />
                 </Show>
               </Show>
+              {/* WP-027 AC-3: a running tool can be cancelled on its own, without stopping the turn. */}
+              <Show when={run.status === "running"}>
+                <button
+                  type="button"
+                  class="tool-run-cancel"
+                  data-tool-run-cancel={run.id}
+                  title={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                  aria-label={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                  onClick={() => {
+                    cancelRun(run.id);
+                  }}
+                >
+                  {CHAT_CONTROLS.cancelRun}
+                </button>
+              </Show>
             </div>
           )}
         </For>
@@ -178,19 +217,43 @@ export default function ChatPanel() {
         <div class="chat-error">
           {error()}{" "}
           <Show when={!busy()}>
-            <button class="chat-retry" onClick={retry}>
-              Retry
+            <button
+              class="chat-retry"
+              title={CHAT_CONTROLS.sendAgainDescription}
+              aria-label={CHAT_CONTROLS.sendAgainDescription}
+              onClick={retry}
+            >
+              {CHAT_CONTROLS.sendAgain}
             </button>
           </Show>
         </div>
       </Show>
+      {/*
+        WP-021 AC-1: while the assistant is unconfigured the column keeps its persisted width and
+        this card replaces the terse `No API key. Open Settings` line. PD-4 fixed full width over a
+        collapsed rail, so nothing here touches layout — the card is a body swap, not a resize.
+      */}
       <Show when={!hasApiKey()}>
-        <div class="chat-error">
-          No API key.{" "}
-          <a href="#" onClick={(e) => (e.preventDefault(), setSettingsOpen(true))}>
-            Open Settings
-          </a>
+        <div class="chat-setup-card" data-chat-setup-card>
+          <h3 class="chat-setup-title">Set up the assistant</h3>
+          <p class="chat-setup-body">
+            The assistant answers questions about the current position, game, and repertoire, and
+            can propose repertoire edits for you to review. It needs an OpenRouter API key to run.
+          </p>
+          <Button
+            class="chat-setup-action"
+            onClick={() => {
+              setSettingsFocusTarget("api-key");
+              setSettingsOpen(true);
+            }}
+          >
+            Set up the assistant
+          </Button>
         </div>
+      </Show>
+      {/* WP-027 AC-1: the chip sits with the input, where the user decides what to ask. */}
+      <Show when={hasApiKey()}>
+        <ChatContextChip />
       </Show>
       <div class="chat-input">
         <textarea
@@ -210,8 +273,13 @@ export default function ChatPanel() {
         <Show
           when={!busy()}
           fallback={
-            <button class="stop-btn" onClick={stop}>
-              Stop
+            <button
+              class="stop-btn"
+              title={CHAT_CONTROLS.stopRequestDescription}
+              aria-label={CHAT_CONTROLS.stopRequestDescription}
+              onClick={stop}
+            >
+              {CHAT_CONTROLS.stopRequest}
             </button>
           }
         >

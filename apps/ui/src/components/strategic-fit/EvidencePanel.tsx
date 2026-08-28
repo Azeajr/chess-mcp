@@ -12,6 +12,7 @@ import ConceptComparison, { buildConceptComparisonPresentation } from "./Concept
 import ConfidenceDetails, { ConfidenceExpertValues } from "./ConfidenceDetails";
 import ComparisonBoards from "./ComparisonBoards";
 import CausalTimeline from "./CausalTimeline";
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 const PROFILE_LABELS: Readonly<Record<StrategicFitProfileMode, string>> = {
   "familiar-plans": "Familiar plans",
@@ -367,6 +368,9 @@ export default function EvidencePanel(props: {
 
           <section aria-labelledby="strategic-fit-contribution-values-title">
             <h5 id="strategic-fit-contribution-values-title">Raw comparison contributions</h5>
+            <p data-strategic-distance-definition>
+              {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
+            </p>
             <p>
               Listed total: {listedContributionTotal()}. Report strategic distance:{" "}
               {formatNumber(comparison().reconciliation.report_distance, 6)}.

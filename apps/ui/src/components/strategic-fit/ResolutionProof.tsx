@@ -6,20 +6,11 @@ import {
   type StrategicFitResolutionProofSnapshot,
 } from "../../store/strategic-fit-resolution-proof";
 
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
+
 export const PROOF_STATUS_LABELS: Readonly<
   Record<StrategicFitResolutionProofSnapshot["status"], string>
-> = {
-  idle: "No accepted change",
-  "awaiting-rescan": "Awaiting affected-cohort rescan",
-  rescanning: "Rescanning affected cohorts",
-  proven: "Post-rescan result available",
-  superseded: "Evidence superseded by another edit",
-  "rescan-failed": "Rescan failed",
-  "rescan-cancelled": "Rescan cancelled",
-  undoing: "Undoing accepted change",
-  "undo-blocked": "Undo rejected",
-  undone: "Undo applied and rescanned",
-};
+> = STRATEGIC_FIT_VOCABULARY.resolutionHelp.statuses;
 
 const NO_CLAIM_STATUSES: ReadonlySet<StrategicFitResolutionProofSnapshot["status"]> = new Set([
   "awaiting-rescan",
@@ -69,8 +60,10 @@ export default function ResolutionProof() {
         >
           <header>
             <div>
-              <span>5. Post-acceptance verification</span>
-              <h4 id="replacement-resolution-proof-title">Rescan and resolution proof</h4>
+              <span>{STRATEGIC_FIT_VOCABULARY.resolutionHelp.kicker}</span>
+              <h4 id="replacement-resolution-proof-title">
+                {STRATEGIC_FIT_VOCABULARY.resolutionHelp.title}
+              </h4>
             </div>
             <code>{tracked.stage_id}</code>
           </header>

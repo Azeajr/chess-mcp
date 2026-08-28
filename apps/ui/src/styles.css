@@ -137,6 +137,12 @@
   --z-notice: 100;
   --z-warning: 120;
   --z-workspace: 200;
+  /*
+   * WP-033 AC-5: the Replacement Lab is a sibling of the workspace dialog, not a descendant, so it
+   * no longer inherits the workspace's stacking context and needs its own layer above it. Nested
+   * inside, the workspace's backdrop would paint over the lab and swallow every click in it.
+   */
+  --z-nested-dialog: 210;
 
   /* Compatibility aliases used throughout the existing stylesheet. */
   --bg: var(--surface-canvas);
@@ -408,6 +414,27 @@ img,
   background: var(--accent);
 }
 
+/* Names whatever's running behind a hidden phone tab — hidden until the compact tier flips it to
+   flex, same as .mobile-tabs below. Renders nothing (zero height) whenever nothing is running,
+   regardless of tier, because ActivityStrip itself unmounts it via <Show>. */
+.activity-strip {
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+.activity-strip-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--surface-control);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
 /* Phone panel switcher — hidden until the compact tier flips it to flex. */
 .mobile-tabs {
   display: none;
@@ -428,6 +455,15 @@ img,
   background: var(--accent);
   color: var(--text-inverse);
   border-color: var(--accent);
+}
+.mobile-tab-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
 }
 
 /* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
@@ -478,6 +514,9 @@ img,
      beats the base `.board-wrap` rule, which sits later in the source. */
   .workspace .board-wrap {
     width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 26px))), calc(100% - 26px));
+  }
+  .activity-strip {
+    display: flex;
   }
   .mobile-tabs {
     display: flex;
@@ -545,12 +584,66 @@ img,
   width: min(70vh, calc(100% - 26px));
   aspect-ratio: 1;
   overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
+  position: relative; /* anchors .board-keyboard-layer's absolute overlay */
 }
 
 /* chessground sizes to its container */
 .cg-wrap {
   width: 100%;
   height: 100%;
+}
+
+/* WP-014: an 8x8 grid of real focusable gridcells laid over the board. `pointer-events: none`
+   until the layer holds focus is the mechanism that guarantees AC-7 (byte-identical pointer/touch
+   behaviour on Chessground below while this layer is unfocused) — :focus-within flips it to `auto`
+   only while a keyboard user is actually navigating the board. */
+.board-keyboard-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.board-keyboard-layer:focus-within {
+  pointer-events: auto;
+}
+
+/* .bkl-row is deliberately unstyled (plain default display:block): every gridcell inside
+   positions itself absolutely against .board-keyboard-layer's containing block, skipping over
+   this wrapper entirely, so it needs no layout role of its own. display:contents would remove it
+   (and historically, on some WebKit builds, its accessibility semantics) from the box tree
+   instead — avoided on purpose since nothing here depends on it. */
+
+.bkl-cell {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  box-sizing: border-box;
+  border-radius: 2px;
+}
+
+.bkl-cell.selected {
+  background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+/* A legal-destination dot, independent of Chessground's own showDests highlight underneath (this
+   layer never touches Chessground state) — small and centred so it reads as a marker, not a fill. */
+.bkl-cell.legal-dest::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-primary) 55%, transparent);
+  pointer-events: none;
+}
+
+.bkl-cell:focus-visible {
+  outline: var(--focus-ring) !important;
+  outline-offset: -2px !important;
+  z-index: 1;
 }
 
 .eval-bar {
@@ -1385,8 +1478,15 @@ img,
   line-height: 1;
 }
 .rep-panel .pick-badge {
-  font-size: var(--type-xs);
+  font-size: var(--type-micro);
   padding: 0 0.15rem;
+  /*
+   * WP-029 AC-5: the badge now carries a text label rather than a bare glyph. The row is a
+   * horizontal strip inside a fixed-width panel, so the label must be allowed to shrink and wrap
+   * instead of pushing the row's action buttons outside the viewport.
+   */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .rep-panel .pick-badge.sav {
   color: var(--status-success);
@@ -2109,6 +2209,280 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
+/* WP-029 AC-5: the inspect panel's verdict-first layout. */
+.inspect-verdict {
+  margin: 0 0 var(--space-1);
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.inspect-numbers > summary {
+  cursor: pointer;
+  font-size: var(--type-micro);
+  color: var(--muted);
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+.inspect-numbers > summary:focus-visible {
+  outline: 2px solid rgba(110, 168, 254, 0.4);
+  outline-offset: 1px;
+}
+.inspect-numbers dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-micro);
+}
+.inspect-numbers dl > div {
+  display: contents;
+}
+.inspect-numbers dt {
+  color: var(--muted);
+}
+.inspect-numbers dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * WP-029 AC-2: the gap-scan states. Each carries a text label and a glyph, so error and empty stay
+ * distinguishable without relying on colour — which is what forced-colors mode removes.
+ */
+.scan-empty,
+.scan-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  /*
+   * WP-029: kept compact deliberately. This block sits above the Extend section's controls in a
+   * fixed-height panel, so extra vertical padding here pushes those controls below the fold on the
+   * 768x1024 tier that WP-002 AC-2 guards.
+   */
+  padding: var(--space-1) var(--space-2);
+  border-radius: 6px;
+  /*
+   * Body copy, so it stays at --type-xs: the scale's comment states body copy never goes below it
+   * and WP-036 AC-2 enforces that floor. Height is saved with padding and leading instead.
+   */
+  font-size: var(--type-xs);
+  line-height: 1.35;
+}
+.scan-error {
+  border: 1px solid var(--status-danger-marker);
+  background: var(--surface-raised);
+}
+.scan-state-icon {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.scan-state-detail {
+  display: inline;
+  margin-left: 0.3em;
+  color: var(--muted);
+}
+.scan-error .scan-btn {
+  margin-top: var(--space-2);
+}
+
+/* WP-028: the showing-on-board marker and suggestion source link. */
+.sug-showing {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--status-success-border);
+  border-radius: 999px;
+  background: var(--status-success-surface);
+  color: var(--status-success-text);
+  font-size: var(--type-micro);
+  white-space: nowrap;
+}
+.sug-goto,
+.sug-source {
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+.sug-goto:hover,
+.sug-goto:focus-visible,
+.sug-source:hover,
+.sug-source:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+
+/* WP-027: the chat context chip and per-run cancel control. */
+.chat-context-chip {
+  margin: var(--space-2) 0 0;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.chat-context-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.chat-context-summary:hover,
+.chat-context-summary:focus-visible {
+  background: var(--surface-control-subtle);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+.chat-context-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-context-values {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-context-block {
+  margin: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: ui-monospace, monospace;
+  font-size: var(--type-micro);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tool-run-cancel {
+  min-height: 2.75rem;
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+.tool-run-cancel:hover,
+.tool-run-cancel:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid rgba(110, 168, 254, 0.35);
+  outline-offset: 1px;
+}
+
+/*
+ * WP-031: the zero-comparable-route terminal state and the limited-evidence banner.
+ */
+.strategic-fit-insufficient {
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.strategic-fit-insufficient-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.strategic-fit-insufficient-body {
+  margin: 0 0 var(--space-4);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-remedies-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-remedies {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.strategic-fit-insufficient-remedy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.strategic-fit-insufficient-remedy-title {
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.strategic-fit-insufficient-remedy-body {
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.strategic-fit-insufficient-footer {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-micro);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.strategic-fit-limited-evidence-banner {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--status-warning-border, var(--border-default));
+  border-radius: 6px;
+  background: var(--status-warning-surface, var(--surface-raised));
+  font-size: var(--type-xs);
+  line-height: 1.45;
+  color: var(--status-warning-text, var(--text-primary));
+}
+
+/*
+ * WP-021 AC-1: the setup card that stands in for the chat surface while the assistant is
+ * unconfigured. PD-4 keeps the column at its persisted width, so this card sizes to that column
+ * and never constrains it — no width, min-width, or flex-basis here on purpose.
+ */
+.chat-setup-card {
+  margin: var(--space-2) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+}
+.chat-setup-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chat-setup-body {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .chat-error {
   color: var(--status-danger-text);
   font-size: 0.8rem;
@@ -2681,6 +3055,33 @@ img,
   background: #1b1d22;
   box-shadow: 0 24px 80px #000b;
 }
+/*
+ * WP-033 AC-5: the workspace and lab now render through the Dialog primitive, which owns the
+ * dialog element itself. Their content sits in a wrapper one level in, so the wrapper carries the
+ * layout the section used to provide; the outer element keeps the frame.
+ */
+.strategic-fit-workspace-inner {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.replacement-lab-inner {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  /*
+   * The wrapper must fill the dialog's single row rather than sizing to content: the lab's body is
+   * the scrolling region, and a content-sized wrapper pushes it past the dialog's max-height where
+   * it overflows the viewport and its controls stop being clickable.
+   */
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .strategic-fit-workspace:focus {
   outline: none;
 }
@@ -2765,8 +3166,36 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
+/*
+ * WP-033 AC-1: the stage strip is present at every width. Above the compact tier it is a progress
+ * indicator (plain buttons, aria-current="step"); at/below 820px the same markup becomes the
+ * tablist, whose grid/touch-target rules live in the compact media query.
+ */
 .strategic-fit-stage-nav {
-  display: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: #202228;
+}
+.strategic-fit-stage-nav button[data-stage-state="completed"] {
+  /*
+   * Not var(--muted): against this strip's #202228 it measures 4.46:1, just under the 4.5:1 gate.
+   * The completed state is carried by the check mark, so the label stays at full text contrast.
+   */
+  color: var(--text-primary);
+}
+.strategic-fit-stage-nav button[data-stage-state="completed"]::before {
+  content: "✓";
+  margin-right: 0.3rem;
+  color: var(--status-success-text-strong);
+}
+.strategic-fit-stage-nav button[data-stage-state="current"],
+.strategic-fit-stage-nav button.active {
+  border-color: var(--accent);
+  background: #294466;
+  color: #f0f6ff;
 }
 .strategic-fit-profile-loading {
   display: flex;
@@ -2798,6 +3227,63 @@ img,
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* WP-009 Toast primitive — anchored bottom-centre, safe-area aware. */
+.ui-toast {
+  position: fixed;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-warning);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(92vw, 34rem);
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow-translucent);
+  font-size: var(--type-sm);
+}
+.ui-toast-success {
+  border-color: var(--status-success-text);
+}
+.ui-toast-danger {
+  border-color: #9a5058;
+  background: #2c1d21;
+  color: #ffc9cd;
+}
+.ui-toast-message {
+  flex: 1;
+}
+.ui-toast-action {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  padding: 0.2rem 0.55rem;
+}
+.ui-toast-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+.ui-toast-dismiss-labelled {
+  min-height: 2.75rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: var(--type-sm);
+}
+/* WP-019's actionable decision uses two full touch targets; existing × dismissals stay compact. */
+.ui-toast:has(.ui-toast-dismiss-labelled) .ui-toast-action {
+  min-height: 2.75rem;
 }
 .strategic-fit-profile-setup {
   flex: 1 1 0;
@@ -3343,15 +3829,59 @@ img,
   border-top: 1px solid #3f444e;
   background: #1c1f25;
 }
+.strategic-fit-analysis-progress-card[data-progress-collapsed="true"],
+.strategic-fit-preflight[data-preflight-collapsed="true"] {
+  padding-block: 0.42rem;
+}
+.strategic-fit-analysis-progress-disclosure,
+.strategic-fit-preflight-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-xs);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.strategic-fit-analysis-progress-disclosure:hover,
+.strategic-fit-analysis-progress-disclosure:focus-visible,
+.strategic-fit-preflight-disclosure:hover,
+.strategic-fit-preflight-disclosure:focus-visible {
+  background: var(--surface-control-subtle);
+  outline: 2px solid rgba(110, 168, 254, 0.4);
+  outline-offset: 1px;
+}
+.strategic-fit-analysis-progress-collapse,
+.strategic-fit-preflight-collapse {
+  margin-bottom: var(--space-2);
+  color: var(--muted);
+  font-weight: 500;
+}
 .strategic-fit-analysis-progress-card > header,
-.strategic-fit-preflight > header {
+.strategic-fit-analysis-progress-card > #strategic-fit-analysis-phases-detail > header,
+.strategic-fit-preflight > header,
+.strategic-fit-preflight > #strategic-fit-preflight-detail > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
 .strategic-fit-analysis-progress-card > header span:first-child,
-.strategic-fit-preflight > header span:first-child {
+.strategic-fit-analysis-progress-card
+  > #strategic-fit-analysis-phases-detail
+  > header
+  span:first-child,
+.strategic-fit-preflight > header span:first-child,
+.strategic-fit-preflight > #strategic-fit-preflight-detail > header span:first-child {
   color: #91acd3;
   font-size: var(--type-xs);
   font-weight: 700;
@@ -3369,7 +3899,8 @@ img,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.strategic-fit-analysis-progress-card > progress {
+.strategic-fit-analysis-progress-card > progress,
+.strategic-fit-analysis-progress-card > #strategic-fit-analysis-phases-detail > progress {
   display: block;
   width: 100%;
   height: 0.55rem;
@@ -3607,11 +4138,35 @@ img,
   color: #cbd2dc;
   overflow-wrap: anywhere;
 }
+/*
+ * WP-033 AC-2 / DV-5: resolution renders exactly once. Above the compact tier the pane is not a
+ * fourth column — it sits at the foot of the evidence column, which keeps three columns while
+ * removing the duplicate render that previously served wide viewports.
+ */
 .strategic-fit-workspace-body {
   display: grid;
   grid-template-columns: minmax(13rem, 0.75fr) minmax(17rem, 1fr) minmax(19rem, 1.2fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, max-content);
   flex: 1 1 0;
   min-height: 0;
+}
+.strategic-fit-overview-pane,
+.strategic-fit-findings-pane,
+.strategic-fit-evidence-pane {
+  grid-row: 1;
+}
+.strategic-fit-resolution-pane {
+  grid-column: 3;
+  grid-row: 2;
+  /*
+   * The decide region shares the evidence column, so it must be a bounded strip rather than an
+   * auto-sized block: an unbounded one grows with its content until it covers the column above and
+   * swallows that column's pointer events, which is a real interaction defect, not a test artifact.
+   */
+  min-height: 0;
+  max-height: 30vh;
+  border-top: 1px solid var(--border);
+  border-right: 0;
 }
 .strategic-fit-workspace-pane {
   min-width: 0;
@@ -3630,9 +4185,6 @@ img,
 }
 .strategic-fit-findings-pane {
   background: #202228;
-}
-.strategic-fit-resolution-pane {
-  display: none;
 }
 .strategic-fit-pane-heading {
   display: block;
@@ -5281,7 +5833,7 @@ img,
 
 .replacement-lab-backdrop {
   position: fixed;
-  z-index: var(--z-popover);
+  z-index: var(--z-nested-dialog);
   inset: 0;
   display: grid;
   place-items: center;
@@ -5289,8 +5841,13 @@ img,
   background: rgba(7, 9, 12, 0.82);
 }
 .replacement-lab {
+  /*
+   * WP-033 AC-5: the row template moved to .replacement-lab-inner, which is now the single child
+   * holding the header and body. Leaving the two-row template here gave that wrapper only the
+   * `auto` row, so overflow:hidden clipped the lab's entire body away.
+   */
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   width: min(980px, 100%);
   max-height: calc(100dvh - 2rem);
   overflow: hidden;
@@ -6590,7 +7147,7 @@ img,
     min-width: 0;
     min-height: 44px;
     padding: 0.38rem 0.15rem;
-    color: #a7abb3;
+    color: var(--text-primary);
     font-size: var(--type-xs);
   }
   .strategic-fit-stage-nav button.active {
@@ -6601,6 +7158,13 @@ img,
   .strategic-fit-workspace-body {
     display: block;
     overflow: hidden;
+  }
+  /* The compact tier is one visible panel at a time, so the wide grid placement must not apply. */
+  .strategic-fit-resolution-pane {
+    grid-column: auto;
+    grid-row: auto;
+    max-height: none;
+    border-top: 0;
   }
   .strategic-fit-workspace-pane {
     display: none;
@@ -7595,4 +8159,303 @@ img,
     background: none;
     break-inside: auto;
   }
+}
+
+/*
+ * WP-013 tabpanel wrappers. They exist for the tab semantics only: `display: contents` keeps the
+ * side panel's own box model, so adding them changes no measured geometry at any tier.
+ */
+.mobile-panel {
+  display: contents;
+}
+
+/* WP-017/018 DocumentStatus and DocumentMenu */
+.document-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  /* Shrink-only: the status must never force the action row to wrap, because that is what makes
+     the top bar grow a second row and push panel content below the fold. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(40ch, 45%);
+  overflow: hidden;
+  font-size: var(--type-xs);
+  color: var(--muted);
+}
+
+.document-status > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Compact tier (WP-017 AC-1): the top bar must fit a 40-character filename in 96px. The phone
+ * layout hides the browser-storage line — the file indicator carries the actionable fact — and
+ * tightens the chrome rhythm. Control sizing is untouched so touch-target floors still hold.
+ */
+@media (max-width: 45em) {
+  .document-status-browser {
+    display: none;
+  }
+  .topbar {
+    gap: var(--space-2);
+    row-gap: var(--space-1);
+    padding: var(--space-2);
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top));
+    padding-left: calc(var(--space-2) + env(safe-area-inset-left));
+    padding-right: calc(var(--space-2) + env(safe-area-inset-right));
+  }
+  /*
+   * DV-3 on the phone: Save stays visible, and the actions that the Repertoire menu already
+   * offers collapse into it rather than being listed twice. Wider tiers keep both affordances,
+   * so nothing a pointer user relies on disappears where there is room for it.
+   */
+  .topbar > [data-topbar-duplicate] {
+    display: none;
+  }
+  .topbar .title {
+    font-size: var(--type-sm);
+  }
+}
+
+/*
+ * Short phone viewports: the pinned board, the tab bar, and the panel floor together need every
+ * row, so the decorative <h1> gives up its line. It stays in the accessibility tree — this hides
+ * the painted text, not the document structure.
+ */
+@media (max-width: 45em) and (max-height: 34em) {
+  .topbar .title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .topbar {
+    row-gap: var(--space-1);
+    padding-top: calc(var(--space-1) + env(safe-area-inset-top));
+    padding-bottom: var(--space-1);
+  }
+}
+
+.document-status-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.document-status-icon {
+  font-size: 0.9rem;
+}
+
+.document-status-filename,
+.document-status-name {
+  min-width: 0;
+  max-width: min(32ch, 40%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-status-changes,
+.document-status-changes-only,
+.document-status-autosave {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--type-xs);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--status-warning-surface);
+  color: var(--status-warning-text);
+  border: 1px solid var(--status-warning-border);
+}
+
+.document-status-autosave {
+  background: var(--status-info-action);
+  color: var(--status-info-text);
+  border-color: var(--status-info-surface);
+}
+
+/* DocumentMenu */
+.document-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.document-menu-trigger {
+  background: var(--surface-control);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.document-menu-trigger:hover {
+  border-color: var(--accent);
+}
+
+.document-menu-list {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: var(--z-popover);
+  min-width: 220px;
+  max-width: min(90vw, 320px);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow-solid);
+  overflow: hidden;
+}
+
+.document-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.document-menu-group + .document-menu-group {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+}
+
+.document-menu-group-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.document-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.document-menu-item:hover,
+.document-menu-item.active {
+  background: var(--surface-control);
+}
+
+.document-menu-item:focus {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* WP-022 AC-4: the one-line result summary a collapsed group shows in its summary row. */
+.rep-summary-note {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-xs);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * WP-022 group headers. On the wide tier each group shows its own heading row. Below the flex
+ * tier the headings yield: the four extra rows they add push the last repertoire control below
+ * the fold at 768x1024, which WP-002 AC-2 forbids. The grouping stays announced through each
+ * group's aria-label, so structure survives without the painted rows.
+ */
+/*
+ * WP-022 AC-7: the group headings must not make the collapsed panel taller than the pre-WP-022
+ * panel (measured 714px at 1280x800). Four heading rows would cost ~109px, so each group title
+ * collapses into a zero-height overlay on the group's own border — visible as a small caps label
+ * sitting on the divider line, costing no vertical space at all.
+ */
+.rep-group {
+  position: relative;
+}
+.rep-group + .rep-group {
+  margin-top: var(--space-2);
+}
+.rep-group > .panel-header {
+  position: absolute;
+  inset-block-start: calc(-0.5em - var(--space-2));
+  inset-inline-start: var(--space-2);
+  padding-block: 0 var(--space-1);
+  background: var(--panel);
+  border-radius: 4px;
+}
+.rep-group:first-of-type {
+  margin-top: var(--space-2);
+}
+/* The first group follows the scope-note directly; its overlay label sits on the note's own
+   bottom edge rather than adding separation of its own. */
+.rep-panel > .scope-note + .rep-group {
+  margin-top: var(--space-1);
+}
+@media (max-width: 68.75em) {
+  .rep-group > .panel-header {
+    display: none;
+  }
+  .rep-group + .rep-group {
+    margin-top: var(--space-3);
+  }
+  .rep-section > summary {
+    flex-wrap: wrap;
+  }
+  .rep-section > summary .scan-btn,
+  .rep-section > summary .rep-mode {
+    margin-left: 0;
+  }
+}
+
+/* WP-026 AC-2: mutating cards carry a non-colour badge (icon + text), not a colour-only cue.
+   Under forced-colors the border thickens as well, so the distinction survives palettes. */
+.staged-card {
+  position: relative;
+  border-width: 2px;
+}
+.mutating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: 0.1rem 0.4rem;
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+}
+@media (forced-colors: active) {
+  .staged-card[data-mutating="true"] {
+    border: 3px double CanvasText;
+  }
+}
+
+/* WP-026 AC-1: the technical-details toggle in the chat header. */
+.chat-technical-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  font-size: var(--type-xs);
+  color: var(--muted);
+  cursor: pointer;
 }

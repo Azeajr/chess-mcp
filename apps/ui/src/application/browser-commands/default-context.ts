@@ -21,6 +21,7 @@ import {
 } from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
+import { history as chatHistory } from "../../store/chat";
 import {
   rejectStrategicFitChangeSet,
   stageStrategicFitChangeSet,
@@ -77,7 +78,13 @@ export const defaultBrowserCommandDependencies: BrowserCommandDependencies = {
   stageEdit,
   stageReplacementChangeSet: stageStrategicFitChangeSet,
   discardReplacementChangeSet: rejectStrategicFitChangeSet,
-  proposeLine: addSuggestion,
+  /**
+   * WP-028 AC-2: a chat-proposed line records the message index that produced it, so the
+   * suggestion card can link back. history() is the live chat log; the assistant message carrying
+   * this tool call is the most recent entry when the tool executes.
+   */
+  proposeLine: (sans: string[], comment?: string) =>
+    addSuggestion(sans, comment, Math.max(chatHistory().length - 1, 0)),
   proposeStrategicFitProfile,
   proposeStrategicFitPlan,
   proposeStrategicFitPortfolio,

@@ -146,7 +146,7 @@ test("a repertoire without comparable evidence shows an explicit unavailable map
   await expect(map.locator("[data-map-exclusion]").first()).toBeVisible();
 });
 
-test("the strategic map keeps a stable visual baseline", async ({ page }) => {
+test("the strategic map keeps a stable visual baseline", { tag: "@visual" }, async ({ page }) => {
   const dialog = await bootstrap(page, MAP_REPERTOIRE, "map-visual.pgn");
   const map = dialog.locator(".strategic-map");
   await expect(map).toHaveAttribute("data-map-state", /available|single-axis/u);

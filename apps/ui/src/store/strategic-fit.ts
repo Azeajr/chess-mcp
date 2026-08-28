@@ -4,6 +4,7 @@ import {
   STRATEGIC_FIT_PROGRESS_PHASES,
   type StrategicFinding,
   type StrategicFitAnalysisResult,
+  type StrategicFitPreflight,
   type StrategicFitProgressPhase,
   type StrategicFitProgressState,
 } from "@chess-mcp/chess-tools";
@@ -891,6 +892,52 @@ export function startStrategicFitLifecycle(): void {
     });
   });
 }
+
+/**
+ * WP-031: how much comparable evidence the completed report actually rests on.
+ *
+ * `"none"` means nothing was measured — no route reached the comparable-ply threshold, so every
+ * finding is a statement about missing data rather than about the repertoire. `"limited"` means
+ * some routes were comparable but preflight still degraded. `"full"` is an unqualified result.
+ *
+ * This is derived rather than stored so it cannot drift from the preflight payload it describes.
+ */
+export type StrategicFitEvidenceState = "none" | "limited" | "full";
+
+export function evidenceStateFromPreflight(
+  preflight: StrategicFitPreflight,
+): StrategicFitEvidenceState {
+  if (preflight.comparable_route_count === 0) return "none";
+  return preflight.state === "ready" ? "full" : "limited";
+}
+
+export const strategicFitEvidenceState = (): StrategicFitEvidenceState | null => {
+  const lifecycle = browserLifecycle.snapshot();
+  if (lifecycle.status !== "completed") return null;
+  const preflight = lifecycle.current_result?.result.preflight;
+  return preflight ? evidenceStateFromPreflight(preflight) : null;
+};
+
+/** The comparable-ply threshold carried by a preflight payload, if one of its issues names it. */
+export function comparablePlyThresholdFromPreflight(
+  preflight: StrategicFitPreflight,
+): number | null {
+  for (const issue of preflight.issues) {
+    const ply = issue.details.first_comparable_ply;
+    if (typeof ply === "number") return ply;
+  }
+  return null;
+}
+
+/**
+ * The comparable-ply threshold as the analysis reported it. Read from the preflight issue payload
+ * so the copy states the number the run actually used; null when no issue carries one.
+ */
+export const strategicFitComparablePlyThreshold = (): number | null => {
+  const lifecycle = browserLifecycle.snapshot();
+  const preflight = lifecycle.current_result?.result.preflight;
+  return preflight ? comparablePlyThresholdFromPreflight(preflight) : null;
+};
 
 export const strategicFitLifecycle = () => browserLifecycle.snapshot();
 export const strategicFitCurrentSnapshot = currentBrowserSnapshot;

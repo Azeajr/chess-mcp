@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
 import type { CandidateComparisonRow } from "./CandidateTable";
 import { VISUALIZATION_RENDER_LIMITS, boundedWindow } from "./visualization-limits";
+import { STRATEGIC_FIT_VOCABULARY, strategicFitTradeoffStatus } from "../../content/strategicFit";
 
 export interface ReplacementParetoPoint {
   readonly candidate_id: string;
@@ -51,7 +52,7 @@ export function buildReplacementParetoPoints(
       memory,
       objective: `${row.repertoire_pov_evaluation}; loss ${row.loss_from_best}`,
       available,
-      accessible_label: `${row.san}, ${row.pareto_status}; repertoire evaluation ${row.repertoire_pov_evaluation}, loss ${row.loss_from_best}; familiarity ${row.axes.find((item) => item.axis === "strategic-familiarity")?.value ?? "Unavailable"}; memory burden ${memory}; coverage ${row.axes.find((item) => item.axis === "expected-coverage")?.value ?? "Unavailable"}`,
+      accessible_label: `${row.san}, ${strategicFitTradeoffStatus(row.pareto_status, row.dominated_by_candidate_ids).plain}; repertoire evaluation ${row.repertoire_pov_evaluation}, loss ${row.loss_from_best}; familiarity ${row.axes.find((item) => item.axis === "strategic-familiarity")?.value ?? "Unavailable"}; memory burden ${memory}; coverage ${row.axes.find((item) => item.axis === "expected-coverage")?.value ?? "Unavailable"}`,
       coincident_index: 0,
       coincident_count: 1,
     };
@@ -148,13 +149,9 @@ export default function ReplacementPareto(props: ReplacementParetoProps) {
   return (
     <section class="replacement-pareto" aria-labelledby="replacement-pareto-title">
       <header>
-        <h4 id="replacement-pareto-title">Canonical Pareto comparison</h4>
-        <p>
-          Horizontal position shows repertoire-POV loss from engine best; vertical position shows
-          canonical familiarity. Point size shows coverage and inner ring shows memory burden.
-          Symbols: ◇ Pareto tradeoff, □ dominated, × unscored. Frontier status comes directly from
-          Phase 8; no aggregate best is calculated or implied.
-        </p>
+        <h4 id="replacement-pareto-title">{STRATEGIC_FIT_VOCABULARY.tradeoffs.chartTitle}</h4>
+        <p>{STRATEGIC_FIT_VOCABULARY.tradeoffs.chartDescription}</p>
+        <small>{STRATEGIC_FIT_VOCABULARY.tradeoffs.expert}</small>
         <Show when={!drawn().complete}>
           <p data-pareto-point-limit>
             {drawn().shown} of {drawn().total} candidates are plotted; the candidate table below

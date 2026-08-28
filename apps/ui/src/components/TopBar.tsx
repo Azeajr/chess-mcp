@@ -1,9 +1,13 @@
 /**
  * TopBar: open/save PGN, white/black repertoire toggle, new game, unsaved indicator, settings.
  * File I/O lives in store/files (shared with the Cmd/Ctrl+S shortcut).
+ *
+ * WP-017 applies DV-3: `Save to file` stays a visible one-interaction control, while Open,
+ * Re-link, New, and Recover are additionally reachable in two interactions through the
+ * Repertoire menu. The direct buttons remain so existing flows and their tests keep working.
  */
 import { Show } from "solid-js";
-import { actions, color, dirty, fileName } from "../store/game";
+import { actions, color, fileName } from "../store/game";
 import {
   clearHandle,
   dismissFileNotice,
@@ -15,16 +19,17 @@ import {
   storedFileName,
 } from "../store/files";
 import { setSettingsOpen } from "../store/ui";
+import DocumentStatus from "./DocumentStatus";
+import DocumentMenu from "./DocumentMenu";
 
 export default function TopBar() {
   return (
     <div class="topbar">
       <h1 class="title">Chess Repertoire</h1>
-      <Show when={dirty()}>
-        <span class="dirty">● unsaved</span>
-      </Show>
+      {/* WP-018: the two document indicators replace the bare "● unsaved" dot. */}
+      <DocumentStatus />
       <Show when={fileName()}>
-        <span class="moveno" title={fileName() ?? ""}>
+        <span data-topbar-duplicate class="moveno" title={fileName() ?? ""}>
           {fileName()}
         </span>
       </Show>
@@ -41,9 +46,12 @@ export default function TopBar() {
           </div>
         )}
       </Show>
-      <button onClick={openFile}>Open PGN</button>
+      <button data-topbar-duplicate onClick={openFile}>
+        Open PGN
+      </button>
       <Show when={storedFileName()}>
         <button
+          data-topbar-duplicate
           class="reopen-button"
           title={`Re-open your last file: ${storedFileName()}`}
           onClick={() => void reopenLast()}
@@ -51,8 +59,10 @@ export default function TopBar() {
           Reopen {storedFileName()}
         </button>
       </Show>
+      {/* DV-3: Save is never behind a menu. */}
       <button onClick={() => void saveFile()}>Save</button>
       <button
+        data-topbar-duplicate
         onClick={() => {
           requestDocumentClose("new", () => {
             clearHandle();
@@ -62,6 +72,8 @@ export default function TopBar() {
       >
         New
       </button>
+      {/* DV-3: the same document actions, grouped and keyboard-operable, in two interactions. */}
+      <DocumentMenu />
       <select
         value={color()}
         onChange={(e) => {

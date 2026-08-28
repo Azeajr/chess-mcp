@@ -1355,22 +1355,22 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Current behaviour.** `.chat-wrap` is always rendered at the persisted width (default 360 px). Verified at 1440×900: 360 px of full-height column containing only the panel head and `No API key. Open Settings`. `hasApiKey()` (`store/settings.ts`) is false until a key is entered.
 
-**Target behaviour.** While `hasApiKey()` is false in the wide tier, the chat column collapses to a ~48 px vertical rail with a labelled `Set up the assistant` control and a one-sentence description on hover/focus. Activating it opens Settings focused on the API-key field. Once a key exists, the column expands to the persisted width. On mobile the Chat tab remains but its panel shows the setup call to action.
+**Target behaviour.** While `hasApiKey()` is false, the chat column keeps its persisted width and `ChatPanel` replaces the terse `No API key. Open Settings` line with a setup card: a heading, one sentence describing what the assistant does, and a `Set up the assistant` control that opens Settings focused on the API-key field. Once a key exists the card is replaced by the live chat surface at the same width. On mobile the Chat tab remains and its panel shows the same card. (PD-4 fixed this approach over the originally drafted ~48 px rail; per §7's rule below, the acceptance criteria were rewritten to match before the package started.)
 **PD-4 decision.** Keep the column at full width and replace the terse error line with the setup card. Automation asserts layout, action presence, transition, and mount identity; perceived discoverability is not claimed.
 
-**Implementation approach.** `App.tsx` chooses the chat width from `hasApiKey()`; `store/layout.ts` gains a `chatCollapsed()` derived value so the divider is disabled and the persisted width is untouched while collapsed. `ChatPanel.tsx` renders a `ChatSetupCard` when `!hasApiKey()`. `SettingsDrawer` accepts an `initialFocus` target.
+**Implementation approach.** `ChatPanel.tsx` renders a `ChatSetupCard` when `!hasApiKey()`, in place of the terse `No API key` line, and its control reuses the `settingsFocusTarget` seam so Settings opens focused on the API-key field. The chat column's width is untouched by configuration state — `App.tsx` and `store/layout.ts` keep sourcing it from the persisted value alone.
 
-**Existing behaviour to preserve.** The persisted chat width must be restored unchanged when a key is added — collapsing must not overwrite it. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working.
+**Existing behaviour to preserve.** The persisted chat width must never be overwritten by the unconfigured state. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working.
 
 **Acceptance criteria.**
 
-- With no API key at 1440×900, `.chat-wrap` is ≤ 56 px wide and the board and side panel absorb the released width.
-- The rail control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field.
-- Adding a key restores the chat column to its previously persisted width (assert the exact stored value).
+- With no API key at 1440×900, `.chat-wrap` keeps its persisted width and its panel body renders the setup card in place of the terse `No API key` line.
+- The setup card's control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field.
+- Adding a key leaves the chat column at its previously persisted width (assert the exact stored value) and swaps the setup card for the live chat surface.
 - At 390×844 the Chat tab is present and shows the setup card.
-- The side│chat divider is not focusable and not draggable while collapsed.
+- The side│chat divider stays focusable and draggable while the assistant is unconfigured, and the persisted width is never overwritten by the unconfigured state.
 
-**Automated tests.** Playwright: collapsed width, restore-to-persisted-width, focus target, mobile tab presence.
+**Automated tests.** Playwright: persisted width preserved while unconfigured, setup card present in place of the terse line, focus target on the API-key field, mobile tab presence.
 
 **Automated completion validation.** The fixed setup decision is asserted: the chat column remains present at full width, exposes the setup action and assistant description, and reaches the configured state without remounting adjacent panels.
 
@@ -1924,6 +1924,8 @@ Field key: **Type** ∈ Safety · Accessibility · Responsive layout · Architec
 
 **Acceptance criteria.** A machine-generated report records both transition traces, stage-state equality, explicit redesign-entry count, duplicate-control count, and pass/fail against the fixed thresholds. No production code changes and no split proposal are part of this package.
 
+**Outcome.** Closed. The recommendation is [`ui-ux-remediation/WP-035-recommendation.md`](ui-ux-remediation/WP-035-recommendation.md): **retain one workspace, no split**. Both journeys met every fixed threshold — zero implicit redesign entries, zero stage-state mismatches, and zero duplicate resolution controls across both traces — so `WP-033`'s stage strip did resolve the overload the audit was reacting to. The thresholds the plan left unstated are now stated in the package doc, and the redesign journey's end state was corrected from "an applied change set" to a revision-bound confirmable acceptance: the acceptance identity chain hashes the live document, so the applied outcome is proven against the real controller in `apps/ui/test/strategic-fit-changes.test.ts` rather than fabricated in a browser test. No follow-up split package is proposed.
+
 ---
 
 ### WP-036 — Design tokens
@@ -2060,7 +2062,7 @@ Acceptance-criteria reference format: `WP-nnn AC-k` = the k-th bullet in that pa
 | -------- | --------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------- | ---------------------- | ------------------------------ | -------------------- |
 | UX-001   | Zero-height panels at 200% zoom / short viewports                     | Implement                                                    | WP-001                                 | WP-020, WP-013         | WP-001 AC-1..5                 | Closed               |
 | UX-002   | Horizontal scroll 721–823px; scan buttons off-screen                  | Implement                                                    | WP-002                                 | WP-017, WP-020         | WP-002 AC-1..5                 | Closed               |
-| UX-003   | Board not keyboard/AT operable                                        | Implement with revised approach (prototype-gated)            | WP-014                                 | WP-005, WP-007, WP-009 | WP-014 AC-1..9                 | Closed, pending DV-1 |
+| UX-003   | Board not keyboard/AT operable                                        | Implement with revised approach (prototype-gated)            | WP-014                                 | WP-005, WP-007, WP-009 | WP-014 AC-1..9                 | Closed               |
 | UX-004   | Move list and result rows click-only                                  | Implement                                                    | WP-011                                 | WP-015, WP-022, WP-029 | WP-011 AC-1..8                 | Closed               |
 | UX-005   | `Ctrl+Z` deletes with no redo; dual semantics                         | Implement                                                    | WP-005                                 | WP-004, WP-007         | WP-005 AC-1..11                | Closed               |
 | UX-006   | `New` wipes a clean document with no confirmation                     | Implement                                                    | WP-003 (prevention), WP-004 (recovery) | WP-018                 | WP-003 AC-1..8; WP-004 AC-1..8 | Closed               |

@@ -126,6 +126,11 @@ export interface KeyboardTraceEvidence {
  * AG-3 (move tree): tree role, level, and expanded state are announced, and traversal does not read
  * the entire tree on every key. `traversal-verbosity` is the one claim scored by counting
  * utterances rather than matching a name — see verdict.ts.
+ *
+ * AG-4 (board keyboard layer, WP-014): the focused gridcell conveys its square and piece, picking
+ * up a piece announces its legal-destination count (AC-3), an illegal confirm is audibly refused
+ * (AC-3), and — reusing AG-3's own `traversal-verbosity` claim, same concept, different widget —
+ * one arrow-key traversal reports only the target square, not a flood of every square crossed.
  */
 export type AtClaim =
   | "dialog-announcement"
@@ -135,7 +140,19 @@ export type AtClaim =
   | "tree-role"
   | "item-level"
   | "expanded-state"
-  | "traversal-verbosity";
+  | "traversal-verbosity"
+  | "grid-role"
+  | "square-description"
+  | "selection-count"
+  | "illegal-refusal"
+  // AG-2: the mobile tablist. `tab-role` covers role plus ordinal position, `tab-selected-state`
+  // the selected/not-selected distinction, and `tab-panel-association` the panel a tab controls.
+  | "tab-role"
+  | "tab-selected-state"
+  | "tab-panel-association"
+  // AG-5: one claim per live-region policy operation. The scenario id rides in the claim so the
+  // verdict engine can match an observation to its expectation without a second field.
+  | `live-region:${string}`;
 
 export interface AtObservation {
   readonly source: "nvda" | "voiceover";
@@ -160,6 +177,34 @@ export interface InfrastructureLimitation {
 // executing worker actually supports. This — not a screenshot, not a URL — is the state identity.
 // ---------------------------------------------------------------------------
 
+/**
+ * AG-2: how each tab is wired to the panel it controls. The AT tier can only claim VoiceOver spoke
+ * the *associated panel name* if the panel's accessible name is an established fact, so it is
+ * proven here in the browser tier rather than assumed from the markup.
+ */
+export interface TabPanelWiringEvidence {
+  readonly browser: string;
+  readonly tabId: string;
+  readonly tabLabel: string;
+  readonly ariaControls: string | null;
+  readonly panelExists: boolean;
+  readonly panelRole: string | null;
+  readonly panelAccessibleName: string | null;
+}
+
+/**
+ * AG-2: what the arrow-key state machine did, one entry per key press. A tablist can expose every
+ * correct attribute at rest and still move focus to the wrong tab, so the roving-tabindex and
+ * arrow-state findings are scored from this rather than from a static snapshot.
+ */
+export interface TabWalkStepEvidence {
+  readonly key: string;
+  readonly expectedTabId: string;
+  readonly selectedTabId: string | null;
+  readonly focusedTabId: string | null;
+  readonly tabStopCount: number;
+}
+
 export interface EvidenceBundle {
   readonly scenarioId: string;
   readonly runId: string;
@@ -170,6 +215,10 @@ export interface EvidenceBundle {
   readonly keyboardTraces: readonly KeyboardTraceEvidence[];
   readonly atObservations: readonly AtObservation[];
   readonly infrastructureLimitations: readonly InfrastructureLimitation[];
+  /** Present only for tablist scenarios (AG-2). */
+  readonly tabWalk?: readonly TabWalkStepEvidence[];
+  /** Present only for tablist scenarios (AG-2). */
+  readonly tabPanelWiring?: readonly TabPanelWiringEvidence[];
 }
 
 // ---------------------------------------------------------------------------

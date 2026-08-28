@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import type { ReplacementCandidateSourceKind } from "@chess-mcp/chess-tools";
 import {
   REPLACEMENT_LAB_SUPPORTED_SOURCES,
@@ -15,6 +15,7 @@ import ReplacementPareto from "./ReplacementPareto";
 import ResolutionProof from "./ResolutionProof";
 import { strategicFitResolutionProofSnapshot } from "../../store/strategic-fit-resolution-proof";
 import Progress from "../primitives/Progress";
+import Dialog from "../primitives/Dialog";
 
 const SOURCE_LABELS: Readonly<Record<ReplacementCandidateSourceKind, string>> = {
   "existing-repertoire-transposition": "Existing preparation",
@@ -38,14 +39,6 @@ const STATUS_LABELS = {
   failed: "Generation failed",
   stale: "Context became stale",
 } as const;
-
-const FOCUSABLE = [
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "summary",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
 
 function sourceStateRows() {
   const result = replacementLabSnapshot().result;
@@ -133,9 +126,7 @@ function itemErrors() {
 }
 
 export default function ReplacementLab() {
-  let dialog!: HTMLElement;
   let closeButton!: HTMLButtonElement;
-  let returnFocus: HTMLElement | null = null;
   const [selectedCandidateId, setSelectedCandidateId] = createSignal<string | null>(null);
   const state = replacementLabSnapshot;
   const repertoireColor = () =>
@@ -184,53 +175,23 @@ export default function ReplacementLab() {
     }
   });
 
-  onMount(() => {
-    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeButton.focus();
-    onCleanup(() => {
-      queueMicrotask(() => {
-        if (returnFocus?.isConnected) returnFocus.focus();
-      });
-    });
-  });
-
-  const trapFocus = (event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      replacementLab.close();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    event.stopPropagation();
-    const elements = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-      (element) => element.getClientRects().length > 0,
-    );
-    if (elements.length === 0) return;
-    const first = elements.at(0);
-    if (first === undefined) return;
-    const last = elements.at(-1) ?? first;
-    if (event.shiftKey && (document.activeElement === first || event.target === closeButton)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
+  // Focus entry, the focus trap, Escape, and focus restoration are the Dialog primitive's job now
+  // (WP-033 AC-5). Dialog's nesting stack is what makes Escape close this lab before the workspace
+  // behind it: both are on the same primitive, so the topmost one answers the key.
 
   return (
-    <div class="replacement-lab-backdrop" data-replacement-lab-status={state().status}>
-      <section
-        ref={dialog}
-        class="replacement-lab"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="replacement-lab-title"
-        aria-describedby="replacement-lab-description"
-        tabIndex={-1}
-        onKeyDown={trapFocus}
-      >
+    <Dialog
+      title="Replacement Lab"
+      labelledBy="replacement-lab-title"
+      describedBy="replacement-lab-description"
+      backdropClass="replacement-lab-backdrop"
+      class="replacement-lab"
+      unstyled
+      onClose={() => {
+        replacementLab.close();
+      }}
+    >
+      <div data-replacement-lab-status={state().status} class="replacement-lab-inner">
         <header class="replacement-lab-header">
           <div>
             <span>Strategic Fit</span>
@@ -631,7 +592,7 @@ export default function ReplacementLab() {
             </section>
           </Show>
         </main>
-      </section>
-    </div>
+      </div>
+    </Dialog>
   );
 }

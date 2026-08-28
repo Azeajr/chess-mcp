@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import type { JsonValue, StrategicFinding } from "@chess-mcp/chess-tools";
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 const formatPercent = (value: number): string =>
   new Intl.NumberFormat("en-US", {
@@ -116,6 +117,9 @@ export default function ConceptComparison(props: { finding: StrategicFinding }) 
       aria-labelledby="strategic-fit-comparison-title"
     >
       <h4 id="strategic-fit-comparison-title">Why this branch stands apart</h4>
+      <p data-strategic-distance-definition>
+        {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
+      </p>
       <Show
         when={presentation().dimensions.length > 0}
         fallback={

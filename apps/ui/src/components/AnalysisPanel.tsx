@@ -2,10 +2,13 @@
  * AnalysisPanel: the top-N engine lines for the current position, each tagged with its
  * repertoire fit (green/yellow/red) and your-side eval. Mirrors the board arrows.
  */
-import { For, Show } from "solid-js";
+import { For, Show, createEffect } from "solid-js";
+import type { Path } from "@chess-mcp/chess-tools";
 import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../store/analysis";
 import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
+import { actions, currentPath, currentTree } from "../store/game";
+import { lastNavigationSource, setLastNavigationSource } from "../store/ui";
 import { analysisDepth } from "../store/engine-settings";
 import { ANALYSIS_CONTENT } from "../content/analysis";
 import AnalysisSettings from "./AnalysisSettings";
@@ -18,6 +21,31 @@ import { cloudEvaluationText, evaluationText } from "../content/format";
 export default function AnalysisPanel() {
   const state = analysisState;
   const inFlight = () => state() === "starting" || state() === "analysing";
+
+  /*
+   * WP-028 AC-3: any navigation that is not a card's own `Go to line` clears the marker.
+   *
+   * The effect tracks the path signal and compares against the path recorded when the marker was
+   * set. A card sets both in the same tick, so its own navigation is a no-op here; a move-tree
+   * click or an arrow key changes the path without updating the record, and the marker clears.
+   */
+  let markedPath: Path | null = null;
+  createEffect(() => {
+    const path = currentPath();
+    const source = lastNavigationSource();
+    if (source === null) {
+      markedPath = null;
+      return;
+    }
+    if (markedPath === null) {
+      markedPath = path;
+      return;
+    }
+    if (markedPath !== path) {
+      markedPath = null;
+      setLastNavigationSource(null);
+    }
+  });
 
   return (
     <div class="analysis">
@@ -91,6 +119,45 @@ export default function AnalysisPanel() {
                   <div class="sug-comment">{s.comment}</div>
                 </Show>
                 <div class="sug-actions">
+                  {/*
+                    WP-028 AC-1: navigating from a card marks it, and AC-3 clears the marker when
+                    anything else moves the board — the effect below watches the path signal, so
+                    only a navigation that re-sets the marker in the same tick keeps it.
+                  */}
+                  <button
+                    class="sug-goto"
+                    data-suggestion-goto={s.id}
+                    onClick={() => {
+                      const target = currentTree().indexPathOfSan([
+                        ...currentTree().sanPathAt(s.fromPath),
+                        ...s.sans,
+                      ]);
+                      actions.goto(target ?? s.fromPath);
+                      setLastNavigationSource({ kind: "chat", id: s.id });
+                    }}
+                  >
+                    Go to line
+                  </button>
+                  <Show when={lastNavigationSource()?.id === s.id}>
+                    <span class="sug-showing" data-showing-on-board role="status">
+                      Showing on board
+                    </span>
+                  </Show>
+                  <Show when={s.sourceMessageIndex != null}>
+                    <button
+                      class="sug-source"
+                      data-suggestion-source={s.sourceMessageIndex}
+                      onClick={() => {
+                        const element = document.getElementById(
+                          `chat-message-${s.sourceMessageIndex}`,
+                        );
+                        element?.scrollIntoView({ block: "center" });
+                        element?.focus();
+                      }}
+                    >
+                      Show the message this came from
+                    </button>
+                  </Show>
                   <button
                     class="accept"
                     onClick={() => {

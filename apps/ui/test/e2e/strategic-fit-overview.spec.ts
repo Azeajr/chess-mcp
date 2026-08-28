@@ -59,6 +59,21 @@ const COMPLETE_REPERTOIRE = `[Event "Strategic Fit overview: family one"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 *`;
 
+const LIMITED_REPERTOIRE = `[Event "Strategic Fit overview: comparable one"]
+[Result "*"]
+
+1. d4 Nf6 2. Nf3 e6 3. Bf4 c5 4. e3 Nc6 5. c3 d5 6. Nbd2 Bd6 7. Bg3 *
+
+[Event "Strategic Fit overview: comparable two"]
+[Result "*"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. Bf4 O-O 6. e3 c5 7. Bd3 *
+
+[Event "Strategic Fit overview: shallow branch"]
+[Result "*"]
+
+1. d4 d5 2. Nf3 Nf6 *`;
+
 async function bootstrap(page: Page, pgn: string, name: string) {
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
@@ -160,7 +175,7 @@ test("complete overview reconciles canonical report values and carries metric qu
 test("degraded overview retains partial values, reasons, and insufficient-evidence navigation", async ({
   page,
 }) => {
-  const dialog = await bootstrap(page, "1. e4 e5 *", "overview-degraded.pgn");
+  const dialog = await bootstrap(page, LIMITED_REPERTOIRE, "overview-degraded.pgn");
   const canonical = await summary(page);
   const overview = dialog.getByRole("region", { name: "Strategic overview" });
   await expect(overview).toHaveAttribute("data-overview-preflight-state", "degraded");
@@ -217,7 +232,7 @@ test("blocked overview labels unavailable analysis values instead of zero", asyn
     overview.locator("[data-overview-item='incomplete-branches'] [data-overview-value]"),
   ).toHaveText("0");
   await expect(overview.locator("[data-overview-screen-reader-summary]")).toContainText(
-    "Preflight blocked position analysis",
+    "The evidence check blocked position analysis",
   );
   await expect(overview.getByRole("button")).toHaveCount(0);
 });

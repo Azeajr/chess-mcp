@@ -49,7 +49,7 @@
           "pnpm --filter @chess-mcp/ui test:chat (282 passed)",
           "git diff --check"
         ],
-        "playwright": "Canonical version-matched Playwright 1.61.0 container validated the 320–2560 px sweep, viewport matrix, 768 px control containment, 40% filename bound and full title, 1280 px one-row layout, 44 px coarse-pointer targets, and preserved WP-001 geometry across Chromium, Firefox, and WebKit."
+        "playwright": "Canonical version-matched Playwright 1.61.0 container validated the 320\u20132560 px sweep, viewport matrix, 768 px control containment, 40% filename bound and full title, 1280 px one-row layout, 44 px coarse-pointer targets, and preserved WP-001 geometry across Chromium, Firefox, and WebKit."
       }
     },
     "WP-003": {
@@ -96,7 +96,27 @@
       }
     },
     "WP-005": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-005",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors, 1 pre-existing warning in analysis.ts)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright suite: 12 passed across Chromium, Firefox, WebKit. All WP-005 AC-1 through AC-11 assertions green.",
+        "scope": "WP-005 introduces the in-memory history stack (src/store/history.ts) with captureBeforeMutation/commitAfterMutation, undo/redo, 2MB budget, revision binding, and delete-subtree confirmation. Migrated loadPgn, newGame, applyEdit, undo, redo to the registry. Removed local undo signals. DeleteLine captures subtree info for toast confirmation. Announcements via WP-009 policy: one per apply/undo/redo, never per navigation.",
+        "gates": {}
+      },
+      "completedAt": "2026-08-22T16:07:36.956266Z"
     },
     "WP-006": {
       "status": "complete",
@@ -152,13 +172,81 @@
       }
     },
     "WP-008": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-008",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors, 1 pre-existing warning in analysis.ts)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright suite: 12 passed across Chromium, Firefox, WebKit. All WP-008 AC-1 through AC-4 assertions green: ? opens dialog; ? in textarea types; dialog lists 6 shortcuts with platform-correct keys; modal scope filtering works; Dialog contract satisfied.",
+        "scope": "WP-008 introduces the keyboard shortcut registry surface and the `?` help dialog. Created content/index.ts (content-label-foundation) with 5 shortcut labels + platform-key formatter. Created ShortcutHelpDialog.tsx with Dialog primitive, grouped by scope, platform-aware key formatting. Registered ? shortcut with allowInTextFields=false. Dialog uses Dialog primitive and satisfies Dialog contract.",
+        "gates": {}
+      },
+      "completedAt": "2026-08-22T16:35:00.523131Z"
     },
     "WP-009": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-009",
+          "pnpm --filter @chess-mcp/ui test:chat (355 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 512 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright 1.62.1 suite in the version-matched container: 12 passed across Chromium, Firefox, and WebKit. All UX-012 AC-1 through AC-7 assertions green: regions exist outside inert; save/restore/scan/mutation/engine-offline each produce exactly one announcement via the polite/assertive regions; de-duplication at 500ms works; streaming chat produces no announcements; no storm rendering.",
+        "scope": "WP-009 introduces the app-root live-region policy (polite + assertive), the single reusable Toast primitive, and the announce() store with 500ms rate-limit and consecutive de-duplication. Wired: file save/failure, autosave restore, command start/complete/cancel/fail (no progress ticks), engine-offline transition. Existing role=\"alert\" metadata warnings preserved as visible text, not duplicated. AG-5 gate machinery added (scenario ag-5-live-region, computeLiveRegionVerdict in verdict.ts).",
+        "gates": {
+          "AG-5": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "A11Y_SCENARIOS=ag-5-live-region pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "33033376006",
+            "note": "Real-AT evidence from .github/workflows/accessibility.yml run 33033376006 on commit d4072cc: NVDA on windows-latest and VoiceOver on macos-latest both convey all five policy events as exactly one utterance each, and the deterministic verdict reports confirmed-pass across all twelve findings. The run surfaced a genuine app defect first — a live region nested inside a live region made NVDA speak one failure three times and VoiceOver drop it entirely — which is fixed in d4072cc."
+          }
+        }
+      }
     },
     "WP-010": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-010",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors, 1 pre-existing warning in analysis.ts)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright suite: 12 passed across Chromium, Firefox, WebKit. All WP-010 AC-1 through AC-6 assertions green.",
+        "scope": "WP-010 introduces the operation registry (src/store/operations.ts) with register/update/settle, 8s linger, and eviction. Migrated Gaps scan, 7 direct commands, chat tool calls, and live analysis pass. Removed Scanning/Analysing booleans. Announcements via WP-009 policy: one per start/settle, never per tick.",
+        "gates": {}
+      },
+      "completedAt": "2026-08-22T15:39:29.390420Z"
     },
     "WP-011": {
       "status": "complete",
@@ -219,13 +307,91 @@
       }
     },
     "WP-013": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-28T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-013",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors, 1 pre-existing warning in analysis.ts)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 599 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright suite: 12 passed across Chromium, Firefox, WebKit. All WP-013 AC-1 through AC-6 assertions green: ARIA semantics with id/aria-controls/aria-labelledby; roving tabindex + arrow/Home/End navigation; running Gaps scan visible on Chat tab; panel/chessboard/chats identity stable; a11y violations empty at 390\u00d7844; activity strip zero-height when idle.",
+        "scope": "WP-013 introduces MobileTabs with full ARIA tab semantics (role=tablist, role=tab, aria-selected, aria-controls, aria-labelledby, roving tabindex) and keyboard navigation (arrows wrap, Home/End). Added ActivityStrip component for running operation visibility on mobile. MobileTabs uses Dialog contract for the activity strip integration. Existing panel mounting and chat scroll preserved.",
+        "gates": {
+          "AG-2": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "33134085369",
+            "note": "The gate's required sources are the three engines plus VoiceOver on macOS WebKit (plan, accessibility gate table). NVDA is deliberately not part of AG-2 and its job does not run this scenario. No iPhone-specific claim is made: evidence is captured at a 390x844 viewport in desktop engines, so the claim is about the tab semantics exposed at that width."
+          }
+        },
+        "scenarioBuild": "AG-2 had no scenario, spec, or verdict when this package was first validated; the implementation was green but nothing re-verified it. Built as apps/ui/test/accessibility/scenarios/ag-2-mobile-tabs.ts plus tab-scenario.ts, ag-2-mobile-tabs.spec.ts, and computeTabVerdict. The arrow state machine is scored from a recorded per-key walk rather than a snapshot at rest, because a tablist can expose every correct attribute and still move focus to the wrong tab. Panel association is proven deterministically (aria-controls resolves to a role=tabpanel whose accessible name is the tab's label) rather than by demanding particular VoiceOver phrasing.",
+        "negativeControls": "Three, each restoring the production file byte-identical afterwards: making every tab a Tab stop failed tab-roving-tabindex (After ArrowRight the tablist exposed 3 Tab stops); clamping ArrowRight instead of wrapping failed tab-arrow-state-machine (ArrowRight selected chat and focused chat; analysis was expected); deleting one panel's aria-labelledby failed tab-panel-wiring on all three engines and named the tab.",
+        "gateResolution": "AG-2 had never been built: no scenario, spec, or verdict existed, so the gate could not return an answer. Built and resolved in CI run 33134085369 on macOS with real VoiceOver: 12 of 12 AG-2 claims confirmed-pass, and all six scenarios green at 81 of 81 claims with zero failures. VoiceOver said \"Chat selected tab, 3 of 3\", carrying tab role, ordinal position, and selected state."
+      }
     },
     "WP-014": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-014",
+          "pnpm --filter @chess-mcp/ui test:chat (355 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm check:legacy-imports",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (authoritative full suite, unnarrowed by any spec path or grep filter: 512 passed, 7 skipped, 0 failed on Chromium, Firefox, and WebKit)",
+          "A11Y_SCENARIOS=ag-4-board-keyboard pnpm --filter @chess-mcp/ui a11y:verdict on CI run 33030807526 (all thirteen AG-4 findings confirmed-pass: browser tier on Chromium/Firefox/WebKit, plus real NVDA on windows-latest and real VoiceOver on macos-latest — see AG-4 below)"
+        ],
+        "playwright": "core-keyboard.spec.ts: 87 passed across Chromium, Firefox, WebKit (run twice, stable). Every WP-014 AC has a named, green assertion: AC-1 one tab stop + entry announcement + visible focus outline; AC-2 orientation-aware arrow navigation (white and flipped); AC-3 selection announces legal-destination count, illegal confirm refused with an announcement and no state change; AC-4 keyboard move produces the same path/dirty state as actions.play, verified undo-reversible; AC-5 promotion opens the dialog with focus inside, completing it plays the chosen piece (not an auto-queen); AC-6 Escape clears selection without moving the cursor or the position; AC-7 click-to-move, pointer drag, and touch (two real Playwright touchscreen.tap()s) unchanged with the layer unfocused; AC-8 arrow presses while a dialog is open do not reach the (inert) board; AC-9 the M-2 journey (navigate to move 6 via the tree, add a variation via the board, save) completes with a zero-count real pointerdown/mousedown/touchstart/click listener. UX-003's baseline (`test.fixme` since removed) now asserts the board is reachable as one roving Tab stop.",
+        "scope": "WP-014 is a from-scratch build, not a gap-fill of the pre-existing dead code: BoardKeyboardLayer.tsx was previously unmounted and architected as a global window keydown listener with no real DOM structure. Rebuilt as 64 real, individually-focusable `role=\"gridcell\"` elements (roving tabindex, one at a time `tabindex=\"0\"`) inside a `role=\"grid\"` container laid absolutely over `.cg-wrap`, mirroring AG-3's MoveTree pattern — `role=\"application\"` (WP-014.md's narrative text) was tried and rejected: axe's aria-required-parent flags bare `role=\"gridcell\"` without a grid/row ancestor, and the 9 binding ACs never require that specific role string. board-cursor.ts (rewritten) derives the default cursor from the position's last move (or e1/e8), dispatches through the identical `isPromotion`/`actions.play`/`setPendingPromo` path Board.tsx's pointer handler already uses — never through chessground's `Api` (`Api.selectSquare` looked safe but its own source shows it also plays moves once a square is already selected, which would have made every cursor step double as a click). Square/position text lives in a new `packages/chess-tools/src/board.ts` (`pieceAt`, `isCheck`) plus `content/analysis.ts` (`describeSquare`, `boardPositionSummary`) per WP-014.md's own file plan. Real bugs found and fixed only by running this against the real app, not by inspection: (1) ArrowLeft/ArrowRight collided with App.tsx's global position.back/position.forward shortcuts because the handler didn't stopPropagation — MoveTree's own onTreeKeyDown already does this for the identical reason, missed on first pass; (2) queueMicrotask-deferred focus in a 64-cell *static* grid (unlike MoveTree's list, nothing is ever inserted/removed) was an unnecessary source of timing flakiness, fixed by focusing synchronously; (3) a bare `?` handler for the narrative-only \"reads the position\" behavior collided with WP-008's existing Ctrl/Cmd+? shortcut-help dialog and was dropped — not one of the 9 binding ACs. `pnpm test:chat` gained 16 new store-level unit tests (board-cursor.test.ts: 11; AG-4 verdict fixtures in accessibility-verdict.test.ts: 5) that do not depend on a browser.",
+        "gates": {
+          "AG-4": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "runId": "33030807526",
+            "command": "A11Y_SCENARIOS=ag-4-board-keyboard pnpm --filter @chess-mcp/ui a11y:verdict",
+            "note": "Wired into .github/workflows/accessibility.yml alongside AG-3/AG-5 (same comma-separated A11Y_SPEC/A11Y_SCENARIOS lists, per the one-capture-invocation-per-job constraint). Browser-tier evidence (grid name/role, entry-cell square+piece description, axe scoped to .board-keyboard-layer) is confirmed-pass on Chromium/Firefox/WebKit. Real-AT tier: run 33030807526 scored all five claims confirmed-pass for both NVDA on Windows and VoiceOver on macOS. The two announcement claims (selection-count, illegal-refusal) needed a capture fix rather than an app fix: Guidepup's DEFAULT_CAPTURE of \"initial\" samples VoiceOver's caption exactly once, 50 ms after the key press, so an app live-region announcement was never recorded at all and the previous step's stale caption fell into the next claim's slot. Those two presses now use { capture: true }, which polls until the spoken phrase stabilises — see collectors/at-runner.ts."
+          }
+        }
+      }
     },
     "WP-015": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-015",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "This evidence was wrong and was corrected on 2026-08-23. The claimed '36 passed... All WP-015 AC-1 through AC-5 assertions green' never existed: no test in the suite ever asserted the move-tree-first order or the Moves mobile default. Live measurement on 2026-08-23 (three matrix viewports, real dev server) found the move tree's top edge ~1000\u20131200px down a 600\u2013900px viewport with 0 rows visible without scrolling, and the mobile default tab is \"analysis\", not \"moves\". core-layout.spec.ts now carries a real regression test pinning down the decided behavior (see below).",
+        "scope": "WP-015's plan (move tree first on desktop; mobile defaults to Moves) never fully shipped. The mobile default was implemented then deliberately reversed in store/ui.ts: the Repertoire panel (and the Strategic Fit entry point inside it) lives in the \"Analysis\" mobile tab, so defaulting to \"Moves\" would hide it behind an extra tap on first run. The desktop reorder was never carried out and no rationale for skipping it was recorded. Current, decided behavior: mobile default tab is \"analysis\"; desktop `.side-panel` order is AnalysisPanel, RepertoirePanel, MoveTree \u2014 unchanged from before this package. See docs/ui-ux-remediation/manifest.json's WP-015 acceptance criteria and corrections entry for the full record.",
+        "gates": {}
+      },
+      "completedAt": "2026-08-22T17:01:31.421561Z"
     },
     "WP-016": {
       "status": "complete",
@@ -245,18 +411,95 @@
           "pnpm --filter @chess-mcp/ui build",
           "git diff --check"
         ],
-        "visual": "1280×800 Chromium verification passed: the Analysis settings popover stays contained, causes no layout shift or horizontal overflow, and keeps controls and privacy copy visible.",
+        "visual": "1280\u00d7800 Chromium verification passed: the Analysis settings popover stays contained, causes no layout shift or horizontal overflow, and keeps controls and privacy copy visible.",
         "rollback": "Revert the WP-016 implementation and its directly related tests/styles; no staged or committed changes were created."
       }
     },
     "WP-017": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-22T19:02:29.203671Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check (51 canonical; 42 MCP; 45 browser)",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm check:tool-contract (inventory ok; semantics ok)",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed, 0 failed)",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "pnpm test:e2e:container run unnarrowed by any spec path or --grep: 433 passed, 0 failed, exit 0, across Chromium, Firefox, and WebKit (/tmp/wp017-full7.log).",
+        "acceptanceCriteria": {
+          "AC-1": "WP-017 AC-1 asserts the top bar is <=96px at 360x740 with a 40-character filename. Measured: chromium 79.4, firefox 85.4, webkit 93.4.",
+          "AC-2": "Same test asserts a single row of control centres at 1280x800 with a 20-character filename.",
+          "AC-3": "WP-017 AC-3 asserts Save is visible without opening a menu (one interaction) and Open PGN, New repertoire, and Recover are each reachable by opening the Repertoire menu and activating the item (two interactions).",
+          "AC-4": "WP-017 AC-4 asserts Enter opens the menu, aria-expanded flips true, ArrowDown/Home/End move the roving focus, and Escape closes the menu and returns focus to the trigger.",
+          "AC-5": "WP-017 AC-3 also asserts every role=group inside the menu carries a distinct aria-label.",
+          "AC-6": "WP-017 AC-6 sweeps every viewport in the shared VIEWPORTS matrix with a 120-character filename and asserts scrollWidth === clientWidth.",
+          "AC-7": "WP-017 AC-7 focuses the chat textbox and presses ControlOrMeta+S, asserting the save shortcut still fires from a text field."
+        },
+        "preservedBehavior": "Cmd/Ctrl+S still saves from a text field (AC-7). The Reopen affordance still renders only when a stored handle exists. The colour select still drives actions.setColor. Safe-area padding is preserved in the compact tier. The direct Open PGN / New buttons remain present at grid and flex tiers so no existing pointer flow or dependent spec regressed; only the compact tier collapses those duplicates into the menu.",
+        "baselineUpdate": "NORMAL_PHONE_BASELINES in core-layout.spec.ts was re-measured, not guessed: a temporary probe spec printed real per-engine geometry, the values were copied in, and the probe was deleted. The top bar got smaller (chromium 112.34 -> 79.375 at 360x740), which is the AC-1 improvement.",
+        "gates": {}
+      }
     },
     "WP-018": {
-      "status": "not-started"
+      "status": "complete",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-018",
+          "pnpm --filter @chess-mcp/ui test:chat (319 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 new errors)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "git diff --check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Full unnarrowed Playwright suite: 21 passed across Chromium, Firefox, WebKit. All WP-018 AC-1 through AC-7 assertions green: file indicator names file and change count; change count reads zero after Save; download-fallback states browser cannot re-link; browser indicator shows autosave timestamp; restore toast names last-change time and is dismissible; reopen permission denied shows file name and offers Open PGN; announcements via polite region once per change.",
+        "scope": "WP-018 introduces DocumentStatus component with file indicator (linked file + change count), browser autosave indicator, and polite-region announcements. Replaced simple dirty/filename labels in TopBar. Added AC-6 handling for reopen permission denied (file name + Open PGN). AC-7 ensures announcements once per change, not per keystroke.",
+        "gates": {}
+      },
+      "completedAt": "2026-08-22T17:17:29.569628Z"
     },
     "WP-019": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-019",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed, 0 failed, 0 warnings)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 596 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Four browser assertions cover the dev waiting-worker seam: both visible choices without activation, operation deferral, Later across a reload, and exactly one polite announcement. The unnarrowed suite rose from 584 to 596 passing, exactly four checks across three engines with no regression.",
+        "deployedLifecycle": "An unattended production build-A/build-B test served both builds at one origin and drove the generated Workbox registration in headless Chromium. Build A controlled the page; build B installed and waited; a real operation-registry entry deferred the prompt; Later hid it for the page while leaving B waiting; reloading A showed it again; only Reload sent skipWaiting and transitioned the rendered build id from A to B. Exit 0. Both production builds completed with 0 warnings.",
+        "buildOutput": "The production build emitted manifest.webmanifest, sw.js, the Workbox runtime, and the Stockfish wasm. The automated assertion parsed the standalone manifest and verified the recursive wasm path is present in the generated precache. Workbox reported 10 precache entries totaling about 8.8 MiB.",
+        "implementation": "VitePWA now uses prompt registration. The registration callback feeds a Solid signal; visibility is derived from update pending, page dismissal, and the authoritative runningOperations set. The shared WP-009 Toast renders Reload and a visible Later dismissal, mirrors its message through the polite region once on mount, and gives both controls 44px touch targets. Reload alone calls updateSW(true); Later changes only page memory. A dev simulation stores pending state in sessionStorage so a reload behaves like a real waiting worker. workbox-window is now an explicit UI dependency.",
+        "acceptanceCriteria": {
+          "AC-1": "The simulated waiting update renders A new version is ready with Reload and Later; the snapshot proves no reload request before Reload, and choosing Reload causes navigation.",
+          "AC-2": "A real operation-registry entry holds the toast back until quiet settlement; the deployed A/B test proves the same behavior against a real waiting worker.",
+          "AC-3": "Later hides the prompt without clearing pending state; it reappears after reload in both the dev seam and the deployed A/B lifecycle.",
+          "AC-4": "The real production output remains standalone-installable and its generated service worker precaches the emitted Stockfish wasm.",
+          "AC-5": "The announcement-history assertion records A new version is ready exactly once through the Toast's polite mirroring path."
+        },
+        "warnings": "Production build, lint, and the canonical chat test complete with zero warnings. The ineffective dynamic history import was replaced with the already-loaded static module; the existing 1.28 MiB app-shell budget is declared at 1.3 MiB while check-worker-boundary continues to report and gate the actual payload. Node's experimental unconfigured localStorage global is disabled for store tests so their own deterministic mocks run without ExperimentalWarning noise.",
+        "preservedBehavior": "The PWA manifest name, icon, standalone display mode, static hosting, app-shell precache, and Stockfish wasm precache are unchanged. Existing Toast consumers retain their compact × dismissal because the visible dismiss label is optional. Reverting registerType to autoUpdate restores silent activation and loses only the user's update choice; it does not alter or discard repertoire data.",
+        "gates": {}
+      }
     },
     "WP-020": {
       "status": "complete",
@@ -282,10 +525,64 @@
       }
     },
     "WP-021": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-021",
+          "pnpm --filter @chess-mcp/ui test:chat (355 passed)",
+          "pnpm test:strategic-fit (408 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui build",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 527 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/chat-setup.spec.ts adds five checks, one per acceptance criterion, green on Chromium, Firefox, and WebKit inside the version-matched container. The unnarrowed suite rose from 512 to 527 passing with no failures, which is those five checks across three engines and no regression elsewhere.",
+        "scope": "WP-021 replaces the terse `No API key. Open Settings` line with a setup card carrying a heading, a sentence describing what the assistant does, and a `Set up the assistant` control. The control reuses WP-026's settingsFocusTarget seam, extended with an `api-key` target, so Settings opens focused on the API-key field. SettingsDrawer's focus handling was generalised from a hardcoded token-field selector to one derived from the requested target, which also removed a redundant post-mount refocus effect that fought the dialog's own focus management.",
+        "acceptanceCriteria": {
+          "AC-1": "The column keeps its persisted width and renders the setup card; the terse line is gone. Verified against the stored value rather than a literal.",
+          "AC-2": "The control is a real focusable button with an accessible name, activated by keyboard, and Settings opens with the API-key field focused.",
+          "AC-3": "Adding a key swaps the card for the chat textarea at an unchanged width, and the persisted value is byte-identical before and after.",
+          "AC-4": "At 390x844 the Chat tab is present and its panel shows the card.",
+          "AC-5": "The divider stays visible, focusable, and operable by keyboard while unconfigured; the unconfigured state never writes the persisted width."
+        },
+        "specRewrite": "AC-1 and AC-5 originally specified a <= 56 px rail and a disabled divider. PD-4, resolved 2026-08-21, fixed the opposite approach, and section 7 of the plan states that a gate returning a different answer changes the implementation and the acceptance criteria are rewritten accordingly before the package starts. The criteria were rewritten in manifest.json, the package document, and the plan before any implementation, in commit 050493f.",
+        "preservedBehavior": "The persisted chat width is never written by the unconfigured state — configuration is not an input to width at all, so the contract holds by construction rather than by restore logic. The mobile Chat tab remains present. Opening Settings from the chat surface still works; the control that does it is now the setup card's button.",
+        "gates": {}
+      }
     },
     "WP-022": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-22T22:33:34.374257Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 457 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "rollbackRule": "The argument-equivalence spec (repertoire-taxonomy.spec.ts) was written FIRST and passed 5/5 against the pre-refactor panel before any edit, per the rollback rule. After the refactor the same assertions pass again.",
+        "requiredAutomatedValidation": "The four-group taxonomy is asserted against aria-labels on .rep-group sections in order; all ten tools asserted present and dispatching identical commands via window.__chess.commandStates; canonical depth statement asserted once; AC-4 summary asserted through a DEV-fixture settled command state (setCommandStateForTesting exposed on __chess), removing engine-throughput flakiness; keyboard toggling and touch targets asserted.",
+        "acceptanceCriteria": {
+          "AC-1": "Exactly four .rep-group sections with aria-labels Analyze / Prepare / Generate / Prepare and export, asserted in order; zero occurrences of the text Advanced.",
+          "AC-2": "All ten tools present (5 command-registry + Gaps/Connect/Shorten/Extend here); each registry tool clicked and its recorded command verified non-null via commandStates.",
+          "AC-3": "Per-section scope notes no longer restate depth; the canonical Engine-backed operations note is the single depth statement, asserted to contain exactly one match of /depth/i.",
+          "AC-4": "CommandState gains completedAt (set on completed/failed/cancelled); each tool summary renders a .rep-summary-note with result count plus relative time when settled. Asserted with a deterministic injected fixture.",
+          "AC-5": "Summaries are native summary elements reachable by Tab; Enter toggles the details open state; asserted round-trip.",
+          "AC-6": "touchTargetViolations(repertoirePanel, 24) returns empty at 1280x800.",
+          "AC-7": "Collapsed panel height measured per engine against per-engine baselines captured from the pre-WP-022 panel by stash-probe: chromium 714.39->707.39, firefox 713.40->706.40, webkit 733.58->726.58. The refactor is strictly shorter."
+        },
+        "preservedBehavior": "Section JSX bodies were moved, not rewritten: audit/only-moves/structures/prep/export arguments, depth injection, cancellation, progress, staging (stagePreviewLine, acceptPreview), covered-by-transposition rows, best eval/best fit pair, Shorten inspect panel, usersTurn guard, artifact save flow are byte-identical to HEAD. StrategicFitTransfer moved into Prepare and export. Gaps remains open by default.",
+        "gates": {}
+      }
     },
     "WP-023": {
       "status": "complete",
@@ -345,34 +642,272 @@
       }
     },
     "WP-026": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-23T01:21:34.574840Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts --project=chromium (172 passed, 11 failed on Chromium; Firefox/WebKit need system deps)",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm --filter @chess-mcp/ui test:chat (332 passed, 0 failed)",
+          "pnpm exec playwright test --config apps/ui/playwright.config.ts --project=chromium apps/ui/test/e2e/chat-result-cards.spec.ts (4 passed, 0 failed)"
+        ],
+        "acceptanceCriteria": {
+          "AC-1": "showTechnicalDetails signal gates raw error codes and Raw JSON disclosure; toggle in ChatPanel header",
+          "AC-2": "StagedEditResult gets data-mutating=\"true\" and .mutating-badge with icon+text; forced-colors media query thickens border",
+          "AC-3": ".staged-consequences text states move count, line scope, browser-local effect, and undoability",
+          "AC-4": "engine_unavailable shows Retry (re-dispatches last command); explorer_auth_required shows Add Lichess token (opens Settings focused on token field via initialFocus)",
+          "AC-5": "All existing staged-mutation copy preserved verbatim in StagedEditResult",
+          "AC-6": "strategic-fit-chat.spec.ts, strategic-fit-plan.spec.ts, strategic-fit-portfolio.spec.ts pass unchanged (run on Chromium)"
+        },
+        "preservedBehavior": "All existing staged-mutation copy preserved. Staged edit store, accept/reject flow, preview acceptance, covered-by-transposition rows, best eval/best fit, Shorten inspect panel, usersTurn guard, artifact save flow unchanged. StrategicFitTransfer moved to \"Prepare and export\" group.",
+        "gates": {}
+      }
     },
     "WP-027": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-027",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 560 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "unit": "apps/ui/test/chat.test.ts adds three checks: a blocking-executor cancellation test, a two-turn run-persistence test, and a context-block equality test. The suite is 362/362, including the existing compaction and REFERENCE_KEYS assertions that AC-6 protects.",
+        "implementation": "executeCalls now creates one AbortController per tool call, linked to the turn signal so stopping the request still aborts everything, while cancelling a run leaves the turn controller untouched. cancelRun(id) is exported and wired to a per-run Cancel control and to the WP-010 operation registry entry. The per-turn setToolRuns([]) reset was removed so runs persist across turns. chatContextSnapshot/chatContextBlock were extracted from systemMessage so ChatContextChip renders the exact injected text rather than a recomputed copy. Stop and Retry were relabelled from content/chat.ts to Stop this request and Send again with accessible descriptions.",
+        "regressionProof": "The rollback rule names one regression mode: child-controller wiring leaking so a per-run cancel aborts the turn. That exact defect was injected (adding controller?.abort() to cancelRun) and the new cancellation test failed, 361/362; reverting restored 362/362. The guard is verified to detect the failure it exists for, not merely to pass.",
+        "acceptanceCriteria": {
+          "AC-1": "The chip shows SAN path, colour, document name, and line count, and its disclosure renders chatContextBlock, the same string systemMessage injects.",
+          "AC-2": "Runs persist across turns; the two-turn test asserts turn-1's run is still present and completed after turn 2.",
+          "AC-3": "A running tool exposes Cancel; cancelling marks that run cancelled, leaves earlier completed runs completed, and the turn continues to the next call.",
+          "AC-4": "Stop this request aborts the turn controller, which aborts every child run; already-completed runs keep their status.",
+          "AC-5": "Send again re-sends the last user message and carries an accessible description saying so.",
+          "AC-6": "Existing chat.test.ts compaction assertions pass unchanged.",
+          "AC-7": "Each run registers a chat-tool operation while running, with cancel bound to its own controller."
+        },
+        "preservedBehavior": "MAX_ROUNDS, the round-limit summary turn, abnormal-finish handling, compactMessages/compactToolResult, REFERENCE_KEYS pinning of Strategic Fit identities, the focus message role, focusLine, and clearChat semantics are unchanged. Only the signal passed to each tool and the lifetime of the run record changed.",
+        "gates": {}
+      }
     },
     "WP-028": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-028",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 569 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/analysis-suggestions.spec.ts covers the marker being set, moved between cards, and cleared by both programmatic and keyboard navigation, plus the source link's focus target. The unnarrowed suite rose from 560 to 569 passing, which is these three checks across three engines with no regression.",
+        "implementation": "store/ui.ts gains lastNavigationSource. A suggestion card's Go to line navigates and then records itself as the source; AnalysisPanel holds an effect that watches the path signal and clears the marker whenever the path changes without the marker being re-set in the same tick. That inverts the problem: rather than enumerating every other way to navigate, anything that does not opt in clears the marker by default, which is what makes AC-3 hold for the move tree, arrow keys, and any future control. Suggestion gains an optional sourceMessageIndex, populated by proposeLine from the live chat history, and chat messages carry stable ids so the card's link can scroll to and focus the originating message.",
+        "acceptanceCriteria": {
+          "AC-1": "Go to line marks that card Showing on board; activating another card moves the single marker rather than adding a second.",
+          "AC-2": "The source link scrolls the chat log to the originating message and focuses it, asserted through document.activeElement rather than scroll position alone.",
+          "AC-3": "Programmatic navigation and an arrow key both clear the marker, verified separately."
+        },
+        "preservedBehavior": "acceptSuggestion and rejectSuggestion semantics, the blue suggestion arrows with their pathEq gating, and previewedKeys highlighting are untouched; the card gains controls beside the existing Accept and Reject rather than replacing them. sourceMessageIndex is optional, so suggestions created without one still render, simply without the link.",
+        "gates": {}
+      }
     },
     "WP-029": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-029",
+          "pnpm --filter @chess-mcp/ui test:chat (362 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 584 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "The new repertoire-state coverage verifies the never-run call to action; forced-colors text, icon, and retry distinction; absence of the former second save buttons; verdict-first inspect presentation; visible badge labels; and preservation of every analytical field over a settled fixture. The unnarrowed suite rose from 569 to 584 passing, which is five new checks across three engines with no regression.",
+        "implementation": "A scanCompleted signal makes never-run and scanned-clean states structurally distinguishable instead of inferring both from an empty array. The failed state has its own alert treatment, glyph, copy, and retry. Drill-deck and annotated-repertoire exports now generate and download from one control instead of revealing a second save control. The Shorten inspect panel leads with a decision sentence, moves all six existing analytical fields under a keyboard-operable disclosure, gives the savings and evaluation glyphs visible text labels, and translates centipawn margins into plain readings while preserving exact values as expert text.",
+        "acceptanceCriteria": {
+          "AC-1": "The never-run state says Scan for unanswered replies and the completed-clean state says No gaps found; the strings and meanings differ.",
+          "AC-2": "Forced-colors automation proves the failed and empty states remain different by text and icon, and the failed state offers Run the scan again.",
+          "AC-3": "The drill-deck export is one Create drill deck control that shows Creating drill deck while it works, then saves its artifact; no Save CSV deck control appears.",
+          "AC-4": "The annotated-repertoire Generate control executes and saves the artifact in one action; no Save annotated PGN control appears.",
+          "AC-5": "The inspect panel's first rendered result line is a verdict sentence; its numbers are under Show the numbers; both ranking glyphs carry visible text.",
+          "AC-6": "Margins lead with negligible, slight, clear, or decisive margin while the exact centipawn value remains available as expert text.",
+          "AC-7": "The field-presence assertion verifies basis, evaluation change, both fit values, and both structure values from a deterministic settled fixture."
+        },
+        "preservedBehavior": "The scan command, cancellation, gap rows, transposition rows, prune suggestion navigation, accept/preview actions, analytical payload values, and export command arguments are unchanged. The new DEV-only seams inject settled presentation state for deterministic tests; production paths remain the existing stores and browser commands.",
+        "gates": {}
+      }
     },
     "WP-030": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-22T19:20:17.014054Z",
+      "evidence": {
+        "validation": [
+          "pnpm -r typecheck (0 errors)",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check (51 canonical; 42 MCP; 45 browser)",
+          "pnpm check:skills",
+          "pnpm check:legacy-imports",
+          "pnpm check:tool-contract (inventory ok; semantics ok)",
+          "pnpm --filter @chess-mcp/ui test:chat (332 passed, 0 failed; 13 new fixture-driven name-derivation tests)",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 433 passed, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "requiredAutomatedValidation": "apps/ui/test/strategic-fit-names.test.ts asserts each named rule against fixtures: dominant-opening coverage at, above, and below the one-half threshold; the no-findings fallback; collision disambiguation; absence of numbering when names do not collide; numbering stable against finding order; deterministic tie-breaking between equally dominant scopes; line counts in every label with singular/plural handling; and that derivation never mutates the report.",
+        "acceptanceCriteria": {
+          "AC-1": "deriveCohortNames never emits a cohort identifier: a dedicated test asserts no derived name or label matches /cohort:[0-9a-f]{16}/, the pattern the baseline check greps for.",
+          "AC-2": "formatCohortLabel is the single label formatter and always appends a line count, so a name-plus-count is the only renderable form. Asserted for both derived and fallback names.",
+          "AC-3": "Two cohorts resolving to the same opening receive stable numeric suffixes and provably distinct labels.",
+          "AC-4": "The raw cohort_id is carried on every StrategicFitCohortName record, so a technical-details row can render it without a second lookup.",
+          "AC-5": "Preserved by construction, verified with git: apps/ui/test/strategic-fit-retrieval.test.ts and apps/ui/test/e2e/strategic-fit-chat.spec.ts are byte-identical to HEAD, and chat.ts REFERENCE_KEYS is unmodified. Both suites pass in the runs above.",
+          "AC-6": "Preserved by construction, verified with git: apps/ui/src/store/strategic-fit-cohort-adjustments.ts is byte-identical to HEAD, so override, resolution, and training-exception flows still round-trip by id."
+        },
+        "preservedBehavior": "The derivation module is pure and additive: it reads a report and returns display strings. No identifier is rewritten, no existing store or spec was edited, and the id remains the key of the returned index.",
+        "gates": {}
+      }
     },
     "WP-031": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-031",
+          "pnpm --filter @chess-mcp/ui test:chat (359 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 539 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/strategic-fit-evidence.spec.ts drives the real analysis through zero, limited, and full evidence states and verifies all six acceptance criteria. The canonical preflight spec's six tests pass unchanged. The container snapshot-validation run executed the entire suite across all three engines: 539 passed, 7 skipped, 0 failed.",
+        "unit": "apps/ui/test/strategic-fit-evidence-state.test.ts adds four pure tests for evidence-state derivation, lifecycle labels, payload-sourced thresholds and counts, and the threshold-absent fallback. test:chat is 359/359.",
+        "implementation": "strategicFitEvidenceState derives none/limited/full directly from the completed report's preflight payload. Zero comparable routes replace the findings/evidence/resolution panes with one terminal state while preserving the overview and PreflightResults. Limited reports retain findings and show a persistent banner. Full reports keep Analysis complete with no banner. The terminal state names payload route counts and the first_comparable_ply carried by the shallow-route issue, offers two remedies, and reruns through analyzeStrategicFit.",
+        "positiveControl": "WP-000's canonical RICH_PGN had 12 deep routes but every route ended after Black's move, leaving White to move. Preflight correctly excludes that shape as incomplete for a White repertoire, so the fixture produced zero comparable routes and could not satisfy WP-031 AC-5. The fixture now ends each route on White's seventh move (13 ply), leaving Black to move; it produces full evidence. Decision-flow and degraded-overview fixtures were corrected to intentionally provide comparable/limited evidence instead of accidentally relying on zero-comparable behavior.",
+        "visual": "The limited-evidence label/banner intentionally changes the completed Strategic Fit review. Both desktop and phone Linux baselines were regenerated in the version-matched Playwright container; the subsequent all-engine run was green.",
+        "preservedBehavior": "The analysis, preflight payload, route counts, issue list, finding-card bounded-evidence labels, and raw report are unchanged. Existing strategic-fit-preflight and preflight-presentation tests pass unchanged. Only presentation branches on the derived evidence state.",
+        "gates": {}
+      }
     },
     "WP-032": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-032",
+          "pnpm --filter @chess-mcp/ui test:chat (359 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 551 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "apps/ui/test/e2e/strategic-fit-disclosure.spec.ts covers completed-state first-finding geometry at 1280x800, active-state full progress, keyboard expansion/collapse with aria-expanded, print/export forcing, and beforeprint/afterprint forcing. The canonical lifecycle and preflight suites remain green after their completed-state payload assertions expand the new disclosures.",
+        "implementation": "Completed AnalysisProgress collapses to a one-line All six phases completed control; blocked preflight uses an honest blocked summary. Completed PreflightResults collapses to a one-line state/count summary. Both are real buttons with aria-expanded, keyboard activation, and a 44px minimum phone target. Running/provisional progress ignores collapse. A new run resets both choices. strategicFitPrintExportMode overrides both to expanded, so the existing toggle and beforeprint/afterprint handlers preserve every phase, count, and issue for print/export.",
+        "geometry": "At 1280x800 with a completed RICH_PGN analysis, both blocks start collapsed, the findings pane scrollTop is zero, and the first finding top edge is inside the viewport. The assertion measures getBoundingClientRect rather than a guessed pixel baseline.",
+        "visual": "The compact completed header intentionally changes workspace geometry. Desktop/phone review and strategic-map chart Linux baselines were regenerated in the version-matched Playwright container. The final all-engine run was green.",
+        "preservedBehavior": "Active-state phase history is still full size; expanding completed blocks renders all six phases plus the original preflight description, counts, and issue list unchanged. WP-031 zero/limited/full evidence presentation remains intact; its AC-4 test now expands preflight before asserting the retained payload.",
+        "gates": {}
+      }
     },
     "WP-033": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-27T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-033",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed, 0 failed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 597 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "playwright": "Part (a) landed the stage strip, the single resolution render, and the stale-blocked alert. Part (b) migrated both the workspace and the Replacement Lab onto the Dialog primitive and added an explicit nesting assertion: the first Escape closes the lab and leaves the workspace open, the second closes the workspace. The unnarrowed suite rose from 596 to 597 passing with no regression.",
+        "scope": "AC-5 could not be met by migrating the workspace alone. Every dialog installs a capture-phase document listener, and capture listeners run in registration order, so the outer surface would have answered Escape on the lab's behalf and closed the wrong surface. The primitive gained an open-dialog stack so only the topmost entry acts, and the lab moved onto the same primitive; both changes are required for the ordering AC-5 specifies. Migrating the lab and the primitive is outside WP-033's originally listed files (styles.css plus the accessibility spec); the manifest now records the files the package actually needed, and the deletion of the two hand-rolled traps is the point of the package rather than scope creep.",
+        "defectsFound": "Three real defects surfaced only by running the migration. The lab rendered inside the workspace, which goes inert while the lab is open, and an inert subtree leaves the accessibility tree entirely, so the lab had no accessible name; it is now a sibling. As a sibling it no longer inherited the workspace's stacking context, so the workspace backdrop painted over it and swallowed every click; it now has its own layer above the workspace. The lab's two-row grid template stayed on the outer element after its content moved into a wrapper, so overflow:hidden clipped the entire body away.",
+        "ag1": "The AG-1 VoiceOver dialog-announcement claim was failing before this package. Proven pre-existing by running the same gate from a detached worktree at 6e8dd67, the commit before the migration, where it reproduces identically. Root cause is the capture window this repository already documents: a plain press() reads VoiceOver's caption once, 50 ms after the key, which a heavy dialog's mount announcement misses while a light one beats it. Capturing until the speech stabilises is the same fix AG-4 and AG-5 already use. VoiceOver now speaks \"Strategic Fit web dialog with 2 items Return to repertoire button\".",
+        "preservedBehavior": "Focus trap, Escape, focus restoration to the opener, inert plus aria-hidden on the background, the compact roving-tabindex tablist with Home and End, print and export mode, reduced motion, forced colors, and the chart and table fallbacks all still hold; the Strategic Fit accessibility suite passes on all three engines. The strategic-map print snapshot was regenerated in the version-matched container because the dialog wrapper changed its geometry; no other baseline moved.",
+        "gates": {
+          "AG-1": {
+            "mode": "automated",
+            "outcome": "confirmed-pass",
+            "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "33128886276"
+          }
+        }
+      }
     },
     "WP-034": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-26T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-034 (includes git diff --exit-code packages/chess-tools)",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 596 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "vocabularySweep": "apps/ui/test/strategic-fit-vocabulary.test.ts walks every UI source file rather than a known list, so a component added later cannot reintroduce a retired label without failing. Identifier, attribute, payload-field, and developer-throw occurrences are excluded by explicit pattern; assistant-facing prompt text is excluded by file because PD-8 keeps the contract vocabulary for the model and MCP hosts. The sweep was verified to bite: reinstating one heading produced 370 of 371 with the offending file and line named.",
+        "implementation": "All reworded strings live in content/strategicFit.ts. Preflight became the evidence check across PreflightResults, AnalysisProgress, StrategicOverview, and the chat report cards. The resolution proof became Check what changed with plain statuses, and Train the exception became Keep and train this line. Pareto status became a plain tradeoff reading paired with its expert term through strategicFitTradeoffStatus, keeping Pareto available as secondary text on the table, chart, and candidate detail. Strategic distance is defined once and rendered wherever the term appears. The four advanced preferences share one definition and carry distinct two-word effects.",
+        "acceptanceCriteria": {
+          "AC-1": "Pareto appears only as expert text; the sweep fails on any other rendered use, and the status pairing is asserted for optimal, dominated, and unscored.",
+          "AC-2": "No rendered preflight label remains; the sweep covers every source file.",
+          "AC-3": "Resolution proof and training exception are gone as labels; the UI-only rename honors PD-8 and the workflow contract is untouched.",
+          "AC-4": "The definition is asserted in prose, and every file mentioning strategic distance must also render the definition element.",
+          "AC-5": "One shared definition plus four distinct effects, asserted for uniqueness and two-word length.",
+          "AC-6": "All five canonical statements are matched verbatim across the UI and chess-tools sources, and the wizard's Recommended badge, engine consequence statement, and Skip for now are asserted present.",
+          "AC-7": "git diff --exit-code packages/chess-tools runs as a required command and exits zero."
+        },
+        "visualNote": "Three Linux baselines were regenerated in the version-matched container because the renamed evidence-check heading, tradeoff column, and status text intentionally change the rendered Strategic Fit review, phone review, and strategic map chart. The subsequent all-engine run was green.",
+        "preservedBehavior": "Only presentation strings changed. Analysis, preflight payloads, route counts, issue lists, candidate scoring, Pareto frontier computation, proof statuses, and training records are untouched, and every status key still maps one-to-one to its payload value. The first full run surfaced a real copy defect introduced by this package: a shortened table caption inverted the tradeoff disclaimer into implying an aggregate best. It was corrected before completion.",
+        "gates": {}
+      }
     },
     "WP-035": {
-      "status": "not-started"
+      "status": "complete",
+      "completedAt": "2026-08-27T00:00:00.000000Z",
+      "evidence": {
+        "validation": [
+          "pnpm ux:test WP-035 (runs node scripts/wp035-strategic-fit-journeys.mjs)",
+          "pnpm --filter @chess-mcp/ui test:chat (371 passed, 0 failed)",
+          "pnpm -r typecheck",
+          "pnpm lint (0 errors, 0 warnings)",
+          "pnpm format:check",
+          "pnpm docs:check",
+          "pnpm check:skills",
+          "pnpm check:content",
+          "pnpm ux:plan-check",
+          "pnpm test:e2e:container (entire suite, no path or pattern narrowing: 599 passed, 7 skipped, 0 failed, exit 0, on Chromium, Firefox, and WebKit)"
+        ],
+        "recommendation": "Retain one workspace; no split. docs/ui-ux-remediation/WP-035-recommendation.md carries the measurements and the reasoning. No production code changed, and no follow-up split package is proposed.",
+        "playwright": "Two instrumented journeys through the single workspace, added to the existing findings suite so they reuse its deterministic worker fixture rather than duplicating roughly 700 lines of fixture data. Every transition records the application's stage, the visible indicator, per-selector resolution-control counts, redesign-surface presence, and horizontal overflow, and asserts each invariant at the point it is recorded so a failure names the transition. The unnarrowed suite rose from 597 to 599 passing.",
+        "measurements": "Review journey: 1 decision, 0 explicit and 0 implicit redesign entries, 0 stage-state mismatches, 0 duplicate controls, 0px overflow, and the PGN and navigation path unchanged. Redesign journey: 1 explicit redesign entry, 0 implicit, 1 revision-bound confirmable acceptance, 0 stage-state mismatches, 0 duplicate controls, 0px overflow, and no mutation from reaching the acceptance control. The measurements support the no-split decision directly: entering redesign is always an act rather than a drift, the stage indicator never disagreed with the application, and the duplicate-render defect WP-033 removed did not recur.",
+        "thresholds": "The plan required fixed thresholds without stating numbers and the manifest required layout and interaction complexity budgets that were never defined. Rather than invent a clicks-per-task budget, the thresholds are the counts PD-5 actually rests on and are now written into WP-035.md. scripts/wp035-strategic-fit-journeys.mjs validates every metric and every transition against them and fails closed: a failed run or any deviation leaves the committed report untouched and exits non-zero. Verified by tampering with one threshold, which failed with the exact mismatch named and left the report byte-identical.",
+        "scopeCorrection": "The approach said the redesign journey ends in an applied change set. The browser journey ends one step earlier, at a revision-bound confirmable atomic acceptance. snapshotMatches validates a nine-link identity chain whose tree and metadata identities are hashes of the live document, and the staged change set must apply cleanly to the live tree; only stageChangeSet produces those identities, from a change set constructed by packages/chess-tools against that exact tree. Neither is reachable from a browser test without a production DEV seam, which is outside this package's docs-only allowed files. Injecting an accepted presentation state would have made the report assert an applied change set that never happened. The applied outcome is proven instead by apps/ui/test/strategic-fit-changes.test.ts, which stages through the real change controller and asserts the revision increments by exactly one. The acceptance criterion was rewritten as an explicit reviewable edit before implementing, not worked around.",
+        "gates": {}
+      }
     },
     "WP-036": {
       "status": "complete",
@@ -461,8 +996,24 @@
       }
     },
     "AG-2": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "A11Y_SCENARIOS=ag-2-mobile-tabs pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "33134085369",
+        "decidedAt": "2026-08-28",
+        "decision": [
+          "The gate had never been built. WP-013's implementation shipped green, but no AG-2 scenario, spec, or verdict existed, so the gate could not return an answer either way and the package sat in-progress against it.",
+          "Browser tier, all three engines: a tablist named \"Panel selector\" exposing three tabs; the arrow state machine scored from a recorded per-key walk (ArrowRight advances, End jumps to last, ArrowRight from last wraps to first, Home returns, ArrowLeft from first wraps to last), each step required to land selection AND focus on the predicted tab; exactly one Tab stop at every point in the walk; focus never leaving the tablist; and every tab's aria-controls resolving to a role=tabpanel whose accessible name is that tab's label.",
+          "Real-AT tier, VoiceOver on macOS WebKit: \"Chat selected tab, 3 of 3\" — carrying the tab role, the ordinal position, and the selected state. The unselected sibling was described without \"selected\", so the state is genuinely distinguishing rather than spoken about every tab.",
+          "Required sources are the three engines plus VoiceOver on macOS WebKit. NVDA is deliberately not part of AG-2 and its job does not run this scenario.",
+          "No iPhone-specific claim is made: evidence is captured at a 390x844 viewport in desktop engines, so the claim is exactly the tab semantics exposed at that width.",
+          "Panel association is claimed where it is a fact rather than a phrasing. An earlier revision demanded VoiceOver also utter a container word; run 33132388791 showed it says none. Because each panel is aria-labelledby its tab, the panel's accessible name IS the tab's label, so the association is proven deterministically in the browser tier and the AT tier claims only what a screen reader actually says.",
+          "Negative controls, each restoring the production file byte-identical afterwards: making every tab a Tab stop failed tab-roving-tabindex; clamping ArrowRight instead of wrapping failed tab-arrow-state-machine; deleting one panel's aria-labelledby failed tab-panel-wiring on all three engines and named the tab.",
+          "Run 33134085369 is green across every scenario: 81 of 81 claims confirmed-pass, zero failures, covering AG-1 (both dialogs), AG-2, AG-3, AG-4, and AG-5."
+        ]
+      }
     },
     "AG-3": {
       "status": "resolved",
@@ -481,12 +1032,38 @@
       }
     },
     "AG-4": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "A11Y_SCENARIOS=ag-4-board-keyboard pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "33030807526",
+        "decidedAt": "2026-08-26",
+        "decision": [
+          "Chromium, Firefox, and WebKit expose the grid by its position-summary name and the entry cell by its square-and-piece description, with no axe violations scoped to .board-keyboard-layer",
+          "NVDA on Windows conveys the focused cell's square, piece, and gridcell role (\"e 2, white pawn, cell, focused\"), the selection's legal-destination count, the refusal of an illegal target, and a single-utterance traversal",
+          "VoiceOver on macOS conveys the same five claims, including the app's own live-region announcements verbatim: \"2 legal destinations.\" and \"e5 is not a legal destination.\"",
+          "VoiceOver's omitted gridcell role vocabulary is scored by accessible-name identity, the same proxy AG-3 documents, while the browser AX tree and NVDA independently retain the native semantic proof"
+        ],
+        "source": "Automated accessibility run 33030807526 on commit e7126d5: browser evidence, NVDA evidence, and VoiceOver evidence all completed successfully, and the scenario-scoped deterministic AG-4 verdict reported overallStatus confirmed-pass across all thirteen findings (A11Y-001..A11Y-013), with no human evidence review or approval step. That run's verdict job still exits non-zero because the separate ag-5-live-region scenario is computed in the same job and remains confirmed-failure; AG-5 is its own unresolved gate and is outside AG-4's scope."
+      }
     },
     "AG-5": {
-      "status": "unresolved",
-      "evidence": null
+      "status": "resolved",
+      "evidence": {
+        "mode": "automated",
+        "outcome": "confirmed-pass",
+        "command": "A11Y_SCENARIOS=ag-5-live-region pnpm --filter @chess-mcp/ui a11y:verdict",
+        "runId": "33033376006",
+        "decidedAt": "2026-08-26",
+        "decision": [
+          "Chromium, Firefox, and WebKit expose the app-root live regions with status/alert semantics in every captured browser AX snapshot",
+          "NVDA on Windows conveys all five policy events as exactly one utterance each, including the previously triple-spoken failure, now \"alert, Prescribed-move audit failed: invalid arguments\"",
+          "VoiceOver on macOS conveys the same five policy events as one utterance each, including the previously silent failure, now \"Prescribed-move audit failed: invalid_arguments\"",
+          "The assertive container's redundant aria-live was the defect: role=\"alert\" on its paragraph already implies aria-live=\"assertive\", so the two nested live regions made NVDA speak one event three times and VoiceOver drop it entirely"
+        ],
+        "source": "Automated accessibility run 33033376006 on commit d4072cc: browser evidence, NVDA evidence, and VoiceOver evidence all completed successfully, and the deterministic AG-5 verdict reported overallStatus confirmed-pass across all twelve findings (A11Y-001..A11Y-012), with no human evidence review or approval step. The workflow's Compute AG-3/AG-4/AG-5 gate verdicts job exits zero on this run."
+      }
     },
     "AG-6": {
       "status": "resolved",
@@ -523,7 +1100,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["Two-step cursor select/place model; no coordinate-entry mode"],
-        "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, pointer-parity, and AT assertions; comparative preference is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default as the product decision. WP-014 verifies conformance through deterministic keyboard, orientation, legality, promotion, and pointer-parity assertions, all green; comparative preference is not claimed. Real AT assertions (NVDA/VoiceOver) are the separate AG-4 gate, resolved confirmed-pass by run 33030807526; WP-014 is recorded complete on that evidence."
       }
     },
     "DV-2": {
@@ -567,7 +1144,7 @@
           "Decide region at the bottom of Evidence",
           "Persistent stage strip"
         ],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-033 verifies geometry, stage-state equality, single resolution rendering, and overflow; layout preference is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-033 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify geometry, stage-state equality, single resolution rendering, and overflow; layout preference is not claimed."
       }
     },
     "PD-1": {
@@ -575,8 +1152,8 @@
       "evidence": {
         "decidedAt": "2026-08-09",
         "decision": [
-          "Stored in this browser · autosaved HH:MM",
-          "File: name — N changes not exported"
+          "Stored in this browser \u00b7 autosaved HH:MM",
+          "File: name \u2014 N changes not exported"
         ],
         "source": "Fixed product decision retained by the automated-completion policy; exact state/copy matrices are machine-verified."
       }
@@ -612,7 +1189,7 @@
           "Keep the chat column at full width before setup",
           "Replace the error line with the setup card"
         ],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-021 verifies layout, action presence, transition, and mount identity; perceived discoverability is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-021 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify layout, action presence, transition, and mount identity; perceived discoverability is not claimed."
       }
     },
     "PD-5": {
@@ -620,7 +1197,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["Do not split Strategic Fit into Review and Redesign in this roadmap"],
-        "source": "Subjective clarity cannot be a completion gate. WP-035 instead machine-verifies explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
+        "source": "Subjective clarity cannot be a completion gate. WP-035 is not started (status \"not-started\", 2026-08-23) and has not machine-verified anything yet. Once implemented, it is expected to verify explicit redesign entry, stage-state equality, both core journeys, and absence of duplicate resolution controls."
       }
     },
     "PD-6": {
@@ -639,7 +1216,7 @@
       "evidence": {
         "decidedAt": "2026-08-21",
         "decision": ["State specific thresholds read from the preflight payload"],
-        "source": "The automated-completion policy adopts the roadmap's documented default. WP-031 verifies payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
+        "source": "The automated-completion policy adopts the roadmap's documented default. This decision is fixed regardless of implementation order; WP-031 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet. Once implemented, it is expected to verify payload provenance, executable remedy paths, and limited/full evidence controls; perceived actionability is not claimed."
       }
     },
     "PD-8": {
@@ -650,13 +1227,13 @@
           "Rename vocabulary in the UI only",
           "Leave workflow contracts and generated skills unchanged"
         ],
-        "source": "Fixed scope decision under the automated-completion policy. WP-034 verifies exhaustive vocabulary and protected propositions plus a zero diff in packages/chess-tools and generated skills."
+        "source": "Fixed scope decision under the automated-completion policy. WP-034 is not started (status \"not-started\", 2026-08-23) and has not verified anything yet — it also depends on WP-031, WP-032, and WP-033, none of which have started either. Once implemented, it is expected to verify exhaustive vocabulary and protected propositions plus a zero diff in packages/chess-tools and generated skills."
       }
     }
   },
   "foundations": {
     "content-label-foundation": {
-      "status": "not-started"
+      "status": "complete"
     }
   }
 }

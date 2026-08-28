@@ -36,7 +36,12 @@ apps/ui/test/accessibility/
   scenarios/ag-1-dialog.ts  Dialog definitions for Settings and Strategic Fit.
   scenarios/ag-3-move-tree.ts
                              The branching move-tree definition and deterministic expectations.
-  scenarios/dialog-scenario.ts / tree-scenario.ts
+  scenarios/ag-4-board-keyboard.ts
+                             WP-014's board keyboard layer: entry-cell description, selection
+                             count, illegal-target refusal, and traversal-verbosity expectations.
+  scenarios/ag-5-live-region.ts
+                             The live-region announcement-policy scenario and expectations.
+  scenarios/dialog-scenario.ts / tree-scenario.ts / board-scenario.ts
                              Run every supported collector and return one EvidenceBundle.
   verdict.ts                Deterministic classification. Every Finding cites an EvidenceRef —
                              an index into the bundle that produced it. Never calls an LLM.
@@ -87,9 +92,12 @@ deterministic verdict to one completion gate. It still requires every declared b
 for that scenario; evidence from one gate cannot resolve or block another. With no
 `A11Y_SCENARIOS`, the command evaluates every registered scenario.
 
-The automatic workflow currently computes the AG-3 scenario gate. AG-1 is already resolved by its
-recorded confirmed-pass run and remains independently reproducible with the default all-scenario
-command or an explicit AG-1 scenario list.
+The automatic workflow currently computes the AG-3, AG-4, and AG-5 scenario gates in one combined
+capture per job (see the comma-separated `A11Y_SPEC`/`A11Y_SCENARIOS` lists in
+`.github/workflows/accessibility.yml` — one invocation per job is load-bearing, not a style choice;
+see that workflow's own comments). AG-1 is already resolved by its recorded confirmed-pass run and
+remains independently reproducible with the default all-scenario command or an explicit AG-1
+scenario list.
 
 ## What's proven
 

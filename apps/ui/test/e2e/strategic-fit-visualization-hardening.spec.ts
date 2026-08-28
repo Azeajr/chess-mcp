@@ -259,32 +259,37 @@ test("keyboard reaches the chart marks, the outline, and the print and export to
   await expect(printToggle).toHaveAttribute("aria-pressed", "false");
 });
 
-test("print and export view completes every table equivalent and keeps a stable print snapshot", async ({
-  page,
-}) => {
-  const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-print.pgn");
-  const map = dialog.locator(".strategic-map");
+test(
+  "print and export view completes every table equivalent and keeps a stable print snapshot",
+  { tag: "@visual" },
+  async ({ page }) => {
+    const dialog = await bootstrap(page, MODEST_REPERTOIRE, "hardening-print.pgn");
+    const map = dialog.locator(".strategic-map");
 
-  await map.locator(".strategic-map-axes summary").click();
-  await map.locator(".strategic-map-axes summary").click();
-  await expect(map.locator(".strategic-map-axes")).not.toHaveAttribute("open", "");
+    await map.locator(".strategic-map-axes summary").click();
+    await map.locator(".strategic-map-axes summary").click();
+    await expect(map.locator(".strategic-map-axes")).not.toHaveAttribute("open", "");
 
-  await dialog.locator("[data-strategic-fit-print-export-toggle]").click();
-  await expect(map).toHaveAttribute("data-map-print-export", "true");
-  await expect(dialog.locator(".decision-flow")).toHaveAttribute("data-flow-print-export", "true");
-  await expect(map.locator(".strategic-map-axes")).toHaveAttribute("open", "");
+    await dialog.locator("[data-strategic-fit-print-export-toggle]").click();
+    await expect(map).toHaveAttribute("data-map-print-export", "true");
+    await expect(dialog.locator(".decision-flow")).toHaveAttribute(
+      "data-flow-print-export",
+      "true",
+    );
+    await expect(map.locator(".strategic-map-axes")).toHaveAttribute("open", "");
 
-  const listTable = map.locator("[data-map-list]");
-  const shown = await listTable.getAttribute("data-map-rows-shown");
-  expect(shown).toBe(await listTable.getAttribute("data-map-rows-total"));
+    const listTable = map.locator("[data-map-list]");
+    const shown = await listTable.getAttribute("data-map-rows-shown");
+    expect(shown).toBe(await listTable.getAttribute("data-map-rows-total"));
 
-  await page.emulateMedia({ media: "print" });
-  await expect(map.locator(".strategic-map-controls")).toBeHidden();
-  await expect(map.locator("[data-map-chart]")).toBeVisible();
-  await expect(map.locator("[data-map-list] tbody tr").first()).toBeVisible();
-  await expect(map).toHaveScreenshot("strategic-map-print.png", {
-    animations: "disabled",
-    caret: "hide",
-  });
-  await page.emulateMedia({ media: "screen" });
-});
+    await page.emulateMedia({ media: "print" });
+    await expect(map.locator(".strategic-map-controls")).toBeHidden();
+    await expect(map.locator("[data-map-chart]")).toBeVisible();
+    await expect(map.locator("[data-map-list] tbody tr").first()).toBeVisible();
+    await expect(map).toHaveScreenshot("strategic-map-print.png", {
+      animations: "disabled",
+      caret: "hide",
+    });
+    await page.emulateMedia({ media: "screen" });
+  },
+);

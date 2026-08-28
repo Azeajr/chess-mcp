@@ -3,7 +3,9 @@
   "sourcePlan": "docs/ui-ux-remediation-plan.md",
   "corrections": [
     "WP-005 additionally depends on WP-009 so Toast is introduced with the live-region infrastructure before its first planned consumer.",
-    "WP-008 remains dependent on WP-024; dependency order is authoritative over the earlier phase/PR placement."
+    "WP-008 remains dependent on WP-024; dependency order is authoritative over the earlier phase/PR placement.",
+    "WP-015's plan (move tree first on desktop; mobile defaults to Moves) never fully shipped: the mobile default was implemented and then deliberately reversed (store/ui.ts: defaulting to Moves hides the Repertoire panel, and with it the Strategic Fit entry point, behind an extra tap), and the desktop reorder was never carried out. AC-1 and AC-3 below were rewritten on 2026-08-23 to describe the decided/shipped behavior after live measurement (apps/ui side panel at 1024×600/1280×800/1440×900: move tree top edge 1000–1200px down, 0 rows visible without scrolling) showed the prior text was false. state.json's WP-015 evidence was corrected to match.",
+    "state.json's gates DV-5, PD-4, PD-5, PD-7, and PD-8 cited their implementing package (WP-033, WP-021, WP-035, WP-031, WP-034, respectively) as already having verified their decision, using present/past-tense \"verifies\"/\"machine-verifies\" language — but all five packages are \"not-started\" with zero implementation (confirmed by grep: none of the decision text's distinguishing phrases — e.g. 'Decide region at the bottom of Evidence', 'preflight payload' — exist anywhere in apps/ui/src). `status: \"resolved\"` on these gates is correct and required (ux-plan-check.mjs enforces that every DV-/PD- decision is fixed regardless of implementation order) — the decisions themselves are not being revisited. Only the source text was corrected on 2026-08-23 to state plainly that the cited package hasn't started and hasn't verified anything, framing the cited checks as what implementation is expected to verify once it happens. DV-1 (WP-014) got a smaller version of the same fix: WP-014's browser-tier conformance assertions are genuinely green, but its source text also implied real AT (NVDA/VoiceOver) assertions had already run, when that evidence is exactly what the separate, still-unresolved AG-4 gate is waiting on."
   ],
   "packages": {
     "WP-000": {
@@ -808,9 +810,12 @@
         }
       ],
       "requiredTests": {
-        "files": ["apps/ui/test/e2e/core-status.spec.ts"],
+        "files": [
+          "apps/ui/test/e2e/core-status.spec.ts",
+          "apps/ui/test/accessibility/ag-2-mobile-tabs.spec.ts"
+        ],
         "commands": [],
-        "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; a tablist keyboard spec; element-identity assertions for mount preservation."
+        "description": "`core-status.spec.ts` for the cross-tab visibility and cancel; element-identity assertions for mount preservation. The tablist keyboard contract is the AG-2 scenario: `ag-2-mobile-tabs.spec.ts` captures the evidence and `computeTabVerdict` scores the arrow state machine, roving tabindex, keyboard containment, and tab/panel wiring across three engines plus real VoiceOver."
       },
       "requiredAutomatedValidation": "The tab-pattern suite passes in all engines and real VoiceOver automation asserts tab role, ordinal position, selection state, and associated panel for each tab; absent or inconclusive speech fails.",
       "riskLevel": "Low",
@@ -896,15 +901,15 @@
       "acceptanceCriteria": [
         {
           "id": "WP-015 AC-1",
-          "text": "- At 1024×600, 1280×800, and 1440×900, the move tree's top edge is within the viewport without scrolling `.side-panel`, and at least three move rows are visible."
+          "text": "- Superseded: the desktop reorder was never carried out. `.side-panel` keeps its pre-WP-015 order — `AnalysisPanel`, then `RepertoirePanel`, then `MoveTree` — and the move tree's top edge is not within the viewport at 1024×600, 1280×800, or 1440×900 (measured 2026-08-23: ~1000–1200px down; 0 rows visible without scrolling `.side-panel`)."
         },
         {
           "id": "WP-015 AC-2",
-          "text": "- The analysis panel's engine-lines area is visible without scrolling at 1280×800."
+          "text": "- The analysis panel's engine-lines area is visible without scrolling at 1280×800. Confirmed still true (measured 2026-08-23: `.analysis`'s bottom edge stays within the viewport at all three matrix widths)."
         },
         {
           "id": "WP-015 AC-3",
-          "text": "- At 390×844 the default tab on first load is `Moves`."
+          "text": "- Superseded: at 390×844 (and other ≤720px viewports) the default tab on first load is `Analysis`, not `Moves`. `store/ui.ts` deliberately keeps this default — the Repertoire panel, and with it the Strategic Fit entry point, lives in the `Analysis` mobile tab, so defaulting to `Moves` would hide it behind an extra tap on first run."
         },
         {
           "id": "WP-015 AC-4",
@@ -918,14 +923,14 @@
       "requiredTests": {
         "files": ["apps/ui/test/e2e/core-layout.spec.ts"],
         "commands": [],
-        "description": "`core-layout.spec.ts` position assertions at three viewports; a default-tab assertion."
+        "description": "`core-layout.spec.ts` asserts the decided mobile default tab (`Analysis`) and the decided desktop panel order (`AnalysisPanel`, `RepertoirePanel`, `MoveTree`), so a future change to either is a deliberate, reviewed diff rather than silent drift."
       },
-      "requiredAutomatedValidation": "Position, default-tab, ordering, and viewport assertions pass in all configured engines.",
+      "requiredAutomatedValidation": "Default-tab and desktop-order assertions pass in all configured engines.",
       "riskLevel": "Low",
       "preservedBehaviorContracts": [
         "The side panel's single scroll container at ≥1101 px and its `overscroll-behavior: contain`. Mobile panel mounting. The Gaps section's `open` default."
       ],
-      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the analysis panel pushed below the fold instead. Detection: the analysis-visible assertion. Rollback: reorder back.\n\n---"
+      "rollbackRule": "**Planned risk.** Low\n\nThis package's original reorder was never applied, so there is nothing to roll back. If a future attempt reorders the desktop panel to move-tree-first, its regression mode is the analysis panel getting pushed below the fold — detect with an analysis-visible assertion before shipping.\n\n---"
     },
     "WP-016": {
       "dependencies": ["WP-000", "WP-024"],
@@ -1131,9 +1136,16 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
-        "description": "Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion in CI that `dist/manifest.webmanifest` and the wasm precache entry exist."
+        "files": [
+          "apps/ui/test/e2e/pwa-update.spec.ts",
+          "apps/ui/test/pwa-build.test.mjs",
+          "apps/ui/test/pwa-lifecycle.mjs"
+        ],
+        "commands": [
+          "pnpm --filter @chess-mcp/ui build && node --test apps/ui/test/pwa-build.test.mjs",
+          "node apps/ui/test/pwa-lifecycle.mjs"
+        ],
+        "description": "Playwright against the dev seam for the toast, deferral, and dismissal. A build-output assertion checks `dist/manifest.webmanifest` and the wasm precache entry. A real static deployment publishes production build A then B at one origin and drives the generated Workbox lifecycle through deferral, Later, and Reload."
       },
       "requiredAutomatedValidation": "A deployed test environment publishes build A then build B; service-worker instrumentation asserts update detection, toast deferral/dismissal, reload, and build-id transition. Any platform-specific claim requires an unattended device-lab job.",
       "riskLevel": "Low",
@@ -1199,15 +1211,15 @@
       "acceptanceCriteria": [
         {
           "id": "WP-021 AC-1",
-          "text": "- With no API key at 1440×900, `.chat-wrap` is ≤ 56 px wide and the board and side panel absorb the released width."
+          "text": "- With no API key at 1440×900, `.chat-wrap` keeps its persisted width and its panel body renders the setup card in place of the terse `No API key` line. (Rewritten from a ≤ 56 px rail: PD-4 fixed the opposite approach, and §7 of the plan states that a gate's answer changes the implementation and the acceptance criteria are rewritten accordingly before the package starts.)"
         },
         {
           "id": "WP-021 AC-2",
-          "text": "- The rail control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field."
+          "text": "- The setup card's control is keyboard reachable, has an accessible name, and opens Settings with focus on the API-key field."
         },
         {
           "id": "WP-021 AC-3",
-          "text": "- Adding a key restores the chat column to its previously persisted width (assert the exact stored value)."
+          "text": "- Adding a key leaves the chat column at its previously persisted width (assert the exact stored value) and swaps the setup card for the live chat surface."
         },
         {
           "id": "WP-021 AC-4",
@@ -1215,20 +1227,20 @@
         },
         {
           "id": "WP-021 AC-5",
-          "text": "- The side│chat divider is not focusable and not draggable while collapsed."
+          "text": "- The side│chat divider stays focusable and draggable while the assistant is unconfigured, and the persisted width is never overwritten by the unconfigured state. (Rewritten with AC-1: PD-4 keeps the column at full width, so there is no collapsed state to disable the divider for.)"
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/chat-setup.spec.ts"],
         "commands": [],
-        "description": "Playwright: collapsed width, restore-to-persisted-width, focus target, mobile tab presence."
+        "description": "Playwright: persisted width preserved while unconfigured, setup card present in place of the terse line, focus target on the API-key field, mobile tab presence."
       },
       "requiredAutomatedValidation": "The fixed setup decision is asserted: the chat column remains present at full width, exposes the setup action and assistant description, and reaches the configured state without remounting adjacent panels.",
       "riskLevel": "Low",
       "preservedBehaviorContracts": [
-        "The persisted chat width must be restored unchanged when a key is added — collapsing must not overwrite it. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working."
+        "The persisted chat width must never be overwritten by the unconfigured state. The mobile Chat tab must remain present. The existing `No API key` link behaviour (opening Settings) must keep working."
       ],
-      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width lost on collapse. Detection: the restore assertion. Rollback: single revert.\n\n---"
+      "rollbackRule": "**Planned risk.** Low\n\nRegression mode: the persisted width overwritten while unconfigured. Detection: the persisted-width assertion. Rollback: single revert.\n\n---"
     },
     "WP-022": {
       "dependencies": ["WP-011", "WP-024"],
@@ -1559,7 +1571,7 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/analysis-suggestions.spec.ts"],
         "commands": [],
         "description": "Playwright: marker set, moved, and cleared; source link scroll target.\n\n---"
       },
@@ -1610,7 +1622,7 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/repertoire-states.spec.ts"],
         "commands": [],
         "description": "A field-presence spec written before the change and passing against current code; state-distinction specs per tool; a single-action export spec asserting exactly one button and one download."
       },
@@ -1711,9 +1723,12 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-evidence.spec.ts",
+          "apps/ui/test/strategic-fit-evidence-state.test.ts"
+        ],
         "commands": [],
-        "description": "Three-state spec driven by fixture reports through `window.__chess.setResolutionProofForTesting`-style seams or a fixture lifecycle result; a positive-control end-to-end run."
+        "description": "Three-state spec driven by real lifecycle fixture reports; a positive-control end-to-end run plus unit coverage for state derivation, payload-sourced thresholds, and labels."
       },
       "requiredAutomatedValidation": "The terminal-state fixture asserts thresholds come from the payload, at least two remedy actions are rendered, each action routes to an executable edit or rerun path, and full-evidence fixtures bypass the terminal state.",
       "riskLevel": "Low",
@@ -1757,9 +1772,9 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": ["apps/ui/test/e2e/strategic-fit-disclosure.spec.ts"],
         "commands": [],
-        "description": "A viewport assertion for first-finding visibility; a print-mode expansion assertion.\n\n---"
+        "description": "A viewport assertion for first-finding visibility; completed-state disclosure and keyboard assertions; active-state expansion; print/export and beforeprint expansion.\n\n---"
       },
       "requiredAutomatedValidation": "Completed-state geometry, disclosure state, print expansion, issue counts, keyboard operation, and first-finding viewport assertions pass at every required viewport.",
       "riskLevel": "Low",
@@ -1774,8 +1789,12 @@
       "completionGates": ["AG-1"],
       "ownedAuditFindings": ["UX-033"],
       "primaryFiles": [
+        "apps/ui/src/components/StrategicFitWorkspace.tsx",
+        "apps/ui/src/components/primitives/Dialog.tsx",
+        "apps/ui/src/components/strategic-fit/ReplacementLab.tsx",
         "apps/ui/src/styles.css",
-        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts"
+        "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+        "apps/ui/test/e2e/strategic-fit-findings.spec.ts"
       ],
       "relevantSymbols": [],
       "acceptanceCriteria": [
@@ -1805,9 +1824,12 @@
         }
       ],
       "requiredTests": {
-        "files": [],
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-accessibility.spec.ts",
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts"
+        ],
         "commands": [],
-        "description": "Duplicate-render assertions; stage-indicator presence at four widths; the existing suite as the regression gate; the `Dialog` contract suite extended to the workspace and the Lab."
+        "description": "Duplicate-render and four-width stage assertions; the existing accessibility regression gate; the shared Dialog contract exercised by the workspace and Lab; and an explicit nesting assertion that the first Escape closes the Lab while preserving the workspace and the second closes the workspace."
       },
       "requiredAutomatedValidation": "The AG-1 suite reruns against the migrated workspace and Lab and must report confirmed-pass for browser and real-AT claims; duplicate-render, stage, stale-state, and existing Strategic Fit suites also pass.",
       "riskLevel": "Medium",
@@ -1857,8 +1879,8 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
+        "files": ["apps/ui/test/strategic-fit-vocabulary.test.ts"],
+        "commands": ["git diff --exit-code packages/chess-tools"],
         "description": "Text-presence assertions for the preserved statements; a vocabulary sweep asserting the retired primary labels are absent from rendered text."
       },
       "requiredAutomatedValidation": "Canonical protected propositions remain exact, retired primary labels are absent, required definitions precede first use, allowed UI-only vocabulary changes are exhaustive, and packages/chess-tools has no diff.\n\n---",
@@ -1881,11 +1903,14 @@
         }
       ],
       "requiredTests": {
-        "files": [],
-        "commands": [],
-        "description": "Not specified."
+        "files": [
+          "apps/ui/test/e2e/strategic-fit-findings.spec.ts",
+          "scripts/wp035-strategic-fit-journeys.mjs"
+        ],
+        "commands": ["node scripts/wp035-strategic-fit-journeys.mjs"],
+        "description": "Two instrumented journeys through the single workspace. The review journey reaches a decision and never enters redesign; the redesign journey reaches a revision-bound confirmable acceptance through exactly one explicit action. Every transition asserts stage-state equality, a single current stage indicator, no duplicated resolution control, and no horizontal overflow. The generator validates every metric against the fixed thresholds in WP-035.md and fails closed without modifying the committed report."
       },
-      "requiredAutomatedValidation": "The fixed no-split decision is validated by two automated journeys: review never enters redesign without the explicit action, redesign reaches apply, the stage indicator matches state throughout, and layout/interaction complexity budgets pass.",
+      "requiredAutomatedValidation": "The fixed no-split decision is validated by two automated journeys: review never enters redesign without the explicit action, redesign reaches a revision-bound confirmable acceptance through one explicit action, the stage indicator matches application state at every transition, and the fixed thresholds in WP-035.md pass. Those thresholds replace the previously undefined complexity budgets. The applied change set itself is proven against the real change controller by apps/ui/test/strategic-fit-changes.test.ts, because the acceptance identity chain hashes the live document and cannot be satisfied from a browser test without a production seam outside this package's scope.",
       "riskLevel": "Low; automated validation only, with no split in scope",
       "preservedBehaviorContracts": ["Not specified."],
       "rollbackRule": "**Planned risk.** Low; this package records automated journey results only and changes no production code."

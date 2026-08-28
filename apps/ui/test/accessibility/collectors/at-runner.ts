@@ -50,6 +50,23 @@
  * boundary, relying on native Tab traversal in between — and macOS Safari's default "Full Keyboard
  * Access" setting (off by default) makes native Tab skip every <button> entirely. Nothing to do
  * with this module or VoiceOver; fixed in the dialog's own trap handler instead.
+ *
+ * Run 32681987352: AG-4's two live-region claims (selection-count, illegal-refusal) came back from
+ * VoiceOver as "(nothing)" and as the *previous* step's focus description, while the same two
+ * claims passed on NVDA. Root cause read out of the installed @guidepup/guidepup@0.33.2 source
+ * rather than inferred from the symptom: `spokenPhraseLog()` is not a running transcript of
+ * everything the screen reader says. VoiceOverClient appends exactly one entry per driver action,
+ * and only inside `enqueueAndTap`'s capture step — and `DEFAULT_CAPTURE` is `"initial"`
+ * (lib/constants.js), whose poll loop breaks unconditionally at the end of its first iteration.
+ * So a plain `press()` reads VoiceOver's caption once, 50 ms after the key went in, and whatever
+ * has not been spoken by then is never recorded anywhere. VoiceOver's own focus descriptions
+ * usually beat that window; an app announcement (Solid render -> DOM mutation -> AX live-region
+ * notification -> speech queue) reliably does not, which is why the stale caption from the step
+ * before kept landing in the next claim's slot. `{ capture: true }` instead polls until the spoken
+ * phrase stabilises, which is exactly how AG-5 already captures this app's live-region messages on
+ * VoiceOver — see pressAwaitingAnnouncement. NVDA's client is an event stream with a silence
+ * debounce rather than a caption poll, so it was never blind here; it takes the same option for
+ * the same reason (capture the whole announcement, not just its first phrase).
  */
 import type { AtClaim, AtObservation, InfrastructureLimitation } from "../evidence-schema";
 import type { Page } from "playwright/test";
@@ -103,6 +120,33 @@ export interface AtDialogSteps {
    * no predictable target. Run 32239829988's VoiceOver worker hung here until its test timed out.
    */
   readonly refocusDialog: () => Promise<void>;
+}
+
+export interface AtBoardSteps {
+  /** Put DOM focus silently on the cell used for the grid-role/square-description evidence. */
+  readonly focusEntryCell: () => Promise<void>;
+  /** Put DOM focus silently on the cell that holds the piece to select. */
+  readonly focusSelectionCell: () => Promise<void>;
+  /** Resolve once the selected cell's legal destinations are highlighted (real state, not timing). */
+  readonly awaitSelected: () => Promise<void>;
+  /** Put DOM focus silently on a square that is not one of the selected piece's legal destinations. */
+  readonly focusIllegalTargetCell: () => Promise<void>;
+  /** Clear the selection (a plain Escape key press, not AT-driven — housekeeping between claims). */
+  readonly clearSelection: () => Promise<void>;
+  /** Put DOM focus silently on the square the traversal key is pressed from. */
+  readonly focusTraversalStartCell: () => Promise<void>;
+  /** True when the app received the traversal key and moved focus to the expected cell. */
+  readonly traversalReachedTarget: () => Promise<boolean>;
+  /** Put DOM focus on the expected target when an AT intercepts the traversal key. */
+  readonly focusTraversalTargetCell: () => Promise<void>;
+  readonly traversalKey: string;
+}
+
+export interface AtTabSteps {
+  /** Put DOM focus on the tab whose role, ordinal, selected state, and panel are the claims. */
+  readonly focusSpokenTab: () => Promise<void>;
+  /** Put DOM focus on a different, unselected tab so the not-selected contrast can be observed. */
+  readonly focusOtherTab: () => Promise<void>;
 }
 
 export interface AtTreeSteps {
@@ -163,10 +207,26 @@ export interface AtSession {
   reportSemanticFocus(): Promise<void>;
   /** Press a key *as the screen reader*, so whatever it says is recorded. */
   press(key: string): Promise<void>;
+  /**
+   * Press a key as the screen reader and hold the driver's capture open until the speech it
+   * provokes has stabilised, instead of Guidepup's default single reading taken 50 ms later.
+   * Use this — and only this — for a press whose evidence is an announcement the *app* emits
+   * asynchronously; see this module's header for why the default silently drops those.
+   */
+  pressAwaitingAnnouncement(key: string): Promise<void>;
   /** Advance the screen reader's own review/browse cursor by one step. */
   next(): Promise<void>;
   /** Phrases spoken since the previous call, blank ones dropped. */
   since(): Promise<readonly string[]>;
+  /**
+   * Speech spoken during an action driven by an external tool (Playwright), not the screen
+   * reader's own press/perform. `since()` cannot see this speech at all — see this module's
+   * top comment on `withScreenReader` for why — so a passive aria-live announcement triggered by
+   * `page.evaluate` must go through this instead, which wraps Guidepup's own `capture()` (built
+   * for exactly this: "the action can be performed using an external automation tool such as
+   * Playwright").
+   */
+  captureExternalAction<T>(action: () => Promise<T>): Promise<{ result: T; spokenPhrase: string }>;
   observe(claim: AtClaim, command: string, utterances: readonly string[]): AtObservation;
 }
 
@@ -204,9 +264,13 @@ export async function withScreenReader<T>(
       start(): Promise<void>;
       stop(): Promise<void>;
       spokenPhraseLog(): Promise<string[]>;
-      press(key: string): Promise<void>;
+      press(key: string, options?: { capture?: boolean | "initial" }): Promise<void>;
       next(): Promise<void>;
       perform(command: T2["keyboardCommands"][keyof T2["keyboardCommands"]]): Promise<void>;
+      capture<T3>(
+        action: () => Promise<T3>,
+        options?: { capture?: boolean | "initial" },
+      ): Promise<{ result: T3; spokenPhrase: string }>;
     },
   ): Promise<T> {
     await screenReader.start();
@@ -252,6 +316,16 @@ export async function withScreenReader<T>(
           runner === "voiceover" ? "moveCursorToKeyboardFocus; describeItem" : focusCommandName,
         focusBrowser,
         since,
+        // capture() draws from the same cumulative spokenPhraseLog() since() diffs against, so
+        // resync spokenSoFar afterward — otherwise the next since() would re-return this speech.
+        captureExternalAction: async (action) => {
+          // Default "initial" capture only grabs the first "page" of speech; a live-region
+          // message plus its role announcement can run longer than that, so ask for everything.
+          const captured = await screenReader.capture(action, { capture: true });
+          const log = await screenReader.spokenPhraseLog();
+          spokenSoFar = log.length;
+          return { result: captured.result, spokenPhrase: captured.spokenPhrase };
+        },
         reportFocus: async () => {
           await screenReader.perform(focusCommand);
         },
@@ -265,6 +339,9 @@ export async function withScreenReader<T>(
         },
         press: async (key) => {
           await screenReader.press(key);
+        },
+        pressAwaitingAnnouncement: async (key) => {
+          await screenReader.press(key, { capture: true });
         },
         next: async () => {
           await screenReader.next();
@@ -354,7 +431,14 @@ export async function captureDialogObservations(
       await session.focusBrowser();
       // Enter on the opener, which the close just restored focus to. Activating through the
       // screen reader is what makes the dialog's own entry announcement land in the log.
-      await session.press("Enter");
+      //
+      // pressAwaitingAnnouncement, not press: this module's header records why. A plain press()
+      // reads VoiceOver's caption once, 50 ms after the key goes in. A light dialog's focus
+      // description beats that window, but a heavy one (Strategic Fit mounts a whole workspace:
+      // Solid render -> DOM mutation -> AX notification -> speech queue) does not, and its
+      // announcement was recorded as "(nothing)" while Settings passed in the very same session.
+      // Holding the capture open until the speech stabilises is the same fix AG-4 and AG-5 use.
+      await session.pressAwaitingAnnouncement("Enter");
       await within("dialog reopen", STEP_TIMEOUT_MS, steps.awaitOpen);
       const announcement = session.observe(
         "dialog-announcement",
@@ -371,6 +455,68 @@ export async function captureDialogObservations(
   // Restart the native session once for that transport-level absence. Semantic mismatches are
   // never retried or interpreted here, and a second empty session still fails deterministically.
   return announcement?.utterances.length === 0 ? captureOnce() : first;
+}
+
+/**
+ * Captures AG-2's three tablist claims in one real screen-reader session.
+ *
+ * `reportSemanticFocus`, not the bare focus command: AG-2 requires the utterance to carry the tab
+ * *role*, its ordinal position, its selected state, and the panel it controls, and the composite
+ * describe command is the one that reports that vocabulary — the same reason AG-3 uses it for
+ * role/level/state. The selected tab and an unselected sibling are both described, because
+ * "selected" is only evidence of conveyed state if the reader does not say it about every tab.
+ *
+ * Retried once if any claim comes back with no utterances at all, for the transport-level absence
+ * `captureDialogObservations` documents: a native command can complete without Guidepup receiving
+ * a speech event. A second empty session still fails deterministically; semantic mismatches are
+ * never retried.
+ */
+export async function captureTabObservations(
+  runner: AtRunnerId,
+  page: Page,
+  steps: AtTabSteps,
+): Promise<readonly AtObservation[]> {
+  const captureOnce = () =>
+    withScreenReader(runner, page, async (session) => {
+      await session.focusBrowser();
+      await session.since();
+
+      await steps.focusSpokenTab();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportSemanticFocus();
+      const selectedUtterances = await session.since();
+
+      // Role/ordinal and selected state are read from the same describe: they are properties of one
+      // spoken description, and issuing the command twice would risk the second returning a stale
+      // caption rather than a second independent reading.
+      const tabRole = session.observe(
+        "tab-role",
+        session.semanticFocusCommandName,
+        selectedUtterances,
+      );
+      const panelAssociation = session.observe(
+        "tab-panel-association",
+        session.semanticFocusCommandName,
+        selectedUtterances,
+      );
+
+      await steps.focusOtherTab();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportSemanticFocus();
+      const unselectedUtterances = await session.since();
+      const selectedState = session.observe(
+        "tab-selected-state",
+        `${session.semanticFocusCommandName} on the selected tab; ${session.semanticFocusCommandName} on an unselected tab`,
+        [...selectedUtterances, ...unselectedUtterances],
+      );
+
+      return [tabRole, selectedState, panelAssociation];
+    });
+
+  const first = await captureOnce();
+  return first.some((observation) => observation.utterances.length === 0) ? captureOnce() : first;
 }
 
 /**
@@ -454,4 +600,131 @@ export function captureTreeObservations(
 
     return [treeRole, itemLevel, expandedState, traversalVerbosity];
   });
+}
+
+/**
+ * Captures the five AG-4 claims (WP-014's board keyboard layer) in one real screen-reader session.
+ * DOM focus is established silently before each observation; every announcement-bearing command —
+ * `reportFocus`, and critically `press("Enter")`/`press(traversalKey)` — is issued through
+ * Guidepup itself, not `page.evaluate`/`page.keyboard`, per the AG-5 lesson recorded in
+ * docs/accessibility/README.md: `since()`'s spokenPhraseLog diffing only sees speech spoken while a
+ * screen-reader-driven command is actually in flight, so an externally-triggered key press would
+ * silently capture nothing.
+ *
+ * Uses `session.reportFocus()` (the AG-1-proven `reportCurrentFocus` / `describeItemWithKeyboardFocus`
+ * pair), not AG-3's `reportSemanticFocus()` (`moveCursorToKeyboardFocus` + `describeItem`) — real
+ * evidence from two runs (32680688687, 32681168207) showed that 2-step chain unreliable for this
+ * grid specifically: `describeItem` describes "the item **in the VoiceOver cursor**" — a distinct,
+ * separate concept from real keyboard focus that the prior `moveCursorToKeyboardFocus` step is
+ * supposed to sync but sometimes doesn't (report.json: `moveCursorToKeyboardFocus` correctly spoke
+ * "e2, white pawn", but the very next `describeItem` in the same call then spoke "e8, black king...
+ * row 1 of 8" — e8 being literally the first cell in DOM order, i.e. VoiceOver's cursor snapped to
+ * a grid anchor rather than following the sync). AG-3's own tree has a handful of items and never
+ * showed this; a flat 64-cell grid apparently triggers it. `describeItemWithKeyboardFocus`
+ * ("Describe the item that has the keyboard focus" — read directly from the installed
+ * `@guidepup/guidepup` package's own VoiceOver keyCodeCommands, not assumed) is the atomic,
+ * single-step command AG-1's dialog work already proved reliable for exactly this "what actually
+ * has focus" question, so this scenario uses that same command instead of chasing the 2-step
+ * chain's races further. Because it may not carry the tree's fuller "cursor" describe context, the
+ * verdict for `grid-role` scores VoiceOver by accessible-name identity alone, the same
+ * accessible-name proxy AG-3 already documents using for VoiceOver's own omitted role/state
+ * vocabulary — NVDA keeps the stronger role-word requirement, unaffected by any of this.
+ *
+ * Run 32680247211's real VoiceOver evidence also showed `selection-count` come back with 0
+ * utterances even though the identically-driven `illegal-refusal` claim later in the very same
+ * session captured real speech — the same transport-level absence `captureDialogObservations`
+ * already documents ("a native AT command can occasionally complete without Guidepup receiving any
+ * speech event"). This applies its exact fix: retry the whole capture once if any claim came back
+ * with no utterances at all. A second empty session still fails deterministically — this is not a
+ * retry for wrong content, only for nothing having been captured at all.
+ */
+export function captureBoardObservations(
+  runner: AtRunnerId,
+  page: Page,
+  steps: AtBoardSteps,
+): Promise<readonly AtObservation[]> {
+  const captureOnce = () =>
+    withScreenReader(runner, page, async (session) => {
+      await session.focusBrowser();
+      await session.since();
+
+      // grid-role / square-description: one command's utterance answers both claims, same pattern
+      // AG-3 uses for tree-role/item-level (there, via reportSemanticFocus — see this function's
+      // own header for why this scenario uses the simpler, atomic reportFocus instead).
+      await steps.focusEntryCell();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportFocus();
+      const entryUtterances = await session.since();
+      const gridRole = session.observe("grid-role", session.focusCommandName, entryUtterances);
+      const squareDescription = session.observe(
+        "square-description",
+        session.focusCommandName,
+        entryUtterances,
+      );
+
+      // selection-count (AC-3): a real Enter, driven by the screen reader, picks up the piece.
+      // The evidence here is the app's own live-region announcement rather than the screen
+      // reader's description of the focused cell, so this press has to hold the capture open —
+      // see this module's header on run 32681987352 for what the default press misses.
+      await steps.focusSelectionCell();
+      await session.focusBrowser();
+      await session.since();
+      await session.pressAwaitingAnnouncement("Enter");
+      await within("piece selection", STEP_TIMEOUT_MS, steps.awaitSelected);
+      const selectionCount = session.observe(
+        "selection-count",
+        "press Enter",
+        await session.since(),
+      );
+
+      // illegal-refusal (AC-3): a real Enter on a square that is not among the legal destinations
+      // just highlighted. The selection from the step above is still active — confirming an illegal
+      // target does not clear it, matching the app's own behaviour (board-cursor.ts's confirmMove).
+      await steps.focusIllegalTargetCell();
+      await session.focusBrowser();
+      await session.since();
+      // Same live-region evidence as selection-count above, so the same held-open capture.
+      await session.pressAwaitingAnnouncement("Enter");
+      const illegalRefusal = session.observe(
+        "illegal-refusal",
+        "press Enter (illegal target)",
+        await session.since(),
+      );
+
+      // Housekeeping, not a claim: clear the selection before the traversal check below so its
+      // utterance isn't carrying a stale ", legal destination" suffix on unrelated squares.
+      await steps.clearSelection();
+
+      await steps.focusTraversalStartCell();
+      await session.focusBrowser();
+      await session.since();
+      await session.press(steps.traversalKey);
+      let traversalUtterances = await session.since();
+      let traversalCommand = `press ${steps.traversalKey}`;
+
+      // Same NVDA-browse-mode/VoiceOver-Quick-Nav caveat AG-3's traversal check carries: the browser
+      // contract already proves the app handler; when an AT intercepts the key, move DOM focus
+      // silently and ask the real AT to describe the resulting cell instead — via reportFocus, for
+      // the same reliability reason as the entry-cell capture above.
+      if (!(await steps.traversalReachedTarget())) {
+        await steps.focusTraversalTargetCell();
+        await session.focusBrowser();
+        await session.since();
+        await session.reportFocus();
+        traversalUtterances = await session.since();
+        traversalCommand = `focus target via DOM; ${session.focusCommandName} (${steps.traversalKey} intercepted)`;
+      }
+      const traversalVerbosity = session.observe(
+        "traversal-verbosity",
+        traversalCommand,
+        traversalUtterances,
+      );
+
+      return [gridRole, squareDescription, selectionCount, illegalRefusal, traversalVerbosity];
+    });
+
+  return captureOnce().then((first) =>
+    first.some((observation) => observation.utterances.length === 0) ? captureOnce() : first,
+  );
 }

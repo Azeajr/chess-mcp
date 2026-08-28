@@ -26,6 +26,8 @@ export type {
 } from "./pgn.js";
 export { positionKey, classifyUciMove, weightFor } from "./congruence.js";
 export type { Fit, Weight, Color, MoveFit } from "./congruence.js";
+export { pieceAt, isCheck } from "./board.js";
+export type { SquarePiece } from "./board.js";
 export {
   decisionNodes,
   turnNodes,

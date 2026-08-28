@@ -56,6 +56,22 @@ export function openerFallback(): HTMLElement | null {
   return lastPointerActivated?.isConnected === true ? lastPointerActivated : null;
 }
 
+/**
+ * Open dialogs, outermost first.
+ *
+ * Every dialog listens on `document` in the capture phase, and capture listeners on one node run in
+ * registration order — so the *outer* dialog hears Escape before the inner one. Without this stack,
+ * opening a nested dialog and pressing Escape would close the outer dialog and leave the inner one
+ * orphaned, which is the exact inverse of the expected behaviour. Only the topmost entry acts;
+ * everything below it ignores the key entirely.
+ */
+const openDialogs: object[] = [];
+
+/** True when `token` owns the current keyboard interaction. */
+function isTopmost(token: object): boolean {
+  return openDialogs.at(-1) === token;
+}
+
 export interface DialogProps {
   title: string;
   description?: string;
@@ -65,6 +81,18 @@ export interface DialogProps {
   class?: string;
   children: JSX.Element;
   onClose: () => void;
+  /**
+   * Render no title/description element and label the dialog from existing ids in `children`.
+   * For surfaces that own a richer header than a plain title line.
+   */
+  labelledBy?: string;
+  describedBy?: string;
+  /** Replaces the default backdrop class rather than adding to it. */
+  backdropClass?: string;
+  /** Omit the `ui-dialog` presentation classes so `class` fully owns the surface's styling. */
+  unstyled?: boolean;
+  /** Suspends this dialog while a nested overlay is open. */
+  inert?: boolean;
 }
 
 export default function Dialog(props: DialogProps) {
@@ -74,6 +102,8 @@ export default function Dialog(props: DialogProps) {
   const descriptionId = `dialog-description-${nextDialogId++}`;
 
   onMount(() => {
+    const token = {};
+    openDialogs.push(token);
     // document.body is not a focus target: restoring to it is indistinguishable from restoring
     // nothing, and accepting it silently hides an opener that never took focus. macOS browsers do
     // not focus a <button> on click, so an opener that does not focus itself lands here as body.
@@ -117,6 +147,9 @@ export default function Dialog(props: DialogProps) {
     };
 
     const trapFocus = (event: KeyboardEvent) => {
+      // A nested dialog owns the keyboard: this outer listener registered first, so without the
+      // stack check it would answer Escape on the inner dialog's behalf and close the wrong one.
+      if (!isTopmost(token)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         // stopImmediatePropagation, not stopPropagation: every open dialog installs its own
@@ -153,6 +186,8 @@ export default function Dialog(props: DialogProps) {
     document.addEventListener("keydown", trapFocus, true);
     requestAnimationFrame(focusInitial);
     onCleanup(() => {
+      const index = openDialogs.indexOf(token);
+      if (index !== -1) openDialogs.splice(index, 1);
       document.removeEventListener("keydown", trapFocus, true);
       disposeScope();
       // Re-assert across the next frames rather than restoring once: WebKit resets focus to the
@@ -176,27 +211,39 @@ export default function Dialog(props: DialogProps) {
 
   return (
     <div
-      class={`ui-dialog-backdrop${props.size === "drawer" ? " ui-dialog-backdrop-drawer" : ""}`}
+      class={
+        props.backdropClass ??
+        `ui-dialog-backdrop${props.size === "drawer" ? " ui-dialog-backdrop-drawer" : ""}`
+      }
       onClick={(event) => {
         if (props.dismissOnBackdrop && event.target === event.currentTarget) props.onClose();
       }}
     >
       <section
         ref={dialog}
-        class={`ui-dialog ui-dialog-${props.size ?? "compact"}${props.class ? ` ${props.class}` : ""}`}
+        class={
+          props.unstyled
+            ? (props.class ?? "")
+            : `ui-dialog ui-dialog-${props.size ?? "compact"}${props.class ? ` ${props.class}` : ""}`
+        }
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={props.description ? descriptionId : undefined}
+        inert={props.inert}
+        aria-hidden={props.inert ? "true" : undefined}
+        aria-labelledby={props.labelledBy ?? titleId}
+        aria-describedby={props.describedBy ?? (props.description ? descriptionId : undefined)}
         tabIndex={-1}
       >
         {/* h1, not h2: a dialog root is its own heading outline, and the accessibility contract
             checks that each root's visible outline starts at h1 — the same reason the Strategic
-            Fit workspace titles itself with an h1. */}
-        <h1 id={titleId} class="ui-dialog-title">
-          {props.title}
-        </h1>
-        {props.description ? (
+            Fit workspace titles itself with an h1. A surface passing labelledBy renders its own
+            heading with that id instead. */}
+        {props.labelledBy ? null : (
+          <h1 id={titleId} class="ui-dialog-title">
+            {props.title}
+          </h1>
+        )}
+        {props.description && !props.describedBy ? (
           <p id={descriptionId} class="ui-dialog-description">
             {props.description}
           </p>

@@ -9,6 +9,8 @@ import {
   type StrategicFitTrainingCreationResult,
 } from "../../store/strategic-fit-training";
 
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
+
 export default function TrainException(props: {
   reportId: string;
   report: StrategicFitReport;
@@ -66,9 +68,9 @@ export default function TrainException(props: {
         data-training-report-revision={props.report.repertoire_revision}
       >
         <header>
-          <span>Train the exception</span>
+          <span>{STRATEGIC_FIT_VOCABULARY.training.kicker}</span>
           <h3 id={`strategic-fit-training-heading-${props.finding.finding_id}`}>
-            Build a basic drill
+            {STRATEGIC_FIT_VOCABULARY.training.title}
           </h3>
           <p>
             Use the finding’s legal checkpoints, deterministic concepts, and causal move. No AI is

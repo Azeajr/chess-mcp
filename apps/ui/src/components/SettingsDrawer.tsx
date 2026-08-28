@@ -13,11 +13,20 @@ import {
   lichessToken,
   setLichessToken,
   MODEL_SUGGESTIONS,
+  settingsFocusTarget,
+  setSettingsFocusTarget,
 } from "../store/settings";
 import Field from "./primitives/Field";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
+  // WP-026 AC-4 / WP-021 AC-2: a recovery action or the chat setup card can request that focus
+  // land on a specific field. Dialog's own initialFocus does the work, so the target is only a
+  // selector lookup — no post-mount refocus, which would fight the dialog's focus management.
+  const focusSelector = () => {
+    const target = settingsFocusTarget();
+    return target ? `input[data-settings-field='${target}']` : undefined;
+  };
   return (
     <Show when={settingsOpen()}>
       <Dialog
@@ -25,7 +34,11 @@ export default function SettingsDrawer() {
         size="drawer"
         class="drawer"
         dismissOnBackdrop
-        onClose={() => setSettingsOpen(false)}
+        initialFocus={focusSelector()}
+        onClose={() => {
+          setSettingsOpen(false);
+          setSettingsFocusTarget(null);
+        }}
       >
         <button
           type="button"
@@ -38,6 +51,7 @@ export default function SettingsDrawer() {
 
         <Field class="field" label="OpenRouter API key">
           <input
+            data-settings-field="api-key"
             type="password"
             placeholder="sk-or-…"
             value={apiKey()}
@@ -78,6 +92,7 @@ export default function SettingsDrawer() {
 
         <Field class="field" label="Lichess API token">
           <input
+            data-settings-field="lichess-token"
             type="password"
             placeholder="lip_…"
             value={lichessToken()}

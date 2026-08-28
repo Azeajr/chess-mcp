@@ -10,6 +10,7 @@ import {
   skipStrategicFitProfileSetup,
 } from "../../store/strategic-fit-profile-setup";
 import { strategicFitProfile } from "../../store/strategic-fit-profile";
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 export const STRATEGIC_FIT_PROFILE_LABELS: Readonly<Record<StrategicFitProfileMode, string>> = {
   "familiar-plans": "Familiar plans",
@@ -161,6 +162,12 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
             Changing an advanced preference selects Custom. Values are bounded to the supported
             range and saved as profile metadata only.
           </p>
+          <p class="strategic-fit-profile-advanced-help" data-strategic-distance-definition>
+            {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
+          </p>
+          <p class="strategic-fit-profile-advanced-help" data-advanced-preference-definition>
+            {STRATEGIC_FIT_VOCABULARY.advancedPreferences.definition}
+          </p>
 
           <div class="strategic-fit-profile-fields">
             <For each={STRATEGIC_SIGNAL_FAMILIES}>
@@ -214,8 +221,8 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
 
             <label>
               <span>Opponent popularity importance</span>
-              <span class="strategic-fit-field-help">
-                How strongly common opponent choices should influence review.
+              <span class="strategic-fit-field-help" data-advanced-effect="opponent-popularity">
+                {STRATEGIC_FIT_VOCABULARY.advancedPreferences.effects.opponentPopularity}
               </span>
               <div class="strategic-fit-range-row">
                 <input
@@ -237,8 +244,8 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
 
             <label>
               <span>Personal-game importance</span>
-              <span class="strategic-fit-field-help">
-                How strongly positions from your own games should influence review.
+              <span class="strategic-fit-field-help" data-advanced-effect="personal-history">
+                {STRATEGIC_FIT_VOCABULARY.advancedPreferences.effects.personalHistory}
               </span>
               <div class="strategic-fit-range-row">
                 <input
@@ -260,8 +267,8 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
 
             <label>
               <span>Manual weighting importance</span>
-              <span class="strategic-fit-field-help">
-                How strongly your existing manual route weights should influence review.
+              <span class="strategic-fit-field-help" data-advanced-effect="manual-weight">
+                {STRATEGIC_FIT_VOCABULARY.advancedPreferences.effects.manualWeight}
               </span>
               <div class="strategic-fit-range-row">
                 <input
@@ -280,8 +287,8 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
 
             <label>
               <span>Additional memorization tolerance</span>
-              <span class="strategic-fit-field-help">
-                0 favors less study; 1 accepts the most additional material.
+              <span class="strategic-fit-field-help" data-advanced-effect="memorization">
+                {STRATEGIC_FIT_VOCABULARY.advancedPreferences.effects.memorization}
               </span>
               <div class="strategic-fit-range-row">
                 <input

@@ -117,9 +117,11 @@ test("blocked and error results remain explicit without implying consistency", a
 
   const card = page.getByRole("region", { name: "Strategic Fit report" });
   await expect(card).toContainText("Analysis blocked");
-  await expect(card).toContainText("Preflight Blocked");
+  await expect(card).toContainText("Evidence check Blocked");
   await expect(card).toContainText("Custom starting positions are unsupported.");
-  await expect(card).toContainText("Review the preflight evidence before drawing a conclusion.");
+  await expect(card).toContainText(
+    "Review the evidence-check results before drawing a conclusion.",
+  );
   await expect(card).not.toContainText(/consistent/i);
 
   await chess(page, (api) =>

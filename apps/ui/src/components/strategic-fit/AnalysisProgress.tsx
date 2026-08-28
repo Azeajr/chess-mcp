@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import Progress from "../primitives/Progress";
 import Status from "../primitives/Status";
 import {
@@ -32,7 +32,7 @@ export function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapsho
   const active = state.phase_history.find((phase) => phase.state === "running");
   const cancelled = state.phase_history.find((phase) => phase.state === "cancelled");
   if (state.status === "completed" && blocked(state)) {
-    return "Preflight blocked analysis after normalization. One of six phases completed; five dependent phases were not run.";
+    return "The evidence check blocked analysis after normalization. One of six phases completed; five dependent phases were not run.";
   }
   if (state.status === "completed") return "All six analysis phases completed.";
   if (state.status === "cancelled") {
@@ -67,56 +67,94 @@ function phaseStatusLabel(
     if (lifecycleStatus === "stale") return "Cancelled when inputs changed";
     return "Cancelled";
   }
-  if (isBlocked) return "Not run — blocked by preflight";
+  if (isBlocked) return "Not run — blocked by the evidence check";
   if (lifecycleStatus === "cancelled") return "Not run after cancellation";
   if (lifecycleStatus === "failed") return "Not run after failure";
   return "Pending";
 }
 
-export default function AnalysisProgress(props: { state: StrategicFitLifecycleSnapshot }) {
+export interface AnalysisProgressProps {
+  readonly state: StrategicFitLifecycleSnapshot;
+  /** Completed-state disclosure. Active analysis always renders full size regardless. */
+  readonly collapsed?: boolean;
+  readonly onToggle?: () => void;
+}
+
+export default function AnalysisProgress(props: AnalysisProgressProps) {
   const completed = () => completedCount(props.state);
   const isBlocked = () => blocked(props.state);
+  const isCollapsed = () => props.collapsed === true && props.state.status === "completed";
 
   return (
     <section
       class="strategic-fit-analysis-progress-card"
       data-progress-status={props.state.status}
+      data-progress-collapsed={String(isCollapsed())}
       aria-labelledby="strategic-fit-analysis-phases-title"
     >
-      <header>
-        <div>
-          <span>Deterministic analysis</span>
-          <h2 id="strategic-fit-analysis-phases-title">Analysis phases</h2>
+      <Show
+        when={!isCollapsed()}
+        fallback={
+          <button
+            type="button"
+            class="strategic-fit-analysis-progress-disclosure"
+            aria-expanded="false"
+            onClick={() => props.onToggle?.()}
+          >
+            <span id="strategic-fit-analysis-phases-title">
+              {blocked(props.state)
+                ? "Evidence check completed; five dependent phases were not run"
+                : "All six phases completed"}
+            </span>
+            <span aria-hidden="true">▸</span>
+          </button>
+        }
+      >
+        <div id="strategic-fit-analysis-phases-detail">
+          <button
+            type="button"
+            class="strategic-fit-analysis-progress-disclosure strategic-fit-analysis-progress-collapse"
+            aria-expanded="true"
+            onClick={() => props.onToggle?.()}
+          >
+            Hide phase details <span aria-hidden="true">▾</span>
+          </button>
+          <header>
+            <div>
+              <span>Deterministic analysis</span>
+              <h2 id="strategic-fit-analysis-phases-title">Analysis phases</h2>
+            </div>
+            <span class="strategic-fit-analysis-progress-count" aria-hidden="true">
+              {completed()} of 6 complete
+            </span>
+          </header>
+          <Progress
+            label={`${completed()} of 6 Strategic Fit phases complete`}
+            value={completed()}
+            max={6}
+          />
+          <p class="strategic-fit-analysis-progress-live" role="status" aria-atomic="true">
+            {analysisProgressAnnouncement(props.state)}
+          </p>
+          <ol class="strategic-fit-analysis-phase-list">
+            <For each={props.state.phase_history}>
+              {(entry, index) => (
+                <li data-phase={entry.phase} data-phase-state={entry.state}>
+                  <span class="strategic-fit-analysis-phase-marker" aria-hidden="true">
+                    {index() + 1}
+                  </span>
+                  <span class="strategic-fit-analysis-phase-name">
+                    {STRATEGIC_FIT_PHASE_LABELS[entry.phase]}
+                  </span>
+                  <Status class="strategic-fit-analysis-phase-status">
+                    {phaseStatusLabel(entry.state, props.state.status, isBlocked())}
+                  </Status>
+                </li>
+              )}
+            </For>
+          </ol>
         </div>
-        <span class="strategic-fit-analysis-progress-count" aria-hidden="true">
-          {completed()} of 6 complete
-        </span>
-      </header>
-      <Progress
-        label={`${completed()} of 6 Strategic Fit phases complete`}
-        value={completed()}
-        max={6}
-      />
-      <p class="strategic-fit-analysis-progress-live" role="status" aria-atomic="true">
-        {analysisProgressAnnouncement(props.state)}
-      </p>
-      <ol class="strategic-fit-analysis-phase-list">
-        <For each={props.state.phase_history}>
-          {(entry, index) => (
-            <li data-phase={entry.phase} data-phase-state={entry.state}>
-              <span class="strategic-fit-analysis-phase-marker" aria-hidden="true">
-                {index() + 1}
-              </span>
-              <span class="strategic-fit-analysis-phase-name">
-                {STRATEGIC_FIT_PHASE_LABELS[entry.phase]}
-              </span>
-              <Status class="strategic-fit-analysis-phase-status">
-                {phaseStatusLabel(entry.state, props.state.status, isBlocked())}
-              </Status>
-            </li>
-          )}
-        </For>
-      </ol>
+      </Show>
     </section>
   );
 }

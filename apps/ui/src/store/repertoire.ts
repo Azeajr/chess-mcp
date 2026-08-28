@@ -78,6 +78,12 @@ const [pruneDone, setPruneDone] = createSignal(0);
 const [pruneTotal, setPruneTotal] = createSignal(0);
 export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
+/** WP-029 AC-5/AC-7 test seam: render shortcut rows without a live prune scan. */
+export function setPruneSuggestionsForTesting(next: PruneSuggestion[]) {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  setPruneSuggestions(next);
+}
+
 let pruneController: AbortController | null = null;
 
 /** U3: abort an in-flight shorten scan. Bumps the token so in-flight engine results are discarded
@@ -141,6 +147,26 @@ const [coverage, setCoverage] = createSignal<ShortcutCoverage | null>(null);
 const [inspecting, setInspecting] = createSignal(false);
 const [inspectError, setInspectError] = createSignal<string | null>(null);
 export { inspectKey, comparison, coverage, inspecting, inspectError };
+
+/**
+ * WP-029 AC-7 test seam: inject a settled inspect result.
+ *
+ * The field-presence assertion is about what the panel renders from a given payload, not about
+ * whether the engine reaches the same verdict twice. Injecting settled state keeps the check
+ * deterministic under parallel load instead of running a live scan per engine.
+ */
+export function setInspectResultForTesting(
+  key: string,
+  next: ShortcutComparison | null,
+  cov: ShortcutCoverage | null,
+) {
+  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  setInspectKey(key);
+  setComparison(next);
+  setCoverage(cov);
+  setInspecting(false);
+  setInspectError(null);
+}
 
 /** Stable identity for a suggestion row (a line can now have several re-routes). */
 export function shortcutKey(p: PruneSuggestion): string {

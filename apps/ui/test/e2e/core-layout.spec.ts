@@ -6,43 +6,43 @@ import { VIEWPORTS } from "./helpers/viewports";
 const NORMAL_PHONE_BASELINES = {
   chromium: {
     "360×740": {
-      ".topbar": 112.34375,
+      ".topbar": 79.375,
       ".board-wrap": 318,
-      ".side-panel": 222.65625,
+      ".side-panel": 255.625,
       ".mobile-tabs": 33,
     },
     "390×844": {
-      ".topbar": 112.34375,
+      ".topbar": 79.375,
       ".board-wrap": 348,
-      ".side-panel": 296.65625,
+      ".side-panel": 329.625,
       ".mobile-tabs": 33,
     },
   },
   firefox: {
     "360×740": {
-      ".topbar": 118.4,
+      ".topbar": 85.4,
       ".board-wrap": 318,
-      ".side-panel": 212.6,
+      ".side-panel": 245.6,
       ".mobile-tabs": 37,
     },
     "390×844": {
-      ".topbar": 118.4,
+      ".topbar": 85.4,
       ".board-wrap": 348,
-      ".side-panel": 286.6,
+      ".side-panel": 319.6,
       ".mobile-tabs": 37,
     },
   },
   webkit: {
     "360×740": {
-      ".topbar": 126.34375,
+      ".topbar": 93.375,
       ".board-wrap": 318,
-      ".side-panel": 205.65625,
+      ".side-panel": 238.625,
       ".mobile-tabs": 36,
     },
     "390×844": {
-      ".topbar": 98.953125,
+      ".topbar": 93.375,
       ".board-wrap": 348,
-      ".side-panel": 307.03125,
+      ".side-panel": 312.609375,
       ".mobile-tabs": 36,
     },
   },
@@ -57,6 +57,29 @@ const panelDimensions = (page: import("playwright/test").Page) =>
       ]),
     ),
   );
+
+test("WP-015 pins the decided (non-reordered) side panel and mobile default", async ({ page }) => {
+  // WP-015 planned a move-tree-first desktop order and a Moves mobile default; both were
+  // superseded (see docs/ui-ux-remediation/work-packages/WP-015.md). This test exists so a future
+  // change to either is a deliberate diff, not silent drift back into a false "complete" record.
+  await openApp(page, { width: 1280, height: 800 });
+  const order = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll(
+        ".side-panel .analysis, .side-panel .rep-panel, .side-panel .move-tree",
+      ),
+    ].map((el) => el.className),
+  );
+  expect(order[0]).toContain("analysis");
+  expect(order[1]).toBe("rep-panel");
+  expect(order[2]).toBe("move-tree");
+
+  await openApp(page, { width: 390, height: 844 });
+  await expect(page.getByRole("tab", { name: "Analysis" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
 
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
   for (const viewport of [
@@ -101,21 +124,25 @@ test("UX-001 / WP-001 core panels retain usable height on short viewports", asyn
   }
 });
 
-test("WP-001 preserves normal phone-height geometry", async ({ page, browserName }) => {
-  const baselines = NORMAL_PHONE_BASELINES[browserName];
-  for (const [label, expected] of Object.entries(baselines)) {
-    const [width, height] = label.split("×").map(Number);
-    await openApp(page, { width, height });
-    await page.getByRole("tab", { name: "Analysis" }).click();
-    const actual = await panelDimensions(page);
-    for (const [selector, expectedHeight] of Object.entries(expected)) {
-      expect(
-        Math.abs((actual[selector] ?? Number.NaN) - expectedHeight),
-        `${browserName} ${selector} at ${label}`,
-      ).toBeLessThanOrEqual(2);
+test(
+  "WP-001 preserves normal phone-height geometry",
+  { tag: "@visual" },
+  async ({ page, browserName }) => {
+    const baselines = NORMAL_PHONE_BASELINES[browserName];
+    for (const [label, expected] of Object.entries(baselines)) {
+      const [width, height] = label.split("×").map(Number);
+      await openApp(page, { width, height });
+      await page.getByRole("tab", { name: "Analysis" }).click();
+      const actual = await panelDimensions(page);
+      for (const [selector, expectedHeight] of Object.entries(expected)) {
+        expect(
+          Math.abs((actual[selector] ?? Number.NaN) - expectedHeight),
+          `${browserName} ${selector} at ${label}`,
+        ).toBeLessThanOrEqual(2);
+      }
     }
-  }
-});
+  },
+);
 
 test("WP-001 scrolls the Analysis panel through the workspace without remounting the board", async ({
   page,
@@ -351,4 +378,120 @@ test("UX-014 all core controls meet pointer target minimums", async ({ page }) =
   await openApp(touchPage, { width: 1280, height: 800 });
   expect(await touchTargetViolations(touchPage.locator(".app"), 44)).toEqual([]);
   await touchContext.close();
+});
+
+test("WP-017 AC-1 AC-2 the top bar stays compact on a phone and single-row on desktop", async ({
+  page,
+}) => {
+  // AC-1: 360x740 with a 40-character filename fits in 96px.
+  await openApp(page, {
+    width: 360,
+    height: 740,
+    fileName: "forty-character-repertoire-filename.pgn",
+  });
+  const compactHeight = await page
+    .locator(".topbar")
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(compactHeight).toBeLessThanOrEqual(96);
+
+  // AC-2: 1280x800 with a 20-character filename is exactly one row.
+  await openApp(page, { width: 1280, height: 800, fileName: "twenty-character.pgn" });
+  const rowCenters = await page
+    .locator(".topbar > :not(.analysis-notice)")
+    .evaluateAll((elements) => [
+      ...new Set(
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return Math.round(rect.top + rect.height / 2);
+        }),
+      ),
+    ]);
+  expect(rowCenters).toHaveLength(1);
+});
+
+test("WP-017 AC-3 AC-5 every prior action stays reachable within two interactions", async ({
+  page,
+}) => {
+  await openApp(page, { width: 1280, height: 800, fileName: "twenty-character.pgn" });
+
+  // Save is one interaction: visible without opening anything.
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+
+  // Everything else is two: open the menu, then activate the option.
+  const trigger = page.getByRole("button", { name: "Repertoire" });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  const menu = page.getByRole("menu", { name: "Repertoire actions" });
+  await expect(menu).toBeVisible();
+  for (const label of ["Open PGN", "New repertoire", "Recover an earlier repertoire"]) {
+    await expect(menu.getByRole("menuitem", { name: label })).toBeVisible();
+  }
+  // AC-5: the groups carry distinct accessible labels.
+  const groupLabels = await menu
+    .getByRole("group")
+    .evaluateAll((groups) => groups.map((group) => group.getAttribute("aria-label")));
+  expect(new Set(groupLabels).size).toBe(groupLabels.length);
+  expect(groupLabels.length).toBeGreaterThanOrEqual(2);
+});
+
+test("WP-017 AC-4 the document menu is keyboard-operable and restores focus", async ({ page }) => {
+  await openApp(page, { width: 1280, height: 800 });
+  const trigger = page.getByRole("button", { name: "Repertoire" });
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: "Repertoire actions" });
+  await expect(menu).toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+  const items = menu.getByRole("menuitem");
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(items.nth(1)).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(items.last()).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+});
+
+test("WP-017 AC-6 AC-7 a 120-character filename never overflows and Cmd/Ctrl+S still saves", async ({
+  page,
+}) => {
+  const longName = `${"long-repertoire-file-name-".repeat(4)}pad.pgn`;
+  await openApp(page, { ...VIEWPORTS[0], fileName: longName });
+  for (const viewport of VIEWPORTS) {
+    await page.setViewportSize(viewport);
+    const widths = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(widths.scrollWidth, `overflow at ${viewport.width}×${viewport.height}`).toBe(
+      widths.clientWidth,
+    );
+  }
+
+  // AC-7: the save shortcut still fires from inside a text field.
+  await openApp(page, { width: 1280, height: 800 });
+  await page.evaluate(() => {
+    (window as unknown as { __wp017Saves: number }).__wp017Saves = 0;
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+          (window as unknown as { __wp017Saves: number }).__wp017Saves += 1;
+        }
+      },
+      true,
+    );
+  });
+  await page.getByRole("textbox", { name: "Chat message" }).focus();
+  await page.keyboard.press("ControlOrMeta+s");
+  expect(
+    await page.evaluate(() => (window as unknown as { __wp017Saves: number }).__wp017Saves),
+  ).toBe(1);
 });

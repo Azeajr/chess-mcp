@@ -50,12 +50,15 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @chess-mcp/chess-tools build
-      - name: Capture deterministic evidence (Docker, all three engines)
+      # One capture.mjs invocation covering both specs: Playwright's own outputDir is the parent
+      # of EVIDENCE_ROOT and is wiped at the start of every `playwright test` run, so a second
+      # invocation here would erase the first invocation's evidence before merge-report saw it.
+      - name: Capture deterministic evidence — AG-1 + AG-2 + AG-3 + AG-4 + AG-5 (Docker, all three engines)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs
         env:
           A11Y_CONTAINER: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-2-mobile-tabs.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         with:
           name: a11y-evidence-browser
@@ -91,12 +94,13 @@ jobs:
       # this step errored "NVDA is not installed" and named this exact missing command.
       - run: npx @guidepup/setup install nvda
         working-directory: apps/ui
-      - name: Capture NVDA evidence (headed — NVDA reads the real screen)
+      # One invocation for the same reason as browser-evidence above — see its comment.
+      - name: Capture NVDA evidence — AG-1 + AG-3 + AG-4 + AG-5 (headed — NVDA reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project chromium
         env:
           A11Y_ATTEMPT_AT: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts
+          A11Y_SPEC: ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -132,12 +136,26 @@ jobs:
       # preferences" and named this exact command as the fix.
       - run: npx @guidepup/setup install voiceover
         working-directory: apps/ui
-      - name: Capture VoiceOver evidence (headed — VoiceOver reads the real screen)
+      # One invocation for the same reason as browser-evidence above — see its comment. AG-2 is
+      # listed FIRST deliberately.
+      #
+      # It cannot be a second capture.mjs call: capture.mjs documents that Playwright wipes its
+      # outputDir at the start of every invocation, so a second call erases the first call's
+      # evidence. Run 33133590610 did exactly that — AG-2 passed and every other scenario came back
+      # with no VoiceOver observations at all.
+      #
+      # Within the single session, order is the lever. Appending AG-2 last made it five scenarios
+      # deep and broke three unrelated claims (AG-1 focus report, two AG-5 announcements) with
+      # "VoiceOver Settings activity" — macOS handing focus to VoiceOver's own UI, the long-session
+      # failure at-runner.ts documents. Proven rather than assumed: run 33133285946 on the pre-AG-2
+      # commit was 69/69 green, and two runs of the appended order failed the identical claims.
+      # AG-2 is the shortest scenario, so running it first costs the others the least session depth.
+      - name: Capture VoiceOver evidence — AG-2 + AG-1 + AG-3 + AG-4 + AG-5 (headed — VoiceOver reads the real screen)
         working-directory: apps/ui
         run: node test/accessibility/capture.mjs --project webkit
         env:
           A11Y_ATTEMPT_AT: "1"
-          A11Y_SPEC: ag-3-move-tree.spec.ts
+          A11Y_SPEC: ag-2-mobile-tabs.spec.ts,ag-1-dialog.spec.ts,ag-3-move-tree.spec.ts,ag-4-board-keyboard.spec.ts,ag-5-live-region.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -146,7 +164,7 @@ jobs:
           if-no-files-found: warn
 
   merge-report:
-    name: Compute AG-3 gate verdict
+    name: Compute AG-1/AG-2/AG-3/AG-4/AG-5 gate verdicts
     needs: [browser-evidence, at-nvda, at-voiceover]
     if: always()
     runs-on: ubuntu-latest
@@ -168,7 +186,7 @@ jobs:
         working-directory: apps/ui
         run: pnpm a11y:verdict
         env:
-          A11Y_SCENARIOS: ag-3-move-tree
+          A11Y_SCENARIOS: ag-1-settings-dialog,ag-1-strategic-fit-dialog,ag-2-mobile-tabs,ag-3-move-tree,ag-4-board-keyboard,ag-5-live-region
       - uses: actions/upload-artifact@v4
         if: always()
         with:

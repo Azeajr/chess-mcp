@@ -52,9 +52,10 @@ export interface StrategicOverviewPresentation {
   readonly screen_reader_summary: string;
 }
 
-const BLOCKED_REASON = "Preflight blocked position analysis, so this report value is unavailable.";
+const BLOCKED_REASON =
+  "The evidence check blocked position analysis, so this report value is unavailable.";
 const UNSAFE_ROUTE_ENUMERATION_REASON =
-  "Incomplete-branch count is unavailable because preflight could not enumerate routes safely.";
+  "Incomplete-branch count is unavailable because the evidence check could not enumerate routes safely.";
 
 const METRIC_STATE_LABELS: Readonly<Record<MetricState, string>> = {
   available: "Available",

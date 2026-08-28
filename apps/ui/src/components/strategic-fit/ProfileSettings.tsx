@@ -21,6 +21,7 @@ import {
 import { strategicFitTrainingPerformance } from "../../store/strategic-fit-training";
 import { strategicFitLifecycle } from "../../store/strategic-fit";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "./ProfileSetup";
+import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 const PRESETS: readonly Exclude<StrategicFitProfileMode, "custom">[] = [
   "familiar-plans",
@@ -274,6 +275,9 @@ export default function ProfileSettings() {
             <p class="strategic-fit-profile-advanced-help">
               Weights are relative: 0 ignores a family, 1 is standard, and 3 gives it the strongest
               influence. At least one must remain above zero.
+            </p>
+            <p class="strategic-fit-profile-advanced-help" data-strategic-distance-definition>
+              {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
             </p>
             <div class="strategic-fit-profile-fields strategic-fit-family-grid">
               <For each={STRATEGIC_SIGNAL_FAMILIES}>

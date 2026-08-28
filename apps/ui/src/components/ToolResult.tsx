@@ -1,5 +1,5 @@
 import { For, Show, createMemo } from "solid-js";
-import { strategicFitPlanSectionLabel } from "../content/strategicFit";
+import { strategicFitPlanSectionLabel, STRATEGIC_FIT_VOCABULARY } from "../content/strategicFit";
 import type {
   StrategicFinding,
   StrategicFitAnalysisResult,
@@ -35,10 +35,18 @@ import {
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
 import { artifactById, saveArtifact } from "../store/artifacts";
+import { executeCommand, lastDirectCommandRequest } from "../store/commands";
+import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
+import { setSettingsOpen } from "../store/ui";
 import Status from "./primitives/Status";
 import { countLabel, diffValue, displayValue, numbered, titleCase } from "../content/format";
 import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
+
+/**
+ * WP-026 AC-4: Retry re-issues the last direct-panel command, tracked by the command store at
+ * its single dispatch point — no component-local recording to forget.
+ */
 
 type Data = Record<string, unknown>;
 interface Props {
@@ -280,7 +288,8 @@ function StrategicFitResult(props: { report: StrategicFitChatReport }) {
         <span>{props.report.summary.insufficient_evidence_branch_count} incomplete branches</span>
       </div>
       <div class="result-summary strategic-fit-preflight">
-        Preflight {titleCase(props.report.preflight.state)} · {issueCounts().blocking} blocking ·{" "}
+        {STRATEGIC_FIT_VOCABULARY.evidenceCheck.title.replace(" results", "")}{" "}
+        {titleCase(props.report.preflight.state)} · {issueCounts().blocking} blocking ·{" "}
         {issueCounts().degraded} degraded · {issueCounts().informational} informational
       </div>
       <Show when={props.report.preflight.issues.length > 0}>
@@ -298,8 +307,8 @@ function StrategicFitResult(props: { report: StrategicFitChatReport }) {
         when={props.report.findings.length > 0}
         fallback={
           <div class="strategic-fit-empty">
-            No findings are available from this report. Review the preflight evidence before drawing
-            a conclusion.
+            No findings are available from this report. Review the evidence-check results before
+            drawing a conclusion.
           </div>
         }
       >
@@ -406,7 +415,8 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
             </div>
             <div class="strategic-fit-counts" aria-label="Strategic Fit counts">
               <span>
-                {summary().finding_count} finding{summary().finding_count === 1 ? "" : "s"}
+                {summary().finding_count} finding
+                {summary().finding_count === 1 ? "" : "s"}
               </span>
               <span>{summary().summary.unresolved_finding_count} unresolved</span>
               <span>
@@ -418,9 +428,9 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
               </span>
             </div>
             <div class="result-summary strategic-fit-preflight">
-              Preflight {titleCase(summary().preflight.state)} ·{" "}
-              {summary().preflight.issue_counts.blocking} blocking ·{" "}
-              {summary().preflight.issue_counts.degraded} degraded ·{" "}
+              {STRATEGIC_FIT_VOCABULARY.evidenceCheck.title.replace(" results", "")}{" "}
+              {titleCase(summary().preflight.state)} · {summary().preflight.issue_counts.blocking}{" "}
+              blocking · {summary().preflight.issue_counts.degraded} degraded ·{" "}
               {summary().preflight.issue_counts.informational} informational
             </div>
             <Show when={summary().preflight.issues.length > 0}>
@@ -905,12 +915,32 @@ function StrategicFitPortfolioResultCard(props: { data: Data }) {
   );
 }
 
+/**
+ * WP-026 AC-3 consequences sentence, derived from the staged action so a prune or reorder card
+ * never claims to "add moves". Only add carries a move count; line scope follows the data.
+ */
+function stagedConsequences(action: string | undefined, line: unknown): string {
+  const moves = Array.isArray(line) ? (line as unknown[]).length : 0;
+  const scope = moves > 0 ? "this line" : "a new line";
+  const change =
+    action === "prune"
+      ? "Removes this line's continuation"
+      : action === "reorder"
+        ? "Re-promotes the mainline here"
+        : `Adds ${moves} move${moves === 1 ? "" : "s"} on ${scope}`;
+  return `${change} — acceptance changes the working repertoire in this browser and can be undone.`;
+}
+
 function StagedEditResult(props: { data: Data }) {
   const id = () => props.data.action_id as string;
   const edit = () => stagedEdit(id());
   const stale = () => edit()?.status === "stale";
   return (
-    <div class="result-card staged-card">
+    <div class="result-card staged-card" data-mutating="true">
+      {/* WP-022 AC-2 / WP-026 AC-2: a mutating card carries a non-colour badge. */}
+      <span class="mutating-badge" title="This action changes the working repertoire">
+        ✎ mutates
+      </span>
       <div class="result-title">Proposed {displayValue(props.data.action)} edit</div>
       <div class="result-line">
         {(props.data.path as string[] | undefined)?.join(" ") ?? "Start position"}
@@ -923,6 +953,12 @@ function StagedEditResult(props: { data: Data }) {
         {displayValue((props.data.after as Data | undefined)?.nodes)} · leaves{" "}
         {displayValue((props.data.before as Data | undefined)?.leaves)} →{" "}
         {displayValue((props.data.after as Data | undefined)?.leaves)}
+      </div>
+      {/* WP-026 AC-3: the card states what changes, where it applies, and that it is undoable.
+          The change description follows props.data.action — an add appends moves, a prune removes
+          a line, a reorder re-promotes; only add carries a move count. */}
+      <div class="result-summary staged-consequences">
+        {stagedConsequences(props.data.action as string | undefined, props.data.line)}
       </div>
       <Show
         when={edit()?.status === "pending"}
@@ -995,13 +1031,40 @@ function ArtifactRows(props: { data: Data }) {
 
 function ErrorResult(props: { data: Data }) {
   const code = () => displayValue(props.data.error ?? "command_failed");
+  const content = () => errorContent(code());
+  // WP-026 AC-4: retryable failures re-run their command; token-gated ones open Settings on the
+  // token field. Both only render for codes that declare an action.
+  const onRetry = () => {
+    const last = lastDirectCommandRequest();
+    if (last) void executeCommand(last.command, last.args);
+  };
+  const onAddToken = () => {
+    setSettingsFocusTarget("lichess-token");
+    setSettingsOpen(true);
+  };
   return (
     <div class={`result-card result-error-card error-${code()}`} role="alert">
-      <div class="result-title">{errorContent(code()).title}</div>
+      <div class="result-title">{content().title}</div>
       <Show when={props.data.reason}>
         <div class="result-summary">{String(props.data.reason)}</div>
       </Show>
-      <div class="result-code">{code()}</div>
+      {/* WP-026 AC-1: the raw error code is technical detail, hidden behind the toggle. */}
+      <Show when={showTechnicalDetails()}>
+        <div class="result-code">{code()}</div>
+      </Show>
+      {/* Actions are matched on a stable key, never on the display label. */}
+      <Show when={content().actionKey === "retry" && lastDirectCommandRequest()}>
+        {(_) => (
+          <button class="fix-btn" onClick={onRetry}>
+            Retry
+          </button>
+        )}
+      </Show>
+      <Show when={content().actionKey === "add-token"}>
+        <button class="fix-btn" onClick={onAddToken}>
+          Add Lichess token
+        </button>
+      </Show>
     </div>
   );
 }
@@ -1174,10 +1237,13 @@ export default function ToolResult(props: Props) {
       >
         {(value) => <ErrorResult data={value()} />}
       </Show>
-      <details class="tool-result-raw">
-        <summary>Raw JSON</summary>
-        <pre>{props.content}</pre>
-      </details>
+      {/* WP-026 AC-1: raw JSON is technical detail, shown only with the toggle on. */}
+      <Show when={showTechnicalDetails()}>
+        <details class="tool-result-raw">
+          <summary>Raw JSON</summary>
+          <pre>{props.content}</pre>
+        </details>
+      </Show>
     </>
   );
 }

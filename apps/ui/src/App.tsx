@@ -8,13 +8,24 @@ import RepertoirePanel from "./components/RepertoirePanel";
 import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
 import MobileTabs from "./components/MobileTabs";
+import ActivityStrip from "./components/ActivityStrip";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
 import DocumentCloseDialog from "./components/DocumentCloseDialog";
 import RecoverDialog from "./components/RecoverDialog";
+import ShortcutHelpDialog from "./components/ShortcutHelpDialog";
+import AppLiveRegion from "./components/AppLiveRegion";
 import StrategicFitWorkspace from "./components/StrategicFitWorkspace";
+import Toast from "./components/primitives/Toast";
+import {
+  PWA_UPDATE_MESSAGE,
+  deferPwaUpdate,
+  pwaUpdateVisible,
+  reloadPwaUpdate,
+} from "./pwa/updates";
 import { actions } from "./store/game";
+import { redo, undo } from "./store/history";
 import { backgroundSuspended, dispatchShortcut, registerShortcut } from "./store/shortcuts";
 import { saveFile, restoreLastFile } from "./store/files";
 import { startAutosave, restoreWorking } from "./store/persist";
@@ -75,8 +86,11 @@ export default function App() {
       registerShortcut({
         id: "document.undo",
         key: "z",
-        handler: () => {
-          actions.undo();
+        // Shift+Z is redo: matches() normalises case and ignores shiftKey, so one "z"
+        // registration owns both directions and branches on the modifier itself.
+        handler: (e) => {
+          if (e.shiftKey) redo();
+          else undo();
         },
       }),
       registerShortcut({
@@ -105,7 +119,7 @@ export default function App() {
   });
 
   return (
-    <div class="app">
+    <div class="app" data-build-id={import.meta.env.VITE_PWA_TEST_BUILD_ID ?? undefined}>
       <div
         class="app-main"
         inert={backgroundSuspended()}
@@ -153,6 +167,9 @@ export default function App() {
             onEnd={persistBoard}
             onReset={resetBoard}
           />
+          {/* Phone-only: names whatever's running behind a hidden tab, so switching tabs never
+              hides it. Renders nothing when idle (WP-013). */}
+          <ActivityStrip />
           {/* Phone-only panel switcher; hidden above 720px. */}
           <MobileTabs />
           {/* board│side boundary: drag right shrinks side so the board grows — the divider follows
@@ -169,10 +186,27 @@ export default function App() {
             onEnd={persistLayout}
             onReset={resetLayout}
           />
+          {/* WP-013: each phone tab owns a real tabpanel. The wrappers are inert at wider tiers
+              (the stylesheet only reacts to .workspace[data-mtab]), so they add semantics without
+              changing the grid or flex geometry any panel already had. */}
           <div class="side-panel" style={{ width: `${effSideWidth()}px` }}>
-            <AnalysisPanel />
-            <RepertoirePanel />
-            <MoveTree />
+            <div
+              id="mobile-panel-analysis"
+              role="tabpanel"
+              aria-labelledby="mobile-tab-analysis"
+              class="mobile-panel"
+            >
+              <AnalysisPanel />
+              <RepertoirePanel />
+            </div>
+            <div
+              id="mobile-panel-moves"
+              role="tabpanel"
+              aria-labelledby="mobile-tab-moves"
+              class="mobile-panel"
+            >
+              <MoveTree />
+            </div>
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}
           <Divider
@@ -186,7 +220,13 @@ export default function App() {
             onEnd={persistLayout}
             onReset={resetLayout}
           />
-          <div class="chat-wrap" style={{ width: `${effChatWidth()}px` }}>
+          <div
+            id="mobile-panel-chat"
+            role="tabpanel"
+            aria-labelledby="mobile-tab-chat"
+            class="chat-wrap"
+            style={{ width: `${effChatWidth()}px` }}
+          >
             <ChatPanel />
           </div>
         </div>
@@ -194,11 +234,26 @@ export default function App() {
       {/* Overlays render outside .app-main because they make it inert: an overlay nested inside
           the region it suspends would be inert itself, and disappear from the accessibility tree
           the moment it opened. */}
+      <AppLiveRegion />
+      {/*
+        WP-019: the shared Toast mirrors this message through the polite live region once on mount.
+        It is outside `.app-main` so an unrelated modal's inert background does not swallow an
+        update decision that became ready while the modal was open.
+      */}
+      <Show when={pwaUpdateVisible()}>
+        <Toast
+          message={PWA_UPDATE_MESSAGE}
+          action={{ label: "Reload", onClick: reloadPwaUpdate }}
+          dismissLabel="Later"
+          onDismiss={deferPwaUpdate}
+        />
+      </Show>
       <SettingsDrawer />
       <PromotionModal />
       <ColorPickerModal />
       <DocumentCloseDialog />
       <RecoverDialog />
+      <ShortcutHelpDialog />
       <Show when={strategicFitWorkspaceOpen()}>
         <StrategicFitWorkspace />
       </Show>
