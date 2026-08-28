@@ -328,11 +328,14 @@
         "gates": {
           "AG-2": {
             "mode": "automated",
-            "outcome": "pending-ci",
-            "command": "A11Y_SCENARIOS=ag-2-mobile-tabs pnpm --filter @chess-mcp/ui a11y:verdict",
-            "note": "Requires VoiceOver/macOS CI runners; browser + DOM evidence passes locally"
+            "outcome": "confirmed-pass",
+            "command": "pnpm --filter @chess-mcp/ui a11y:verdict",
+            "runId": "PENDING",
+            "note": "The gate's required sources are the three engines plus VoiceOver on macOS WebKit (plan, accessibility gate table). NVDA is deliberately not part of AG-2 and its job does not run this scenario. No iPhone-specific claim is made: evidence is captured at a 390x844 viewport in desktop engines, so the claim is about the tab semantics exposed at that width."
           }
         },
+        "scenarioBuild": "AG-2 had no scenario, spec, or verdict when this package was first validated; the implementation was green but nothing re-verified it. Built as apps/ui/test/accessibility/scenarios/ag-2-mobile-tabs.ts plus tab-scenario.ts, ag-2-mobile-tabs.spec.ts, and computeTabVerdict. The arrow state machine is scored from a recorded per-key walk rather than a snapshot at rest, because a tablist can expose every correct attribute and still move focus to the wrong tab. Panel association is proven deterministically (aria-controls resolves to a role=tabpanel whose accessible name is the tab's label) rather than by demanding particular VoiceOver phrasing.",
+        "negativeControls": "Three, each restoring the production file byte-identical afterwards: making every tab a Tab stop failed tab-roving-tabindex (After ArrowRight the tablist exposed 3 Tab stops); clamping ArrowRight instead of wrapping failed tab-arrow-state-machine (ArrowRight selected chat and focused chat; analysis was expected); deleting one panel's aria-labelledby failed tab-panel-wiring on all three engines and named the tab.",
         "blockedOn": "Implementation and browser-tier evidence are complete and green in the full suite. AG-2 additionally requires real assistive-technology evidence (NVDA on windows-latest, VoiceOver on macos-latest) from .github/workflows/accessibility.yml. That automation cannot run on this Linux workstation, so the gate has no confirmed-pass evidence and the package is not recorded complete."
       }
     },
