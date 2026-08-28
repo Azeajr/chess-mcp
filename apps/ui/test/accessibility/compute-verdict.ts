@@ -8,6 +8,7 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DIALOG_SCENARIOS } from "./scenarios/ag-1-dialog";
+import { MOBILE_TABS_SCENARIO } from "./scenarios/ag-2-mobile-tabs";
 import { MOVE_TREE_SCENARIO } from "./scenarios/ag-3-move-tree";
 import { BOARD_KEYBOARD_SCENARIO } from "./scenarios/ag-4-board-keyboard";
 import { AG5_SCENARIO_ID, ANNOUNCEMENT_SCENARIOS } from "./scenarios/ag-5-live-region";
@@ -16,6 +17,7 @@ import {
   computeBoardVerdict,
   computeDialogVerdict,
   computeLiveRegionVerdict,
+  computeTabVerdict,
   computeTreeVerdict,
 } from "./verdict";
 import type { EvidenceBundle, ScenarioVerdict } from "./evidence-schema";
@@ -31,6 +33,17 @@ const SCENARIO_REGISTRY = [
         expectedFocusReturnTargetName: definition.openerName,
       }),
   })),
+  {
+    id: MOBILE_TABS_SCENARIO.id,
+    computeVerdict: (bundle: EvidenceBundle) =>
+      computeTabVerdict(bundle, {
+        tablistName: MOBILE_TABS_SCENARIO.tablistName,
+        tabs: MOBILE_TABS_SCENARIO.tabs,
+        spokenTabId: MOBILE_TABS_SCENARIO.spokenTabId,
+        spokenTabOrdinal: MOBILE_TABS_SCENARIO.spokenTabOrdinal,
+        walkLength: MOBILE_TABS_SCENARIO.keyboardWalk.length,
+      }),
+  },
   {
     id: MOVE_TREE_SCENARIO.id,
     computeVerdict: (bundle: EvidenceBundle) =>

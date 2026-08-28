@@ -10,6 +10,9 @@ import type { EvidenceBundle } from "../evidence-schema";
 export function mergeBundles(bundles: readonly EvidenceBundle[]): EvidenceBundle {
   const [first] = bundles;
   if (!first) throw new Error("mergeBundles requires at least one bundle.");
+  // Concatenated, not taken from the first bundle: AG-2's arrow-state machine is scored per engine,
+  // and keeping only one engine's walk would silently narrow a three-engine claim to one.
+  const tabWalk = bundles.flatMap((bundle) => bundle.tabWalk ?? []);
   return {
     scenarioId: first.scenarioId,
     runId: first.runId,
@@ -22,6 +25,7 @@ export function mergeBundles(bundles: readonly EvidenceBundle[]): EvidenceBundle
     infrastructureLimitations: dedupeLimitations(
       bundles.flatMap((bundle) => bundle.infrastructureLimitations),
     ),
+    ...(tabWalk.length > 0 ? { tabWalk } : {}),
   };
 }
 

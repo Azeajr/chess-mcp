@@ -142,6 +142,13 @@ export interface AtBoardSteps {
   readonly traversalKey: string;
 }
 
+export interface AtTabSteps {
+  /** Put DOM focus on the tab whose role, ordinal, selected state, and panel are the claims. */
+  readonly focusSpokenTab: () => Promise<void>;
+  /** Put DOM focus on a different, unselected tab so the not-selected contrast can be observed. */
+  readonly focusOtherTab: () => Promise<void>;
+}
+
 export interface AtTreeSteps {
   /** Put DOM focus on the tree entry item used for role and level evidence. */
   readonly focusEntryItem: () => Promise<void>;
@@ -448,6 +455,68 @@ export async function captureDialogObservations(
   // Restart the native session once for that transport-level absence. Semantic mismatches are
   // never retried or interpreted here, and a second empty session still fails deterministically.
   return announcement?.utterances.length === 0 ? captureOnce() : first;
+}
+
+/**
+ * Captures AG-2's three tablist claims in one real screen-reader session.
+ *
+ * `reportSemanticFocus`, not the bare focus command: AG-2 requires the utterance to carry the tab
+ * *role*, its ordinal position, its selected state, and the panel it controls, and the composite
+ * describe command is the one that reports that vocabulary — the same reason AG-3 uses it for
+ * role/level/state. The selected tab and an unselected sibling are both described, because
+ * "selected" is only evidence of conveyed state if the reader does not say it about every tab.
+ *
+ * Retried once if any claim comes back with no utterances at all, for the transport-level absence
+ * `captureDialogObservations` documents: a native command can complete without Guidepup receiving
+ * a speech event. A second empty session still fails deterministically; semantic mismatches are
+ * never retried.
+ */
+export async function captureTabObservations(
+  runner: AtRunnerId,
+  page: Page,
+  steps: AtTabSteps,
+): Promise<readonly AtObservation[]> {
+  const captureOnce = () =>
+    withScreenReader(runner, page, async (session) => {
+      await session.focusBrowser();
+      await session.since();
+
+      await steps.focusSpokenTab();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportSemanticFocus();
+      const selectedUtterances = await session.since();
+
+      // Role/ordinal and selected state are read from the same describe: they are properties of one
+      // spoken description, and issuing the command twice would risk the second returning a stale
+      // caption rather than a second independent reading.
+      const tabRole = session.observe(
+        "tab-role",
+        session.semanticFocusCommandName,
+        selectedUtterances,
+      );
+      const panelAssociation = session.observe(
+        "tab-panel-association",
+        session.semanticFocusCommandName,
+        selectedUtterances,
+      );
+
+      await steps.focusOtherTab();
+      await session.focusBrowser();
+      await session.since();
+      await session.reportSemanticFocus();
+      const unselectedUtterances = await session.since();
+      const selectedState = session.observe(
+        "tab-selected-state",
+        `${session.semanticFocusCommandName} on the selected tab; ${session.semanticFocusCommandName} on an unselected tab`,
+        [...selectedUtterances, ...unselectedUtterances],
+      );
+
+      return [tabRole, selectedState, panelAssociation];
+    });
+
+  const first = await captureOnce();
+  return first.some((observation) => observation.utterances.length === 0) ? captureOnce() : first;
 }
 
 /**

@@ -1089,3 +1089,380 @@ export function computeLiveRegionVerdict(
     overallStatus: overallStatus(findings),
   };
 }
+
+// ---------------------------------------------------------------------------
+// AG-2 — mobile tab semantics and state.
+// ---------------------------------------------------------------------------
+
+export interface TabScenarioExpectation {
+  readonly tablistName: string;
+  readonly tabs: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly panelId: string;
+  }[];
+  readonly spokenTabId: string;
+  readonly spokenTabOrdinal: number;
+  readonly walkLength: number;
+}
+
+/**
+ * AG-2 names VoiceOver on macOS WebKit as its only required screen reader — unlike AG-1, AG-3, and
+ * AG-4, which additionally require NVDA. Scoring NVDA here would fail the gate on a platform the
+ * gate never asked for.
+ */
+const AG2_AT_SOURCES = ["voiceover"] as const;
+const AG2_AT_CLAIMS = ["tab-role", "tab-selected-state", "tab-panel-association"] as const;
+
+function tabSnapshotFinding(
+  bundle: EvidenceBundle,
+  assertionId: string,
+  expected: string,
+  matches: (snapshot: string) => boolean,
+): Finding {
+  const observations = bundle.ariaSnapshots.map((snapshot, index) => ({
+    browser: snapshot.browser,
+    index,
+    matched: matches(snapshot.snapshot),
+  }));
+  if (observations.length === 0) {
+    return {
+      id: nextFindingId(),
+      severity: "serious",
+      confidence: 0,
+      status: "automation-inconclusive",
+      wcag: ["4.1.2"],
+      assertionId,
+      summary: `No browser evidence was captured for ${assertionId}.`,
+      expected,
+      actual: "No ariaSnapshot evidence collected.",
+      evidence: [],
+      reasoning: "deterministic",
+      platformScope: [],
+    };
+  }
+  const matched = observations.filter((entry) => entry.matched);
+  const allMatched = matched.length === observations.length;
+  return {
+    id: nextFindingId(),
+    severity: allMatched ? "minor" : "serious",
+    confidence: 1,
+    status: allMatched
+      ? "confirmed-pass"
+      : matched.length === 0
+        ? "confirmed-failure"
+        : "cross-platform-disagreement",
+    wcag: ["4.1.2"],
+    assertionId,
+    summary: allMatched
+      ? `${expected} Confirmed in every captured browser.`
+      : `${expected} Missing in ${observations
+          .filter((entry) => !entry.matched)
+          .map((entry) => entry.browser)
+          .join(", ")}.`,
+    expected,
+    actual: `Matched: ${matched.map((entry) => entry.browser).join(", ") || "none"}.`,
+    evidence: observations.map((entry) => ref("ariaSnapshot", entry.index)),
+    reasoning: "deterministic",
+    platformScope: [...new Set(observations.map((entry) => entry.browser))],
+  };
+}
+
+/**
+ * The arrow state machine and roving tabindex, scored from the recorded walk rather than from a
+ * snapshot at rest. Every step must land selection *and* focus on the tab the scenario predicted,
+ * and exactly one tab may be a Tab stop at every point in the walk.
+ */
+function tabWalkFindings(
+  bundle: EvidenceBundle,
+  expectation: TabScenarioExpectation,
+): readonly Finding[] {
+  const walk = bundle.tabWalk ?? [];
+  if (walk.length === 0) {
+    return [
+      {
+        id: nextFindingId(),
+        severity: "serious",
+        confidence: 0,
+        status: "automation-inconclusive",
+        wcag: ["2.1.1", "4.1.2"],
+        assertionId: "tab-arrow-state-machine",
+        summary: "No tablist keyboard walk was captured.",
+        expected: "One recorded arrow-key walk per captured browser.",
+        actual: "No tabWalk evidence collected.",
+        evidence: [],
+        reasoning: "deterministic",
+        platformScope: [],
+      },
+    ];
+  }
+
+  const wrongStep = walk.find(
+    (step) => step.selectedTabId !== step.expectedTabId || step.focusedTabId !== step.expectedTabId,
+  );
+  const badTabStop = walk.find((step) => step.tabStopCount !== 1);
+  const expectedWalks = REQUIRED_BROWSERS.length * expectation.walkLength;
+
+  return [
+    {
+      id: nextFindingId(),
+      severity: wrongStep ? "serious" : "minor",
+      confidence: 1,
+      status: wrongStep ? "confirmed-failure" : "confirmed-pass",
+      wcag: ["2.1.1", "4.1.2"],
+      assertionId: "tab-arrow-state-machine",
+      summary: wrongStep
+        ? `${wrongStep.key} selected ${wrongStep.selectedTabId ?? "nothing"} and focused ${wrongStep.focusedTabId ?? "nothing"}; ${wrongStep.expectedTabId} was expected.`
+        : "Every arrow, Home, and End press moved selection and focus to the predicted tab, including both wrap directions.",
+      expected:
+        "Each key in the walk selects and focuses the predicted tab; the arrows wrap and Home/End jump.",
+      actual: `${walk.length} recorded steps across the captured browsers (${expectedWalks} expected for full three-engine coverage).`,
+      evidence: [],
+      reasoning: "deterministic",
+      platformScope: [...new Set(bundle.ariaSnapshots.map((snapshot) => snapshot.browser))],
+    },
+    {
+      id: nextFindingId(),
+      severity: badTabStop ? "serious" : "minor",
+      confidence: 1,
+      status: badTabStop ? "confirmed-failure" : "confirmed-pass",
+      wcag: ["2.1.1"],
+      assertionId: "tab-roving-tabindex",
+      summary: badTabStop
+        ? `After ${badTabStop.key} the tablist exposed ${badTabStop.tabStopCount} Tab stops.`
+        : "Exactly one tab was a Tab stop at every point in the walk.",
+      expected: "The tablist is a single Tab stop; arrows move within it.",
+      actual: `Tab-stop counts observed: ${[...new Set(walk.map((step) => step.tabStopCount))].join(", ")}.`,
+      evidence: [],
+      reasoning: "deterministic",
+      platformScope: [...new Set(bundle.ariaSnapshots.map((snapshot) => snapshot.browser))],
+    },
+  ];
+}
+
+/** Focus must never leave the tablist during the walk — the trace, not the state read, sees this. */
+function tabContainmentFinding(bundle: EvidenceBundle): Finding {
+  const escaped = bundle.keyboardTraces.flatMap((trace, traceIndex) =>
+    trace.steps
+      .filter((step) => step.focusMovedOutsideExpectedScope)
+      .map((step) => ({ browser: trace.browser, key: step.key, traceIndex })),
+  );
+  return {
+    id: nextFindingId(),
+    severity: escaped.length > 0 ? "serious" : "minor",
+    confidence: 1,
+    status: escaped.length > 0 ? "confirmed-failure" : "confirmed-pass",
+    wcag: ["2.1.1", "2.4.3"],
+    assertionId: "tab-keyboard-containment",
+    summary:
+      escaped.length > 0
+        ? `Focus left the tablist on ${escaped.map((entry) => `${entry.browser}/${entry.key}`).join(", ")}.`
+        : "Focus stayed inside the tablist for every key in the walk.",
+    expected: "Arrow, Home, and End keys keep focus inside the tablist.",
+    actual: `${bundle.keyboardTraces.length} keyboard traces captured; ${escaped.length} steps left the tablist.`,
+    evidence: bundle.keyboardTraces.map((_, index) => ref("keyboardTrace", index)),
+    reasoning: "deterministic",
+    platformScope: [...new Set(bundle.keyboardTraces.map((trace) => trace.browser))],
+  };
+}
+
+function tabAtFindings(
+  bundle: EvidenceBundle,
+  expectation: TabScenarioExpectation,
+): readonly Finding[] {
+  const spokenTab = expectation.tabs.find((tab) => tab.id === expectation.spokenTabId);
+  const otherLabels = expectation.tabs
+    .filter((tab) => tab.id !== expectation.spokenTabId)
+    .map((tab) => tab.label);
+
+  return AG2_AT_SOURCES.flatMap((source) => {
+    const sourceObservations = bundle.atObservations.filter(
+      (observation) => observation.source === source,
+    );
+    if (sourceObservations.length === 0) {
+      const limitationIndex = bundle.infrastructureLimitations.findIndex(
+        (entry) => entry.runner === source,
+      );
+      const limitation = bundle.infrastructureLimitations[limitationIndex];
+      return [
+        {
+          id: nextFindingId(),
+          severity: "serious" as const,
+          confidence: 1,
+          status: "automation-inconclusive" as const,
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}`,
+          summary: limitation
+            ? `${source} evidence not collected: ${limitation.reason}`
+            : `${source} evidence not collected, and no worker reported why.`,
+          expected: `Real ${source} output for every AG-2 tablist claim.`,
+          actual: "No matching AT observations.",
+          evidence: limitation ? [ref("infrastructureLimitation", limitationIndex)] : [],
+          reasoning: "deterministic" as const,
+          platformScope: limitation ? [limitation.requiredPlatform] : [],
+        },
+      ];
+    }
+
+    return AG2_AT_CLAIMS.map((claim): Finding => {
+      const observationIndex = bundle.atObservations.findIndex(
+        (entry) => entry.source === source && entry.claim === claim,
+      );
+      const observation = bundle.atObservations[observationIndex];
+      if (!observation) {
+        return {
+          id: nextFindingId(),
+          severity: "serious",
+          confidence: 1,
+          status: "automation-inconclusive",
+          wcag: ["4.1.2"],
+          assertionId: `at-runner:${source}:${claim}`,
+          summary: `${source} produced tablist evidence but no ${claim} observation.`,
+          expected: `One real ${source} observation for ${claim}.`,
+          actual: "No observation captured.",
+          evidence: [],
+          reasoning: "deterministic",
+          platformScope: [],
+        };
+      }
+
+      const spoken = observation.utterances.join(" | ");
+      const lower = spoken.toLowerCase();
+      const label = (spokenTab?.label ?? "").toLowerCase();
+      let satisfied = false;
+      let expected = "";
+
+      if (claim === "tab-role") {
+        // VoiceOver phrases a tablist position as "3 of 3"; the ordinal is required by the gate,
+        // the surrounding wording is not, so match the number pair rather than a sentence.
+        const ordinal = new RegExp(
+          `${expectation.spokenTabOrdinal}\\s*of\\s*${expectation.tabs.length}`,
+          "iu",
+        ).test(spoken);
+        satisfied = lower.includes(label) && lower.includes("tab") && ordinal;
+        expected = `${spokenTab?.label} is identified as a tab at position ${expectation.spokenTabOrdinal} of ${expectation.tabs.length}.`;
+      } else if (claim === "tab-selected-state") {
+        // "selected" must distinguish: present for the selected tab, absent for the unselected one.
+        // A reader that says it about both conveys nothing, and passes a naive contains-check.
+        const [selectedSaid = "", unselectedSaid = ""] = [
+          observation.utterances[0] ?? "",
+          observation.utterances.at(-1) ?? "",
+        ];
+        satisfied =
+          /selected/iu.test(selectedSaid) &&
+          !/\bnot selected\b|\bunselected\b/iu.test(selectedSaid) &&
+          !(
+            /selected/iu.test(unselectedSaid) &&
+            !/\bnot selected\b|\bunselected\b/iu.test(unselectedSaid)
+          );
+        expected = `The selected tab is announced selected and an unselected sibling (${otherLabels.join(" or ")}) is not.`;
+      } else {
+        satisfied = lower.includes(label) && /tab\s*group|tablist|panel selector/iu.test(spoken);
+        expected = `${spokenTab?.label} is announced within its named tab group so the panel it controls is identifiable.`;
+      }
+
+      return {
+        id: nextFindingId(),
+        severity: satisfied ? "minor" : "serious",
+        confidence: 1,
+        status: satisfied ? "confirmed-pass" : "confirmed-failure",
+        wcag: ["4.1.2"],
+        assertionId: `at-runner:${source}:${claim}`,
+        summary: satisfied
+          ? `${source} confirmed ${claim}.`
+          : `${source} did not confirm ${claim}.`,
+        expected,
+        actual: `${observation.command}: ${spoken || "(nothing)"} (${observation.utterances.length} utterances).`,
+        evidence: [ref("atObservation", observationIndex)],
+        reasoning: "deterministic",
+        platformScope: [observation.os],
+      };
+    });
+  });
+}
+
+/**
+ * Axe violations scoped to the tablist, matching how AG-3 and AG-4 scope theirs. Two exclusions,
+ * both deliberate:
+ *
+ * - Page-structure rules (`region`, `landmark-*`) are properties of the whole document, not of this
+ *   component. AG-2 is the phone-tier tablist gate; failing it for a missing `<main>` elsewhere
+ *   would report a defect this gate has no authority over and no ability to fix.
+ * - Violations whose targets never touch `.mobile-tabs` belong to whatever component they name.
+ *
+ * Nothing here is suppressed globally: the excluded rules remain live in the suites that own them.
+ */
+function tabAxeFindings(bundle: EvidenceBundle): readonly Finding[] {
+  return bundle.axe.flatMap((evidence, index) =>
+    evidence.violations
+      .filter(
+        (violation) =>
+          violation.targets.some(
+            (target) => target.includes(".mobile-tabs") || target.includes("mobile-tab-"),
+          ) && !PAGE_STRUCTURE_AXE_RULES.test(violation.ruleId),
+      )
+      .map((violation) => ({
+        id: nextFindingId(),
+        severity: "serious" as const,
+        confidence: 1,
+        status: "confirmed-failure" as const,
+        wcag: violation.wcagTags,
+        assertionId: `tab-axe:${violation.ruleId}`,
+        summary: violation.help,
+        expected: "The mobile tablist has no deterministic axe violations.",
+        actual: violation.failureSummary ?? `Targets: ${violation.targets.join(", ")}`,
+        evidence: [ref("axe", index)],
+        reasoning: "deterministic" as const,
+        platformScope: [evidence.browser],
+      })),
+  );
+}
+
+/**
+ * The AG-2 deterministic verdict. Browser tier: tablist role and name, per-tab id/controls/panel
+ * wiring, the arrow state machine, roving tabindex, and keyboard containment. AT tier: real
+ * VoiceOver output carrying tab role, ordinal position, selected state, and panel association.
+ *
+ * No iPhone-specific claim is made anywhere: the evidence is captured at a phone-sized viewport in
+ * desktop engines, and every finding is worded as what that configuration exposes.
+ */
+export function computeTabVerdict(
+  bundle: EvidenceBundle,
+  expectation: TabScenarioExpectation,
+): ScenarioVerdict {
+  findingCounter = 0;
+  const escapedName = expectation.tablistName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const findings: Finding[] = [
+    checkBrowserCoverage(bundle),
+    tabSnapshotFinding(
+      bundle,
+      "tablist-name-and-role",
+      `A tablist named "${expectation.tablistName}" is exposed.`,
+      (snapshot) => new RegExp(`tablist\\s+"${escapedName}"`, "iu").test(snapshot),
+    ),
+    ...expectation.tabs.map((tab) =>
+      tabSnapshotFinding(
+        bundle,
+        `tab-exposed:${tab.id}`,
+        `A tab named "${tab.label}" is exposed.`,
+        (snapshot) =>
+          snapshot
+            .split("\n")
+            .some(
+              (line) =>
+                /\btab\b/iu.test(line) && line.toLowerCase().includes(tab.label.toLowerCase()),
+            ),
+      ),
+    ),
+    ...tabWalkFindings(bundle, expectation),
+    tabContainmentFinding(bundle),
+    ...tabAxeFindings(bundle),
+    ...tabAtFindings(bundle, expectation),
+  ];
+  return {
+    scenarioId: bundle.scenarioId,
+    runId: bundle.runId,
+    findings,
+    overallStatus: overallStatus(findings),
+  };
+}

@@ -145,6 +145,11 @@ export type AtClaim =
   | "square-description"
   | "selection-count"
   | "illegal-refusal"
+  // AG-2: the mobile tablist. `tab-role` covers role plus ordinal position, `tab-selected-state`
+  // the selected/not-selected distinction, and `tab-panel-association` the panel a tab controls.
+  | "tab-role"
+  | "tab-selected-state"
+  | "tab-panel-association"
   // AG-5: one claim per live-region policy operation. The scenario id rides in the claim so the
   // verdict engine can match an observation to its expectation without a second field.
   | `live-region:${string}`;
@@ -172,6 +177,19 @@ export interface InfrastructureLimitation {
 // executing worker actually supports. This — not a screenshot, not a URL — is the state identity.
 // ---------------------------------------------------------------------------
 
+/**
+ * AG-2: what the arrow-key state machine did, one entry per key press. A tablist can expose every
+ * correct attribute at rest and still move focus to the wrong tab, so the roving-tabindex and
+ * arrow-state findings are scored from this rather than from a static snapshot.
+ */
+export interface TabWalkStepEvidence {
+  readonly key: string;
+  readonly expectedTabId: string;
+  readonly selectedTabId: string | null;
+  readonly focusedTabId: string | null;
+  readonly tabStopCount: number;
+}
+
 export interface EvidenceBundle {
   readonly scenarioId: string;
   readonly runId: string;
@@ -182,6 +200,8 @@ export interface EvidenceBundle {
   readonly keyboardTraces: readonly KeyboardTraceEvidence[];
   readonly atObservations: readonly AtObservation[];
   readonly infrastructureLimitations: readonly InfrastructureLimitation[];
+  /** Present only for tablist scenarios (AG-2). */
+  readonly tabWalk?: readonly TabWalkStepEvidence[];
 }
 
 // ---------------------------------------------------------------------------
