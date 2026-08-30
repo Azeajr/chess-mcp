@@ -1,5 +1,5 @@
 /**
- * WP-009 — the app's single announcement policy (docs/ui-ux-remediation-plan.md §4.6).
+ * The app's single announcement policy.
  *
  * Every policy event produces exactly one message; progress ticks, streaming chat tokens,
  * hover/focus/navigation produce none. The store owns the queue, a 500 ms rate limit, and

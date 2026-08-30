@@ -138,9 +138,9 @@ per-source availability/provenance, separate objective and strategic scores, cov
 Pareto status, unresolved risks, and explicit archive/prune choices. Engine transport fields name
 White POV explicitly; candidate verdicts and user-facing evaluation fields name repertoire POV.
 Atomic change-set contracts describe ordered clone operations and use a success/failure union that
-cannot return a partially changed tree on failure. These additive domain types do not yet replace
-the live `suggest_replacement_line` contract or enable Replacement Lab UI; Phase 8 safety work must
-complete first.
+cannot return a partially changed tree on failure. These domain types now back the live
+`suggest_replacement_line` contract and Replacement Lab UI; Task 12.5 completed the V2 cutover
+(see below).
 
 Pivot selection is a pure framework-free refinement over one current finding, its current cohort,
 and the semantic repertoire graph. Automatic selection accepts only one repertoire-owned causal
@@ -161,10 +161,10 @@ offline, unavailable, partial, stale, rejected, and illegal evidence remains exp
 item while usable local candidates survive. Candidates deduplicate by canonical outcome position,
 merge all source kinds and provenance, and deterministically apply the request candidate limit.
 Existing preparation carries only a low-memory rank hint, not later Strategic Fit scoring. Outputs
-are versioned candidate seeds with an explicit `full-subtree-required` expansion state; they cannot
-satisfy the mandatory `ReplacementCandidateSubtree` contract until Phase 8 expansion work covers
-important and forcing opponent replies. Source repertoire, graph, pivot result, and injected evidence
-remain immutable. Public tools, hosts, generated guidance, and Replacement Lab UI are still unchanged.
+are versioned candidate seeds with an explicit `full-subtree-required` expansion state; later
+expansion work covers important and forcing opponent replies, satisfying the mandatory
+`ReplacementCandidateSubtree` contract. Source repertoire, graph, pivot result, and injected evidence
+remain immutable.
 
 Replacement engine generation is a separate framework-free enrichment layer over the validated
 pivot and current bounded candidate-seed result. A host-injected provider receives the exact
@@ -311,10 +311,10 @@ evidence and produces structured per-candidate Task 8.8 change sets and immutabl
 `outlier_variation_path`/mode/depth behavior remained available alongside it until Task 12.5's
 cutover; V2 and legacy inputs could not be mixed.
 
-Phase 8 exposes that V2 branch only as a retained-evidence preview bridge. It does not claim to start
-candidate discovery or host engine/explorer work from public finding IDs; the Phase 9 lifecycle will
-own that orchestration. This keeps the complete contract serializable without advertising unavailable
-host generation or fabricating engine/network evidence.
+Phase 8 exposed that V2 branch only as a retained-evidence preview bridge; it did not start
+candidate discovery or host engine/explorer work from public finding IDs. Phase 9 went on to own
+that orchestration (shipped; see below). This kept the complete contract serializable without
+advertising unavailable host generation or fabricating engine/network evidence.
 
 Host parity is semantic, not operational. Browser V2 execution uses the exhaustive command registry
 and stages each valid preview against the current browser document; it never accepts it. Browser

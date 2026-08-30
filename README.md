@@ -133,6 +133,5 @@ their env-var overrides, and `pnpm --filter @chess-mcp/ui test:e2e:host`, a fast
 - [Tool catalog](docs/TOOL_CATALOG.md): generated host inventories and contract metadata.
 - [PWA product](docs/PWA_PRODUCT.md): conversation, direct analysis, actions, and artifacts.
 - [Roadmap](ROADMAP.md): unshipped work only.
-- [Strategic Fit progress](docs/CONGRUENCE_V2_PROGRESS.md): verified task ledger and current handoff.
 - [Implementation workflow](docs/COORDINATED_IMPLEMENTATION_WORKFLOW.md): single-user, risk-tiered
   task execution and phase verification.

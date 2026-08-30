@@ -3,7 +3,7 @@
 Origin: AG-1 and AG-3 require proof that real NVDA and VoiceOver convey the dialog and move-tree
 contracts. This pipeline produces and scores that proof unattended—real screen-reader output, not
 a simulator—under the
-[automated completion policy](../ui-ux-remediation/AUTOMATED_COMPLETION.md). Reports are diagnostic;
+[automated completion policy](./AUTOMATED_COMPLETION.md). Reports are diagnostic;
 the deterministic command is the gate.
 
 **AG-3 status:** run 32551506412 is `confirmed-pass` for the scenario-scoped move-tree gate on
@@ -241,7 +241,7 @@ it matches an expected sentence.
 AG-1 is resolved by automated run `32242062146`. Both dialog scenarios reported
 `overallStatus: confirmed-pass`, with browser assertions green and all required NVDA/Windows and
 VoiceOver/macOS claims present: name/role announcement, virtual-cursor background exclusion, focus
-report, and audible focus return. `docs/ui-ux-remediation/state.json` records that machine result.
+report, and audible focus return.
 
 The result requires no replay or approval. Any future consumer migration that names AG-1 reruns
 the same command; missing AT evidence or any non-pass finding blocks completion.
@@ -257,8 +257,7 @@ tree context, level, expanded/collapsed state, and a bounded one-item traversal 
 The first real runs found that VoiceOver maps the focused web treeitem to a group and omits native
 level/state vocabulary from both keyboard-focus and cursor descriptions. The specification now
 uses an exact accessible-name proxy for the user-facing facts while browser AX and NVDA retain the
-independent native-semantic proof. `docs/ui-ux-remediation/state.json` records the machine result;
-no replay, listening, artifact review, or approval is required.
+independent native-semantic proof. No replay, listening, artifact review, or approval is required.
 
 ## What this MVP is not
 

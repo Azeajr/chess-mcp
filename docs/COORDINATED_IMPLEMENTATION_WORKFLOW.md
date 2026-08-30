@@ -10,10 +10,11 @@ short feedback loops, clear task boundaries, recoverable changes, and protection
 data. It does not require team-oriented ceremony merely to prove that two roles touched the same
 change.
 
-For Congruence 2.0, product behavior is governed by
-`docs/CONGRUENCE_V2_DESIGN.md`, task scope and ordering by
-`docs/CONGRUENCE_V2_IMPLEMENTATION_PLAN.md`, and current task state by
-`docs/CONGRUENCE_V2_PROGRESS.md`. This document governs how that work is executed.
+For a large initiative, product behavior is governed by that initiative's design document, task
+scope and ordering by its implementation plan, and current task state by its progress ledger. This
+document governs how that work is executed, independent of which initiative is active. Once an
+initiative ships and lands in `README.md`/`AGENTS.md`, its design/plan/progress documents are
+removed; only this workflow document persists across initiatives.
 
 ## Sources to read
 

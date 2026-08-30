@@ -144,34 +144,14 @@ as env vars. The named user service is `chess-mcp-playwright-low-impact`; stop i
 - No `Co-Authored-By` trailers.
 - Release only when requested: commit, tag `v0.x.y`, and push the tag; tag CI creates the release.
 
-## UI/UX remediation work packages
+## UI/UX remediation (retired)
 
-Treat a request matching `Implement WP-<three digits>` as an instruction to execute exactly one
-UI/UX remediation package end to end. First inspect the working tree, then run
-`pnpm ux:task WP-NNN` with the requested ID before making any edit. If the command reports the
-package blocked, complete, invalid, in progress, or otherwise non-executable, stop without
-implementing it. Never reimplement a completed package or combine packages in one request.
+The UI/UX remediation program (WP-000–WP-038, `pnpm ux:task`/`ux:test`/`ux:plan-check`) shipped in
+full — 39/39 packages, 20/20 gates (commit `5f9f856`) — and its docs and tooling were removed. A
+`WP-<three digits>` reference in a request now refers to closed historical work only.
 
-For a ready package, the capsule emitted by `ux:task` is the authoritative package-specific scope:
-read its work-package document and repository instructions, preserve unrelated changes, and remain
-within its allowed primary files unless repository evidence proves a directly related supporting
-file is required. Satisfy every acceptance criterion and preserved behavior contract without
-weakening tests. Use the canonical package workflow, including `pnpm ux:test WP-NNN` and every test
-or check named by the capsule; fix package-caused failures and report unrelated pre-existing failures
-separately. Before recording completion, run the full end-to-end suite unnarrowed by any spec path
-or `--grep`: a package-scoped run cannot show whether the package regressed a different package, and
-`pnpm ux:plan-check` rejects completion evidence that names only scoped runs. Change only that
-package's lifecycle state, and only after all required validation passes. Then run
-`pnpm ux:plan-check` and verify that `pnpm ux:task WP-NNN` rejects the completed package as
-non-executable. After completion, inspect the current manifest and state to identify the
-next executable package. The final response must name that package, or state that none is ready and
-summarize the blockers. Do not stage or commit unless the user separately requests it. The final
-response must also concisely report the implementation and actual command results; never claim a
-pass without evidence.
-
-Every package follows [the automated completion policy](docs/ui-ux-remediation/AUTOMATED_COMPLETION.md).
-No acceptance criterion, gate, package, or milestone may require a person to inspect output, operate
-the UI, listen to assistive technology, or approve evidence. Replace subjective requirements with
-objective assertions or a fixed product decision. Missing, unsupported, or inconclusive automation
-fails closed. Completion-gate commands decide their own status; record their machine result without
-requesting human approval.
+The accessibility completion policy that program used still governs the live accessibility
+pipeline; see [the automated completion policy](docs/accessibility/AUTOMATED_COMPLETION.md) and
+`docs/accessibility/README.md`. No acceptance criterion or gate in that pipeline may require a
+person to inspect output, operate the UI, listen to assistive technology, or approve evidence.
+Missing, unsupported, or inconclusive automation fails closed.

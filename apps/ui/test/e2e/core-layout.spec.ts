@@ -60,8 +60,8 @@ const panelDimensions = (page: import("playwright/test").Page) =>
 
 test("WP-015 pins the decided (non-reordered) side panel and mobile default", async ({ page }) => {
   // WP-015 planned a move-tree-first desktop order and a Moves mobile default; both were
-  // superseded (see docs/ui-ux-remediation/work-packages/WP-015.md). This test exists so a future
-  // change to either is a deliberate diff, not silent drift back into a false "complete" record.
+  // superseded. This test exists so a future change to either is a deliberate diff, not silent
+  // drift back into a false "complete" record.
   await openApp(page, { width: 1280, height: 800 });
   const order = await page.evaluate(() =>
     [

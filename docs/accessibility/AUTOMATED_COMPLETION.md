@@ -1,8 +1,8 @@
 # Automated completion policy
 
-This policy is authoritative for the UI/UX remediation roadmap, every work package, every
-acceptance criterion, and every named gate. Completion requires no developer, reviewer, product
-owner, user, or assistive-technology operator to inspect output or make a pass/fail judgment.
+This policy is authoritative for every accessibility gate (`AG-*`), acceptance criterion, and
+milestone in this pipeline. Completion requires no developer, reviewer, product owner, user, or
+assistive-technology operator to inspect output or make a pass/fail judgment.
 
 ## Completion invariant
 
