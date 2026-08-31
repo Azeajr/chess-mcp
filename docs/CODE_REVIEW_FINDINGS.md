@@ -32,12 +32,16 @@ That was the subject of F1.
 F1, F2, and F3 were fixed together in `0758c34` — wiring the gates is what turned the other two
 red, so all three had to land in one change.
 
-| ID     | Status                                                                                                                                                                        |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1     | **Fixed** — `test:strategic-fit`, `check:tool-contract`, `check:legacy-imports`, the three `scripts/wp*.test.mjs` suites, and both WP-019 PWA tests are now steps in `ci.yml` |
-| F2     | **Fixed** — `chatTransport`/`toolExecutor` are thunks, so the cycle no longer reads `runTool` in its temporal dead zone                                                       |
-| F3     | **Fixed** — 16 raw colours tokenised across 5 groups, bare `z-index` replaced, and the AC-3/AC-4 scanners no longer match inside comments                                     |
-| F4–F22 | Open                                                                                                                                                                          |
+| ID      | Status                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1      | **Fixed** — `test:strategic-fit`, `check:tool-contract`, `check:legacy-imports`, the three `scripts/wp*.test.mjs` suites, and both WP-019 PWA tests are now steps in `ci.yml` |
+| F2      | **Fixed** — `chatTransport`/`toolExecutor` are thunks, so the cycle no longer reads `runTool` in its temporal dead zone                                                       |
+| F3      | **Fixed** — 16 raw colours tokenised across 5 groups, bare `z-index` replaced, and the AC-3/AC-4 scanners no longer match inside comments                                     |
+| F4      | **Fixed** — `a85ca7c` keeps reconstructed entries consistently oriented and committed; RED→GREEN unit proof plus UX-005 exact-PGN coverage across all three engines           |
+| F5      | **Fixed** — `9049974` settles superseded and rejected live-analysis operations so the registry drains and the PWA prompt cannot remain suppressed                             |
+| F6–F16  | Open                                                                                                                                                                          |
+| F17     | **Partially fixed** — `a85ca7c` re-enabled UX-005 and made it meaningful; the self-skipping large-report scenario remains open                                                |
+| F18–F22 | Open                                                                                                                                                                          |
 
 ## Severity summary
 
