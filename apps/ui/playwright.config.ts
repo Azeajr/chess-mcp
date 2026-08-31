@@ -9,27 +9,30 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     /*
-     * Firefox and WebKit exclude by TAG, not by file.
+     * These exclusions are file-scoped, which is coarser than it should be: F18 established that
+     * ~45 behavioural tests are dropped from two of three engines to protect four screenshot
+     * tests, and that 132 of 135 of them pass cross-browser when run on a developer machine.
      *
-     * The exclusions were previously file-scoped regexes covering six Strategic Fit specs, which
-     * dropped roughly 45 behavioural tests from two of three engines in order to protect four
-     * screenshot tests — including strategic-fit-findings.spec.ts, the largest behavioural spec in
-     * the repository and the home of WP-035's PD-5 journey evidence. That made "verified in
-     * test:e2e:container" read as cross-browser when it was single-engine.
+     * Tag-scoping them (`grepInvert: /@visual|@engine-bound/`) was attempted in fbd458e and
+     * reverted here: the extra ~45 tests per engine push the CI runner past its capacity, and the
+     * run fails on resource contention rather than on behaviour. Three tests timed out or lost
+     * page focus on CI (chromium core-keyboard announcement, webkit stage-tab focus, webkit
+     * cohort-adjustment click) while the identical commit passed 673/673 locally.
      *
-     * `@visual` marks chromium-owned pixel baselines; `@engine-bound` marks assertions about
-     * browser-native behaviour (focus order of native radios, disabled-button semantics) or
-     * scan/reanalysis timing that legitimately differs per engine. Everything else now runs
-     * everywhere.
+     * Reopening this needs CI capacity work — worker count, per-test timeout, or sharding the UI
+     * job — not another round of per-test tagging. Until then the coarse exclusion stands, and
+     * evidence citing `test:e2e:container` for these six specs is chromium-only.
      */
     {
       name: "firefox",
-      grepInvert: /@visual|@engine-bound/,
+      testIgnore:
+        /strategic-fit-(findings|map|visualization-hardening|large-report|profile-setup|sidecar)\.spec\.ts/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      grepInvert: /@visual|@engine-bound/,
+      testIgnore:
+        /strategic-fit-(findings|map|visualization-hardening|large-report|lifecycle|sidecar)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],
