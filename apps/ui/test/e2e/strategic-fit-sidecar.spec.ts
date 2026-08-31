@@ -177,52 +177,66 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
   ).toEqual(["concept:imported"]);
 });
 
-/*
- * @engine-bound: the stale/cross-document leg deliberately clicks a *disabled* native button to
- * prove the guard holds. Chromium dispatches the click and the assertion observes the rejection;
- * Firefox and WebKit refuse to click a disabled element at all, so Playwright's actionability
- * check times out. The behaviour under test is engine-independent, but this way of exercising it
- * is not.
- */
-test(
-  "sidecar UI rejects malformed and stale/cross-document previews without mutation",
-  {
-    tag: "@engine-bound",
-  },
-  async ({ page }) => {
-    await page.goto("/");
-    await waitForMetadata(page);
-    await portability(page);
-    const picker = page.getByLabel("Choose Strategic Fit metadata JSON");
-    await picker.setInputFiles({
-      name: "broken.json",
-      mimeType: "application/json",
-      buffer: Buffer.from("{"),
-    });
-    await expect(page.getByRole("alert")).toContainText("not valid JSON");
+test("sidecar UI rejects malformed and stale/cross-document previews without mutation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await waitForMetadata(page);
+  await portability(page);
+  const picker = page.getByLabel("Choose Strategic Fit metadata JSON");
+  await picker.setInputFiles({
+    name: "broken.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("{"),
+  });
+  await expect(page.getByRole("alert")).toContainText("not valid JSON");
 
-    const incoming = await chess(page, (api) => ({
-      sidecar_kind: "chess-mcp/strategic-fit-sidecar",
-      sidecar_version: "1.0.0",
-      document_id: api.documentId(),
-      metadata: api.strategicFitMetadata(),
-    }));
-    await picker.setInputFiles({
-      name: "stale.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(incoming)),
-    });
-    await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
-    await page.getByRole("button", { name: "Confirm metadata import" }).click();
-    await expect(page.getByRole("alert")).toContainText("changed after this preview");
-    expect(
-      await chess(
-        page,
-        (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
-      ),
-    ).toEqual([]);
-  },
-);
+  const incoming = await chess(page, (api) => ({
+    sidecar_kind: "chess-mcp/strategic-fit-sidecar",
+    sidecar_version: "1.0.0",
+    document_id: api.documentId(),
+    metadata: api.strategicFitMetadata(),
+  }));
+  await picker.setInputFiles({
+    name: "stale.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(incoming)),
+  });
+  const confirm = page.getByRole("button", { name: "Confirm metadata import" });
+
+  /*
+   * Two distinct guards protect this flow, and the original test conflated them:
+   *
+   *   1. A source/target document-id mismatch *disables* the confirm button until the mismatch is
+   *      explicitly acknowledged (StrategicFitTransfer.tsx).
+   *   2. Staleness — the document, revision, or metadata changing after the preview was taken —
+   *      is rejected by the store when confirmation is attempted (strategic-fit-sidecar.ts).
+   *
+   * This sidecar is same-document, so guard 1 does not apply and the button is enabled. Loading a
+   * different PGN then makes the preview stale, which is guard 2. Asserting the enabled state
+   * before clicking is what removes the race: previously the click could arrive while the control
+   * was momentarily unavailable, and Playwright would retry against it until the 30 s test
+   * timeout. That is why this failed on chromium under full-suite load while passing when the
+   * file ran scoped — a latent flake on every engine, not a browser difference, so the
+   * `@engine-bound` tag added for F18 was the wrong fix and is reverted.
+   */
+  await expect(
+    confirm,
+    "a same-document preview is confirmable before it goes stale",
+  ).toBeEnabled();
+
+  // Invalidate the preview by swapping the document underneath it, then confirm anyway.
+  await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
+  await confirm.click();
+
+  await expect(page.getByRole("alert")).toContainText("changed after this preview");
+  expect(
+    await chess(
+      page,
+      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+    ),
+  ).toEqual([]);
+});
 
 test("portable intent PGN saves through the canonical UI command and reparses without changing the source", async ({
   page,

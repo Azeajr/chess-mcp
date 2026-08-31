@@ -70,12 +70,16 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
   const { dialog } = await openWorkspace(page, true);
   const overview = dialog.getByRole("tab", { name: "Overview" });
   await overview.focus();
+  // Confirm the starting point actually took before driving the roving tabindex. Under full-suite
+  // parallel load WebKit can report a freshly focused element as "inactive" — page-level focus has
+  // not settled yet — which made the ArrowRight assertion below fail intermittently even though
+  // aria-selected and tabindex were already correct. Anchoring on the initial focus removes that
+  // race without weakening what the test checks.
+  await expect(overview).toBeFocused();
   await page.keyboard.press("ArrowRight");
-  await expect(dialog.getByRole("tab", { name: "Findings" })).toBeFocused();
-  await expect(dialog.getByRole("tab", { name: "Findings" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  const findings = dialog.getByRole("tab", { name: "Findings" });
+  await expect(findings).toBeFocused();
+  await expect(findings).toHaveAttribute("aria-selected", "true");
   await expect(dialog.locator("#strategic-fit-pane-findings")).toHaveAttribute("role", "tabpanel");
   await page.keyboard.press("End");
   await expect(dialog.getByRole("tab", { name: "Resolution" })).toBeFocused();
