@@ -11,6 +11,7 @@ import { idbGet, idbSet, idbDel } from "./idb";
 import { captureSnapshot } from "./persist";
 import { announce } from "./announce";
 import { GameTree } from "@chess-mcp/chess-tools";
+import { assertTestOnly } from "./test-seam";
 
 type Perm = "granted" | "denied" | "prompt";
 interface FilePickerHandle {
@@ -109,6 +110,7 @@ export function clearHandle() {
 
 /** DEV-only callers expose this through window.__chess for the denied-permission browser check. */
 export function setReopenHandleForTesting(nextHandle: FilePickerHandle | null) {
+  assertTestOnly();
   reopenHandleForTesting = nextHandle;
   setStoredFileName(nextHandle?.name ?? null);
 }

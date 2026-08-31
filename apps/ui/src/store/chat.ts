@@ -11,6 +11,7 @@ import {
   type ExecutionStatus,
 } from "../application/execution-status";
 import { registerOperation, settleOperation, updateOperation } from "./operations";
+import { assertTestOnly } from "./test-seam";
 
 /**
  * Human-readable label for a chat tool call. The registry's announcement policy speaks in
@@ -76,10 +77,12 @@ export function retry() {
 }
 /** Test seam for request-level assertions; production always uses the OpenRouter transport. */
 export function setChatTransportForTesting(transport?: typeof streamChat) {
+  assertTestOnly();
   chatTransportOverride = transport ?? null;
 }
 /** Test seam for deterministic command fixtures; reset by passing no argument. */
 export function setChatToolExecutorForTesting(executor?: typeof runTool) {
+  assertTestOnly();
   toolExecutorOverride = executor ?? null;
 }
 
@@ -106,13 +109,14 @@ export function focusLine(path: Path) {
  * DEV-only, like the other harness seams.
  */
 export function appendUserMessageForTesting(text: string): number {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   setHistory((all) => [...all, { role: "user", content: text }]);
   return history().length - 1;
 }
 
 /** Development harness seam for typed result/action/artifact UI verification. */
 export function appendToolResultForTesting(operation: string, result: unknown) {
+  assertTestOnly();
   const id = `test-tool-${history().length}`;
   setHistory((all) => [
     ...all,

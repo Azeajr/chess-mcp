@@ -231,7 +231,37 @@ test("top-level chat artifacts have a save affordance", async ({ page }) => {
 test("the working document restores from IndexedDB after reload", async ({ page }) => {
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "autosaved.pgn"));
   await chess(page, (api) => api.goto([0, 0, 0]));
-  await page.waitForTimeout(550);
+
+  // Poll the durable record instead of outwaiting the ~400 ms autosave debounce with a fixed
+  // sleep. A sleep races the debounce under the throttled runner, and worse, a regression that
+  // pushed the write past the sleep would be indistinguishable from flake. This waits for the
+  // actual precondition — the row being on disk — so the reload below can only fail for a real
+  // restore defect.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<string | null>((resolve) => {
+            const request = indexedDB.open("chess-repertoire", 1);
+            request.onerror = () => resolve(null);
+            request.onsuccess = () => {
+              const db = request.result;
+              if (!db.objectStoreNames.contains("kv")) return resolve(null);
+              const read = db
+                .transaction("kv", "readonly")
+                .objectStore("kv")
+                .get("workingRepertoire");
+              read.onerror = () => resolve(null);
+              read.onsuccess = () => {
+                const value = read.result as { pgn?: string } | undefined;
+                resolve(value?.pgn ?? null);
+              };
+            };
+          }),
+      ),
+    )
+    .toContain("Nf3 Nc6");
+
   await page.reload();
   await expect.poll(() => chess(page, (api) => api.toPgn())).toContain("Nf3 Nc6");
   await expect(page.locator(".move.current").first()).toContainText("Nf3");
@@ -250,7 +280,13 @@ test("structured command errors render as distinct result cards", async ({ page 
   await expect(page.getByRole("alert")).toContainText("missing_criteria");
 });
 
-test.slow("long direct analysis exposes a working cancel action", async ({ page }) => {
+/*
+ * `test.slow(title, body)` is not a test declaration — `test.slow()` is a *modifier*, and this
+ * form was silently accepted while registering nothing. The scenario below never ran on any
+ * engine. Declared properly with the modifier inside the body.
+ */
+test("long direct analysis exposes a working cancel action", async ({ page }) => {
+  test.slow();
   await chess(page, (api) => api.loadPgn("1. e4 (1. d4 d5 2. c4) e5 2. Nf3 Nc6 3. Bb5"));
   await page.getByRole("button", { name: "Audit" }).click();
   const cancel = page.getByRole("button", { name: "Cancel" }).first();

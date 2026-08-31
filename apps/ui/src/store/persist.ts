@@ -8,6 +8,7 @@ import { createSignal, createEffect, onCleanup } from "solid-js";
 import { idbGet, idbSet, idbMutateAtomically } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
 import { announce } from "./announce";
+import { assertTestOnly } from "./test-seam";
 import {
   currentTree,
   path,
@@ -405,8 +406,7 @@ export async function flushWorkingRepertoire(): Promise<void> {
  * the same payload through the production scheduler rather than duplicating its state changes.
  */
 export function queueWorkingRepertoireAutosaveForTesting(saved: SavedWorkingRepertoire): void {
-  const environment = Reflect.get(import.meta, "env") as { DEV?: boolean } | undefined;
-  if (environment && environment.DEV !== true) throw new Error("Test-only function");
+  assertTestOnly();
   scheduleAutosave(saved);
 }
 

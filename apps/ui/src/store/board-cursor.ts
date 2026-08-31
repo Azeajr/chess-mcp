@@ -20,6 +20,7 @@ import { isPromotion } from "@chess-mcp/chess-tools";
 import { actions, color, dests, fen, lastMove, turnColor } from "./game";
 import { setPendingPromo } from "./promotion";
 import { announce } from "./announce";
+import { assertTestOnly } from "./test-seam";
 
 const FILES = "abcdefgh";
 const RANKS = "12345678";
@@ -76,6 +77,7 @@ function resetCursorState(): void {
 /** Test seam: establish a clean cursor/selection state without waiting on the createEffect below,
  *  which — see resetCursorState's comment — never runs under plain `node:test`. */
 export function resetCursorForTesting(): void {
+  assertTestOnly();
   resetCursorState();
 }
 

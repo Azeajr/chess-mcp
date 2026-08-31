@@ -13,6 +13,7 @@ import {
 } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
+import { assertTestOnly } from "./test-seam";
 
 // --- Tier A: connect dangling stubs into prep (engine-vetted) ---
 // A stopped line (frontier leaf, your turn) continued by the color's engine-best moves until it
@@ -80,7 +81,7 @@ export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
 /** WP-029 AC-5/AC-7 test seam: render shortcut rows without a live prune scan. */
 export function setPruneSuggestionsForTesting(next: PruneSuggestion[]) {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   setPruneSuggestions(next);
 }
 
@@ -160,7 +161,7 @@ export function setInspectResultForTesting(
   next: ShortcutComparison | null,
   cov: ShortcutCoverage | null,
 ) {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   setInspectKey(key);
   setComparison(next);
   setCoverage(cov);

@@ -219,10 +219,10 @@ test("WP-026 AC-4 engine_unavailable offers Retry and explorer_auth_required ope
   });
   await chatLog(page).getByRole("button", { name: "Add Lichess token" }).click();
 
-  // Focus lands asynchronously: the effect waits for the dialog to mount, its initial focus to run,
-  // then runs rAF. Give it enough time.
-  await page.waitForTimeout(500);
-
+  // Focus lands asynchronously: the effect waits for the dialog to mount, its initial focus to
+  // run, then a rAF. `toBeFocused` auto-retries until its own timeout, so it already waits for
+  // exactly that — a fixed sleep would instead make a genuine regression that pushes the work past
+  // 500 ms indistinguishable from flake, and could itself fail under the throttled runner.
   const tokenField = page.locator("input[data-settings-field='lichess-token']");
   await expect(tokenField).toBeVisible();
   await expect(tokenField).toBeFocused();

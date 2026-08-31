@@ -10,6 +10,7 @@
  */
 import { createSignal } from "solid-js";
 import { announce } from "./announce";
+import { assertTestOnly } from "./test-seam";
 
 export type OperationStatus = "running" | "completed" | "cancelled" | "failed";
 
@@ -36,6 +37,7 @@ export { operations };
 
 /** Test seam: reset the registry and timers between tests. */
 export function resetOperationsForTesting() {
+  assertTestOnly();
   for (const timer of evictionTimers.values()) clearTimeout(timer);
   evictionTimers.clear();
   setOperations([]);

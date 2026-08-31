@@ -12,6 +12,7 @@ import { analyseLive } from "../engine/stockfish";
 import { analysisDepth } from "./engine-settings";
 import { announce } from "./announce";
 import { registerOperation, updateOperationStatus } from "./operations";
+import { assertTestOnly } from "./test-seam";
 
 /**
  * Settle an analysis-pass operation without the registry's announcement: live analysis completes
@@ -87,6 +88,7 @@ const reloadAnalysis = () => setAnalysisReload((version) => version + 1);
  * same transition the search-failure path uses, including the sticky-banner guard.
  */
 export function announceEngineOfflineForTesting() {
+  assertTestOnly();
   if (!engineOffline()) announce("The chess engine went offline.", { assertive: true });
   setEngineOffline(true);
 }

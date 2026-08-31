@@ -12,6 +12,7 @@
  * announcements.
  */
 import { createSignal } from "solid-js";
+import { assertTestOnly } from "./test-seam";
 
 export interface Announcement {
   readonly id: number;
@@ -64,6 +65,7 @@ export function announce(message: string, options: AnnounceOptions = {}): Announ
 
 /** Test seam: reset the rate limiter, de-duplication state, and history between scenarios. */
 export function resetAnnouncementsForTesting() {
+  assertTestOnly();
   lastAnnouncedAt = 0;
   lastMessage = null;
   announcementHistory.length = 0;
@@ -73,5 +75,6 @@ export function resetAnnouncementsForTesting() {
 
 /** Test/evidence seam: every announcement since the last reset, in order. Never rendered. */
 export function announcementLogForTesting(): readonly Announcement[] {
+  assertTestOnly();
   return [...announcementHistory];
 }

@@ -27,6 +27,7 @@ import {
   toPgn as gameToPgn,
 } from "./game";
 import { announce } from "./announce";
+import { assertTestOnly } from "./test-seam";
 
 export type MutationType =
   | "play"
@@ -312,5 +313,6 @@ export function getStacksForTesting(): {
   undo: HistoryEntry[];
   redo: HistoryEntry[];
 } {
+  assertTestOnly();
   return { undo: undoStack(), redo: redoStack() };
 }

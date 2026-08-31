@@ -9,6 +9,7 @@ import type { Node, PgnNodeData } from "chessops/pgn";
 import { validateLine, type Path } from "@chess-mcp/chess-tools";
 import { fen, currentPath, currentTree, actions, version } from "./game";
 import type { Arrow } from "./analysis";
+import { assertTestOnly } from "./test-seam";
 
 export interface Suggestion {
   id: string;
@@ -61,7 +62,7 @@ let nextId = 1;
 const [stagedEdits, setStagedEdits] = createSignal<StagedEdit[]>([]);
 export { stagedEdits };
 export function setStagedEditsForTesting(edits: StagedEdit[]) {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   setStagedEdits(edits);
 }
 

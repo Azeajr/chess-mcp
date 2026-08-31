@@ -10,6 +10,7 @@
 import { createMemo, createSignal } from "solid-js";
 import { registerSW } from "virtual:pwa-register";
 import { registerOperation, runningOperations, settleOperationQuietly } from "../store/operations";
+import { assertTestOnly } from "../store/test-seam";
 
 export const PWA_UPDATE_MESSAGE = "A new version is ready.";
 
@@ -63,7 +64,7 @@ export function reloadPwaUpdate() {
 
 /** Dev-only: exercise the real prompt state against the Vite dev server. */
 export function simulatePwaUpdate() {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   sessionStorage.setItem(SIMULATED_PENDING_KEY, "true");
   sessionStorage.removeItem(SIMULATED_RELOAD_KEY);
   setUpdatePending(true);
@@ -74,7 +75,7 @@ let blockingOperationId: string | null = null;
 
 /** Dev-only: register a real operation so AC-2 covers the same registry production uses. */
 export function startPwaBlockingOperationForTesting() {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   blockingOperationId = registerOperation({
     kind: "pwa-update-probe",
     label: "Update deferral probe",
@@ -84,14 +85,14 @@ export function startPwaBlockingOperationForTesting() {
 
 /** Dev-only: settle the operation silently; its bookkeeping may linger but no longer blocks. */
 export function settlePwaBlockingOperationForTesting() {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   if (blockingOperationId) settleOperationQuietly(blockingOperationId, "completed");
   blockingOperationId = null;
 }
 
 /** Dev-only snapshot stored outside module state where needed so it survives a simulated reload. */
 export function pwaUpdateSnapshotForTesting() {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   return {
     pending: updatePending(),
     visible: pwaUpdateVisible(),
@@ -102,7 +103,7 @@ export function pwaUpdateSnapshotForTesting() {
 
 /** Reset simulation persistence between independent browser scenarios. */
 export function resetPwaUpdateForTesting() {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   sessionStorage.removeItem(SIMULATED_PENDING_KEY);
   sessionStorage.removeItem(SIMULATED_RELOAD_KEY);
   setUpdatePending(false);

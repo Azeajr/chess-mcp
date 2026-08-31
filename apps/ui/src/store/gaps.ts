@@ -16,6 +16,7 @@ import {
   runningOperations,
   type Operation,
 } from "./operations";
+import { assertTestOnly } from "./test-seam";
 
 export interface Gap {
   path: Path;
@@ -51,7 +52,7 @@ export { gaps, covered, scanError, scanCompleted };
 
 /** WP-029 AC-2 test seam: put the scan into its failed state without an offline engine. */
 export function setScanErrorForTesting(message: string) {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   setScanError(message);
 }
 

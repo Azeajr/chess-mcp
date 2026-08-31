@@ -35,6 +35,7 @@ import {
   type SavedWorkingRepertoire,
 } from "./persist";
 import { browserDocumentMutationRegistry } from "../application/browser-commands/registry";
+import { assertTestOnly } from "./test-seam";
 
 export const STRATEGIC_FIT_CHANGE_STORAGE_VERSION = "1.0.0";
 export const STRATEGIC_FIT_CHANGE_STORAGE_KEY_PREFIX = "strategicFitChanges:";
@@ -1023,8 +1024,7 @@ export async function stageStrategicFitChangeSet(input: {
 }
 
 export function registerStrategicFitStageForTesting(stage: StrategicFitStagedChange) {
-  if (!import.meta.env.DEV)
-    throw new Error("Strategic Fit stage fixture registration is development-only.");
+  assertTestOnly();
   const registered = browserController.registerStageForTesting(stage);
   setBrowserStagesVersion((value) => value + 1);
   return registered;

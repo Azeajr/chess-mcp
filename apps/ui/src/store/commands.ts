@@ -14,6 +14,7 @@ import {
   settleOperationQuietly,
   updateOperation,
 } from "./operations";
+import { assertTestOnly } from "./test-seam";
 
 /** Direct-control adapter; dependency injection keeps equivalence tests deterministic. */
 export function executeDirectBrowserCommand(
@@ -59,8 +60,7 @@ const controllers = new Map<DirectCommand, AbortController>();
 
 /** Development harness seam for deterministic direct-panel result fixtures. */
 export function setCommandStateForTesting(command: DirectCommand, state: CommandState) {
-  if (!import.meta.env.DEV)
-    throw new Error("Direct command fixture injection is development-only.");
+  assertTestOnly();
   controllers.get(command)?.abort();
   controllers.delete(command);
   setCommandStates((all) => ({ ...all, [command]: { ...state } }));
@@ -122,7 +122,7 @@ export function recordDirectCommandForTesting(
   command: DirectCommand,
   args: Record<string, unknown>,
 ) {
-  if (!import.meta.env.DEV) throw new Error("Test-only function");
+  assertTestOnly();
   lastCommandRequest = { command, args: { ...args } };
 }
 
