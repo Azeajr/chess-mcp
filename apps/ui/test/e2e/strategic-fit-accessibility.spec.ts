@@ -69,13 +69,24 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog } = await openWorkspace(page, true);
   const overview = dialog.getByRole("tab", { name: "Overview" });
-  await overview.focus();
-  // Confirm the starting point actually took before driving the roving tabindex. Under full-suite
-  // parallel load WebKit can report a freshly focused element as "inactive" — page-level focus has
-  // not settled yet — which made the ArrowRight assertion below fail intermittently even though
-  // aria-selected and tabindex were already correct. Anchoring on the initial focus removes that
-  // race without weakening what the test checks.
+
+  /*
+   * `bringToFront` then `click` — not a bare `.focus()`.
+   *
+   * On CI this failed with Playwright reporting the freshly focused tab as "inactive" while its
+   * aria-selected and tabindex attributes were already correct. "inactive" is a *page*-level
+   * state: the browser context is not the focused one, so element-level `.focus()` cannot make
+   * `toBeFocused` true no matter how long it retries. Raising the page and activating the control
+   * the way a user would is what actually establishes focus.
+   *
+   * This surfaced when F16 made the neighbouring stage-layout AC-2 test perform real analysis
+   * work; that spec has always run on WebKit, and the added contention exposed the latent
+   * assumption that this page was frontmost.
+   */
+  await page.bringToFront();
+  await overview.click();
   await expect(overview).toBeFocused();
+
   await page.keyboard.press("ArrowRight");
   const findings = dialog.getByRole("tab", { name: "Findings" });
   await expect(findings).toBeFocused();
