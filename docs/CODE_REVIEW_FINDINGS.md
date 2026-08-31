@@ -48,7 +48,8 @@ red, so all three had to land in one change.
 | F12     | **Fixed** — `5cd4229` uses overflow-safe normalization, scaled means, and scale-invariant ESS while preserving moderate-input output exactly                                  |
 | F13     | **Fixed** — `MAX_TOOL_RUNS` caps retained runs at 200 with oldest-first eviction, matching the tool-result and undo-history budgets                                           |
 | F14     | **Fixed** — the documented safe-by-default invariant is now real: `game.ts`'s single `setPath` writer clears the marker for every navigation route                            |
-| F15–F16 | Open                                                                                                                                                                          |
+| F15     | **Fixed** — AC-1 seeds a known persisted width and compares unconditionally; AC-5's constant-`true` expression is replaced by its two real halves                             |
+| F16     | **Fixed** — AC-2 now selects a finding and asserts `toHaveCount(1)`; it had been counting zeros, so deleting all three controls would have kept it green                      |
 | F17     | **Partially fixed** — `a85ca7c` re-enabled UX-005 and made it meaningful; the self-skipping large-report scenario remains open                                                |
 | F18–F22 | Open                                                                                                                                                                          |
 

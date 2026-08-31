@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { installFindingWorkerFixture } from "./helpers/strategic-fit-worker-fixture";
 
 /**
  * WP-033 (a) — one resolution render, a stage indicator at every width, and the stale block.
@@ -33,9 +34,14 @@ const WIDTHS = [
   { width: 1440, height: 900, label: "desktop" },
 ] as const;
 
-async function openWorkspace(page: Page) {
+async function openWorkspace(page: Page, options: { withFindings?: boolean } = {}) {
+  if (options.withFindings === true) await installFindingWorkerFixture(page);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  if (options.withFindings === true) {
+    // The fixture's frozen report is computed against this document.
+    await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "stage-layout.pgn"));
+  }
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
@@ -67,30 +73,43 @@ test("WP-033 AC-1 a stage indicator showing the current stage exists at every wi
   }
 });
 
+/**
+ * The resolution controls AC-2 governs. Every one is `1` at every width: the pane renders once,
+ * and the wide tier no longer duplicates it into the evidence column.
+ *
+ * `toBe(1)` rather than `toBeLessThanOrEqual(1)` is the point. The original one-sided bound could
+ * not tell "exactly once" from "not at all", and in fact ran entirely against zeros — the suite
+ * never selected a finding, so `currentResolution()` was null and none of these controls existed
+ * at any width. Deleting all three components outright would have kept the suite green.
+ */
+const RESOLUTION_CONTROLS = [
+  ".strategic-fit-resolution-actions",
+  ".strategic-fit-training",
+  ".strategic-fit-cohort-editor",
+  ".strategic-fit-review-actions",
+] as const;
+
 test("WP-033 AC-2 resolution controls render exactly once at every width", async ({ page }) => {
   test.slow();
-  const dialog = await openWorkspace(page);
+  const dialog = await openWorkspace(page, { withFindings: true });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 20_000,
   });
 
+  // Selecting a finding is what makes the resolution pane render at all. Assert the precondition
+  // so this can never silently degrade back into counting zeros.
+  await expect(dialog.locator("[data-finding-select]")).not.toHaveCount(0);
+  await dialog.locator("[data-finding-select]").first().click();
+  await expect(dialog.locator(".strategic-fit-review-actions")).toHaveCount(1, { timeout: 10_000 });
+
   for (const viewport of WIDTHS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     // Counted in the DOM rather than by visibility: a second hidden copy is still a duplicate in
     // the accessibility tree, which is exactly the defect UX-033 records.
-    for (const selector of [
-      ".strategic-fit-resolution-actions",
-      ".strategic-fit-training",
-      ".strategic-fit-cohort-editor",
-    ]) {
-      const count = await dialog.locator(selector).count();
-      expect(count, `${selector} at ${viewport.label}`).toBeLessThanOrEqual(1);
+    for (const selector of RESOLUTION_CONTROLS) {
+      await expect(dialog.locator(selector), `${selector} at ${viewport.label}`).toHaveCount(1);
     }
-    expect(
-      await dialog.locator(".strategic-fit-review-actions").count(),
-      `review actions at ${viewport.label}`,
-    ).toBeLessThanOrEqual(1);
   }
 });
 

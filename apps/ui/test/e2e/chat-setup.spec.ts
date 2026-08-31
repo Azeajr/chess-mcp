@@ -8,10 +8,15 @@ import { openApp } from "./helpers/app";
  * replaced by a setup card. AC-1 and AC-5 were rewritten from their pre-gate rail wording, so these
  * assertions are the authority on the intended behaviour.
  *
- * `openApp` leaves localStorage empty, so the app starts unconfigured in every test here.
+ * `openApp` leaves localStorage empty, so the app starts unconfigured in every test here. That
+ * premise is also why AC-1 seeds the persisted width explicitly rather than reading it back: with
+ * an empty store `Number(null)` is `0`, so a "read it and compare if it looks set" guard can never
+ * run its assertion.
  */
 
 const CHAT_WIDTH_KEY = "chess.layout.chat";
+/** Distinct from the store's own CHAT_DEFAULT (360) so a lost persisted value cannot pass. */
+const SEEDED_CHAT_WIDTH = 420;
 
 const setupCard = (page: import("playwright/test").Page) => page.locator("[data-chat-setup-card]");
 const chatWrap = (page: import("playwright/test").Page) => page.locator(".chat-wrap");
@@ -34,15 +39,20 @@ test("WP-021 AC-1 an unconfigured assistant keeps the column width and shows the
   // ...and the terse line it replaced is gone.
   await expect(page.locator(".chat").getByText("No API key.")).toHaveCount(0);
 
-  // The column is at its persisted width, not a collapsed rail. Reading the stored value rather
-  // than a literal keeps this honest if the default ever changes.
-  const persisted = await page.evaluate((key) => Number(localStorage.getItem(key)), CHAT_WIDTH_KEY);
-  const rendered = await chatWidth(page);
-  if (Number.isFinite(persisted) && persisted > 0) {
-    expect(Math.round(rendered)).toBe(Math.round(persisted));
-  }
+  // The column is at its persisted width, not a collapsed rail. Seeding a known value before the
+  // app boots is what makes this a real assertion: the width is compared unconditionally against a
+  // number the store did not choose, so a regression that ignored persistence and fell back to
+  // CHAT_DEFAULT would fail here.
+  await page.addInitScript(([key, value]) => localStorage.setItem(key, value), [
+    CHAT_WIDTH_KEY,
+    String(SEEDED_CHAT_WIDTH),
+  ] as const);
+  await page.reload();
+  await expect(setupCard(page)).toBeVisible();
+  expect(Math.round(await chatWidth(page))).toBe(SEEDED_CHAT_WIDTH);
+
   // Whatever the source, it is a full column and emphatically not the <= 56px rail PD-4 rejected.
-  expect(rendered).toBeGreaterThan(200);
+  expect(await chatWidth(page)).toBeGreaterThan(200);
 });
 
 test("WP-021 AC-2 the setup control is keyboard reachable and focuses the API-key field", async ({
@@ -122,7 +132,11 @@ test("WP-021 AC-5 the side-chat divider stays operable while unconfigured", asyn
   await page.keyboard.press("ArrowLeft");
   await expect.poll(async () => Math.round(await chatWidth(page))).not.toBe(Math.round(before));
 
-  // The unconfigured state itself never wrote the persisted width; only this deliberate resize did.
+  // The unconfigured state itself never wrote the persisted width; only this deliberate resize
+  // did. Both halves are asserted directly — the old `storedBefore === null || storedAfter !== null`
+  // was the constant `true` given the empty-storage premise, so AC-5's actual claim went untested.
+  expect(storedBefore, "merely opening the app unconfigured must not persist a width").toBeNull();
   const storedAfter = await page.evaluate((key) => localStorage.getItem(key), CHAT_WIDTH_KEY);
-  expect(storedBefore === null || storedAfter !== null).toBe(true);
+  expect(storedAfter, "the deliberate resize persists the new width").not.toBeNull();
+  expect(Number(storedAfter)).toBe(Math.round(await chatWidth(page)));
 });
