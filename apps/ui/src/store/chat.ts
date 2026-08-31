@@ -40,8 +40,18 @@ const [error, setError] = createSignal<string | null>(null);
 const [toolRuns, setToolRuns] = createSignal<ToolRunState[]>([]);
 let controller: AbortController | null = null;
 let lastRequest = "";
-let chatTransport: typeof streamChat = streamChat;
-let toolExecutor: typeof runTool = runTool;
+/*
+ * Overrides, not copies of the real implementations. `registry.ts` imports `default-context.ts`,
+ * which imports this module, which imports `llm/tools.ts`, which imports `registry.ts` — so when
+ * the cycle is entered from the registry (as `scripts/tool-contract-inventory.mjs` does), reading
+ * `runTool` at module-evaluation time hits its temporal dead zone and throws. Resolving the
+ * default inside the call defers that read until every module has finished evaluating.
+ */
+let chatTransportOverride: typeof streamChat | null = null;
+let toolExecutorOverride: typeof runTool | null = null;
+const chatTransport: typeof streamChat = (...args) =>
+  (chatTransportOverride ?? streamChat)(...args);
+const toolExecutor: typeof runTool = (...args) => (toolExecutorOverride ?? runTool)(...args);
 
 export { history, streamingText, busy, error, toolRuns };
 export function clearChat() {
@@ -59,11 +69,11 @@ export function retry() {
 }
 /** Test seam for request-level assertions; production always uses the OpenRouter transport. */
 export function setChatTransportForTesting(transport?: typeof streamChat) {
-  chatTransport = transport ?? streamChat;
+  chatTransportOverride = transport ?? null;
 }
 /** Test seam for deterministic command fixtures; reset by passing no argument. */
 export function setChatToolExecutorForTesting(executor?: typeof runTool) {
-  toolExecutor = executor ?? runTool;
+  toolExecutorOverride = executor ?? null;
 }
 
 export function focusLine(path: Path) {

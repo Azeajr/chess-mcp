@@ -11,6 +11,13 @@ const tokenEnd = coreSource.indexOf("\n}", tokenRoot) + 2;
 const tokenSection = coreSource.slice(tokenStart, tokenEnd);
 const tokenBlock = tokenSection.slice(tokenSection.indexOf("{") + 1, -1);
 
+/**
+ * AC-3 and AC-4 scan declarations, not prose. A comment may legitimately name a color or a
+ * layer — the WebKit `#c0c0c0` default that the dialog button rules exist to override is the
+ * standing example — and matching inside one reports a violation that no rule can fix.
+ */
+const withoutComments = (css) => css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
+
 test("WP-036 AC-1 documents tokens for all nine design categories", () => {
   assert.ok(tokenStart >= 0 && tokenRoot >= 0 && tokenEnd > tokenRoot, "token block is missing");
   for (const category of [
@@ -86,7 +93,7 @@ test("WP-036 AC-2 keeps body declarations at twelve pixels and explicitly allowl
 
 test("WP-036 AC-3 confines raw core-app colors to the token block", () => {
   assert.ok(strategicFitSource, "Strategic Fit retained-color boundary is missing");
-  const coreWithoutTokens = coreSource.replace(tokenSection, "");
+  const coreWithoutTokens = withoutComments(coreSource.replace(tokenSection, ""));
   assert.deepEqual(
     [...coreWithoutTokens.matchAll(/#[\da-f]{3,8}\b/giu)].map((match) => match[0]),
     [],
@@ -98,7 +105,7 @@ test("WP-036 AC-3 confines raw core-app colors to the token block", () => {
 });
 
 test("WP-036 AC-4 confines z-index literals to the layering token scale", () => {
-  const sourceWithoutTokens = source.replace(tokenSection, "");
+  const sourceWithoutTokens = withoutComments(source.replace(tokenSection, ""));
   assert.deepEqual(
     [...sourceWithoutTokens.matchAll(/z-index:\s*-?\d+/gu)].map((match) => match[0]),
     [],

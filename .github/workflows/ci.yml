@@ -36,6 +36,14 @@ jobs:
         run: pnpm check:content
       - name: Typecheck all packages
         run: pnpm -r typecheck
+      - name: Tool contract parity (contract vs browser registry vs MCP server)
+        run: pnpm check:tool-contract
+      - name: Legacy import boundary
+        run: pnpm check:legacy-imports
+      - name: Strategic Fit domain suite
+        run: pnpm test:strategic-fit
+      - name: Design token, responsive tier, and primitive contracts
+        run: node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
       - name: Deterministic smoke suites (engine-free, no network)
         run: |
           node scripts/smoke-gametree.mjs
@@ -60,6 +68,19 @@ jobs:
       - run: pnpm --filter @chess-mcp/chess-tools build
       - run: pnpm --filter @chess-mcp/ui typecheck
       - run: pnpm --filter @chess-mcp/ui test:chat
+      # WP-019 AC-4 and the real service-worker lifecycle. The dev-seam spec in
+      # test/e2e/pwa-update.spec.ts cannot prove Workbox leaves build B waiting; these two run
+      # against real production output, so they need the build first.
+      - name: Production PWA build assertions
+        run: |
+          pnpm --filter @chess-mcp/ui build
+          node --test apps/ui/test/pwa-build.test.mjs
+      - name: Real service-worker update lifecycle (build A to build B)
+        # Runs on the host, not in the e2e container, so it needs its own browser. The container
+        # image that serves `test:e2e:container` is not on this job's PATH.
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          node apps/ui/test/pwa-lifecycle.mjs
       - run: pnpm test:e2e:container
       - name: Upload Playwright report
         if: failure()

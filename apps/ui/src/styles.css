@@ -71,6 +71,7 @@
   --border-legacy-fallback: #3a3a40;
   --border-info: #4d6487;
   --shadow-translucent: #0008;
+  --shadow-dialog: #000b;
   --shadow-solid: #000;
 
   /* Text and accents. */
@@ -116,6 +117,27 @@
   --status-failed-marker: #d45b5b;
   --status-positive-border: #3c7a4b;
   --status-mismatch-text: #f0c878;
+
+  /*
+   * Component surfaces that carry their own palette rather than a status meaning: the disabled
+   * evaluation bar, the analysis engine's own running/ready states, and the shared region-state
+   * card. They live here so AC-3 holds — no raw core-app color outside this block.
+   */
+  --eval-off-border: #69717d;
+  --eval-off-surface: #565d68;
+  --eval-off-fill: #9aa3af;
+  --eval-off-text: #24272d;
+  --analysis-running-border: #547ba8;
+  --analysis-running-text: #b6d7fc;
+  --analysis-ready-border: #4f7f60;
+  --analysis-ready-text: #b9dfc3;
+  --region-state-border: #4c515d;
+  --region-state-surface: #181a1f;
+  --region-state-text: #c4c7ce;
+  --region-state-error-border: #9a5058;
+  --region-state-error-surface: #2c1d21;
+  --region-state-error-text: #ffc9cd;
+  --region-spinner-track: #4b5360;
 
   /* Motion. */
   --motion-fast: 120ms;
@@ -643,7 +665,7 @@ img,
 .bkl-cell:focus-visible {
   outline: var(--focus-ring) !important;
   outline-offset: -2px !important;
-  z-index: 1;
+  z-index: var(--z-content);
 }
 
 .eval-bar {
@@ -677,17 +699,17 @@ img,
 }
 
 .eval-bar.is-off {
-  border-color: #69717d;
-  background: #565d68;
+  border-color: var(--eval-off-border);
+  background: var(--eval-off-surface);
   opacity: 0.72;
 }
 
 .eval-bar.is-off .fill {
-  background: #9aa3af;
+  background: var(--eval-off-fill);
 }
 
 .eval-bar.is-off .score {
-  color: #24272d;
+  color: var(--eval-off-text);
 }
 
 .side-panel {
@@ -909,13 +931,13 @@ img,
 
 .analysis .analysis-state-starting,
 .analysis .analysis-state-analysing {
-  border-color: #547ba8;
-  color: #b6d7fc;
+  border-color: var(--analysis-running-border);
+  color: var(--analysis-running-text);
 }
 
 .analysis .analysis-state-ready {
-  border-color: #4f7f60;
-  color: #b9dfc3;
+  border-color: var(--analysis-ready-border);
+  color: var(--analysis-ready-text);
 }
 
 .analysis .analysis-state-offline {
@@ -1274,10 +1296,10 @@ img,
   gap: 0.65rem;
   margin-top: 1rem;
   padding: 0.85rem;
-  border: 1px dashed #4c515d;
+  border: 1px dashed var(--region-state-border);
   border-radius: 9px;
-  background: #181a1f;
-  color: #c4c7ce;
+  background: var(--region-state-surface);
+  color: var(--region-state-text);
   font-size: 0.8rem;
   line-height: 1.4;
 }
@@ -1286,16 +1308,16 @@ img,
   color: var(--muted);
 }
 .ui-region-state-error {
-  border-color: #9a5058;
-  background: #2c1d21;
-  color: #ffc9cd;
+  border-color: var(--region-state-error-border);
+  background: var(--region-state-error-surface);
+  color: var(--region-state-error-text);
 }
 .ui-region-spinner {
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
   margin-top: 0.1rem;
-  border: 2px solid #4b5360;
+  border: 2px solid var(--region-spinner-track);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: ui-region-spin 0.8s linear infinite;
@@ -2549,7 +2571,7 @@ img,
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 24px 80px #000b;
+  box-shadow: 0 24px 80px var(--shadow-dialog);
 }
 .ui-dialog-drawer {
   width: 360px;
