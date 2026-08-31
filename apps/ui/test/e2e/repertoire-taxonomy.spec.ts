@@ -14,11 +14,19 @@ import { touchTargetViolations } from "./helpers/accessibility";
 
 /** The five command-registry tools the panel exposes, by accessible name of the control. */
 const COMMAND_TOOLS = [
-  { command: "audit_repertoire_moves", action: "Audit" },
-  { command: "find_only_moves", action: "Find" },
-  { command: "find_structures", action: "Search" },
-  { command: "prep_vs_opponent", action: "Prepare" },
-  { command: "export_annotated_repertoire", action: "Generate" },
+  { command: "audit_repertoire_moves", action: "Audit", expectedArgs: { depth: 20 } },
+  {
+    command: "find_only_moves",
+    action: "Find",
+    expectedArgs: { max_positions: 60, depth: 20 },
+  },
+  { command: "find_structures", action: "Search", expectedArgs: { structure: "" } },
+  { command: "prep_vs_opponent", action: "Prepare", expectedArgs: { username: "" } },
+  {
+    command: "export_annotated_repertoire",
+    action: "Generate",
+    expectedArgs: { max_positions: 60, depth: 20 },
+  },
 ] as const;
 
 /** The four scan-store tools, asserted by their visible section label. */
@@ -48,21 +56,26 @@ test("WP-022 AC-2 each tool records the same command with the same arguments", a
   await openApp(page, { width: 1280, height: 800 });
   const panel = repertoirePanel(page);
 
-  for (const { command, action } of COMMAND_TOOLS) {
+  for (const { command, action, expectedArgs } of COMMAND_TOOLS) {
     await panel.getByRole("button", { name: action, exact: true }).click();
 
-    // commandStates is the recorded truth of what the panel asked for. Reading the arguments back
-    // makes the assertion independent of how the control is grouped or labelled.
-    const recorded = await page.evaluate(
-      (key) =>
-        (
-          window as unknown as {
-            __chess: { commandStates: () => Record<string, { args?: unknown } | undefined> };
-          }
-        ).__chess.commandStates()[key] ?? null,
-      command,
+    // This read-only DEV projection is set at executeCommand's single dispatch point, before the
+    // async browser command starts. It therefore records every argument the panel asked for even
+    // when an empty input makes the command itself fail later.
+    const recorded = await page.evaluate(() =>
+      (
+        window as unknown as {
+          __chess: {
+            lastDirectCommandRequest: () => {
+              command: string;
+              args: Record<string, unknown>;
+            } | null;
+          };
+        }
+      ).__chess.lastDirectCommandRequest(),
     );
-    expect(recorded, `${command} was dispatched`).not.toBeNull();
+    expect(recorded?.command, `${command} was dispatched`).toBe(command);
+    expect(recorded?.args, `${command} retained its exact arguments`).toEqual(expectedArgs);
   }
 });
 

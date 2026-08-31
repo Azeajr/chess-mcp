@@ -68,7 +68,8 @@ async function analyze(dialog: ReturnType<Page["getByRole"]>) {
   const action = dialog.getByRole("button", {
     name: /Analyze strategic fit|Retry analysis|Analyze again/,
   });
-  if (await action.isVisible()) await action.click();
+  await expect(action).toBeVisible();
+  await action.click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 20_000,
   });
@@ -165,7 +166,8 @@ test("WP-031 AC-4 the preflight counts and issue list survive the terminal state
   // WP-032 collapses completed preflight by default. Expand it before verifying that the original
   // counts and issue list remain intact beneath the disclosure.
   const preflightSummary = dialog.locator("[data-preflight-collapsed='true'] button");
-  if (await preflightSummary.isVisible()) await preflightSummary.click();
+  await expect(preflightSummary).toBeVisible();
+  await preflightSummary.click();
 
   // The preflight pane still reports its counts: the terminal state replaces the findings,
   // evidence, and resolution panes, not the payload that explains why.

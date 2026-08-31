@@ -57,20 +57,38 @@ async function openWorkspace(page: Page) {
   return dialog;
 }
 
-async function analyze(dialog: ReturnType<Page["getByRole"]>) {
-  const action = dialog.getByRole("button", {
-    name: /Analyze strategic fit|Retry analysis|Analyze again/,
-  });
-  if (await action.isVisible()) await action.click();
+async function expectCompletedAnalysis(dialog: ReturnType<Page["getByRole"]>) {
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
   // WP-032: completed preflight is intentionally compact. This canonical preflight suite validates
   // the unchanged counts and issue payload, so expand the disclosure before its existing assertions.
   const phaseSummary = dialog.locator("[data-progress-collapsed='true'] button");
-  if (await phaseSummary.isVisible()) await phaseSummary.click();
+  await expect(phaseSummary).toBeVisible();
+  await phaseSummary.click();
   const preflightSummary = dialog.locator("[data-preflight-collapsed='true'] button");
-  if (await preflightSummary.isVisible()) await preflightSummary.click();
+  await expect(preflightSummary).toBeVisible();
+  await preflightSummary.click();
+}
+
+async function expectAutoReanalysisCompleted(dialog: ReturnType<Page["getByRole"]>) {
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+    timeout: 15_000,
+  });
+  // The workspace preserves the disclosure state the user chose on the previous run. Assert that
+  // explicit alternative: both payloads remain expanded, rather than requiring a collapsed button
+  // that correctly no longer exists.
+  await expect(dialog.locator("[data-progress-collapsed='false']")).toBeVisible();
+  await expect(dialog.locator("[data-preflight-collapsed='false']")).toBeVisible();
+}
+
+async function analyze(dialog: ReturnType<Page["getByRole"]>) {
+  const action = dialog.getByRole("button", {
+    name: /Analyze strategic fit|Retry analysis|Analyze again/,
+  });
+  await expect(action).toBeVisible();
+  await action.click();
+  await expectCompletedAnalysis(dialog);
 }
 
 async function expectNoQualityVerdict(dialog: ReturnType<Page["getByRole"]>) {
@@ -377,7 +395,10 @@ test("transpositions, terminal routes, and offline opening evidence remain visib
   await expectNoQualityVerdict(dialog);
 
   await loadProfile(page, "1. f3 e5 2. g4 Qh4# *", "terminal.pgn");
-  await analyze(dialog);
+  // Replacing the document while the workspace remains open automatically starts a fresh run.
+  // This route has no Analyze button to click; assert that alternative contract directly rather
+  // than silently skipping an absent action and passing on stale state.
+  await expectAutoReanalysisCompleted(dialog);
   await expect(dialog.locator("[data-preflight-code='terminal-tactical-route']")).toContainText(
     "Terminal tactical route",
   );

@@ -94,6 +94,7 @@ import {
 } from "./store/strategic-fit-sidecar";
 import {
   commandStates,
+  lastDirectCommandRequest,
   recordDirectCommandForTesting,
   setCommandStateForTesting,
 } from "./store/commands";
@@ -131,6 +132,7 @@ if (import.meta.env.DEV) {
     fileName,
     setReopenHandleForTesting,
     commandStates,
+    lastDirectCommandRequest,
     setCommandStateForTesting,
     // WP-026 AC-4 e2e seam: seed the "last direct command" so the Retry button's guard
     // (a prior dispatch must exist) is satisfiable deterministically in specs.
