@@ -153,40 +153,55 @@ createEffect(() => {
     // Dedicated live worker (P1): browsing positions never queues behind a scan burst.
     // The continuation runs after the search resolves, outside any tracked scope on purpose: it
     // reports a finished operation rather than deriving reactive state.
-    // eslint-disable-next-line solid/reactivity
-    void analyseLive(f, MULTIPV, depth).then((res) => {
-      if (cancelled) return;
-      setAnalysing(false);
-      settleSilent(operationId, res ? "completed" : "failed");
-      if (!res) {
-        // Announce only on the offline transition, not per failed search — a dead engine would
-        // otherwise re-announce on every position change. engineOffline() is read once, here,
-        // as a plain value: this callback runs outside any tracked scope by design.
-        const wasOffline = engineOffline();
-        if (!wasOffline) announce("The chess engine went offline.", { assertive: true });
-        setEngineOffline(true);
-        setLines([]);
-        setArrows([]);
-        return;
-      }
-      setEngineOffline(false); // a later search succeeded — clear the sticky offline banner
-      const childSans = tree.childSansAt(path);
-      const keys = tree.allPositionKeys();
-      const lines: EngineLine[] = res.map((l) => {
-        const { san, fit } = classifyUciMove(f, l.uci, childSans, keys);
-        return {
-          uci: l.uci,
-          san,
-          fit,
-          weight: weightFor(l.cp, l.mate, col),
-          cp: l.cp,
-          mate: l.mate,
-          depth: l.depth,
-        };
-      });
-      setLines(lines);
-      setArrows(lines.map(toArrow));
-    });
+    void analyseLive(f, MULTIPV, depth).then(
+      // eslint-disable-next-line solid/reactivity
+      (res) => {
+        // A superseded pass still owns a registry entry. Returning without settling it leaves the
+        // operation running forever, which keeps runningOperations() permanently non-empty — that
+        // strands the activity strip and, because pwa/updates.ts gates the update prompt on an
+        // empty registry, suppresses the WP-019 prompt for the rest of the session.
+        if (cancelled) {
+          settleSilent(operationId, "completed");
+          return;
+        }
+        setAnalysing(false);
+        settleSilent(operationId, res ? "completed" : "failed");
+        if (!res) {
+          // Announce only on the offline transition, not per failed search — a dead engine would
+          // otherwise re-announce on every position change. engineOffline() is read once, here,
+          // as a plain value: this callback runs outside any tracked scope by design.
+          const wasOffline = engineOffline();
+          if (!wasOffline) announce("The chess engine went offline.", { assertive: true });
+          setEngineOffline(true);
+          setLines([]);
+          setArrows([]);
+          return;
+        }
+        setEngineOffline(false); // a later search succeeded — clear the sticky offline banner
+        const childSans = tree.childSansAt(path);
+        const keys = tree.allPositionKeys();
+        const lines: EngineLine[] = res.map((l) => {
+          const { san, fit } = classifyUciMove(f, l.uci, childSans, keys);
+          return {
+            uci: l.uci,
+            san,
+            fit,
+            weight: weightFor(l.cp, l.mate, col),
+            cp: l.cp,
+            mate: l.mate,
+            depth: l.depth,
+          };
+        });
+        setLines(lines);
+        setArrows(lines.map(toArrow));
+      },
+      // A rejected search owns the same entry and must release it too.
+      () => {
+        settleSilent(operationId, "failed");
+        if (cancelled) return;
+        setAnalysing(false);
+      },
+    );
   }, 180);
 
   onCleanup(() => {

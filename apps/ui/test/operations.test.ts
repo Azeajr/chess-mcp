@@ -8,6 +8,7 @@ import {
   runningOperations,
   settleOperation,
   updateOperation,
+  updateOperationStatus,
 } from "../src/store/operations.ts";
 import { resetAnnouncementsForTesting, announcementLogForTesting } from "../src/store/announce.ts";
 
@@ -125,4 +126,41 @@ test("multiple operations from different surfaces coexist", () => {
     "chat",
     "repertoire",
   ]);
+});
+
+/**
+ * The registry is what `pwa/updates.ts` gates the WP-019 update prompt on: the prompt is visible
+ * only while `runningOperations()` is empty. An owner that abandons an entry without settling it
+ * therefore does not merely strand the activity strip — it suppresses the update prompt for the
+ * rest of the session. `store/analysis.ts` did exactly that for every superseded live pass, so
+ * this pins the invariant every owner has to hold.
+ */
+test("an abandoned operation would block every registry consumer until it settles", () => {
+  const superseded = registerOperation({
+    kind: "live-analysis",
+    label: "Live engine analysis",
+    surface: "analysis",
+  });
+  assert.equal(runningOperations().length, 1);
+
+  // A superseded pass settles quietly rather than returning early and leaking the entry.
+  updateOperationStatus(superseded, "completed");
+  assert.equal(
+    runningOperations().length,
+    0,
+    "a superseded owner must release its entry so the registry can drain",
+  );
+  assert.equal(operations()[0].status, "completed");
+});
+
+test("a quiet settle releases the entry without announcing", () => {
+  const id = registerOperation({ kind: "live-analysis", label: "Live pass", surface: "analysis" });
+  resetAnnouncementsForTesting();
+  updateOperationStatus(id, "failed");
+  assert.equal(runningOperations().length, 0);
+  assert.equal(
+    announcementLogForTesting().length,
+    0,
+    "live analysis settles many times a minute; announcing each is the WP-009 speech flood",
+  );
 });
