@@ -194,6 +194,40 @@ function total(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
+/**
+ * Convert finite non-negative magnitudes to shares without summing the raw scale. Dividing by the
+ * maximum first preserves every ratio while bounding the intermediate sum to `values.length`:
+ * two contract-valid 1e308 values therefore become [0.5, 0.5] instead of 1e308 / Infinity = 0.
+ * An all-zero set has no ratio, so its explicit fallback is equal shares.
+ */
+function normalizedShares(values: readonly number[]): number[] {
+  if (values.length === 0) return [];
+  const maximum = values.reduce((current, value) => Math.max(current, value), 0);
+  if (maximum === 0) return values.map(() => 1 / values.length);
+  // Preserve the established arithmetic (and its observable bit patterns such as exactly 0.9)
+  // whenever the raw sum is safe. Scale only on overflow.
+  const rawTotal = total(values);
+  const result = Number.isFinite(rawTotal)
+    ? values.map((value) => value / rawTotal)
+    : (() => {
+        const scaled = values.map((value) => value / maximum);
+        const scaledTotal = total(scaled);
+        return scaled.map((value) => value / scaledTotal);
+      })();
+  if (result.some((value) => !Number.isFinite(value))) {
+    throw new Error("strategic_fit_weights_non_finite_normalization");
+  }
+  return result;
+}
+
+/** Mean of finite non-negative magnitudes without an overflowing raw sum. */
+function scaledMean(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const maximum = values.reduce((current, value) => Math.max(current, value), 0);
+  if (maximum === 0) return 0;
+  return maximum * (total(values.map((value) => value / maximum)) / values.length);
+}
+
 function validateWeight(weight: number, identity: string): void {
   if (!Number.isFinite(weight) || weight < 0) {
     throw new Error(`strategic_fit_weights_invalid_weight: ${identity}`);
@@ -245,10 +279,18 @@ function mergeProvenance(
 /** Frozen effective-sample formula. Zero total weight has no effective observations. */
 export function calculateEffectiveSampleSize(weights: readonly number[]): number {
   for (const [index, weight] of weights.entries()) validateWeight(weight, `sample:${index}`);
-  const weightSum = total(weights);
-  if (weightSum === 0) return 0;
-  const squaredSum = total(weights.map((weight) => weight * weight));
-  return (weightSum * weightSum) / squaredSum;
+  if (weights.length === 0) return 0;
+  const maximum = weights.reduce((current, weight) => Math.max(current, weight), 0);
+  if (maximum === 0) return 0;
+  // ESS is scale invariant. Work on values divided by the maximum so neither Σw nor Σw² can
+  // overflow for contract-valid finite inputs such as [1e308, 1e308].
+  const scaled = weights.map((weight) => weight / maximum);
+  const weightSum = total(scaled);
+  const squaredSum = total(scaled.map((weight) => weight * weight));
+  const result = (weightSum * weightSum) / squaredSum;
+  if (!Number.isFinite(result))
+    throw new Error("strategic_fit_weights_non_finite_effective_sample");
+  return result;
 }
 
 function groupOpponentDecisions(
@@ -315,13 +357,13 @@ function conditionalDecisionWeights(
       values = values.map((value) => ({ ...value, raw: 1, resolution: "equal-fallback" as const }));
     }
 
-    const siblingTotal = total(values.map((value) => value.raw));
+    const shares = normalizedShares(values.map((value) => value.raw));
     result.push(
-      ...values.map((value) => ({
+      ...values.map((value, index) => ({
         decision_id: value.decision.decision_id,
         from_position_id: positionId,
         raw_weight: value.raw,
-        normalized_weight: value.raw / siblingTotal,
+        normalized_weight: assertDefined(shares[index]),
         resolution: value.resolution,
         provenance: mergeProvenance([CORE_PROVENANCE], value.input?.provenance ?? []),
       })),
@@ -509,18 +551,16 @@ function calculateBaseStrategicRouteWeights(
       terminalPositionId,
       members: members.sort((left, right) => compareStrings(left.routeId, right.routeId)),
       // An equivalent move order may redistribute weight, but cannot create another observation.
-      score: total(members.map((member) => member.score)) / members.length,
+      score: scaledMean(members.map((member) => member.score)),
     }))
     .sort((left, right) => compareStrings(left.terminalPositionId, right.terminalPositionId));
-  const rawUnitTotal = total(rawUnits.map((unit) => unit.score));
-  const unitDenominator = rawUnitTotal > 0 ? rawUnitTotal : rawUnits.length;
+  const unitShares = normalizedShares(rawUnits.map((unit) => unit.score));
 
   const routeResults: StrategicNormalizedRouteWeight[] = [];
   const weightingUnits: StrategicRouteWeightingUnit[] = [];
-  for (const unit of rawUnits) {
-    const unitWeight = (rawUnitTotal > 0 ? unit.score : 1) / unitDenominator;
-    const memberTotal = total(unit.members.map((member) => member.score));
-    const memberDenominator = memberTotal > 0 ? memberTotal : unit.members.length;
+  for (const [unitIndex, unit] of rawUnits.entries()) {
+    const unitWeight = assertDefined(unitShares[unitIndex]);
+    const memberShares = normalizedShares(unit.members.map((member) => member.score));
     weightingUnits.push({
       weighting_unit_id: unit.terminalPositionId,
       terminal_position_id: unit.terminalPositionId,
@@ -528,13 +568,13 @@ function calculateBaseStrategicRouteWeights(
       normalized_weight: unitWeight,
     });
     routeResults.push(
-      ...unit.members.map((member) => ({
+      ...unit.members.map((member, memberIndex) => ({
         route_id: member.routeId,
         terminal_position_id: member.terminalPositionId,
         weighting_unit_id: unit.terminalPositionId,
         opponent_probability: member.opponentProbability,
         route_factor: member.routeFactor,
-        normalized_weight: unitWeight * ((memberTotal > 0 ? member.score : 1) / memberDenominator),
+        normalized_weight: unitWeight * assertDefined(memberShares[memberIndex]),
         resolution: member.resolution,
         provenance: member.provenance,
       })),

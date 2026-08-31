@@ -47,12 +47,14 @@ const EVIDENCE: StrategicFitPlanEvidence = {
     {
       drill_id: "strategic-fit-drill:one",
       expected_san: "Nf3",
+      source_san_path: ["e4", "e5"],
       source: "causal-move",
       checkpoint_id: null,
     },
     {
       drill_id: "strategic-fit-drill:two",
       expected_san: "Bb5",
+      source_san_path: ["e4", "e5", "Nf3", "Nc6"],
       source: "checkpoint",
       checkpoint_id: "checkpoint:second",
     },
@@ -177,6 +179,35 @@ test("a section must cite evidence, and only evidence this finding returned", ()
   );
 });
 
+test("moves from mutually exclusive branches cannot be combined into one plan line", () => {
+  const branched: StrategicFitPlanEvidence = {
+    ...EVIDENCE,
+    san_paths: [
+      ["e4", "e5", "Nf3"],
+      ["d4", "d5", "c4"],
+    ],
+    moves: ["c4", "d4", "d5", "e4", "e5", "Nf3"],
+  };
+  assert.equal(
+    code(section({ text: "Play e4, then answer with d5." }), branched),
+    "strategic_fit_plan_unsupported_move",
+    "each token exists in the evidence union, but no validated path contains the sequence",
+  );
+  assert.equal(
+    code(
+      section({
+        kind: "model-position",
+        text: "Play d4 from this drill position.",
+        concept_ids: undefined,
+        drill_ids: ["strategic-fit-drill:one"],
+      }),
+      branched,
+    ),
+    "strategic_fit_plan_unsupported_move",
+    "a drill-anchored section is validated against that drill's source path, not another branch",
+  );
+});
+
 test("a move the validated paths do not contain cannot be written into a plan", () => {
   assert.equal(
     code(section({ text: "Prepare the f5 break as soon as the center is closed." })),
@@ -201,9 +232,27 @@ test("a move the validated paths do not contain cannot be written into a plan", 
   assert.deepEqual(strategicFitPlanMoveMentions("Play Nf3! then O-O, not 15.Qxd8+."), [
     "Nf3",
     "O-O",
-    "Qxd8",
+    "Qxd8+",
   ]);
   assert.deepEqual(strategicFitPlanMoveMentions("Keep the pieces active and the king safe."), []);
+});
+
+test("checking and mating SAN remain canonical evidence mentions", () => {
+  const evidence: StrategicFitPlanEvidence = {
+    ...EVIDENCE,
+    san_paths: [...EVIDENCE.san_paths, ["Qxd8+"], ["Qh7#"]],
+    moves: [...EVIDENCE.moves, "Qxd8+", "Qh7#"],
+  };
+  const checking = resolveStrategicFitPlanCard(
+    section({ text: "After Qxd8+, consolidate.", concept_ids: ["concept:center-control"] }),
+    evidence,
+  );
+  const mating = resolveStrategicFitPlanCard(
+    section({ text: "Finish with Qh7#.", concept_ids: ["concept:center-control"] }),
+    evidence,
+  );
+  assert.deepEqual(checking.sections[0]!.cited_moves, ["Qxd8+"]);
+  assert.deepEqual(mating.sections[0]!.cited_moves, ["Qh7#"]);
 });
 
 test("an outside model game is refused however it is introduced", () => {

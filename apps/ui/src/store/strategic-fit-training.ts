@@ -329,6 +329,7 @@ export function strategicFitPlanEvidenceForRecord(
     drills: drills.map((drill) => ({
       drill_id: drill.drill_id,
       expected_san: drill.expected_san,
+      source_san_path: drill.source_san_path.slice(0, limits.evidence_san_path_plies),
       source: drill.source,
       checkpoint_id: drill.checkpoint_id,
     })),

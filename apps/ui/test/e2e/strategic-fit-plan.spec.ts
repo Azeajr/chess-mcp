@@ -38,6 +38,7 @@ const basis = (overrides: Record<string, unknown> = {}) => ({
     {
       drill_id: "strategic-fit-drill:one",
       expected_san: "Nf3",
+      source_san_path: ["e4", "e5"],
       source: "causal-move",
       checkpoint_id: null,
     },

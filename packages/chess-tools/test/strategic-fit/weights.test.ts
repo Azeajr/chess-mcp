@@ -127,6 +127,23 @@ test("a dominant manually supplied route weight remains deterministic and normal
   }
 });
 
+test("extreme finite route weights preserve their ratios without overflowing", () => {
+  const graph = blackGraph();
+  const result = calculateStrategicRouteWeights(graph, {
+    mode: "manual",
+    route_weights: graph.routes.map((route, index) => ({
+      route_id: route.route_id,
+      weight: index === 0 ? 1e308 : 5e307,
+    })),
+  });
+
+  const total = result.routes.reduce((sum, route) => sum + route.normalized_weight, 0);
+  assert.ok(result.routes.every((route) => Number.isFinite(route.normalized_weight)));
+  close(total, 1);
+  assert.ok(result.weighting_units.every((unit) => Number.isFinite(unit.normalized_weight)));
+  assert.ok(Number.isFinite(result.effective_sample_size));
+});
+
 test("external opponent-decision weights retain provenance and disclose missing siblings", () => {
   const graph = blackGraph();
   const e4 = routeByFirstSan(graph, "e4");
@@ -170,6 +187,30 @@ test("external opponent-decision weights retain provenance and disclose missing 
       .find((decision) => decision.decision_id === rootDecision.decision_id)!
       .provenance.some((source) => source.source_id === EXTERNAL_PROVENANCE.source_id),
   );
+});
+
+test("extreme finite opponent-decision weights normalize without collapsing to zero", () => {
+  const graph = blackGraph();
+  const root = graph.decisions.filter(
+    (decision) =>
+      decision.owner === "opponent" && decision.from_position_id === graph.root_position_id,
+  );
+  const result = calculateStrategicRouteWeights(graph, {
+    mode: "external",
+    decision_weights: root.map((decision) => ({
+      decision_id: decision.decision_id,
+      weight: 1e308,
+    })),
+  });
+  const normalized = result.opponent_decisions.filter((decision) =>
+    root.some((entry) => entry.decision_id === decision.decision_id),
+  );
+  assert.ok(normalized.every((entry) => Number.isFinite(entry.normalized_weight)));
+  close(
+    normalized.reduce((sum, entry) => sum + entry.normalized_weight, 0),
+    1,
+  );
+  for (const entry of normalized) close(entry.normalized_weight, 1 / normalized.length);
 });
 
 test("missing and all-zero external weights fall back explicitly to equal evidence", () => {
@@ -237,6 +278,12 @@ test("effective sample size follows the frozen sum-squared formula", () => {
   close(calculateEffectiveSampleSize([1, 2, 3]), 36 / 14);
   assert.equal(calculateEffectiveSampleSize([0, 0, 0]), 0);
   assert.equal(calculateEffectiveSampleSize([0.9, 0.05, 0.05]), 1 / (0.81 + 0.0025 + 0.0025));
+  assert.equal(
+    calculateEffectiveSampleSize([1e308, 1e308]),
+    2,
+    "the scale-invariant formula must not turn Infinity / Infinity into NaN",
+  );
+  close(calculateEffectiveSampleSize([1e308, 5e307]), 1.8);
   assert.throws(
     () => calculateEffectiveSampleSize([1, -1]),
     /strategic_fit_weights_invalid_weight/,

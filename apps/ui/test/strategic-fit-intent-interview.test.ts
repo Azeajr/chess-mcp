@@ -207,6 +207,61 @@ test("patch resolution rejects out-of-range values and invented concepts instead
   );
 });
 
+test("a patch cannot add an avoided concept that the existing profile already prefers", () => {
+  const base = createDefaultStrategicFitDocumentMetadata();
+  const initial: StrategicFitDocumentMetadata = {
+    ...base,
+    profile: {
+      ...base.profile,
+      mode: "custom",
+      source: "explicit",
+      provisional: false,
+      preferences: {
+        ...base.profile.preferences,
+        preferred_concept_ids: [CONCEPT],
+        avoided_concept_ids: [],
+      },
+    },
+  };
+  const session = interview(initial);
+
+  assert.throws(
+    () =>
+      session.state.propose({
+        preferences: { avoided_concept_ids: [CONCEPT] },
+        rationale: "A later message cannot contradict already confirmed intent.",
+      }),
+    (error: { code?: string }) => error.code === "strategic_fit_intent_conflicting_concepts",
+  );
+  assert.equal(session.state.proposals().length, 0, "the contradictory result is never staged");
+  assert.equal(session.writes(), 0, "validation changes no profile metadata");
+});
+
+test("a patch cannot add a preferred concept that the existing profile already avoids", () => {
+  const base = createDefaultStrategicFitDocumentMetadata();
+  const initial: StrategicFitDocumentMetadata = {
+    ...base,
+    profile: {
+      ...base.profile,
+      mode: "custom",
+      source: "explicit",
+      provisional: false,
+      preferences: {
+        ...base.profile.preferences,
+        preferred_concept_ids: [],
+        avoided_concept_ids: [CONCEPT],
+      },
+    },
+  };
+  const session = interview(initial);
+
+  assert.throws(
+    () => session.state.propose({ preferences: { preferred_concept_ids: [CONCEPT] } }),
+    (error: { code?: string }) => error.code === "strategic_fit_intent_conflicting_concepts",
+  );
+  assert.equal(session.state.proposals().length, 0);
+});
+
 test("a proposal reports the exact diff and persists nothing until it is accepted", () => {
   const session = interview();
   const before = session.profile();

@@ -121,6 +121,18 @@ function staleReason(
   return null;
 }
 
+function assertConceptPreferencesDoNotConflict(profile: StrategicFitProfile): void {
+  const preferred = new Set(profile.preferences.preferred_concept_ids);
+  const overlap = profile.preferences.avoided_concept_ids.filter((concept) =>
+    preferred.has(concept),
+  );
+  if (overlap.length === 0) return;
+  throw new StrategicFitIntentError(
+    "strategic_fit_intent_conflicting_concepts",
+    `${overlap.join(", ")} cannot be preferred and avoided at the same time. Ask the user which one they meant instead of choosing for them.`,
+  );
+}
+
 export function createStrategicFitIntentInterviewState(
   boundary: StrategicFitIntentInterviewBoundary,
 ): StrategicFitIntentInterviewState {
@@ -161,6 +173,12 @@ export function createStrategicFitIntentInterviewState(
               basePreferences,
             ),
           };
+      // resolveStrategicFitIntentPatch can reject a conflict when both lists occur in one patch,
+      // but a one-sided patch is merged with confirmed preferences here. Validate that effective
+      // result too, before computing a diff or staging anything: otherwise a later "avoid X" can
+      // coexist with the already-confirmed "prefer X", and replacement scoring gives avoidance
+      // precedence and silently forces intent fit to zero.
+      assertConceptPreferencesDoNotConflict(resulting);
       const diff = diffStrategicFitProfiles(current, resulting);
       const confirmsProvisional = current.provisional || current.source === "inferred";
       // A value-identical proposal against a still-provisional profile is not empty: accepting it

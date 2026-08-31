@@ -95,6 +95,8 @@ export interface StrategicFitPlanCheckpointEvidence {
 export interface StrategicFitPlanDrillEvidence {
   readonly drill_id: string;
   readonly expected_san: string;
+  /** Bounded route to the position where `expected_san` is the legal answer. */
+  readonly source_san_path: readonly string[];
   readonly source: string;
   readonly checkpoint_id: string | null;
 }
@@ -190,7 +192,10 @@ export function strategicFitPlanEvidenceIdentity(evidence: StrategicFitPlanEvide
       concept_ids: [...evidence.concept_ids].sort(compareStrings),
       checkpoint_ids: evidence.checkpoints.map((entry) => entry.checkpoint_id).sort(compareStrings),
       drills: [...evidence.drills]
-        .map((entry) => `${entry.drill_id}${entry.expected_san}`)
+        .map(
+          (entry) =>
+            `${entry.drill_id}\u001f${entry.source_san_path.join("\u001e")}\u001f${entry.expected_san}`,
+        )
         .sort(compareStrings),
       causal_move_san: evidence.causal_move_san,
       moves: [...evidence.moves].sort(compareStrings),
@@ -199,7 +204,7 @@ export function strategicFitPlanEvidenceIdentity(evidence: StrategicFitPlanEvide
 }
 
 const SAN_PATTERN =
-  /^(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=[QRBN])?)$/;
+  /^(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=[QRBN])?)[+#]?$/;
 /**
  * A citation of an external game. Deterministic Strategic Fit evidence never contains a calendar
  * year or a hyphenated pair of surnames, so either one means the model reached outside the evidence
@@ -208,15 +213,64 @@ const SAN_PATTERN =
 const GAME_YEAR_PATTERN = /\b(?:1[5-9]\d{2}|20\d{2})\b/;
 const GAME_PAIRING_PATTERN = /\b[A-Z][a-z]+\s*[–—-]\s*[A-Z][a-z]+\b/;
 
-/** Split prose into candidate SAN tokens; move numbers, punctuation, and glyphs fall away. */
+/** Split prose into candidate canonical SAN tokens in mention order, including repeats. */
+function strategicFitPlanMoveSequence(text: string): string[] {
+  return text.split(/[^A-Za-z0-9=+#-]+/).filter((raw) => raw.length > 0 && SAN_PATTERN.test(raw));
+}
+
+/** Public citation projection: stable first-mention order with duplicate prose references removed. */
 export function strategicFitPlanMoveMentions(text: string): string[] {
-  const mentions: string[] = [];
-  for (const raw of text.split(/[^A-Za-z0-9=+#-]+/)) {
-    const token = raw.replace(/[+#]+$/, "");
-    if (token.length === 0) continue;
-    if (SAN_PATTERN.test(token) && !mentions.includes(token)) mentions.push(token);
+  return [...new Set(strategicFitPlanMoveSequence(text))];
+}
+
+function isOrderedSubsequence(mentions: readonly string[], path: readonly string[]): boolean {
+  let index = 0;
+  for (const move of path) {
+    if (move === mentions[index]) index++;
+    if (index === mentions.length) return true;
   }
-  return mentions;
+  return mentions.length === 0;
+}
+
+function drillSequence(drill: StrategicFitPlanDrillEvidence): readonly string[] {
+  return [...drill.source_san_path, drill.expected_san];
+}
+
+function evidenceMoveSequences(
+  evidence: StrategicFitPlanEvidence,
+  drillIds: readonly string[] = [],
+): readonly (readonly string[])[] {
+  if (drillIds.length > 0) {
+    const selected = new Set(drillIds);
+    return evidence.drills.filter((drill) => selected.has(drill.drill_id)).map(drillSequence);
+  }
+  return [
+    ...evidence.san_paths,
+    ...evidence.drills.map(drillSequence),
+    ...(evidence.causal_move_san === null ? [] : [[evidence.causal_move_san]]),
+  ];
+}
+
+function assertMoveSequenceSupported(
+  mentions: readonly string[],
+  sequences: readonly (readonly string[])[],
+  moves: ReadonlySet<string>,
+  field: string,
+  evidence: StrategicFitPlanEvidence,
+): void {
+  const unsupported = mentions.find((mention) => !moves.has(mention));
+  if (unsupported !== undefined) {
+    throw new StrategicFitPlanError(
+      "strategic_fit_plan_unsupported_move",
+      `${field} mentions ${unsupported}, which is not a move on any validated path for this finding. Playable moves here are: ${evidence.moves.join(", ") || "none were returned"}. A move outside them needs its own legality result and cannot be saved into a plan card.`,
+    );
+  }
+  if (mentions.length > 0 && !sequences.some((path) => isOrderedSubsequence(mentions, path))) {
+    throw new StrategicFitPlanError(
+      "strategic_fit_plan_unsupported_move",
+      `${field} combines ${mentions.join(" ")}, but that ordered sequence occurs on no validated path${sequences.length === 0 ? " because no path evidence was returned" : ""}. Cite one retained path or one cited drill; moves from mutually exclusive branches cannot be saved as one line.`,
+    );
+  }
 }
 
 function invalidValue(field: string, requirement: string): never {
@@ -338,16 +392,15 @@ function section(
       `${path} is a model position but cites no drill. A position to play through must be one of the finding's legal drill positions; this operation cannot introduce a position of its own.`,
     );
   }
-  const citedMoves: string[] = [];
-  for (const mention of strategicFitPlanMoveMentions(text)) {
-    if (!moves.has(mention)) {
-      throw new StrategicFitPlanError(
-        "strategic_fit_plan_unsupported_move",
-        `${path}.text mentions ${mention}, which is not a move on any validated path for this finding. Playable moves here are: ${evidence.moves.join(", ") || "none were returned"}. A move outside them needs its own legality result and cannot be saved into a plan card.`,
-      );
-    }
-    citedMoves.push(mention);
-  }
+  const mentionSequence = strategicFitPlanMoveSequence(text);
+  assertMoveSequenceSupported(
+    mentionSequence,
+    evidenceMoveSequences(evidence, drillIds),
+    moves,
+    `${path}.text`,
+    evidence,
+  );
+  const citedMoves = [...new Set(mentionSequence)];
   return {
     kind,
     text,
@@ -417,13 +470,14 @@ export function resolveStrategicFitPlanCard(
   const sections = input.sections.map((entry, index) =>
     section(entry, index, evidence, concepts, checkpoints, drills, moves),
   );
-  const titleMention = strategicFitPlanMoveMentions(title).find((mention) => !moves.has(mention));
-  if (titleMention !== undefined) {
-    throw new StrategicFitPlanError(
-      "strategic_fit_plan_unsupported_move",
-      `plan.title mentions ${titleMention}, which is not a move on any validated path for this finding.`,
-    );
-  }
+  const titleMentions = strategicFitPlanMoveSequence(title);
+  assertMoveSequenceSupported(
+    titleMentions,
+    evidenceMoveSequences(evidence),
+    moves,
+    "plan.title",
+    evidence,
+  );
   return {
     plan_card_version: STRATEGIC_FIT_PLAN_CARD_VERSION,
     title,
