@@ -85,11 +85,23 @@ const error = (
   metadata_issues: metadataIssues,
 });
 
+/**
+ * Code-unit ordering, not locale collation.
+ *
+ * `localeCompare` uses the runtime's default collation, which varies with locale and ICU build —
+ * so a "stable" serialisation could differ byte-for-byte across supported environments for
+ * non-ASCII keys, breaking deterministic exports and byte-level comparison. This matches the
+ * `compareStrings` helper the sibling deterministic modules already use.
+ */
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function stableJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   return `{${Object.entries(value as RecordLike)
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => compareCodeUnits(left, right))
     .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
     .join(",")}}`;
 }
@@ -323,7 +335,7 @@ function mergedRecords<T>(
   const incomingIds = [...incomingById.keys()].sort();
   return {
     records: [...records.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareCodeUnits(left, right))
       .map(([, entry]) => entry),
     preview: {
       added: incomingIds.filter((id) => !localById.has(id)),
@@ -501,7 +513,7 @@ export function exportStrategicFitIntentPgn(
 
   const resolutions = metadata.resolutions
     .filter((entry) => entry.record_state === "active" && entry.semantic_finding_id !== null)
-    .sort((left, right) => resolutionIdentity(left).localeCompare(resolutionIdentity(right)))
+    .sort((left, right) => compareCodeUnits(resolutionIdentity(left), resolutionIdentity(right)))
     .slice(0, maxResolutions);
   for (const resolution of resolutions) {
     const detail = [
@@ -528,7 +540,7 @@ export function exportStrategicFitIntentPgn(
   }
 
   const findings = [...(options.findings ?? [])]
-    .sort((left, right) => left.finding_id.localeCompare(right.finding_id))
+    .sort((left, right) => compareCodeUnits(left.finding_id, right.finding_id))
     .slice(0, maxFindings);
   for (const finding of findings) {
     const text = commentText(

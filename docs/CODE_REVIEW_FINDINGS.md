@@ -50,8 +50,10 @@ red, so all three had to land in one change.
 | F14     | **Fixed** — the documented safe-by-default invariant is now real: `game.ts`'s single `setPath` writer clears the marker for every navigation route                            |
 | F15     | **Fixed** — AC-1 seeds a known persisted width and compares unconditionally; AC-5's constant-`true` expression is replaced by its two real halves                             |
 | F16     | **Fixed** — AC-2 now selects a finding and asserts `toHaveCount(1)`; it had been counting zeros, so deleting all three controls would have kept it green                      |
-| F17     | **Partially fixed** — `a85ca7c` re-enabled UX-005 and made it meaningful; the self-skipping large-report scenario remains open                                                |
-| F18–F22 | Open                                                                                                                                                                          |
+| F17     | **Fixed** — `a85ca7c` re-enabled UX-005; the large-report paging scenario now asserts its multi-page precondition instead of skipping on it                                   |
+| F18     | **Fixed** — Firefox/WebKit exclude by `@visual`/`@engine-bound` tag rather than by file; 125 tests now run cross-browser, with 5 measured engine-bound exceptions             |
+| F19     | **Fixed** — the four `localeCompare` sorts in `metadata-sidecar.ts` use code-unit ordering, so exports are byte-identical across locales                                      |
+| F20–F22 | Open                                                                                                                                                                          |
 
 ## Severity summary
 

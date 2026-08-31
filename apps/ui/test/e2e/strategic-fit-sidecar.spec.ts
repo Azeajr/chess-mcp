@@ -177,41 +177,52 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
   ).toEqual(["concept:imported"]);
 });
 
-test("sidecar UI rejects malformed and stale/cross-document previews without mutation", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await waitForMetadata(page);
-  await portability(page);
-  const picker = page.getByLabel("Choose Strategic Fit metadata JSON");
-  await picker.setInputFiles({
-    name: "broken.json",
-    mimeType: "application/json",
-    buffer: Buffer.from("{"),
-  });
-  await expect(page.getByRole("alert")).toContainText("not valid JSON");
+/*
+ * @engine-bound: the stale/cross-document leg deliberately clicks a *disabled* native button to
+ * prove the guard holds. Chromium dispatches the click and the assertion observes the rejection;
+ * Firefox and WebKit refuse to click a disabled element at all, so Playwright's actionability
+ * check times out. The behaviour under test is engine-independent, but this way of exercising it
+ * is not.
+ */
+test(
+  "sidecar UI rejects malformed and stale/cross-document previews without mutation",
+  {
+    tag: "@engine-bound",
+  },
+  async ({ page }) => {
+    await page.goto("/");
+    await waitForMetadata(page);
+    await portability(page);
+    const picker = page.getByLabel("Choose Strategic Fit metadata JSON");
+    await picker.setInputFiles({
+      name: "broken.json",
+      mimeType: "application/json",
+      buffer: Buffer.from("{"),
+    });
+    await expect(page.getByRole("alert")).toContainText("not valid JSON");
 
-  const incoming = await chess(page, (api) => ({
-    sidecar_kind: "chess-mcp/strategic-fit-sidecar",
-    sidecar_version: "1.0.0",
-    document_id: api.documentId(),
-    metadata: api.strategicFitMetadata(),
-  }));
-  await picker.setInputFiles({
-    name: "stale.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(incoming)),
-  });
-  await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
-  await page.getByRole("button", { name: "Confirm metadata import" }).click();
-  await expect(page.getByRole("alert")).toContainText("changed after this preview");
-  expect(
-    await chess(
-      page,
-      (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
-    ),
-  ).toEqual([]);
-});
+    const incoming = await chess(page, (api) => ({
+      sidecar_kind: "chess-mcp/strategic-fit-sidecar",
+      sidecar_version: "1.0.0",
+      document_id: api.documentId(),
+      metadata: api.strategicFitMetadata(),
+    }));
+    await picker.setInputFiles({
+      name: "stale.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(incoming)),
+    });
+    await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
+    await page.getByRole("button", { name: "Confirm metadata import" }).click();
+    await expect(page.getByRole("alert")).toContainText("changed after this preview");
+    expect(
+      await chess(
+        page,
+        (api) => api.strategicFitMetadata().profile.preferences.preferred_concept_ids,
+      ),
+    ).toEqual([]);
+  },
+);
 
 test("portable intent PGN saves through the canonical UI command and reparses without changing the source", async ({
   page,

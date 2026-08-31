@@ -86,119 +86,140 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 25_000
   return dialog;
 }
 
-test("a large report bounds mounted finding rows while the queue reports its logical totals", async ({
-  page,
-}) => {
-  test.slow();
-  const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-queue.pgn");
-  const before = await chess(page, (api) => api.toPgn());
+/*
+ * @engine-bound: both scenarios below run a real Strategic Fit scan over LARGE_REPERTOIRE. On
+ * WebKit that scan does not reach `completed` inside the 25 s analysis budget, so the tests fail on
+ * scan throughput rather than on the paging behaviour they assert. Chromium and Firefox cover the
+ * behaviour; re-measure before widening.
+ */
+test(
+  "a large report bounds mounted finding rows while the queue reports its logical totals",
+  {
+    tag: "@engine-bound",
+  },
+  async ({ page }) => {
+    test.slow();
+    const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-queue.pgn");
+    const before = await chess(page, (api) => api.toPgn());
 
-  const queue = dialog.locator(".strategic-fit-finding-queue");
-  await expect(queue).toHaveAttribute("data-queue-status", "ready", { timeout: 20_000 });
-  const list = queue.locator("[data-finding-list]");
-  const total = Number(await list.getAttribute("data-finding-rows-total"));
-  expect(total).toBeGreaterThan(6);
+    const queue = dialog.locator(".strategic-fit-finding-queue");
+    await expect(queue).toHaveAttribute("data-queue-status", "ready", { timeout: 20_000 });
+    const list = queue.locator("[data-finding-list]");
+    const total = Number(await list.getAttribute("data-finding-rows-total"));
+    expect(total).toBeGreaterThan(6);
 
-  const mounted = Number(await list.getAttribute("data-finding-rows-mounted"));
-  expect(mounted).toBeLessThanOrEqual(6);
-  await expect(list.locator("> li")).toHaveCount(mounted);
+    const mounted = Number(await list.getAttribute("data-finding-rows-mounted"));
+    expect(mounted).toBeLessThanOrEqual(6);
+    await expect(list.locator("> li")).toHaveCount(mounted);
 
-  // Screen readers navigate the logical total, not the mounted rows.
-  await expect(list).toHaveAttribute("aria-label", new RegExp(`of ${total} matching`, "u"));
-  await expect(list.locator("> li").first()).toHaveAttribute("aria-setsize", String(total));
-  await expect(list.locator("> li").first()).toHaveAttribute("aria-posinset", "1");
+    // Screen readers navigate the logical total, not the mounted rows.
+    await expect(list).toHaveAttribute("aria-label", new RegExp(`of ${total} matching`, "u"));
+    await expect(list.locator("> li").first()).toHaveAttribute("aria-setsize", String(total));
+    await expect(list.locator("> li").first()).toHaveAttribute("aria-posinset", "1");
 
-  expect(await chess(page, (api) => api.toPgn())).toBe(before);
-});
+    expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  },
+);
 
-test("a selected finding that pages off screen stays selected and stays reachable", async ({
-  page,
-}) => {
-  test.slow();
-  const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-selection.pgn");
-  const before = await chess(page, (api) => api.toPgn());
+test(
+  "a selected finding that pages off screen stays selected and stays reachable",
+  {
+    tag: "@engine-bound",
+  },
+  async ({ page }) => {
+    test.slow();
+    const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-selection.pgn");
+    const before = await chess(page, (api) => api.toPgn());
 
-  const queue = dialog.locator(".strategic-fit-finding-queue");
-  await expect(queue).toHaveAttribute("data-queue-status", "ready", { timeout: 20_000 });
-  const list = queue.locator("[data-finding-list]");
-  const total = Number(await list.getAttribute("data-finding-rows-total"));
-  test.skip(total <= 6, "this fixture produced a single page of findings");
+    const queue = dialog.locator(".strategic-fit-finding-queue");
+    await expect(queue).toHaveAttribute("data-queue-status", "ready", { timeout: 20_000 });
+    const list = queue.locator("[data-finding-list]");
+    const total = Number(await list.getAttribute("data-finding-rows-total"));
+    // The scenario is paging behaviour, so multiple pages are a precondition of the test, not a
+    // condition to skip on. A runtime `test.skip(total <= 6, …)` would let the whole scenario
+    // silently stop running — still reporting green — if the fixture ever produced one page.
+    expect(total, "fixture must produce multiple pages of findings").toBeGreaterThan(6);
 
-  const firstCard = list.locator("[data-finding-id]").first();
-  const selectedId = await firstCard.getAttribute("data-finding-id");
-  await firstCard.getByRole("button").first().click();
-  await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
-    "data-finding-selected",
-    "true",
-  );
+    const firstCard = list.locator("[data-finding-id]").first();
+    const selectedId = await firstCard.getAttribute("data-finding-id");
+    await firstCard.getByRole("button").first().click();
+    await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
+      "data-finding-selected",
+      "true",
+    );
 
-  await queue.getByRole("button", { name: "Next findings" }).click();
-  // The selection survives the page change and is disclosed rather than silently dropped.
-  const note = queue.locator("[data-queue-selection-note]");
-  await expect(note).toBeVisible();
-  await expect(queue.locator("[data-queue-selection-announcement]")).toContainText(
-    `of ${total} matching findings`,
-  );
-  await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveCount(0);
+    await queue.getByRole("button", { name: "Next findings" }).click();
+    // The selection survives the page change and is disclosed rather than silently dropped.
+    const note = queue.locator("[data-queue-selection-note]");
+    await expect(note).toBeVisible();
+    await expect(queue.locator("[data-queue-selection-announcement]")).toContainText(
+      `of ${total} matching findings`,
+    );
+    await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveCount(0);
 
-  await note.locator("[data-queue-reveal-selected]").click();
-  await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
-    "data-finding-selected",
-    "true",
-  );
-  await expect(note).toHaveCount(0);
+    await note.locator("[data-queue-reveal-selected]").click();
+    await expect(queue.locator(`[data-finding-id='${selectedId}']`)).toHaveAttribute(
+      "data-finding-selected",
+      "true",
+    );
+    await expect(note).toHaveCount(0);
 
-  expect(await chess(page, (api) => api.toPgn())).toBe(before);
-});
+    expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  },
+);
 
-test("expanded map and heatmap windows keep the complete list reachable inside a bounded DOM", async ({
-  page,
-}) => {
-  test.slow();
-  const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-visuals.pgn");
-  const before = await chess(page, (api) => api.toPgn());
+test(
+  "expanded map and heatmap windows keep the complete list reachable inside a bounded DOM",
+  {
+    tag: "@engine-bound",
+  },
+  async ({ page }) => {
+    test.slow();
+    const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-visuals.pgn");
+    const before = await chess(page, (api) => api.toPgn());
 
-  const map = dialog.locator(".strategic-map");
-  const listTable = map.locator("[data-map-list]");
-  await map.locator("[data-map-show-all-rows]").click();
-  const rowsTotal = Number(await listTable.getAttribute("data-map-rows-total"));
-  expect(rowsTotal).toBeGreaterThan(300);
-  await expect(listTable).toHaveAttribute("data-map-rows-shown", String(rowsTotal));
-  const mountedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
-  expect(mountedRows).toBeLessThanOrEqual(60);
-  await expect(listTable.locator("tbody tr[data-map-row]")).toHaveCount(mountedRows);
+    const map = dialog.locator(".strategic-map");
+    const listTable = map.locator("[data-map-list]");
+    await map.locator("[data-map-show-all-rows]").click();
+    const rowsTotal = Number(await listTable.getAttribute("data-map-rows-total"));
+    expect(rowsTotal).toBeGreaterThan(300);
+    await expect(listTable).toHaveAttribute("data-map-rows-shown", String(rowsTotal));
+    const mountedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
+    expect(mountedRows).toBeLessThanOrEqual(60);
+    await expect(listTable.locator("tbody tr[data-map-row]")).toHaveCount(mountedRows);
 
-  // Scrolling reaches rows that were never mounted at the top of the list.
-  const firstRoute = await listTable
-    .locator("tbody tr[data-map-row]")
-    .first()
-    .getAttribute("data-map-row");
-  await listTable.evaluate((table) => {
-    const scroller = table.closest(".strategic-fit-virtual-scroll");
-    if (scroller) scroller.scrollTop = scroller.scrollHeight;
-  });
-  await expect
-    .poll(
-      async () =>
-        await listTable.locator("tbody tr[data-map-row]").first().getAttribute("data-map-row"),
-    )
-    .not.toBe(firstRoute);
-  await expect(listTable.locator("tbody tr[data-map-row]").count()).resolves.toBeLessThanOrEqual(
-    60,
-  );
+    // Scrolling reaches rows that were never mounted at the top of the list.
+    const firstRoute = await listTable
+      .locator("tbody tr[data-map-row]")
+      .first()
+      .getAttribute("data-map-row");
+    await listTable.evaluate((table) => {
+      const scroller = table.closest(".strategic-fit-virtual-scroll");
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+    await expect
+      .poll(
+        async () =>
+          await listTable.locator("tbody tr[data-map-row]").first().getAttribute("data-map-row"),
+      )
+      .not.toBe(firstRoute);
+    await expect(listTable.locator("tbody tr[data-map-row]").count()).resolves.toBeLessThanOrEqual(
+      60,
+    );
 
-  const heatmap = dialog.locator(".concept-heatmap");
-  const table = heatmap.locator("[data-heatmap-table]");
-  const showAll = heatmap.locator("[data-heatmap-show-all]");
-  if ((await showAll.count()) > 0) {
-    await showAll.click();
-    await expect(heatmap).toHaveAttribute("data-heatmap-complete", "true");
-  }
-  const heatmapRows = Number(await table.getAttribute("data-heatmap-rows-mounted"));
-  const heatmapColumns = Number(await table.getAttribute("data-heatmap-columns-mounted"));
-  expect(heatmapRows).toBeLessThanOrEqual(24);
-  expect(heatmapColumns).toBeLessThanOrEqual(24);
-  await expect(table.locator("tbody tr[data-heatmap-row]")).toHaveCount(heatmapRows);
+    const heatmap = dialog.locator(".concept-heatmap");
+    const table = heatmap.locator("[data-heatmap-table]");
+    const showAll = heatmap.locator("[data-heatmap-show-all]");
+    if ((await showAll.count()) > 0) {
+      await showAll.click();
+      await expect(heatmap).toHaveAttribute("data-heatmap-complete", "true");
+    }
+    const heatmapRows = Number(await table.getAttribute("data-heatmap-rows-mounted"));
+    const heatmapColumns = Number(await table.getAttribute("data-heatmap-columns-mounted"));
+    expect(heatmapRows).toBeLessThanOrEqual(24);
+    expect(heatmapColumns).toBeLessThanOrEqual(24);
+    await expect(table.locator("tbody tr[data-heatmap-row]")).toHaveCount(heatmapRows);
 
-  expect(await chess(page, (api) => api.toPgn())).toBe(before);
-});
+    expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  },
+);
