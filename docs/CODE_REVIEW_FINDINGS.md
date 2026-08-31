@@ -10,22 +10,34 @@ That span is 123 commits, ~500 files, and roughly 48,000 lines of changed source
 
 ## Status of the gates at `815d16d`
 
-| Gate                                               | Result                                      |
-| -------------------------------------------------- | ------------------------------------------- |
-| `pnpm lint`                                        | pass — 0 errors, 0 warnings                 |
-| `pnpm format:check`                                | pass — 474 files                            |
-| `pnpm -r typecheck`                                | pass — 0 errors                             |
-| `pnpm --filter @chess-mcp/ui test:chat`            | pass — 371/371                              |
-| `pnpm test:strategic-fit`                          | pass — 408/408                              |
-| `pnpm docs:check`                                  | pass — 51 canonical, 42 MCP, 45 browser     |
-| `pnpm check:skills`                                | pass                                        |
-| `pnpm check:legacy-imports`                        | pass                                        |
-| `pnpm check:tool-contract`                         | **FAILS — crashes on an import cycle (F2)** |
-| `node --test scripts/wp036-design-tokens.test.mjs` | **FAILS — 2 of 4 (F3)**                     |
-| `pnpm test:e2e:container`                          | not run in this review                      |
+| Gate                                               | Result                                           |
+| -------------------------------------------------- | ------------------------------------------------ |
+| `pnpm lint`                                        | pass — 0 errors, 0 warnings                      |
+| `pnpm format:check`                                | pass — 474 files                                 |
+| `pnpm -r typecheck`                                | pass — 0 errors                                  |
+| `pnpm --filter @chess-mcp/ui test:chat`            | pass — 371/371                                   |
+| `pnpm test:strategic-fit`                          | pass — 408/408                                   |
+| `pnpm docs:check`                                  | pass — 51 canonical, 42 MCP, 45 browser          |
+| `pnpm check:skills`                                | pass                                             |
+| `pnpm check:legacy-imports`                        | pass                                             |
+| `pnpm check:tool-contract`                         | **was crashing (F2) — fixed in `0758c34`**       |
+| `node --test scripts/wp036-design-tokens.test.mjs` | **was 2 of 4 failing (F3) — fixed in `0758c34`** |
+| `pnpm test:e2e:container`                          | not run in this review                           |
 
-Two of those failures are invisible to CI because the commands are not wired into any workflow.
-That is the subject of F1.
+Two of those failures were invisible to CI because the commands were not wired into any workflow.
+That was the subject of F1.
+
+## Progress
+
+F1, F2, and F3 were fixed together in `0758c34` — wiring the gates is what turned the other two
+red, so all three had to land in one change.
+
+| ID     | Status                                                                                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1     | **Fixed** — `test:strategic-fit`, `check:tool-contract`, `check:legacy-imports`, the three `scripts/wp*.test.mjs` suites, and both WP-019 PWA tests are now steps in `ci.yml` |
+| F2     | **Fixed** — `chatTransport`/`toolExecutor` are thunks, so the cycle no longer reads `runTool` in its temporal dead zone                                                       |
+| F3     | **Fixed** — 16 raw colours tokenised across 5 groups, bare `z-index` replaced, and the AC-3/AC-4 scanners no longer match inside comments                                     |
+| F4–F22 | Open                                                                                                                                                                          |
 
 ## Severity summary
 
