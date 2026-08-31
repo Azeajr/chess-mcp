@@ -48,6 +48,16 @@ jobs:
         run: |
           node scripts/smoke-gametree.mjs
           node scripts/structure-accuracy.mjs
+      # Engine-free unit suites for the MCP server's own modules. They gated nothing until now:
+      # each was runnable only from the `// Run:` comment in its own header. Every one sets the env
+      # it needs and exits non-zero on failure, so they need no wrapper. perftools reads
+      # chess-tools `dist`, built above.
+      - name: MCP server unit suites (paths guard, eval cache, handle cache, perf tools)
+        run: |
+          node --import tsx apps/mcp-server/test/confine.mjs
+          node --import tsx apps/mcp-server/test/cache.mjs
+          node --import tsx apps/mcp-server/test/handles.mjs
+          node --import tsx apps/mcp-server/test/perftools.mjs
       - name: MCP stdio smoke (engine on, network assertions gated out)
         env:
           SMOKE_NETWORK: "0" # skip live Lichess/Chess.com; engine + local paths still run
