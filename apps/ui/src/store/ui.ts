@@ -60,8 +60,9 @@ export const [strategicFitPreflightExpanded, setStrategicFitPreflightExpanded] =
  * WP-028: which control last moved the board, so a result card can say `Showing on board`.
  *
  * AC-3 requires any other navigation to clear the marker. Rather than trying to enumerate every
- * other way to navigate, `actions.goto` clears this on every call and the card that navigated
- * re-sets it immediately afterwards. Anything that does not opt in therefore clears it by default.
+ * other way to navigate, the single `setPath` writer in `game.ts` clears this on every path
+ * change and the card that navigated re-sets it immediately afterwards. Anything that does not
+ * opt in therefore clears it by default.
  */
 export type NavigationSource = { readonly kind: "chat" | "repertoire"; readonly id: string } | null;
 export const [lastNavigationSource, setLastNavigationSource] = createSignal<NavigationSource>(null);

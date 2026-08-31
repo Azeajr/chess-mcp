@@ -2,12 +2,11 @@
  * AnalysisPanel: the top-N engine lines for the current position, each tagged with its
  * repertoire fit (green/yellow/red) and your-side eval. Mirrors the board arrows.
  */
-import { For, Show, createEffect } from "solid-js";
-import type { Path } from "@chess-mcp/chess-tools";
+import { For, Show } from "solid-js";
 import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../store/analysis";
 import { cloud } from "../store/cloud";
 import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
-import { actions, currentPath, currentTree } from "../store/game";
+import { actions, currentTree } from "../store/game";
 import { lastNavigationSource, setLastNavigationSource } from "../store/ui";
 import { analysisDepth } from "../store/engine-settings";
 import { ANALYSIS_CONTENT } from "../content/analysis";
@@ -21,31 +20,6 @@ import { cloudEvaluationText, evaluationText } from "../content/format";
 export default function AnalysisPanel() {
   const state = analysisState;
   const inFlight = () => state() === "starting" || state() === "analysing";
-
-  /*
-   * WP-028 AC-3: any navigation that is not a card's own `Go to line` clears the marker.
-   *
-   * The effect tracks the path signal and compares against the path recorded when the marker was
-   * set. A card sets both in the same tick, so its own navigation is a no-op here; a move-tree
-   * click or an arrow key changes the path without updating the record, and the marker clears.
-   */
-  let markedPath: Path | null = null;
-  createEffect(() => {
-    const path = currentPath();
-    const source = lastNavigationSource();
-    if (source === null) {
-      markedPath = null;
-      return;
-    }
-    if (markedPath === null) {
-      markedPath = path;
-      return;
-    }
-    if (markedPath !== path) {
-      markedPath = null;
-      setLastNavigationSource(null);
-    }
-  });
 
   return (
     <div class="analysis">

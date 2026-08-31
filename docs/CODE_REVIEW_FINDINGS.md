@@ -39,7 +39,16 @@ red, so all three had to land in one change.
 | F3      | **Fixed** — 16 raw colours tokenised across 5 groups, bare `z-index` replaced, and the AC-3/AC-4 scanners no longer match inside comments                                     |
 | F4      | **Fixed** — `a85ca7c` keeps reconstructed entries consistently oriented and committed; RED→GREEN unit proof plus UX-005 exact-PGN coverage across all three engines           |
 | F5      | **Fixed** — `9049974` settles superseded and rejected live-analysis operations so the registry drains and the PWA prompt cannot remain suppressed                             |
-| F6–F16  | Open                                                                                                                                                                          |
+| F6      | **Fixed** — `2bd4dd6` lets an explicit durability flush write through a reactive pause; proven RED by a 3 s timeout on the old call and GREEN in 2.9 ms                       |
+| F7      | **Fixed** — `5cd4229` validates ordered SAN against one retained path and restricts drill-anchored sections to the cited drill path                                           |
+| F8      | **Fixed** — `260dea1` requires the Analyze and disclosure controls instead of skipping them; the one legitimate alternate state now has its own explicit assertions           |
+| F9      | **Fixed** — `260dea1` asserts literal command and argument objects for all five repertoire controls via the read-only `lastDirectCommandRequest()` DEV projection             |
+| F10     | **Fixed** — `5cd4229` rejects preferred/avoided conflicts after merging a one-sided patch with confirmed profile intent                                                       |
+| F11     | **Fixed** — `5cd4229` preserves canonical `+`/`#` SAN suffixes from prose through evidence validation                                                                         |
+| F12     | **Fixed** — `5cd4229` uses overflow-safe normalization, scaled means, and scale-invariant ESS while preserving moderate-input output exactly                                  |
+| F13     | **Fixed** — `MAX_TOOL_RUNS` caps retained runs at 200 with oldest-first eviction, matching the tool-result and undo-history budgets                                           |
+| F14     | **Fixed** — the documented safe-by-default invariant is now real: `game.ts`'s single `setPath` writer clears the marker for every navigation route                            |
+| F15–F16 | Open                                                                                                                                                                          |
 | F17     | **Partially fixed** — `a85ca7c` re-enabled UX-005 and made it meaningful; the self-skipping large-report scenario remains open                                                |
 | F18–F22 | Open                                                                                                                                                                          |
 

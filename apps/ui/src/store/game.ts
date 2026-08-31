@@ -12,12 +12,24 @@ import {
   type BrowserDocumentId,
 } from "./document-identity";
 import { recordMutation, clearHistory } from "./history";
+import { setLastNavigationSource } from "./ui";
 
 export type Color = "white" | "black";
 
 const [tree, setTree] = createSignal<GameTree>(new GameTree());
 const [version, setVersion] = createSignal(0);
-const [path, setPath] = createSignal<Path>([]);
+const [path, setPathSignal] = createSignal<Path>([]);
+/**
+ * WP-028 AC-3: the single point where board position changes, and therefore the single point that
+ * clears the `Showing on board` marker. Clearing here — rather than enumerating navigation
+ * sources — is what makes the marker safe by default: `goto`, arrow keys, `back`/`forward`,
+ * playing a move, and history undo/redo all funnel through here, so any route that does not
+ * deliberately re-set the marker in the same tick clears it.
+ */
+const setPath = (value: Parameters<typeof setPathSignal>[0]) => {
+  setLastNavigationSource(null);
+  return setPathSignal(value);
+};
 const [color, setColor] = createSignal<Color>("white");
 const [dirty, setDirty] = createSignal(false);
 const [changesSinceExport, setChangesSinceExport] = createSignal(0);
@@ -159,6 +171,10 @@ export const actions = {
     else bump();
   },
 
+  /**
+   * WP-028 AC-3: `setPath` clears the marker for every navigation route (see its definition), so
+   * a card's `Go to line` re-sets the marker immediately after this call.
+   */
   goto(p: Path) {
     setPath(p);
   },

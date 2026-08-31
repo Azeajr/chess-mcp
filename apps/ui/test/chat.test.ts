@@ -1304,6 +1304,75 @@ test("WP-027 tool runs from an earlier turn survive the next turn", async () => 
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
+/**
+ * F13: WP-027 AC-2 made runs durable across turns (the test above pins that), but durable and
+ * unbounded are different things. Drive more runs than the cap through the real `send()` path and
+ * assert the list stops growing, keeps the newest runs, and drops the oldest ones.
+ */
+test("F13 retained tool runs are bounded and evict oldest-first", async () => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  chat.clearChat();
+
+  // One turn per call keeps each turn's shape identical to the retention test above; the cap is a
+  // property of the accumulated list, not of any single turn.
+  let call = 0;
+  chat.setChatTransportForTesting(async (opts) => {
+    const last = opts.messages.at(-1);
+    if (last?.role !== "user") return { content: "done", toolCalls: [] };
+    call += 1;
+    return {
+      content: "",
+      toolCalls: [
+        {
+          id: `run-${call}`,
+          type: "function" as const,
+          function: { name: "evaluate_position", arguments: "{}" },
+        },
+      ],
+    };
+  });
+  chat.setChatToolExecutorForTesting(async () => ({ ok: true }));
+
+  const cap = chat.MAX_TOOL_RUNS_FOR_TESTING;
+  for (let turn = 0; turn < cap; turn += 1) await chat.send(`question ${turn}`);
+  const atCap = chat.toolRuns();
+  assert.equal(atCap.length, cap, "every run below the cap is retained");
+  assert.equal(atCap[0]?.id, "run-1", "the first run is still present at exactly the cap");
+
+  const overflow = 5;
+  for (let turn = 0; turn < overflow; turn += 1) await chat.send(`extra ${turn}`);
+  const after = chat.toolRuns();
+  assert.equal(after.length, cap, "the list stops growing once the cap is reached");
+  assert.equal(after.at(-1)?.id, `run-${cap + overflow}`, "the newest run survives");
+  assert.equal(after[0]?.id, `run-${overflow + 1}`, "eviction is oldest-first, not newest-first");
+  assert.equal(
+    after.find((run) => run.id === "run-1"),
+    undefined,
+    "the oldest runs are actually dropped",
+  );
+  assert.ok(
+    after.every((run) => run.status === "completed"),
+    "surviving runs keep their settled status through eviction",
+  );
+
+  chat.setChatTransportForTesting();
+  chat.setChatToolExecutorForTesting();
+  settings.setApiKey("");
+  chat.clearChat();
+  delete (globalThis as { localStorage?: unknown }).localStorage;
+});
+
 /** WP-027 AC-1: the chip's values are the prompt's values, by construction. */
 test("WP-027 the context chip block is the text the system prompt injects", async () => {
   const chat = await import("../src/store/chat.ts");

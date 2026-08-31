@@ -23,6 +23,13 @@ function toolDisplayName(name: string): string {
 const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Use local tools for chess claims. Be concise. Tool results may be compacted; retrieve current document data with the scoped retrieval tools when needed.`;
 const MAX_ROUNDS = 12;
 const MAX_TOOL_RESULT_CHARS = 6000;
+/**
+ * Retained tool runs. Deep enough to cover any realistic scrollback of the run panel
+ * (MAX_ROUNDS rounds per turn, several calls per round, across many turns).
+ */
+const MAX_TOOL_RUNS = 200;
+/** Read-only view of the run cap so tests pin the behaviour, not a duplicated literal. */
+export const MAX_TOOL_RUNS_FOR_TESTING = MAX_TOOL_RUNS;
 
 export interface ToolRunState {
   id: string;
@@ -328,10 +335,18 @@ export function cancelRun(id: string) {
 }
 
 async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
-  setToolRuns((runs) => [
-    ...runs,
-    ...calls.map((tc) => ({ id: tc.id, name: tc.function.name, status: "queued" as const })),
-  ]);
+  setToolRuns((runs) => {
+    const next = [
+      ...runs,
+      ...calls.map((tc) => ({ id: tc.id, name: tc.function.name, status: "queued" as const })),
+    ];
+    // WP-027 AC-2 made runs conversation history rather than per-turn scratch state, which was
+    // right, but left the list unbounded with `clearChat()` as its only reset. Bound it the same
+    // way the neighbouring state is bounded (tool results by MAX_TOOL_RESULT_CHARS, undo history
+    // by MAX_HISTORY_BYTES). Evict oldest-first so the newest runs — the ones the panel shows and
+    // the only ones `updateRun` still targets — always survive.
+    return next.length > MAX_TOOL_RUNS ? next.slice(next.length - MAX_TOOL_RUNS) : next;
+  });
   for (const tc of calls) {
     if (signal.aborted) {
       updateRun(tc.id, { status: "cancelled" });
