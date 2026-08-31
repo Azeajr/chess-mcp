@@ -261,8 +261,10 @@ test("WP-004 AC-1 AC-2 recovers a replaced document as a new identity", async ({
   ).not.toBe(beforeId);
 });
 
-test.fixme("UX-005 mutation application, undo, and redo preserve exact PGN", async ({ page }) => {
-  await openApp(page);
+test("UX-005 mutation application, undo, and redo preserve exact PGN", async ({ page }) => {
+  // Own the precondition instead of relying on openApp's large default repertoire, where
+  // d4 Nf6 -> Nf3 already existed and the former test's "mutation" changed nothing.
+  await openApp(page, { pgn: `[Result "*"]\n\n1. d4 d5 *\n` });
   const original = await currentPgn(page);
   const mutation = await page.evaluate(() => {
     const chess = (
@@ -276,12 +278,18 @@ test.fixme("UX-005 mutation application, undo, and redo preserve exact PGN", asy
         };
       }
     ).__chess;
-    return chess.applyEdit("add", ["d4", "Nf6"], { addMoves: ["Nf3"] });
+    return chess.applyEdit("add", ["d4"], { addMoves: ["e6"] });
   });
-  expect(mutation).toEqual({ ok: true });
+  expect(mutation).toMatchObject({ ok: true });
   const mutated = await currentPgn(page);
   expect(mutated).not.toBe(original);
 
+  await page.keyboard.press("Control+z");
+  expect(await currentPgn(page)).toBe(original);
+  await page.keyboard.press("Control+Shift+z");
+  expect(await currentPgn(page)).toBe(mutated);
+  // F4: redo() used to push an entry without `committed`, so this second undo silently did
+  // nothing even though the first undo and redo both appeared to work.
   await page.keyboard.press("Control+z");
   expect(await currentPgn(page)).toBe(original);
   await page.keyboard.press("Control+Shift+z");

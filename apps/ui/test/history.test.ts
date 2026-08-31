@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { actions, version } from "../src/store/game.ts";
+import { actions, currentPath, version } from "../src/store/game.ts";
 import {
   undo,
   redo,
@@ -118,4 +118,66 @@ test("surviving entries are committed, never uncommitted placeholders", () => {
     assert.ok(entry.pgnAfter.length > 0, "every kept entry must be committed");
     assert.ok(Array.isArray(entry.pathAfter));
   }
+});
+
+/**
+ * F4: undo after a redo, and exact state on every leg.
+ *
+ * redo() pushes an undo entry describing a completed state change, but omitted `committed`, and
+ * undo() refuses any entry without it — so the fourth step below silently did nothing. undo()
+ * also built its redo entry with the PGN un-swapped while swapping path/revision/color, so redo
+ * restored the post-edit tree with the pre-edit cursor. Asserting only that version() moved (as
+ * the older tests do) cannot see either defect; these compare exact PGN and path on every leg.
+ */
+test("undo works after a redo, and every leg restores its own PGN and path", () => {
+  actions.loadPgn(START_PGN);
+  clearHistory();
+  const basePgn = actions.toPgn();
+  const basePath = [...currentPath()];
+
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }).ok, true);
+  const editedPgn = actions.toPgn();
+  const editedPath = [...currentPath()];
+  assert.notEqual(editedPgn, basePgn, "the fixture edit must actually change the document");
+
+  undo();
+  assert.equal(actions.toPgn(), basePgn, "undo restores the pre-edit PGN");
+  assert.deepEqual([...currentPath()], basePath, "undo restores the pre-edit path");
+
+  redo();
+  assert.equal(actions.toPgn(), editedPgn, "redo restores the post-edit PGN");
+  assert.deepEqual(
+    [...currentPath()],
+    editedPath,
+    "redo must restore the post-edit path, not the pre-edit one",
+  );
+
+  undo();
+  assert.equal(actions.toPgn(), basePgn, "undo must still work after a redo");
+  assert.deepEqual([...currentPath()], basePath);
+  assert.equal(canRedo(), true, "the redone step is available again");
+
+  redo();
+  assert.equal(actions.toPgn(), editedPgn, "the cycle is stable across repeats");
+  assert.deepEqual([...currentPath()], editedPath);
+});
+
+test("entries pushed by undo and redo are committed, so neither direction stalls", () => {
+  actions.loadPgn(START_PGN);
+  clearHistory();
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }).ok, true);
+
+  undo();
+  for (const entry of getStacksForTesting().redo) {
+    assert.equal(entry.committed, true, "a redo entry describes a completed change");
+  }
+  redo();
+  for (const entry of getStacksForTesting().undo) {
+    assert.equal(
+      entry.committed,
+      true,
+      "an undo entry pushed by redo describes a completed change",
+    );
+  }
+  assert.equal(canUndo(), true, "undo must be reachable after a redo");
 });

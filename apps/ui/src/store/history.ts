@@ -171,21 +171,27 @@ export function undo(): void {
   // document identity and clearHistory() (WP-005 AC-5), destroying this very stack.
   restoreSnapshotForHistory(pgnBefore, pathBefore);
 
-  // Move to redo stack
+  // Move to redo stack. Every field keeps the entry's own orientation — `before` is the
+  // pre-mutation state and `after` the post-mutation one — because redo() restores `pgnAfter`
+  // with `pathAfter` and the two must describe the same position. Swapping only the path (and
+  // revision and color) while leaving the PGN alone made redo restore the post-edit tree with the
+  // pre-edit cursor. `committed` marks this a completed state change rather than a placeholder,
+  // without which undo() refuses it and a second undo after a redo silently does nothing.
   setUndoStack((entries) => entries.slice(0, -1));
   setRedoStack((entries) => [
     ...entries,
     {
       id: (nextId += 1),
       pgnBefore,
-      pgnAfter: pgnAfter,
-      pathBefore: pathAfter,
-      pathAfter: pathBefore,
-      revisionBefore: revisionAfter,
-      revisionAfter: revisionBefore,
-      colorBefore: colorAfter,
-      colorAfter: colorBefore,
+      pgnAfter,
+      pathBefore,
+      pathAfter,
+      revisionBefore,
+      revisionAfter,
+      colorBefore,
+      colorAfter,
       type,
+      committed: true,
     },
   ]);
 
@@ -215,6 +221,9 @@ export function redo(): void {
 
   restoreSnapshotForHistory(pgnAfter, pathAfter);
 
+  // The undo entry this pushes describes a completed state change, so it carries `committed`.
+  // Without it undo() treats the entry as an uncommitted placeholder and refuses to pop it,
+  // which is what made undo a silent no-op once a redo had happened.
   setRedoStack((entries) => entries.slice(0, -1));
   setUndoStack((entries) => [
     ...entries,
@@ -229,6 +238,7 @@ export function redo(): void {
       colorBefore,
       colorAfter,
       type,
+      committed: true,
     },
   ]);
 
