@@ -305,13 +305,7 @@ function scheduleAutosave(saved: SavedWorkingRepertoire): ReturnType<typeof setT
   return timer;
 }
 
-function executePendingAutosave(): Promise<void> {
-  if (autosavePauseDepth > 0) return autosaveTail;
-  const saved = pendingAutosave;
-  if (saved === null) return autosaveTail;
-  pendingAutosave = null;
-  if (autosaveTimer !== null) clearTimeout(autosaveTimer);
-  autosaveTimer = null;
+function enqueueAutosaveWrite(saved: SavedWorkingRepertoire): Promise<void> {
   const next = autosaveTail
     .catch(() => undefined)
     .then(() => idbSet(WORKING_REPERTOIRE_STORAGE_KEY, saved))
@@ -324,6 +318,16 @@ function executePendingAutosave(): Promise<void> {
   return next;
 }
 
+function executePendingAutosave(forceWhilePaused = false): Promise<void> {
+  if (!forceWhilePaused && autosavePauseDepth > 0) return autosaveTail;
+  const saved = pendingAutosave;
+  if (saved === null) return autosaveTail;
+  pendingAutosave = null;
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+  return enqueueAutosaveWrite(saved);
+}
+
 /** Hold reactive working-document autosaves behind an explicit document transaction. */
 export async function pauseWorkingRepertoireAutosave(): Promise<() => void> {
   autosavePauseDepth += 1;
@@ -332,10 +336,7 @@ export async function pauseWorkingRepertoireAutosave(): Promise<() => void> {
   if (autosaveTimer !== null) clearTimeout(autosaveTimer);
   autosaveTimer = null;
   await autosaveTail;
-  if (saved !== null) {
-    autosaveTail = autosaveTail.then(() => idbSet(WORKING_REPERTOIRE_STORAGE_KEY, saved));
-    await autosaveTail;
-  }
+  if (saved !== null) await enqueueAutosaveWrite(saved);
   let released = false;
   return () => {
     if (released) return;
@@ -385,10 +386,28 @@ export function startAutosave() {
   });
 }
 
-/** Flush the current pending working-document snapshot before a document-bound durable action. */
+/**
+ * Flush the latest pending working-document snapshot before a document-bound durable action.
+ *
+ * A reactive pause blocks debounce-driven writes so a multi-store transaction can publish
+ * atomically, but an explicit flush is itself a durability boundary and must write through that
+ * pause. Calling the pause-respecting executor here used to leave `pendingAutosave` untouched; the
+ * while-loop then awaited an already-settled promise forever while its condition stayed true.
+ */
 export async function flushWorkingRepertoire(): Promise<void> {
-  while (pendingAutosave !== null) await executePendingAutosave();
+  while (pendingAutosave !== null) await executePendingAutosave(true);
   await autosaveTail;
+}
+
+/**
+ * Test seam for the state that caused F6: one pending reactive autosave while a transaction holds
+ * the pause. Plain node:test cannot drive startAutosave()'s Solid browser effect, so the seam queues
+ * the same payload through the production scheduler rather than duplicating its state changes.
+ */
+export function queueWorkingRepertoireAutosaveForTesting(saved: SavedWorkingRepertoire): void {
+  const environment = Reflect.get(import.meta, "env") as { DEV?: boolean } | undefined;
+  if (environment && environment.DEV !== true) throw new Error("Test-only function");
+  scheduleAutosave(saved);
 }
 
 /** Load the last working repertoire (if any), then enable autosave. */

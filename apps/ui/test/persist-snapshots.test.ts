@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { SavedWorkingRepertoire } from "../src/store/persist";
 
 type Handler = ((event?: unknown) => void) | null;
 
@@ -156,6 +157,33 @@ test("WP-004 AC-6 snapshot writes respect nested autosave pauses", async () => {
   assert.equal((await persist.listSnapshots()).length, 0);
   release();
   assert.ok(await persist.captureSnapshot("manual"));
+});
+
+test("F6 an explicit working-copy flush writes through a reactive autosave pause", async () => {
+  memory.data.clear();
+  const release = await persist.pauseWorkingRepertoireAutosave();
+  const saved: SavedWorkingRepertoire = {
+    pgn: "1. d4 d5 2. c4 *",
+    color: "white",
+    path: [0],
+    fileName: "flush-through-pause.pgn",
+    dirty: true,
+    changesSinceExport: 3,
+    documentId: "flush-document",
+    revision: 7,
+  };
+  try {
+    // This is the exact state the browser creates when the document changes while a transaction
+    // holds its pause: scheduleAutosave records the latest payload but deliberately starts no
+    // debounce timer. The old flush loop called the pause-respecting executor, which returned an
+    // already-settled promise without clearing this payload and spun forever.
+    persist.queueWorkingRepertoireAutosaveForTesting(saved);
+    await persist.flushWorkingRepertoire();
+    assert.deepEqual(await idb.idbGet(persist.WORKING_REPERTOIRE_STORAGE_KEY), saved);
+    assert.ok(persist.lastAutosaveAt(), "an explicit durability write updates the saved indicator");
+  } finally {
+    release();
+  }
 });
 
 test("WP-004 AC-7 AC-8 keeps the workingRepertoire record backward and forward compatible", async () => {
