@@ -177,7 +177,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Download all evidence into one run directory
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           pattern: a11y-evidence-*
           path: apps/ui/test-results/accessibility/${{ env.A11Y_RUN_ID }}
