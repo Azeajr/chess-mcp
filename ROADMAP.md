@@ -107,6 +107,13 @@ that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobod
 
 ## Follow-up quality work
 
+- **Castling must be spelled `O-O`; `0-0` is rejected.** `validateLine` defers to chessops'
+  `parseSan`, which accepts only the letter-O spelling, so a line containing the digit form fails
+  at the castling index instead of being normalised. The digit form is common in PGN emitted by
+  other tools and is exactly what a chat-proposed line is liable to contain, and `validateLine`
+  exists to vet chat-proposed lines. Normalising `0-0`/`0-0-0` on input would cost little; the
+  current behaviour is pinned by a test in `test/core/validate.test.ts` so changing it is
+  deliberate.
 - Add summary-to-detail references where any result still approaches model-context limits.
 - Measure long-scan progress and cancellation on representative large repertoires.
 - Revisit public-tool consolidation only with usage evidence. Preserve summary/detail/artifact
