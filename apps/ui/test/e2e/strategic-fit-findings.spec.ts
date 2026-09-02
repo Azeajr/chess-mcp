@@ -1,5 +1,6 @@
 import { expect, test, type Download, type Page } from "playwright/test";
 import { installFindingWorkerFixture } from "./helpers/strategic-fit-worker-fixture";
+import { destinationSquares, dragMove, premoveSquares, selectSquare } from "./helpers/board";
 import {
   contrastViolations,
   expectBasicAccessibility,
@@ -24,7 +25,10 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   upsertStrategicFitResolution(input: unknown): unknown;
   strategicFitLifecycle(): unknown;
-  strategicFitTrainingPerformance(): { targets: unknown[]; attempts: { recalled: boolean }[] };
+  strategicFitTrainingPerformance(): {
+    targets: unknown[];
+    attempts: { recalled: boolean; response_time_ms: number }[];
+  };
 };
 
 function replacementComparisonFixture(color: "white" | "black" = "white") {
@@ -2491,13 +2495,7 @@ test.afterAll(async () => {
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 });
 
-/**
- * Click a square on a chessground board. Chessground lays squares out inside `.cg-board`, so the
- * centre of a square is derived from the board box: files left-to-right and ranks bottom-to-top for
- * a white-oriented board. The drill fixture is White to move in both positions, so white
- * orientation is the only case needed here.
- */
-test("a created training item offers a live drill board and records no attempt for it", async ({
+test("a created training item records an attempt only once a move is played on its drill board", async ({
   page,
 }) => {
   const { dialog } = await bootstrap(page);
@@ -2536,18 +2534,73 @@ test("a created training item offers a live drill board and records no attempt f
     "data-drill-fen",
     "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
   );
-  // The board is live and oriented for the side to move, so the drill is playable. Driving the
-  // move itself is not asserted here: chessground moves come from pointer events that this repo has
-  // never simulated in Playwright, and neither a click nor a synthesised drag reached it. The
-  // move-to-SAN, recall comparison, and attempt recording are covered by
-  // test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts instead. What was
-  // tried, and what to try next, is in ROADMAP.md under "Wanted: a Playwright helper that plays a
-  // move on the board".
-  await expect(active.locator(".cg-wrap")).toBeVisible();
-  await expect(active.locator(".cg-wrap")).toHaveClass(/manipulable/u);
+  const board = active.locator(".cg-wrap");
+  await expect(board).toBeVisible();
+  await expect(board).toHaveClass(/manipulable/u);
   await expect(reopened.locator("[data-drill-locked='false']")).toBeVisible();
 
   // Still no attempt: rendering a drill is not attempting one.
   const afterOpening = await chess(page, (api) => api.strategicFitTrainingPerformance());
   expect(afterOpening.attempts).toEqual([]);
+
+  // Now play it. This is the whole move → SAN → recall-comparison → recorded-attempt path running
+  // in a real browser for the first time; before `helpers/board.ts` existed it was reachable only
+  // from the unit tests in test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts.
+  await dragMove(board, "g1", "f3");
+
+  // Asserted against the store rather than the drill's own result banner, because recording an
+  // attempt schedules a reanalysis that unmounts the whole resolution column — the banner is on
+  // its way out by the time this runs, and the recorded attempt is the durable evidence anyway.
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitTrainingPerformance().attempts.length))
+    .toBe(1);
+  const [attempt] = (await chess(page, (api) => api.strategicFitTrainingPerformance())).attempts;
+  expect(attempt.recalled).toBe(true); // g1f3 is the prepared Nf3
+  expect(attempt.response_time_ms).toBeGreaterThan(0);
+});
+
+test("a black-to-move drill is playable, and a legal wrong move is recorded as not recalled", async ({
+  page,
+}) => {
+  // A Black repertoire so the drill is Black to move — the case a White fixture cannot reach.
+  // `DrillBoard` used to leave chessground's `turnColor` at its "white" default while setting
+  // `movable.color` to the side to move, and chessground's `isMovable` demands the two agree: a
+  // black piece failed that check, fell through to the premove branch instead, and the drag set a
+  // premove that never fires `movable.events.after`. The board looked live and recorded nothing.
+  const { dialog } = await bootstrap(page, "black");
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const training = dialog.locator("[data-training-finding-id='finding:01']");
+  await training.getByRole("button", { name: "Create training item" }).click();
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const reopened = dialog.locator("[data-training-finding-id='finding:01']");
+  await reopened.getByRole("button", { name: /^Drill \d+ position/u }).click();
+  const active = reopened.locator(".strategic-fit-drill-active").first();
+  await expect(active).toHaveAttribute("data-drill-expected", "e5");
+
+  const board = active.locator(".cg-wrap");
+  await expect(board).toHaveClass(/orientation-black/u);
+  await selectSquare(board, "d7");
+  // The regression guard: with `turnColor` wrong these are the markers the board offers instead of
+  // real destinations, and the piece can only be premoved.
+  expect(await premoveSquares(board)).toEqual([]);
+  expect((await destinationSquares(board)).sort()).toEqual(["d5", "d6"]);
+
+  // d5 is legal here and is not the prepared e5, which is what separates "recorded a miss" from
+  // "recorded nothing": an illegal move would also leave the attempt list empty.
+  await dragMove(board, "d7", "d5");
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitTrainingPerformance().attempts.length))
+    .toBe(1);
+  const [attempt] = (await chess(page, (api) => api.strategicFitTrainingPerformance())).attempts;
+  expect(attempt.recalled).toBe(false);
 });
