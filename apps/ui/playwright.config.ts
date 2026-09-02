@@ -9,36 +9,56 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     /*
-     * These exclusions are file-scoped, which is coarser than it should be: F18 established that
-     * ~45 behavioural tests are dropped from two of three engines to protect four screenshot
-     * baselines, and that 132 of 135 of them pass cross-browser when run on a developer machine.
+     * Exclusions are tag-scoped, plus one measured file-scoped exception on WebKit.
      *
-     * Tag-scoping them (`grepInvert: /@visual|@engine-bound/`) was attempted in fbd458e and
-     * reverted in 7cd1566, on the theory that the extra tests per engine exhausted the CI runner.
-     * That theory was wrong, and this comment used to state it as fact. Bisecting the CI history
-     * in 9cdd6db showed the UI job went red at c6f6998 — one commit BEFORE the exclusion change,
-     * with these file-scoped ignores fully in place. The cause was a bare `overview.focus()` in
-     * strategic-fit-accessibility.spec.ts that assumed the page was frontmost, and it is fixed.
+     * `@visual` marks chromium-owned pixel baselines. Excluding them from the other two engines is
+     * required, not just tidy: snapshotPathTemplate has no `{projectName}`, so all three engines
+     * would otherwise share one baseline file per platform. `@engine-bound` marks tests whose
+     * *method* is engine-specific even though the behaviour is not; each carries its reason inline.
      *
-     * So the coarse exclusion stands only because tag-scoping has not been re-measured since that
-     * fix landed — not because it is known to fail. Every run that tried it also carried the focus
-     * bug, so its viability is genuinely unmeasured. Until someone retests it, evidence citing
-     * `test:e2e:container` for these specs is chromium-only.
+     * Why this is not file-scoped any more. F18 found that file scoping dropped ~45 behavioural
+     * tests from two of three engines to protect four screenshot baselines, including
+     * strategic-fit-findings.spec.ts, the largest behavioural spec here — which made "verified via
+     * test:e2e:container" read as cross-browser when it was single-engine. Tag scoping landed in
+     * fbd458e, was reverted in 7cd1566 on a CI-capacity theory, and that theory was wrong:
+     * bisecting in 9cdd6db showed the UI job went red at c6f6998, one commit BEFORE the exclusion
+     * change, from a bare `overview.focus()` that assumed the page was frontmost. Every run that
+     * tried tag scoping also carried that focus bug, so it had never been measured cleanly.
      *
-     * The `@visual` and `@engine-bound` tags survive from the fbd458e work. `@visual` is still
-     * consumed by `test:e2e:host`; `@engine-bound` is consumed by nothing here and is documentation
-     * only — it becomes load-bearing again if tag-scoping is restored.
+     * Measured cleanly here, twice, on CI runs 33458348402 and 33459724530:
+     *
+     *   - Firefox ran the full tag-scoped set — 223 tests, 0 failures, both runs. It is unrestricted.
+     *   - WebKit failed only inside strategic-fit-findings.spec.ts, so only that file is excluded
+     *     from WebKit. Every other spec the old regex excluded (map, visualization-hardening,
+     *     large-report, lifecycle, sidecar) passed on WebKit in both runs and now runs there.
+     *
+     * The two WebKit failures, for whoever revisits this:
+     *
+     *   - :1170 cohort adjustments — deterministic. Failed both runs at an identical 30.3 s, versus
+     *     5.6 s on chromium and 8.2 s on firefox. The click on "Confirm and analyze again" never
+     *     returns: the test budget expires during the action, which is main-thread starvation
+     *     during reanalysis, not a behaviour difference. Whether a larger budget passes is
+     *     UNMEASURED — do not tag it `@engine-bound` on the strength of a 30 s result alone.
+     *   - :1997 staged change review — flaked once in two runs, `page.goto` never reaching `load`.
+     *     Runner capacity, not the app.
+     *
+     * Serving a production build via `vite preview` to cut server overhead is NOT an option here,
+     * and the reason is structural: `window.__chess` is behind `import.meta.env.DEV` in index.tsx
+     * and is absent from production bundles, `assertTestOnly()` in store/test-seam.ts throws when
+     * `DEV !== true`, the COOP/COEP plugin in vite.config.ts only implements `configureServer` so
+     * SharedArrayBuffer (threaded Stockfish) would be unavailable, and a built bundle registers the
+     * service worker that dev deliberately disables. Real remaining levers for WebKit are worker
+     * count, a larger per-test budget for that one test, or sharding the UI job.
      */
     {
       name: "firefox",
-      testIgnore:
-        /strategic-fit-(findings|map|visualization-hardening|large-report|profile-setup|sidecar)\.spec\.ts/,
+      grepInvert: /@visual|@engine-bound/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
-      testIgnore:
-        /strategic-fit-(findings|map|visualization-hardening|large-report|lifecycle|sidecar)\.spec\.ts/,
+      testIgnore: /strategic-fit-findings\.spec\.ts/,
+      grepInvert: /@visual|@engine-bound/,
       use: { ...devices["Desktop Safari"] },
     },
   ],
