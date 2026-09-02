@@ -5,7 +5,12 @@
 import { For, Show } from "solid-js";
 import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../store/analysis";
 import { cloud } from "../store/cloud";
-import { suggestions, acceptSuggestion, rejectSuggestion } from "../store/suggestions";
+import {
+  suggestions,
+  acceptSuggestion,
+  rejectSuggestion,
+  clearSuggestions,
+} from "../store/suggestions";
 import { actions, currentTree } from "../store/game";
 import { lastNavigationSource, setLastNavigationSource } from "../store/ui";
 import { analysisDepth } from "../store/engine-settings";
@@ -84,7 +89,11 @@ export default function AnalysisPanel() {
 
       <Show when={suggestions().length}>
         <div class="suggestions">
-          <PanelHeader title="Suggested (from chat)" />
+          <PanelHeader title="Suggested (from chat)">
+            <button class="reject" aria-label="Clear all chat suggestions" onClick={clearSuggestions}>
+              Clear all
+            </button>
+          </PanelHeader>
           <For each={suggestions()}>
             {(s) => (
               <div class="suggestion">

@@ -185,9 +185,6 @@ export const invalidateCachedStrategicFitReports = () => {
   defaultReportCache.clear();
 };
 
-/** Recovery provenance for the most recent browser analysis; `null` before one has run. */
-export const getLastStrategicFitJobRecovery = () => defaultReportCache.lastRecovery();
-
 /** Scoped conversation retrieval: identity lookup only, never a fresh analysis. */
 export const getCachedStrategicFitReportById = (reportId: string) =>
   defaultReportCache.reportById(reportId);

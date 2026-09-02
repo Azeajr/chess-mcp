@@ -283,7 +283,6 @@ const browserPlanSynthesis = createStrategicFitPlanSynthesisState({
   now: () => new Date().toISOString(),
 });
 
-export const strategicFitPlanCards = () => browserPlanSynthesis.plans();
 export const strategicFitPlanCard = (planId: string) => browserPlanSynthesis.plan(planId);
 export const acceptStrategicFitPlanCard = (planId: string) => browserPlanSynthesis.accept(planId);
 export const rejectStrategicFitPlanCard = (planId: string) => browserPlanSynthesis.reject(planId);

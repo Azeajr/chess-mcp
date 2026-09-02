@@ -62,6 +62,3 @@ export function schemaSemanticDifferences(actual, expected, path = "$") {
   }
   return differences;
 }
-
-export const schemasSemanticallyEqual = (actual, expected) =>
-  schemaSemanticDifferences(actual, expected).length === 0;

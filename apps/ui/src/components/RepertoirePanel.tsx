@@ -27,6 +27,7 @@ import {
   compScanning,
   compError,
   scanComplementary,
+  clearComplementary,
   extBridges,
   bridgeScanning,
   bridgeError,
@@ -922,6 +923,18 @@ export default function RepertoirePanel() {
             >
               Suggest
             </button>
+            <Show when={complementary() !== null || compError() !== null}>
+              <button
+                class="reject"
+                aria-label="Clear extension suggestions"
+                onClick={(e) => {
+                  e.preventDefault();
+                  clearComplementary();
+                }}
+              >
+                Clear
+              </button>
+            </Show>
           </summary>
           <Show when={!usersTurn()}>
             <div class="empty">Navigate to your move to extend from here.</div>

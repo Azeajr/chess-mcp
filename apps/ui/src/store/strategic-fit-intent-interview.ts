@@ -288,7 +288,6 @@ const browserIntentInterview = createStrategicFitIntentInterviewState({
   now: () => new Date().toISOString(),
 });
 
-export const strategicFitProfileProposals = () => browserIntentInterview.proposals();
 export const strategicFitProfileProposal = (proposalId: string) =>
   browserIntentInterview.proposal(proposalId);
 export const acceptStrategicFitProfileProposal = (proposalId: string) =>

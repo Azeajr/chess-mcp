@@ -1,11 +1,10 @@
-import { batch, createSignal } from "solid-js";
+import { batch } from "solid-js";
 import {
   GameTree,
   STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
   applyReplacementChangeSet,
   type Path,
   type ReplacementArchivePayload,
-  type ReplacementAtomicChangeSetSuccess,
   type ReplacementChangeSet,
   type ReplacementChangeSetPreviewSuccess,
   type ReplacementSafetySimulationResult,
@@ -1007,33 +1006,20 @@ const browserController = createStrategicFitChangeController({
   },
 });
 
-const [browserStagesVersion, setBrowserStagesVersion] = createSignal(0);
-
-export const strategicFitStagedChanges = () => {
-  browserStagesVersion();
-  return browserController.stages();
-};
-
 export async function stageStrategicFitChangeSet(input: {
   readonly safety: ReplacementSafetySimulationResult;
   readonly change_set: ReplacementChangeSet;
 }) {
-  const result = await browserController.stageChangeSet(input);
-  setBrowserStagesVersion((value) => value + 1);
-  return result;
+  return browserController.stageChangeSet(input);
 }
 
 export function registerStrategicFitStageForTesting(stage: StrategicFitStagedChange) {
   assertTestOnly();
-  const registered = browserController.registerStageForTesting(stage);
-  setBrowserStagesVersion((value) => value + 1);
-  return registered;
+  return browserController.registerStageForTesting(stage);
 }
 
 async function acceptStrategicFitChangeSet(stageId: string) {
-  const result = await browserController.accept(stageId);
-  setBrowserStagesVersion((value) => value + 1);
-  return result;
+  return browserController.accept(stageId);
 }
 
 interface StrategicFitConfirmedAcceptanceController {
@@ -1056,21 +1042,14 @@ export async function acceptConfirmedStrategicFitChangeSet(
 }
 
 export async function rejectStrategicFitChangeSet(stageId: string) {
-  const result = await browserController.reject(stageId);
-  setBrowserStagesVersion((value) => value + 1);
-  return result;
+  return browserController.reject(stageId);
 }
 
 export async function undoStrategicFitChange(undoId?: string) {
-  const result = await browserController.undo(undoId);
-  setBrowserStagesVersion((value) => value + 1);
-  return result;
+  return browserController.undo(undoId);
 }
 
 export const strategicFitArchivePayload = (archiveId: string) =>
   browserController.archivePayload(archiveId);
 export const strategicFitUndoRecordForStage = (stageId: string) =>
   browserController.undoRecordForStage(stageId);
-
-export type StrategicFitChangeController = ReturnType<typeof createStrategicFitChangeController>;
-export type StrategicFitChangeSetStageSuccess = ReplacementAtomicChangeSetSuccess;

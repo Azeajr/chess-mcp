@@ -1,12 +1,17 @@
-import { For, Show, createEffect } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
+import type { ReplacementArchivePayload } from "@chess-mcp/chess-tools";
 import {
   strategicFitResolutionProof,
   strategicFitResolutionProofSnapshot,
   type StrategicFitResolutionProofMetricClaim,
   type StrategicFitResolutionProofSnapshot,
 } from "../../store/strategic-fit-resolution-proof";
+import { strategicFitArchivePayload } from "../../store/strategic-fit-changes";
+import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
+
+type ArchiveLoadState = "loading" | "unavailable" | ReplacementArchivePayload;
 
 export const PROOF_STATUS_LABELS: Readonly<
   Record<StrategicFitResolutionProofSnapshot["status"], string>
@@ -49,6 +54,16 @@ export default function ResolutionProof() {
     state().phase === "acceptance" &&
     state().undo_record?.status === "available" &&
     !["undoing", "undone", "idle"].includes(state().status);
+
+  const [archivePayloads, setArchivePayloads] = createSignal<
+    Readonly<Record<string, ArchiveLoadState>>
+  >({});
+  const loadArchive = async (archiveId: string) => {
+    setArchivePayloads((prev) => ({ ...prev, [archiveId]: "loading" }));
+    const payload = await strategicFitArchivePayload(archiveId);
+    setArchivePayloads((prev) => ({ ...prev, [archiveId]: payload ?? "unavailable" }));
+  };
+
   return (
     <Show when={state().tracked} keyed>
       {(tracked) => (
@@ -133,6 +148,61 @@ export default function ResolutionProof() {
               <dd>{tracked.repertoire_color === "black" ? "Black" : "White"}</dd>
             </div>
           </dl>
+
+          <Show
+            when={strategicFitMetadata().archive_references.filter(
+              (reference) => reference.linked_staged_edit_id === tracked.stage_id,
+            )}
+          >
+            {(references) => (
+              <Show when={references().length > 0}>
+                <section aria-labelledby="replacement-proof-archives-title">
+                  <h5 id="replacement-proof-archives-title">Archived lines</h5>
+                  <ul class="replacement-proof-archives">
+                    <For each={references()}>
+                      {(reference) => {
+                        const loaded = () => archivePayloads()[reference.archive_id];
+                        return (
+                          <li data-archive-id={reference.archive_id}>
+                            <Show
+                              when={loaded()}
+                              fallback={
+                                <button
+                                  type="button"
+                                  onClick={() => void loadArchive(reference.archive_id)}
+                                >
+                                  View archived line <code>{reference.archive_id}</code>
+                                </button>
+                              }
+                            >
+                              {(archiveState) =>
+                                archiveState() === "loading" ? (
+                                  <p role="status">Loading archived line…</p>
+                                ) : archiveState() === "unavailable" ? (
+                                  <p role="alert">
+                                    Archive <code>{reference.archive_id}</code> is no longer
+                                    retrievable.
+                                  </p>
+                                ) : (
+                                  <details open>
+                                    <summary>
+                                      Archive <code>{reference.archive_id}</code>, archived{" "}
+                                      {reference.created_at}
+                                    </summary>
+                                    <pre>{(archiveState() as ReplacementArchivePayload).pgn}</pre>
+                                  </details>
+                                )
+                              }
+                            </Show>
+                          </li>
+                        );
+                      }}
+                    </For>
+                  </ul>
+                </section>
+              </Show>
+            )}
+          </Show>
 
           <Show when={outcome()} keyed>
             {(value) => (

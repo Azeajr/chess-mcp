@@ -367,7 +367,6 @@ const browserPortfolio = createStrategicFitPortfolioState({
   now: () => new Date().toISOString(),
 });
 
-export const strategicFitPortfolioConstraintSets = () => browserPortfolio.constraintSets();
 export const strategicFitPortfolioConstraintSet = (id: string) =>
   browserPortfolio.constraintSet(id);
 export const strategicFitPortfolioSelection = () => browserPortfolio.selection();

@@ -18,8 +18,13 @@ import {
   updateStrategicFitDataSourceSettings,
   type StrategicFitDataSourceSettings,
 } from "../../store/strategic-fit-data-sources";
-import { strategicFitTrainingPerformance } from "../../store/strategic-fit-training";
+import {
+  strategicFitTrainingPerformance,
+  exportStrategicFitTrainingPerformance,
+  importStrategicFitTrainingPerformance,
+} from "../../store/strategic-fit-training";
 import { strategicFitLifecycle } from "../../store/strategic-fit";
+import { saveArtifact } from "../../store/artifacts";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "./ProfileSetup";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
@@ -83,6 +88,23 @@ export default function ProfileSettings() {
   );
   const [sources, setSources] = createSignal(cloneSources(strategicFitDataSourceSettings()));
   const [announcement, setAnnouncement] = createSignal("");
+  const [trainingTransferMessage, setTrainingTransferMessage] = createSignal<string | null>(null);
+
+  const exportTraining = () => {
+    const result = exportStrategicFitTrainingPerformance();
+    if (result.artifact_id !== null) saveArtifact(result.artifact_id);
+    setTrainingTransferMessage(result.message);
+  };
+
+  const importTraining = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      setTrainingTransferMessage(importStrategicFitTrainingPerformance(parsed).message);
+    } catch {
+      setTrainingTransferMessage("That file is not valid JSON.");
+    }
+  };
 
   const resetDraft = () => {
     setPreferences(clonePreferences(strategicFitProfile().preferences));
@@ -440,6 +462,28 @@ export default function ProfileSettings() {
                   </div>
                 )}
               </For>
+            </div>
+            <div class="strategic-fit-transfer-actions">
+              <button type="button" class="fix-btn" onClick={exportTraining}>
+                Export training performance
+              </button>
+              <label class="fix-btn strategic-fit-import-label">
+                Import training performance
+                <input
+                  aria-label="Choose Strategic Fit training performance JSON"
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => {
+                    const input = event.currentTarget;
+                    void importTraining(input.files?.[0]).finally(() => {
+                      input.value = "";
+                    });
+                  }}
+                />
+              </label>
+              <Show when={trainingTransferMessage()}>
+                {(message) => <small role="status">{message()}</small>}
+              </Show>
             </div>
             <div class="strategic-fit-profile-fields">
               <label>

@@ -21,8 +21,6 @@ export const browserCommandImplementations: BrowserCommandRegistry = {
   ...repertoireCommands,
 };
 
-export const browserImplementationNames = () => Object.keys(browserCommandImplementations).sort();
-
 /** Internal document-mutation registry. It does not expand the public canonical chat surface. */
 export const browserDocumentMutationRegistry = {
   strategic_fit_change_set: {

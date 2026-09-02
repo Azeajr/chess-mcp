@@ -52,25 +52,22 @@ pass against this repo before enabling by default.
 
 ## Built but not wired
 
-Found by running `npx knip` and then reading each result rather than trusting the count. These
-nineteen symbols are referenced nowhere, but they sit inside live modules and look like unfinished
-wiring, not leftovers. Deleting them would throw away working code; they are listed so the next
-audit stops re-reporting them as dead exports.
+The nineteen knip-flagged symbols an earlier audit found here are resolved. Thirteen were genuinely
+dead (a taxonomy declaration nothing rendered, plural "list every staged item" readers whose
+singular "current item" sibling was already wired and whose product design deliberately keeps one
+staged item active at a time, and a handful of unused type aliases) and were deleted rather than
+kept as decoration. Five had a real missing affordance and are now wired: `clearComplementary` and
+`clearSuggestions` are Clear buttons on the Extend-here and chat-suggestions panels;
+`strategicFitArchivePayload` backs a "View archived line" control on `ResolutionProof` that fetches
+a past accepted change's pruned PGN by its durable `archive_id` reference;
+`exportStrategicFitTrainingPerformance`/`importStrategicFitTrainingPerformance` back Export/Import
+controls in `ProfileSettings`'s data-sources section, now that `DrillRunner` produces real attempts
+worth exporting.
 
-- **Training performance import/export.** `exportStrategicFitTrainingPerformance`,
-  `importStrategicFitTrainingPerformance`, and `flushStrategicFitTrainingPerformance` are complete
-  and unreachable — there is no UI affordance for any of them, even though `DrillRunner` (see
-  AGENTS.md's "Training drills") now produces real attempts to export.
-- **Unread store accessors.** `strategicFitStagedChanges`, `strategicFitPlanCards`,
-  `strategicFitPortfolioConstraintSets`, `strategicFitProfileProposals`, and
-  `strategicFitArchivePayload` expose state nothing renders. Each store's mutations are wired; only
-  these readers are orphaned.
-- **Orphaned clear actions.** `clearComplementary` (`store/repertoire.ts`) and `clearSuggestions`
-  (`store/suggestions.ts`) have no caller, so those two surfaces cannot be reset from the UI.
-- **Smaller ones.** `browserImplementationNames`, `getLastStrategicFitJobRecovery`,
-  `REPERTOIRE_SECTION_LABELS`, `REPERTOIRE_COMMAND_TOOLS`, `schemasSemanticallyEqual`, and the
-  types `RepertoireGroupTitle`, `ToolExecutionOptions`, `StrategicFitChangeController`,
-  `StrategicFitChangeSetStageSuccess`.
+One is deliberately left unwired: `flushStrategicFitTrainingPerformance` forces a pending debounced
+IndexedDB write. Nothing in this app calls it because nothing in this app has a page-unload/lifecycle
+flush hook of any kind — wiring it would mean inventing that pattern from scratch, not connecting to
+an existing one, which is a different and larger change than closing a dead-code gap.
 
 ## Wanted: a Playwright helper that plays a move on the board
 
