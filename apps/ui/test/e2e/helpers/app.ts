@@ -4,6 +4,7 @@ type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
   setColor(color: "white" | "black"): void;
   currentPath(): number[];
+  goto(path: number[]): void;
   toPgn(): string;
 };
 
@@ -71,3 +72,7 @@ export async function openApp(
 
 export const currentPath = (page: Page) => chess(page, (api) => api.currentPath());
 export const currentPgn = (page: Page) => chess(page, (api) => api.toPgn());
+
+/** Move the app to an existing node of the loaded tree, so a spec can start from a real position. */
+export const goToPath = (page: Page, path: number[]) =>
+  chess(page, (api, next) => api.goto(next), path);

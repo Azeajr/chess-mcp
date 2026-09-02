@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "playwright/test";
 import { currentPath, openApp } from "./helpers/app";
+import { clickMove, dragMove, tapMove } from "./helpers/board";
 import {
   basicAccessibilityViolations,
   keyboardReachable,
@@ -13,6 +14,9 @@ const moveItem = (page: Page, path: readonly number[]) =>
 
 const branchToggle = (page: Page, path: readonly number[]) =>
   page.locator(`.move-tree .collapse-toggle[data-branch-path="${path.join(",")}"]`);
+
+/** Chessground's own board, which the AC-7 tests drive directly — not the keyboard layer over it. */
+const chessboard = (page: Page) => page.locator(".board-wrap .cg-wrap");
 
 const setCurrentPath = (page: Page, path: number[]) =>
   page.evaluate(
@@ -87,45 +91,6 @@ const announcementLog = (page: Page): Promise<string[]> =>
       window as unknown as { __chess: { announcementLogForTesting(): Promise<string[]> } }
     ).__chess.announcementLogForTesting(),
   );
-
-/** Pixel centre of a board square, orientation-aware — for real pointer/touch interaction tests
- *  against Chessground's own rendered squares (not the keyboard layer's overlay). */
-async function squareCenter(
-  page: Page,
-  square: string,
-  flipped: boolean,
-): Promise<{ x: number; y: number }> {
-  const box = await page.locator(".cg-wrap").boundingBox();
-  if (!box) throw new Error("cg-wrap is not visible");
-  const file = "abcdefgh".indexOf(square.charAt(0));
-  const rank = "12345678".indexOf(square.charAt(1));
-  const col = flipped ? 7 - file : file;
-  const row = flipped ? rank : 7 - rank;
-  const size = box.width / 8;
-  return { x: box.x + col * size + size / 2, y: box.y + row * size + size / 2 };
-}
-
-/**
- * Plays a move via two sequential real touches — Playwright's `touchscreen.tap()`, the only touch
- * primitive it exposes (no drag), but that is enough: Chessground's own touch `start()` handler
- * (`drag.ts`) calls the exact same `board.selectSquare()` a click does, synchronously, on
- * `touchstart` alone — a tap on a piece selects it, and (because Chessground's `start()` guards
- * on `e.isTrusted`, real code, read directly rather than assumed) only a second *real* touch can
- * complete it. A hand-built `new TouchEvent(...)` dispatched via `element.dispatchEvent()` is
- * never trusted (a DOM-spec guarantee, not a bug to route around) — confirmed by running exactly
- * that against this fixture first: Chessground's own `start()` returned immediately on every
- * engine, and WebKit additionally rejected the `Touch` constructor outright ("Illegal
- * constructor"). `touchscreen.tap()` avoids both problems by going through each engine's real
- * input pipeline, which is why this is the two-tap sequence rather than a synthesized drag.
- */
-async function touchMove(
-  page: Page,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): Promise<void> {
-  await page.touchscreen.tap(from.x, from.y);
-  await page.touchscreen.tap(to.x, to.y);
-}
 
 async function addAuditRows(page: Page, count = 1): Promise<void> {
   await page.evaluate(async (fixtureCount) => {
@@ -755,10 +720,7 @@ test("WP-014 AC-7 click-to-move is unchanged with the keyboard layer unfocused",
   await openApp(page, { pgn: "*" }); // clean tree so the played move lands at path [0]
   const before = await focusedSquare(page); // never Tabbed in — should be null throughout
   expect(before).toBeNull();
-  const from = await squareCenter(page, "e2", false);
-  const to = await squareCenter(page, "e4", false);
-  await page.mouse.click(from.x, from.y);
-  await page.mouse.click(to.x, to.y);
+  await clickMove(chessboard(page), "e2", "e4");
   await expect.poll(() => currentPath(page)).toEqual([0]);
   expect(await focusedSquare(page)).toBeNull();
 });
@@ -767,13 +729,7 @@ test("WP-014 AC-7 pointer drag is unchanged with the keyboard layer unfocused", 
   page,
 }) => {
   await openApp(page, { pgn: "*" }); // clean tree so the played move lands at path [0]
-  const from = await squareCenter(page, "e2", false);
-  const to = await squareCenter(page, "e4", false);
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
-  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 3 });
-  await page.mouse.move(to.x, to.y, { steps: 3 });
-  await page.mouse.up();
+  await dragMove(chessboard(page), "e2", "e4");
   await expect.poll(() => currentPath(page)).toEqual([0]);
 });
 
@@ -788,9 +744,7 @@ test("WP-014 AC-7 touch move is unchanged with the keyboard layer unfocused", as
     });
   const touchPage = await context.newPage();
   await openApp(touchPage, { pgn: "*" }); // clean tree so the played move lands at path [0]
-  const from = await squareCenter(touchPage, "e2", false);
-  const to = await squareCenter(touchPage, "e4", false);
-  await touchMove(touchPage, from, to);
+  await tapMove(chessboard(touchPage), "e2", "e4");
   await expect.poll(() => currentPath(touchPage)).toEqual([0]);
   await context.close();
 });
