@@ -50,6 +50,32 @@ Phase 2 (add after phase 1 is clean and run for a while, one at a time, not bund
 Do not bundle phase 2 additions into one PR — each plugin needs its own signal-to-noise
 pass against this repo before enabling by default.
 
+## Deliberately ungated
+
+CI does not gate these, and that is a decision, not an oversight. Each has resurfaced as an audit
+finding at least once; the reasoning lives here so it stops being rediscovered as a defect.
+
+- **Live provider paths (`SMOKE_NETWORK=0`).** `apps/mcp-server/test/smoke-client.mjs` runs with
+  network assertions gated out, so the live Lichess and Chess.com paths are never exercised in CI.
+  Turning them on buys a job that fails on someone else's outage, on a schedule nobody controls,
+  for a signal that is almost never about a change in this repo. The provider clients are covered
+  deterministically instead; run the smoke script with `SMOKE_NETWORK=1` locally when touching
+  `apiclient.ts`, `games.ts`, or `cloudeval.ts`.
+- **Warm eval cache (`EVAL_CACHE_DIR=0`).** CI runs cold on purpose — a warm-cache dependency would
+  make results depend on runner state carried between jobs, which is exactly the kind of hidden
+  coupling that makes a red build unreproducible. The cache's own behavior is covered by
+  `apps/mcp-server/test/cache.mjs`.
+- **`pnpm verify:openrouter`.** Spends real OpenRouter tokens on every invocation and needs a live
+  API key in repository secrets. It is a release-verification journey (see above), run by hand
+  against candidates, not a per-push gate.
+- **`pnpm bench:strategic-fit`.** The baseline JSON is committed, but no gate consumes it. Timing
+  on shared GitHub runners varies enough that a threshold tight enough to catch a real regression
+  also fires on neighbour noise, and a threshold loose enough to be quiet catches nothing worth
+  catching. Treat the baseline as a local before/after instrument for performance work.
+
+A gate that flaps gates nothing — it trains you to ignore a red build. That is the same reasoning
+that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobody trusts.
+
 ## Follow-up quality work
 
 - Add summary-to-detail references where any result still approaches model-context limits.
