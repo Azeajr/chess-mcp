@@ -89,11 +89,28 @@ jobs:
         run: |
           pnpm --filter @chess-mcp/ui build
           node --test apps/ui/test/pwa-build.test.mjs
+      # Runs on the host, not in the e2e container, so it needs its own browser. The container
+      # image that serves `test:e2e:container` is not on this job's PATH.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      # Keyed on the resolved Playwright version, not the lockfile: the browser build only changes
+      # when Playwright does, so an unrelated dependency bump must not throw the download away.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
       - name: Real service-worker update lifecycle (build A to build B)
-        # Runs on the host, not in the e2e container, so it needs its own browser. The container
-        # image that serves `test:e2e:container` is not on this job's PATH.
+        # Deliberately not `--with-deps`. On run 33631185583 that apt install took 4m10s of a 4m50s
+        # step — 86% of it, and the whole reason this job, not the e2e shards, was the critical
+        # path. The ubuntu runner image already ships the shared libraries Chromium needs (it
+        # preinstalls Chrome and Edge); the bulk of what `--with-deps` adds on top is font packages
+        # for non-Latin screenshot rendering, and this test asserts service-worker lifecycle, not
+        # pixels. If Chromium ever fails to launch here with a missing .so, put `--with-deps` back
+        # on this one line rather than reinstating it everywhere.
         run: |
-          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright install chromium
           node apps/ui/test/pwa-lifecycle.mjs
 
   ui-e2e:
