@@ -378,8 +378,13 @@ export class GameTree {
     const toRank = to >> 3;
     if (promotion) move.promotion = promotion as NormalMove["promotion"];
     else if (piece?.role === "pawn" && (toRank === 0 || toRank === 7)) move.promotion = "queen";
+    // Legality must be asked before playing. The previous guard tested `makeSanAndPlay(...) === "--"`,
+    // which is chessops' SAN for a NULL move, not its answer for an illegal one: given e2e5 it
+    // returns "e5" and plays it, so every illegal orig/dest was appended to the tree with a
+    // plausible-looking SAN. That made the tree's own invariant -- every line replayable, which
+    // `assertLegal` enforces at parse time -- reachable only through PGN, not through the board.
+    if (!pos.isLegal(move)) throw new Error(`illegal move ${orig}${dest}`);
     const san = makeSanAndPlay(pos, move);
-    if (san === "--") throw new Error(`illegal move ${orig}${dest}`);
     return this.appendSan(path, san);
   }
 

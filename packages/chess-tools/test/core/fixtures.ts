@@ -65,6 +65,13 @@ export const AFTER_E4_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQk
 /** After 1. e4 e5. */
 export const AFTER_E4_E5_FEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2";
 
+/**
+ * The Italian Game, reached by both 1. e4 e5 2. Nf3 Nc6 3. Bc4 and 1. e4 e5 2. Bc4 Nc6 3. Nf3 —
+ * `validate_line` returns this identical FEN for both orders, which is what makes it a genuine
+ * transposition fixture rather than an assumed one.
+ */
+export const ITALIAN_FEN = "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3";
+
 /** Syntactically well-formed but not a position any legal game reaches: no kings on the board. */
 export const KINGLESS_FEN = "8/8/8/4q3/8/8/8/8 w - - 0 1";
 
