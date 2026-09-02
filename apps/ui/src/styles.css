@@ -2946,12 +2946,12 @@ img,
   cursor: pointer;
 }
 .strategic-fit-import-label input {
-  /* 44px, not 1px: `clip` hides this regardless of box size, and 44px keeps the raw
-     control itself — not just its label — a valid touch target for automated and
-     assistive tooling that measures the input directly. */
+  /* The standard visually-hidden box. Sizing it to 44px would only satisfy tooling that measures
+     the input directly — `clip` means no pointer can reach it at any size. The touch target is the
+     label wrapping it, which carries the 44px minimum below. */
   position: absolute;
-  width: 44px;
-  height: 44px;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;

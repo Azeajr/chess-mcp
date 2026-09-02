@@ -177,10 +177,19 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
     )) {
       if (!visible(candidate) || candidate.matches(":disabled")) continue;
       const input = candidate instanceof HTMLInputElement ? candidate : null;
-      const target =
-        input && ["checkbox", "radio"].includes(input.type)
-          ? (candidate.closest<HTMLElement>("label") ?? candidate)
-          : candidate;
+      // An input clipped to nothing is never the thing a finger lands on — the visually-hidden
+      // file/checkbox pattern puts the real target on the wrapping label. Measuring the raw input
+      // asks its box to be 44px for a control no pointer can reach, which is satisfiable by
+      // resizing something invisible; measure the label instead, which is what the user hits.
+      const clipped = (element: HTMLElement) => {
+        const style = getComputedStyle(element);
+        return style.clip !== "auto" || style.clipPath !== "none";
+      };
+      const delegatesToLabel =
+        input !== null && (["checkbox", "radio"].includes(input.type) || clipped(input));
+      const target = delegatesToLabel
+        ? (candidate.closest<HTMLElement>("label") ?? candidate)
+        : candidate;
       const rect = target.getBoundingClientRect();
       const hitRect =
         candidate.getAttribute("role") === "separator"
