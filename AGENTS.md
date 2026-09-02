@@ -157,6 +157,26 @@ gate proved more expensive to keep green than the assurance was worth. An `AG-<d
 now refers to closed historical work only; the rationale and what it once caught are in that
 removal commit.
 
+## Training drills
+
+`TrainException` creates a training item, which registers each drill position as an **untrained
+target**. `DrillRunner` is the surface that attempts one: it shows the position, takes a single
+move, and records the outcome through `recordStrategicFitDrillAttempt`.
+
+Two rules hold that apart, and both are load-bearing rather than stylistic:
+
+- **Never record an attempt from drill creation.** Registration establishes an untrained state;
+  only a move the user really played may supply recall, response-time, lapse, confidence, or
+  spacing evidence. Recording on creation fabricates evidence and corrupts every mastery figure
+  derived from it. Pinned by "training targets remain explicitly untrained until a real attempt
+  exists" (chess-tools) and "creating a training item registers targets but records no attempt"
+  (apps/ui).
+- **Recall is first-attempt only.** A wrong move is revealed and recorded as a miss, with no retry,
+  because a retry that overwrote the first result would make recall rate meaningless.
+
+Drills are rebuilt from current evidence via `strategicFitDrillsFor`, not cached: creating an item
+triggers reanalysis, which remounts the panel and discards component state.
+
 The deterministic checks in `apps/ui/test/e2e/helpers/accessibility.ts` are NOT part of that
 removal and remain live. Despite the filename, most of what they assert is general UI
 correctness — document overflow, raw identifiers leaking into visible text, contrast ratios,

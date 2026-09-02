@@ -89,6 +89,15 @@ audit stops re-reporting them as dead exports.
   types `RepertoireGroupTitle`, `ToolExecutionOptions`, `StrategicFitChangeController`,
   `StrategicFitChangeSetStageSuccess`.
 
+## Follow-up: a Playwright board-move helper
+
+No e2e in this repo drives a move on a chessground board, and the drill surface is the first place
+that wanted one. Neither `locator.click` at computed square coordinates nor a synthesised
+down/move/up drag reached chessground's pointer handling, so the drill e2e asserts the board is
+live and correctly oriented but stops short of playing the move; the move-to-SAN conversion, recall
+comparison and attempt recording are unit-tested instead. A reusable helper would close that and
+would serve the main board too.
+
 ## Deliberately ungated
 
 CI does not gate these, and that is a decision, not an oversight. Each has resurfaced as an audit

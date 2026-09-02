@@ -49,6 +49,10 @@ import {
   strategicFitMetadataWarning,
 } from "./store/strategic-fit-metadata";
 import {
+  strategicFitTrainingPerformance,
+  strategicFitTrainingMastery,
+} from "./store/strategic-fit-training";
+import {
   applyInferredStrategicFitProfile,
   confirmInferredStrategicFitProfile,
   selectStrategicFitProfile,
@@ -180,6 +184,8 @@ if (import.meta.env.DEV) {
     strategicFitMetadataStatus,
     strategicFitMetadataIssues,
     strategicFitMetadataWarning,
+    strategicFitTrainingPerformance,
+    strategicFitTrainingMastery,
     replaceStrategicFitMetadata,
     deleteStrategicFitMetadata,
     flushStrategicFitMetadata,
