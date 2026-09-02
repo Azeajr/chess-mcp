@@ -107,6 +107,13 @@ that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobod
 
 ## Follow-up quality work
 
+- **`positionKey` compares the en-passant field verbatim, so a stale target breaks transposition
+  matching.** The key is the first four FEN fields, and the library only records an en-passant
+  target when a capture is actually legal — `makeFen` after 1. e4 ends `KQkq -`, not `KQkq e3`.
+  Every FEN generated inside the library is therefore self-consistent, but a FEN supplied from
+  outside that still carries `e3` keys differently from the same position generated internally, and
+  the transposition is silently missed. Normalising through `validateFen` at the boundary would
+  close it. Pinned by a test in `test/core/congruence.test.ts`.
 - **Castling must be spelled `O-O`; `0-0` is rejected.** `validateLine` defers to chessops'
   `parseSan`, which accepts only the letter-O spelling, so a line containing the digit form fails
   at the castling index instead of being normalised. The digit form is common in PGN emitted by

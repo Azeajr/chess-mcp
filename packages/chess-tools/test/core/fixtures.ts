@@ -56,6 +56,15 @@ export const PROMOTION_LEGAL_MOVES = [
   "a8=Q",
 ] as const;
 
+/**
+ * After 1. e4. Note the en-passant field is `-`, not `e3`: the library only records a target when
+ * a capture is actually available, and `validate_fen` normalises the stale target away.
+ */
+export const AFTER_E4_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+
+/** After 1. e4 e5. */
+export const AFTER_E4_E5_FEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2";
+
 /** Syntactically well-formed but not a position any legal game reaches: no kings on the board. */
 export const KINGLESS_FEN = "8/8/8/4q3/8/8/8/8 w - - 0 1";
 
