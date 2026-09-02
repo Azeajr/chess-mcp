@@ -2946,9 +2946,12 @@ img,
   cursor: pointer;
 }
 .strategic-fit-import-label input {
+  /* 44px, not 1px: `clip` hides this regardless of box size, and 44px keeps the raw
+     control itself — not just its label — a valid touch target for automated and
+     assistive tooling that measures the input directly. */
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: 44px;
+  height: 44px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -7101,7 +7104,9 @@ img,
   }
   .strategic-fit-preset-actions button,
   .strategic-fit-settings-actions button,
-  .strategic-fit-settings-body > details > summary {
+  .strategic-fit-settings-body > details > summary,
+  .strategic-fit-transfer-actions button,
+  .strategic-fit-transfer-actions .strategic-fit-import-label {
     min-height: 44px;
   }
   .strategic-fit-family-grid,
