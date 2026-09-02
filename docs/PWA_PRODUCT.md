@@ -112,8 +112,11 @@ into browser reports so familiarity-adjusted coverage, training-adjusted workloa
 regret show their source coverage instead of treating absent observations as failure. Creating a
 training item for a retained exception only registers its untrained target; a `Drill N positions`
 button then opens `DrillRunner`, which shows one drill position at a time, times the response from
-first paint, accepts one move, and records the only real attempt against that target — recall is
-first-attempt only, with no retry that could overwrite it.
+when that position was put on screen, accepts one move, and records what was played. Recall is
+first-attempt only: within a run, a position already answered cannot be answered again, so no retry
+can overwrite the result it is scored on. `Drill again` starts a fresh run, whose attempts
+accumulate as further evidence rather than replacing the earlier ones. A run survives the
+reanalysis that recording an attempt triggers, so a position answered mid-run stays answered.
 The Strategic Fit workspace also detects a deliberately small set of explicit PGN comment phrases:
 `must keep`, `tournament weapon`, and `avoid queenless middlegame`/`endgame`. The corresponding
 explicit tags are `[%strategic-fit keep]`, `[%strategic-fit tournament-weapon]`, and
