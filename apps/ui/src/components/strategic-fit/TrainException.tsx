@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import type { StrategicFinding, StrategicFitReport } from "@chess-mcp/chess-tools";
 import { saveArtifact } from "../../store/artifacts";
 import { displayStrategicFitFindingResolution } from "../../store/strategic-fit-finding-resolutions";
@@ -6,9 +6,11 @@ import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
   createStrategicFitTrainingItem,
   exportStrategicFitTrainingItem,
+  strategicFitDrillsFor,
   type StrategicFitTrainingCreationResult,
 } from "../../store/strategic-fit-training";
 
+import DrillRunner from "./DrillRunner";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
 export default function TrainException(props: {
@@ -18,6 +20,16 @@ export default function TrainException(props: {
 }) {
   const [notes, setNotes] = createSignal("");
   const [result, setResult] = createSignal<StrategicFitTrainingCreationResult | null>(null);
+  const [drilling, setDrilling] = createSignal(false);
+
+  createEffect(
+    on(
+      () => props.finding.finding_id,
+      () => {
+        setDrilling(false);
+      },
+    ),
+  );
 
   createEffect(() => {
     void props.finding.finding_id;
@@ -52,6 +64,22 @@ export default function TrainException(props: {
     semantic_finding_id: props.finding.semantic_finding_id,
     user_notes: notes(),
   });
+  /**
+   * Drills come from the record rather than from the registered targets: a target stores only the
+   * position and decision it belongs to, never the FEN or the expected move, so it cannot be
+   * attempted on its own.
+   *
+   * It is rebuilt on demand rather than kept from whatever `create` returned: creating a training
+   * item triggers reanalysis, which remounts this panel, so anything held in component state here
+   * is gone by the time the user could click Drill. Rebuilding also means a drill stays available
+   * on a later visit, not only in the moments after creation.
+   */
+  const drillable = createMemo(() =>
+    // Only once a training item exists: the attempt is recorded against the target that creating
+    // one registers, so offering a drill before that would produce an attempt with nowhere to go.
+    activeReference() === null ? null : strategicFitDrillsFor(input()),
+  );
+
   const create = () => setResult(createStrategicFitTrainingItem(input()));
   const savePersisted = () => {
     const exported = exportStrategicFitTrainingItem(input());
@@ -146,6 +174,21 @@ export default function TrainException(props: {
                 ? " · causal move unavailable"
                 : ` · causal move ${record().causal_move?.san ?? "unavailable"}`}
             </p>
+          )}
+        </Show>
+        <Show when={drillable()}>
+          {(record) => (
+            <Show
+              when={drilling()}
+              fallback={
+                <button type="button" onClick={() => setDrilling(true)} data-drill-start="true">
+                  Drill {record().drills.length}{" "}
+                  {record().drills.length === 1 ? "position" : "positions"}
+                </button>
+              }
+            >
+              <DrillRunner trainingId={record().training_id} drills={record().drills} />
+            </Show>
           )}
         </Show>
         <Show when={result()?.artifact_id}>

@@ -5657,6 +5657,42 @@ img,
   pointer-events: none;
   user-select: none;
 }
+
+/* The drill board is the read-only board's interactive sibling: same square footprint, but it must
+   accept a pointer, because playing one move on it is the whole point. */
+.strategic-fit-drill-board {
+  width: 100%;
+  max-width: 22rem;
+  aspect-ratio: 1;
+  overflow: hidden;
+  user-select: none;
+}
+.strategic-fit-drill-board[data-drill-locked="true"] {
+  pointer-events: none;
+}
+.strategic-fit-drill-runner {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.strategic-fit-drill-prompt {
+  margin: 0;
+  font-weight: 600;
+}
+.strategic-fit-drill-result {
+  display: grid;
+  gap: 0.35rem;
+}
+.strategic-fit-drill-result p {
+  margin: 0;
+}
+.strategic-fit-drill-result [data-drill-result="missed"] {
+  color: var(--danger-text, #b3261e);
+}
+.strategic-fit-drill-summary ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
 .strategic-fit-comparison-board-card dl {
   display: grid;
   grid-template-columns: 1fr 1fr;

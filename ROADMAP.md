@@ -57,17 +57,27 @@ twenty symbols are referenced nowhere, but they sit inside live modules and look
 wiring, not leftovers. Deleting them would throw away working code; they are listed so the next
 audit stops re-reporting them as dead exports.
 
-- **Training performance is displayed but can never be written — this one is a bug.**
-  `StrategicFitWorkspace.tsx:522` renders `strategicFitTrainingMastery()` and
-  `ProfileSettings.tsx:195` renders a trained-target count, but
-  `recordStrategicFitTrainingPerformanceAttempt`, the only public writer in
-  `store/strategic-fit-training.ts`, is called from nowhere. `TrainException.tsx` creates training
-  items and never records an attempt at one, so both figures are permanently zero for every user.
-  Either wire the writer into the drill flow or stop displaying the statistics.
+- **There is no drill-attempt UI, so no training attempt can ever be recorded.** This is a missing
+  feature, not broken wiring. An earlier revision of this entry called it a bug and said the
+  displayed figures were "permanently zero for every user"; that was wrong and is corrected here.
+  Registration _is_ wired — `TrainException.tsx:55` calls `createStrategicFitTrainingItem`, which
+  reaches `register()` in `store/strategic-fit-training.ts:1101` — so creating a drill does write a
+  target, and `ProfileSettings.tsx:195` counts real ones. What no screen offers is a way to _attempt_
+  a drill, which is the only thing that may call
+  `recordStrategicFitTrainingPerformanceAttempt`.
+  - Registering a target and recording an attempt are deliberately separate: registration
+    establishes an explicitly untrained state, and only a real attempt supplies recall,
+    response-time, lapse, confidence, and spacing evidence. That contract is stated on
+    `StrategicFitTrainingPerformanceBoundary` and pinned by the test "training targets remain
+    explicitly untrained until a real attempt exists".
+  - So do **not** close this by calling the writer from drill creation. That would fabricate recall
+    and response-time evidence the user never gave and corrupt every mastery figure derived from
+    it. Closing it properly means building the drill surface: show the position, take a move,
+    time the response, and record the outcome.
 - **Training performance import/export.** `exportStrategicFitTrainingPerformance`,
   `importStrategicFitTrainingPerformance`, and `flushStrategicFitTrainingPerformance` are complete
-  and unreachable — there is no UI affordance for any of them. Moot until the bug above is fixed,
-  since there is nothing to export.
+  and unreachable — there is no UI affordance for any of them. Of limited use until a drill surface
+  exists, since only registered targets, never attempts, would round-trip.
 - **Unread store accessors.** `strategicFitStagedChanges`, `strategicFitPlanCards`,
   `strategicFitPortfolioConstraintSets`, `strategicFitProfileProposals`, and
   `strategicFitArchivePayload` expose state nothing renders. Each store's mutations are wired; only
@@ -78,6 +88,37 @@ audit stops re-reporting them as dead exports.
   `REPERTOIRE_SECTION_LABELS`, `REPERTOIRE_COMMAND_TOOLS`, `schemasSemanticallyEqual`, and the
   types `RepertoireGroupTitle`, `ToolExecutionOptions`, `StrategicFitChangeController`,
   `StrategicFitChangeSetStageSuccess`.
+
+## Wanted: a Playwright helper that plays a move on the board
+
+No e2e in this repo has ever driven a move on a chessground board. Every board assertion so far
+reads state; none plays. The drill surface is the first thing that wanted one, so this is a gap in
+the harness rather than in any one feature.
+
+What it would unlock: the drill e2e currently proves the board is live and correctly oriented but
+stops before the move, so the move → SAN → recorded-attempt path is unit-tested and never exercised
+in a real browser. The main board has the same hole — dragging a piece, promotion, and illegal-move
+refusal are all untested end to end.
+
+Already tried against `DrillBoard`, both failing silently with no selection and no destination
+markers rendered, so neither reached chessground's pointer handling:
+
+- `locator.click({ position })` at computed square centres, after
+  `scrollIntoViewIfNeeded` (`page.mouse.click` alone is worse: it takes viewport coordinates and
+  does no scrolling, so an off-screen board is clicked blind).
+- A synthesised drag: `mouse.move` → `down` → `move` in steps → `up` between square centres.
+
+Diagnostics from that attempt, worth not re-deriving: the board mounts correctly (`cg-wrap
+orientation-white manipulable`, `cg-container` sized, pieces positioned by `transform: translate`),
+`chessgroundDests` returns the right map (`g1 → e2,f3,h3` in the fixture position), and the square
+geometry is `(file + 0.5) * width / 8` across and `(7 - rank + 0.5) * height / 8` down for a
+white-oriented board. So the failure is in how the events are delivered, not in the board's config
+or the coordinates.
+
+Worth trying next: dispatching `pointerdown`/`pointerup` explicitly rather than mouse events, since
+chessground binds pointer events and Playwright's mouse API may not produce what it listens for;
+failing that, exposing a test-only hook that calls the board API directly, the way
+`window.__chess` already does for store state.
 
 ## Deliberately ungated
 

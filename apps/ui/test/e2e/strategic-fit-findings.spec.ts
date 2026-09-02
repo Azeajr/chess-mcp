@@ -24,6 +24,7 @@ type ChessHarness = {
   selectStrategicFitProfile(mode: "familiar-plans" | "balanced" | "versatile" | "custom"): unknown;
   upsertStrategicFitResolution(input: unknown): unknown;
   strategicFitLifecycle(): unknown;
+  strategicFitTrainingPerformance(): { targets: unknown[]; attempts: { recalled: boolean }[] };
 };
 
 function replacementComparisonFixture(color: "white" | "black" = "white") {
@@ -2488,4 +2489,64 @@ test.afterAll(async () => {
   };
   await mkdir(nodePath.dirname(reportPath), { recursive: true });
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+});
+
+/**
+ * Click a square on a chessground board. Chessground lays squares out inside `.cg-board`, so the
+ * centre of a square is derived from the board box: files left-to-right and ranks bottom-to-top for
+ * a white-oriented board. The drill fixture is White to move in both positions, so white
+ * orientation is the only case needed here.
+ */
+test("a created training item offers a live drill board and records no attempt for it", async ({
+  page,
+}) => {
+  const { dialog } = await bootstrap(page);
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const training = dialog.locator("[data-training-finding-id='finding:01']");
+  await training.getByRole("button", { name: "Create training item" }).click();
+
+  // Creating the item registers targets. It must not invent an attempt: recall evidence may only
+  // come from a move the user actually played.
+  const afterCreate = await chess(page, (api) => api.strategicFitTrainingPerformance());
+  expect(afterCreate.targets.length).toBeGreaterThan(0);
+  expect(afterCreate.attempts).toEqual([]);
+
+  // Creating an item triggers reanalysis, which remounts the panel; the finding has to be
+  // re-selected before it is on screen again. The training test above relies on the same sequence.
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    )
+    .toBe("resolution-change");
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  const reopened = dialog.locator("[data-training-finding-id='finding:01']");
+  await reopened.getByRole("button", { name: /^Drill \d+ position/u }).click();
+  const active = reopened.locator(".strategic-fit-drill-active").first();
+  await expect(active).toBeVisible();
+
+  // The fixture's first drill is the position after 1. e4 e5 with a prepared Nf3 — one of the two
+  // drills the exported artifact asserts above, which pins their content but not their order.
+  await expect(active).toHaveAttribute("data-drill-expected", "Nf3");
+  await expect(active).toHaveAttribute(
+    "data-drill-fen",
+    "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+  );
+  // The board is live and oriented for the side to move, so the drill is playable. Driving the
+  // move itself is not asserted here: chessground moves come from pointer events that this repo has
+  // never simulated in Playwright, and neither a click nor a synthesised drag reached it. The
+  // move-to-SAN, recall comparison, and attempt recording are covered by
+  // test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts instead. See
+  // docs/design/drill-attempt-surface.md.
+  await expect(active.locator(".cg-wrap")).toBeVisible();
+  await expect(active.locator(".cg-wrap")).toHaveClass(/manipulable/u);
+  await expect(reopened.locator("[data-drill-locked='false']")).toBeVisible();
+
+  // Still no attempt: rendering a drill is not attempting one.
+  const afterOpening = await chess(page, (api) => api.strategicFitTrainingPerformance());
+  expect(afterOpening.attempts).toEqual([]);
 });

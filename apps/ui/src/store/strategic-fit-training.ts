@@ -29,6 +29,7 @@ import {
   type StrategicFitReport,
   type StrategicFitSourceProvenance,
   type StrategicFitTrainingAttemptInput,
+  type StrategicFitTrainingTarget,
   type StrategicFitTrainingMasteryReport,
   type StrategicFitTrainingPerformanceData,
   type StrategicFitTrainingPerformanceError,
@@ -1108,12 +1109,79 @@ export const createStrategicFitTrainingItem = (input: StrategicFitTrainingCreati
   browserTraining.create(input);
 
 /**
+ * The registered target a drill belongs to, or null when the drill was never registered.
+ *
+ * Matched on the three fields the target is derived from rather than by recomputing its id: the
+ * derivation (a stable hash over training/position/decision) is the library's own business, and a
+ * second copy of it here would be a second thing to keep in step.
+ */
+export function strategicFitTrainingTargetForDrill(
+  trainingId: string,
+  drill: Pick<StrategicFitBasicDrill, "position_id" | "decision_id">,
+): StrategicFitTrainingTarget | null {
+  return (
+    strategicFitTrainingPerformance().targets.find(
+      (target) =>
+        target.training_id === trainingId &&
+        target.position_id === drill.position_id &&
+        target.decision_id === drill.decision_id,
+    ) ?? null
+  );
+}
+
+/**
+ * Record one drill attempt. `recalled` is decided by the caller comparing the move played against
+ * the drill's `expected_san`; this only reports what happened.
+ *
+ * Registration and attempt stay separate on purpose — creating a drill establishes an untrained
+ * target, and only a real attempt supplies recall and response-time evidence — so this must be
+ * reached from a drill the user actually played, never from drill creation.
+ */
+export function recordStrategicFitDrillAttempt(input: {
+  trainingId: string;
+  drill: Pick<StrategicFitBasicDrill, "position_id" | "decision_id">;
+  recalled: boolean;
+  responseTimeMs: number | null;
+}): StrategicFitTrainingPerformanceMutationResult | null {
+  const target = strategicFitTrainingTargetForDrill(input.trainingId, input.drill);
+  if (target === null) return null;
+  return recordStrategicFitTrainingPerformanceAttempt({
+    target_id: target.target_id,
+    attempted_at: new Date().toISOString(),
+    recalled: input.recalled,
+    response_time_ms: input.responseTimeMs,
+  });
+}
+
+/**
  * Rebuild the deterministic record for a finding without saving anything. Plan synthesis uses it
  * for both the evidence it discloses and the evidence it validates against, so a proposal and its
  * acceptance are measured with the same builder the training writer uses.
  */
 const buildCurrentStrategicFitTrainingRecord = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.buildCurrent(input);
+
+/**
+ * The drills for a finding, rebuilt from current canonical evidence, or null when there are none.
+ *
+ * The drill surface rebuilds rather than holding on to whatever `create` returned, because creating
+ * a training item triggers reanalysis, which remounts the panel and would discard any record kept
+ * in component state. Rebuilding also keeps drill content in step with the live repertoire, and is
+ * side-effect free — unlike `exportStrategicFitTrainingItem`, it writes no artifact.
+ */
+export function strategicFitDrillsFor(
+  input: StrategicFitTrainingCreationInput,
+): StrategicFitTrainingRecord | null {
+  try {
+    const record = buildCurrentStrategicFitTrainingRecord(input);
+    return record && record.drills.length > 0 ? record : null;
+  } catch {
+    // Building can reject a finding outright — a stale semantic route is the documented case. The
+    // caller renders from this, so an unbuildable finding must read as "nothing to drill" rather
+    // than take the surrounding panel down with it.
+    return null;
+  }
+}
 
 // Plan synthesis reaches training through this bridge rather than importing it: the browser command
 // registry already reaches plan synthesis, and training reaches the finding-resolution graph.

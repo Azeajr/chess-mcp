@@ -431,3 +431,84 @@ test("browser training state invalidates metrics only when observed mastery chan
   assert.equal(rejected.code, "unsupported-version");
   assert.equal(subject.performance().attempts.length, 1);
 });
+
+/**
+ * The drill surface must never report recall for a drill that was only created. Registration and
+ * attempt are deliberately separate — registration establishes an explicitly untrained target, and
+ * only a move the user actually played may supply recall and response-time evidence — so creating
+ * a training item has to leave the attempt log empty and the target untrained.
+ */
+test("creating a training item registers targets but records no attempt", () => {
+  const subject = fixture();
+  const created = subject.state.create({
+    report_id: subject.report.report_id,
+    finding_id: subject.finding.finding_id,
+    semantic_finding_id: subject.finding.semantic_finding_id,
+  });
+
+  assert.equal(created.state, "created");
+  assert.ok(subject.performance().targets.length > 0, "a drill registers its targets");
+  assert.deepEqual(subject.performance().attempts, [], "creation must not fabricate an attempt");
+
+  const target = subject.performance().targets[0]!;
+  const mastery = subject.performanceState.mastery();
+  assert.equal(
+    mastery.decision_mastery.find((entry) => entry.identity_id === target.decision_id)?.state,
+    "untrained",
+    "a registered but unattempted target is untrained",
+  );
+});
+
+/** A correct drill move and a wrong one must be distinguishable in the recorded evidence. */
+test("a recalled and a missed drill attempt record different evidence", () => {
+  const subject = fixture();
+  subject.state.create({
+    report_id: subject.report.report_id,
+    finding_id: subject.finding.finding_id,
+    semantic_finding_id: subject.finding.semantic_finding_id,
+  });
+  const target = subject.performance().targets[0]!;
+
+  const recalled = subject.performanceState.recordAttempt({
+    target_id: target.target_id,
+    attempted_at: "2026-07-22T12:00:00.000Z",
+    recalled: true,
+    response_time_ms: 4000,
+  });
+  assert.equal(recalled.state, "updated");
+
+  const statistic = recalled.mastery?.decision_mastery.find(
+    (entry) => entry.identity_id === target.decision_id,
+  );
+  assert.equal(statistic?.state, "observed", "one real attempt moves the target off untrained");
+  assert.equal(statistic?.attempt_count, 1);
+  assert.equal(statistic?.successful_recall_count, 1);
+  assert.equal(statistic?.recall_rate, 1);
+  assert.equal(statistic?.average_response_time_ms, 4000);
+
+  const missed = subject.performanceState.recordAttempt({
+    target_id: target.target_id,
+    attempted_at: "2026-07-22T12:05:00.000Z",
+    recalled: false,
+    response_time_ms: 9000,
+  });
+  const after = missed.mastery?.decision_mastery.find(
+    (entry) => entry.identity_id === target.decision_id,
+  );
+  assert.equal(after?.attempt_count, 2);
+  assert.equal(after?.successful_recall_count, 1, "the miss is not counted as a recall");
+  assert.equal(after?.recall_rate, 0.5);
+});
+
+/** An attempt naming a target that was never registered is refused rather than half-recorded. */
+test("an attempt against an unregistered target is rejected", () => {
+  const subject = fixture();
+  const rejected = subject.performanceState.recordAttempt({
+    target_id: "strategic-fit-training-target:never-registered",
+    attempted_at: "2026-07-22T12:00:00.000Z",
+    recalled: true,
+    response_time_ms: 1000,
+  });
+  assert.equal(rejected.state, "blocked");
+  assert.deepEqual(subject.performance().attempts, []);
+});
