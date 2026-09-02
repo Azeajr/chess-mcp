@@ -2944,6 +2944,10 @@ img,
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+  /* The label is the touch target: the input it wraps is clipped, so a pointer only ever lands
+     here. It has to carry the target floor itself at every width — the narrow-viewport rule below
+     is not enough, because this control also renders in the repertoire panel on desktop. */
+  min-height: 44px;
 }
 .strategic-fit-import-label input {
   /* The standard visually-hidden box. Sizing it to 44px would only satisfy tooling that measures
