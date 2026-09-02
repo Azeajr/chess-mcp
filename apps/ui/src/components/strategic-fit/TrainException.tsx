@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
 import type { StrategicFinding, StrategicFitReport } from "@chess-mcp/chess-tools";
 import { saveArtifact } from "../../store/artifacts";
 import { displayStrategicFitFindingResolution } from "../../store/strategic-fit-finding-resolutions";
@@ -6,6 +6,8 @@ import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
   createStrategicFitTrainingItem,
   exportStrategicFitTrainingItem,
+  startStrategicFitDrillSession,
+  strategicFitDrillSession,
   strategicFitDrillsFor,
   type StrategicFitTrainingCreationResult,
 } from "../../store/strategic-fit-training";
@@ -20,16 +22,6 @@ export default function TrainException(props: {
 }) {
   const [notes, setNotes] = createSignal("");
   const [result, setResult] = createSignal<StrategicFitTrainingCreationResult | null>(null);
-  const [drilling, setDrilling] = createSignal(false);
-
-  createEffect(
-    on(
-      () => props.finding.finding_id,
-      () => {
-        setDrilling(false);
-      },
-    ),
-  );
 
   createEffect(() => {
     void props.finding.finding_id;
@@ -58,12 +50,18 @@ export default function TrainException(props: {
           (entry) => entry.training_id === trainingId,
         ) ?? null);
   };
-  const input = () => ({
+  /**
+   * What identifies the finding being trained. Deliberately without `user_notes`: notes never
+   * change which drills a finding yields, and `drillable` below rebuilds the whole training record
+   * — walking the route, checkpoints and repertoire graph — every time this changes. Folding the
+   * notes textarea in made that rebuild run on every keystroke.
+   */
+  const subject = () => ({
     report_id: props.reportId,
     finding_id: props.finding.finding_id,
     semantic_finding_id: props.finding.semantic_finding_id,
-    user_notes: notes(),
   });
+  const input = () => ({ ...subject(), user_notes: notes() });
   /**
    * Drills come from the record rather than from the registered targets: a target stores only the
    * position and decision it belongs to, never the FEN or the expected move, so it cannot be
@@ -77,7 +75,7 @@ export default function TrainException(props: {
   const drillable = createMemo(() =>
     // Only once a training item exists: the attempt is recorded against the target that creating
     // one registers, so offering a drill before that would produce an attempt with nowhere to go.
-    activeReference() === null ? null : strategicFitDrillsFor(input()),
+    activeReference() === null ? null : strategicFitDrillsFor(subject()),
   );
 
   const create = () => setResult(createStrategicFitTrainingItem(input()));
@@ -179,9 +177,18 @@ export default function TrainException(props: {
         <Show when={drillable()}>
           {(record) => (
             <Show
-              when={drilling()}
+              // Whether a session is open lives in the store, keyed by training id, so that the
+              // reanalysis each recorded attempt triggers — which unmounts this panel — cannot
+              // close a drill the user is halfway through.
+              when={strategicFitDrillSession(record().training_id) !== null}
               fallback={
-                <button type="button" onClick={() => setDrilling(true)} data-drill-start="true">
+                <button
+                  type="button"
+                  onClick={() => {
+                    startStrategicFitDrillSession(record().training_id);
+                  }}
+                  data-drill-start="true"
+                >
                   Drill {record().drills.length}{" "}
                   {record().drills.length === 1 ? "position" : "positions"}
                 </button>

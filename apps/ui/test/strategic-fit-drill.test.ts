@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { drillOrientation, sanForDrillMove } from "../src/components/strategic-fit/DrillBoard.tsx";
+import { drillOrientation, sanForDrillMove } from "../src/application/drill-move.ts";
+import {
+  advanceStrategicFitDrillSession,
+  endStrategicFitDrillSession,
+  playStrategicFitDrill,
+  refreshStrategicFitDrillClock,
+  startStrategicFitDrillSession,
+  strategicFitDrillAttemptWasRecorded,
+  strategicFitDrillSession,
+} from "../src/store/strategic-fit-training.ts";
 
 /** Confirmed legal by this repo's MCP server (`validate_fen`) rather than written by hand. */
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -72,4 +81,184 @@ test("a drill is recalled only when the played SAN equals the expected SAN exact
     "a different legal move",
   );
   assert.equal(sanForDrillMove(START_FEN, "e2", "e5") === expected, false, "an illegal move");
+});
+
+/**
+ * The drill session, which `DrillRunner` renders from. These targets are deliberately unregistered,
+ * so every attempt below reports `recorded: false` — that is the honest outcome for a drill whose
+ * target does not exist, and it lets the session's own rules be tested without a performance store.
+ */
+const DRILL = {
+  drill_id: "strategic-fit-drill:test-1",
+  position_id: "position:test-1",
+  decision_id: "decision:test-1",
+  fen: START_FEN,
+  expected_san: "Nf3",
+} as const;
+
+const SECOND_DRILL = { ...DRILL, drill_id: "strategic-fit-drill:test-2", expected_san: "e4" };
+
+/** Nothing may be scored without an open session — a stray board event must not become evidence. */
+test("playStrategicFitDrill refuses when no session is open", () => {
+  const trainingId = "strategic-fit-training:no-session";
+  endStrategicFitDrillSession(trainingId);
+  assert.equal(
+    playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3" }),
+    null,
+    "no session means no outcome",
+  );
+  assert.equal(strategicFitDrillSession(trainingId), null);
+});
+
+test("a correct move is scored as recalled and timed from when the position was shown", () => {
+  const trainingId = "strategic-fit-training:recalled";
+  startStrategicFitDrillSession(trainingId, 1000);
+  const outcome = playStrategicFitDrill({
+    trainingId,
+    drill: DRILL,
+    orig: "g1",
+    dest: "f3",
+    now: 4500,
+  });
+  assert.equal(outcome?.recalled, true);
+  assert.equal(outcome?.played_san, "Nf3");
+  assert.equal(outcome?.response_time_ms, 3500);
+  endStrategicFitDrillSession(trainingId);
+});
+
+test("a wrong move and an illegal move are both misses, and an illegal one has no SAN", () => {
+  const trainingId = "strategic-fit-training:missed";
+  startStrategicFitDrillSession(trainingId, 0);
+  const wrong = playStrategicFitDrill({ trainingId, drill: DRILL, orig: "b1", dest: "c3" });
+  assert.equal(wrong?.recalled, false);
+  assert.equal(wrong?.played_san, "Nc3", "a legal but unprepared move is still named");
+
+  const illegalTraining = "strategic-fit-training:illegal";
+  startStrategicFitDrillSession(illegalTraining, 0);
+  const illegal = playStrategicFitDrill({
+    trainingId: illegalTraining,
+    drill: DRILL,
+    orig: "e2",
+    dest: "e5",
+  });
+  assert.equal(illegal?.recalled, false);
+  assert.equal(illegal?.played_san, null);
+
+  endStrategicFitDrillSession(trainingId);
+  endStrategicFitDrillSession(illegalTraining);
+});
+
+/**
+ * Recall is first-attempt only. A second move on an answered drill must not produce a second
+ * outcome, or the recall rate stops meaning anything.
+ */
+test("a drill already answered in this session cannot be answered again", () => {
+  const trainingId = "strategic-fit-training:first-only";
+  startStrategicFitDrillSession(trainingId, 0);
+  const first = playStrategicFitDrill({ trainingId, drill: DRILL, orig: "b1", dest: "c3" });
+  assert.equal(first?.recalled, false);
+
+  const retry = playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3" });
+  assert.equal(retry, null, "the correct move played second is refused");
+
+  const session = strategicFitDrillSession(trainingId);
+  assert.equal(session?.outcomes.length, 1, "the first result stands alone");
+  assert.equal(session?.outcomes[0]?.recalled, false, "and is not overwritten by the retry");
+  endStrategicFitDrillSession(trainingId);
+});
+
+/**
+ * The regression this session state exists for. Recording an attempt schedules a reanalysis, which
+ * unmounts and remounts `DrillRunner`; reading the session back afterwards has to show the drill
+ * still answered, or the remounted runner would re-serve it and write a second attempt.
+ */
+test("an answered drill survives a remount of the runner", () => {
+  const trainingId = "strategic-fit-training:remount";
+  startStrategicFitDrillSession(trainingId, 0);
+  playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3", now: 2000 });
+
+  // What a remounted DrillRunner does: read the session, then restart the clock for the position
+  // still on screen. Neither may lose the answer.
+  refreshStrategicFitDrillClock(trainingId, 99_000);
+  const session = strategicFitDrillSession(trainingId);
+  assert.equal(session?.outcomes.length, 1);
+  assert.equal(session?.outcomes[0]?.drill_id, DRILL.drill_id);
+  assert.equal(session?.index, 0, "still on the position that was answered");
+  assert.equal(
+    playStrategicFitDrill({ trainingId, drill: DRILL, orig: "b1", dest: "c3" }),
+    null,
+    "the remounted runner cannot re-answer it",
+  );
+  endStrategicFitDrillSession(trainingId);
+});
+
+test("advancing moves to the next position and restarts the clock for it", () => {
+  const trainingId = "strategic-fit-training:advance";
+  startStrategicFitDrillSession(trainingId, 0);
+  playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3", now: 500 });
+  advanceStrategicFitDrillSession(trainingId, 10_000);
+
+  assert.equal(strategicFitDrillSession(trainingId)?.index, 1);
+  const second = playStrategicFitDrill({
+    trainingId,
+    drill: SECOND_DRILL,
+    orig: "e2",
+    dest: "e4",
+    now: 12_000,
+  });
+  assert.equal(second?.recalled, true);
+  assert.equal(second?.response_time_ms, 2000, "timed from the advance, not from session start");
+  assert.equal(strategicFitDrillSession(trainingId)?.outcomes.length, 2);
+  endStrategicFitDrillSession(trainingId);
+});
+
+/** "Drill again" is a new presentation, not a retry of the one that was scored. */
+test("restarting a session clears its outcomes and returns to the first position", () => {
+  const trainingId = "strategic-fit-training:restart";
+  startStrategicFitDrillSession(trainingId, 0);
+  playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3" });
+  advanceStrategicFitDrillSession(trainingId);
+
+  startStrategicFitDrillSession(trainingId, 0);
+  const session = strategicFitDrillSession(trainingId);
+  assert.equal(session?.index, 0);
+  assert.deepEqual(session?.outcomes, []);
+  endStrategicFitDrillSession(trainingId);
+});
+
+/**
+ * An attempt whose target was never registered has to read as not recorded. `blocked` means the
+ * write was refused; `unchanged` means the identical attempt is already in the log, which is
+ * recorded. Only a non-null, non-blocked result may claim the evidence exists.
+ */
+test("only a non-blocked result counts as recorded", () => {
+  assert.equal(strategicFitDrillAttemptWasRecorded(null), false, "no target was addressed");
+  const shape = {
+    code: null,
+    message: "",
+    data: null,
+    mastery: null,
+    artifact_id: null,
+    error: null,
+  };
+  assert.equal(
+    strategicFitDrillAttemptWasRecorded({ ...shape, state: "blocked" } as never),
+    false,
+    "a refused write is not evidence",
+  );
+  assert.equal(strategicFitDrillAttemptWasRecorded({ ...shape, state: "updated" } as never), true);
+  assert.equal(
+    strategicFitDrillAttemptWasRecorded({ ...shape, state: "unchanged" } as never),
+    true,
+    "the identical attempt already being logged still means it is logged",
+  );
+});
+
+test("an attempt against an unregistered target is reported as unrecorded, with the reason", () => {
+  const trainingId = "strategic-fit-training:unregistered";
+  startStrategicFitDrillSession(trainingId, 0);
+  const outcome = playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3" });
+  assert.equal(outcome?.recorded, false);
+  assert.equal(outcome?.unrecorded_reason, "target-not-registered");
+  endStrategicFitDrillSession(trainingId);
 });

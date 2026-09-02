@@ -2,6 +2,7 @@ import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
 import { createEffect, createSignal, untrack } from "solid-js";
+import { sanForDrillMove } from "../application/drill-move";
 import {
   STRATEGIC_FIT_PLAN_LIMITS,
   STRATEGIC_FIT_SCHEMA_VERSION,
@@ -1151,6 +1152,152 @@ export function recordStrategicFitDrillAttempt(input: {
     recalled: input.recalled,
     response_time_ms: input.responseTimeMs,
   });
+}
+
+/**
+ * Whether a mutation result means the attempt reached the performance log.
+ *
+ * `unchanged` counts as recorded: it is returned when this exact attempt is already present, so the
+ * evidence exists either way. `blocked` does not — the write was refused. A null result means the
+ * drill's target was never registered, so nothing was even addressed.
+ */
+export function strategicFitDrillAttemptWasRecorded(
+  result: StrategicFitTrainingPerformanceMutationResult | null,
+): boolean {
+  return result !== null && result.state !== "blocked";
+}
+
+export interface StrategicFitDrillOutcome {
+  readonly drill_id: string;
+  readonly played_san: string | null;
+  readonly recalled: boolean;
+  readonly response_time_ms: number;
+  /** False when the attempt did not reach the log — the summary says so rather than implying it did. */
+  readonly recorded: boolean;
+  /** Why it did not, for the surface to explain. Null when it was recorded. */
+  readonly unrecorded_reason: "target-not-registered" | "attempt-refused" | null;
+}
+
+export interface StrategicFitDrillSession {
+  readonly training_id: string;
+  readonly index: number;
+  readonly outcomes: readonly StrategicFitDrillOutcome[];
+  /** When the current drill was put in front of the user, for the response time of the next answer. */
+  readonly shown_at: number;
+}
+
+/**
+ * Drill sessions live here rather than in `DrillRunner`, and this is load-bearing rather than tidy.
+ *
+ * Recording an attempt changes mastery evidence, which schedules a reanalysis; reanalysis nulls
+ * `current_result`, and the workspace's `<Show when={currentResolution()}>` unmounts the whole
+ * resolution column while it runs. Session state held in the component is therefore destroyed by
+ * the user's own first move: the runner would reappear at its start screen, and re-answering the
+ * same drill would write a *second* attempt for that target — breaking "recall is first-attempt
+ * only", the one invariant this surface exists to uphold. Keyed by training id, the session
+ * survives that remount and the already-answered drill stays answered.
+ */
+const [drillSessions, setDrillSessions] = createSignal<
+  Readonly<Record<string, StrategicFitDrillSession>>
+>({});
+
+export const strategicFitDrillSession = (trainingId: string): StrategicFitDrillSession | null =>
+  drillSessions()[trainingId] ?? null;
+
+const putDrillSession = (session: StrategicFitDrillSession) => {
+  setDrillSessions((previous) => ({ ...previous, [session.training_id]: session }));
+};
+
+/** Open a session, or restart a finished one. Restarting is a new presentation, not a retry. */
+export function startStrategicFitDrillSession(trainingId: string, now = Date.now()): void {
+  putDrillSession({ training_id: trainingId, index: 0, outcomes: [], shown_at: now });
+}
+
+export function endStrategicFitDrillSession(trainingId: string): void {
+  setDrillSessions((previous) => {
+    if (!(trainingId in previous)) return previous;
+    return Object.fromEntries(Object.entries(previous).filter(([id]) => id !== trainingId));
+  });
+}
+
+/**
+ * Restart the response-time clock for the drill on screen.
+ *
+ * Called when the runner mounts. The reanalysis triggered by the previous answer unmounts and
+ * remounts this surface, and the time the user spent watching that rescan is not thinking time for
+ * the next position.
+ */
+export function refreshStrategicFitDrillClock(trainingId: string, now = Date.now()): void {
+  const session = strategicFitDrillSession(trainingId);
+  if (session === null) return;
+  putDrillSession({ ...session, shown_at: now });
+}
+
+export function strategicFitDrillOutcomeFor(
+  session: StrategicFitDrillSession | null,
+  drillId: string | undefined,
+): StrategicFitDrillOutcome | undefined {
+  if (session === null || drillId === undefined) return undefined;
+  return session.outcomes.find((outcome) => outcome.drill_id === drillId);
+}
+
+/** Move to the next position and restart the clock for it. */
+export function advanceStrategicFitDrillSession(trainingId: string, now = Date.now()): void {
+  const session = strategicFitDrillSession(trainingId);
+  if (session === null) return;
+  putDrillSession({ ...session, index: session.index + 1, shown_at: now });
+}
+
+/**
+ * Score and record the single move played for the drill on screen.
+ *
+ * Returns the outcome, or null when there is no open session or this drill has already been
+ * answered in it — the second guard is what makes the attempt first-only even if the board somehow
+ * emits twice.
+ */
+export function playStrategicFitDrill(input: {
+  trainingId: string;
+  drill: Pick<
+    StrategicFitBasicDrill,
+    "drill_id" | "position_id" | "decision_id" | "fen" | "expected_san"
+  >;
+  orig: string;
+  dest: string;
+  now?: number;
+}): StrategicFitDrillOutcome | null {
+  const session = strategicFitDrillSession(input.trainingId);
+  if (session === null) return null;
+  if (strategicFitDrillOutcomeFor(session, input.drill.drill_id) !== undefined) return null;
+
+  const playedSan = sanForDrillMove(input.drill.fen, input.orig, input.dest);
+  const recalled = playedSan === input.drill.expected_san;
+  const responseTimeMs = Math.max(0, (input.now ?? Date.now()) - session.shown_at);
+  const result = recordStrategicFitDrillAttempt({
+    trainingId: input.trainingId,
+    drill: input.drill,
+    recalled,
+    responseTimeMs,
+  });
+  const recorded = strategicFitDrillAttemptWasRecorded(result);
+
+  const outcome: StrategicFitDrillOutcome = {
+    drill_id: input.drill.drill_id,
+    played_san: playedSan,
+    recalled,
+    response_time_ms: responseTimeMs,
+    recorded,
+    unrecorded_reason: recorded
+      ? null
+      : result === null
+        ? "target-not-registered"
+        : "attempt-refused",
+  };
+
+  // Re-read: recording the attempt can schedule a reanalysis, and anything that ran in between
+  // must not be overwritten by a stale copy of the session.
+  const latest = strategicFitDrillSession(input.trainingId) ?? session;
+  putDrillSession({ ...latest, outcomes: [...latest.outcomes, outcome] });
+  return outcome;
 }
 
 /**

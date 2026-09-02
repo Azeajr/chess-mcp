@@ -157,6 +157,11 @@ gate proved more expensive to keep green than the assurance was worth. An `AG-<d
 now refers to closed historical work only; the rationale and what it once caught are in that
 removal commit.
 
+The deterministic checks in `apps/ui/test/e2e/helpers/accessibility.ts` are NOT part of that
+removal and remain live. Despite the filename, most of what they assert is general UI
+correctness — document overflow, raw identifiers leaking into visible text, contrast ratios,
+duplicate DOM ids, touch-target floors — and eight functional e2e specs depend on them.
+
 ## Training drills
 
 `TrainException` creates a training item, which registers each drill position as an **untrained
@@ -177,7 +182,8 @@ Two rules hold that apart, and both are load-bearing rather than stylistic:
 Drills are rebuilt from current evidence via `strategicFitDrillsFor`, not cached: creating an item
 triggers reanalysis, which remounts the panel and discards component state.
 
-The deterministic checks in `apps/ui/test/e2e/helpers/accessibility.ts` are NOT part of that
-removal and remain live. Despite the filename, most of what they assert is general UI
-correctness — document overflow, raw identifiers leaking into visible text, contrast ratios,
-duplicate DOM ids, touch-target floors — and eight functional e2e specs depend on them.
+That remount is also why the drill _session_ — which position is showing, what has been answered —
+lives in the training store keyed by training id, not in `DrillRunner`. Recording an attempt
+changes mastery evidence, which schedules a reanalysis, which unmounts the resolution column. Held
+in the component, the session would be destroyed by the user's own first move, and re-answering the
+same drill would write a second attempt for that target.

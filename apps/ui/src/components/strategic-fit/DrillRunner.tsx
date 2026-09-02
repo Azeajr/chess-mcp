@@ -6,10 +6,22 @@
  * wrong move is revealed and recorded rather than retried — a retry that overwrote the first result
  * would make recall rate meaningless. And an attempt is recorded only from a move the user really
  * played: nothing on this screen may report recall for a drill that was merely created.
+ *
+ * The session itself (which position, what has been answered) lives in the training store, not in
+ * this component. Recording an attempt schedules a reanalysis, and reanalysis unmounts the whole
+ * resolution column — so component state here would be destroyed by the user's own first move. See
+ * `strategicFitDrillSession`.
  */
-import { For, Show, createMemo, createSignal } from "solid-js";
-import { recordStrategicFitDrillAttempt } from "../../store/strategic-fit-training";
-import DrillBoard, { sanForDrillMove } from "./DrillBoard";
+import { For, Show, onMount } from "solid-js";
+import {
+  advanceStrategicFitDrillSession,
+  playStrategicFitDrill,
+  refreshStrategicFitDrillClock,
+  startStrategicFitDrillSession,
+  strategicFitDrillOutcomeFor,
+  strategicFitDrillSession,
+} from "../../store/strategic-fit-training";
+import DrillBoard from "./DrillBoard";
 
 interface RunnerDrill {
   readonly drill_id: string;
@@ -19,48 +31,28 @@ interface RunnerDrill {
   readonly expected_san: string;
 }
 
-interface Outcome {
-  readonly drillId: string;
-  readonly playedSan: string | null;
-  readonly recalled: boolean;
-  readonly responseTimeMs: number;
-  readonly recorded: boolean;
-}
+const seconds = (ms: number) => Math.round(ms / 100) / 10;
 
 export default function DrillRunner(props: { trainingId: string; drills: readonly RunnerDrill[] }) {
-  const [index, setIndex] = createSignal(0);
-  const [outcomes, setOutcomes] = createSignal<Outcome[]>([]);
-  const [shownAt, setShownAt] = createSignal(Date.now());
+  const session = () => strategicFitDrillSession(props.trainingId);
+  const index = () => session()?.index ?? 0;
+  const outcomes = () => session()?.outcomes ?? [];
 
   const current = () => props.drills[index()] ?? null;
-  const answered = createMemo(() => outcomes().find((o) => o.drillId === current()?.drill_id));
+  const answered = () => strategicFitDrillOutcomeFor(session(), current()?.drill_id);
   const finished = () => index() >= props.drills.length;
-  const recalledCount = () => outcomes().filter((o) => o.recalled).length;
+  const recalledCount = () => outcomes().filter((outcome) => outcome.recalled).length;
+
+  // A reanalysis remount lands here between two positions; the time the user spent watching it is
+  // not thinking time for the next one.
+  onMount(() => {
+    if (answered() === undefined) refreshStrategicFitDrillClock(props.trainingId);
+  });
 
   const play = (orig: string, dest: string) => {
     const drill = current();
-    if (!drill || answered()) return;
-
-    const responseTimeMs = Math.max(0, Date.now() - shownAt());
-    const playedSan = sanForDrillMove(drill.fen, orig, dest);
-    const recalled = playedSan === drill.expected_san;
-
-    const result = recordStrategicFitDrillAttempt({
-      trainingId: props.trainingId,
-      drill,
-      recalled,
-      responseTimeMs,
-    });
-
-    setOutcomes([
-      ...outcomes(),
-      { drillId: drill.drill_id, playedSan, recalled, responseTimeMs, recorded: result !== null },
-    ]);
-  };
-
-  const advance = () => {
-    setIndex(index() + 1);
-    setShownAt(Date.now());
+    if (!drill) return;
+    playStrategicFitDrill({ trainingId: props.trainingId, drill, orig, dest });
   };
 
   return (
@@ -76,17 +68,30 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
               <For each={outcomes()}>
                 {(outcome) => (
                   <li data-drill-outcome={outcome.recalled ? "recalled" : "missed"}>
-                    {outcome.recalled ? "Recalled" : "Missed"} ·{" "}
-                    {Math.round(outcome.responseTimeMs / 100) / 10}s
+                    {outcome.recalled ? "Recalled" : "Missed"} · {seconds(outcome.response_time_ms)}
+                    s
                     <Show when={!outcome.recorded}>
                       {" "}
                       ·{" "}
-                      <span data-drill-unrecorded="true">not recorded (target not registered)</span>
+                      <span data-drill-unrecorded={outcome.unrecorded_reason ?? "true"}>
+                        {outcome.unrecorded_reason === "attempt-refused"
+                          ? "not recorded (attempt refused)"
+                          : "not recorded (target not registered)"}
+                      </span>
                     </Show>
                   </li>
                 )}
               </For>
             </ul>
+            <button
+              type="button"
+              onClick={() => {
+                startStrategicFitDrillSession(props.trainingId);
+              }}
+              data-drill-restart="true"
+            >
+              Drill again
+            </button>
           </div>
         }
       >
@@ -118,16 +123,21 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
                         when={outcome().recalled}
                         fallback={
                           <>
-                            Not recalled. You played {outcome().playedSan ?? "an illegal move"}; the
-                            prepared move is {drill().expected_san}.
+                            Not recalled. You played {outcome().played_san ?? "an illegal move"};
+                            the prepared move is {drill().expected_san}.
                           </>
                         }
                       >
-                        Recalled {drill().expected_san} in{" "}
-                        {Math.round(outcome().responseTimeMs / 100) / 10}s.
+                        Recalled {drill().expected_san} in {seconds(outcome().response_time_ms)}s.
                       </Show>
                     </p>
-                    <button type="button" onClick={advance} data-drill-advance="true">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        advanceStrategicFitDrillSession(props.trainingId);
+                      }}
+                      data-drill-advance="true"
+                    >
                       {index() + 1 < props.drills.length ? "Next position" : "Finish"}
                     </button>
                   </div>

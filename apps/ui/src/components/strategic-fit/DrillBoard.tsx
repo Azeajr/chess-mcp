@@ -11,43 +11,8 @@ import { createEffect, onCleanup, onMount } from "solid-js";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Key } from "chessground/types";
-import { Chess } from "chessops/chess";
-import { parseFen } from "chessops/fen";
-import { makeSanAndPlay } from "chessops/san";
-import { parseSquare } from "chessops/util";
 import { chessgroundDests } from "chessops/compat";
-import type { NormalMove } from "chessops/types";
-
-/** The side to move at `fen`, which is also the orientation the drill is shown from. */
-export function drillOrientation(fen: string): "white" | "black" {
-  return fen.split(" ")[1] === "b" ? "black" : "white";
-}
-
-function positionAt(fen: string): Chess | null {
-  const setup = parseFen(fen);
-  if (setup.isErr) return null;
-  const position = Chess.fromSetup(setup.value);
-  return position.isErr ? null : position.value;
-}
-
-/**
- * SAN for a board move at `fen`, or null when it is not legal there. A pawn reaching the last rank
- * is auto-queened, matching `GameTree.playMove`; the drill surface has no promotion picker, and a
- * drill whose expected move is an under-promotion would simply read as not recalled.
- */
-export function sanForDrillMove(fen: string, orig: string, dest: string): string | null {
-  const position = positionAt(fen);
-  if (!position) return null;
-  const from = parseSquare(orig);
-  const to = parseSquare(dest);
-  if (from === undefined || to === undefined) return null;
-  const move: NormalMove = { from, to };
-  const piece = position.board.get(from);
-  const toRank = to >> 3;
-  if (piece?.role === "pawn" && (toRank === 0 || toRank === 7)) move.promotion = "queen";
-  if (!position.isLegal(move)) return null;
-  return makeSanAndPlay(position, move);
-}
+import { drillOrientation, drillPosition } from "../../application/drill-move";
 
 export default function DrillBoard(props: {
   fen: string;
@@ -59,11 +24,17 @@ export default function DrillBoard(props: {
 }) {
   let element!: HTMLDivElement;
   let board: Api | undefined;
+  // The FEN chessground was last told to paint. Locking the board after a move re-runs the effect
+  // below, and chessground's `configure` does `if (config.fen) state.pieces = fenRead(config.fen)`
+  // — so passing the drill's FEN again would rub out the move the user just played and leave the
+  // `lastMove` highlight pointing at squares whose pieces had snapped back. The FEN is sent only
+  // when it actually changes, which is when a different drill is shown.
+  let painted: string | undefined;
 
   const orientation = () => drillOrientation(props.fen);
 
   const movable = () => {
-    const position = positionAt(props.fen);
+    const position = drillPosition(props.fen);
     if (!position || props.locked) {
       return { free: false, color: undefined, dests: new Map<Key, Key[]>(), showDests: false };
     }
@@ -95,11 +66,12 @@ export default function DrillBoard(props: {
       highlight: { lastMove: true, check: true },
       movable: movableConfig(),
     });
+    painted = props.fen;
   });
 
   createEffect(() => {
-    board?.set({
-      fen: props.fen,
+    const fen = props.fen;
+    const config = {
       orientation: orientation(),
       draggable: { enabled: !props.locked },
       selectable: { enabled: !props.locked },
@@ -107,7 +79,9 @@ export default function DrillBoard(props: {
       // included every time — passing only the destinations would drop it and the board would
       // accept a move that reaches nobody.
       movable: movableConfig(),
-    });
+    };
+    board?.set(fen === painted ? config : { ...config, fen });
+    painted = fen;
   });
 
   onCleanup(() => board?.destroy());
