@@ -90,7 +90,11 @@ export default function AnalysisPanel() {
       <Show when={suggestions().length}>
         <div class="suggestions">
           <PanelHeader title="Suggested (from chat)">
-            <button class="reject" aria-label="Clear all chat suggestions" onClick={clearSuggestions}>
+            <button
+              class="reject"
+              aria-label="Clear all chat suggestions"
+              onClick={clearSuggestions}
+            >
               Clear all
             </button>
           </PanelHeader>
