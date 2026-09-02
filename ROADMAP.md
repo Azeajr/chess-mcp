@@ -53,31 +53,14 @@ pass against this repo before enabling by default.
 ## Built but not wired
 
 Found by running `npx knip` and then reading each result rather than trusting the count. These
-twenty symbols are referenced nowhere, but they sit inside live modules and look like unfinished
+nineteen symbols are referenced nowhere, but they sit inside live modules and look like unfinished
 wiring, not leftovers. Deleting them would throw away working code; they are listed so the next
 audit stops re-reporting them as dead exports.
 
-- **There is no drill-attempt UI, so no training attempt can ever be recorded.** This is a missing
-  feature, not broken wiring. An earlier revision of this entry called it a bug and said the
-  displayed figures were "permanently zero for every user"; that was wrong and is corrected here.
-  Registration _is_ wired — `TrainException.tsx:55` calls `createStrategicFitTrainingItem`, which
-  reaches `register()` in `store/strategic-fit-training.ts:1101` — so creating a drill does write a
-  target, and `ProfileSettings.tsx:195` counts real ones. What no screen offers is a way to _attempt_
-  a drill, which is the only thing that may call
-  `recordStrategicFitTrainingPerformanceAttempt`.
-  - Registering a target and recording an attempt are deliberately separate: registration
-    establishes an explicitly untrained state, and only a real attempt supplies recall,
-    response-time, lapse, confidence, and spacing evidence. That contract is stated on
-    `StrategicFitTrainingPerformanceBoundary` and pinned by the test "training targets remain
-    explicitly untrained until a real attempt exists".
-  - So do **not** close this by calling the writer from drill creation. That would fabricate recall
-    and response-time evidence the user never gave and corrupt every mastery figure derived from
-    it. Closing it properly means building the drill surface: show the position, take a move,
-    time the response, and record the outcome.
 - **Training performance import/export.** `exportStrategicFitTrainingPerformance`,
   `importStrategicFitTrainingPerformance`, and `flushStrategicFitTrainingPerformance` are complete
-  and unreachable — there is no UI affordance for any of them. Of limited use until a drill surface
-  exists, since only registered targets, never attempts, would round-trip.
+  and unreachable — there is no UI affordance for any of them, even though `DrillRunner` (see
+  AGENTS.md's "Training drills") now produces real attempts to export.
 - **Unread store accessors.** `strategicFitStagedChanges`, `strategicFitPlanCards`,
   `strategicFitPortfolioConstraintSets`, `strategicFitProfileProposals`, and
   `strategicFitArchivePayload` expose state nothing renders. Each store's mutations are wired; only

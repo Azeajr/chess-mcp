@@ -109,7 +109,11 @@ can be imported or exported as strict JSON. Registered drills remain explicitly 
 attempt records recall; missing response time or confidence stays missing, while stale semantic
 targets retain history but do not contribute current mastery evidence. Observed mastery is injected
 into browser reports so familiarity-adjusted coverage, training-adjusted workload, and repertoire
-regret show their source coverage instead of treating absent observations as failure.
+regret show their source coverage instead of treating absent observations as failure. Creating a
+training item for a retained exception only registers its untrained target; a `Drill N positions`
+button then opens `DrillRunner`, which shows one drill position at a time, times the response from
+first paint, accepts one move, and records the only real attempt against that target — recall is
+first-attempt only, with no retry that could overwrite it.
 The Strategic Fit workspace also detects a deliberately small set of explicit PGN comment phrases:
 `must keep`, `tournament weapon`, and `avoid queenless middlegame`/`endgame`. The corresponding
 explicit tags are `[%strategic-fit keep]`, `[%strategic-fit tournament-weapon]`, and
