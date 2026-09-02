@@ -150,8 +150,14 @@ The UI/UX remediation program (WP-000–WP-038, `pnpm ux:task`/`ux:test`/`ux:pla
 full — 39/39 packages, 20/20 gates (commit `5f9f856`) — and its docs and tooling were removed. A
 `WP-<three digits>` reference in a request now refers to closed historical work only.
 
-The accessibility completion policy that program used still governs the live accessibility
-pipeline; see [the automated completion policy](docs/accessibility/AUTOMATED_COMPLETION.md) and
-`docs/accessibility/README.md`. No acceptance criterion or gate in that pipeline may require a
-person to inspect output, operate the UI, listen to assistive technology, or approve evidence.
-Missing, unsupported, or inconclusive automation fails closed.
+That program's accessibility evidence pipeline (`AG-1`–`AG-5`, real NVDA/VoiceOver capture on
+Windows and macOS runners, `apps/ui/test/accessibility/`) was removed along with its
+`.github/workflows/accessibility.yml` workflow — this is a single-user personal project and the
+gate proved more expensive to keep green than the assurance was worth. An `AG-<digit>` reference
+now refers to closed historical work only; the rationale and what it once caught are in that
+removal commit.
+
+The deterministic checks in `apps/ui/test/e2e/helpers/accessibility.ts` are NOT part of that
+removal and remain live. Despite the filename, most of what they assert is general UI
+correctness — document overflow, raw identifiers leaking into visible text, contrast ratios,
+duplicate DOM ids, touch-target floors — and eight functional e2e specs depend on them.

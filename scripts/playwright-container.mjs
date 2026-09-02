@@ -151,24 +151,6 @@ async function copyReport() {
   await cp(source, destination, { recursive: true, force: true });
 }
 
-/**
- * The accessibility engine (apps/ui/test/accessibility) writes its evidence bundles under
- * apps/ui/test-results/accessibility inside the container's ephemeral workspace. Without this,
- * a container-run capture would pass and then discard the only copy of what it captured — the
- * container is deleted in `finally` below regardless of exit status.
- */
-async function copyAccessibilityEvidence() {
-  const source = path.join(workspace, "apps/ui/test-results/accessibility");
-  try {
-    await access(source);
-  } catch {
-    return;
-  }
-  const destination = path.join(root, "apps/ui/test-results/accessibility");
-  await mkdir(destination, { recursive: true });
-  await cp(source, destination, { recursive: true, force: true });
-}
-
 try {
   console.log(`Playwright ${playwrightVersion}; container image ${image}`);
   await docker(["pull", image], `Required Playwright image is unavailable: ${image}`);
@@ -186,13 +168,6 @@ try {
     `pnpm exec playwright test --config apps/ui/playwright.config.ts --reporter=list,html${updateSnapshots ? " --update-snapshots" : ""} "$@"`,
   ].join("\n");
   testStarted = true;
-  // Forward A11Y_*-prefixed env vars as a generic escape hatch — the accessibility engine's
-  // capture.mjs uses A11Y_RUN_ID to give every parallel browser worker the same evidence
-  // directory; without this, three workers in three processes each mint their own run ID and
-  // the evidence can never be merged back into one report.
-  const forwardedEnvArgs = Object.keys(process.env)
-    .filter((name) => name.startsWith("A11Y_"))
-    .flatMap((name) => ["-e", `${name}=${process.env[name]}`]);
   await docker(
     [
       "run",
@@ -207,7 +182,6 @@ try {
       "CI=1",
       "-e",
       "HOME=/tmp",
-      ...forwardedEnvArgs,
       "-v",
       `${workspace}:/work`,
       "-w",
@@ -236,12 +210,6 @@ try {
       await copyReport();
     } catch (error) {
       console.error(`Unable to copy Playwright report: ${error.message}`);
-      exitStatus ||= 1;
-    }
-    try {
-      await copyAccessibilityEvidence();
-    } catch (error) {
-      console.error(`Unable to copy accessibility evidence: ${error.message}`);
       exitStatus ||= 1;
     }
   }
