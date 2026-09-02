@@ -30,7 +30,7 @@ export type StrategicFitReportAnalyzer = (
   execution?: StrategicFitReportExecutionOptions,
 ) => Promise<StrategicFitAnalysisResult>;
 
-export const DEFAULT_STRATEGIC_FIT_REPORT_CACHE_SIZE = 4;
+const DEFAULT_STRATEGIC_FIT_REPORT_CACHE_SIZE = 4;
 
 function abortError() {
   return new DOMException("Strategic Fit analysis cancelled", "AbortError");

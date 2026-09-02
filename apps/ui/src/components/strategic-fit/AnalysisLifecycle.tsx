@@ -37,7 +37,7 @@ const isActive = (status: StrategicFitLifecycleStatus) =>
  * the run finished. `STRATEGIC_FIT_LIFECYCLE_LABELS` is left intact — other callers use it as the
  * lifecycle vocabulary, and this is a display concern layered over it.
  */
-export const STRATEGIC_FIT_LIMITED_EVIDENCE_LABEL = "Analysis finished — limited evidence";
+const STRATEGIC_FIT_LIMITED_EVIDENCE_LABEL = "Analysis finished — limited evidence";
 
 export function lifecycleLabel(
   status: StrategicFitLifecycleStatus,

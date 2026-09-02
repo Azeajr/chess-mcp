@@ -28,7 +28,7 @@ export type StrategicMapReport = Pick<
   | "provenance"
 >;
 
-export interface StrategicMapViewPoint {
+interface StrategicMapViewPoint {
   readonly point: StrategicMapPoint;
   readonly cx: number;
   readonly cy: number;
@@ -39,7 +39,7 @@ export interface StrategicMapViewPoint {
   readonly aria_label: string;
 }
 
-export interface StrategicMapViewEdge {
+interface StrategicMapViewEdge {
   readonly from_route_id: string;
   readonly to_route_id: string;
   readonly shared_position_count: number;

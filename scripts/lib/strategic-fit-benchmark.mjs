@@ -20,14 +20,14 @@
 export const STRATEGIC_FIT_BENCHMARK_FORMAT_VERSION = 1;
 
 /** One 60 Hz animation frame. Main-thread work during a worker scan must fit inside it. */
-export const ANIMATION_FRAME_MS = 1000 / 60;
+const ANIMATION_FRAME_MS = 1000 / 60;
 
 /**
  * Ratio budgets are chosen with headroom over measured behavior so ordinary timing noise never
  * fails the gate, while an algorithmic regression — a lost index, a scan that grew a quadratic
  * term, a projection that stopped paging — moves the number far enough to fail it.
  */
-export const STRATEGIC_FIT_BENCHMARK_BUDGETS = Object.freeze({
+const STRATEGIC_FIT_BENCHMARK_BUDGETS = Object.freeze({
   /** Worst single main-thread operation the host performs while the worker scans. */
   frame_ms: ANIMATION_FRAME_MS,
   /** Time between a cancellation becoming observable and the scan actually stopping. */
@@ -72,7 +72,7 @@ export const STRATEGIC_FIT_BENCHMARK_BUDGETS = Object.freeze({
   }),
 });
 
-export function budgetsForScale(scaleId, budgets = STRATEGIC_FIT_BENCHMARK_BUDGETS) {
+function budgetsForScale(scaleId, budgets = STRATEGIC_FIT_BENCHMARK_BUDGETS) {
   const scale = budgets.scales[scaleId];
   if (scale === undefined) throw new Error(`strategic_fit_benchmark_unbudgeted_scale:${scaleId}`);
   return scale;
@@ -91,7 +91,7 @@ function round(value) {
  * duration depends on is the same: the machine, the runtime, the analysis manifest, the record
  * format, and the digest of every fixture that was measured.
  */
-export function benchmarkComparability(record, baseline) {
+function benchmarkComparability(record, baseline) {
   const reasons = [];
   if (!baseline) return { comparable: false, reasons: ["no recorded baseline"] };
   if (baseline.format_version !== record.format_version) reasons.push("record format differs");

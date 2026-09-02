@@ -29,7 +29,7 @@ const formatPercent = (value: number): string =>
     maximumFractionDigits: 1,
   }).format(value * 100) + "%";
 
-export interface ConfidenceComponentPresentation {
+interface ConfidenceComponentPresentation {
   readonly component: ConfidenceComponentKind;
   readonly label: string;
   readonly state: "available" | "unavailable";
@@ -40,7 +40,7 @@ export interface ConfidenceComponentPresentation {
   readonly explanation: string;
 }
 
-export interface ConfidenceCapPresentation {
+interface ConfidenceCapPresentation {
   readonly reason: ConfidenceCapReason;
   readonly label: string;
   readonly maximum_score: number;

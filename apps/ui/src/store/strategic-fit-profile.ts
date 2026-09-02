@@ -25,7 +25,7 @@ export type StrategicFitProfilePreferencesInput = Readonly<
   Partial<Record<keyof StrategicFitProfilePreferences, unknown>>
 >;
 
-export type StrategicFitProfileMutationState = "updated" | "unchanged" | "ignored-explicit";
+type StrategicFitProfileMutationState = "updated" | "unchanged" | "ignored-explicit";
 
 export interface StrategicFitProfileMutationResult {
   readonly state: StrategicFitProfileMutationState;

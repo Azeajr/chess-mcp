@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 
-export type RegionStateStatus = "empty" | "loading" | "error";
+type RegionStateStatus = "empty" | "loading" | "error";
 
 export interface RegionStateProps {
   status?: RegionStateStatus;

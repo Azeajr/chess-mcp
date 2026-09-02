@@ -11,7 +11,7 @@
  *  3. Generate — exports and the Strategic Fit handoff.
  *  4. Prepare and export — the scan stores that mutate or extend the tree.
  */
-export const REPERTOIRE_GROUPS = [
+const REPERTOIRE_GROUPS = [
   {
     title: "Analyze",
     sections: ["Prescribed-move audit", "Only moves & drills", "Structure search"],

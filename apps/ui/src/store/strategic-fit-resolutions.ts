@@ -32,7 +32,7 @@ import { strategicFitDataSourceIdentity } from "./strategic-fit-data-sources";
 import { replaceStrategicFitMetadata, strategicFitMetadata } from "./strategic-fit-metadata";
 import { strategicFitProfile } from "./strategic-fit-profile";
 
-export type StrategicFitSettingsMutationState = "updated" | "unchanged" | "removed" | "missing";
+type StrategicFitSettingsMutationState = "updated" | "unchanged" | "removed" | "missing";
 
 export interface StrategicFitSettingsMutationResult {
   readonly state: StrategicFitSettingsMutationState;

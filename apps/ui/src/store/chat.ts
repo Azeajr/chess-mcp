@@ -32,7 +32,7 @@ const MAX_TOOL_RUNS = 200;
 /** Read-only view of the run cap so tests pin the behaviour, not a duplicated literal. */
 export const MAX_TOOL_RUNS_FOR_TESTING = MAX_TOOL_RUNS;
 
-export interface ToolRunState {
+interface ToolRunState {
   id: string;
   name: string;
   status: Exclude<ExecutionStatus, "idle">;

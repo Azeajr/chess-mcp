@@ -35,9 +35,9 @@ import {
   type StrategicFitProfileMutationResult,
 } from "./strategic-fit-profile";
 
-export type StrategicFitProposalStatus = "pending" | "accepted" | "rejected" | "stale";
+type StrategicFitProposalStatus = "pending" | "accepted" | "rejected" | "stale";
 
-export interface StrategicFitStagedProfileProposal {
+interface StrategicFitStagedProfileProposal {
   readonly proposal_id: string;
   readonly status: StrategicFitProposalStatus;
   readonly document_id: string;
@@ -77,7 +77,7 @@ export interface StrategicFitProfileProposalResult {
   readonly next_step: string;
 }
 
-export type StrategicFitProposalDecisionResult =
+type StrategicFitProposalDecisionResult =
   | {
       readonly ok: true;
       readonly proposal_id: string;

@@ -42,6 +42,10 @@ jobs:
         run: pnpm check:legacy-imports
       - name: Strategic Fit domain suite
         run: pnpm test:strategic-fit
+      # The non-strategic-fit half of chess-tools had no unit suite at all — 50 test files existed
+      # and every one of them was under test/strategic-fit/.
+      - name: chess-tools core suite
+        run: pnpm test:chess-tools
       - name: Design token, responsive tier, and primitive contracts
         run: node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
       - name: Deterministic smoke suites (engine-free, no network)

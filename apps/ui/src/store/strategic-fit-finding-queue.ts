@@ -20,7 +20,7 @@ import {
 
 export const STRATEGIC_FIT_QUEUE_PAGE_SIZE = 6;
 
-export type StrategicFitQueueStatus = "empty" | "loading" | "ready" | "error";
+type StrategicFitQueueStatus = "empty" | "loading" | "ready" | "error";
 export type StrategicFitQueuePriorityFilter = FindingPriorityLabel | "all";
 
 export interface StrategicFitFindingQueueSnapshot {

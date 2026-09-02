@@ -41,7 +41,7 @@ import {
   type StrategicFitCompletedResult,
 } from "./strategic-fit";
 
-export type ReplacementLabLifecycleStatus =
+type ReplacementLabLifecycleStatus =
   | "closed"
   | "non-actionable"
   | "pivot-required"

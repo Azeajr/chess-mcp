@@ -42,7 +42,7 @@ export interface StrategicFitMetadataStorage {
 }
 
 export type StrategicFitMetadataPersistenceStatus = "idle" | "loading" | "ready";
-export type StrategicFitMetadataWarningCode =
+type StrategicFitMetadataWarningCode =
   | "invalid-metadata"
   | "unsupported-metadata"
   | "storage-read-failed"
@@ -55,7 +55,7 @@ export interface StrategicFitMetadataWarning {
   readonly issues: readonly StrategicFitMetadataIssue[];
 }
 
-export interface StrategicFitMetadataPersistenceSnapshot {
+interface StrategicFitMetadataPersistenceSnapshot {
   readonly document_id: string | null;
   readonly status: StrategicFitMetadataPersistenceStatus;
   readonly metadata: StrategicFitDocumentMetadata;
@@ -370,7 +370,7 @@ function storageKey(id: string): string {
   return `${STRATEGIC_FIT_METADATA_STORAGE_KEY_PREFIX}${id}`;
 }
 
-export function createIndexedDbStrategicFitMetadataStorage(): StrategicFitMetadataStorage {
+function createIndexedDbStrategicFitMetadataStorage(): StrategicFitMetadataStorage {
   return {
     get: (id) => idbGet(storageKey(id)),
     set: (id, metadata) => idbSet(storageKey(id), metadata),

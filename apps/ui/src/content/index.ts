@@ -22,7 +22,7 @@ export const shortcutLabels = [
  * rendered as-is. userAgentData is the modern API; navigator.platform is the fallback
  * both for engines that have not shipped userAgentData yet and for test environments.
  */
-export function formatKey(key: string): string {
+function formatKey(key: string): string {
   const ua = (navigator as Navigator & { userAgentData?: { platform: string } }).userAgentData;
   const platform = ua?.platform ?? "";
   const isMac = /Mac|iPod|iPhone|iPad/.test(platform) || navigator.userAgent.includes("Mac");

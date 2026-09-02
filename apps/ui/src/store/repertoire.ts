@@ -219,7 +219,7 @@ export async function inspectShortcut(p: PruneSuggestion) {
 
 // --- Tier B: extend (suggest_complementary_lines from the current position) ---
 
-export interface ComplementaryMove {
+interface ComplementaryMove {
   move: string;
   eval: number;
   resulting_structure: string;

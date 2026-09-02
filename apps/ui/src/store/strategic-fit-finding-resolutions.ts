@@ -38,21 +38,21 @@ export const STRATEGIC_FIT_REVIEW_RESOLUTION_STATES = [
 ] as const;
 export type StrategicFitReviewResolutionState =
   (typeof STRATEGIC_FIT_REVIEW_RESOLUTION_STATES)[number];
-export type StrategicFitFindingResolutionStateInput =
+type StrategicFitFindingResolutionStateInput =
   | StrategicFitReviewResolutionState
   | "train-as-exception";
 export type StrategicFitDisplayedResolutionState =
   | StrategicFinding["resolution_state"]
   | "invalid-comparison";
 
-export type StrategicFitResolutionReviewStatus = "idle" | "ready" | "updated" | "blocked";
+type StrategicFitResolutionReviewStatus = "idle" | "ready" | "updated" | "blocked";
 
 interface StrategicFitResolutionProjection {
   readonly state: StrategicFitDisplayedResolutionState;
   readonly baseline_state: StrategicFitDisplayedResolutionState;
 }
 
-export interface StrategicFitResolutionReviewSnapshot {
+interface StrategicFitResolutionReviewSnapshot {
   readonly report_id: string | null;
   readonly status: StrategicFitResolutionReviewStatus;
   readonly code: string | null;

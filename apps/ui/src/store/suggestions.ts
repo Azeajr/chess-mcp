@@ -11,7 +11,7 @@ import { fen, currentPath, currentTree, actions, version } from "./game";
 import type { Arrow } from "./analysis";
 import { assertTestOnly } from "./test-seam";
 
-export interface Suggestion {
+interface Suggestion {
   id: string;
   fromPath: Path;
   sans: string[];
@@ -29,7 +29,7 @@ export interface Suggestion {
  * paints a gold arrow on the board + highlights the part of the line already in the tree, until
  * the user Accepts (grafts it) or Rejects (clears it).
  */
-export interface PreviewLine {
+interface PreviewLine {
   id: string; // == the Suggestion id it was promoted from
   fromPath: Path;
   sans: string[];

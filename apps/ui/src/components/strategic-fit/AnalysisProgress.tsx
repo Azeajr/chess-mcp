@@ -27,7 +27,7 @@ function blocked(state: StrategicFitLifecycleSnapshot): boolean {
   return phaseReport(state)?.result.preflight.state === "blocked";
 }
 
-export function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapshot): string {
+function analysisProgressAnnouncement(state: StrategicFitLifecycleSnapshot): string {
   const completed = completedCount(state);
   const active = state.phase_history.find((phase) => phase.state === "running");
   const cancelled = state.phase_history.find((phase) => phase.state === "cancelled");

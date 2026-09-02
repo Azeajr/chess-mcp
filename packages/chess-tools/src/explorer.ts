@@ -135,7 +135,12 @@ export function hasExplorerToken(): boolean {
 const cache = new Map<string, ExplorerPosition>();
 
 function uniqueSorted<T>(values: readonly T[], order: (value: T) => number): T[] {
-  return [...new Set(values)].sort((left, right) => order(left) - order(right));
+  const unique = [...new Set(values)];
+  // `order` both validates and ranks, so it must be applied to every value explicitly:
+  // Array.prototype.sort does not invoke its comparator for a list of fewer than two elements,
+  // which let a lone invalid speed or rating bucket through unchecked and into the request URL.
+  for (const value of unique) order(value);
+  return unique.sort((left, right) => order(left) - order(right));
 }
 
 /** Validate and canonicalize every population filter before URL or cache-key construction. */

@@ -46,7 +46,7 @@ export const CONCEPT_HEATMAP_INTENT_LABELS: Readonly<Record<ConceptHeatmapIntent
 export const CONCEPT_HEATMAP_SORT_MODES = ["concept", "frequency", "mastery"] as const;
 export type ConceptHeatmapSortMode = (typeof CONCEPT_HEATMAP_SORT_MODES)[number];
 
-export interface ConceptHeatmapViewCell {
+interface ConceptHeatmapViewCell {
   readonly cell: ConceptHeatmapCell;
   /** Cell shading strength 0-1; the visible percentage text carries the same value. */
   readonly intensity: number;

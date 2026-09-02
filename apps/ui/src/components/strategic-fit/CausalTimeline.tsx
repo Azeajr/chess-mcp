@@ -54,7 +54,7 @@ const CONTROL_LABELS: Readonly<Record<CausalControlLabel, string>> = {
   unknown: "Causal ownership unavailable",
 };
 
-export interface CausalTimelineEventPresentation {
+interface CausalTimelineEventPresentation {
   readonly event_id: string;
   readonly kind: CausalEventKind;
   readonly label: string;

@@ -19,9 +19,9 @@ import {
   type StrategicFitRequestSnapshot,
 } from "./strategic-fit";
 
-export type StrategicFitResolutionProofPhase = "acceptance" | "undo";
+type StrategicFitResolutionProofPhase = "acceptance" | "undo";
 
-export type StrategicFitResolutionProofStatus =
+type StrategicFitResolutionProofStatus =
   | "idle"
   | "awaiting-rescan"
   | "rescanning"
@@ -56,7 +56,7 @@ export interface StrategicFitResolutionProofMetricClaim {
   readonly after: StrategicFitMetric<number> | null;
 }
 
-export interface StrategicFitResolutionProofCountClaim {
+interface StrategicFitResolutionProofCountClaim {
   readonly claim_id: string;
   readonly label: string;
   readonly before: number | string | null;
@@ -72,7 +72,7 @@ export interface StrategicFitResolutionProofReportClaims {
   readonly counts: readonly StrategicFitResolutionProofCountClaim[];
 }
 
-export interface StrategicFitTrackedAcceptance {
+interface StrategicFitTrackedAcceptance {
   readonly stage_id: string;
   readonly document_id: string;
   readonly base_revision: number;
@@ -89,7 +89,7 @@ export interface StrategicFitTrackedAcceptance {
   readonly accepted_at: string;
 }
 
-export interface StrategicFitResolutionProofError {
+interface StrategicFitResolutionProofError {
   readonly code: string;
   readonly message: string;
 }

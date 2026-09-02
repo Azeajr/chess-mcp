@@ -14,7 +14,7 @@ export interface StrategicFitPortfolioEvidence {
   readonly previews: readonly ReplacementToolV2Item[];
 }
 
-export interface StrategicFitPortfolioStageOutcome {
+interface StrategicFitPortfolioStageOutcome {
   readonly ok: boolean;
   readonly stage_id: string | null;
   readonly status: string;

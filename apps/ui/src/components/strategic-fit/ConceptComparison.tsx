@@ -33,7 +33,7 @@ function readableJson(value: JsonValue): string {
     : entries.map(([key, item]) => `${humanize(key)}: ${readableJson(item)}`).join("; ");
 }
 
-export interface StrategicFitDimensionPresentation {
+interface StrategicFitDimensionPresentation {
   readonly dimension_id: string;
   readonly label: string;
   readonly typical: string;
@@ -47,7 +47,7 @@ export interface StrategicFitDimensionPresentation {
   readonly raw_affected: string;
 }
 
-export interface StrategicFitContributionReconciliation {
+interface StrategicFitContributionReconciliation {
   readonly state: "unavailable" | "reconciled" | "partial";
   readonly listed_total: number | null;
   readonly report_distance: number;

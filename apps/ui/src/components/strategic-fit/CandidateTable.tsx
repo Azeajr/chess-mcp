@@ -22,7 +22,7 @@ const AXIS_LABELS: Readonly<Record<ReplacementStrategicScoreAxis, string>> = {
   "training-cost": "Training cost",
 };
 
-export interface CandidateAxisPresentation {
+interface CandidateAxisPresentation {
   readonly axis: ReplacementStrategicScoreAxis;
   readonly label: string;
   readonly state: "available" | "partial" | "unavailable";
