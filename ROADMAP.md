@@ -50,6 +50,35 @@ Phase 2 (add after phase 1 is clean and run for a while, one at a time, not bund
 Do not bundle phase 2 additions into one PR — each plugin needs its own signal-to-noise
 pass against this repo before enabling by default.
 
+## Built but not wired
+
+Found by running `npx knip` and then reading each result rather than trusting the count. These
+twenty symbols are referenced nowhere, but they sit inside live modules and look like unfinished
+wiring, not leftovers. Deleting them would throw away working code; they are listed so the next
+audit stops re-reporting them as dead exports.
+
+- **Training performance is displayed but can never be written — this one is a bug.**
+  `StrategicFitWorkspace.tsx:522` renders `strategicFitTrainingMastery()` and
+  `ProfileSettings.tsx:195` renders a trained-target count, but
+  `recordStrategicFitTrainingPerformanceAttempt`, the only public writer in
+  `store/strategic-fit-training.ts`, is called from nowhere. `TrainException.tsx` creates training
+  items and never records an attempt at one, so both figures are permanently zero for every user.
+  Either wire the writer into the drill flow or stop displaying the statistics.
+- **Training performance import/export.** `exportStrategicFitTrainingPerformance`,
+  `importStrategicFitTrainingPerformance`, and `flushStrategicFitTrainingPerformance` are complete
+  and unreachable — there is no UI affordance for any of them. Moot until the bug above is fixed,
+  since there is nothing to export.
+- **Unread store accessors.** `strategicFitStagedChanges`, `strategicFitPlanCards`,
+  `strategicFitPortfolioConstraintSets`, `strategicFitProfileProposals`, and
+  `strategicFitArchivePayload` expose state nothing renders. Each store's mutations are wired; only
+  these readers are orphaned.
+- **Orphaned clear actions.** `clearComplementary` (`store/repertoire.ts`) and `clearSuggestions`
+  (`store/suggestions.ts`) have no caller, so those two surfaces cannot be reset from the UI.
+- **Smaller ones.** `browserImplementationNames`, `getLastStrategicFitJobRecovery`,
+  `REPERTOIRE_SECTION_LABELS`, `REPERTOIRE_COMMAND_TOOLS`, `schemasSemanticallyEqual`, and the
+  types `RepertoireGroupTitle`, `ToolExecutionOptions`, `StrategicFitChangeController`,
+  `StrategicFitChangeSetStageSuccess`.
+
 ## Deliberately ungated
 
 CI does not gate these, and that is a decision, not an oversight. Each has resurfaced as an audit
