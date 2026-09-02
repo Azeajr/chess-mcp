@@ -89,14 +89,36 @@ audit stops re-reporting them as dead exports.
   types `RepertoireGroupTitle`, `ToolExecutionOptions`, `StrategicFitChangeController`,
   `StrategicFitChangeSetStageSuccess`.
 
-## Follow-up: a Playwright board-move helper
+## Wanted: a Playwright helper that plays a move on the board
 
-No e2e in this repo drives a move on a chessground board, and the drill surface is the first place
-that wanted one. Neither `locator.click` at computed square coordinates nor a synthesised
-down/move/up drag reached chessground's pointer handling, so the drill e2e asserts the board is
-live and correctly oriented but stops short of playing the move; the move-to-SAN conversion, recall
-comparison and attempt recording are unit-tested instead. A reusable helper would close that and
-would serve the main board too.
+No e2e in this repo has ever driven a move on a chessground board. Every board assertion so far
+reads state; none plays. The drill surface is the first thing that wanted one, so this is a gap in
+the harness rather than in any one feature.
+
+What it would unlock: the drill e2e currently proves the board is live and correctly oriented but
+stops before the move, so the move → SAN → recorded-attempt path is unit-tested and never exercised
+in a real browser. The main board has the same hole — dragging a piece, promotion, and illegal-move
+refusal are all untested end to end.
+
+Already tried against `DrillBoard`, both failing silently with no selection and no destination
+markers rendered, so neither reached chessground's pointer handling:
+
+- `locator.click({ position })` at computed square centres, after
+  `scrollIntoViewIfNeeded` (`page.mouse.click` alone is worse: it takes viewport coordinates and
+  does no scrolling, so an off-screen board is clicked blind).
+- A synthesised drag: `mouse.move` → `down` → `move` in steps → `up` between square centres.
+
+Diagnostics from that attempt, worth not re-deriving: the board mounts correctly (`cg-wrap
+orientation-white manipulable`, `cg-container` sized, pieces positioned by `transform: translate`),
+`chessgroundDests` returns the right map (`g1 → e2,f3,h3` in the fixture position), and the square
+geometry is `(file + 0.5) * width / 8` across and `(7 - rank + 0.5) * height / 8` down for a
+white-oriented board. So the failure is in how the events are delivered, not in the board's config
+or the coordinates.
+
+Worth trying next: dispatching `pointerdown`/`pointerup` explicitly rather than mouse events, since
+chessground binds pointer events and Playwright's mouse API may not produce what it listens for;
+failing that, exposing a test-only hook that calls the board API directly, the way
+`window.__chess` already does for store state.
 
 ## Deliberately ungated
 
