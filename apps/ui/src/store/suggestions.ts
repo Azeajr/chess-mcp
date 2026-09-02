@@ -212,7 +212,16 @@ export function rejectSuggestion(id: string) {
   setSuggestions((prev) => prev.filter((x) => x.id !== id));
 }
 
+/**
+ * Discard every pending suggestion, rejecting the staged edit behind each one.
+ *
+ * Emptying the list is not enough. A staged edit outlives the panel: `StagedEditResult` in the chat
+ * transcript reads `stagedEdit(id)` directly and keeps offering Accept for as long as the edit is
+ * `pending`. Clearing the panel without rejecting them left those cards live, so a user who thought
+ * they had dismissed the suggestions could still graft one into the repertoire from the transcript.
+ */
 export function clearSuggestions() {
+  for (const suggestion of suggestions()) rejectStagedEdit(suggestion.id);
   setSuggestions([]);
 }
 
