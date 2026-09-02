@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Locator, type Page } from "playwright/test";
 
 type ProfileMode = "familiar-plans" | "balanced" | "versatile" | "custom";
 type StrategicFitProfile = {
@@ -111,6 +111,31 @@ const openWorkspace = async (page: Page) => {
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
   return { opener, dialog };
+};
+
+/**
+ * Open one of the settings `<details>` sections, and confirm it stayed open.
+ *
+ * A bare `getByText(name).click()` is a *toggle* aimed by text position, not an "open", and the
+ * sections are filled in from the top down — so the dialog reflows underneath the click, and a
+ * click that misses, lands twice, or is undone by a re-render leaves the section shut. Everything
+ * inside a closed `<details>` is `display: none`, so the next assertion then waits out its whole
+ * timeout on an element that is present and will never be visible. That is exactly how this flaked
+ * on CI (`Opening popularity` resolved on all thirteen polls and stayed hidden).
+ *
+ * Clicking the section's own `<summary>`, and only while the section reports itself closed, is
+ * idempotent under all three of those causes: it re-clicks if the state did not take, and does
+ * nothing if it did.
+ */
+const openSection = async (dialog: Locator, name: string) => {
+  const summary = dialog.locator("summary").filter({ hasText: name });
+  const isOpen = () => summary.evaluate((el) => el.closest("details")?.open === true);
+  await expect
+    .poll(async () => {
+      if (!(await isOpen())) await summary.click();
+      return isOpen();
+    })
+    .toBe(true);
 };
 
 test.beforeEach(async ({ page }) => {
@@ -363,14 +388,14 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
   await expect(dialog.getByText(/Weights are relative/)).toBeVisible();
   await dialog.getByLabel("Center dynamics weight").fill("2.5");
 
-  await dialog.getByText("Constraints, workload, and concept intent", { exact: true }).click();
+  await openSection(dialog, "Constraints, workload, and concept intent");
   await dialog.getByLabel("Evaluation tolerance").fill("1500");
   await dialog.getByLabel("Minimum opponent coverage").fill("92");
   await dialog.getByLabel("Memorization tolerance").fill("0.2");
   await dialog.getByLabel("Preferred concepts").fill("minority attack, space");
   await dialog.getByLabel("Avoided concepts").fill("isolated queen pawn");
 
-  await dialog.getByText("Data sources and weighting", { exact: true }).click();
+  await openSection(dialog, "Data sources and weighting");
   await expect(
     dialog.getByLabel("Data-source status").getByText("Opening popularity", { exact: true }),
   ).toBeVisible();
