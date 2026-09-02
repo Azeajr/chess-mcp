@@ -31,6 +31,11 @@ export default function DrillBoard(props: {
   // when it actually changes, which is when a different drill is shown.
   let painted: string | undefined;
 
+  // The side to move, which is both the orientation to show the drill from and the colour
+  // chessground has to be told is on turn. Leaving `turnColor` at its `"white"` default made every
+  // black-to-move drill unplayable: chessground's `isMovable` requires `turnColor === piece.color`,
+  // so a black piece failed that check, took the premove branch instead, and the drag set a premove
+  // that never fires `movable.events.after` — no move, no feedback, no recorded attempt.
   const orientation = () => drillOrientation(props.fen);
 
   const movable = () => {
@@ -59,6 +64,7 @@ export default function DrillBoard(props: {
     board = Chessground(element, {
       fen: props.fen,
       orientation: orientation(),
+      turnColor: orientation(),
       animation: { enabled: false },
       draggable: { enabled: !props.locked },
       selectable: { enabled: !props.locked },
@@ -73,6 +79,7 @@ export default function DrillBoard(props: {
     const fen = props.fen;
     const config = {
       orientation: orientation(),
+      turnColor: orientation(),
       draggable: { enabled: !props.locked },
       selectable: { enabled: !props.locked },
       // The whole `movable` object is replaced on each set, so the `after` handler has to be
