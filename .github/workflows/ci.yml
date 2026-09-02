@@ -68,8 +68,8 @@ jobs:
           EVAL_CACHE_DIR: "0" # cold cache — CI must not depend on a warm eval store
         run: node apps/mcp-server/test/smoke-client.mjs
 
-  ui:
-    name: UI — store and browser regression
+  ui-checks:
+    name: UI — typecheck, unit, PWA build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -95,12 +95,32 @@ jobs:
         run: |
           pnpm exec playwright install --with-deps chromium
           node apps/ui/test/pwa-lifecycle.mjs
-      - run: pnpm test:e2e:container
+
+  ui-e2e:
+    name: UI — browser regression (shard ${{ matrix.shard }}/6)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      # CI's container runners get 2 Playwright workers regardless of shard count, so wall-clock
+      # scales with shard count almost linearly: 6-way sharding turns one ~16-minute run into six
+      # ~3-minute ones instead of parallelizing within a single job.
+      - run: pnpm test:e2e:container -- --shard=${{ matrix.shard }}/6
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: apps/ui/playwright-report
           if-no-files-found: ignore
 
