@@ -38,6 +38,8 @@ export function withFakeClock(): FakeClock {
 
 export interface FetchStub {
   calls: { url: string; init?: RequestInit }[];
+  /** Put the real global fetch back, so a later test cannot silently inherit this handler. */
+  restore: () => void;
 }
 
 /** Replace global fetch, recording every call so a test can assert the URL that was built. */
@@ -45,12 +47,18 @@ export function stubFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
 ): FetchStub {
   const calls: { url: string; init?: RequestInit }[] = [];
+  const original = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push({ url, init });
     return await handler(url, init);
   }) as typeof fetch;
-  return { calls };
+  return {
+    calls,
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
 }
 
 export const jsonResponse = (body: unknown, status = 200): Response =>
