@@ -2540,8 +2540,9 @@ test("a created training item offers a live drill board and records no attempt f
   // move itself is not asserted here: chessground moves come from pointer events that this repo has
   // never simulated in Playwright, and neither a click nor a synthesised drag reached it. The
   // move-to-SAN, recall comparison, and attempt recording are covered by
-  // test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts instead. See
-  // docs/design/drill-attempt-surface.md.
+  // test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts instead. What was
+  // tried, and what to try next, is in ROADMAP.md under "Wanted: a Playwright helper that plays a
+  // move on the board".
   await expect(active.locator(".cg-wrap")).toBeVisible();
   await expect(active.locator(".cg-wrap")).toHaveClass(/manipulable/u);
   await expect(reopened.locator("[data-drill-locked='false']")).toBeVisible();
