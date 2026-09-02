@@ -57,7 +57,7 @@ export const REPLACEMENT_LAB_UNAVAILABLE_SOURCES = [
   "structurally-similar-repertoire",
 ] as const satisfies readonly ReplacementCandidateSourceKind[];
 
-export type ReplacementLabActionabilityCode =
+type ReplacementLabActionabilityCode =
   | "actionable"
   | "stale-report"
   | "stale-document"
@@ -99,7 +99,7 @@ export interface ReplacementLabControls {
   readonly include_all_forcing_replies: boolean;
 }
 
-export type ReplacementLabProgressPhase =
+type ReplacementLabProgressPhase =
   | "validating"
   | "candidates"
   | "engine"

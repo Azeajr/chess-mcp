@@ -123,7 +123,7 @@ function captureBeforeMutation(
  * Complete the last history entry with the post-mutation state and bump version.
  * Must be called immediately after the mutation that `captureBeforeMutation` was called for.
  */
-export function commitAfterMutation(id: number, type: MutationType): void {
+function commitAfterMutation(id: number, type: MutationType): void {
   const pgnAfter = gameToPgn();
   const pathAfter = [...gamePath()];
   const revisionAfter = version();

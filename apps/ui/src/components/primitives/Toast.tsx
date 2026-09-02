@@ -10,7 +10,7 @@
 import { Show, onCleanup, onMount, type JSX } from "solid-js";
 import { announce } from "../../store/announce";
 
-export interface ToastAction {
+interface ToastAction {
   readonly label: string;
   readonly onClick: () => void;
 }

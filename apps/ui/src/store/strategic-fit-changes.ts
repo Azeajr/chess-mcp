@@ -37,10 +37,10 @@ import {
 import { browserDocumentMutationRegistry } from "../application/browser-commands/registry";
 import { assertTestOnly } from "./test-seam";
 
-export const STRATEGIC_FIT_CHANGE_STORAGE_VERSION = "1.0.0";
-export const STRATEGIC_FIT_CHANGE_STORAGE_KEY_PREFIX = "strategicFitChanges:";
+const STRATEGIC_FIT_CHANGE_STORAGE_VERSION = "1.0.0";
+const STRATEGIC_FIT_CHANGE_STORAGE_KEY_PREFIX = "strategicFitChanges:";
 export const STRATEGIC_FIT_PENDING_RELOAD_POLICY = "discard" as const;
-export const STRATEGIC_FIT_CHANGE_UNDO_LIMIT = 10;
+const STRATEGIC_FIT_CHANGE_UNDO_LIMIT = 10;
 
 export const STRATEGIC_FIT_STAGED_CHANGE_STATUSES = [
   "staged",
@@ -50,7 +50,7 @@ export const STRATEGIC_FIT_STAGED_CHANGE_STATUSES = [
   "undone",
   "failed",
 ] as const;
-export type StrategicFitStagedChangeStatus = (typeof STRATEGIC_FIT_STAGED_CHANGE_STATUSES)[number];
+type StrategicFitStagedChangeStatus = (typeof STRATEGIC_FIT_STAGED_CHANGE_STATUSES)[number];
 
 export const STRATEGIC_FIT_CHANGE_RESULT_STATUSES = [
   "previewed",
@@ -60,10 +60,10 @@ export const STRATEGIC_FIT_CHANGE_RESULT_STATUSES = [
   "failed",
   "undone",
 ] as const;
-export type StrategicFitChangeResultStatus = (typeof STRATEGIC_FIT_CHANGE_RESULT_STATUSES)[number];
+type StrategicFitChangeResultStatus = (typeof STRATEGIC_FIT_CHANGE_RESULT_STATUSES)[number];
 
 export const STRATEGIC_FIT_UNDO_STATUSES = ["available", "undone", "stale", "failed"] as const;
-export type StrategicFitUndoStatus = (typeof STRATEGIC_FIT_UNDO_STATUSES)[number];
+type StrategicFitUndoStatus = (typeof STRATEGIC_FIT_UNDO_STATUSES)[number];
 
 export const STRATEGIC_FIT_CHANGE_ERROR_CODES = [
   "invalid-document",
@@ -116,7 +116,7 @@ interface StrategicFitUndoSnapshot {
   readonly archives: readonly StrategicFitStoredArchive[];
 }
 
-export interface StrategicFitUndoRecord {
+interface StrategicFitUndoRecord {
   readonly undo_id: string;
   readonly stage_id: string;
   readonly document_id: string;
@@ -137,7 +137,7 @@ export interface StrategicFitPersistedChangeState {
   readonly recovery: StrategicFitPreparedRecovery | null;
 }
 
-export interface StrategicFitPreparedRecovery {
+interface StrategicFitPreparedRecovery {
   readonly operation: "accept" | "undo";
   readonly stage_id: string;
   readonly prepared_at: string;
@@ -909,7 +909,7 @@ function changeStorageKey(documentIdValue: string): string {
   return `${STRATEGIC_FIT_CHANGE_STORAGE_KEY_PREFIX}${documentIdValue}`;
 }
 
-export function createIndexedDbStrategicFitChangeStorage(): StrategicFitChangeStorage {
+function createIndexedDbStrategicFitChangeStorage(): StrategicFitChangeStorage {
   return {
     load: (id) => idbGet<StrategicFitPersistedChangeState>(changeStorageKey(id)),
     commit: ({ state, working: saved, metadata }) =>
@@ -1030,7 +1030,7 @@ export function registerStrategicFitStageForTesting(stage: StrategicFitStagedCha
   return registered;
 }
 
-export async function acceptStrategicFitChangeSet(stageId: string) {
+async function acceptStrategicFitChangeSet(stageId: string) {
   const result = await browserController.accept(stageId);
   setBrowserStagesVersion((value) => value + 1);
   return result;

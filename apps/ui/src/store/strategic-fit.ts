@@ -47,7 +47,7 @@ export interface StrategicFitRequestSnapshot {
   readonly settings_identity: string;
 }
 
-export interface StrategicFitLifecycleProgress {
+interface StrategicFitLifecycleProgress {
   readonly done: number;
   readonly total?: number;
   /** Canonical adapter message for the active/completed analysis phase. */
@@ -63,12 +63,12 @@ export const STRATEGIC_FIT_PHASE_LABELS: Readonly<Record<StrategicFitProgressPha
   "ranking-findings": "Ranking findings",
 };
 
-export interface StrategicFitLifecyclePhase {
+interface StrategicFitLifecyclePhase {
   readonly phase: StrategicFitProgressPhase;
   readonly state: StrategicFitProgressState;
 }
 
-export interface StrategicFitLifecycleError {
+interface StrategicFitLifecycleError {
   readonly code: string;
   readonly message: string;
 }

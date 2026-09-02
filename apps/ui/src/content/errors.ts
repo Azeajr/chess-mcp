@@ -115,7 +115,7 @@ export const ERROR_CONTENT = {
   stale_revision: { title: "Document changed" },
 } as const satisfies Readonly<Record<string, ErrorContent>>;
 
-export type ContentErrorCode = keyof typeof ERROR_CONTENT;
+type ContentErrorCode = keyof typeof ERROR_CONTENT;
 
 export function errorContent(code: string): ErrorContent {
   return Object.prototype.hasOwnProperty.call(ERROR_CONTENT, code)

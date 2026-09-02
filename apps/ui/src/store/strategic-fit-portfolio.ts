@@ -34,9 +34,9 @@ import {
 import { documentId, version } from "./game";
 import { strategicFitProfile } from "./strategic-fit-profile";
 
-export type StrategicFitPortfolioConstraintStatus = "pending" | "confirmed" | "rejected" | "stale";
+type StrategicFitPortfolioConstraintStatus = "pending" | "confirmed" | "rejected" | "stale";
 
-export interface StrategicFitStagedConstraintSet {
+interface StrategicFitStagedConstraintSet {
   readonly constraint_set_id: string;
   readonly status: StrategicFitPortfolioConstraintStatus;
   readonly document_id: string;
@@ -47,9 +47,9 @@ export interface StrategicFitStagedConstraintSet {
   readonly created_at: string;
 }
 
-export type StrategicFitPortfolioSelectionStatus = "staged" | "superseded" | "failed";
+type StrategicFitPortfolioSelectionStatus = "staged" | "superseded" | "failed";
 
-export interface StrategicFitPortfolioSelection {
+interface StrategicFitPortfolioSelection {
   readonly constraint_set_id: string;
   readonly option_id: string;
   readonly candidate_id: string;

@@ -8,8 +8,8 @@ import {
 import { createSignal } from "solid-js";
 import { invalidateCachedStrategicFitReports } from "../application/strategic-fit-report-cache";
 
-export type StrategicFitPopularityDatabase = "lichess" | "masters";
-export type StrategicFitPersonalHistoryPlatform = "lichess" | "chesscom";
+type StrategicFitPopularityDatabase = "lichess" | "masters";
+type StrategicFitPersonalHistoryPlatform = "lichess" | "chesscom";
 
 export interface StrategicFitDataSourceSettings {
   readonly popularity: {

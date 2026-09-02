@@ -52,7 +52,7 @@ if (typeof document !== "undefined") {
 }
 
 /** The control a dialog should return focus to when the platform did not focus its opener. */
-export function openerFallback(): HTMLElement | null {
+function openerFallback(): HTMLElement | null {
   return lastPointerActivated?.isConnected === true ? lastPointerActivated : null;
 }
 

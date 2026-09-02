@@ -15,7 +15,7 @@ export const [mobileTab, setMobileTab] = createSignal<MobileTab>("analysis");
 
 /** Additive Strategic Fit workspace chrome. Analysis lifecycle state belongs to Task 5.3. */
 export type StrategicFitWorkspaceStage = "overview" | "findings" | "evidence" | "resolution";
-export type StrategicFitWorkspaceRegionStatus = "empty" | "loading" | "error";
+type StrategicFitWorkspaceRegionStatus = "empty" | "loading" | "error";
 
 export interface StrategicFitWorkspaceRegionState {
   readonly status: StrategicFitWorkspaceRegionStatus;

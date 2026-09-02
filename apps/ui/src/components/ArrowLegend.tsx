@@ -2,7 +2,7 @@ import { createSignal, For, onMount } from "solid-js";
 import type { Fit } from "@chess-mcp/chess-tools";
 import { ANALYSIS_ARROW_BRUSHES, ANALYSIS_CONTENT } from "../content/analysis";
 
-export const ARROW_LEGEND_STORAGE_KEY = "chess.analysis.arrow-legend.expanded.v1";
+const ARROW_LEGEND_STORAGE_KEY = "chess.analysis.arrow-legend.expanded.v1";
 
 const FITS = ["in-book", "adjacent", "out"] as const satisfies readonly Fit[];
 const ENGINE_SOURCE_BACKGROUND = `linear-gradient(90deg, ${FITS.map(

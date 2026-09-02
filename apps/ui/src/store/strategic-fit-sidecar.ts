@@ -27,16 +27,16 @@ export const STRATEGIC_FIT_SIDECAR_CONFIRMATION_ERROR_CODES = [
   "stale-preview",
   "document-id-acknowledgement-required",
 ] as const;
-export type StrategicFitSidecarConfirmationErrorCode =
+type StrategicFitSidecarConfirmationErrorCode =
   (typeof STRATEGIC_FIT_SIDECAR_CONFIRMATION_ERROR_CODES)[number];
 
-export interface StrategicFitSidecarConfirmationError {
+interface StrategicFitSidecarConfirmationError {
   readonly error: "strategic_fit_sidecar_confirmation_error";
   readonly code: StrategicFitSidecarConfirmationErrorCode;
   readonly reason: string;
 }
 
-export interface StrategicFitSidecarImportPreview extends StrategicFitSidecarMergePreview {
+interface StrategicFitSidecarImportPreview extends StrategicFitSidecarMergePreview {
   readonly preview_id: string;
   readonly target_revision: number;
   readonly target_metadata_identity: string;

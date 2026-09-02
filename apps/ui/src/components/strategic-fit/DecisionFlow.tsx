@@ -49,7 +49,7 @@ const MINIMUM_NODE_HEIGHT = 10;
 const MINIMUM_LINK_THICKNESS = 1.5;
 const MAXIMUM_LINK_THICKNESS = 34;
 
-export interface DecisionFlowViewNode {
+interface DecisionFlowViewNode {
   readonly node: DecisionFlowNode;
   readonly x: number;
   readonly y: number;
@@ -75,7 +75,7 @@ export interface DecisionFlowViewLink {
  * Task 10.4 — one drawn marker standing in for the lightest steps of a crowded depth column. Its
  * weight is the exact sum of its members, so shares still add up at every step after aggregation.
  */
-export interface DecisionFlowViewAggregate {
+interface DecisionFlowViewAggregate {
   readonly aggregate_id: string;
   readonly depth: number;
   readonly x: number;
@@ -90,7 +90,7 @@ export interface DecisionFlowViewAggregate {
 }
 
 /** A link after aggregate re-pointing and duplicate merging; only these are drawn. */
-export interface DecisionFlowRenderedLink {
+interface DecisionFlowRenderedLink {
   readonly link_id: string;
   readonly from_node_id: string;
   readonly to_node_id: string;
@@ -105,7 +105,7 @@ export interface DecisionFlowRenderedLink {
   readonly aria_label: string;
 }
 
-export interface DecisionFlowCohortView {
+interface DecisionFlowCohortView {
   readonly cohort: DecisionFlowCohort;
   readonly name: string;
   /** Every step, in outline order; the accessible table below the chart never aggregates. */

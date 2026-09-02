@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 
 export type ArtifactFormat = "pgn" | "csv" | "json";
-export interface Artifact {
+interface Artifact {
   id: string;
   kind: "artifact";
   format: ArtifactFormat;

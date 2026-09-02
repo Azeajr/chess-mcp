@@ -39,14 +39,14 @@ const COMPARABILITY_LABELS: Readonly<
   "not-comparable": "Not comparable",
 };
 
-export type ComparisonMilestoneState =
+type ComparisonMilestoneState =
   | "matched"
   | "mismatched"
   | "incomplete"
   | "not-comparable"
   | "unavailable";
 
-export interface ComparisonRoutePresentation {
+interface ComparisonRoutePresentation {
   readonly route_id: string;
   readonly label: string;
   readonly state: StrategicTrajectory["state"] | "unavailable";
@@ -54,13 +54,13 @@ export interface ComparisonRoutePresentation {
   readonly trajectory: StrategicTrajectory | null;
 }
 
-export interface ComparisonSourcePathPresentation {
+interface ComparisonSourcePathPresentation {
   readonly index: number;
   readonly label: string;
   readonly path: readonly string[];
 }
 
-export interface ComparisonMilestonePresentation {
+interface ComparisonMilestonePresentation {
   readonly key: string;
   readonly kind: StrategicCheckpointKind | null;
   readonly label: string;

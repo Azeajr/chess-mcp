@@ -61,9 +61,9 @@ import { registerStrategicFitTrainingWriter } from "../application/strategic-fit
 
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND = "chess-mcp/strategic-fit-basic-drill";
 /** 1.2.0 adds the optional confirmed plan card; 1.1.0 added the semantic decision identity. */
-export const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.2.0";
+const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.2.0";
 
-export interface StrategicFitTrainingCheckpoint {
+interface StrategicFitTrainingCheckpoint {
   readonly checkpoint_id: string;
   readonly kind: StrategicCheckpointKind;
   readonly ply: number;
@@ -72,7 +72,7 @@ export interface StrategicFitTrainingCheckpoint {
   readonly comparability: "comparable" | "incomplete" | "not-comparable";
 }
 
-export interface StrategicFitTrainingMove {
+interface StrategicFitTrainingMove {
   readonly decision_id: string;
   readonly position_id: string;
   readonly fen: string;
@@ -80,7 +80,7 @@ export interface StrategicFitTrainingMove {
   readonly ply: number;
 }
 
-export interface StrategicFitBasicDrill {
+interface StrategicFitBasicDrill {
   readonly drill_id: string;
   readonly position_id: string;
   readonly decision_id: string;
@@ -342,7 +342,7 @@ export function strategicFitPlanEvidenceForRecord(
   };
 }
 
-export function buildStrategicFitTrainingRecord(
+function buildStrategicFitTrainingRecord(
   report: StrategicFitReport,
   finding: StrategicFinding,
   graph: RepertoireGraph,
@@ -512,7 +512,7 @@ export function buildStrategicFitTrainingRecord(
   };
 }
 
-export function serializeStrategicFitTrainingArtifact(record: StrategicFitTrainingRecord): string {
+function serializeStrategicFitTrainingArtifact(record: StrategicFitTrainingRecord): string {
   for (const drill of record.drills) {
     if (!legalSan(drill.fen, drill.expected_san)) {
       throw new Error("strategic_fit_training_artifact_illegal_drill");
@@ -677,8 +677,7 @@ export function createStrategicFitTrainingState(boundary: StrategicFitTrainingBo
   };
 }
 
-export const STRATEGIC_FIT_TRAINING_PERFORMANCE_STORAGE_KEY_PREFIX =
-  "strategicFitTrainingPerformance:";
+const STRATEGIC_FIT_TRAINING_PERFORMANCE_STORAGE_KEY_PREFIX = "strategicFitTrainingPerformance:";
 
 export interface StrategicFitTrainingPerformanceMutationResult {
   readonly state: "updated" | "unchanged" | "blocked";
@@ -871,7 +870,7 @@ export function createStrategicFitTrainingPerformanceState(
   };
 }
 
-export interface StrategicFitTrainingPerformanceStorage {
+interface StrategicFitTrainingPerformanceStorage {
   get(documentId: string): Promise<unknown>;
   set(documentId: string, data: StrategicFitTrainingPerformanceData): Promise<void>;
 }
@@ -887,7 +886,7 @@ function performanceStorageKey(id: string): string {
   return `${STRATEGIC_FIT_TRAINING_PERFORMANCE_STORAGE_KEY_PREFIX}${id}`;
 }
 
-export function createIndexedDbStrategicFitTrainingPerformanceStorage(): StrategicFitTrainingPerformanceStorage {
+function createIndexedDbStrategicFitTrainingPerformanceStorage(): StrategicFitTrainingPerformanceStorage {
   return {
     get: (id) => idbGet(performanceStorageKey(id)),
     set: (id, data) => idbSet(performanceStorageKey(id), data),
@@ -1113,7 +1112,7 @@ export const createStrategicFitTrainingItem = (input: StrategicFitTrainingCreati
  * for both the evidence it discloses and the evidence it validates against, so a proposal and its
  * acceptance are measured with the same builder the training writer uses.
  */
-export const buildCurrentStrategicFitTrainingRecord = (input: StrategicFitTrainingCreationInput) =>
+const buildCurrentStrategicFitTrainingRecord = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.buildCurrent(input);
 
 // Plan synthesis reaches training through this bridge rather than importing it: the browser command

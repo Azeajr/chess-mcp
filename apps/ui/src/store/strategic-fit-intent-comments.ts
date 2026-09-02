@@ -121,7 +121,7 @@ export function createStrategicFitIntentCommentState(
   };
 }
 
-export const strategicFitIntentComments = createStrategicFitIntentCommentState({
+const strategicFitIntentComments = createStrategicFitIntentCommentState({
   currentTree,
   repertoireColor: color,
   currentMetadata: strategicFitMetadata,

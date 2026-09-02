@@ -1,6 +1,6 @@
 import { splitProps, type JSX } from "solid-js";
 
-export type StatusTone = "neutral" | "running" | "success" | "warning" | "danger" | "info";
+type StatusTone = "neutral" | "running" | "success" | "warning" | "danger" | "info";
 
 export interface StatusProps extends JSX.HTMLAttributes<HTMLSpanElement> {
   tone?: StatusTone;

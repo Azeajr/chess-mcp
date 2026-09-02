@@ -22,7 +22,7 @@ export type StrategicOverviewReport = Pick<
   "report_id" | "preflight" | "summary"
 >;
 
-export interface StrategicOverviewItemPresentation {
+interface StrategicOverviewItemPresentation {
   readonly id: StrategicOverviewItemId;
   readonly label: string;
   readonly value: string;

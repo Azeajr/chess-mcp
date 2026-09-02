@@ -17,9 +17,9 @@ import {
 } from "./strategic-fit";
 
 export const STRATEGIC_FIT_REVIEW_SUMMARY_KIND = "chess-mcp/strategic-fit-review-summary";
-export const STRATEGIC_FIT_REVIEW_SUMMARY_VERSION = "1.0.0";
+const STRATEGIC_FIT_REVIEW_SUMMARY_VERSION = "1.0.0";
 
-export type StrategicFitReviewMetricId = "coverage" | "objective-evaluation" | "strategic-workload";
+type StrategicFitReviewMetricId = "coverage" | "objective-evaluation" | "strategic-workload";
 
 export interface StrategicFitReviewMetricDelta {
   readonly metric_id: StrategicFitReviewMetricId;
@@ -33,7 +33,7 @@ export interface StrategicFitReviewMetricDelta {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-export interface StrategicFitReviewResolutionSummary {
+interface StrategicFitReviewResolutionSummary {
   readonly resolution_id: string;
   readonly finding_id: string;
   readonly semantic_finding_id: string;
@@ -76,18 +76,13 @@ export interface StrategicFitReviewCompletionRecord {
   readonly source_reanalysis: StrategicFitCompletedResult["reanalysis"];
 }
 
-export interface StrategicFitReviewExport {
+interface StrategicFitReviewExport {
   readonly artifact_kind: typeof STRATEGIC_FIT_REVIEW_SUMMARY_KIND;
   readonly artifact_version: typeof STRATEGIC_FIT_REVIEW_SUMMARY_VERSION;
   readonly summary: StrategicFitReviewCompletionRecord;
 }
 
-export type StrategicFitReviewStatus =
-  | "unavailable"
-  | "incomplete"
-  | "ready"
-  | "completed"
-  | "stale";
+type StrategicFitReviewStatus = "unavailable" | "incomplete" | "ready" | "completed" | "stale";
 
 export interface StrategicFitReviewSnapshot {
   readonly status: StrategicFitReviewStatus;

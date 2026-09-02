@@ -17,21 +17,19 @@ export type StrategicFitReanalysisTrigger =
   | "cohort-override"
   | "unknown-change";
 
-export interface StrategicFitAffectedCohortScope {
+interface StrategicFitAffectedCohortScope {
   readonly kind: "affected-cohorts";
   readonly cohort_ids: readonly string[];
   readonly reason: string;
 }
 
-export interface StrategicFitFullScanScope {
+interface StrategicFitFullScanScope {
   readonly kind: "full-scan";
   readonly cohort_ids: readonly string[];
   readonly reason: string;
 }
 
-export type StrategicFitReanalysisScope =
-  | StrategicFitAffectedCohortScope
-  | StrategicFitFullScanScope;
+type StrategicFitReanalysisScope = StrategicFitAffectedCohortScope | StrategicFitFullScanScope;
 
 export interface StrategicFitReanalysisRequest {
   readonly trigger: StrategicFitReanalysisTrigger;
@@ -52,7 +50,7 @@ export interface StrategicFitReanalysisSummary {
   readonly preserved_resolution_ids: readonly string[];
 }
 
-export interface StrategicFitReconciliationActions {
+interface StrategicFitReconciliationActions {
   readonly automatically_resolve: readonly StrategicFinding[];
   readonly reopen_semantic_finding_ids: readonly string[];
 }

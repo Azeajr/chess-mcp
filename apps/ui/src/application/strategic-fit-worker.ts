@@ -8,7 +8,7 @@ import type {
 } from "@chess-mcp/chess-tools";
 
 /** The incremental index is worker-owned and not structured-cloneable, so it never crosses the port. */
-export type StrategicFitSerializableOptions = Omit<
+type StrategicFitSerializableOptions = Omit<
   AnalyzeStrategicFitOptions,
   | "repertoireColor"
   | "repertoireRevision"
@@ -21,7 +21,7 @@ export type StrategicFitSerializableOptions = Omit<
   | "onCheckpoint"
 >;
 
-export interface StrategicFitWorkerMetadata {
+interface StrategicFitWorkerMetadata {
   readonly repertoire_revision: string;
   readonly generated_at?: string;
   readonly run_id?: string;
@@ -47,7 +47,7 @@ export interface StrategicFitWorkerAnalyzeRequest {
   readonly payload: StrategicFitWorkerPayload;
 }
 
-export interface StrategicFitWorkerCancelRequest {
+interface StrategicFitWorkerCancelRequest {
   readonly type: "cancel";
   readonly request_id: string;
 }

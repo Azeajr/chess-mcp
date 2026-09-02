@@ -28,15 +28,15 @@ import { currentStrategicFitTrainingWriter } from "../application/strategic-fit-
 import { documentId, version } from "./game";
 import type { StrategicFitTrainingCreationResult } from "./strategic-fit-training";
 
-export type StrategicFitPlanStatus = "pending" | "accepted" | "rejected" | "stale";
+type StrategicFitPlanStatus = "pending" | "accepted" | "rejected" | "stale";
 
-export interface StrategicFitPlanSubject {
+interface StrategicFitPlanSubject {
   readonly report_id: string;
   readonly finding_id: string;
   readonly semantic_finding_id: string;
 }
 
-export interface StrategicFitStagedPlanCard {
+interface StrategicFitStagedPlanCard {
   readonly plan_id: string;
   readonly status: StrategicFitPlanStatus;
   readonly document_id: string;
@@ -70,7 +70,7 @@ export interface StrategicFitPlanProposalResult {
   readonly next_step: string;
 }
 
-export type StrategicFitPlanDecisionResult =
+type StrategicFitPlanDecisionResult =
   | {
       readonly ok: true;
       readonly plan_id: string;

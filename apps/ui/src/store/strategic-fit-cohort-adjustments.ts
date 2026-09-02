@@ -60,7 +60,7 @@ export type StrategicFitCohortAdjustmentDraft =
       readonly target_id: string;
     };
 
-export type StrategicFitCohortAdjustmentStatus =
+type StrategicFitCohortAdjustmentStatus =
   | "idle"
   | "previewing"
   | "ready"
@@ -75,7 +75,7 @@ export interface StrategicFitCohortAdjustmentImpactList {
   readonly reason: string | null;
 }
 
-export interface StrategicFitCohortAdjustmentPreview {
+interface StrategicFitCohortAdjustmentPreview {
   readonly preview_id: string;
   readonly report_id: string;
   readonly draft: StrategicFitCohortAdjustmentDraft;
@@ -92,12 +92,12 @@ export interface StrategicFitCohortAdjustmentPreview {
   readonly binding: StrategicFitCohortAdjustmentBinding;
 }
 
-export interface StrategicFitCohortAdjustmentBinding {
+interface StrategicFitCohortAdjustmentBinding {
   readonly request_snapshot: StrategicFitRequestSnapshot;
   readonly metadata_identity: string;
 }
 
-export interface StrategicFitCohortAdjustmentSnapshot {
+interface StrategicFitCohortAdjustmentSnapshot {
   readonly report_id: string | null;
   readonly status: StrategicFitCohortAdjustmentStatus;
   readonly code: string | null;
