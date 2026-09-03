@@ -453,7 +453,9 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
 
   // Everything else is two: open the menu, then activate the option.
-  const trigger = page.getByRole("button", { name: "Repertoire" });
+  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
+  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
+  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
   const menu = page.getByRole("menu", { name: "Repertoire actions" });
@@ -471,7 +473,9 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 
 test("WP-017 AC-4 the document menu is keyboard-operable and restores focus", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
-  const trigger = page.getByRole("button", { name: "Repertoire" });
+  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
+  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
+  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
 
   await trigger.focus();
   await page.keyboard.press("Enter");

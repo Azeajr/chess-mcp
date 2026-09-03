@@ -6639,15 +6639,24 @@ img,
 .strategic-fit-comparison-boards {
   max-width: 52rem;
 }
-/* The one forward step at the end of the evidence, where the reader finishes reading. */
-.strategic-fit-evidence-next {
+/*
+ * The forward step at the end of a stage, where the reader finishes: "Record a decision" closing
+ * Evidence, "Next unresolved finding" closing Resolution. One recipe rather than two, because they
+ * are the same move — the loop's next edge offered where the reader stops rather than left for
+ * them to find in the stage strip.
+ */
+.strategic-fit-evidence-next,
+.strategic-fit-resolution-next {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
+  gap: var(--space-3);
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
-.strategic-fit-evidence-next button {
+.strategic-fit-evidence-next button,
+.strategic-fit-resolution-next button {
   min-height: var(--control-height);
   padding: 0 0.9rem;
   border: 1px solid var(--accent);
@@ -6658,6 +6667,12 @@ img,
   font: inherit;
   font-size: var(--type-sm);
   font-weight: 600;
+}
+/* How much of the job is left, beside the control that continues it. */
+.strategic-fit-resolution-next span {
+  color: var(--muted);
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
 }
 .strategic-fit-comparison-boards > header p {
   margin: 0;
@@ -8266,6 +8281,7 @@ img,
   }
   .strategic-fit-overview-item button,
   .strategic-fit-evidence-next button,
+  .strategic-fit-resolution-next button,
   .strategic-fit-print-controls button,
   .strategic-fit-preset-actions button,
   /* The collapsed lifecycle chips are compact by design on a mouse; a finger still needs 44px. */

@@ -102,6 +102,35 @@ export default function ChatPanel() {
           `No API key. Open Settings` line. PD-4 fixed full width over a collapsed rail, so nothing
           here touches layout — the card is a body swap, not a resize.
         */}
+        {/*
+          Named questions, not a description of a category. These used to render only once a key
+          was configured, which left the unconfigured panel — the one place a reader has no idea
+          what an "assistant" in a repertoire app is for — with a paragraph about it instead of
+          three examples of it. Showing them first answers "what is this for" before the card below
+          asks for a key.
+
+          They stay clickable without a key: clicking fills the composer, so a question survives the
+          detour through Settings. Pressing Send without a key is already handled — the chat store
+          answers with "Set your OpenRouter API key in Settings." rather than a failed request.
+        */}
+        <Show when={empty()}>
+          <div class="chat-starters" data-chat-starters>
+            <p class="chat-starters-title">Ask about this position</p>
+            <For each={CHAT_STARTERS}>
+              {(starter) => (
+                <button
+                  type="button"
+                  class="chat-starter"
+                  onClick={() => {
+                    setInput(starter);
+                  }}
+                >
+                  {starter}
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
         <Show when={!hasApiKey()}>
           <div class="chat-setup-card" data-chat-setup-card>
             <h3 class="chat-setup-title">Set up the assistant</h3>
@@ -119,26 +148,6 @@ export default function ChatPanel() {
             >
               Set up the assistant
             </Button>
-          </div>
-        </Show>
-        {/* Configured but never used: name the three things it is good at rather than leaving the
-            user to guess what an "assistant" in a repertoire app is for. */}
-        <Show when={hasApiKey() && empty()}>
-          <div class="chat-starters" data-chat-starters>
-            <p class="chat-starters-title">Ask about this position</p>
-            <For each={CHAT_STARTERS}>
-              {(starter) => (
-                <button
-                  type="button"
-                  class="chat-starter"
-                  onClick={() => {
-                    setInput(starter);
-                  }}
-                >
-                  {starter}
-                </button>
-              )}
-            </For>
           </div>
         </Show>
         <For each={history()}>
