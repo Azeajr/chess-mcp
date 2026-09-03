@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import Status from "./primitives/Status";
 import ProfileSetup from "./strategic-fit/ProfileSetup";
 import AnalysisLifecycle from "./strategic-fit/AnalysisLifecycle";
 import { STRATEGIC_FIT_PROFILE_LABELS, STRATEGIC_FIT_EVIDENCE } from "../content/strategicFit";
@@ -451,9 +452,13 @@ export default function StrategicFitWorkspace() {
                             region rather than by the tab that leads to it.
                           */}
                           <Show when={stage.id === "findings" && unresolvedCount() !== null}>
-                            <span class="strategic-fit-stage-count" aria-hidden="true">
+                            <Status
+                              tone="neutral"
+                              class="strategic-fit-stage-count"
+                              aria-hidden="true"
+                            >
                               {unresolvedCount()}
-                            </span>
+                            </Status>
                           </Show>
                         </button>
                       )}

@@ -853,7 +853,7 @@ img,
  */
 .eval-bar {
   /* Wide enough to print "+0.24" without clipping — at 16px the score was cut to "+0.". */
-  width: 26px;
+  width: 28px;
   align-self: stretch;
   background: var(--surface-eval);
   border: 1px solid var(--border);
@@ -882,7 +882,7 @@ img,
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 0.62rem;
+  font-size: var(--type-micro);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
@@ -1008,7 +1008,7 @@ img,
 }
 /* The move that is on the board should stay findable in a long tree without hunting for a chip. */
 .move-tree .move.current:hover {
-  background: color-mix(in srgb, var(--accent) 88%, #fff);
+  background: color-mix(in srgb, var(--accent) 88%, var(--text-on-dark));
 }
 
 /* Feature 1: moves on the active preview line that already exist in the tree. */
@@ -1666,12 +1666,12 @@ img,
 }
 .ui-button-primary:hover:not(:disabled),
 .topbar button.ui-button-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 82%, #fff);
-  border-color: color-mix(in srgb, var(--accent) 82%, #fff);
+  background: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
+  border-color: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
 }
 .ui-button-primary:active:not(:disabled),
 .topbar button.ui-button-primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 84%, #000);
+  background: color-mix(in srgb, var(--accent) 84%, var(--shadow-solid));
 }
 
 .ui-button-secondary {
@@ -3015,8 +3015,8 @@ img,
   font-weight: 600;
 }
 .chat-input button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 82%, #fff);
-  border-color: color-mix(in srgb, var(--accent) 82%, #fff);
+  background: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
+  border-color: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
 }
 /* Stop replaces Send while a turn is running: same slot, different job, so it must not inherit
    Send's accent. */
@@ -3752,10 +3752,15 @@ img,
   font: inherit;
   font-size: var(--type-sm);
   white-space: nowrap;
-  transition:
-    background var(--motion-fast) ease,
-    color var(--motion-fast) ease;
 }
+/*
+ * The current/upcoming state is a fact about where you are, read instantly by a screen reader or
+ * an accessibility scan the moment the click handler runs — so no rule on this button, hover
+ * included, transitions background or color. A hover transition still animated the state change
+ * underneath it: a click leaves the pointer over the clicked button, so it keeps matching :hover
+ * after the state flips, and the cascade's `transition` property is per-element, not per-rule — as
+ * long as any matching rule declared one, the values from the winning rule animated through it.
+ */
 .strategic-fit-stage-nav button:hover {
   background: var(--surface-hover);
   color: var(--text);
