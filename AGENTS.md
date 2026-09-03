@@ -13,6 +13,9 @@ pnpm -r typecheck
 pnpm docs:check
 pnpm check:skills
 pnpm check:legacy-imports
+# Design-system contracts over apps/ui/src — CI gates these; a stylesheet change can break them
+# without touching a test file. wp020 also rejects an unlabelled `@media (max-width: 820px)`.
+node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
 pnpm bench:strategic-fit         # --record to rebaseline; --scale large needs a raised heap
 node scripts/smoke-gametree.mjs
 node scripts/structure-accuracy.mjs
@@ -51,6 +54,19 @@ non-Ubuntu hosts (e.g. Arch) this is a known source of false signal:
 Before reporting an e2e failure found via the host command as a real bug, reproduce it with
 `pnpm test:e2e:container` first. To rebaseline screenshots, use
 `pnpm test:e2e:update-snapshots` (also container-based) — never regenerate baselines from a host run.
+
+Two things about rebaselining that are easy to get wrong:
+
+- **`--update-snapshots` copies the regenerated PNGs back only when the container run exits zero.**
+  `syncSnapshots()` sits after the docker call in the success path, so any _other_ failing test —
+  including a hand-maintained numeric baseline like `NORMAL_PHONE_BASELINES` in
+  `core-layout.spec.ts` — aborts the run before the copy and leaves the working tree untouched. It
+  looks like "nothing needed updating". Fix the unrelated failure first, then rebaseline.
+- **Numeric geometry baselines are not snapshots** and `--update-snapshots` will never touch them.
+  Take those numbers from a container run's failure message, which prints expected and measured
+  side by side. Host numbers are wrong in a way that is not merely imprecise: measured on an Arch
+  host, one top-bar change read as 65px against a 66px baseline (a one-pixel shrink) where the
+  container reads 68px (a two-pixel growth) — the sign of the drift inverted.
 
 `pnpm --filter @chess-mcp/ui test:e2e:host` is a capped, chromium+firefox-only, non-`@visual`
 subset — the fastest way to get trustworthy behavioral signal locally without Docker or a webkit
