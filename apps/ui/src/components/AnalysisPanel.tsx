@@ -30,9 +30,17 @@ export default function AnalysisPanel() {
     <div class="analysis">
       <PanelHeader class="analysis-header" title={ANALYSIS_CONTENT.title}>
         <span class="analysis-header-meta">
-          <span class={`analysis-state analysis-state-${state()}`}>
-            {ANALYSIS_CONTENT.status[state()]}
-          </span>
+          {/*
+            The header used to carry an "off" chip above a sentence reading "Engine evaluation is
+            off." above a button reading "Turn on evaluation" — three statements of one fact, and
+            the chip was the least specific of the three. It now appears only for the states the
+            body cannot state on its own: work in flight, and an engine that failed to load.
+          */}
+          <Show when={state() !== "off" && state() !== "ready"}>
+            <span class={`analysis-state analysis-state-${state()}`}>
+              {ANALYSIS_CONTENT.status[state()]}
+            </span>
+          </Show>
           <span
             class="analysis-depth-chip"
             aria-label={`Effective analysis depth: ${analysisDepth()}`}

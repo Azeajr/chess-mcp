@@ -91,17 +91,25 @@ export default function TopBar() {
         {/* DV-3: the same document actions, grouped and keyboard-operable, in two interactions. */}
         <DocumentMenu />
         <span class="topbar-sep" aria-hidden="true" />
-        <select
-          aria-label="Repertoire colour"
-          title="Which side this repertoire is written for"
-          value={color()}
-          onChange={(e) => {
-            actions.setColor(e.currentTarget.value as "white" | "black");
-          }}
-        >
-          <option value="white">White</option>
-          <option value="black">Black</option>
-        </select>
+        {/*
+          "White ▾" alone reads as a filter over something. The disc says which side is being
+          prepared before the word is read, which is the fact this control actually carries — and
+          it is the one top-bar control whose value changes what every panel below it computes.
+        */}
+        <span class="topbar-side">
+          <span class="topbar-side-dot" data-side={color()} aria-hidden="true" />
+          <select
+            aria-label="Repertoire colour"
+            title="Which side this repertoire is written for"
+            value={color()}
+            onChange={(e) => {
+              actions.setColor(e.currentTarget.value as "white" | "black");
+            }}
+          >
+            <option value="white">White</option>
+            <option value="black">Black</option>
+          </select>
+        </span>
         <button onClick={() => setSettingsOpen(true)}>Settings</button>
       </div>
     </div>

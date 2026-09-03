@@ -82,6 +82,11 @@
   --text-reference: #b8c7dd;
   --accent-primary: #6ea8fe;
 
+  /* The two piece colours, as UI indicators rather than board pixels — used wherever chrome has
+     to say "this is the white side" without drawing a board. */
+  --piece-white: #f0f0f2;
+  --piece-black: #17171a;
+
   /* Status surfaces, borders, and text. */
   --status-success: #6aa84f;
   --status-success-border: #2f6b3a;
@@ -361,6 +366,82 @@ img,
   height: 18px;
   background: var(--border);
   margin-inline: var(--space-1);
+}
+
+/*
+ * Hierarchy in the action group. Six identically filled boxes said every control was equally
+ * likely to be the one you want, which is the same as saying nothing. Everything up here is quiet
+ * until pointed at; only Save keeps a surface, and only Save goes accented — and only when there
+ * is something to write.
+ */
+.topbar button:not(.ui-button-primary),
+.topbar .document-menu-trigger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.topbar button:not(.ui-button-primary):hover,
+.topbar .document-menu-trigger:hover,
+.topbar .document-menu-trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--surface-control);
+  color: var(--text);
+}
+.topbar .save-button {
+  border-color: var(--border);
+  background: var(--surface-control);
+  color: var(--text);
+}
+
+/*
+ * The repertoire's side, stated as a disc before it is stated as a word. The wrapper carries the
+ * control's box so the disc is a flex sibling of the select rather than an overlay fighting its
+ * padding — the coarse-pointer tier restates that padding, and an absolutely-placed dot landed on
+ * the first letter of the value.
+ */
+.topbar-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* The select inside keeps the full compact control height — it is the focusable, pointer-sized
+     control and must clear the target floor on its own — so the wrapper is that plus its border.
+     Two pixels over its neighbours, rather than the six the default select height cost. */
+  min-height: calc(var(--control-height-sm) + 2px);
+  padding-left: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+.topbar-side:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.topbar-side:focus-within {
+  border-color: var(--accent);
+}
+.topbar .topbar-side select {
+  min-height: var(--control-height-sm);
+  padding-left: 0;
+  border: 0;
+  background-color: transparent;
+}
+.topbar-side-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.topbar-side-dot[data-side="white"] {
+  background: var(--piece-white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shadow-solid) 35%, transparent);
+}
+.topbar-side-dot[data-side="black"] {
+  background: var(--piece-black);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 /* Buttons take the shared `.ui-button` recipe; these two keep native behaviour but match its box. */
@@ -675,7 +756,10 @@ img,
      back to the responsive default until the user drags. Extra `.workspace` specificity so this
      beats the base `.board-wrap` rule, which sits later in the source. */
   .workspace .board-wrap {
-    width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 36px))), calc(100% - 36px));
+    width: min(
+      var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - var(--board-gutter)))),
+      calc(100% - var(--board-gutter))
+    );
   }
   .activity-strip {
     display: flex;
@@ -728,7 +812,25 @@ img,
     width: 100%;
     height: var(--target-touch);
   }
-  .app-main :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])) {
+  /*
+   * Two controls opt out of the *width* floor because each supplies its own tap area through an
+   * absolutely-positioned `::before` larger than the painted box — the technique the dividers have
+   * always used here. Both are narrow on purpose and both pay for width out of something the reader
+   * needs more:
+   *
+   *   .eval-bar        44px of rail is 16px taken off the board on the smallest screens.
+   *   .collapse-toggle sits in the gutter of every nesting level, so its width is multiplied by
+   *                    depth — at 44px a third-level variation began past the halfway mark of a
+   *                    390px phone and wrapped three times.
+   *
+   * Anything else that wants to be narrower than the floor needs the same overlay, not an entry
+   * on this list.
+   */
+  .app-main
+    :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])):not(
+      .eval-bar,
+      .collapse-toggle
+    ) {
     min-width: var(--target-touch);
     min-height: var(--target-touch);
   }
@@ -746,6 +848,13 @@ img,
   gap: var(--space-3);
   min-height: 0;
   --board-cap: 62vh;
+  /* The eval bar plus the stage gap. One token so the board's own width and the move list's
+     width are derived from the same number instead of two hand-tuned approximations. */
+  --board-gutter: calc(28px + 0.6rem);
+  /* What the board column actually occupies: board edge + gutter. Both the stage and the move
+     list resolve this against .board-panel, so the two surfaces share one left and one right
+     edge at every width — they are one loop and now read as one object. */
+  --board-col: min(calc(var(--board-cap) + var(--board-gutter)), 100%);
 }
 
 .board-stage {
@@ -757,6 +866,8 @@ img,
   align-items: stretch;
   justify-content: center;
   min-height: 0;
+  width: var(--board-col);
+  margin-inline: auto;
 }
 
 .board-stage > .board-wrap {
@@ -764,9 +875,9 @@ img,
 }
 
 .board-wrap {
-  /* 36px reserves the eval-bar (26px) + gap (~10px) sitting beside it, so the row can't
-     exceed its container and trigger horizontal scroll on narrow screens. */
-  width: min(var(--board-cap), calc(100% - 36px));
+  /* Reserves the eval bar + gap sitting beside it, so the row can't exceed its container and
+     trigger horizontal scroll on narrow screens. */
+  width: min(var(--board-cap), calc(100% - var(--board-gutter)));
   aspect-ratio: 1;
   overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
   position: relative; /* anchors .board-keyboard-layer's absolute overlay */
@@ -776,11 +887,15 @@ img,
   box-shadow: 0 0 0 1px var(--border-strong);
 }
 
-/* The move list fills whatever the board did not take, and never collapses to nothing. */
+/* The move list fills whatever the board did not take, and never collapses to nothing. It is
+   width-matched to the board stage above it (see --board-col) rather than bleeding to the full
+   column, which is what previously made the board look like it was floating over an unrelated box. */
 .board-panel .moves-panel {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  width: var(--board-col);
+  margin-inline: auto;
 }
 .board-panel .moves-panel > .move-tree {
   flex: 1 1 auto;
@@ -860,6 +975,12 @@ img,
   border-radius: var(--radius-xs);
   position: relative;
   overflow: hidden;
+  /* The off state renders as a <button>; these keep the two states pixel-identical in geometry. */
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  appearance: none;
 }
 
 .eval-bar .fill {
@@ -890,18 +1011,56 @@ img,
   mix-blend-mode: difference;
 }
 
+/*
+ * Off is a quiet empty rail with a centre tick, not a half-filled grey column. The old treatment
+ * painted a 50% fill in a lighter grey, which read as a broken gauge sitting beside a live board:
+ * a bar showing an amount is a claim about the position, and off has no claim to make.
+ */
 .eval-bar.is-off {
-  border-color: var(--eval-off-border);
-  background: var(--eval-off-surface);
-  opacity: 0.72;
+  padding: 0;
+  border-color: var(--border);
+  background: var(--surface-control-subtle);
+  cursor: pointer;
+  /* No fill is painted while off, so nothing needs clipping — and the hit area below has to be
+     able to reach outside the painted rail. */
+  overflow: visible;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
 }
 
-.eval-bar.is-off .fill {
-  background: var(--eval-off-fill);
+/*
+ * The touch target, wider than the rail it belongs to. Widening the rail itself to 44px would take
+ * that width off the board on exactly the screens where the board is smallest; the extra hit area
+ * lands in the workspace padding and the stage gap, where no other control sits.
+ */
+.eval-bar.is-off::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: var(--target-touch);
+  transform: translateX(-50%);
 }
 
-.eval-bar.is-off .score {
-  color: var(--eval-off-text);
+.eval-bar.is-off:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-line);
+}
+
+/* The tick marks the even mark the fill would grow from, so turning evaluation on reads as the
+   bar filling away from a known origin rather than a new object appearing. */
+.eval-bar-off-mark {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  right: 5px;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.eval-bar.is-off:hover .eval-bar-off-mark {
+  background: var(--accent-line);
 }
 
 .side-panel {
@@ -1018,13 +1177,30 @@ img,
 }
 
 @media (pointer: coarse) {
-  .move-tree .move,
-  .move-tree .collapse-toggle {
+  .move-tree .move {
     min-width: var(--target-touch);
     min-height: var(--target-touch);
   }
+  /*
+   * The collapse toggle gets the tap area without the box. Widening it to 44px widened the gutter
+   * of every nesting level by the same amount, so on a 390px phone a third-level variation started
+   * past the halfway mark and wrapped three times — the deepest lines, which are the ones a reader
+   * is least sure of, became the hardest to read. The overlay below is the tap target; the painted
+   * control stays gutter-sized.
+   */
   .move-tree .collapse-toggle {
+    min-width: 0;
+    min-height: var(--target-touch);
     height: var(--target-touch);
+  }
+  .move-tree .collapse-toggle::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--target-touch);
+    height: var(--target-touch);
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -1040,47 +1216,104 @@ img,
   margin: 0.15rem 0;
 }
 /*
- * A rule down the left of the block says "this is a side line off the move above" structurally,
- * the way a chess book's indent does. The parentheses in the markup then read as punctuation
- * rather than as the only thing separating a variation from the mainline.
+ * A rule down the left of the block is the only nesting signal. The markup used to also print
+ * literal PGN parentheses around every variation, so depth was stated twice — once structurally
+ * and once as punctuation the reader had to match up by eye. The rule alone survives nesting;
+ * stacked brackets do not.
  */
 .move-tree .variations {
   flex: 1;
   min-width: 0;
-  padding-left: 0.55rem;
+  padding-left: 0.6rem;
   border-left: 2px solid var(--border-strong);
 }
+/*
+ * A fixed-width gutter so every nesting level's rule lands on the same grid. The toggle used to
+ * be an intrinsically-sized pill, so a "+3" branch pushed its subtree further right than a "+1"
+ * one and the tree's left edges sawtoothed by depth.
+ */
 .move-tree .collapse-toggle {
   display: inline-flex;
+  position: relative;
   align-items: center;
   justify-content: center;
   flex: none;
+  box-sizing: border-box;
+  width: var(--target-min);
   min-width: var(--target-min);
   min-height: var(--target-min);
   height: var(--target-min);
   margin-top: 0.15rem;
-  padding: 0 0.25rem;
-  font-size: var(--type-xs);
+  padding: 0;
+  font-size: var(--type-micro);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   line-height: 1;
   color: var(--muted);
-  background: var(--surface-control-subtle);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
   cursor: pointer;
-  opacity: 0.55;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+/* Expanded draws a chevron rather than printing "–", which read as a remove control. It uses
+   ::after so ::before stays free for the coarse-pointer tap overlay below. */
+.move-tree .collapse-toggle:not(.is-collapsed)::after {
+  content: "";
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+}
+.move-tree .collapse-toggle.is-collapsed {
+  color: var(--text);
+  background: var(--surface-control-subtle);
+  border-color: var(--border);
 }
 .move-tree .collapse-toggle:hover {
-  opacity: 1;
-  border-color: var(--accent);
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 
+/*
+ * Variations stay readable. They were painted in --muted wholesale, so the deeper a line sat the
+ * harder its moves were to read — the opposite of what a repertoire needs, since the side lines
+ * are the part you are least sure of. Depth is carried by the rule; only the move numbers recede.
+ */
 .move-tree .variation {
+  color: var(--text);
+}
+.move-tree .variations .moveno {
   color: var(--muted);
 }
 
-.move-tree .empty {
+.move-tree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 100%;
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+.move-tree-empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-md);
+  font-weight: 600;
+}
+.move-tree-empty-body {
+  max-width: 30ch;
+  margin: 0 0 var(--space-1);
   color: var(--muted);
-  font-style: italic;
+  font-size: var(--type-sm);
+  line-height: 1.5;
 }
 
 .analysis {
@@ -1285,10 +1518,14 @@ img,
   }
 }
 
+/*
+ * Not italic. This is a status the panel is reporting, not an aside or a quotation, and italic
+ * body copy at 0.9rem in a dark UI reads as lower-fidelity text rather than as quieter text —
+ * colour already does the quieting.
+ */
 .analysis .empty,
 .analysis .analysis-empty {
   color: var(--muted);
-  font-style: italic;
 }
 
 .analysis .analysis-empty {
@@ -1504,14 +1741,17 @@ img,
   border-top: 1px solid var(--border);
   font-size: 0.82rem;
 }
+/*
+ * A label, not a badge. Filled in --status-info-surface this was the most saturated element in the
+ * panel — a permanent blue chip announcing a secondary, frequently-absent second opinion, sitting
+ * louder than the engine lines it supplements.
+ */
 .analysis .cloud-label {
-  font-size: var(--type-xs);
+  font-size: var(--type-micro);
   font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
-  background: var(--status-info-surface);
-  color: var(--status-info-text);
+  color: var(--muted);
 }
 .analysis .cloud-val {
   color: var(--muted);
@@ -1710,6 +1950,15 @@ img,
   .analysis .analysis-empty button,
   .chat-input button,
   .ui-button-sm {
+    min-height: var(--target-touch);
+  }
+  /* The side control's box lives on the wrapper, so the floor belongs there — applied to the
+     select as well it would stack the wrapper's border on top of a full-height control and make
+     this one item two pixels taller than every other control in the row. */
+  .topbar .topbar-side {
+    min-height: calc(var(--target-touch) + 2px);
+  }
+  .topbar .topbar-side select {
     min-height: var(--target-touch);
   }
 }
@@ -2881,15 +3130,25 @@ img,
   /* Aligned to the header's inline padding rather than running edge to edge inside the dialog. */
   margin: var(--space-3) var(--space-5) 0;
 }
+/*
+ * A standing caveat, not an alarm. This banner is shown for the whole life of a limited-evidence
+ * report, alongside a status line that already reads "Analysis finished — limited evidence" and a
+ * chip carrying the route counts — three statements of one condition, of which this was the
+ * loudest: a full-bleed amber bar across the top of every stage. Warning colour is for something
+ * that just changed and wants a decision; a permanent qualifier gets a left rule and quiet text,
+ * which keeps it legible on stage four without shouting on stages one through three.
+ */
 .strategic-fit-limited-evidence-banner {
   margin: var(--space-2) 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--status-warning-border, var(--border-default));
-  border-radius: 6px;
-  background: var(--status-warning-surface, var(--surface-raised));
+  padding: var(--space-1) var(--space-3);
+  border-left: 2px solid var(--status-warning-border, var(--border-default));
   font-size: var(--type-xs);
   line-height: 1.45;
+  color: var(--muted);
+}
+.strategic-fit-limited-evidence-banner > strong {
   color: var(--status-warning-text, var(--text-primary));
+  font-weight: 600;
 }
 
 /*
@@ -3537,26 +3796,33 @@ img,
  * and squeezed the copy into ~130px, which turned two sentences into six ragged lines and made the
  * card the tallest thing in the panel.
  */
+/*
+ * The panel's one editorial block. It was a gradient-filled card carrying a question, two
+ * sentences and a stacked button — the loudest object in a column whose job is a list of tools.
+ * Flat tinted surface with a left accent rule keeps it identifiably the entry point at a third of
+ * the visual weight; the gradient was decorating an element that already had an accent border.
+ */
 .strategic-fit-entry {
   display: grid;
   gap: 0.5rem;
   margin: 0.45rem 0 var(--space-4);
-  padding: 0.7rem;
-  border: 1px solid var(--border-info);
-  border-radius: var(--radius-md);
-  background: linear-gradient(160deg, rgba(61, 92, 135, 0.18), rgba(38, 38, 43, 0.3));
+  padding: 0.65rem 0.7rem 0.65rem 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control-subtle);
 }
 .strategic-fit-entry-title {
-  font-size: var(--type-md);
+  font-size: var(--type-sm);
   font-weight: 650;
-  line-height: 1.3;
+  line-height: 1.35;
   text-wrap: balance;
 }
 .strategic-fit-entry-copy {
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   color: var(--muted);
   font-size: var(--type-xs);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 .strategic-fit-open-button {
   justify-self: start;
@@ -3765,32 +4031,22 @@ img,
   background: var(--surface-hover);
   color: var(--text);
 }
+/*
+ * No check marks. `completed` here means "left of the stage you are on", which is a fact about
+ * reading order, not about work done — so a green ✓ appeared on Overview and Findings before any
+ * analysis had run, and on the current stage too, claiming four finished steps on an empty report.
+ * These four are places in one report, not tasks; the filled segment says where you are and full
+ * -strength text says where you have been. That also buys back the 1.1em every tab reserved for a
+ * mark it usually did not draw.
+ */
 .strategic-fit-stage-nav button[data-stage-state="completed"] {
   color: var(--text);
-}
-/*
- * The check mark's box is always there, transparent until the stage is behind you. Drawn only on
- * completed stages it grew the track by 40px as the reader advanced, so the tab they were aiming
- * at moved under the pointer.
- */
-.strategic-fit-stage-nav button::before {
-  content: "✓";
-  display: inline-block;
-  width: 0.8em;
-  margin-right: 0.3rem;
-  color: transparent;
-}
-.strategic-fit-stage-nav button[data-stage-state="completed"]::before {
-  color: var(--status-success-text-strong);
 }
 .strategic-fit-stage-nav button[data-stage-state="current"],
 .strategic-fit-stage-nav button.active {
   background: var(--accent);
   color: var(--text-inverse);
   font-weight: 600;
-}
-.strategic-fit-stage-nav button[data-stage-state="current"]::before {
-  color: inherit;
 }
 /* A count is a fact about the queue, not part of the tab's name; the tablist role reads the label. */
 .strategic-fit-stage-count {
@@ -4331,6 +4587,12 @@ img,
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Secondary to the verdict beside it: a handle you reach for, not a headline. */
+.strategic-fit-analysis-report-id {
+  color: var(--muted);
+  font-size: var(--type-micro);
+  opacity: 0.75;
+}
 .strategic-fit-reanalysis-summary {
   flex-basis: 100%;
   padding-left: 0.55rem;
@@ -4841,6 +5103,19 @@ img,
   outline: none;
   overscroll-behavior: contain;
 }
+/*
+ * Resolution is the one stage whose every block is a form, so the stage — heading included — takes
+ * a form measure and sits on the pane's centre line. Applying it to the cards alone left the
+ * "Next step / Resolution" heading flush against the pane's left padding with a centred card
+ * beneath it, which reads worse than either choice made consistently: a heading and its content
+ * have to share an edge. Every other stage stays flush-left, because every other stage mixes this
+ * measure with full-pane tables that need the width.
+ */
+.strategic-fit-resolution-pane > * {
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
 .strategic-fit-workspace-body[data-stage="overview"] .strategic-fit-overview-pane,
 .strategic-fit-workspace-body[data-stage="findings"] .strategic-fit-findings-pane,
 .strategic-fit-workspace-body[data-stage="evidence"] .strategic-fit-evidence-pane,
@@ -5179,27 +5454,38 @@ img,
   font-weight: 700;
 }
 /*
- * Four filters, one row. Stacked 2x2 they pushed the first finding below the fold of the old
- * 214px column; the queue's own controls should not outrank its contents.
+ * A filter bar, not a form. Four full-width fields with stacked bold labels occupied 80px of the
+ * top of the queue — a block of chrome as tall as a finding, above the findings, described in the
+ * language of a settings page. Inline label-plus-control pairs on one wrapping row put the first
+ * card ~45px higher and read as a toolbar over a list, which is what they are.
  */
 .strategic-fit-queue-controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
   margin-top: 0.65rem;
+}
+.strategic-fit-queue-controls > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 .strategic-fit-queue-controls label {
   min-width: 0;
-  color: #abb5c1;
+  color: var(--muted);
   font-size: var(--type-xs);
-  font-weight: 700;
+  font-weight: 500;
+  white-space: nowrap;
 }
 .strategic-fit-queue-controls select {
-  width: 100%;
-  min-height: 34px;
-  margin-top: 0.22rem;
+  min-width: 0;
+  max-width: 14rem;
+  min-height: var(--control-height);
+  padding: 0 0.4rem;
   border: 1px solid #565e69;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: #191c21;
   color: #dce2e9;
   font: inherit;
@@ -5355,6 +5641,7 @@ img,
   border-left: 3px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
+  cursor: pointer;
   transition:
     border-color var(--motion-fast) ease,
     background var(--motion-fast) ease;
@@ -5364,6 +5651,14 @@ img,
 }
 .strategic-fit-finding-card:hover {
   border-left-color: var(--muted);
+  background: var(--surface-hover);
+}
+/* Text inside a clickable card still selects and the disclosure still expands. */
+.strategic-fit-finding-card details,
+.strategic-fit-finding-card p,
+.strategic-fit-finding-card dd,
+.strategic-fit-finding-card li {
+  cursor: auto;
 }
 .strategic-fit-finding-card[data-finding-selected="true"] {
   border-color: var(--accent-line);
@@ -5376,20 +5671,27 @@ img,
   justify-content: space-between;
   gap: var(--space-2);
 }
+/*
+ * One clear focal point per card. At --type-md the title was 0.85rem against a card whose scope
+ * labels, facts, priorities and disclosure all sit at 0.7–0.8rem — a 0.05rem lead over eight other
+ * rows is not a hierarchy, and triaging twelve of these meant reading every card in full. The
+ * title is now a step up the scale and the classification above it recedes to a kicker.
+ */
 .strategic-fit-finding-card h3 {
-  margin: 0;
+  margin: 0.05rem 0 0;
   color: var(--text-primary);
-  font-size: var(--type-md);
+  font-size: var(--type-lg);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 .strategic-fit-finding-classification {
   display: block;
   color: var(--muted);
   font-size: var(--type-micro);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   line-height: 1.3;
   text-transform: uppercase;
 }
@@ -5813,13 +6115,20 @@ img,
   gap: 0.32rem;
   min-width: 0;
 }
+/*
+ * Labels, not headlines. Bold uppercase at 700 gave "OPENING / SYSTEM" the same visual force as
+ * the opening it names, so a card carried three shouted labels for every three facts and the eye
+ * had nowhere to land. They stay uppercase — that is what marks them as labels — at normal weight
+ * and a step down in colour, so the values are what reads.
+ */
 .strategic-fit-finding-scope dt {
   color: var(--muted);
   font-size: var(--type-micro);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
+  opacity: 0.85;
 }
 .strategic-fit-finding-scope dd {
   margin: 0;
@@ -5918,36 +6227,50 @@ img,
   overflow-wrap: anywhere;
 }
 /*
- * The card's own border carries the selected state, so this is a quiet control on the footer row
- * rather than a full-width filled bar. Twelve cards used to mean twelve blue slabs, one per card,
- * which put the loudest element in the queue on the least important word in the card.
+ * The card is the click target now, so this is the keyboard stop and the pressed-state owner, not
+ * a call to action. It draws a chevron: an explicit "Select finding" label beside a card that is
+ * already entirely clickable is a second, weaker copy of the same affordance, and the label sat on
+ * the least interesting word in the card.
  */
 .strategic-fit-finding-select {
+  display: inline-flex;
   grid-column: 2;
+  align-items: center;
+  justify-content: center;
   justify-self: end;
   align-self: end;
+  width: var(--control-height);
   min-height: var(--control-height);
   margin-top: 0.55rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--border-strong);
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface-control);
-  color: var(--text);
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: var(--type-xs);
-  font-weight: 500;
-  white-space: nowrap;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
+.strategic-fit-finding-select-glyph {
+  width: 0.42em;
+  height: 0.42em;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-0.06em, 0.06em);
+}
+.strategic-fit-finding-card:hover .strategic-fit-finding-select,
 .strategic-fit-finding-select:hover {
-  border-color: var(--accent-line);
+  border-color: var(--border-strong);
   background: var(--surface-hover);
+  color: var(--text);
 }
 .strategic-fit-finding-select[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--text-inverse);
-  font-weight: 600;
 }
 .strategic-fit-queue-pagination {
   display: grid;
@@ -6308,6 +6631,10 @@ img,
 /*
  * The comparison sizes to its boards, not to the pane. Left to fill 76rem it stretched three route
  * selects to 700px each and stranded the pair of 24rem boards in the left half of an empty card.
+ *
+ * Flush-left, not centred: its siblings on this stage — limitations, sources, the expert table —
+ * are full-pane, so a shared left edge is what makes the column read as one stack. Centring only
+ * this card would break that edge to tidy up a ragged right one.
  */
 .strategic-fit-comparison-boards {
   max-width: 52rem;
@@ -6336,14 +6663,24 @@ img,
   margin: 0;
   color: var(--muted);
 }
+/*
+ * Three route selects on one row. Stacked 2-then-1 they cost 100px above the boards, and the
+ * milestone select — the one that moves both boards together, and so the one most likely to be
+ * touched — was the widest field on the stage purely because it was odd one out in a 2-column grid.
+ */
 .strategic-fit-comparison-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem 0.6rem;
   margin-top: 0.55rem;
 }
-.strategic-fit-comparison-controls label:last-child {
-  grid-column: 1 / -1;
+@media (max-width: 820px) {
+  .strategic-fit-comparison-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .strategic-fit-comparison-controls label:last-child {
+    grid-column: 1 / -1;
+  }
 }
 .strategic-fit-comparison-controls label,
 .strategic-fit-line-navigation label {
@@ -8917,10 +9254,15 @@ img,
   gap: 0.5rem;
   max-width: 100%;
 }
+/*
+ * A quiet control, but still visibly a control. Fully transparent and alone on its own line above
+ * the report, this read as a stray caption — the one place in the workspace where an action was
+ * indistinguishable from prose, and the only route into the print and export view.
+ */
 .strategic-fit-print-controls button {
   min-height: var(--control-height);
   padding: 0 0.6rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
@@ -9140,24 +9482,17 @@ img,
   .topbar [data-topbar-duplicate] {
     display: none;
   }
-  .topbar .title {
-    font-size: var(--type-sm);
+  /* The action group is four controls wide at 360px and the separator is the only one of them
+     that is decoration. Grouping is legible from the spacing alone at this size. */
+  .topbar-sep {
+    display: none;
   }
-  /* The identity group keeps the filename on the phone — it is the one thing up here that says
-     which document the tabs below are editing. */
-  .topbar-identity {
-    border-left: none;
-    margin-left: 0;
-    padding-left: 0;
-  }
-}
-
-/*
- * Short phone viewports: the pinned board, the tab bar, and the panel floor together need every
- * row, so the decorative <h1> gives up its line. It stays in the accessibility tree — this hides
- * the painted text, not the document structure.
- */
-@media (max-width: 45em) and (max-height: 34em) {
+  /*
+   * The wordmark gives up its space to the filename at every phone width, not only short ones.
+   * "Chess Repertoire" took 110px of a 374px row so that the document actually open in it rendered
+   * as "queens-ga…" — the app's name in its own app, priced in the identity of the thing being
+   * edited. It stays in the accessibility tree; this hides painted text, not document structure.
+   */
   .topbar .title {
     position: absolute;
     width: 1px;
@@ -9168,6 +9503,21 @@ img,
     clip-path: inset(50%);
     white-space: nowrap;
   }
+  /* The identity group keeps the filename on the phone — it is the one thing up here that says
+     which document the tabs below are editing. */
+  .topbar-identity {
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0;
+  }
+  .topbar-identity .moveno {
+    max-width: none;
+  }
+}
+
+/* Short phone viewports: the pinned board, the tab bar, and the panel floor need every row.
+   (The wordmark is already visually hidden at every phone width by the block above.) */
+@media (max-width: 45em) and (max-height: 34em) {
   .topbar {
     row-gap: var(--space-1);
     padding-top: calc(var(--space-1) + env(safe-area-inset-top));

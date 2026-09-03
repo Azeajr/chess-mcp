@@ -191,16 +191,27 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
         ? (candidate.closest<HTMLElement>("label") ?? candidate)
         : candidate;
       const rect = target.getBoundingClientRect();
-      const hitRect =
-        candidate.getAttribute("role") === "separator"
-          ? (() => {
-              const hitArea = getComputedStyle(candidate, "::before");
-              return {
-                width: Math.max(rect.width, Number.parseFloat(hitArea.width) || 0),
-                height: Math.max(rect.height, Number.parseFloat(hitArea.height) || 0),
-              };
-            })()
-          : rect;
+      /*
+       * A control may paint smaller than it can be hit. The guideline is about what a finger
+       * lands on, and the app's remedy for a deliberately thin control is an absolutely-positioned
+       * `::before` overlay larger than the painted box — the dividers have always done this, and
+       * the evaluation bar does it too now that it is the switch that turns evaluation on: a 28px
+       * rail beside the board with a 44px hit area, rather than a 44px rail taking that width off
+       * the board itself. Measure any such overlay, not just the ones on role="separator": the
+       * conditions below (absolutely positioned, still hit-testable) are what makes a pseudo an
+       * expanded target rather than decoration.
+       */
+      const hitArea = getComputedStyle(candidate, "::before");
+      const expandsHitArea =
+        hitArea.content !== "none" &&
+        hitArea.position === "absolute" &&
+        hitArea.pointerEvents !== "none";
+      const hitRect = expandsHitArea
+        ? {
+            width: Math.max(rect.width, Number.parseFloat(hitArea.width) || 0),
+            height: Math.max(rect.height, Number.parseFloat(hitArea.height) || 0),
+          }
+        : rect;
       if (hitRect.width + 0.01 < min || hitRect.height + 0.01 < min) {
         const name =
           candidate.getAttribute("aria-label") ??

@@ -23,19 +23,26 @@ import { VIEWPORTS } from "./helpers/viewports";
  *   .side-panel  255.6/329.6 → 275.6/349.6  inherits the row the top bar gave back.
  *   .mobile-tabs 33 → 36.4            the tab bar became one segmented control on a track rather
  *                                     than three buttons with a saturated fill on the selected one.
+ *
+ * Re-measured again for the interaction pass. Two moved, both deliberately:
+ *   .topbar      66 → 65              the "Chess Repertoire" wordmark is visually hidden at every
+ *                                     phone width, not only short ones, so the filename stops
+ *                                     truncating; the repertoire-colour control gained a side disc
+ *                                     and the decorative separator went, which nets one pixel.
+ *   .side-panel  275.6/349.6 → 278.2/352.2  inherits what the top bar gave back.
  */
 const NORMAL_PHONE_BASELINES: Partial<Record<string, Record<string, Record<string, number>>>> = {
   chromium: {
     "360×740": {
-      ".topbar": 66,
+      ".topbar": 65,
       ".board-wrap": 308,
-      ".side-panel": 275.5625,
+      ".side-panel": 278.171875,
       ".mobile-tabs": 36.4375,
     },
     "390×844": {
-      ".topbar": 66,
+      ".topbar": 65,
       ".board-wrap": 338,
-      ".side-panel": 349.5625,
+      ".side-panel": 352.171875,
       ".mobile-tabs": 36.4375,
     },
   },
