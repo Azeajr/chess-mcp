@@ -13,6 +13,7 @@ import ConfidenceDetails, { ConfidenceExpertValues } from "./ConfidenceDetails";
 import ComparisonBoards from "./ComparisonBoards";
 import CausalTimeline from "./CausalTimeline";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
+import { setStrategicFitWorkspaceStage } from "../../store/ui";
 
 const PROFILE_LABELS: Readonly<Record<StrategicFitProfileMode, string>> = {
   "familiar-plans": "Familiar plans",
@@ -238,11 +239,13 @@ export default function EvidencePanel(props: {
       <header class="strategic-fit-evidence-header">
         <span>Selected finding</span>
         <h3>{props.finding.plain_language_category}</h3>
+        {/*
+          One meta line. The cohort was bold on its own row, which read as the branch's name;
+          it is a comparison group the report assigned, so it sits with the rest of the scope.
+        */}
         <p>
-          {props.finding.opening_scope} · {props.finding.affected_line_summary}
-        </p>
-        <p>
-          Cohort: <strong>{props.cohortName}</strong>
+          {props.finding.opening_scope} · {props.finding.affected_line_summary} · cohort{" "}
+          {props.cohortName}
         </p>
       </header>
 
@@ -467,6 +470,23 @@ export default function EvidencePanel(props: {
           </section>
         </div>
       </details>
+
+      {/*
+        The review loop is pick → look → decide, and the decision is the reason this comparison is
+        on screen. Leaving the way to it only in the stage strip makes the next step something the
+        reader has to remember rather than something the page offers where they finish reading.
+      */}
+      <div class="strategic-fit-evidence-next">
+        <button
+          type="button"
+          data-evidence-record-decision
+          onClick={() => {
+            setStrategicFitWorkspaceStage("resolution");
+          }}
+        >
+          Record a decision
+        </button>
+      </div>
     </article>
   );
 }

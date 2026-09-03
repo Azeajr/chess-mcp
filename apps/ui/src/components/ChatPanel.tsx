@@ -16,16 +16,9 @@ import {
   toolRuns,
   cancelRun,
 } from "../store/chat";
-import { CHAT_CONTROLS } from "../content/chat";
+import { CHAT_CONTROLS, CHAT_STARTERS } from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
-import {
-  hasApiKey,
-  chatMode,
-  setChatMode,
-  showTechnicalDetails,
-  setShowTechnicalDetails,
-  setSettingsFocusTarget,
-} from "../store/settings";
+import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import { actions } from "../store/game";
 import type { ChatMessage } from "../llm/openrouter";
@@ -70,21 +63,24 @@ export default function ChatPanel() {
     void send(text);
   };
 
+  /**
+   * The panel had ~600px of empty column with its only content — the setup card — pinned to the
+   * bottom edge above the composer. Both the unconfigured card and the configured first-run hint
+   * now render inside the log and centre in that space, so the empty panel has a focal point and
+   * says what to do next instead of looking like a rendering failure.
+   */
+  const empty = () => history().length === 0 && !streamingText() && !busy();
+
   return (
-    <div class="chat">
+    <div class={`chat${empty() ? " chat-empty" : ""}`}>
+      {/*
+        WP-026 AC-1's technical-details toggle now lives in Settings beside the other display
+        preferences. As a bare checkbox in the panel header it sat at the same level as the panel's
+        own name, wrapped its label onto two lines, and spent permanent chrome on a switch that is
+        flipped once and then left alone.
+      */}
       <PanelHeader>
         <span>Chat</span>
-        {/* WP-026 AC-1: the technical-details toggle gates raw codes and Raw JSON disclosures. */}
-        <label class="chat-technical-toggle" title="Show raw error codes and raw JSON in results">
-          <input
-            type="checkbox"
-            checked={showTechnicalDetails()}
-            onChange={(e) => {
-              setShowTechnicalDetails(e.currentTarget.checked);
-            }}
-          />
-          Technical details
-        </label>
         <Select
           class="chat-mode"
           title="Optional workflow guidance; all tools remain available"
@@ -101,6 +97,50 @@ export default function ChatPanel() {
       </PanelHeader>
 
       <div class="chat-log">
+        {/*
+          WP-021 AC-1: while the assistant is unconfigured this card replaces the terse
+          `No API key. Open Settings` line. PD-4 fixed full width over a collapsed rail, so nothing
+          here touches layout — the card is a body swap, not a resize.
+        */}
+        <Show when={!hasApiKey()}>
+          <div class="chat-setup-card" data-chat-setup-card>
+            <h3 class="chat-setup-title">Set up the assistant</h3>
+            <p class="chat-setup-body">
+              The assistant answers questions about the current position, game, and repertoire, and
+              can propose repertoire edits for you to review. It needs an OpenRouter API key to run.
+            </p>
+            <Button
+              variant="primary"
+              class="chat-setup-action"
+              onClick={() => {
+                setSettingsFocusTarget("api-key");
+                setSettingsOpen(true);
+              }}
+            >
+              Set up the assistant
+            </Button>
+          </div>
+        </Show>
+        {/* Configured but never used: name the three things it is good at rather than leaving the
+            user to guess what an "assistant" in a repertoire app is for. */}
+        <Show when={hasApiKey() && empty()}>
+          <div class="chat-starters" data-chat-starters>
+            <p class="chat-starters-title">Ask about this position</p>
+            <For each={CHAT_STARTERS}>
+              {(starter) => (
+                <button
+                  type="button"
+                  class="chat-starter"
+                  onClick={() => {
+                    setInput(starter);
+                  }}
+                >
+                  {starter}
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
         <For each={history()}>
           {(m, index) => (
             <>
@@ -226,29 +266,6 @@ export default function ChatPanel() {
               {CHAT_CONTROLS.sendAgain}
             </button>
           </Show>
-        </div>
-      </Show>
-      {/*
-        WP-021 AC-1: while the assistant is unconfigured the column keeps its persisted width and
-        this card replaces the terse `No API key. Open Settings` line. PD-4 fixed full width over a
-        collapsed rail, so nothing here touches layout — the card is a body swap, not a resize.
-      */}
-      <Show when={!hasApiKey()}>
-        <div class="chat-setup-card" data-chat-setup-card>
-          <h3 class="chat-setup-title">Set up the assistant</h3>
-          <p class="chat-setup-body">
-            The assistant answers questions about the current position, game, and repertoire, and
-            can propose repertoire edits for you to review. It needs an OpenRouter API key to run.
-          </p>
-          <Button
-            class="chat-setup-action"
-            onClick={() => {
-              setSettingsFocusTarget("api-key");
-              setSettingsOpen(true);
-            }}
-          >
-            Set up the assistant
-          </Button>
         </div>
       </Show>
       {/* WP-027 AC-1: the chip sits with the input, where the user decides what to ask. */}

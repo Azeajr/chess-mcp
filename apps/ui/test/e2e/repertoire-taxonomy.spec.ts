@@ -125,10 +125,13 @@ test("WP-022 AC-1 exactly four groups with the agreed titles and no Advanced lab
   await openApp(page, { width: 1280, height: 800 });
   const panel = repertoirePanel(page);
 
+  // The fourth group was "Prepare and export" until the UX pass renamed it: it holds Gaps,
+  // Connect, Shorten and Extend here, none of which prepares or exports, and both of those words
+  // already name the two groups directly above it. Four groups and the no-Advanced rule stand.
   const groupTitles = await panel
     .locator(".rep-group")
     .evaluateAll((groups) => groups.map((group) => group.getAttribute("aria-label")));
-  expect(groupTitles).toEqual(["Analyze", "Prepare", "Generate", "Prepare and export"]);
+  expect(groupTitles).toEqual(["Analyze", "Prepare", "Generate", "Improve"]);
 
   // The old catch-all heading is gone from both headings and body text.
   await expect(panel.getByText("Advanced", { exact: true })).toHaveCount(0);

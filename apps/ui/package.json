@@ -13,7 +13,7 @@
     "postbuild": "node scripts/check-worker-boundary.mjs",
     "test:chat": "node --no-experimental-webstorage --import tsx --test test/*.test.ts",
     "test:e2e": "node ../../scripts/playwright-low-impact.mjs",
-    "test:e2e:host": "E2E_CPU_QUOTA=60% E2E_RUNTIME_MAX=45min node ../../scripts/playwright-low-impact.mjs --project=chromium --project=firefox --grep-invert @visual",
+    "test:e2e:host": "E2E_CPU_QUOTA=60% E2E_RUNTIME_MAX=45min node ../../scripts/playwright-low-impact.mjs --project=chromium --project=firefox",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

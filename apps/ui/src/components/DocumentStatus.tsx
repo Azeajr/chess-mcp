@@ -46,43 +46,59 @@ export default function DocumentStatus() {
   // bar past the fold on a short viewport.
   const hasStatus = () => Boolean(linkedFile()) || dirty() || lastAutosaveAt() !== null;
 
+  const autosavedAt = () => {
+    const at = lastAutosaveAt();
+    return at === null
+      ? null
+      : new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  /**
+   * One phrase, not two clipped ones. The top bar had a "Stored in this browser · autosaved HH:MM"
+   * line, a "File: <name> — N changes not exported" line, and a third copy of the filename, all
+   * competing for one ellipsised strip. The state everything else hangs off is whether there is
+   * unexported work; the storage location and the autosave clock are reassurance, so they move to
+   * the tooltip where they cost no width.
+   */
+  const state = () => {
+    if (!linkedFile()) return dirty() ? "unlinked" : "browser";
+    return unexported() > 0 ? "unexported" : "exported";
+  };
+  const text = () => {
+    switch (state()) {
+      case "unexported":
+        return `${unexported()} unsaved ${changeWord(unexported())}`;
+      case "exported":
+        return "Saved";
+      case "unlinked":
+        return "Not in a file";
+      case "browser":
+        return "Draft";
+    }
+  };
+  const detail = () => {
+    const time = autosavedAt();
+    const stored = time ? `Stored in this browser · autosaved ${time}` : "Stored in this browser";
+    const name = linkedFile();
+    if (!name) return `${stored}. Not linked to a file yet.`;
+    return unexported() > 0
+      ? `${stored}. ${unexported()} ${changeWord(unexported())} not yet exported to ${name}.`
+      : `${stored}. No changes to export to ${name}.`;
+  };
+
   return (
     <Show when={hasStatus()}>
-      <div class="document-status">
-        {/* Browser indicator (PD-1): the working copy always lives in this browser. */}
-        <span class="document-status-browser" data-document-status="browser">
-          Stored in this browser
-          <Show when={lastAutosaveAt()}>
-            {(at) => (
-              <>
-                {" · autosaved "}
-                <span data-autosave-time>
-                  {new Date(at()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </>
-            )}
-          </Show>
-        </span>
-        {/* File indicator (PD-1): only meaningful once a file is linked. */}
-        <Show when={linkedFile()}>
-          {(name) => (
-            <span class="document-status-file" data-document-status="file">
-              {"File: "}
-              {/* The canonical `.moveno` filename element lives in TopBar; this one is the status
-                line's own copy and must not answer that selector. */}
-              <span class="document-status-filename" title={name()}>
-                {name()}
-              </span>
-              <Show when={unexported() > 0} fallback={<>{" — no changes to export"}</>}>
-                {` — ${unexported()} ${changeWord(unexported())} not exported`}
-              </Show>
+      <div class="document-status" data-document-status={state()} title={detail()}>
+        <span class="document-status-dot" aria-hidden="true" />
+        <span class="document-status-text">{text()}</span>
+        {/* Kept as a hidden value so the autosave clock stays machine-readable without spending
+            a strip of the top bar on a timestamp nobody acts on. */}
+        <Show when={autosavedAt()}>
+          {(time) => (
+            <span class="document-status-autosave-value" data-autosave-time hidden>
+              {time()}
             </span>
           )}
-        </Show>
-        <Show when={!linkedFile() && dirty()}>
-          <span class="document-status-unlinked" data-document-status="unlinked">
-            Not linked to a file
-          </span>
         </Show>
       </div>
     </Show>

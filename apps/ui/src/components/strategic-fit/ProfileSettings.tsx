@@ -260,25 +260,31 @@ export default function ProfileSettings() {
           <span class="strategic-fit-workspace-kicker">Review settings</span>
           <h2 id="strategic-fit-settings-title">Profile and evidence</h2>
         </div>
+        {/*
+          The three presets are one choice; "Customize" opens a panel. They used to be four
+          identical buttons in one wrapping row, so nothing said which of them were alternatives.
+        */}
         <div class="strategic-fit-preset-actions" aria-label="Profile presets">
-          <For each={PRESETS}>
-            {(mode) => (
-              <button
-                type="button"
-                class={strategicFitProfile().mode === mode ? "active" : ""}
-                aria-pressed={strategicFitProfile().mode === mode}
-                onClick={() => {
-                  selectStrategicFitProfile(mode);
-                  resetDraft();
-                  setAnnouncement(
-                    `${STRATEGIC_FIT_PROFILE_LABELS[mode]} profile applied. The repertoire tree was not edited.`,
-                  );
-                }}
-              >
-                {STRATEGIC_FIT_PROFILE_LABELS[mode]}
-              </button>
-            )}
-          </For>
+          <div class="strategic-fit-preset-group">
+            <For each={PRESETS}>
+              {(mode) => (
+                <button
+                  type="button"
+                  class={strategicFitProfile().mode === mode ? "active" : ""}
+                  aria-pressed={strategicFitProfile().mode === mode}
+                  onClick={() => {
+                    selectStrategicFitProfile(mode);
+                    resetDraft();
+                    setAnnouncement(
+                      `${STRATEGIC_FIT_PROFILE_LABELS[mode]} profile applied. The repertoire tree was not edited.`,
+                    );
+                  }}
+                >
+                  {STRATEGIC_FIT_PROFILE_LABELS[mode]}
+                </button>
+              )}
+            </For>
+          </div>
           <button
             type="button"
             aria-expanded={open()}

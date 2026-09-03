@@ -15,6 +15,8 @@ import {
   MODEL_SUGGESTIONS,
   settingsFocusTarget,
   setSettingsFocusTarget,
+  showTechnicalDetails,
+  setShowTechnicalDetails,
 } from "../store/settings";
 import Field from "./primitives/Field";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
@@ -106,6 +108,23 @@ export default function SettingsDrawer() {
             localStorage (plaintext).
           </small>
         </Field>
+
+        {/* WP-026 AC-1's toggle, moved out of the chat panel header: it is a display preference,
+            and this is where the other display preferences already live. */}
+        <div class="ui-field field">
+          <span class="ui-field-label">Results</span>
+          <label class="settings-toggle">
+            <input
+              type="checkbox"
+              checked={showTechnicalDetails()}
+              onChange={(e) => {
+                setShowTechnicalDetails(e.currentTarget.checked);
+              }}
+            />
+            <span>Show technical details</span>
+          </label>
+          <small>Adds raw error codes and raw JSON to chat results.</small>
+        </div>
 
         {/* A label would claim the button as its control; recovery is an action, not a field. */}
         <div class="ui-field field">

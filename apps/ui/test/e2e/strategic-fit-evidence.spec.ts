@@ -75,6 +75,18 @@ async function analyze(dialog: ReturnType<Page["getByRole"]>) {
   });
 }
 
+/**
+ * The workspace shows one stage at a time at every width and lands on Overview after an analysis,
+ * so a spec reads the findings pane where a reader does: on the Findings stage.
+ */
+async function showFindings(dialog: ReturnType<Page["getByRole"]>) {
+  await dialog.locator("#strategic-fit-stage-findings").click();
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
+}
+
 /** The preflight counts, read from the rendered pane so AC-4 compares what the user sees. */
 async function preflightCounts(dialog: ReturnType<Page["getByRole"]>) {
   const pane = dialog.locator(".strategic-fit-preflight, [data-preflight]").first();
@@ -99,6 +111,7 @@ test("WP-031 AC-1 zero comparable routes render one terminal state with remedies
   await expect(dialog.getByText(/limited evidence/i).first()).toBeVisible();
 
   // One terminal state, naming the current counts.
+  await showFindings(dialog);
   const terminal = dialog.locator("[data-strategic-fit-evidence-state='none']");
   await expect(terminal).toBeVisible();
   await expect(terminal).toContainText(/routes/i);
@@ -132,6 +145,7 @@ test("WP-031 AC-2 a degraded report with comparable routes keeps findings and ad
 
   // Comparable routes exist, so the findings pane still renders rather than the terminal state.
   await expect(dialog.locator("[data-strategic-fit-evidence-state='none']")).toHaveCount(0);
+  await showFindings(dialog);
   await expect(dialog.locator("#strategic-fit-pane-findings")).toBeVisible();
 });
 
@@ -161,6 +175,7 @@ test("WP-031 AC-4 the preflight counts and issue list survive the terminal state
   const dialog = await openWorkspace(page);
   await analyze(dialog);
 
+  await showFindings(dialog);
   await expect(dialog.locator("[data-strategic-fit-evidence-state='none']")).toBeVisible();
 
   // WP-032 collapses completed preflight by default. Expand it before verifying that the original

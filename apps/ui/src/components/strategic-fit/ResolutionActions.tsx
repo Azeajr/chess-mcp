@@ -201,8 +201,10 @@ export default function ResolutionActions(props: {
             </fieldset>
 
             <Show when={choice() === "keep-intentionally"}>
+              {/* Was "Optional keep-intentionally reason" — the option's own id read back as a
+                  field label. The question the field actually asks is why you are keeping it. */}
               <label class="strategic-fit-resolution-field">
-                Optional keep-intentionally reason
+                Why keep it (optional)
                 <select
                   value={intentionalReason()}
                   onInput={(event) =>

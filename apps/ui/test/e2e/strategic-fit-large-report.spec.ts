@@ -83,6 +83,13 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 25_000
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout });
+  // Both scenarios in this file are about the finding queue, and the workspace shows one stage at
+  // a time at every width — so open the stage the queue lives on, as a reader would.
+  await dialog.locator("#strategic-fit-stage-findings").click();
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "findings",
+  );
   return dialog;
 }
 
@@ -148,6 +155,8 @@ test(
       "true",
     );
 
+    // Selecting a finding moves to the Evidence stage; paging happens back in the queue.
+    await dialog.locator("#strategic-fit-stage-findings").click();
     await queue.getByRole("button", { name: "Next findings" }).click();
     // The selection survives the page change and is disclosed rather than silently dropped.
     const note = queue.locator("[data-queue-selection-note]");
@@ -178,6 +187,8 @@ test(
     const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-visuals.pgn");
     const before = await chess(page, (api) => api.toPgn());
 
+    // The strategic map is on the Overview stage; `bootstrap` lands on the queue.
+    await dialog.locator("#strategic-fit-stage-overview").click();
     const map = dialog.locator(".strategic-map");
     const listTable = map.locator("[data-map-list]");
     await map.locator("[data-map-show-all-rows]").click();

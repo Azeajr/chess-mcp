@@ -275,8 +275,11 @@ test("structured command errors render as distinct result cards", async ({ page 
     }),
   );
   await expect(page.getByRole("alert")).toContainText("Search criteria required");
-  // WP-026 AC-1: the raw error code is hidden behind the technical-details toggle.
+  // WP-026 AC-1: the raw error code is hidden behind the technical-details toggle, which the UX
+  // pass moved from the chat panel header into Settings with the other display preferences.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("checkbox", { name: /technical details/i }).check();
+  await page.getByRole("button", { name: "Close settings" }).click();
   await expect(page.getByRole("alert")).toContainText("missing_criteria");
 });
 

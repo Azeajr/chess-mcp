@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import Status from "./primitives/Status";
 import ProfileSetup from "./strategic-fit/ProfileSetup";
-import AnalysisLifecycle, { lifecycleLabel } from "./strategic-fit/AnalysisLifecycle";
+import AnalysisLifecycle from "./strategic-fit/AnalysisLifecycle";
 import { STRATEGIC_FIT_PROFILE_LABELS, STRATEGIC_FIT_EVIDENCE } from "../content/strategicFit";
 import StrategicOverview, { type StrategicOverviewItemId } from "./strategic-fit/StrategicOverview";
 import StrategicMap from "./strategic-fit/StrategicMap";
@@ -57,7 +58,6 @@ import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
 import Dialog from "./primitives/Dialog";
 import PanelHeader from "./primitives/PanelHeader";
 import RegionState from "./primitives/RegionState";
-import Status from "./primitives/Status";
 
 const STAGES: readonly { id: StrategicFitWorkspaceStage; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -100,6 +100,13 @@ export default function StrategicFitWorkspace() {
       lifecycle.status === "completed" ? (lifecycle.current_result?.report_id ?? null) : null,
     );
   });
+  /** Unresolved work left in the current report, shown on the Findings stage so the queue's size
+   * is legible from any stage. Null while there is no completed report to count. */
+  const unresolvedCount = () => {
+    const lifecycle = strategicFitLifecycle();
+    const result = lifecycle.status === "completed" ? lifecycle.current_result : null;
+    return result ? strategicFitFindingResolutionUnresolvedCount(result.result) : null;
+  };
   const currentFindings = () => {
     const lifecycle = strategicFitLifecycle();
     return lifecycle.status === "completed" &&
@@ -345,9 +352,14 @@ export default function StrategicFitWorkspace() {
             event.stopPropagation();
           }}
         >
+          {/*
+            The header carried a kicker, a title, a description, a profile line and a status chip
+            that repeated, word for word, the lifecycle sentence rendered directly beneath it. The
+            duplicate chip is gone and the rest shares one baseline: the status has one home, one
+            row below, where the control that changes it also lives.
+          */}
           <PanelHeader class="strategic-fit-workspace-header">
-            <div>
-              <div class="strategic-fit-workspace-kicker">Repertoire review</div>
+            <div class="strategic-fit-workspace-identity">
               <h1 id="strategic-fit-workspace-title">Strategic Fit</h1>
               <p id="strategic-fit-workspace-description">
                 Review strategic workload without changing the working repertoire.
@@ -357,9 +369,6 @@ export default function StrategicFitWorkspace() {
               </p>
             </div>
             <div class="strategic-fit-workspace-header-actions">
-              <Status class="strategic-fit-workspace-status">
-                {lifecycleLabel(strategicFitLifecycle().status, strategicFitEvidenceState())}
-              </Status>
               <button ref={closeButton} type="button" onClick={close}>
                 Return to repertoire
               </button>
@@ -437,6 +446,20 @@ export default function StrategicFitWorkspace() {
                           }}
                         >
                           {stage.label}
+                          {/*
+                            aria-hidden keeps the tab's accessible name exactly "Findings"; the
+                            count is a fact about the queue, announced by the queue's own live
+                            region rather than by the tab that leads to it.
+                          */}
+                          <Show when={stage.id === "findings" && unresolvedCount() !== null}>
+                            <Status
+                              tone="neutral"
+                              class="strategic-fit-stage-count"
+                              aria-hidden="true"
+                            >
+                              {unresolvedCount()}
+                            </Status>
+                          </Show>
                         </button>
                       )}
                     </For>
@@ -459,7 +482,9 @@ export default function StrategicFitWorkspace() {
                     >
                       <PanelHeader
                         class="strategic-fit-pane-heading"
-                        kicker="Overview"
+                        /* Not "Overview": the stage nav directly above already says that, and a
+                           heading that repeats its own tab teaches the reader nothing. */
+                        kicker="Report"
                         title="Strategic map"
                         titleId="strategic-fit-pane-overview-title"
                       />
