@@ -25,24 +25,29 @@ import { VIEWPORTS } from "./helpers/viewports";
  *                                     than three buttons with a saturated fill on the selected one.
  *
  * Re-measured again for the interaction pass. Two moved, both deliberately:
- *   .topbar      66 → 65              the "Chess Repertoire" wordmark is visually hidden at every
+ *   .topbar      66 → 68              the "Chess Repertoire" wordmark is visually hidden at every
  *                                     phone width, not only short ones, so the filename stops
- *                                     truncating; the repertoire-colour control gained a side disc
- *                                     and the decorative separator went, which nets one pixel.
- *   .side-panel  275.6/349.6 → 278.2/352.2  inherits what the top bar gave back.
+ *                                     truncating, and the decorative separator went; against that
+ *                                     the repertoire-colour control gained a side disc and a
+ *                                     wrapper that owns the control's box, which is the two pixels.
+ *   .side-panel  275.6/349.6 → 275.2/349.2  the remainder, after the top bar took its two.
+ *
+ * The warning above is not decorative — these numbers were first taken on the host, where the same
+ * build reports a 65px top bar for the change that measures 68px here, so the direction of the
+ * drift inverted. Take them from a container run (`pnpm test:e2e:container`), never from a host one.
  */
 const NORMAL_PHONE_BASELINES: Partial<Record<string, Record<string, Record<string, number>>>> = {
   chromium: {
     "360×740": {
-      ".topbar": 65,
+      ".topbar": 68,
       ".board-wrap": 308,
-      ".side-panel": 278.171875,
+      ".side-panel": 275.171875,
       ".mobile-tabs": 36.4375,
     },
     "390×844": {
-      ".topbar": 65,
+      ".topbar": 68,
       ".board-wrap": 338,
-      ".side-panel": 352.171875,
+      ".side-panel": 349.171875,
       ".mobile-tabs": 36.4375,
     },
   },
