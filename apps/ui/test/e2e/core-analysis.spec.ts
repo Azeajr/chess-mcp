@@ -98,8 +98,10 @@ test("WP-016 AC-1 AC-2 AC-4 AC-6 AC-7 exposes honest engine states and controls"
 
   const panel = page.locator(".analysis");
   await expect(panel.getByText("Engine evaluation is off.", { exact: true })).toBeVisible();
+  // While evaluation is off the bar is the control that turns it on, so it is a button rather
+  // than the read-only image it reports as in every other state.
   await expect(
-    page.getByRole("img", { name: "Evaluation unavailable — engine off" }),
+    page.getByRole("button", { name: "Evaluation is off. Turn on engine evaluation." }),
   ).toBeVisible();
   await expect(panel.locator(".analysis-depth-chip")).toHaveText("Depth 20");
   await expect(page.locator(".topbar").getByLabel("Analysis depth")).toHaveCount(0);

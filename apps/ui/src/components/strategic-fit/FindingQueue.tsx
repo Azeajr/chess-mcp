@@ -14,9 +14,9 @@ import {
 import type { StrategicFitDisplayedResolutionState } from "../../store/strategic-fit-finding-resolutions";
 import {
   setStrategicFitFindingQueueIntent,
-  setStrategicFitWorkspaceStage,
   type StrategicFitFindingQueueIntent,
 } from "../../store/ui";
+import { selectStrategicFitFinding } from "./finding-navigation";
 import FindingCard from "./FindingCard";
 import RegionState from "../primitives/RegionState";
 
@@ -79,14 +79,6 @@ export default function FindingQueue(props: {
   };
   const hasActiveFilters = () =>
     state().intent !== null || state().priority_filter !== "all" || state().opening_filter !== "";
-  const selectFinding = (findingId: string, focusEvidence: boolean) => {
-    strategicFitFindingQueue.selectFinding(findingId);
-    if (!focusEvidence) return;
-    setStrategicFitWorkspaceStage("evidence");
-    queueMicrotask(() =>
-      document.querySelector<HTMLElement>("#strategic-fit-pane-evidence")?.focus(),
-    );
-  };
   const selectedFindingLabel = () =>
     state().findings.find((finding) => finding.finding_id === state().selected_finding_id)
       ?.plain_language_category ?? null;
@@ -286,7 +278,7 @@ export default function FindingQueue(props: {
                       finding.semantic_finding_id,
                     )}
                     selected={state().selected_finding_id === finding.finding_id}
-                    onSelect={selectFinding}
+                    onSelect={selectStrategicFitFinding}
                   />
                 </li>
               )}

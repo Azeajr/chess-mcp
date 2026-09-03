@@ -86,10 +86,17 @@ export default function AnalysisLifecycle() {
           <Show when={state().status === "provisional"}>
             <span>Work is underway. Nothing is current until the report completes.</span>
           </Show>
+          {/*
+            The report id is a support handle, not a fact about the repertoire. Printed inline as
+            "Current report report:findings:browser:1:automatic" it was the widest, most technical
+            string in the workspace's status line, sitting between the verdict and the controls
+            that act on it. It stays present, selectable and copyable — and now labelled on hover
+            rather than in the sentence — but it no longer competes with the verdict.
+          */}
           <Show when={state().status === "completed" && state().current_result}>
             {(result) => (
-              <span class="strategic-fit-analysis-report-id">
-                Current report <code>{result().report_id}</code>
+              <span class="strategic-fit-analysis-report-id" title="Current report id">
+                <code>{result().report_id}</code>
               </span>
             )}
           </Show>

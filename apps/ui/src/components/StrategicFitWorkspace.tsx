@@ -8,6 +8,7 @@ import StrategicMap from "./strategic-fit/StrategicMap";
 import ConceptHeatmap from "./strategic-fit/ConceptHeatmap";
 import DecisionFlow from "./strategic-fit/DecisionFlow";
 import FindingQueue from "./strategic-fit/FindingQueue";
+import { selectStrategicFitFinding } from "./strategic-fit/finding-navigation";
 import InsufficientEvidence from "./strategic-fit/InsufficientEvidence";
 import ReviewSummary from "./strategic-fit/ReviewSummary";
 import EvidencePanel from "./strategic-fit/EvidencePanel";
@@ -106,6 +107,26 @@ export default function StrategicFitWorkspace() {
     const lifecycle = strategicFitLifecycle();
     const result = lifecycle.status === "completed" ? lifecycle.current_result : null;
     return result ? strategicFitFindingResolutionUnresolvedCount(result.result) : null;
+  };
+  /**
+   * What the Resolution stage's forward step walks through: still-unresolved findings, in the sort
+   * and filters the reader chose, minus the one they are looking at.
+   *
+   * Scoped to `filtered_findings` rather than the whole report on purpose — a reader who narrowed
+   * the queue to "Review now" is working that subset, and a next-step that jumped outside it would
+   * silently widen the job they signed up for. The current selection is excluded by identity
+   * because the button also renders before a decision is saved, when this finding is still
+   * unresolved and would otherwise be offered as its own successor.
+   */
+  const remainingUnresolved = () => {
+    const selected = strategicFitFindingQueue.snapshot().selected_finding_id;
+    return strategicFitFindingQueue
+      .view(displayStrategicFitFindingResolution)
+      .filtered_findings.filter(
+        (finding) =>
+          finding.finding_id !== selected &&
+          displayStrategicFitFindingResolution(finding) === "unresolved",
+      );
   };
   const currentFindings = () => {
     const lifecycle = strategicFitLifecycle();
@@ -782,6 +803,30 @@ export default function StrategicFitWorkspace() {
                                 report={resolution().report}
                                 finding={resolution().finding}
                               />
+                            </div>
+                          )}
+                        </Show>
+                        {/*
+                          The review loop is pick → look → decide, and until now it ended here.
+                          Evidence already offers "Record a decision" where the reader finishes
+                          reading; Resolution offered nothing where they finish deciding, so
+                          returning to the queue was something they had to remember — and a saved
+                          finding leaves the default filter, so their place in the list was gone
+                          when they got back. This closes the loop at the point it was open.
+                        */}
+                        <Show when={remainingUnresolved()[0]}>
+                          {(next) => (
+                            <div class="strategic-fit-resolution-next">
+                              <button
+                                type="button"
+                                data-resolution-next-finding
+                                onClick={() => {
+                                  selectStrategicFitFinding(next().finding_id, true);
+                                }}
+                              >
+                                Next unresolved finding
+                              </button>
+                              <span>{remainingUnresolved().length} remaining</span>
                             </div>
                           )}
                         </Show>

@@ -150,3 +150,80 @@ that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobod
 - Measure long-scan progress and cancellation on representative large repertoires.
 - Revisit public-tool consolidation only with usage evidence. Preserve summary/detail/artifact
   bounds, host adaptations, and migration guidance for external MCP clients.
+
+## Design follow-ups
+
+Deferred deliberately during the UI/interaction passes. Each was considered, priced, and left —
+the reasoning lives here so it stops being rediscovered as an oversight. Ordered roughly by value.
+
+- **A persistent finding rail in Strategic Fit.** The review loop's missing edge is closed (the
+  Resolution stage offers the next unresolved finding), but the queue itself still disappears
+  whenever the reader leaves it, so there is no sense of how much of a twelve-finding pass is
+  left or what is coming. A read-only rail — finding title plus state pill, no resolution
+  controls — would restore that without reopening WP-033: the constraint that broke the old wide
+  tier was the same _controls_ rendering into two panes, and a rail renders none of them. This is
+  the master/detail idea, scoped to what WP-033 actually forbids. Do not revert `data-stage`;
+  four suites and four `@visual` baselines assume one pane at a time.
+
+- **The Strategic Fit entry card is a permanent cold-start pitch.** WP-023 pins the title as a
+  question about the reader's repertoire rather than the feature's name, and that reasoning is
+  sound on first encounter — "Strategic Fit" means nothing to someone who has not used it. It is
+  scoped wrong, not written wrong: on the eleventh visit the question is the loudest thing in a
+  column whose job is a list of tools, on a document that may be empty.
+
+  Spiked 2026-09-03, and the good version is not reachable yet. `strategicFitMetadata()` is
+  document-scoped, persisted to IndexedDB and restored at startup by `restoreStrategicFitMetadata()`,
+  so `resolutions.length > 0` answers "has this document ever had a decision recorded" outside the
+  workspace. But only _recorded decisions_ are persisted — the finding set lives in the report,
+  and the report lives in the workspace lifecycle, which is idle until the workspace is opened and
+  analyzed. So the card can learn a boolean and nothing else; "3 unresolved from your last review"
+  has no source. Overturning a pinned invariant to swap one pitch for a weaker pitch is not worth
+  it. This becomes cheap and genuinely better the moment a completed report — or just a summary
+  count — is retrievable at load; `getCachedStrategicFitReport` is keyed by PGN and options and is
+  the obvious place to hang that.
+
+- **The chat column is ~350×720px of nothing while the assistant is unconfigured.** The starters
+  now render unconfigured, which gives the column something to say, but the column is still full
+  width for a panel that cannot be used. Collapsing it is a layout-store change, not a CSS one:
+  `--tier-panel-min-width: 240px` and the `≥192px` chat assertion in `core-layout.spec.ts` are
+  both written against "visible", and a 40px rail is visible. The work is teaching those rules a
+  _collapsed_ state; the styling afterwards is trivial. Unmounting is not an option — the panel
+  stays mounted so the chat log survives tab switches.
+
+- **The `Repertoire` top-bar menu is ambiguously named.** It is the document menu (Open, Re-link,
+  New, Recover) in an application whose documents are repertoires, so the name describes the
+  domain rather than the action. This is not theoretical: once the chat starters began rendering
+  unconfigured, `getByRole("button", { name: "Repertoire" })` in `core-layout.spec.ts` matched
+  both the trigger and a starter reading "Suggest a line that fits the rest of my repertoire."
+  The locators are exact now, but a reader gets no such qualifier. `WP-017` pins the trigger's
+  accessible name across several tests, so renaming it is a contract change, not a copy change.
+
+- **The chat setup card's body now restates what the starters demonstrate.** "The assistant
+  answers questions about the current position, game, and repertoire" sits directly under three
+  concrete examples of exactly that. The sentence should shrink to the part the starters cannot
+  show — that it needs an OpenRouter key — but `chat-setup.spec.ts` asserts
+  `/assistant answers questions/i`, so this is a coordinated copy-and-test change.
+
+- **The Overview stage leads with absences.** "Strategic map unavailable" and the concept heatmap's
+  empty state occupy the top of the stage before any finding is summarised. The heatmap no longer
+  repeats its own heading, but the ordering is unchanged: what the report _found_ should precede
+  what it could not draw, and two unavailable visualisations should collapse into one quiet line
+  rather than two full-width cards.
+
+- **The decision-flow chart carries almost no information for its size.** Four ~30px columns, 300px
+  tall, uniformly dark, with labels floating at their vertical centres and no colour encoding —
+  it reads as a broken chart rather than as a flow. Assessed only against the deterministic worker
+  fixture, where every step is a single route, so measure it against a real multi-cohort report
+  before redesigning: the encoding may be fine and the fixture degenerate.
+
+- **The finding card is still dense below its title.** The title now leads and the scope labels
+  recede, but six facts, a priorities line and a disclosure remain at 0.7–0.8rem. The facts are
+  already value-first strings ("78% weighted baseline"); giving the numbers their own weight means
+  splitting value from label in `buildFindingCardPresentation`, which is a presentation-layer
+  change rather than a stylesheet one.
+
+- **`strategic-map-print-linux.png` captures the application behind it.** The snapshot's element is
+  transparent in print-and-export mode, so the chat column and repertoire panel show through and
+  any unrelated layout change on the main shell drifts this baseline — it was regenerated twice in
+  one session for changes that had nothing to do with the strategic map. Give the print view an
+  opaque ground, or scope the snapshot to an element that has one.

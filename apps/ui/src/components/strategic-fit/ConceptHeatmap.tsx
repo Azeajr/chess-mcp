@@ -288,7 +288,12 @@ export default function ConceptHeatmap(props: {
         when={model().projection.state !== "unavailable"}
         fallback={
           <div class="concept-heatmap-unavailable" data-heatmap-unavailable>
-            <strong>Concept heatmap unavailable</strong>
+            {/*
+              The section's own <h3> above already says "Concept heatmap"; restating the name here
+              made the empty state two stacked headings — "Concept heatmap" over "Concept heatmap
+              unavailable" — where the second line carried one new word. State the condition.
+            */}
+            <strong>Not available for this report</strong>
             <p>{model().projection.reason}</p>
             <Show when={model().projection.exclusions.length > 0}>
               <details>

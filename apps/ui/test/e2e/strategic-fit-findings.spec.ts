@@ -1822,6 +1822,11 @@ test(
     await showStage(page, "resolution");
     const close = dialog.getByRole("button", { name: "Return to repertoire" });
     await close.focus();
+    // The stage's last control is the review loop's forward step, which sits after the resolution
+    // blocks because that is where the reader finishes deciding; the cohort editor is the one
+    // before it.
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.locator("[data-resolution-next-finding]")).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
     await expect(previewAdjustment).toBeFocused();
@@ -1831,6 +1836,7 @@ test(
         return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
       }),
     ).toBe(true);
+    await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await expect(close).toBeFocused();
 
@@ -2720,4 +2726,39 @@ test("a black-to-move drill is playable, and a legal wrong move is recorded as n
     .toBe(1);
   const [attempt] = (await chess(page, (api) => api.strategicFitTrainingPerformance())).attempts;
   expect(attempt.recalled).toBe(false);
+});
+
+test("the resolution stage offers the next unresolved finding, closing the review loop", async ({
+  page,
+}) => {
+  const { dialog } = await bootstrap(page);
+  const queue = dialog
+    .locator("#strategic-fit-pane-findings")
+    .getByRole("region", { name: "Strategic Fit finding queue" });
+  await showStage(page, "findings");
+  await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
+
+  // Evidence already offers "Record a decision"; before this, Resolution offered nothing, so
+  // getting to the next finding meant going back to the stage strip and re-finding your place in
+  // a queue the saved finding had just dropped out of.
+  await showStage(page, "resolution");
+  const next = dialog.locator("[data-resolution-next-finding]");
+  await expect(next).toBeVisible();
+
+  // Three findings are unresolved in the fixture report. The one under review is not offered as
+  // its own successor, so two remain — the count states the scope the button walks.
+  await expect(dialog.locator(".strategic-fit-resolution-next span")).toHaveText("2 remaining");
+
+  await next.click();
+  await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
+    "data-stage",
+    "evidence",
+  );
+
+  // Asserted through the resolution pane rather than the queue: the successor may sit on a page the
+  // queue has not mounted, and the point is which finding is under review, not which row is drawn.
+  await showStage(page, "resolution");
+  const actions = dialog.locator("[data-resolution-finding-id]");
+  await expect(actions).toHaveCount(1);
+  await expect(actions).not.toHaveAttribute("data-resolution-finding-id", "finding:01");
 });

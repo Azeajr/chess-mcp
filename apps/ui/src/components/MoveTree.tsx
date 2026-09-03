@@ -7,6 +7,7 @@ import type { Node as PgnNode, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
 import { previewedKeys } from "../store/suggestions";
 import { focusLine } from "../store/chat";
+import { openFile } from "../store/files";
 import MoveButton, { MoveTreeItem } from "./primitives/MoveButton";
 import type { Path } from "@chess-mcp/chess-tools";
 
@@ -317,12 +318,11 @@ export default function MoveTree() {
             const variationPath = [...branchPath, index];
             variations.push(
               <div class="variation">
-                (
                 {moveButton(variation, variationPath, true, {
                   posinset: index,
                   setsize: cursor.children.length - 1,
                 })}{" "}
-                {renderLine(variation, variationPath, false)})
+                {renderLine(variation, variationPath, false)}
               </div>,
             );
           }
@@ -337,7 +337,7 @@ export default function MoveTree() {
                 same split `data-move-path` already makes on the tree items.
               */}
               <button
-                class="collapse-toggle"
+                class={`collapse-toggle${isCollapsed ? " is-collapsed" : ""}`}
                 type="button"
                 tabIndex={-1}
                 aria-hidden="true"
@@ -348,7 +348,9 @@ export default function MoveTree() {
                   toggleGroup(branchPath);
                 }}
               >
-                {isCollapsed ? `+${hidden}` : "–"}
+                {/* Collapsed states the size of what is hidden; expanded draws a chevron in CSS,
+                    so the control never reads as a "remove" minus sign. */}
+                {isCollapsed ? hidden : ""}
               </button>
               <div id={groupId(branchPath)} class="variations" role="group" hidden={isCollapsed}>
                 {variations}
@@ -391,7 +393,21 @@ export default function MoveTree() {
       <div class="tree-body">
         <Show
           when={render().length}
-          fallback={<div class="empty">No moves yet — play on the board.</div>}
+          fallback={
+            /* An empty repertoire has exactly two ways forward and neither was offered here; the
+               panel stated the absence and stopped. Naming both, with the one that needs a file
+               picker as a real control, turns the largest empty surface on the screen into the
+               place the next action lives. */
+            <div class="move-tree-empty">
+              <p class="move-tree-empty-title">No moves yet</p>
+              <p class="move-tree-empty-body">
+                Play a move on the board to start a line, or open an existing PGN.
+              </p>
+              <button type="button" class="ui-button" onClick={openFile}>
+                Open PGN
+              </button>
+            </div>
+          }
         >
           <div
             ref={treeElement}

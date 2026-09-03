@@ -23,19 +23,31 @@ import { VIEWPORTS } from "./helpers/viewports";
  *   .side-panel  255.6/329.6 → 275.6/349.6  inherits the row the top bar gave back.
  *   .mobile-tabs 33 → 36.4            the tab bar became one segmented control on a track rather
  *                                     than three buttons with a saturated fill on the selected one.
+ *
+ * Re-measured again for the interaction pass. Two moved, both deliberately:
+ *   .topbar      66 → 68              the "Chess Repertoire" wordmark is visually hidden at every
+ *                                     phone width, not only short ones, so the filename stops
+ *                                     truncating, and the decorative separator went; against that
+ *                                     the repertoire-colour control gained a side disc and a
+ *                                     wrapper that owns the control's box, which is the two pixels.
+ *   .side-panel  275.6/349.6 → 275.2/349.2  the remainder, after the top bar took its two.
+ *
+ * The warning above is not decorative — these numbers were first taken on the host, where the same
+ * build reports a 65px top bar for the change that measures 68px here, so the direction of the
+ * drift inverted. Take them from a container run (`pnpm test:e2e:container`), never from a host one.
  */
 const NORMAL_PHONE_BASELINES: Partial<Record<string, Record<string, Record<string, number>>>> = {
   chromium: {
     "360×740": {
-      ".topbar": 66,
+      ".topbar": 68,
       ".board-wrap": 308,
-      ".side-panel": 275.5625,
+      ".side-panel": 275.171875,
       ".mobile-tabs": 36.4375,
     },
     "390×844": {
-      ".topbar": 66,
+      ".topbar": 68,
       ".board-wrap": 338,
-      ".side-panel": 349.5625,
+      ".side-panel": 349.171875,
       ".mobile-tabs": 36.4375,
     },
   },
@@ -446,7 +458,9 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
 
   // Everything else is two: open the menu, then activate the option.
-  const trigger = page.getByRole("button", { name: "Repertoire" });
+  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
+  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
+  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
   const menu = page.getByRole("menu", { name: "Repertoire actions" });
@@ -464,7 +478,9 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 
 test("WP-017 AC-4 the document menu is keyboard-operable and restores focus", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
-  const trigger = page.getByRole("button", { name: "Repertoire" });
+  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
+  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
+  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
 
   await trigger.focus();
   await page.keyboard.press("Enter");
