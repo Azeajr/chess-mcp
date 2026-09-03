@@ -147,13 +147,21 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await expect(
     dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
   ).toBeVisible();
-  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
+  // All four regions render; one is on screen. The workspace shows the current stage's pane at
+  // every width now, so "the shell is complete" is checked by walking the stages, which is also
+  // the only way a reader ever reaches them.
+  await expect(dialog.locator(".strategic-fit-workspace-pane")).toHaveCount(4);
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "Findings" })).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "Evidence / comparison" })).toBeVisible();
-  // WP-033 DV-5: the resolution region is rendered once and is visible in the wide tier, at the
-  // foot of the evidence column, instead of being duplicated into it and hidden as a pane.
-  await expect(dialog.getByRole("heading", { name: "Resolution" })).toBeVisible();
+  for (const [stage, heading] of [
+    ["findings", "Findings"],
+    ["evidence", "Evidence / comparison"],
+    // WP-033 DV-5: the resolution region is still rendered exactly once.
+    ["resolution", "Resolution"],
+  ] as const) {
+    await dialog.locator(`#strategic-fit-stage-${stage}`).click();
+    await expect(dialog.getByRole("heading", { name: heading })).toBeVisible();
+  }
   await expect(dialog.locator("[data-region-state='empty']")).toHaveCount(4);
   expect(await snapshot(page)).toEqual(before);
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
@@ -175,13 +183,18 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
   const overview = dialog.locator("#strategic-fit-pane-overview");
-  // WP-033 renders the resolution region once, at the foot of the evidence column, so it is now
-  // the last focusable pane in the wide tier and Shift+Tab from the close button wraps onto it.
-  const lastPane = dialog.locator("#strategic-fit-pane-resolution");
 
   await expect(close).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(lastPane).toBeFocused();
+  // Only the current stage's pane is on screen, so the wrap lands inside the overview pane — on
+  // its last focusable control rather than on the pane element. Asserting containment keeps the
+  // point of the test (focus wraps and stays inside the dialog) without pinning it to whichever
+  // control happens to be last in that pane.
+  expect(
+    await page.evaluate(() =>
+      Boolean(document.activeElement?.closest("#strategic-fit-pane-overview")),
+    ),
+  ).toBe(true);
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
@@ -254,13 +267,17 @@ test("shell regions render explicit empty, loading, and error states", async ({ 
     });
   });
 
+  // A hidden pane is out of the accessibility tree, so each region state is read on its own stage
+  // — the same place a reader meets it.
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog.locator("#strategic-fit-pane-overview").getByRole("status")).toContainText(
     "Loading the overview fixture.",
   );
+  await dialog.locator("#strategic-fit-stage-findings").click();
   await expect(dialog.locator("#strategic-fit-pane-findings").getByRole("alert")).toContainText(
     "The findings fixture is unavailable.",
   );
+  await dialog.locator("#strategic-fit-stage-evidence").click();
   await expect(
     dialog.locator("#strategic-fit-pane-evidence [data-region-state='empty']"),
   ).toContainText("No evidence selected");

@@ -3,50 +3,43 @@ import { LONG_FILENAME, openApp } from "./helpers/app";
 import { overflowViolations, touchTargetViolations } from "./helpers/accessibility";
 import { VIEWPORTS } from "./helpers/viewports";
 
-const NORMAL_PHONE_BASELINES = {
+/*
+ * Chromium-only by construction: the `@visual` tag keeps this test off firefox and webkit (see the
+ * grepInvert in playwright.config.ts), so baselines for those engines were never exercised. They
+ * are omitted rather than carried as numbers nothing checks; the test skips any engine without an
+ * entry.
+ *
+ * Measure these in the container (`pnpm test:e2e:container`), never on the host. The two
+ * environments have different fonts, and the difference lands on this fixture: the same build
+ * reports a 63px top bar on an Arch host and 66px in the Playwright image, which is outside the
+ * 2px tolerance in both directions. Host-measured numbers here fail CI.
+ *
+ * Re-measured for the UX pass. All four moved, all deliberately:
+ *   .topbar      79.375 → 66          the top bar no longer wraps a row on the phone: the filename
+ *                                     was painted twice, once by the status prose and once by
+ *                                     `.moveno`, with the prose clipping between them.
+ *   .board-wrap  318/348 → 308/338    the evaluation bar went 16px → 26px so its score stops
+ *                                     being clipped to "+0."; the board reserve went 26px → 36px.
+ *   .side-panel  255.6/329.6 → 275.6/349.6  inherits the row the top bar gave back.
+ *   .mobile-tabs 33 → 36.4            the tab bar became one segmented control on a track rather
+ *                                     than three buttons with a saturated fill on the selected one.
+ */
+const NORMAL_PHONE_BASELINES: Partial<Record<string, Record<string, Record<string, number>>>> = {
   chromium: {
     "360×740": {
-      ".topbar": 79.375,
-      ".board-wrap": 318,
-      ".side-panel": 255.625,
-      ".mobile-tabs": 33,
+      ".topbar": 66,
+      ".board-wrap": 308,
+      ".side-panel": 275.5625,
+      ".mobile-tabs": 36.4375,
     },
     "390×844": {
-      ".topbar": 79.375,
-      ".board-wrap": 348,
-      ".side-panel": 329.625,
-      ".mobile-tabs": 33,
+      ".topbar": 66,
+      ".board-wrap": 338,
+      ".side-panel": 349.5625,
+      ".mobile-tabs": 36.4375,
     },
   },
-  firefox: {
-    "360×740": {
-      ".topbar": 85.4,
-      ".board-wrap": 318,
-      ".side-panel": 245.6,
-      ".mobile-tabs": 37,
-    },
-    "390×844": {
-      ".topbar": 85.4,
-      ".board-wrap": 348,
-      ".side-panel": 319.6,
-      ".mobile-tabs": 37,
-    },
-  },
-  webkit: {
-    "360×740": {
-      ".topbar": 93.375,
-      ".board-wrap": 318,
-      ".side-panel": 238.625,
-      ".mobile-tabs": 36,
-    },
-    "390×844": {
-      ".topbar": 93.375,
-      ".board-wrap": 348,
-      ".side-panel": 312.609375,
-      ".mobile-tabs": 36,
-    },
-  },
-} as const;
+};
 
 const panelDimensions = (page: import("playwright/test").Page) =>
   page.evaluate(() =>
@@ -58,21 +51,41 @@ const panelDimensions = (page: import("playwright/test").Page) =>
     ),
   );
 
-test("WP-015 pins the decided (non-reordered) side panel and mobile default", async ({ page }) => {
-  // WP-015 planned a move-tree-first desktop order and a Moves mobile default; both were
-  // superseded. This test exists so a future change to either is a deliberate diff, not silent
-  // drift back into a false "complete" record.
+test("the move list sits with the board, and the side panel is analysis then tools", async ({
+  page,
+}) => {
+  // The deliberate diff WP-015's pin was written to catch. WP-015 planned a move-tree-first *side
+  // panel*; that ordering was superseded, and so is the assumption underneath it that the move
+  // list belongs in the side panel at all. Measured before this change at 1600x950: `.move-tree`
+  // started at y=1040 — below the fold of a 950px viewport, reachable only by scrolling a 300px
+  // column past every collapsed tool — while `.board-panel` was 868px tall around a 665px board
+  // and wasted the 185px underneath it. The move list is the board's other half, so it now shares
+  // the board column and the side panel keeps analysis over tools.
   await openApp(page, { width: 1280, height: 800 });
-  const order = await page.evaluate(() =>
-    [
-      ...document.querySelectorAll(
-        ".side-panel .analysis, .side-panel .rep-panel, .side-panel .move-tree",
-      ),
-    ].map((el) => el.className),
+  const sideOrder = await page.evaluate(() =>
+    [...document.querySelectorAll(".side-panel .analysis, .side-panel .rep-panel")].map(
+      (el) => el.className,
+    ),
   );
-  expect(order[0]).toContain("analysis");
-  expect(order[1]).toBe("rep-panel");
-  expect(order[2]).toBe("move-tree");
+  expect(sideOrder[0]).toContain("analysis");
+  expect(sideOrder[1]).toBe("rep-panel");
+  await expect(page.locator(".side-panel .move-tree")).toHaveCount(0);
+
+  const placement = await page.evaluate(() => {
+    const tree = document.querySelector(".board-panel .move-tree");
+    const board = document.querySelector(".board-wrap");
+    if (!tree || !board) return null;
+    return {
+      treeBottom: tree.getBoundingClientRect().bottom,
+      treeTop: tree.getBoundingClientRect().top,
+      boardBottom: board.getBoundingClientRect().bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(placement, "the move list renders in the board column").not.toBeNull();
+  // Fully on screen, and below the board rather than beside it.
+  expect(placement!.treeTop).toBeGreaterThanOrEqual(placement!.boardBottom);
+  expect(placement!.treeBottom).toBeLessThanOrEqual(placement!.viewportHeight);
 
   await openApp(page, { width: 390, height: 844 });
   await expect(page.getByRole("tab", { name: "Analysis" })).toHaveAttribute(
@@ -82,6 +95,12 @@ test("WP-015 pins the decided (non-reordered) side panel and mobile default", as
 });
 
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
+  // Four full app loads plus tab switches and geometry reads in one test. Measured at 32.3s on a
+  // developer machine, against the 30s default — every assertion passing, the budget expiring
+  // mid-navigation and reporting itself as a `page.goto` timeout. The loop has a single `openApp`
+  // call site, so that stack cannot even say which iteration ran out of time. This asks for the
+  // room the test actually needs instead of leaving a green run one slow machine away from red.
+  test.slow();
   for (const viewport of [
     { width: 640, height: 400 },
     { width: 360, height: 640 },
@@ -129,18 +148,27 @@ test(
   { tag: "@visual" },
   async ({ page, browserName }) => {
     const baselines = NORMAL_PHONE_BASELINES[browserName];
-    for (const [label, expected] of Object.entries(baselines)) {
+    test.skip(!baselines, `no phone baseline is measured for ${browserName}`);
+    /*
+     * Every drifted number in one report, rather than throwing on the first. Eight numbers are
+     * pinned here, and a layout change usually moves several of them together; failing on the
+     * first meant re-running the container once per number to find out what the new geometry
+     * actually is. The message carries both values so an intended change can be told apart from a
+     * regression without re-instrumenting the test.
+     */
+    const drift: string[] = [];
+    for (const [label, expected] of Object.entries(baselines ?? {})) {
       const [width, height] = label.split("×").map(Number);
       await openApp(page, { width, height });
       await page.getByRole("tab", { name: "Analysis" }).click();
       const actual = await panelDimensions(page);
       for (const [selector, expectedHeight] of Object.entries(expected)) {
-        expect(
-          Math.abs((actual[selector] ?? Number.NaN) - expectedHeight),
-          `${browserName} ${selector} at ${label}`,
-        ).toBeLessThanOrEqual(2);
+        const measured = actual[selector] ?? Number.NaN;
+        if (Math.abs(measured - expectedHeight) <= 2) continue;
+        drift.push(`${selector} at ${label}: expected ~${expectedHeight}, measured ${measured}`);
       }
     }
+    expect(drift, `${browserName} phone geometry drifted`).toEqual([]);
   },
 );
 

@@ -43,6 +43,10 @@ test("WP-032 AC-1 completed disclosures put the first finding inside a 1280x800 
   await expect(dialog.locator("[data-progress-collapsed='true']")).toBeVisible();
   await expect(dialog.locator("[data-preflight-collapsed='true']")).toBeVisible();
 
+  // The workspace shows one stage at a time at every width and lands on Overview, so the AC — the
+  // collapsed chrome leaves the first finding on screen without scrolling — is measured on the
+  // Findings stage, one click away.
+  await dialog.locator("#strategic-fit-stage-findings").click();
   const firstFinding = dialog.locator("[data-finding-id]").first();
   await expect(firstFinding).toBeVisible();
   const geometry = await firstFinding.evaluate((element) => {

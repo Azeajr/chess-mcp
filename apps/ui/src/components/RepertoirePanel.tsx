@@ -511,9 +511,14 @@ export default function RepertoirePanel() {
 
         <StrategicFitTransfer />
       </section>
-      {/* WP-022 group 4: Prepare and export — replaces the old "Advanced" heading */}
-      <section class="rep-group" aria-label="Prepare and export">
-        <PanelHeader title="Prepare and export" />
+      {/*
+        WP-022 group 4. Renamed from "Prepare and export": every tool in it (Gaps, Connect,
+        Shorten, Extend here) changes the shape of the repertoire — closing holes, joining stubs,
+        cutting length, adding lines. None of them prepares against an opponent or exports
+        anything, and both of those words already name the groups directly above.
+      */}
+      <section class="rep-group" aria-label="Improve">
+        <PanelHeader title="Improve" />
         {/* Tier A: gaps */}
         <details class="rep-section" open>
           <summary>

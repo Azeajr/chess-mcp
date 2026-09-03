@@ -188,7 +188,9 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
       name: "How should Strategic Fit review your repertoire?",
     }),
   ).toHaveCount(0);
-  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
+  // One, not four: the workspace shows the current stage's pane at every width. The assertion is
+  // still "setup is behind us and the workspace body is rendering", which is what it always meant.
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByText(/Balanced · Inferred · provisional/)).toBeVisible();
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
     mode: "balanced",
@@ -204,7 +206,7 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
   await expect(opener).toBeFocused();
   const reopened = await openWorkspace(page);
-  await expect(reopened.dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
+  await expect(reopened.dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await reopened.dialog.getByRole("button", { name: "Return to repertoire" }).click();
 
   await page.reload();
@@ -229,7 +231,7 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await dialog.getByRole("radio", { name: /Familiar plans/ }).check();
   await expect(dialog.getByRole("button", { name: "Use Familiar plans profile" })).toBeVisible();
   await dialog.getByRole("button", { name: "Use Familiar plans profile" }).click();
-  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
+  await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByText(/Familiar plans · Explicit/)).toBeVisible();
   expect(await appSnapshot(page)).toEqual(before);
   expect(await workerStarts(page)).toEqual(workersBefore);
@@ -249,7 +251,7 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   const afterReload = await openWorkspace(page);
   await expect(afterReload.dialog.getByRole("radio")).toHaveCount(0);
-  await expect(afterReload.dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(4);
+  await expect(afterReload.dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(afterReload.dialog.getByText(/Familiar plans · Explicit/)).toBeVisible();
 });
 

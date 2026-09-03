@@ -145,28 +145,42 @@ export default function App() {
           data-mtab={mobileTab()}
           style={boardSize() ? { "--board-size": `${boardSize()}px` } : undefined}
         >
+          {/* The board column owns the two surfaces that are one loop: the board and the moves
+              that produced it. The move list used to sit last in the side panel, below every
+              collapsed tool, which put it ~90px below the fold of a 950px-tall viewport while the
+              board column left 185px of empty space beneath the board. */}
           <div class="board-panel">
-            <EvalBar />
-            <Board />
+            <div class="board-stage">
+              <EvalBar />
+              <Board />
+            </div>
+            {/* Phone-only: drag to resize the pinned board (hidden above 720px). Seed from the
+                rendered square on the first drag so it picks up where the CSS default left off. */}
+            <Divider
+              axis="y"
+              label="Resize the chessboard"
+              value={boardSize() || 320}
+              min={160}
+              max={900}
+              onResize={(d) => {
+                const base =
+                  boardSize() > 0
+                    ? boardSize()
+                    : (document.querySelector(".board-wrap")?.clientWidth ?? 320);
+                setBoardSize(base + d);
+              }}
+              onEnd={persistBoard}
+              onReset={resetBoard}
+            />
+            <div
+              id="mobile-panel-moves"
+              role="tabpanel"
+              aria-labelledby="mobile-tab-moves"
+              class="mobile-panel moves-panel"
+            >
+              <MoveTree />
+            </div>
           </div>
-          {/* Phone-only: drag to resize the pinned board (hidden above 720px). Seed from the
-              rendered square on the first drag so it picks up where the CSS default left off. */}
-          <Divider
-            axis="y"
-            label="Resize the chessboard"
-            value={boardSize() || 320}
-            min={160}
-            max={900}
-            onResize={(d) => {
-              const base =
-                boardSize() > 0
-                  ? boardSize()
-                  : (document.querySelector(".board-wrap")?.clientWidth ?? 320);
-              setBoardSize(base + d);
-            }}
-            onEnd={persistBoard}
-            onReset={resetBoard}
-          />
           {/* Phone-only: names whatever's running behind a hidden tab, so switching tabs never
               hides it. Renders nothing when idle (WP-013). */}
           <ActivityStrip />
@@ -198,14 +212,6 @@ export default function App() {
             >
               <AnalysisPanel />
               <RepertoirePanel />
-            </div>
-            <div
-              id="mobile-panel-moves"
-              role="tabpanel"
-              aria-labelledby="mobile-tab-moves"
-              class="mobile-panel"
-            >
-              <MoveTree />
             </div>
           </div>
           {/* side│chat boundary: drag right grows side, shrinks chat — board stays put. */}

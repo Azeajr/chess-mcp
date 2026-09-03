@@ -11,11 +11,22 @@ import { openApp } from "./helpers/app";
 
 const chatLog = (page: import("playwright/test").Page) => page.locator(".chat-log");
 
-test("WP-026 AC-1 the technical toggle gates Raw JSON and raw codes", async ({ page }) => {
-  await openApp(page, { width: 1280, height: 800 });
-
+/**
+ * The technical-details switch lives in Settings, beside the other display preferences. It used to
+ * be a bare checkbox in the chat panel header, at the same level as the panel's own name and with
+ * its label wrapping onto two lines, for a switch that is flipped once and then left alone.
+ */
+async function setTechnicalDetails(page: import("playwright/test").Page, on: boolean) {
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   const toggle = page.getByRole("checkbox", { name: /technical details/i });
   await expect(toggle).toBeVisible();
+  if (on) await toggle.check();
+  else await toggle.uncheck();
+  await page.getByRole("button", { name: "Close settings" }).click();
+}
+
+test("WP-026 AC-1 the technical toggle gates Raw JSON and raw codes", async ({ page }) => {
+  await openApp(page, { width: 1280, height: 800 });
 
   // Off by default: append a raw tool result and assert no disclosure and no code text.
   // The retry seam is seeded so the recovery action renders (a prior dispatch must exist).
@@ -44,12 +55,12 @@ test("WP-026 AC-1 the technical toggle gates Raw JSON and raw codes", async ({ p
   expect(await chatLog(page).getByText("engine_unavailable", { exact: true }).count()).toBe(0);
 
   // On: both the disclosure and the raw code appear.
-  await toggle.check();
+  await setTechnicalDetails(page, true);
   await expect(chatLog(page).getByText("Raw JSON")).toHaveCount(1);
   await expect(chatLog(page).getByText("engine_unavailable", { exact: true })).toBeVisible();
 
   // Off again: both disappear.
-  await toggle.uncheck();
+  await setTechnicalDetails(page, false);
   await expect(chatLog(page).getByText("Raw JSON")).toHaveCount(0);
 });
 

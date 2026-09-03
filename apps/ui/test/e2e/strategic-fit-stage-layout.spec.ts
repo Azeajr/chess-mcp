@@ -98,7 +98,9 @@ test("WP-033 AC-2 resolution controls render exactly once at every width", async
   });
 
   // Selecting a finding is what makes the resolution pane render at all. Assert the precondition
-  // so this can never silently degrade back into counting zeros.
+  // so this can never silently degrade back into counting zeros. One stage is on screen at every
+  // width now, so reach the queue the way a reader does.
+  await dialog.locator("#strategic-fit-stage-findings").click();
   await expect(dialog.locator("[data-finding-select]")).not.toHaveCount(0);
   await dialog.locator("[data-finding-select]").first().click();
   await expect(dialog.locator(".strategic-fit-review-actions")).toHaveCount(1, { timeout: 10_000 });

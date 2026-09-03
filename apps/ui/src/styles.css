@@ -166,6 +166,29 @@
    */
   --z-nested-dialog: 210;
 
+  /*
+   * Control geometry. One radius scale and one control height so a button, a select, and a
+   * disclosure summary sitting in the same row line up without each re-deciding its own metrics —
+   * the thing that previously made the top bar, the scan rows, and `.ui-button` look like three
+   * unrelated widget sets.
+   */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --control-height: 30px;
+  --control-height-sm: 24px;
+
+  /* Interaction surfaces shared by every control variant. */
+  --surface-hover: #34343d;
+  --surface-active: #3d3d47;
+  --border-strong: #4a4a55;
+  --border-subtle: #2f2f37;
+  --accent-soft: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  --shadow-panel: 0 1px 2px #0006;
+  --shadow-pop: 0 10px 30px -8px #000a;
+
   /* Compatibility aliases used throughout the existing stylesheet. */
   --bg: var(--surface-canvas);
   --panel: var(--surface-panel);
@@ -279,32 +302,99 @@ img,
 }
 
 .topbar .title {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   margin-block: 0;
   font-weight: 600;
   font-size: inherit;
-  margin-right: auto;
+  letter-spacing: -0.01em;
 }
 
-.topbar .moveno {
+/* Identity group: what document is open, and is it saved. Takes the slack so the action group
+   stays hard-right and the two never interleave. */
+.topbar-identity {
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-1);
+  border-left: 1px solid var(--border);
+  margin-left: var(--space-1);
+}
+
+.topbar-identity .moveno {
   min-width: 0;
   max-width: min(32ch, 40%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
+  color: var(--text);
 }
 
-.topbar button,
+.topbar-untitled {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--type-sm);
+}
+
+/* Grouping the actions must not cost the flat row's ability to wrap: at 320px the group would
+   otherwise be an unbreakable block wider than the viewport. */
+.topbar-actions {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  row-gap: 0.4rem;
+}
+
+/* Separates the document actions from the two settings-shaped controls without a heavier divider. */
+.topbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin-inline: var(--space-1);
+}
+
+/* Buttons take the shared `.ui-button` recipe; these two keep native behaviour but match its box. */
 .topbar select,
 .topbar input {
+  min-height: var(--control-height);
+  padding: 0 1.6rem 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface-control);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--type-sm);
+  /* Native chevrons render at wildly different sizes per engine; one drawn caret keeps the
+     control the same shape everywhere and lets the box match the buttons beside it. */
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 0.72rem center,
+    right 0.47rem center;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+
+.topbar select:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 
 .topbar .reopen-button {
@@ -313,10 +403,6 @@ img,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.topbar button:hover {
-  border-color: var(--accent);
 }
 
 .topbar .dirty {
@@ -400,7 +486,11 @@ img,
   width: var(--target-min);
   transform: translateX(-50%);
 }
-.divider:hover,
+/* A resize handle should acknowledge the pointer, not light up a full-height accent bar between
+   two panels. It reaches full accent only while actually dragging. */
+.divider:hover {
+  background: var(--accent-line);
+}
 .divider:active {
   background: var(--accent);
 }
@@ -458,25 +548,42 @@ img,
 }
 
 /* Phone panel switcher — hidden until the compact tier flips it to flex. */
+/*
+ * One segmented control rather than three separate buttons with a saturated blue fill on the
+ * selected one. A track with a raised selected segment is the quieter, more familiar way to say
+ * "one of these three", and it stops the tab bar from being the loudest thing on the phone screen.
+ */
 .mobile-tabs {
   display: none;
-  gap: 0.4rem;
+  gap: 2px;
   flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-control-subtle);
 }
 .mobile-tabs button {
   flex: 1;
-  background: var(--surface-control);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 3px);
+  padding: 0.42rem 0.5rem;
   font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+.mobile-tabs button:hover:not(.active) {
+  color: var(--text);
 }
 .mobile-tabs button.active {
-  background: var(--accent);
-  color: var(--text-inverse);
-  border-color: var(--accent);
+  background: var(--surface-control);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 600;
 }
 .mobile-tab-indicator {
   display: inline-block;
@@ -509,6 +616,10 @@ img,
     grid-column: 1 / -1;
     height: 360px;
   }
+  /* The board cell is min-content tall, so the move list needs an explicit floor to stay usable. */
+  .board-panel .moves-panel {
+    min-height: 11rem;
+  }
 }
 
 /* Phone: pinned board + tab bar. The tab bar sets .workspace[data-mtab]; the rules below toggle
@@ -525,17 +636,46 @@ img,
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
     overflow: hidden;
   }
-  .board-panel {
+  /*
+   * The board column dissolves into the workspace column on the phone, so the move list becomes a
+   * sibling of the tab bar rather than a child of the board panel. Without this the Moves tab grew
+   * the board panel and pushed the tab bar from just under the board to the bottom of the screen —
+   * a tab bar that moves when you change tabs. `order` then restores the intended stack: board,
+   * grip, activity, tabs, then whichever panel the active tab selects.
+   */
+  /* Extra `.workspace` specificity, like the `.board-wrap` rule below: the base `.board-panel`
+     and `.moves-panel` rules sit later in the source and would otherwise win. */
+  .workspace .board-panel {
+    display: contents;
+  }
+  .board-stage {
+    order: 1;
     flex: 0 0 auto;
   }
   .divider-h {
     display: flex;
+    order: 2;
+  }
+  .activity-strip {
+    order: 3;
+  }
+  .mobile-tabs {
+    order: 4;
+  }
+  .board-panel .moves-panel,
+  .side-panel,
+  .chat-wrap {
+    order: 5;
+  }
+  .workspace .board-panel .moves-panel {
+    flex: 1 1 0;
+    min-height: 0;
   }
   /* Honour the dragged board size, capped to the container width so it can't overflow. Falls
      back to the responsive default until the user drags. Extra `.workspace` specificity so this
      beats the base `.board-wrap` rule, which sits later in the source. */
   .workspace .board-wrap {
-    width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 26px))), calc(100% - 26px));
+    width: min(var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - 36px))), calc(100% - 36px));
   }
   .activity-strip {
     display: flex;
@@ -558,12 +698,14 @@ img,
     overflow: hidden; /* chat scrolls its own .chat-log */
   }
   /* Show exactly one panel for the active tab. */
-  .workspace[data-mtab="analysis"] .move-tree,
+  .workspace[data-mtab="analysis"] .moves-panel,
+  .workspace[data-mtab="chat"] .moves-panel {
+    display: none;
+  }
   .workspace[data-mtab="analysis"] .chat-wrap {
     display: none;
   }
-  .workspace[data-mtab="moves"] .analysis,
-  .workspace[data-mtab="moves"] .rep-panel,
+  .workspace[data-mtab="moves"] .side-panel,
   .workspace[data-mtab="moves"] .chat-wrap {
     display: none;
   }
@@ -592,21 +734,57 @@ img,
   }
 }
 
+/*
+ * The board column is a stack: the board takes the height it needs, the move list takes the rest.
+ * `--board-cap` is what the board may claim of the viewport height; the remainder is the move
+ * list's, so the two are one budget rather than the board being sized in isolation and the list
+ * being pushed wherever it landed.
+ */
 .board-panel {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  --board-cap: 62vh;
+}
+
+.board-stage {
+  display: flex;
+  flex: 0 0 auto;
   gap: 0.6rem;
-  align-items: flex-start;
+  /* stretch so the eval bar inherits the board's height instead of guessing at it; the board
+     itself opts out so its aspect-ratio square survives. */
+  align-items: stretch;
   justify-content: center;
   min-height: 0;
 }
 
+.board-stage > .board-wrap {
+  align-self: flex-start;
+}
+
 .board-wrap {
-  /* 26px reserves the eval-bar (16px) + gap (~10px) sitting beside it, so the row can't
+  /* 36px reserves the eval-bar (26px) + gap (~10px) sitting beside it, so the row can't
      exceed its container and trigger horizontal scroll on narrow screens. */
-  width: min(70vh, calc(100% - 26px));
+  width: min(var(--board-cap), calc(100% - 36px));
   aspect-ratio: 1;
   overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
   position: relative; /* anchors .board-keyboard-layer's absolute overlay */
+  /* A frame, so the board reads as a placed object rather than a bitmap floating on the canvas.
+     The radius is small enough that no square looks clipped. */
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+/* The move list fills whatever the board did not take, and never collapses to nothing. */
+.board-panel .moves-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.board-panel .moves-panel > .move-tree {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* chessground sizes to its container */
@@ -668,12 +846,18 @@ img,
   z-index: var(--z-content);
 }
 
+/*
+ * The evaluation bar reads as chrome attached to the board, not as a scrollbar parked at the edge
+ * of the window: it takes the board's exact height through the stage's cross-axis rather than a
+ * second `70vh` guess of its own.
+ */
 .eval-bar {
-  width: 16px;
-  height: min(70vh, 100%);
+  /* Wide enough to print "+0.24" without clipping — at 16px the score was cut to "+0.". */
+  width: 26px;
+  align-self: stretch;
   background: var(--surface-eval);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   position: relative;
   overflow: hidden;
 }
@@ -684,17 +868,25 @@ img,
   right: 0;
   bottom: 0;
   background: var(--text-primary);
-  transition: height var(--motion-slow) ease;
+  transition: height var(--motion-slow) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+/*
+ * `difference` against white is what makes one element legible on both halves of the bar: over the
+ * white fill it resolves to black, over the dark track to white. The previous value differenced
+ * near-black against near-black, so the score was invisible in every state.
+ */
 .eval-bar .score {
   position: absolute;
-  bottom: 2px;
+  bottom: 3px;
   left: 0;
   right: 0;
   text-align: center;
-  font-size: var(--type-xs);
-  color: var(--surface-eval);
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--text-on-dark);
   mix-blend-mode: difference;
 }
 
@@ -747,10 +939,6 @@ img,
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-
-  .side-panel .move-tree {
-    flex: 0 0 min(50vh, 28rem);
-  }
 }
 
 .move-tree {
@@ -765,14 +953,19 @@ img,
 
 /* Plain sequence of the line that reached the current node — clickable, scrolls horizontally
    if long so it never grows the panel vertically. */
+/* The line that reached the current position — a breadcrumb for the tree below it, so it gets a
+   distinct recessed surface rather than looking like the tree's first row. */
 .move-tree .current-line {
   flex: 0 0 auto;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
+  background: var(--surface-control-subtle);
   font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1.4;
   white-space: nowrap;
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .move-tree .tree-body {
@@ -780,8 +973,10 @@ img,
   min-height: 0;
   overflow: auto;
   padding: var(--space-3);
-  line-height: 1.7;
+  line-height: 1.9;
   font-size: 0.9rem;
+  /* Move numbers line up column-wise down the list instead of jittering with the digit widths. */
+  font-variant-numeric: tabular-nums;
 }
 
 .move-tree .move {
@@ -803,12 +998,17 @@ img,
 }
 
 .move-tree .move:hover {
-  background: var(--border-default);
+  background: var(--surface-hover);
 }
 
 .move-tree .move.current {
   background: var(--accent);
   color: var(--text-inverse);
+  font-weight: 600;
+}
+/* The move that is on the board should stay findable in a long tree without hunting for a chip. */
+.move-tree .move.current:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #fff);
 }
 
 /* Feature 1: moves on the active preview line that already exist in the tree. */
@@ -837,10 +1037,18 @@ img,
   display: flex;
   align-items: flex-start;
   gap: 0.3rem;
+  margin: 0.15rem 0;
 }
+/*
+ * A rule down the left of the block says "this is a side line off the move above" structurally,
+ * the way a chess book's indent does. The parentheses in the markup then read as punctuation
+ * rather than as the only thing separating a variation from the mainline.
+ */
 .move-tree .variations {
   flex: 1;
   min-width: 0;
+  padding-left: 0.55rem;
+  border-left: 2px solid var(--border-strong);
 }
 .move-tree .collapse-toggle {
   display: inline-flex;
@@ -898,6 +1106,9 @@ img,
   position: relative;
   align-items: center;
   gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
   color: var(--text);
   text-transform: none;
   letter-spacing: normal;
@@ -907,6 +1118,7 @@ img,
   min-width: 0;
   margin: 0;
   font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .analysis .analysis-header-meta {
@@ -1107,50 +1319,88 @@ img,
   }
 }
 
+/*
+ * Engine line: the move leads, then its score, then how it sits against the repertoire.
+ * Previously the fit badge was the loudest thing in the row — uppercase, bold, and wide enough to
+ * wrap onto two lines — while the move itself was plain body text and the score was muted. The row
+ * reads left to right as "what to play / what it's worth / whether you already know it".
+ */
 .analysis .line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 22px 3.1rem auto minmax(0, 1fr);
+  grid-template-areas: "weight san ev fit";
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.25rem 0;
+  gap: 0.5rem;
+  padding: 0.22rem 0.3rem;
+  border-radius: var(--radius-xs);
 }
 
 .analysis .san {
+  grid-area: san;
   font-variant-numeric: tabular-nums;
-  min-width: 3.5rem;
+  font-size: var(--type-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .analysis .ev {
-  margin-left: auto;
+  grid-area: ev;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  font-size: var(--type-sm);
+  color: var(--text);
 }
 
+/*
+ * No pill. In a 300px column "Outside repertoire (out)" inside a padded chip clips against the
+ * panel edge; as a coloured dot plus coloured text it fits, and it stops competing with the move
+ * for the row's attention.
+ */
 .analysis .fit {
-  font-size: var(--type-xs);
+  grid-area: fit;
+  justify-self: end;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  background: none;
+  font-size: var(--type-micro);
   font-weight: 600;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
-  text-transform: uppercase;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+/* The dot is what carries the fit at a glance; the words spell it out for anyone reading closely. */
+.analysis .fit::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 0.32rem;
+  vertical-align: 0.08em;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .analysis .fit-in-book {
-  background: var(--status-success-border);
-  color: var(--status-success-text);
+  color: var(--status-success-text-strong);
 }
 .analysis .fit-adjacent {
-  background: var(--status-adjacent-surface);
   color: var(--status-adjacent-text);
 }
 .analysis .fit-out {
-  background: var(--status-danger-border);
-  color: var(--status-danger-text-soft);
+  color: var(--status-danger-marker);
 }
 
+/* Mirrors the arrow thickness drawn on the board, so the panel and the board rank the moves the
+   same way. Left-most because it is a rank marker, not a value to read. */
 .analysis .weight {
+  grid-area: weight;
   display: inline-block;
   width: 22px;
   border-radius: 2px;
   background: var(--muted);
+  opacity: 0.75;
 }
 .analysis .w-thick {
   height: 7px;
@@ -1338,25 +1588,130 @@ img,
   margin: 0;
   font-size: inherit;
 }
-.ui-button {
+/*
+ * One control recipe. `.ui-button` used to carry only `cursor` + `font`, so a "primary" button was
+ * an unpadded coloured rectangle while `.topbar button` and `.scan-btn` each re-declared their own
+ * padding, radius, and hover. The recipe below is the single source; the two legacy selectors are
+ * joined to it rather than kept as parallel implementations.
+ */
+.ui-button,
+.topbar button,
+.topbar .document-menu-trigger,
+.rep-panel .scan-btn,
+.analysis .analysis-empty button,
+.chat-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: var(--control-height);
+  padding: 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  color: var(--text);
   cursor: pointer;
   font: inherit;
+  font-size: var(--type-sm);
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
-.ui-button-primary {
+
+.ui-button:hover:not(:disabled),
+.topbar button:hover:not(:disabled),
+.rep-panel .scan-btn:hover:not(:disabled),
+.analysis .analysis-empty button:hover:not(:disabled),
+.chat-input button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+/* A press should feel like a press: the surface darkens for the duration of the pointer-down. */
+.ui-button:active:not(:disabled),
+.topbar button:active:not(:disabled),
+.rep-panel .scan-btn:active:not(:disabled),
+.chat-input button:active:not(:disabled) {
+  background: var(--surface-active);
+}
+
+.ui-button:disabled,
+.topbar button:disabled,
+.rep-panel .scan-btn:disabled,
+.chat-input button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ui-button-sm {
+  min-height: var(--control-height-sm);
+  padding: 0 0.5rem;
+  font-size: var(--type-xs);
+}
+
+/*
+ * The variant selectors name their host element too. `.topbar button` in the shared recipe is
+ * (0,1,1) and outranks a bare `.ui-button-primary` at (0,1,0), which is why Save stayed grey while
+ * carrying the primary class.
+ */
+.ui-button-primary,
+.topbar button.ui-button-primary {
+  border-color: var(--accent);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--text-inverse);
+  font-weight: 600;
 }
+.ui-button-primary:hover:not(:disabled),
+.topbar button.ui-button-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 82%, #fff);
+  border-color: color-mix(in srgb, var(--accent) 82%, #fff);
+}
+.ui-button-primary:active:not(:disabled),
+.topbar button.ui-button-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 84%, #000);
+}
+
 .ui-button-secondary {
   background: var(--surface-control);
   color: var(--text);
 }
+
 .ui-button-ghost {
+  border-color: transparent;
   background: transparent;
   color: var(--muted);
 }
+.ui-button-ghost:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--surface-control);
+  color: var(--text);
+}
+
 .ui-button-danger {
   border-color: var(--status-danger-border);
   color: var(--status-danger-text-soft);
+}
+.ui-button-danger:hover:not(:disabled) {
+  border-color: var(--status-danger-marker);
+  background: color-mix(in srgb, var(--status-danger-surface) 45%, transparent);
+}
+
+/* The shared recipe sets an explicit height, so it has to restate the coarse-pointer floor the
+   global control rule applies earlier in the sheet. */
+@media (pointer: coarse) {
+  .ui-button,
+  .topbar button,
+  .topbar select,
+  .topbar input,
+  .rep-panel .scan-btn,
+  .analysis .analysis-empty button,
+  .chat-input button,
+  .ui-button-sm {
+    min-height: var(--target-touch);
+  }
 }
 .ui-field {
   display: grid;
@@ -1381,18 +1736,45 @@ img,
 .rep-panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 0.4rem 0.6rem;
   font-size: 0.9rem;
 }
-.outcome-label,
-.rep-panel > .panel-header {
+
+/*
+ * Group rhythm. The four group headings used to render as bare bold text with no space above them,
+ * so each one visually attached to the last row of the *previous* group — "Analyze" sat tight under
+ * the Strategic Fit card and read as its caption. A rule plus leading space makes a heading start
+ * something instead of ending something.
+ */
+.rep-group > .panel-header {
+  color: var(--muted);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.outcome-label {
   padding: 8px 10px 5px;
   color: var(--muted);
   font-size: var(--type-micro);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+/*
+ * The three workspace panels named themselves three different ways — "Engine" in sentence case at
+ * 0.9rem, "REPERTOIRE" as a tracked 0.7rem micro-label, "CHAT" as a third variant sharing its row
+ * with a checkbox. One treatment, so the columns read as siblings.
+ */
+.rep-panel > .panel-header {
+  margin: 0 0 var(--space-2);
+  padding: 0.15rem 2px var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 .scope-note {
   padding: 5px 12px 7px;
@@ -1417,26 +1799,47 @@ img,
 .rep-section:last-child {
   border-bottom: none;
 }
+/*
+ * Twelve tool rows in one column: shouting all twelve in uppercase flattens them into a wall with
+ * no scan order. Sentence case plus a real chevron gives the row a reading direction, and the
+ * hover surface makes the whole row feel like the target it already is.
+ */
 .rep-section > summary {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
   list-style: none;
-  padding: 0.45rem 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  min-height: 34px;
+  padding: 0.3rem 0.35rem;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--type-sm);
+  text-transform: none;
+  letter-spacing: 0;
+  transition: background var(--motion-fast) ease;
+}
+.rep-section > summary:hover {
+  background: var(--surface-control-subtle);
 }
 .rep-section > summary::-webkit-details-marker {
   display: none;
 }
+/* One drawn chevron that rotates, rather than swapping between two different glyphs. */
 .rep-section > summary > span:first-child::before {
-  content: "▸ ";
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-right: 0.5em;
+  vertical-align: 0.08em;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform var(--motion-fast) ease;
 }
 .rep-section[open] > summary > span:first-child::before {
-  content: "▾ ";
+  transform: rotate(45deg);
 }
 .rep-section > summary .scan-btn,
 .rep-section > summary .rep-mode {
@@ -1446,23 +1849,13 @@ img,
   margin-left: 0.4rem;
 }
 
+/* Inherits the shared control recipe; only the compact sizing and the summary-row reset differ. */
 .rep-panel .scan-btn {
-  background: var(--surface-control);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.2rem 0.6rem;
-  cursor: pointer;
+  min-height: var(--control-height-sm);
+  padding: 0 0.55rem;
   font-size: var(--type-xs);
   text-transform: none;
   letter-spacing: 0;
-}
-.rep-panel .scan-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.rep-panel .scan-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .rep-mode {
   background: var(--panel);
@@ -1551,10 +1944,19 @@ img,
 .rep-panel .shortcut-detail .safe {
   color: var(--status-success);
 }
+/*
+ * Italic is the wrong tool for "nothing here yet": on the two-part scan states it italicises a
+ * bold lead-in and its follow-on sentence together, which reads as emphasis on the whole string
+ * rather than as quiet secondary copy. Colour already carries that.
+ */
 .rep-panel .empty {
   color: var(--muted);
-  font-style: italic;
   padding: 0.15rem 0;
+}
+.scan-empty strong,
+.scan-error strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .rep-row-static {
@@ -1774,16 +2176,22 @@ img,
   border-radius: 8px;
   padding: var(--space-3);
 }
+/* Matches the Engine panel's header: a readable panel name, not an uppercase micro-label sharing
+   a row with a raw checkbox. */
 .chat .panel-head,
 .chat .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: var(--space-2);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
 }
 .chat-mode {
   margin-left: auto;
@@ -2469,6 +2877,10 @@ img,
   line-height: 1.45;
   color: var(--muted);
 }
+.strategic-fit-workspace-inner > .strategic-fit-limited-evidence-banner {
+  /* Aligned to the header's inline padding rather than running edge to edge inside the dialog. */
+  margin: var(--space-3) var(--space-5) 0;
+}
 .strategic-fit-limited-evidence-banner {
   margin: var(--space-2) 0;
   padding: var(--space-2) var(--space-3);
@@ -2487,10 +2899,52 @@ img,
  */
 .chat-setup-card {
   margin: var(--space-2) 0;
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
+}
+
+/*
+ * An empty chat is mostly empty column. Centring its one piece of content turns that column into
+ * deliberate space around a focal point rather than a panel that looks like it failed to render.
+ */
+.chat-empty .chat-log {
+  justify-content: center;
+}
+
+.chat-starters {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.chat-starters-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* Each starter fills the input rather than sending, so a first question can still be edited. */
+.chat-starter {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-control-subtle);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-xs);
+  line-height: 1.4;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+.chat-starter:hover {
+  border-color: var(--accent-line);
+  background: var(--surface-hover);
 }
 .chat-setup-title {
   margin: 0 0 var(--space-2);
@@ -2521,32 +2975,56 @@ img,
   border-radius: 4px;
   cursor: pointer;
 }
+/* The composer is the panel's one persistent action; give it a surface so it reads as a place to
+   type rather than a textarea floating on the panel background. */
 .chat-input {
   display: flex;
+  align-items: flex-end;
   gap: 0.4rem;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  transition: border-color var(--motion-fast) ease;
 }
+.chat-input:focus-within {
+  border-color: var(--accent-line);
+}
+/* The wrapper now carries the field chrome, so the textarea itself is just the text surface. */
 .chat-input textarea {
   flex: 1;
+  min-width: 0;
   resize: none;
-  background: var(--surface-overlay);
+  background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.4rem 0.5rem;
+  border: none;
+  padding: 0.3rem 0.35rem;
   font-family: inherit;
   font-size: 0.88rem;
+  line-height: 1.45;
 }
+/* Send is the panel's primary action and the only accented control in it. */
 .chat-input button {
-  background: var(--surface-control);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  flex: 0 0 auto;
+  align-self: stretch;
   padding: 0 0.8rem;
-  cursor: pointer;
-}
-.chat-input button:hover {
   border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+.chat-input button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 82%, #fff);
+  border-color: color-mix(in srgb, var(--accent) 82%, #fff);
+}
+/* Stop replaces Send while a turn is running: same slot, different job, so it must not inherit
+   Send's accent. */
+.chat-input .stop-btn,
+.chat-input .stop-btn:hover:not(:disabled) {
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-surface);
+  color: var(--text-primary);
 }
 
 /* Settings drawer */
@@ -2683,6 +3161,7 @@ img,
   z-index: var(--z-drawer);
 }
 .drawer {
+  position: relative; /* anchors .drawer-close in the corner */
   width: 360px;
   max-width: 90vw;
   height: 100%;
@@ -2693,6 +3172,10 @@ img,
   flex-direction: column;
   gap: var(--space-4);
 }
+/* Clears the pinned close control so a long title never runs under it. */
+.drawer > .ui-dialog-title {
+  padding-right: calc(var(--control-height) + var(--space-2));
+}
 .ui-dialog-drawer.drawer {
   width: 360px;
   max-width: 90vw;
@@ -2700,18 +3183,52 @@ img,
 }
 /* The drawer's own close affordance: the Dialog primitive renders a title, never a close button,
    because not every dialog wants one in the same place. */
+/*
+ * The drawer is a flex column, so `align-self: flex-end` put the close control on its own row
+ * *below* the title — a stray glyph floating in the panel. Pinning it to the corner puts it where
+ * a close control is looked for, and gives it a real target instead of a bare character.
+ */
 .drawer-close {
-  align-self: flex-end;
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   background: none;
-  border: 0;
   color: var(--muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
   line-height: 1;
-  padding: var(--space-1);
+  transition:
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 .drawer-close:hover {
+  border-color: var(--border);
+  background: var(--surface-control);
   color: var(--text);
+}
+
+/* A settings switch reads as one row: control, then what it turns on. */
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-size: var(--type-sm);
+  cursor: pointer;
+}
+.settings-toggle input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--accent);
 }
 .drawer-head {
   display: flex;
@@ -3015,20 +3532,25 @@ img,
   font-size: var(--type-xs);
 }
 
+/*
+ * Stacked, not side-by-side. In a 300px column the old row layout gave the button its full width
+ * and squeezed the copy into ~130px, which turned two sentences into six ragged lines and made the
+ * card the tallest thing in the panel.
+ */
 .strategic-fit-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0.45rem 0 0.65rem;
-  padding: 0.65rem 0.7rem;
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.45rem 0 var(--space-4);
+  padding: 0.7rem;
   border: 1px solid var(--border-info);
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(61, 92, 135, 0.22), rgba(38, 38, 43, 0.45));
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, rgba(61, 92, 135, 0.18), rgba(38, 38, 43, 0.3));
 }
 .strategic-fit-entry-title {
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: var(--type-md);
+  font-weight: 650;
+  line-height: 1.3;
+  text-wrap: balance;
 }
 .strategic-fit-entry-copy {
   margin-top: 0.2rem;
@@ -3037,14 +3559,10 @@ img,
   line-height: 1.35;
 }
 .strategic-fit-open-button {
-  flex: 0 0 auto;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  padding: 0.38rem 0.62rem;
+  justify-self: start;
+  border-color: var(--accent-line);
   background: var(--status-info-action);
   color: var(--status-info-action-text);
-  cursor: pointer;
-  font: inherit;
   font-size: var(--type-xs);
 }
 .strategic-fit-open-button:hover,
@@ -3122,14 +3640,26 @@ img,
   -webkit-user-select: text;
   user-select: text;
 }
+/*
+ * One row. The header used to stack a kicker, an h1, a description, a profile line and a status
+ * chip that repeated the lifecycle strip directly below it verbatim — 174px of the 399px of chrome
+ * that stood between the dialog edge and the first pixel of report content on a 900px viewport.
+ */
 .strategic-fit-workspace-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 1.5rem;
-  padding: 1rem 1.15rem;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: #24272e;
+  background: var(--surface-panel);
+}
+.strategic-fit-workspace-identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  min-width: 0;
 }
 .strategic-fit-workspace-kicker,
 .strategic-fit-pane-heading > span {
@@ -3140,19 +3670,20 @@ img,
   text-transform: uppercase;
 }
 .strategic-fit-workspace-header h1 {
-  margin: 0.14rem 0 0;
-  font-size: clamp(1.2rem, 2vw, 1.65rem);
+  margin: 0;
+  font-size: var(--type-xl);
+  letter-spacing: -0.01em;
 }
 .strategic-fit-workspace-header p {
-  margin: 0.22rem 0 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--type-sm);
 }
 .strategic-fit-workspace-header .strategic-fit-workspace-profile {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.35rem;
-  color: #d7dfeb;
+  color: var(--text);
   font-size: var(--type-xs);
 }
 .strategic-fit-workspace-profile > span {
@@ -3175,17 +3706,16 @@ img,
   text-transform: none;
   white-space: nowrap;
 }
-.strategic-fit-workspace-header button,
-.strategic-fit-stage-nav button {
+.strategic-fit-workspace-header button {
+  min-height: var(--control-height);
+  padding: 0 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 7px;
-  background: #31343c;
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
   color: var(--text);
   cursor: pointer;
   font: inherit;
-}
-.strategic-fit-workspace-header button {
-  padding: 0.48rem 0.75rem;
+  font-size: var(--type-sm);
   white-space: nowrap;
 }
 .strategic-fit-workspace-header button:hover,
@@ -3196,35 +3726,72 @@ img,
   outline-offset: 1px;
 }
 /*
- * WP-033 AC-1: the stage strip is present at every width. Above the compact tier it is a progress
- * indicator (plain buttons, aria-current="step"); at/below 820px the same markup becomes the
- * tablist, whose grid/touch-target rules live in the compact media query.
+ * WP-033 AC-1: the stage strip is present at every width, and now it drives the body at every
+ * width too. It reads as a segmented control on a track rather than a band of four loose buttons,
+ * because it is the primary navigation of this dialog and it should look like one object.
  */
 .strategic-fit-stage-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  padding: 0.45rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  background: #202228;
+  gap: 2px;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--space-5));
+  margin: var(--space-3) var(--space-5) 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-control-subtle);
+}
+.strategic-fit-stage-nav button {
+  min-height: var(--control-height);
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+.strategic-fit-stage-nav button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 .strategic-fit-stage-nav button[data-stage-state="completed"] {
-  /*
-   * Not var(--muted): against this strip's #202228 it measures 4.46:1, just under the 4.5:1 gate.
-   * The completed state is carried by the check mark, so the label stays at full text contrast.
-   */
-  color: var(--text-primary);
+  color: var(--text);
+}
+/*
+ * The check mark's box is always there, transparent until the stage is behind you. Drawn only on
+ * completed stages it grew the track by 40px as the reader advanced, so the tab they were aiming
+ * at moved under the pointer.
+ */
+.strategic-fit-stage-nav button::before {
+  content: "✓";
+  display: inline-block;
+  width: 0.8em;
+  margin-right: 0.3rem;
+  color: transparent;
 }
 .strategic-fit-stage-nav button[data-stage-state="completed"]::before {
-  content: "✓";
-  margin-right: 0.3rem;
   color: var(--status-success-text-strong);
 }
 .strategic-fit-stage-nav button[data-stage-state="current"],
 .strategic-fit-stage-nav button.active {
-  border-color: var(--accent);
-  background: #294466;
-  color: #f0f6ff;
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: 600;
+}
+.strategic-fit-stage-nav button[data-stage-state="current"]::before {
+  color: inherit;
+}
+/* A count is a fact about the queue, not part of the tab's name; the tablist role reads the label. */
+.strategic-fit-stage-count {
+  margin-left: 0.35rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
 }
 .strategic-fit-profile-loading {
   display: flex;
@@ -3535,10 +4102,16 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
+/*
+ * A card at the foot of the overview, not a full-bleed band: it sits inside the pane now, where a
+ * bottom rule with nothing under it reads as a section that failed to load.
+ */
 .strategic-fit-settings {
-  padding: 0.75rem 1rem 0.45rem;
-  border-bottom: 1px solid var(--border);
-  background: #202228;
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
 }
 .strategic-fit-settings-summary,
 .strategic-fit-settings-actions {
@@ -3554,22 +4127,44 @@ img,
 .strategic-fit-preset-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.4rem;
 }
+/* One track for the three mutually exclusive presets; "Customize" stays a separate control. */
+.strategic-fit-preset-group {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-control-subtle);
+}
 .strategic-fit-preset-actions button,
 .strategic-fit-settings-actions button {
-  min-height: 36px;
-  padding: 0.42rem 0.65rem;
-  border: 1px solid #5b6472;
-  border-radius: 7px;
-  background: #31343c;
+  min-height: var(--control-height);
+  padding: 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
   color: var(--text);
   cursor: pointer;
+  font-size: var(--type-sm);
+}
+.strategic-fit-preset-group button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.strategic-fit-preset-group button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 .strategic-fit-preset-actions button.active {
   border-color: var(--accent);
-  background: #31547d;
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: 600;
 }
 .strategic-fit-settings-body {
   display: grid;
@@ -3678,29 +4273,38 @@ img,
   color: var(--muted);
   font-size: var(--type-xs);
 }
+/*
+ * One row of status, not three bands of it. The strip used to stack the lifecycle sentence, the
+ * collapsed phase list and the collapsed evidence check as full-width blocks — 236px whose entire
+ * content was two summary sentences and two ▸ glyphs. Collapsed, those two are now chips on the
+ * same line; expanded, each still claims a full row.
+ */
 .strategic-fit-analysis-lifecycle {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
   flex: 0 1 auto;
   max-height: min(52vh, 36rem);
   overflow: auto;
+  padding-inline: var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: #202228;
+  background: var(--surface-canvas);
   overscroll-behavior: contain;
 }
+/* Unwrapped so the copy, the action and the two chips are siblings on one wrapping row. */
 .strategic-fit-analysis-lifecycle-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.65rem 1rem;
+  display: contents;
 }
 .strategic-fit-analysis-lifecycle-copy {
+  order: 1;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.28rem 0.65rem;
+  flex: 1 1 16rem;
   min-width: 0;
+  padding-block: var(--space-2);
   color: var(--muted);
   font-size: var(--type-xs);
   line-height: 1.4;
@@ -3829,18 +4433,22 @@ img,
   color: #b8bec8;
 }
 .strategic-fit-analysis-actions {
+  order: 4;
   flex: 0 0 auto;
+  margin-left: auto;
+  padding-block: var(--space-2);
 }
 .strategic-fit-analysis-actions button {
-  min-height: 38px;
-  padding: 0.45rem 0.7rem;
+  min-height: var(--control-height);
+  padding: 0 0.7rem;
   border: 1px solid var(--accent);
-  border-radius: 7px;
-  background: #31547d;
-  color: #eef5ff;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-inverse);
   cursor: pointer;
   font: inherit;
-  font-size: var(--type-xs);
+  font-size: var(--type-sm);
+  font-weight: 600;
   white-space: nowrap;
 }
 .strategic-fit-analysis-actions button.secondary {
@@ -3854,13 +4462,37 @@ img,
 }
 .strategic-fit-analysis-progress-card,
 .strategic-fit-preflight {
-  padding: 0.85rem 1rem;
-  border-top: 1px solid #3f444e;
-  background: #1c1f25;
+  order: 2;
+  flex: 1 0 100%;
+  margin-inline: calc(-1 * var(--space-5));
+  padding: 0.85rem var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-overlay);
 }
+.strategic-fit-preflight {
+  order: 3;
+}
+/* Collapsed, each is a one-line status chip that sits on the lifecycle row. */
 .strategic-fit-analysis-progress-card[data-progress-collapsed="true"],
 .strategic-fit-preflight[data-preflight-collapsed="true"] {
-  padding-block: 0.42rem;
+  flex: 0 1 auto;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.strategic-fit-analysis-progress-card[data-progress-collapsed="true"]
+  .strategic-fit-analysis-progress-disclosure,
+.strategic-fit-preflight[data-preflight-collapsed="true"] .strategic-fit-preflight-disclosure {
+  width: auto;
+  min-height: var(--control-height);
+  gap: var(--space-2);
+  padding-inline: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
 }
 .strategic-fit-analysis-progress-disclosure,
 .strategic-fit-preflight-disclosure {
@@ -4168,69 +4800,92 @@ img,
   overflow-wrap: anywhere;
 }
 /*
- * WP-033 AC-2 / DV-5: resolution renders exactly once. Above the compact tier the pane is not a
- * fourth column — it sits at the foot of the evidence column, which keeps three columns while
- * removing the duplicate render that previously served wide viewports.
+ * WP-033 AC-2 / DV-5 still hold: resolution renders exactly once, and the stage strip is present
+ * at every width. What changed is which pane is on screen.
+ *
+ * The wide tier used to render all four panes at once as
+ * `minmax(13rem,.75fr) minmax(17rem,1fr) minmax(19rem,1.2fr)` with resolution wedged under the
+ * evidence column at `max-height: 30vh`. Measured at 1440x900 that gave every pane a 214px-tall
+ * well: 2734px of overview charts in a 357px-wide column, 2781px of findings in 477px, 2991px of
+ * evidence in 572px. The decision-flow outline broke "Causal ownership" across lines as
+ * "Causal owners / hip". And the stage nav above it was inert — clicking a stage set `data-stage`
+ * and nothing moved, because the compact tier owned the only rules that read it.
+ *
+ * `data-stage` now picks the pane at every width. The nav does what it looks like it does, and
+ * each pane gets the whole dialog: roughly 1400x770 instead of 357x214.
  */
 .strategic-fit-workspace-body {
   display: grid;
-  grid-template-columns: minmax(13rem, 0.75fr) minmax(17rem, 1fr) minmax(19rem, 1.2fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, max-content);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   flex: 1 1 0;
   min-height: 0;
 }
-.strategic-fit-overview-pane,
-.strategic-fit-findings-pane,
-.strategic-fit-evidence-pane {
-  grid-row: 1;
-}
-.strategic-fit-resolution-pane {
-  grid-column: 3;
-  grid-row: 2;
-  /*
-   * The decide region shares the evidence column, so it must be a bounded strip rather than an
-   * auto-sized block: an unbounded one grows with its content until it covers the column above and
-   * swallows that column's pointer events, which is a real interaction defect, not a test artifact.
-   */
-  min-height: 0;
-  max-height: 30vh;
-  border-top: 1px solid var(--border);
-  border-right: 0;
-}
+/*
+ * A measure cap expressed as padding, not as a max-width on each child: report content is dense
+ * analytical prose and tables, and a 1470px line of it is unreadable. Padding keeps one left edge
+ * for everything in the pane, so a narrower block — the resolution form, the comparison boards —
+ * still starts where its heading starts instead of centring itself away from it.
+ */
 .strategic-fit-workspace-pane {
+  display: none;
+  grid-area: 1 / 1;
   min-width: 0;
   overflow: auto;
-  overflow-wrap: anywhere;
-  padding: 1rem;
-  border-right: 1px solid var(--border);
+  padding: var(--space-4) max(var(--space-5), (100% - 76rem) / 2) var(--space-6);
   outline: none;
   overscroll-behavior: contain;
 }
-.strategic-fit-evidence-pane {
-  border-right: 0;
+.strategic-fit-workspace-body[data-stage="overview"] .strategic-fit-overview-pane,
+.strategic-fit-workspace-body[data-stage="findings"] .strategic-fit-findings-pane,
+.strategic-fit-workspace-body[data-stage="evidence"] .strategic-fit-evidence-pane,
+.strategic-fit-workspace-body[data-stage="resolution"] .strategic-fit-resolution-pane {
+  display: block;
+}
+/*
+ * `overflow-wrap: anywhere` used to sit on the pane itself, so every word in every table header
+ * was breakable. Only the opaque identifiers report content carries need it.
+ */
+.strategic-fit-workspace-pane :is(code, .strategic-fit-report-id, .strategic-fit-reference) {
+  overflow-wrap: anywhere;
 }
 .strategic-fit-workspace-pane:focus-visible {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-.strategic-fit-findings-pane {
-  background: #202228;
-}
+/*
+ * The stage nav already names the pane, so the heading's job is the qualifier the nav cannot
+ * carry — "review queue", "branch review", "next step". Kicker and title share one baseline
+ * instead of stacking into a 3.4rem block above a rule.
+ */
 .strategic-fit-pane-heading {
-  display: block;
-  min-height: 3.4rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-height: 0;
+  padding-bottom: var(--space-3);
+}
+.strategic-fit-pane-heading > span {
+  color: var(--muted);
 }
 .strategic-fit-pane-heading h2 {
-  margin: 0.22rem 0 0;
-  font-size: 1rem;
+  margin: 0;
+  font-size: var(--type-xl);
+  letter-spacing: -0.01em;
 }
 .strategic-fit-overview {
   margin-top: 0.8rem;
 }
+/*
+ * Eight report metrics read as a board of figures, not as eight full-width rows each ending in a
+ * full-width button. The tiles are the summary of the whole report; seeing them together is the
+ * point of the overview stage.
+ */
 .strategic-fit-overview-grid {
   display: grid;
-  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  align-items: start;
+  gap: var(--space-3);
 }
 .strategic-fit-overview-item {
   min-width: 0;
@@ -4300,20 +4955,21 @@ img,
   border-left: 2px solid #7c8490;
   color: #c0c7d0;
 }
+/* Eight tiles, eight filled buttons: the drill-in is secondary to the figure it sits under. */
 .strategic-fit-overview-item button {
-  width: 100%;
-  min-height: 34px;
+  min-height: var(--control-height);
   margin-top: 0.55rem;
-  padding: 0.35rem 0.45rem;
-  border: 1px solid #57739a;
-  border-radius: 6px;
-  background: #263a54;
-  color: #dcecff;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  color: var(--text);
   cursor: pointer;
   font: inherit;
   font-size: var(--type-xs);
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.3;
+  text-align: left;
 }
 .strategic-fit-overview-item button:hover,
 .strategic-fit-overview-item button:focus-visible {
@@ -4517,9 +5173,13 @@ img,
   font-size: var(--type-xs);
   font-weight: 700;
 }
+/*
+ * Four filters, one row. Stacked 2x2 they pushed the first finding below the fold of the old
+ * 214px column; the queue's own controls should not outrank its contents.
+ */
 .strategic-fit-queue-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.45rem;
   margin-top: 0.65rem;
 }
@@ -4575,9 +5235,16 @@ img,
   margin: 0.2rem 0 0;
   color: #9fa7b1;
 }
+/*
+ * The queue is a triage surface: the useful view is as many findings as will fit, not one tall
+ * column of them. Each card used to run ~600px, so a page of six was 3,600px of scrolling in a
+ * 477px-wide column. Slimmed cards in an auto-filling grid put a whole page on one screen.
+ */
 .strategic-fit-finding-list {
   display: grid;
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fill, minmax(23rem, 1fr));
+  align-items: start;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -4668,47 +5335,72 @@ img,
 .decision-flow-qualified {
   font-size: var(--type-micro);
 }
+/*
+ * A grid, so the source-line disclosure and the select control share the card's last row instead
+ * of each claiming a full-width band of their own.
+ */
 .strategic-fit-finding-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--space-3);
   min-width: 0;
-  padding: 0.7rem;
-  border: 1px solid #4d5561;
-  border-left: 3px solid #74869d;
-  border-radius: 8px;
-  background: #24272d;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  transition:
+    border-color var(--motion-fast) ease,
+    background var(--motion-fast) ease;
+}
+.strategic-fit-finding-card > * {
+  grid-column: 1 / -1;
+}
+.strategic-fit-finding-card:hover {
+  border-left-color: var(--muted);
 }
 .strategic-fit-finding-card[data-finding-selected="true"] {
-  border-color: #6ea8fe;
-  box-shadow: 0 0 0 1px rgba(110, 168, 254, 0.32);
-  background: #252d38;
+  border-color: var(--accent-line);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
 }
 .strategic-fit-finding-card > header {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 .strategic-fit-finding-card h3 {
-  margin: 0.22rem 0 0;
-  color: #edf2f8;
-  font-size: 0.84rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-md);
+  font-weight: 600;
   line-height: 1.3;
+  text-wrap: balance;
 }
-.strategic-fit-finding-classification,
+.strategic-fit-finding-classification {
+  display: block;
+  color: var(--muted);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
 .strategic-fit-finding-resolution {
   display: inline-block;
-  color: #b4c3d5;
-  font-size: var(--type-xs);
-  font-weight: 700;
-  line-height: 1.3;
-}
-.strategic-fit-finding-resolution {
   flex: 0 0 auto;
   max-width: 46%;
-  padding: 0.12rem 0.35rem;
-  border: 1px solid #646e7a;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  color: #d8dfe8;
+  color: var(--muted);
+  font-size: var(--type-micro);
+  font-weight: 600;
+  line-height: 1.4;
   text-align: center;
+  white-space: nowrap;
 }
 .strategic-fit-finding-resolution[data-resolution="unresolved"] {
   border-color: #a16e55;
@@ -4767,20 +5459,26 @@ img,
   font-size: var(--type-xs);
   font-weight: 700;
 }
+/*
+ * Four mutually exclusive options read as one list, not four cards. The boxes are gone; the
+ * checked row keeps a tinted ground and an accent rule so the choice is still obvious at a glance.
+ */
 .strategic-fit-resolution-choice {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 0.55rem;
   min-width: 0;
-  padding: 0.55rem;
-  border: 1px solid #4f5966;
-  border-radius: 7px;
-  background: #252a31;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
+.strategic-fit-resolution-choice:hover {
+  background: var(--surface-hover);
+}
 .strategic-fit-resolution-choice:has(input:checked) {
-  border-color: #6ea8fe;
-  background: #293545;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 .strategic-fit-resolution-choice input {
   flex: 0 0 auto;
@@ -4841,10 +5539,16 @@ img,
 .strategic-fit-resolution-actions :is(button, select, textarea, .strategic-fit-resolution-choice) {
   min-height: 44px;
 }
+/*
+ * Resolution is a form, so it sizes to a form measure. Stretched to the pane it made four
+ * ten-word radio options into four 1180px slabs and a "Save resolution" button as wide as the
+ * dialog — the width was saying "this is the biggest thing here", which it is not.
+ */
 .strategic-fit-review-actions {
   display: grid;
   gap: 0.85rem;
   min-width: 0;
+  max-width: 44rem;
 }
 .strategic-fit-training {
   display: grid;
@@ -5088,54 +5792,72 @@ img,
   ) {
   min-height: 44px;
 }
+/*
+ * Scope reads as one meta line. Three stacked label-over-value pairs cost six lines to say
+ * "French · Advance, alternative cohort, fixture line 2"; inline label/value pairs say it in one.
+ */
 .strategic-fit-finding-scope {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0.6rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.12rem 0.8rem;
+  margin: 0.45rem 0 0;
 }
 .strategic-fit-finding-scope > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.32rem;
   min-width: 0;
 }
 .strategic-fit-finding-scope dt {
-  color: #929ca8;
-  font-size: var(--type-xs);
+  color: var(--muted);
+  font-size: var(--type-micro);
   font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .strategic-fit-finding-scope dd {
-  margin: 0.12rem 0 0;
-  color: #d4dbe4;
+  margin: 0;
+  min-width: 0;
+  color: var(--text);
   font-size: var(--type-xs);
   line-height: 1.35;
-  overflow-wrap: anywhere;
 }
 .strategic-fit-finding-explanation {
-  margin: 0.55rem 0 0;
-  color: #c5cbd3;
+  margin: 0.45rem 0 0;
+  color: var(--muted);
   font-size: var(--type-xs);
   line-height: 1.45;
 }
+/*
+ * Six equally-weighted bordered pills read as six controls. As plain text on a dotted rule they
+ * read as what they are — the measurements behind the classification — and the two that can be
+ * missing keep their dashed outline so absence stays visible.
+ */
 .strategic-fit-finding-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.28rem;
-  margin: 0.55rem 0 0;
+  gap: 0 0.55rem;
+  margin: 0.45rem 0 0;
   padding: 0;
   list-style: none;
+  color: var(--text);
+  font-size: var(--type-xs);
+  line-height: 1.6;
 }
 .strategic-fit-finding-facts li {
-  padding: 0.16rem 0.32rem;
-  border: 1px solid #505966;
-  border-radius: 4px;
-  background: #1d2025;
-  color: #c9d1dc;
-  font-size: var(--type-xs);
-  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+/* Trailing, not leading: a leading separator becomes the first glyph of every wrapped row. */
+.strategic-fit-finding-facts li:not(:last-child)::after {
+  content: "·";
+  margin-left: 0.55rem;
+  color: var(--border-strong);
 }
 .strategic-fit-finding-facts li[data-expected-frequency="unavailable"],
 .strategic-fit-finding-facts li[data-objective-state="unavailable"] {
-  border-style: dashed;
-  color: #acb3bd;
+  color: var(--muted);
+  font-style: italic;
 }
 .strategic-fit-finding-objective-reason {
   margin: 0.4rem 0 0;
@@ -5159,23 +5881,24 @@ img,
 .strategic-fit-finding-priorities {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem 0.6rem;
-  margin: 0.48rem 0 0;
-  color: #b7c7db;
+  gap: 0.3rem 0.7rem;
+  margin: 0.3rem 0 0;
+  color: var(--muted);
   font-size: var(--type-xs);
-  font-weight: 700;
+  font-weight: 500;
 }
 .strategic-fit-finding-paths {
-  margin-top: 0.5rem;
-  border-top: 1px solid #424953;
-  padding-top: 0.4rem;
-  color: #b8c9dd;
+  grid-column: 1;
+  margin-top: 0.55rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.45rem;
+  color: var(--muted);
   font-size: var(--type-xs);
 }
 .strategic-fit-finding-paths > summary {
   min-height: 26px;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 500;
 }
 .strategic-fit-finding-paths ol {
   margin: 0.35rem 0 0;
@@ -5189,23 +5912,37 @@ img,
   white-space: normal;
   overflow-wrap: anywhere;
 }
+/*
+ * The card's own border carries the selected state, so this is a quiet control on the footer row
+ * rather than a full-width filled bar. Twelve cards used to mean twelve blue slabs, one per card,
+ * which put the loudest element in the queue on the least important word in the card.
+ */
 .strategic-fit-finding-select {
-  width: 100%;
-  min-height: 34px;
+  grid-column: 2;
+  justify-self: end;
+  align-self: end;
+  min-height: var(--control-height);
   margin-top: 0.55rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #607fa7;
-  border-radius: 5px;
-  background: #253b56;
-  color: #dcecff;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  color: var(--text);
   cursor: pointer;
   font: inherit;
   font-size: var(--type-xs);
-  font-weight: 700;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.strategic-fit-finding-select:hover {
+  border-color: var(--accent-line);
+  background: var(--surface-hover);
 }
 .strategic-fit-finding-select[aria-pressed="true"] {
-  border-color: #82b6ff;
-  background: #31547d;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: 600;
 }
 .strategic-fit-queue-pagination {
   display: grid;
@@ -5563,9 +6300,36 @@ img,
   display: block;
   color: #adb7c3;
 }
+/*
+ * The comparison sizes to its boards, not to the pane. Left to fill 76rem it stretched three route
+ * selects to 700px each and stranded the pair of 24rem boards in the left half of an empty card.
+ */
+.strategic-fit-comparison-boards {
+  max-width: 52rem;
+}
+/* The one forward step at the end of the evidence, where the reader finishes reading. */
+.strategic-fit-evidence-next {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+.strategic-fit-evidence-next button {
+  min-height: var(--control-height);
+  padding: 0 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-inverse);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: 600;
+}
 .strategic-fit-comparison-boards > header p {
   margin: 0;
-  color: #aeb8c4;
+  color: var(--muted);
 }
 .strategic-fit-comparison-controls {
   display: grid;
@@ -5630,10 +6394,16 @@ img,
   margin: 0.3rem 0 0;
   color: #aeb8c4;
 }
+/*
+ * Two boards that fit on one screen with the difference table under them. Left uncapped they take
+ * whatever the pane gives — 570px a side once the pane went full width, which is a chessboard
+ * larger than the app's own playing board and pushes the comparison it exists to support offscreen.
+ */
 .strategic-fit-comparison-board-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 24rem));
+  justify-content: start;
+  gap: var(--space-3);
   margin-top: 0.55rem;
 }
 .strategic-fit-comparison-board-card {
@@ -7053,14 +7823,15 @@ img,
     padding: 0.44rem 0.58rem;
     font-size: 0.76rem;
   }
+  /* Same track, stretched: four equal tabs across the width instead of a max-content pill. */
   .strategic-fit-stage-nav {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.3rem;
-    padding: 0.55rem calc(0.55rem + env(safe-area-inset-right)) 0.55rem
-      calc(0.55rem + env(safe-area-inset-left));
-    border-bottom: 1px solid var(--border);
-    background: #202228;
+    width: auto;
+    max-width: none;
+    gap: 2px;
+    margin: var(--space-3) calc(var(--space-3) + env(safe-area-inset-right)) 0
+      calc(var(--space-3) + env(safe-area-inset-left));
   }
   .strategic-fit-profile-setup {
     padding: 0.85rem calc(0.85rem + env(safe-area-inset-right))
@@ -7152,6 +7923,13 @@ img,
     min-height: 44px;
   }
   .strategic-fit-overview-item button,
+  .strategic-fit-evidence-next button,
+  .strategic-fit-print-controls button,
+  .strategic-fit-preset-actions button,
+  /* The collapsed lifecycle chips are compact by design on a mouse; a finger still needs 44px. */
+  .strategic-fit-analysis-progress-card[data-progress-collapsed="true"]
+    .strategic-fit-analysis-progress-disclosure,
+  .strategic-fit-preflight[data-preflight-collapsed="true"] .strategic-fit-preflight-disclosure,
   .strategic-fit-overview-entropy > summary,
   .strategic-fit-intent-suggestions > summary,
   .strategic-fit-intent-actions button,
@@ -7214,37 +7992,64 @@ img,
     min-width: 0;
     min-height: 44px;
     padding: 0.38rem 0.15rem;
-    color: var(--text-primary);
     font-size: var(--type-xs);
   }
-  .strategic-fit-stage-nav button.active {
-    border-color: var(--accent);
-    background: #294466;
-    color: #f0f6ff;
+  /*
+   * The lifecycle strip has one row of width here, so the status claims it and the two collapsed
+   * chips share the next row with the run control, shrinking with an ellipsis rather than
+   * overflowing the dialog. The report id is a support identifier and does not earn a phone row.
+   */
+  .strategic-fit-analysis-lifecycle {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
   }
-  .strategic-fit-workspace-body {
-    display: block;
-    overflow: hidden;
-  }
-  /* The compact tier is one visible panel at a time, so the wide grid placement must not apply. */
-  .strategic-fit-resolution-pane {
-    grid-column: auto;
-    grid-row: auto;
-    max-height: none;
-    border-top: 0;
-  }
-  .strategic-fit-workspace-pane {
+  .strategic-fit-analysis-report-id {
     display: none;
-    height: 100%;
+  }
+  .strategic-fit-analysis-lifecycle-copy {
+    flex-basis: 100%;
+  }
+  .strategic-fit-analysis-progress-card,
+  .strategic-fit-preflight {
+    margin-inline: calc(-1 * var(--space-3));
+    padding-inline: var(--space-3);
+  }
+  /*
+   * A row each, still as 30px chips rather than the 80px bands they were: side by side in 366px
+   * both ellipsise to "All six phase…" / "Evidence ch…", which is a label that says nothing.
+   */
+  .strategic-fit-analysis-progress-card[data-progress-collapsed="true"] {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .strategic-fit-preflight[data-preflight-collapsed="true"] {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+  .strategic-fit-analysis-progress-card[data-progress-collapsed="true"]
+    .strategic-fit-analysis-progress-disclosure,
+  .strategic-fit-preflight[data-preflight-collapsed="true"] .strategic-fit-preflight-disclosure {
+    width: 100%;
+    min-width: 0;
+  }
+  .strategic-fit-analysis-progress-card[data-progress-collapsed="true"]
+    .strategic-fit-analysis-progress-disclosure
+    > span:first-child,
+  .strategic-fit-preflight[data-preflight-collapsed="true"]
+    .strategic-fit-preflight-disclosure
+    > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .strategic-fit-workspace-inner > .strategic-fit-limited-evidence-banner {
+    margin-inline: var(--space-3);
+  }
+  /* One pane at a time is the base rule now; the compact tier only adjusts the safe-area padding. */
+  .strategic-fit-workspace-pane {
     padding: 0.9rem calc(0.9rem + env(safe-area-inset-right))
       calc(0.9rem + env(safe-area-inset-bottom)) calc(0.9rem + env(safe-area-inset-left));
-    border-right: 0;
-  }
-  .strategic-fit-workspace-body[data-stage="overview"] .strategic-fit-overview-pane,
-  .strategic-fit-workspace-body[data-stage="findings"] .strategic-fit-findings-pane,
-  .strategic-fit-workspace-body[data-stage="evidence"] .strategic-fit-evidence-pane,
-  .strategic-fit-workspace-body[data-stage="resolution"] .strategic-fit-resolution-pane {
-    display: block;
   }
   .replacement-lab-backdrop {
     padding: 0;
@@ -7853,7 +8658,15 @@ img,
   font-size: var(--type-xs);
   opacity: 0.8;
 }
+/*
+ * Centred, because `decisionFlowScale` deliberately never enlarges a chart that already fits (see
+ * "a chart that already fits is never enlarged" in the visualization-hardening tests). A short
+ * flow therefore draws at its intrinsic width; left-aligned in a full-width pane it reads as a
+ * broken diagram rather than a small one.
+ */
 .decision-flow-scroll {
+  display: flex;
+  justify-content: center;
   overflow-x: auto;
   max-width: 100%;
 }
@@ -8087,15 +8900,35 @@ img,
   max-height: 12rem;
   overflow-y: auto;
 }
+/*
+ * Print and export is a terminal action on a report you have already read, so it sits quietly at
+ * the end of the overview's heading row rather than as the first control above the strategic map.
+ */
 .strategic-fit-print-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
   max-width: 100%;
 }
 .strategic-fit-print-controls button {
-  overflow-wrap: anywhere;
+  min-height: var(--control-height);
+  padding: 0 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-xs);
+  white-space: nowrap;
+}
+.strategic-fit-print-controls button:hover,
+.strategic-fit-print-controls button[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--surface-control);
+  color: var(--text);
 }
 .strategic-fit-print-note {
   flex: 1 1 12rem;
@@ -8240,13 +9073,13 @@ img,
 .document-status {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.4rem;
   flex-wrap: nowrap;
   /* Shrink-only: the status must never force the action row to wrap, because that is what makes
      the top bar grow a second row and push panel content below the fold. */
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(40ch, 45%);
+  max-width: min(24ch, 45%);
   overflow: hidden;
   font-size: var(--type-xs);
   color: var(--muted);
@@ -8259,15 +9092,33 @@ img,
   white-space: nowrap;
 }
 
+/* The dot carries the state; the word next to it says which state, so neither is load-bearing
+   alone. Amber only when there is genuinely unexported work. */
+.document-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--status-neutral-marker);
+}
+.document-status[data-document-status="unexported"] .document-status-dot,
+.document-status[data-document-status="unlinked"] .document-status-dot {
+  background: var(--status-warning);
+}
+.document-status[data-document-status="exported"] .document-status-dot {
+  background: var(--status-success);
+}
+.document-status[data-document-status="unexported"] .document-status-text,
+.document-status[data-document-status="unlinked"] .document-status-text {
+  color: var(--status-warning-text);
+}
+
 /*
  * Compact tier (WP-017 AC-1): the top bar must fit a 40-character filename in 96px. The phone
  * layout hides the browser-storage line — the file indicator carries the actionable fact — and
  * tightens the chrome rhythm. Control sizing is untouched so touch-target floors still hold.
  */
 @media (max-width: 45em) {
-  .document-status-browser {
-    display: none;
-  }
   .topbar {
     gap: var(--space-2);
     row-gap: var(--space-1);
@@ -8281,11 +9132,18 @@ img,
    * offers collapse into it rather than being listed twice. Wider tiers keep both affordances,
    * so nothing a pointer user relies on disappears where there is room for it.
    */
-  .topbar > [data-topbar-duplicate] {
+  .topbar [data-topbar-duplicate] {
     display: none;
   }
   .topbar .title {
     font-size: var(--type-sm);
+  }
+  /* The identity group keeps the filename on the phone — it is the one thing up here that says
+     which document the tabs below are editing. */
+  .topbar-identity {
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0;
   }
 }
 
@@ -8453,27 +9311,38 @@ img,
  * collapses into a zero-height overlay on the group's own border — visible as a small caps label
  * sitting on the divider line, costing no vertical space at all.
  */
+/*
+ * The label sits ON the rule that separates two groups, legend-style, instead of floating above
+ * the group's own top edge. The old offset (-0.5em above a group with only 8px of margin) landed
+ * the label on top of whatever preceded it — visibly, "Analyze" printed over the bottom edge of
+ * the Strategic Fit card. Putting it in a gap that is tall enough to hold it keeps the zero-row
+ * height trick AC-7 needs while giving each heading clear air on both sides.
+ */
 .rep-group {
   position: relative;
 }
 .rep-group + .rep-group {
-  margin-top: var(--space-2);
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
 }
 .rep-group > .panel-header {
   position: absolute;
-  inset-block-start: calc(-0.5em - var(--space-2));
-  inset-inline-start: var(--space-2);
-  padding-block: 0 var(--space-1);
+  inset-block-start: -0.72em;
+  inset-inline-start: 0;
+  margin: 0;
+  padding: 0 0.5rem 0 0.2rem;
+  border-bottom: none;
   background: var(--panel);
-  border-radius: 4px;
+  line-height: 1.2;
 }
 .rep-group:first-of-type {
   margin-top: var(--space-2);
 }
-/* The first group follows the scope-note directly; its overlay label sits on the note's own
-   bottom edge rather than adding separation of its own. */
-.rep-panel > .scope-note + .rep-group {
-  margin-top: var(--space-1);
+/* The first group has no rule above it, so it takes its clearance from the entry card instead. */
+.rep-panel > .scope-note + .rep-group,
+.rep-panel > .strategic-fit-entry + .rep-group,
+.rep-panel > .rep-preview + .rep-group {
+  margin-top: var(--space-4);
 }
 @media (max-width: 68.75em) {
   .rep-group > .panel-header {

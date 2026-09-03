@@ -13,6 +13,17 @@ export const CHAT_CONTROLS = {
   cancelRunDescription: (tool: string) => `Cancels ${tool} and lets the turn continue.`,
 } as const;
 
+/**
+ * First-run prompts for a configured but unused chat. They name the three things the assistant is
+ * actually good at here, so the empty panel answers "what do I ask it?" instead of showing a blank
+ * column above a placeholder.
+ */
+export const CHAT_STARTERS = [
+  "What is the plan for White in this position?",
+  "Which of my replies here is weakest, and why?",
+  "Suggest a line that fits the rest of my repertoire.",
+] as const;
+
 export const CHAT_CONTEXT = {
   label: "What the assistant can see",
   expandLabel: "Show the exact text sent with your message",
