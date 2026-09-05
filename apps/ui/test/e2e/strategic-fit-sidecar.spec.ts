@@ -1,4 +1,4 @@
-import { expect, test, type Download, type Page } from "playwright/test";
+import { expect, test, type Download, type Page } from "./helpers/fixtures";
 import { GameTree } from "@chess-mcp/chess-tools";
 
 type ChessHarness = {

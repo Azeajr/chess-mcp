@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { currentPath, openApp } from "./helpers/app";
 
 type ToolHarness = {
@@ -66,42 +66,48 @@ test("announcement reset completes before subsequent events are recorded", async
   expect(messages).toEqual({ afterReset: [], afterEvent: ["After reset"] });
 });
 
-test("UX-012 every required event produces exactly one live-region announcement", async ({
-  page,
-}) => {
-  await openApp(page);
-  for (const { scenario, message } of announcementScenarios) {
-    await page.evaluate(() => {
-      const chess = (
-        window as unknown as {
-          __chess: { resetAnnouncementsForTesting(): Promise<void> };
-        }
-      ).__chess;
-      return chess.resetAnnouncementsForTesting();
-    });
-    await page.evaluate((event) => {
-      const chess = (
-        window as unknown as {
-          __chess: { exerciseAnnouncementScenario(scenario: AnnouncementScenario): Promise<void> };
-        }
-      ).__chess;
-      return chess.exerciseAnnouncementScenario(event);
-    }, scenario);
-    const log = await page.evaluate(() => {
-      const chess = (
-        window as unknown as {
-          __chess: { announcementLogForTesting(): Promise<string[]> };
-        }
-      ).__chess;
-      return chess.announcementLogForTesting();
-    });
-    expect(log.some((text) => text.match(message))).toBe(true);
-    expect(await page.locator("[data-app-live-region='polite'] p").count()).toBeLessThanOrEqual(1);
-    expect(await page.locator("[data-app-live-region='assertive'] p").count()).toBeLessThanOrEqual(
-      1,
-    );
-  }
-});
+test(
+  "UX-012 every required event produces exactly one live-region announcement",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await openApp(page);
+    for (const { scenario, message } of announcementScenarios) {
+      await page.evaluate(() => {
+        const chess = (
+          window as unknown as {
+            __chess: { resetAnnouncementsForTesting(): Promise<void> };
+          }
+        ).__chess;
+        return chess.resetAnnouncementsForTesting();
+      });
+      await page.evaluate((event) => {
+        const chess = (
+          window as unknown as {
+            __chess: {
+              exerciseAnnouncementScenario(scenario: AnnouncementScenario): Promise<void>;
+            };
+          }
+        ).__chess;
+        return chess.exerciseAnnouncementScenario(event);
+      }, scenario);
+      const log = await page.evaluate(() => {
+        const chess = (
+          window as unknown as {
+            __chess: { announcementLogForTesting(): Promise<string[]> };
+          }
+        ).__chess;
+        return chess.announcementLogForTesting();
+      });
+      expect(log.some((text) => text.match(message))).toBe(true);
+      expect(await page.locator("[data-app-live-region='polite'] p").count()).toBeLessThanOrEqual(
+        1,
+      );
+      expect(
+        await page.locator("[data-app-live-region='assertive'] p").count(),
+      ).toBeLessThanOrEqual(1);
+    }
+  },
+);
 
 test("UX-012 AC-5 two identical messages within 500 ms produce one announcement", async ({
   page,

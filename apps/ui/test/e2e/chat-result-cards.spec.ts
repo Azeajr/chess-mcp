@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test } from "./helpers/fixtures";
 import { openApp } from "./helpers/app";
 
 const chatLog = (page: import("playwright/test").Page) => page.locator(".chat-log");

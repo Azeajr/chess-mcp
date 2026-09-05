@@ -1,4 +1,4 @@
-import { expect, test, type Download, type Page } from "playwright/test";
+import { expect, test, type Download, type Page } from "./helpers/fixtures";
 import { installFindingWorkerFixture } from "./helpers/strategic-fit-worker-fixture";
 import { destinationSquares, dragMove, premoveSquares, selectSquare } from "./helpers/board";
 import {

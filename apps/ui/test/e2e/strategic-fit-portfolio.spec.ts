@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;

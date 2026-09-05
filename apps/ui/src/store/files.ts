@@ -86,16 +86,20 @@ export function cancelPendingLoad() {
   setLoadError(null);
 }
 
+// Remembering a handle is best effort: it only powers Reopen across reloads, and
+// the in-memory handle still serves this session. Storage that refuses the write
+// — a handle the browser will not clone, a blocked or full store — must not
+// surface as an unhandled rejection.
 function remember(h: FilePickerHandle) {
   handle = h;
-  void idbSet(HANDLE_KEY, h);
+  void idbSet(HANDLE_KEY, h).catch(() => undefined);
   setStoredFileName(null);
 }
 
 export function clearHandle() {
   handle = null;
   setStoredFileName(null);
-  void idbDel(HANDLE_KEY);
+  void idbDel(HANDLE_KEY).catch(() => undefined);
 }
 
 export function setReopenHandleForTesting(nextHandle: FilePickerHandle | null) {

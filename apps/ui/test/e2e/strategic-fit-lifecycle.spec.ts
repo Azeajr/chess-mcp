@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 
 type Lifecycle = {
   status: "idle" | "running" | "provisional" | "completed" | "cancelled" | "failed" | "stale";
@@ -160,39 +160,44 @@ const workerStarts = (page: Page) =>
     ...((window as unknown as { __workerStarts: string[] }).__workerStarts ?? []),
   ]);
 
-test("opening workspace and completing setup remain idle until the explicit Analyze action", async ({
-  page,
-}) => {
-  await bootstrap(page);
-  await chess(page, (api, pgn) => api.loadPgn(pgn, "explicit-start.pgn"), REPERTOIRE);
-  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
-  const before = await appSnapshot(page);
-  const dialog = await openWorkspace(page);
+test(
+  "opening workspace and completing setup remain idle until the explicit Analyze action",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await bootstrap(page);
+    await chess(page, (api, pgn) => api.loadPgn(pgn, "explicit-start.pgn"), REPERTOIRE);
+    await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+    const before = await appSnapshot(page);
+    const dialog = await openWorkspace(page);
 
-  await dialog.getByRole("button", { name: "Skip for now" }).click();
-  await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeVisible();
-  expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
-  expect(await workerStarts(page)).toEqual([]);
-  expect(await appSnapshot(page)).toEqual(before);
+    await dialog.getByRole("button", { name: "Skip for now" }).click();
+    await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeVisible();
+    expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
+    expect(await workerStarts(page)).toEqual([]);
+    expect(await appSnapshot(page)).toEqual(before);
 
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
-    timeout: 15_000,
-  });
-  const beforeProfile = await chess(
-    page,
-    (api) => api.strategicFitLifecycle().current_result?.report_id,
-  );
-  await chess(page, (api) => api.applyInferredStrategicFitProfile("versatile"));
-  await expect
-    .poll(() =>
-      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
-    )
-    .toBe("profile-change");
-  expect(
-    await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id),
-  ).not.toBe(beforeProfile);
-});
+    await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
+    await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
+      timeout: 15_000,
+    });
+    const beforeProfile = await chess(
+      page,
+      (api) => api.strategicFitLifecycle().current_result?.report_id,
+    );
+    await chess(page, (api) => api.applyInferredStrategicFitProfile("versatile"));
+    await expect
+      .poll(() =>
+        chess(
+          page,
+          (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null,
+        ),
+      )
+      .toBe("profile-change");
+    expect(
+      await chess(page, (api) => api.strategicFitLifecycle().current_result?.report_id),
+    ).not.toBe(beforeProfile);
+  },
+);
 
 test("real canonical analysis stays current through navigation and refreshes profile and document changes", async ({
   page,
@@ -339,7 +344,10 @@ test("worker failure is explicit and retry executes a fresh current-color snapsh
 
 test("offline opening data completes as native degraded evidence rather than a fabricated verdict", async ({
   page,
+  allowPageFaults,
 }) => {
+  // Aborting the opening data is the point of the test.
+  allowPageFaults(/^Failed to load resource: net::ERR_FAILED .*\/openings\.tsv/);
   await page.route("**/openings.tsv", (route) => route.abort());
   await bootstrap(page);
   await loadExplicitProfile(page);
