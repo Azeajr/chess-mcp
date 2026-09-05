@@ -25,9 +25,10 @@ for (const fails of [false, true]) {
         withFakeClock(); // teardown must also allow the next test to enable fake timers
       });
     `;
+    // The assertions below parse TAP; Node versions differ in their default reporter.
     const result = spawnSync(
       process.execPath,
-      ["--import", "tsx", "--input-type=module", "-e", script],
+      ["--test-reporter=tap", "--import", "tsx", "--input-type=module", "-e", script],
       {
         encoding: "utf8",
         timeout: 10_000,
